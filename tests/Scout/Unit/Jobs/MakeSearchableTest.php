@@ -93,6 +93,14 @@ class MakeSearchableTest extends ScoutTestCase
         );
     }
 
+    public function testUniqueIdDiffersForDifferentModels(): void
+    {
+        $this->assertNotSame(
+            (new MakeSearchableUniquely(Collection::make([$this->model(1), $this->model(2)])))->uniqueId(),
+            (new MakeSearchableUniquely(Collection::make([$this->model(3), $this->model(4)])))->uniqueId()
+        );
+    }
+
     public function testUniqueIdDiffersForDifferentModelClasses(): void
     {
         $first = Collection::make([$this->model(1)]);

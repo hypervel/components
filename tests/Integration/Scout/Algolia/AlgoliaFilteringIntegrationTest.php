@@ -99,26 +99,26 @@ class AlgoliaFilteringIntegrationTest extends AlgoliaScoutIntegrationTestCase
     public function testComparisonFiltersAndEscapedStringValuesReachAlgolia(): void
     {
         $models = SearchableModel::withoutSyncingToSearch(fn () => new EloquentCollection([
-            SearchableModel::create(['id' => 101, 'title' => 'A "quoted" \ guide', 'body' => 'Body']),
-            SearchableModel::create(['id' => 102, 'title' => 'Other', 'body' => 'Body']),
-            SearchableModel::create(['id' => 103, 'title' => 'Third', 'body' => 'Body']),
+            SearchableModel::create(['id' => 35, 'title' => 'Taylor Otwell', 'body' => 'Body']),
+            SearchableModel::create(['id' => 30, 'title' => 'A "quoted" \ guide', 'body' => 'Body']),
         ]));
 
         $this->engine->update($models);
-        $this->pollSearch($models->first()->searchableAs(), '', 3);
+        $this->pollSearch($models->first()->searchableAs(), '', 2);
 
-        $results = SearchableModel::search('')
-            ->where('id', '>', 101)
-            ->where('id', '!=', 103)
-            ->get();
+        $this->assertSame([35], SearchableModel::search('')->where('id', '>', 30)->get()->pluck('id')->all());
+        $this->assertEqualsCanonicalizing([35, 30], SearchableModel::search('')->where('id', '>=', 30)->get()->pluck('id')->all());
 
-        $this->assertSame([102], $results->pluck('id')->all());
+        $this->assertSame([30], SearchableModel::search('')->where('id', '<', 35)->get()->pluck('id')->all());
+        $this->assertEqualsCanonicalizing([35, 30], SearchableModel::search('')->where('id', '<=', 35)->get()->pluck('id')->all());
 
-        $results = SearchableModel::search('')
-            ->where('title', 'A "quoted" \ guide')
-            ->get();
+        $this->assertSame([30], SearchableModel::search('')->where('id', '!=', 35)->get()->pluck('id')->all());
+        $this->assertSame([35], SearchableModel::search('')->where('id', '!=', 30)->get()->pluck('id')->all());
 
-        $this->assertSame([101], $results->pluck('id')->all());
+        $this->assertSame([35], SearchableModel::search('')->where('id', '>', 30)->where('id', '<', 40)->get()->pluck('id')->all());
+        $this->assertSame([30], SearchableModel::search('')->where('id', '>', 25)->where('id', '<', 35)->get()->pluck('id')->all());
+
+        $this->assertSame([30], SearchableModel::search('')->where('title', 'A "quoted" \ guide')->get()->pluck('id')->all());
     }
 
     public function testBackedEnumsRetainTheirNativeFilterValues(): void

@@ -193,8 +193,9 @@ class ReverbTestCase extends TestCase
         string $appId = '123456',
         string $key = 'reverb-key',
         string $secret = 'reverb-secret',
+        ?int $timestamp = null,
     ): TestResponse {
-        $uri = $this->buildSignedUri('GET', $path, '', $appId, $key, $secret);
+        $uri = $this->buildSignedUri('GET', $path, '', $appId, $key, $secret, $timestamp);
 
         return $this->dispatchThroughReverbRouter(
             Request::create($uri, 'GET')
@@ -213,10 +214,11 @@ class ReverbTestCase extends TestCase
         string $appId = '123456',
         string $key = 'reverb-key',
         string $secret = 'reverb-secret',
+        ?int $timestamp = null,
     ): TestResponse {
         $body = $data !== null ? json_encode($data) : '';
 
-        $uri = $this->buildSignedUri('POST', $path, $body, $appId, $key, $secret);
+        $uri = $this->buildSignedUri('POST', $path, $body, $appId, $key, $secret, $timestamp);
 
         return $this->dispatchThroughReverbRouter(
             Request::create($uri, 'POST', server: [
@@ -283,8 +285,9 @@ class ReverbTestCase extends TestCase
         string $appId,
         string $key,
         string $secret,
+        ?int $timestamp = null,
     ): string {
-        $timestamp = time();
+        $timestamp ??= time();
 
         // Separate existing query params from path
         $queryString = Str::contains($path, '?') ? Str::after($path, '?') : '';

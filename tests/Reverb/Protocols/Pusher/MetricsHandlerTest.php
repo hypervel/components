@@ -375,25 +375,45 @@ class MetricsHandlerTest extends ReverbTestCase
                 'exists' => true,
                 'presence' => true,
                 'users' => [
-                    ['user_id' => 'one', 'user_info' => ['name' => 'Taylor']],
-                    ['user_id' => 'two', 'user_info' => ['name' => 'Abigail']],
+                    ['user_id' => 1, 'user_info' => ['name' => 'Joe']],
+                    ['user_id' => 2, 'user_info' => ['name' => 'Jane']],
                 ],
             ],
             [
                 'exists' => true,
                 'presence' => true,
                 'users' => [
-                    ['user_id' => 'one', 'user_info' => ['name' => 'Taylor']],
-                    ['user_id' => 'three', 'user_info' => ['name' => 'Nuno']],
+                    ['user_id' => '2', 'user_info' => ['name' => 'Jane']],
+                    ['user_id' => 3, 'user_info' => ['name' => 'Jim']],
+                    ['user_id' => 4, 'user_info' => []],
                 ],
+            ],
+            [
+                'exists' => false,
+                'presence' => false,
+                'users' => [],
             ],
         ]);
 
-        $result = $handler->gather($app, 'presence', ['channel' => 'presence-test']);
+        $this->assertSame([
+            'exists' => true,
+            'presence' => true,
+            'users' => [
+                ['user_id' => 1, 'user_info' => ['name' => 'Joe']],
+                ['user_id' => 2, 'user_info' => ['name' => 'Jane']],
+                ['user_id' => 3, 'user_info' => ['name' => 'Jim']],
+                ['user_id' => 4, 'user_info' => []],
+            ],
+        ], $handler->gather($app, 'presence', ['channel' => 'presence-test']));
+    }
 
-        $this->assertTrue($result['exists']);
-        $this->assertTrue($result['presence']);
-        $this->assertSame(['one', 'two', 'three'], array_column($result['users'], 'user_id'));
+    public function testScalingGatherPresenceForAChannelNoServerHas(): void
+    {
+        $app = $this->app->make(ApplicationProvider::class)->all()->first();
+        $absent = ['exists' => false, 'presence' => false, 'users' => []];
+        $handler = $this->scalingMetricsHandler([$absent, $absent]);
+
+        $this->assertSame($absent, $handler->gather($app, 'presence', ['channel' => 'presence-test']));
     }
 
     public function testUnscaledMultiWorkerGatherIncludesLocalAndSiblingResponses(): void

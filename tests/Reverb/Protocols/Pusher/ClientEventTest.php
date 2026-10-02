@@ -340,7 +340,7 @@ class ClientEventTest extends ReverbTestCase
 
         $connection = new FakeConnection;
 
-        $this->channelConnectionManager->shouldNotReceive('hydratedConnections');
+        $this->channelConnectionManager->shouldNotReceive('all');
 
         ClientEvent::handle(
             $connection,

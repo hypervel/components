@@ -240,7 +240,10 @@ abstract class CacheFunnelTestCase extends TestCase
                 $this->markTestSkipped('This cache store does not return refreshable funnel leases.');
             }
 
-            usleep(1_100_000);
+            // Whole-second stores can report the same lifetime before and after
+            // the refresh when a second ends between the reads, unless at least
+            // two seconds have passed since acquisition.
+            usleep(2_100_000);
 
             $decayedLifetime = $lease->getRemainingLifetime();
             $this->assertNotNull($decayedLifetime);

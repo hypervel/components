@@ -164,8 +164,70 @@ class RedisServerTest extends ReverbRedisIntegrationTestCase
         $this->assertNotNull($message, 'Client one did not receive member_added for user 2');
         $this->assertSame('User 2', $this->decodeEventData($message)['user_info']['name']);
 
+        $this->disconnect($clientTwo);
+
+        $message = $this->receiveMemberRemoved($clientOne, 2);
+        $this->assertNotNull($message, 'Client one did not receive member_removed for user 2');
+
+        $this->disconnect($clientOne);
+    }
+
+    public function testIncludesExistingMembersInSubscriptionSucceededWhenScaling(): void
+    {
+        ['client' => $clientOne, 'socketId' => $socketIdOne] = $this->connect();
+        $this->subscribe($clientOne, $socketIdOne, 'presence-redis-existing-members-channel', [
+            'user_id' => 1,
+            'user_info' => ['name' => 'User 1'],
+        ]);
+
+        ['client' => $clientTwo, 'socketId' => $socketIdTwo] = $this->connect();
+        $response = $this->subscribe($clientTwo, $socketIdTwo, 'presence-redis-existing-members-channel', [
+            'user_id' => 2,
+            'user_info' => ['name' => 'User 2'],
+        ]);
+
+        $message = $this->decodeEventMessage($response);
+        $this->assertSame('pusher_internal:subscription_succeeded', $message['event']);
+        $this->assertSame([
+            'presence' => [
+                'count' => 2,
+                'ids' => [1, 2],
+                'hash' => [1 => ['name' => 'User 1'], 2 => ['name' => 'User 2']],
+            ],
+        ], $this->decodeEventData($message));
+
         $this->disconnect($clientOne);
         $this->disconnect($clientTwo);
+    }
+
+    public function testDoesNotCacheInternalEventsOnAPresenceCacheChannelWhenScaling(): void
+    {
+        ['client' => $clientOne, 'socketId' => $socketIdOne] = $this->connect();
+        $this->subscribe($clientOne, $socketIdOne, 'presence-cache-redis-internal-channel', [
+            'user_id' => 1,
+            'user_info' => ['name' => 'User 1'],
+        ]);
+
+        ['client' => $clientTwo, 'socketId' => $socketIdTwo] = $this->connect();
+        $this->subscribe($clientTwo, $socketIdTwo, 'presence-cache-redis-internal-channel', [
+            'user_id' => 2,
+            'user_info' => ['name' => 'User 2'],
+        ]);
+
+        $this->assertNotNull($this->receiveMemberAdded($clientOne, 2), 'Client one did not receive member_added for user 2');
+
+        // A cached member event would be replayed to the next subscriber instead of a cache miss.
+        ['client' => $clientThree, 'socketId' => $socketIdThree] = $this->connect();
+        $this->subscribe($clientThree, $socketIdThree, 'presence-cache-redis-internal-channel', [
+            'user_id' => 3,
+            'user_info' => ['name' => 'User 3'],
+        ]);
+
+        $this->assertNotNull($this->receiveEvent($clientThree, 'pusher:cache_miss'), 'Client three did not receive a cache miss');
+
+        $this->disconnect($clientOne);
+        $this->disconnect($clientTwo);
+        $this->disconnect($clientThree);
     }
 
     // ── HTTP API with Redis scaling ────────────────────────────────────

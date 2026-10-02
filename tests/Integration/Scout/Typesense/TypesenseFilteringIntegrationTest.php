@@ -118,18 +118,22 @@ class TypesenseFilteringIntegrationTest extends TypesenseScoutIntegrationTestCas
 
     public function testComparisonFiltersReachTypesense(): void
     {
-        TypesenseSearchableModel::create(['id' => 501, 'title' => 'First', 'body' => 'Body']);
-        TypesenseSearchableModel::create(['id' => 502, 'title' => 'Second', 'body' => 'Body']);
-        TypesenseSearchableModel::create(['id' => 503, 'title' => 'Third', 'body' => 'Body']);
+        TypesenseSearchableModel::create(['id' => 35, 'title' => 'Taylor Otwell', 'body' => 'Body']);
+        TypesenseSearchableModel::create(['id' => 30, 'title' => 'Abigail Otwell', 'body' => 'Body']);
 
         $this->engine->update(TypesenseSearchableModel::query()->get());
 
-        $results = TypesenseSearchableModel::search('')
-            ->where('ranking', '>', 501)
-            ->where('ranking', '!=', 503)
-            ->get();
+        $this->assertSame([35], TypesenseSearchableModel::search('')->where('ranking', '>', 30)->get()->pluck('id')->all());
+        $this->assertEqualsCanonicalizing([35, 30], TypesenseSearchableModel::search('')->where('ranking', '>=', 30)->get()->pluck('id')->all());
 
-        $this->assertSame([502], $results->pluck('id')->all());
+        $this->assertSame([30], TypesenseSearchableModel::search('')->where('ranking', '<', 35)->get()->pluck('id')->all());
+        $this->assertEqualsCanonicalizing([35, 30], TypesenseSearchableModel::search('')->where('ranking', '<=', 35)->get()->pluck('id')->all());
+
+        $this->assertSame([30], TypesenseSearchableModel::search('')->where('ranking', '!=', 35)->get()->pluck('id')->all());
+        $this->assertSame([35], TypesenseSearchableModel::search('')->where('ranking', '!=', 30)->get()->pluck('id')->all());
+
+        $this->assertSame([35], TypesenseSearchableModel::search('')->where('ranking', '>', 30)->where('ranking', '<', 40)->get()->pluck('id')->all());
+        $this->assertSame([30], TypesenseSearchableModel::search('')->where('ranking', '>', 25)->where('ranking', '<', 35)->get()->pluck('id')->all());
     }
 
     public function testBackedEnumsRetainTheirNativeFilterValues(): void

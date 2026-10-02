@@ -322,6 +322,37 @@ class ServerHandshakeTest extends TestCase
         $this->assertArrayNotHasKey(42, WebSocketContext::getStorage());
     }
 
+    public function testUnsupportedWebSocketVersionIsRejectedBeforeRouting(): void
+    {
+        $sentEvent = null;
+        $events = new Dispatcher;
+        $events->listen(ResponseSent::class, function (ResponseSent $event) use (&$sentEvent): void {
+            $sentEvent = $event;
+        });
+        $container = $this->container($events);
+        $container->shouldReceive('make')->once()->with(Security::class)->andReturn(new Security);
+        $container->shouldReceive('make')->once()->with(SafeCaller::class)->andReturn(new SafeCaller($container));
+        $container->shouldReceive('make')->once()->with(WebSocketExceptionHandler::class)->andReturn(
+            new WebSocketExceptionHandler(m::mock(StdoutLoggerInterface::class)->shouldIgnoreMissing()),
+        );
+        $router = m::mock(Router::class);
+        $router->shouldNotReceive('dispatchToCallback');
+        $nativeServer = m::mock(SwooleWebSocketServer::class);
+        $nativeServer->shouldNotReceive('isEstablished');
+
+        (new HandshakeLifecycleServer($container, $router, $nativeServer))->onHandshake(
+            $this->request(version: '8'),
+            $this->response(Response::HTTP_UPGRADE_REQUIRED, 'sec-websocket-version is unsupported!'),
+        );
+
+        $this->assertInstanceOf(ResponseSent::class, $sentEvent);
+        $this->assertSame('websocket', $sentEvent->response->headers->get('Upgrade'));
+        $this->assertSame('Upgrade', $sentEvent->response->headers->get('Connection'));
+        $this->assertSame(Security::VERSION, $sentEvent->response->headers->get('Sec-WebSocket-Version'));
+        $this->assertNull(FdCollector::get(42));
+        $this->assertArrayNotHasKey(42, WebSocketContext::getStorage());
+    }
+
     public function testConnectionClosedDuringEmissionIsNotPublishedAfterward(): void
     {
         $container = $this->container();
@@ -485,7 +516,7 @@ class ServerHandshakeTest extends TestCase
     /**
      * Create a native handshake request.
      */
-    protected function request(): SwooleRequest
+    protected function request(string $version = Security::VERSION): SwooleRequest
     {
         $request = m::mock(SwooleRequest::class);
         $request->fd = 42;
@@ -496,6 +527,7 @@ class ServerHandshakeTest extends TestCase
         $request->header = [
             'host' => 'example.com',
             Security::SEC_WEBSOCKET_KEY => 'dGhlIHNhbXBsZSBub25jZQ==',
+            Security::SEC_WEBSOCKET_VERSION => $version,
         ];
         $request->get = [];
         $request->post = [];

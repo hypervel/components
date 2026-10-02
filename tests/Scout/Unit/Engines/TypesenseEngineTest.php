@@ -245,6 +245,27 @@ class TypesenseEngineTest extends TestCase
         $this->createPartialEngineWithConfig($client)->update(new EloquentCollection([$model]));
     }
 
+    public function testUpdateMethodWithEmplaceAction(): void
+    {
+        $client = m::mock(TypesenseClient::class);
+        $collections = m::mock(Collections::class);
+        $collection = m::mock(TypesenseCollection::class);
+        $documents = m::mock(Documents::class);
+
+        $client->shouldReceive('getCollections')->once()->andReturn($collections);
+        $collections->shouldReceive('offsetGet')->with('write_index')->once()->andReturn($collection);
+        $collections->shouldReceive('offsetUnset')->with('write_index')->once();
+        $collection->shouldReceive('getDocuments')->once()->andReturn($documents);
+        $documents->shouldReceive('import')
+            ->once()
+            ->with([['id' => 1, 'title' => 'Scout']], ['action' => 'emplace'])
+            ->andReturn([['success' => true, 'document' => '{"id":1}']]);
+
+        $engine = $this->createPartialEngineWithConfig($client, config: ['typesense.import_action' => 'emplace']);
+
+        $engine->update(new EloquentCollection([new TypesenseLifecycleModel]));
+    }
+
     public function testUpdatePreparesTheFinalSearchableDocument(): void
     {
         $client = m::mock(TypesenseClient::class);
@@ -1225,10 +1246,13 @@ class TypesenseEngineTest extends TestCase
 
     /**
      * Create a partial engine mock that stubs getConfig to avoid container dependency.
+     *
+     * @param array<string, mixed> $config
      */
     protected function createPartialEngineWithConfig(
         ?MockInterface $client = null,
         int $maxTotalResults = 1000,
+        array $config = [],
     ): MockInterface&TypesenseEngine {
         $client = $client ?? m::mock(TypesenseClient::class);
 
@@ -1238,14 +1262,7 @@ class TypesenseEngineTest extends TestCase
             ->makePartial();
 
         $engine->shouldReceive('getConfig')
-            ->andReturnUsing(function (string $key, mixed $default = null) {
-                // Return empty array for model-settings (no custom search params)
-                if (str_starts_with($key, 'typesense.model-settings.')) {
-                    return $default;
-                }
-
-                return $default;
-            });
+            ->andReturnUsing(fn (string $key, mixed $default = null): mixed => $config[$key] ?? $default);
 
         return $engine;
     }

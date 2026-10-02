@@ -101,6 +101,26 @@ class PresenceChannelTest extends ReverbTestCase
         ], $channel->data());
     }
 
+    public function testCanReturnDataForAConnectionWithoutUserInfo(): void
+    {
+        $channel = $this->channels()->findOrCreate('presence-test-channel');
+
+        $connections = [
+            collect(static::factory(data: ['user_id' => 1]))->first(),
+            // Subscription data decodes "user_info": {} as an empty array.
+            collect(static::factory(data: ['user_id' => 2, 'user_info' => []]))->first(),
+        ];
+
+        $this->channelConnectionManager->shouldReceive('all')
+            ->twice()
+            ->andReturn($connections);
+
+        $this->assertSame(
+            '{"presence":{"count":2,"ids":[1,2],"hash":{"1":{},"2":{}}}}',
+            json_encode($channel->data())
+        );
+    }
+
     public function testSendsNotificationOfSubscription(): void
     {
         $channel = $this->channels()->findOrCreate('presence-test-channel');

@@ -27,7 +27,7 @@ interface SearchableInterface
      *
      * @return Builder<Model&static>
      */
-    public static function search(string $query = '', ?Closure $callback = null): Builder;
+    public static function search(?string $query = '', ?Closure $callback = null): Builder;
 
     /**
      * Get the requested models from an array of object IDs.
