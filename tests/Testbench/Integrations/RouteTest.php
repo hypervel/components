@@ -21,6 +21,7 @@ use PHPUnit\Framework\Attributes\Test;
 use Workbench\App\Http\Controllers\ExampleController;
 
 #[WithConfig('app.key', 'AckfSECXIvnK5r28GVIWUAxmbBSjTsmF')]
+#[WithConfig('app.url', 'http://localhost:8000')]
 class RouteTest extends TestCase
 {
     #[Override]
@@ -164,7 +165,7 @@ class RouteTest extends TestCase
         $response = $this->call('GET', route('pass'));
 
         $response->assertStatus(200);
-        $this->assertEquals('http://localhost/goodbye', $response->getContent());
+        $this->assertEquals('http://localhost:8000/goodbye', $response->getContent());
     }
 
     #[Test]

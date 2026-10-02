@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Fortify;
 use Carbon\FactoryImmutable;
 use Hypervel\Database\Eloquent\MissingAttributeException;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Fortify\Events\RecoveryCodeReplaced;
 use Hypervel\Fortify\Events\TwoFactorAuthenticationChallenged;
 use Hypervel\Fortify\Events\TwoFactorAuthenticationFailed;
 use Hypervel\Fortify\Events\ValidTwoFactorAuthenticationCodeProvided;
@@ -310,6 +311,7 @@ class AuthenticatedSessionControllerWithTwoFactorTest extends TestCase
         ]);
 
         Event::assertDispatched(ValidTwoFactorAuthenticationCodeProvided::class);
+        Event::assertDispatchedTimes(RecoveryCodeReplaced::class, 1);
 
         $response->assertRedirect('/home')
             ->assertSessionMissing('login.id');

@@ -29,9 +29,11 @@
     - [Broadcasting](#broadcasting)
     - [JSON:API Resources](#jsonapi-resources)
     - [CSRF Protection](#csrf-protection)
+    - [Fortify](#fortify)
     - [Scout](#scout)
     - [JSON Schema](#json-schema)
     - [Validation](#validation)
+    - [Request and Input Data](#request-and-input-data)
     - [Data Objects](#data-objects)
     - [Rate Limiting](#rate-limiting)
     - [Pagination](#pagination)
@@ -107,7 +109,7 @@ When porting imports, update the import list first, then read the class again an
 
 For applications, use the `composer.json` file from a fresh Hypervel application as your starting point. Do not copy a Laravel application's framework dependencies, Composer scripts, or bootstrap files over the Hypervel skeleton.
 
-For packages, replace `laravel/framework` and individual `illuminate/*` requirements with the Hypervel components the package actually uses. Replace `orchestra/testbench` with `hypervel/testbench` for package tests that boot an application, or require `hypervel/testing` for package unit tests that do not. Testbench provides Workbench itself. Require `hypervel/workbench` in place of `orchestra/workbench` only for its authentication pages and preview login helpers. The `workbench:build`, `workbench:devtool` and `workbench:install` commands are not available; use Testbench's `package:install` command to set up Workbench. If a third-party dependency requires Laravel or Illuminate components, use a Hypervel-compatible version or port that integration; do not retain Illuminate packages merely to fill missing framework classes.
+For packages, replace `laravel/framework` and individual `illuminate/*` requirements with the Hypervel components the package actually uses. Replace `orchestra/testbench` with `hypervel/testbench` for package tests that boot an application, or require `hypervel/testing` for package unit tests that do not. Testbench provides Workbench itself. Require `hypervel/workbench` in place of `orchestra/workbench` only for its authentication pages, preview login helpers and `workbench:*` command aliases. The `workbench:build`, `workbench:devtool` and `workbench:install` commands are not available; use Testbench's `package:install` command to set up Workbench. If a third-party dependency requires Laravel or Illuminate components, use a Hypervel-compatible version or port that integration; do not retain Illuminate packages merely to fill missing framework classes.
 
 Laravel package discovery metadata under `extra.laravel` does not register providers in Hypervel. Move Hypervel provider discovery to `extra.hypervel.providers` as described in the [package development documentation](/docs/{{version}}/packages#package-discovery).
 
@@ -526,6 +528,13 @@ Mercure applications must configure a standalone HTTP hub. Hypervel runs on Swoo
 
 Replace references to Laravel's deprecated `VerifyCsrfToken` and `ValidateCsrfToken` middleware with `Hypervel\Foundation\Http\Middleware\PreventRequestForgery`. If your application extends either class, extend `PreventRequestForgery` instead and declare any overridden exclusions as `protected array $except`. Replace `validateCsrfTokens()` configuration calls with `preventRequestForgery()`. See the [CSRF protection documentation](/docs/{{version}}/csrf).
 
+<a name="fortify"></a>
+### Fortify
+
+User models that use Fortify's `TwoFactorAuthenticatable` trait must also implement `Hypervel\Fortify\Contracts\TwoFactorAuthenticationUser`, or two-factor challenges will fail. See [two-factor authentication](/docs/{{version}}/fortify#two-factor-authentication).
+
+Fortify ignores Laravel's `fortify.passwords` setting. Declare the password reset broker with the guard's `passwords` key in `config/auth.php` instead. See [password resets](/docs/{{version}}/fortify#password-resets). Laravel's deprecated `Laravel\Fortify\Rules\Password` rule is not available; use `Hypervel\Validation\Rules\Password`.
+
 <a name="scout"></a>
 ### Scout
 
@@ -724,6 +733,8 @@ abstract class TestCase extends BaseTestCase
 }
 ```
 
+Add Hypervel's PHPUnit extension to the package's `phpunit.xml` file. Orchestra Testbench resets framework state from its test case, while Hypervel resets it from this extension. See [Test State Cleanup](/docs/{{version}}/testing#test-state-cleanup).
+
 For package testing details, see the [Testbench documentation](/docs/{{version}}/testbench).
 
 <a name="testing-coroutine-isolation"></a>
@@ -762,7 +773,7 @@ The `usleep` call gives the runtime an opportunity to switch between coroutines 
 
 When porting an application, start from a fresh Hypervel application skeleton and move code over intentionally. Hypervel has a familiar application structure, but it is not a drop-in replacement for a Laravel `public/index.php` application.
 
-Do not replace the Hypervel skeleton's `composer.json`, `bootstrap/app.php`, `config` directory, or `.env.example` with their Laravel counterparts. Move application providers into `bootstrap/providers.php`, move routes into Hypervel's `routes` files, and configure middleware through the Hypervel `bootstrap/app.php` file. Transfer environment values into the corresponding Hypervel configuration keys instead of copying the Laravel environment file unchanged.
+Do not replace the Hypervel skeleton's `composer.json`, `bootstrap/app.php`, `config` directory, `.env.example`, or `phpunit.xml` with their Laravel counterparts. Move application providers into `bootstrap/providers.php`, move routes into Hypervel's `routes` files, and configure middleware through the Hypervel `bootstrap/app.php` file. Transfer environment values into the corresponding Hypervel configuration keys instead of copying the Laravel environment file unchanged.
 
 Hypervel runs its Swoole HTTP server using `php artisan serve` and does not use `public/index.php` as its HTTP entry point. Review the [deployment documentation](/docs/{{version}}/deployment) before adapting web server or process-monitor configuration.
 

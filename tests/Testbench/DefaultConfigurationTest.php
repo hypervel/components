@@ -176,6 +176,16 @@ class DefaultConfigurationTest extends TestCase
     }
 
     #[Test]
+    public function itPopulatesExpectedHashingDefaults(): void
+    {
+        $this->assertSame([
+            'rounds' => Env::has('TESTBENCH_PACKAGE_TESTER') ? 12 : 10,
+            'verify' => true,
+            'limit' => null,
+        ], $this->app->make('config')->array('hashing.bcrypt'));
+    }
+
+    #[Test]
     public function itPopulatesExpectedRedisConnections(): void
     {
         $connections = $this->app->make('config')->array('database.redis');

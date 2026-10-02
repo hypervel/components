@@ -6,6 +6,7 @@ namespace Hypervel\Testbench\Foundation\Console\Actions;
 
 use Hypervel\Console\View\Components\Factory as ComponentsFactory;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Testbench\Console\Task;
 use RuntimeException;
 
 use function Hypervel\Filesystem\join_paths;
@@ -15,7 +16,7 @@ use function Hypervel\Testbench\transform_realpath_to_relative;
 /**
  * @api
  */
-class GeneratesFile
+class GeneratesFile extends Action
 {
     /**
      * Construct a new action instance.
@@ -26,7 +27,9 @@ class GeneratesFile
         public readonly bool $force = false,
         public ?string $workingPath = null,
         public readonly bool $confirmation = false,
+        bool $pretending = false,
     ) {
+        $this->pretending = $pretending;
     }
 
     /**
@@ -38,40 +41,46 @@ class GeneratesFile
             return;
         }
 
-        if (! $this->filesystem->exists($from)) {
-            $this->components?->twoColumnDetail(
-                sprintf('Source file [%s] doesn\'t exist', transform_realpath_to_relative($from, $this->workingPath)),
-                '<fg=yellow;options=bold>SKIPPED</>',
-            );
-
-            return;
-        }
-
         $location = transform_realpath_to_relative($to, $this->workingPath);
 
-        if (! $this->force && $this->filesystem->exists($to)) {
-            $this->components?->twoColumnDetail(
-                sprintf('File [%s] already exists', $location),
-                '<fg=yellow;options=bold>SKIPPED</>',
-            );
+        Task::action(function () use ($from, $to): bool {
+            if (! $this->filesystem->copy($from, $to)) {
+                throw new RuntimeException("Unable to generate file [{$to}].");
+            }
 
-            return;
-        }
+            $gitKeepFile = join_paths(dirname($to), '.gitkeep');
 
-        if ($this->confirmation === true && confirm(sprintf('Generate [%s] file?', $location)) === false) {
-            return;
-        }
+            if ($this->filesystem->exists($gitKeepFile)) {
+                $this->filesystem->delete($gitKeepFile);
+            }
 
-        if (! $this->filesystem->copy($from, $to)) {
-            throw new RuntimeException("Unable to generate file [{$to}].");
-        }
+            return true;
+        })->response(function (bool $generated, bool $pretending) use ($location): void {
+            $this->components?->task(sprintf($pretending ? 'File [%s] would be generated' : 'File [%s] generated', $location));
+        })->requirements(function () use ($from, $to, $location): bool {
+            if (! $this->filesystem->exists($from)) {
+                $this->components?->twoColumnDetail(
+                    sprintf('Source file [%s] doesn\'t exist', transform_realpath_to_relative($from, $this->workingPath)),
+                    '<fg=yellow;options=bold>SKIPPED</>',
+                );
 
-        $gitKeepFile = join_paths(dirname($to), '.gitkeep');
+                return false;
+            }
 
-        if ($this->filesystem->exists($gitKeepFile)) {
-            $this->filesystem->delete($gitKeepFile);
-        }
+            if (! $this->force && $this->filesystem->exists($to)) {
+                $this->components?->twoColumnDetail(
+                    sprintf('File [%s] already exists', $location),
+                    '<fg=yellow;options=bold>SKIPPED</>',
+                );
 
-        $this->components?->task(sprintf('File [%s] generated', $location));
+                return false;
+            }
+
+            if ($this->confirmation === true && confirm(sprintf('Generate [%s] file?', $location)) === false) {
+                return false;
+            }
+
+            return true;
+        })->dispatch($this->pretending);
     }
 }

@@ -59,6 +59,26 @@ class DeleteDirectoriesTest extends TestCase
     }
 
     #[Test]
+    public function itCanPretendToDeleteDirectories(): void
+    {
+        $filesystem = m::mock(Filesystem::class);
+        $components = m::mock(ComponentsFactory::class);
+
+        $filesystem->shouldReceive('isDirectory')->once()->with('a')->andReturnTrue()
+            ->shouldReceive('isDirectory')->once()->with('b')->andReturnFalse()
+            ->shouldReceive('deleteDirectory')->never();
+
+        $components->shouldReceive('task')->once()->with('Directory [a] would be deleted')->andReturnNull()
+            ->shouldReceive('twoColumnDetail')->once()->with('Directory [b] doesn\'t exist', '<fg=yellow;options=bold>SKIPPED</>')->andReturnNull();
+
+        (new DeleteDirectories(
+            filesystem: $filesystem,
+            components: $components,
+            pretending: true,
+        ))->handle(['a', 'b']);
+    }
+
+    #[Test]
     public function itAttemptsEveryDirectoryBeforeReportingDeletionFailures(): void
     {
         $filesystem = m::mock(Filesystem::class);

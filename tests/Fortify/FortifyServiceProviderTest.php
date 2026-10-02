@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Fortify;
 
 use Closure;
 use Hypervel\Contracts\Support\Responsable;
+use Hypervel\Fortify\Contracts\CreatesNewUsers;
 use Hypervel\Fortify\Contracts\RedirectsIfTwoFactorAuthenticatable;
 use Hypervel\Fortify\Contracts\TwoFactorAuthenticationProvider as TwoFactorAuthenticationProviderContract;
 use Hypervel\Fortify\Contracts\TwoFactorDisabledResponse as TwoFactorDisabledResponseContract;
@@ -22,6 +23,7 @@ use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\Session\Store;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Tests\Fortify\Fixtures\FixedClock;
+use Mockery as m;
 use OTPHP\TOTP;
 use Psr\Clock\ClockInterface;
 use ReflectionClass;
@@ -200,6 +202,25 @@ class FortifyServiceProviderTest extends TestCase
         $instanceB = $this->app->make(RedirectsIfTwoFactorAuthenticatable::class);
 
         $this->assertNotSame($instanceA, $instanceB);
+    }
+
+    public function testActionsCanBeRegisteredWithNonClosureCallables(): void
+    {
+        $creator = m::mock(CreatesNewUsers::class);
+
+        Fortify::createUsersUsing(new class($creator) {
+            public function __construct(
+                private readonly CreatesNewUsers $creator,
+            ) {
+            }
+
+            public function __invoke(): CreatesNewUsers
+            {
+                return $this->creator;
+            }
+        });
+
+        $this->assertSame($creator, $this->app->make(CreatesNewUsers::class));
     }
 
     /**

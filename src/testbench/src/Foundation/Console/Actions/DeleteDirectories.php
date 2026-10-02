@@ -7,6 +7,7 @@ namespace Hypervel\Testbench\Foundation\Console\Actions;
 use Hypervel\Console\View\Components\Factory as ComponentsFactory;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\LazyCollection;
+use Hypervel\Testbench\Console\Task;
 use RuntimeException;
 
 use function Hypervel\Prompts\confirm;
@@ -16,7 +17,7 @@ use function Hypervel\Testbench\transform_realpath_to_relative;
 /**
  * @api
  */
-class DeleteDirectories
+class DeleteDirectories extends Action
 {
     /**
      * Construct a new action instance.
@@ -26,7 +27,9 @@ class DeleteDirectories
         public readonly ?ComponentsFactory $components = null,
         public ?string $workingPath = null,
         public readonly bool $confirmation = false,
+        bool $pretending = false,
     ) {
+        $this->pretending = $pretending;
     }
 
     /**
@@ -42,26 +45,34 @@ class DeleteDirectories
             ->each(function (string $directory) use (&$failures): void {
                 $location = transform_realpath_to_relative($directory, $this->workingPath);
 
-                if (! $this->filesystem->isDirectory($directory) && ! is_symlink($directory)) {
-                    $this->components?->twoColumnDetail(
-                        sprintf('Directory [%s] doesn\'t exist', $location),
-                        '<fg=yellow;options=bold>SKIPPED</>',
-                    );
+                Task::action(fn (): bool => $this->filesystem->deleteDirectory($directory))
+                    ->response(function (bool $deleted, bool $pretending) use (&$failures, $location): void {
+                        if (! $deleted) {
+                            $failures[] = $location;
 
-                    return;
-                }
+                            return;
+                        }
 
-                if ($this->confirmation === true && confirm(sprintf('Delete [%s] directory?', $location)) === false) {
-                    return;
-                }
+                        $this->components?->task(sprintf(
+                            $pretending ? 'Directory [%s] would be deleted' : 'Directory [%s] has been deleted',
+                            $location,
+                        ));
+                    })->requirements(function () use ($directory, $location): bool {
+                        if (! $this->filesystem->isDirectory($directory) && ! is_symlink($directory)) {
+                            $this->components?->twoColumnDetail(
+                                sprintf('Directory [%s] doesn\'t exist', $location),
+                                '<fg=yellow;options=bold>SKIPPED</>',
+                            );
 
-                if (! $this->filesystem->deleteDirectory($directory)) {
-                    $failures[] = $location;
+                            return false;
+                        }
 
-                    return;
-                }
+                        if ($this->confirmation === true && confirm(sprintf('Delete [%s] directory?', $location)) === false) {
+                            return false;
+                        }
 
-                $this->components?->task(sprintf('Directory [%s] has been deleted', $location));
+                        return true;
+                    })->dispatch($this->pretending);
             });
 
         if ($failures !== []) {

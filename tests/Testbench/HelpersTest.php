@@ -5,47 +5,82 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Testbench;
 
 use Composer\InstalledVersions;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application;
 use Hypervel\Testbench\Exceptions\ApplicationNotAvailableException;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Testing\ParallelTesting;
 use OutOfBoundsException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Runner\Version;
+use ReflectionProperty;
 use Symfony\Component\Process\Process;
 
 use function Hypervel\Support\php_binary;
 use function Hypervel\Testbench\hypervel_or_fail;
 use function Hypervel\Testbench\hypervel_version_compare;
+use function Hypervel\Testbench\join_paths;
 use function Hypervel\Testbench\package_path;
 use function Hypervel\Testbench\package_version_compare;
+use function Hypervel\Testbench\php_version_compare;
 use function Hypervel\Testbench\phpunit_version_compare;
+use function Hypervel\Testbench\uses_default_skeleton;
 
 class HelpersTest extends TestCase
 {
     #[Test]
     public function itCanCompareHypervelVersion(): void
     {
-        $hypervel = str_contains(Application::VERSION, '.') && substr_count(Application::VERSION, '.') === 1
-            ? Application::VERSION . '.0'
-            : Application::VERSION;
+        $hypervelVersion = Application::VERSION;
 
-        $this->assertSame(0, hypervel_version_compare($hypervel));
-        $this->assertTrue(hypervel_version_compare($hypervel, '=='));
+        $this->assertSame(0, hypervel_version_compare($hypervelVersion));
+        $this->assertTrue(hypervel_version_compare($hypervelVersion, '=='));
+    }
+
+    #[Test]
+    public function itCanComparePhpVersion(): void
+    {
+        $phpVersion = PHP_VERSION_ID === 80600 ? '8.6.0' : PHP_VERSION;
+
+        $this->assertSame(0, php_version_compare($phpVersion));
+        $this->assertTrue(php_version_compare($phpVersion, '=='));
     }
 
     #[Test]
     public function itCanComparePhpunitVersion(): void
     {
-        $version = Version::id();
+        $phpunitVersion = explode('-', Version::id(), 2)[0];
 
-        $phpunit = match (true) {
-            str_starts_with($version, '13.0-') => '13.0.0',
-            default => $version,
-        };
+        $this->assertSame(0, phpunit_version_compare($phpunitVersion));
+        $this->assertTrue(phpunit_version_compare($phpunitVersion, '=='));
+    }
 
-        $this->assertSame(0, phpunit_version_compare($phpunit));
-        $this->assertTrue(phpunit_version_compare($phpunit, '=='));
+    #[Test]
+    #[DataProvider('phpunitDevelopmentVersions')]
+    public function itComparesPhpunitDevelopmentVersionsAsTheirRelease(string $phpunitVersion): void
+    {
+        $pharVersion = new ReflectionProperty(Version::class, 'pharVersion');
+        $originalPharVersion = $pharVersion->getValue();
+        $pharVersion->setValue(null, $phpunitVersion);
+
+        try {
+            $this->assertSame(0, phpunit_version_compare('13.3.0'));
+            $this->assertTrue(phpunit_version_compare('13.4.0', '<'));
+        } finally {
+            $pharVersion->setValue(null, $originalPharVersion);
+        }
+    }
+
+    /**
+     * Get PHPUnit development version identifiers.
+     *
+     * @return iterable<string, array{string}>
+     */
+    public static function phpunitDevelopmentVersions(): iterable
+    {
+        yield 'without git' => ['13.3-dev'];
+        yield 'with git' => ['13.3-gabc1234'];
     }
 
     #[Test]
@@ -103,6 +138,29 @@ class HelpersTest extends TestCase
         $this->expectExceptionMessage(sprintf('Application is not available to run [%s]', __METHOD__));
 
         hypervel_or_fail(null);
+    }
+
+    #[Test]
+    public function itDetectsTheDefaultSkeletonFromTheApplicationBasePath(): void
+    {
+        $filesystem = new Filesystem;
+        $defaultBasePath = $this->app->basePath();
+        $customBasePath = ParallelTesting::tempDir('HelpersTest');
+        $filesystem->deleteDirectory($customBasePath);
+        $filesystem->makeDirectory(join_paths($customBasePath, 'bootstrap'), 0700, recursive: true);
+
+        try {
+            $this->assertTrue(uses_default_skeleton());
+            $this->assertFalse(uses_default_skeleton($customBasePath));
+
+            $this->app->setBasePath($customBasePath);
+
+            $this->assertFalse(uses_default_skeleton());
+            $this->assertTrue(uses_default_skeleton($defaultBasePath));
+        } finally {
+            $this->app->setBasePath($defaultBasePath);
+            $filesystem->deleteDirectory($customBasePath);
+        }
     }
 
     #[Test]

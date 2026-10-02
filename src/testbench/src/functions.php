@@ -162,8 +162,8 @@ function load_migration_paths(ApplicationContract $app, array|string $paths): vo
 /**
  * Get the path to the default skeleton application.
  *
- * Returns the path to the runtime copy of the workbench app used for testing.
- * This is set by Bootstrapper::bootstrap() via the BASE_PATH constant.
+ * Returns a path inside the active runtime skeleton, which Bootstrapper::bootstrap()
+ * sets through the BASE_PATH constant.
  *
  * @api
  *
@@ -187,11 +187,7 @@ function default_skeleton_path(array|string $path = ''): string|false
  */
 function uses_default_skeleton(?string $basePath = null): bool
 {
-    $basePath ??= default_skeleton_path() ?: null;
-
-    if ($basePath === null) {
-        return false;
-    }
+    $basePath ??= base_path();
 
     return realpath(join_paths($basePath, 'bootstrap', '.testbench-default-skeleton')) !== false;
 }
@@ -609,7 +605,7 @@ function hypervel_version_compare(string $version, ?string $operator = null): in
 }
 
 /**
- * Compare the installed PHPUnit version.
+ * Compare the running PHP version.
  *
  * @api
  *
@@ -617,21 +613,48 @@ function hypervel_version_compare(string $version, ?string $operator = null): in
  *
  * @param TOperator $operator
  * @return (TOperator is null ? int : bool)
+ *
+ * @throws UnexpectedValueException
+ */
+function php_version_compare(string $version, ?string $operator = null): int|bool
+{
+    $versionParser = new VersionParser;
+    // PHP 8.6 development and pre-release builds compare as 8.6.0.
+    $normalizedPhpVersion = $versionParser->normalize(PHP_VERSION_ID === 80600 ? '8.6.0' : PHP_VERSION);
+    $normalizedVersion = $versionParser->normalize($version);
+
+    if ($operator === null) {
+        return version_compare($normalizedPhpVersion, $normalizedVersion);
+    }
+
+    return version_compare($normalizedPhpVersion, $normalizedVersion, $operator);
+}
+
+/**
+ * Compare the installed PHPUnit version.
+ *
+ * Development builds compare as their release version.
+ *
+ * @api
+ *
+ * @template TOperator of null|string
+ *
+ * @param TOperator $operator
+ * @return (TOperator is null ? int : bool)
+ *
+ * @throws UnexpectedValueException
  */
 function phpunit_version_compare(string $version, ?string $operator = null): int|bool
 {
-    $currentVersion = Version::id();
-
-    $normalizedCurrentVersion = match (true) {
-        str_starts_with($currentVersion, '13.0-') => '13.0.0',
-        default => $currentVersion,
-    };
+    $versionParser = new VersionParser;
+    $normalizedPhpunitVersion = $versionParser->normalize(explode('-', Version::id(), 2)[0]);
+    $normalizedVersion = $versionParser->normalize($version);
 
     if ($operator === null) {
-        return version_compare($normalizedCurrentVersion, $version);
+        return version_compare($normalizedPhpunitVersion, $normalizedVersion);
     }
 
-    return version_compare($normalizedCurrentVersion, $version, $operator);
+    return version_compare($normalizedPhpunitVersion, $normalizedVersion, $operator);
 }
 
 /**

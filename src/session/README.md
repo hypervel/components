@@ -13,3 +13,5 @@ Documentation: https://hypervel.org/docs/session
 - Database sessions resolve connections by name in the current coroutine. Laravel's `SessionManager::getDatabaseConnection()` hook is not provided.
 - Hypervel's generated sessions table uses a nullable indexed string for `user_id`, supporting integer, UUID, ULID, and application-defined identifiers, together with a nullable `auth_provider` for provider-qualified ownership. Its `ip_address` uses the semantic IP column type, including PostgreSQL's native `inet` type.
 - `DatabaseSessionHandler::getDefaultPayload()` receives the session ID before the serialized data. Laravel's scalar `addUserInformation()` and `userId()` hooks are not provided because Hypervel stores the authentication provider and user ID as one ownership value.
+
+Ported from: https://github.com/laravel/framework/tree/master/src/Illuminate/Session

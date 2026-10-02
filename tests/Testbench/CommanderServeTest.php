@@ -12,6 +12,7 @@ use Hypervel\Tests\Testbench\Fixtures\ServeMasterReadyServiceProvider;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use PHPUnit\Framework\Attributes\Test;
+use Symfony\Component\Process\Exception\ProcessTimedOutException;
 use Symfony\Component\Process\Process;
 
 use function Hypervel\Support\php_binary;
@@ -105,8 +106,7 @@ class CommanderServeTest extends TestCase
             $this->assertFileExists($configurationFile . '.backup');
             $this->assertSame("APP_NAME=Interrupted\n", $filesystem->get($environmentFile));
 
-            posix_kill(-$pid, SIGINT);
-            $process->wait();
+            $this->interruptServeProcess($process);
 
             $this->assertSame(0, $process->getExitCode(), $this->combinedOutput($process));
 
@@ -182,8 +182,7 @@ class CommanderServeTest extends TestCase
             $this->assertSame('Synced from the package', $greeting);
             $this->assertTrue(is_link($reverseLink));
 
-            posix_kill(-$pid, SIGINT);
-            $process->wait();
+            $this->interruptServeProcess($process);
 
             $this->assertSame(0, $process->getExitCode(), $this->combinedOutput($process));
 
@@ -298,6 +297,29 @@ class CommanderServeTest extends TestCase
         $this->assertStringNotContainsString('TypeError', $output);
         $this->assertStringNotContainsString('ReloadDotenvAndConfig', $output);
         $this->assertStringNotContainsString('Cannot assign Hypervel\Support\Facades\Config', $output);
+    }
+
+    /**
+     * Interrupt the serve process group as a terminal would and wait for serve to exit.
+     */
+    private function interruptServeProcess(ProcessDecorator $process): void
+    {
+        $interruptedAt = microtime(true);
+
+        posix_kill(-$process->getPid(), SIGINT);
+
+        try {
+            $process->wait();
+        } catch (ProcessTimedOutException $exception) {
+            // The process timeout counts from startup, so report how much of it shutdown used.
+            $this->fail(sprintf(
+                "%s SIGINT was sent %.1f seconds after the process started, and the process was still running %.1f seconds later.\n%s",
+                $exception->getMessage(),
+                $interruptedAt - $process->getStartTime(),
+                microtime(true) - $interruptedAt,
+                $this->combinedOutput($process),
+            ));
+        }
     }
 
     /**

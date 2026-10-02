@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Fortify;
 
+use Hypervel\Contracts\Auth\StatefulGuard;
 use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Contracts\Config\Repository as Config;
 use Hypervel\Fortify\Actions\RedirectIfTwoFactorAuthenticatable;
@@ -78,6 +79,9 @@ class FortifyServiceProvider extends ServiceProvider
         });
 
         $this->app->scoped(RedirectsIfTwoFactorAuthenticatableContract::class, RedirectIfTwoFactorAuthenticatable::class);
+
+        // bind() so each resolution returns the guard selected for the current request.
+        $this->app->bind(StatefulGuard::class, static fn (): StatefulGuard => Fortify::guard());
     }
 
     /**

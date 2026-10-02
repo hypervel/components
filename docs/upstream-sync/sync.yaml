@@ -21,36 +21,36 @@ laravel/framework:
 
 laravel/prompts:
   branch: main
-  checked_through: null
-  last_reviewed_pr: null
-  sync_date: null
+  checked_through: 0afa781e5088144a6fb1882ab9cf6e5fb5c37652
+  last_reviewed_pr: 266
+  sync_date: '2026-10-01'
 
 orchestral/testbench-core:
   branch: 12.x
-  checked_through: null
-  last_reviewed_pr: null
-  sync_date: null
-  notes: The upstream laravel/ skeleton maps to src/testbench/hypervel/, whose config files keep only Testbench overrides; compare upstream skeleton config changes with src/foundation/config, which is merged underneath. The skeleton and the workbench fixtures each keep a minimal welcome view instead of Laravel's welcome page.
+  checked_through: 7bcccbd9502169b10bcfdf1554f50e894029acce
+  last_reviewed_pr: 427
+  sync_date: '2026-10-02'
+  notes: The upstream laravel/ skeleton maps to src/testbench/hypervel/, whose config files keep only Testbench overrides; compare upstream skeleton config changes with src/foundation/config, which is merged underneath. The skeleton and the workbench fixtures each keep a minimal welcome view instead of Laravel's welcome page. orchestra/sidekick is not tracked separately; the helpers Testbench uses are ported into Hypervel\Testbench or the framework, so reconcile them with the Sidekick release whenever the target raises its Sidekick constraint or relies on changed Sidekick behavior.
 
 orchestral/testbench:
   branch: 12.x
-  checked_through: null
-  last_reviewed_pr: null
-  sync_date: null
+  checked_through: 281e41cd71cfbe262ce0912f123612817320e3e8
+  last_reviewed_pr: 444
+  sync_date: '2026-10-02'
   notes: Composer package is orchestra/testbench; core code is tracked separately above.
 
 orchestral/workbench:
   branch: 12.x
-  checked_through: null
-  last_reviewed_pr: null
-  sync_date: null
+  checked_through: ac1b324c6ee88a45a9d169de3e39ee28517653e4
+  last_reviewed_pr: 122
+  sync_date: '2026-10-02'
   notes: Upstream's serve listeners map to Testbench's ServeCommand, and its asset-publish recipe maps to the Listeners/PublishAssets serve listener. Rebuild public/build with npm in src/workbench after upstream asset or view changes; Tailwind scans the monorepo's pagination and skeleton views instead of vendor paths.
 
 laravel/facade-documenter:
   branch: main
-  checked_through: null
-  last_reviewed_pr: null
-  sync_date: null
+  checked_through: 7f5253b4476a0127df4d9a9dc2148deed15b7506
+  last_reviewed_pr: 10
+  sync_date: '2026-10-02'
 
 laravel/fortify:
   branch: 1.x

@@ -27,6 +27,7 @@ use PHPUnit\Framework\Attributes\Test;
 use RuntimeException;
 use Symfony\Component\Process\Process;
 use Throwable;
+use Workbench\App\Providers\AppServiceProvider;
 
 use function Hypervel\Support\php_binary;
 use function Hypervel\Testbench\default_migration_path;
@@ -240,6 +241,26 @@ class ApplicationTest extends TestCase
             }
         } finally {
             $withoutBootstrapApplication->flush();
+        }
+    }
+
+    #[Test]
+    public function itUsesTheWorkbenchBootstrapFilesWithTheDefaultSkeleton(): void
+    {
+        $app = TestbenchApplication::create((string) default_skeleton_path());
+
+        try {
+            // workbench/bootstrap/app.php routes workbench/bootstrap/web.php.
+            $this->assertSame('dashboard', $app->make('router')->getRoutes()->getByName('dashboard')?->getName());
+
+            // workbench/bootstrap/providers.php lists the provider.
+            $this->assertArrayHasKey(AppServiceProvider::class, $app->getLoadedProviders());
+        } finally {
+            try {
+                $app->terminate();
+            } finally {
+                $app->flush();
+            }
         }
     }
 

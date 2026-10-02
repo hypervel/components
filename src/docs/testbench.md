@@ -59,7 +59,7 @@ You may install Testbench into your package using Composer:
 composer require hypervel/testbench --dev
 ```
 
-Your package's `phpunit.xml` file should bootstrap Composer's autoloader and point PHPUnit at your package tests:
+Your package's `phpunit.xml` file should bootstrap Composer's autoloader, point PHPUnit at your package tests, and register Hypervel's PHPUnit extension, which [resets framework state](/docs/{{version}}/testing#test-state-cleanup) after each test:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -69,6 +69,9 @@ Your package's `phpunit.xml` file should bootstrap Composer's autoloader and poi
             <directory>tests</directory>
         </testsuite>
     </testsuites>
+    <extensions>
+        <bootstrap class="Hypervel\Testing\PHPUnit\AfterEachTestExtension" />
+    </extensions>
 </phpunit>
 ```
 
@@ -953,10 +956,18 @@ vendor/bin/testbench package:install
 
 The command creates a `workbench` directory, writes a `testbench.yaml` file, adds Workbench PSR-4 autoloading to `composer.json`, creates a SQLite database file for the runtime skeleton, and refreshes Composer's autoloader. The default scaffold is auth-ready and includes a `User` model, factory, seeder, route files, and Workbench discovery.
 
+When run interactively, the command also offers to generate `workbench/bootstrap/app.php` and `workbench/bootstrap/providers.php` files. With the default skeleton, Testbench uses these files, when present, to configure the application for `WithWorkbench` tests and Testbench CLI commands such as `serve`. The generated `app.php` doesn't register routes; Workbench discovery loads the route files according to the `discovers` settings in `testbench.yaml`.
+
 Existing files are not overwritten unless you pass the `--force` option. To generate only the core Workbench model, factory, seeder, provider, and `testbench.yaml` file, pass the `--basic` option:
 
 ```shell
 vendor/bin/testbench package:install --basic
+```
+
+To see what the command would do without changing any files, pass the `--pretend` option:
+
+```shell
+vendor/bin/testbench package:install --pretend
 ```
 
 > [!NOTE]
@@ -1130,7 +1141,7 @@ vendor/bin/testbench about
 vendor/bin/testbench migrate
 ```
 
-Testbench also provides commands specifically for package development.
+Testbench also provides commands specifically for package development. When the `hypervel/workbench` package is installed, the `workbench:create-sqlite-db`, `workbench:drop-sqlite-db`, `workbench:purge-skeleton`, and `workbench:sync-skeleton` commands are also available as aliases of the matching `package:*` commands.
 
 <a name="running-package-tests"></a>
 ### Running Package Tests
@@ -1187,7 +1198,7 @@ Both commands accept a `--database` option:
 vendor/bin/testbench package:create-sqlite-db --database=courier.sqlite
 ```
 
-The `package:create-sqlite-db` command also accepts `--force`, and the `package:drop-sqlite-db` command accepts `--all`.
+The `package:create-sqlite-db` command also accepts `--force`, and the `package:drop-sqlite-db` command accepts `--all`. Both commands accept `--pretend` to show the changes without making them.
 
 <a name="purging-the-skeleton"></a>
 ### Purging the Skeleton
@@ -1198,7 +1209,7 @@ The `package:purge-skeleton` command clears generated files from the runtime ske
 vendor/bin/testbench package:purge-skeleton
 ```
 
-It clears cached configuration, events, routes, views, configured purge files and directories, runtime SQLite databases, and Workbench symlinks.
+It clears cached configuration, events, routes, views, configured purge files and directories, runtime SQLite databases, and Workbench symlinks. Pass the `--pretend` option to preview the purge without changing anything.
 
 <a name="testing-published-files"></a>
 ## Testing Published Files
@@ -1262,7 +1273,7 @@ Testbench provides several helpers for package tests and command-line tooling:
 | `package_path()` | Resolve a path relative to the package root. |
 | `testbench_path()` | Resolve a path relative to the installed Testbench package. |
 | `workbench_path()` | Resolve a path relative to the package's Workbench directory. |
-| `default_skeleton_path()` | Resolve a path inside the active runtime skeleton copy. |
+| `default_skeleton_path()` | Resolve a path inside the active runtime skeleton. |
 | `default_migration_path()` | Resolve one of Testbench's default migration paths. |
 | `artisan()` | Run an Artisan command against a Testbench application or test case. |
 | `remote()` | Run a Testbench CLI command in a subprocess. |
@@ -1285,4 +1296,4 @@ The `remote` helper reuses the active Testbench runtime skeleton so subprocesses
 <a name="credits"></a>
 ## Credits
 
-Hypervel Testbench began as a port of [Orchestra Testbench Core](https://github.com/orchestral/testbench-core) and has been adapted for Hypervel's framework architecture and coroutine runtime.
+Hypervel Testbench and Workbench began as ports of [Orchestra Testbench Core](https://github.com/orchestral/testbench-core) and [Orchestra Workbench](https://github.com/orchestral/workbench), and have been adapted for Hypervel's framework architecture and coroutine runtime.

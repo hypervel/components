@@ -12,7 +12,7 @@ use Hypervel\Testbench\Contracts\Config as ConfigContract;
 use InvalidArgumentException;
 use Symfony\Component\Yaml\Yaml;
 
-use function Hypervel\Testbench\join_paths;
+use function Hypervel\Filesystem\join_paths;
 use function Hypervel\Testbench\parse_environment_variables;
 use function Hypervel\Testbench\transform_relative_path;
 

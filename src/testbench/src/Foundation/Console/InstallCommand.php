@@ -8,12 +8,14 @@ use Hypervel\Console\Command;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Composer;
+use Hypervel\Support\Json;
 use Hypervel\Testbench\Foundation\Console\Actions\EnsureDirectoryExists;
 use Hypervel\Testbench\Foundation\Console\Actions\GeneratesFile;
 use LogicException;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 use function Hypervel\Filesystem\join_paths;
+use function Hypervel\Prompts\confirm;
 use function Hypervel\Prompts\select;
 use function Hypervel\Testbench\package_path;
 
@@ -25,7 +27,8 @@ class InstallCommand extends Command
      */
     protected ?string $signature = 'package:install
                                 {--force : Overwrite any existing files}
-                                {--basic : Skip routes and Workbench discovery}';
+                                {--basic : Skip routes and Workbench discovery}
+                                {--pretend : Outputs the operations but will not execute anything}';
 
     /**
      * The default Workbench autoload mappings.
@@ -43,16 +46,24 @@ class InstallCommand extends Command
      */
     public function handle(Filesystem $filesystem, Composer $composer): int
     {
+        /** @var bool $pretending */
+        $pretending = $this->option('pretend');
+
         $workingPath = package_path();
-        $namespaces = $this->configureComposerAutoloads($composer, $workingPath);
+        $namespaces = $this->configureComposerAutoloads($composer, $filesystem, $workingPath);
 
         $this->prepareWorkbenchDirectories($filesystem, $workingPath);
         $this->copyTestbenchConfigurationFile($filesystem, $workingPath, $namespaces);
         $this->copyWorkbenchFiles($filesystem, $workingPath, $namespaces);
         $this->copyWorkbenchDotEnvFile($filesystem, $workingPath);
+        $this->copyWorkbenchBootstrapFiles($filesystem, $workingPath);
 
-        if ($this->call('package:create-sqlite-db', ['--force' => true]) !== self::SUCCESS) {
+        if ($this->call('package:create-sqlite-db', ['--force' => true, '--pretend' => $pretending]) !== self::SUCCESS) {
             return self::FAILURE;
+        }
+
+        if ($pretending) {
+            return self::SUCCESS;
         }
 
         return $composer->setWorkingPath($workingPath)->dumpAutoloads() === self::SUCCESS
@@ -65,11 +76,11 @@ class InstallCommand extends Command
      *
      * @return array{app: string, factories: string, seeders: string}
      */
-    protected function configureComposerAutoloads(Composer $composer, string $workingPath): array
+    protected function configureComposerAutoloads(Composer $composer, Filesystem $filesystem, string $workingPath): array
     {
         $namespaces = [];
 
-        $composer->setWorkingPath($workingPath)->modify(function (array $content) use (&$namespaces): array {
+        $configure = function (array $content) use (&$namespaces): array {
             /** @var array{autoload-dev?: array{psr-4?: array<string, array<int, string>|string>}} $content */
             $content['autoload-dev'] ??= [];
             $content['autoload-dev']['psr-4'] ??= [];
@@ -88,7 +99,14 @@ class InstallCommand extends Command
             }
 
             return $content;
-        });
+        };
+
+        // A dry run still resolves the namespaces, and any mapping conflict, without writing composer.json.
+        if ($this->option('pretend') === true) {
+            $configure(Json::decode($filesystem->get(join_paths($workingPath, 'composer.json'))));
+        } else {
+            $composer->setWorkingPath($workingPath)->modify($configure);
+        }
 
         return [
             'app' => $namespaces['workbench/app/'],
@@ -158,6 +176,7 @@ class InstallCommand extends Command
         $directories = [
             join_paths('workbench', 'app', 'Models'),
             join_paths('workbench', 'app', 'Providers'),
+            join_paths('workbench', 'bootstrap'),
             join_paths('workbench', 'database', 'factories'),
             join_paths('workbench', 'database', 'migrations'),
             join_paths('workbench', 'database', 'seeders'),
@@ -176,6 +195,7 @@ class InstallCommand extends Command
             filesystem: $filesystem,
             components: $this->components,
             workingPath: $workingPath,
+            pretending: (bool) $this->option('pretend'),
         ))->handle(
             (new Collection($directories))
                 ->map(static fn (string $directory): string => join_paths($workingPath, $directory))
@@ -293,6 +313,26 @@ class InstallCommand extends Command
     }
 
     /**
+     * Copy the Workbench bootstrap files.
+     */
+    protected function copyWorkbenchBootstrapFiles(Filesystem $filesystem, string $workingPath): void
+    {
+        if (! $this->input->isInteractive()) {
+            return;
+        }
+
+        foreach (['app' => true, 'providers' => false] as $bootstrap => $default) {
+            if (! confirm("Generate `workbench/bootstrap/{$bootstrap}.php` file?", default: $default)) {
+                continue;
+            }
+
+            // The application bootstrap leaves the route files to Workbench discovery, which testbench.yaml
+            // controls. Upstream's bootstrap also registers them, so discovery loaded them a second time.
+            $this->copyStub($filesystem, "bootstrap.{$bootstrap}.stub", join_paths($workingPath, 'workbench', 'bootstrap', "{$bootstrap}.php"), $workingPath);
+        }
+    }
+
+    /**
      * Copy a stub file.
      *
      * @param array<string, string> $replacements
@@ -308,6 +348,7 @@ class InstallCommand extends Command
             ? $stub
             : join_paths(__DIR__, 'stubs', $stub);
 
+        $pretending = (bool) $this->option('pretend');
         $willGenerateFile = $this->option('force') === true || ! $filesystem->exists($target);
 
         (new GeneratesFile(
@@ -315,9 +356,10 @@ class InstallCommand extends Command
             components: $this->components,
             force: (bool) $this->option('force'),
             workingPath: $workingPath,
+            pretending: $pretending,
         ))->handle($source, $target);
 
-        if ($willGenerateFile && $filesystem->exists($target) && $replacements !== []) {
+        if (! $pretending && $willGenerateFile && $filesystem->exists($target) && $replacements !== []) {
             $filesystem->replaceInFile(array_keys($replacements), array_values($replacements), $target);
         }
     }

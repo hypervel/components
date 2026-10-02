@@ -31,6 +31,7 @@
         "hypervel/config": "^0.4",
         "hypervel/console": "^0.4",
         "hypervel/container": "^0.4",
+        "hypervel/context": "^0.4",
         "hypervel/contracts": "^0.4",
         "hypervel/coordinator": "^0.4",
         "hypervel/core": "^0.4",
