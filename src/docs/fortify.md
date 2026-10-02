@@ -777,7 +777,7 @@ Standalone routes use the following configuration options:
 | `guard` | The guard selected for standalone routes. An omitted or null value uses the current request guard. |
 | `middleware` | The required middleware applied to every standalone route. |
 | `management_middleware` | The required additional middleware applied when creating or deleting passkeys. |
-| `throttle` | The throttle middleware applied to passkey login, confirmation, registration, and deletion endpoints. Omission uses `throttle:6,1`; null disables throttling. |
+| `throttle` | The throttle middleware applied to passkey login, confirmation, and registration endpoints. Omission uses `throttle:6,1`; null disables throttling. |
 | `redirect` | The successful login destination used when no intended URL exists. Omission uses `/`. |
 
 Call `Passkeys::ignoreRoutes()` during boot before registering your own endpoints:

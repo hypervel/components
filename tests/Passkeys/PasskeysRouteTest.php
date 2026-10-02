@@ -58,7 +58,7 @@ class PasskeysRouteTest extends TestCase
     #[WithConfig('passkeys.throttle', null)]
     public function testNullThrottleOmitsThrottleMiddlewareFromLoginAndManagementRoutes(): void
     {
-        foreach (['passkey.login', 'passkey.registration-options', 'passkey.destroy'] as $routeName) {
+        foreach (['passkey.login', 'passkey.registration-options'] as $routeName) {
             $route = Route::getRoutes()->getByName($routeName);
 
             $this->assertNotNull($route);
@@ -78,7 +78,7 @@ class PasskeysRouteTest extends TestCase
 
         require dirname(__DIR__, 2) . '/src/passkeys/routes/routes.php';
 
-        foreach (['passkey.login', 'passkey.registration-options', 'passkey.destroy'] as $routeName) {
+        foreach (['passkey.login', 'passkey.registration-options'] as $routeName) {
             $route = Route::getRoutes()->getByName($routeName);
 
             $this->assertNotNull($route);
@@ -87,11 +87,19 @@ class PasskeysRouteTest extends TestCase
     }
 
     #[WithConfig('passkeys.throttle', 'throttle:12,1')]
-    public function testConfiguredThrottleAppliesToPasskeyDeletion(): void
+    public function testConfiguredThrottleDoesNotApplyToPasskeyDeletion(): void
     {
+        $this->assertContains('throttle:12,1', Route::getRoutes()->getByName('passkey.store')->middleware());
+
         $route = Route::getRoutes()->getByName('passkey.destroy');
 
         $this->assertNotNull($route);
-        $this->assertContains('throttle:12,1', $route->middleware());
+        $this->assertContains('auth', $route->middleware());
+        $this->assertContains('password.confirm', $route->middleware());
+        $this->assertFalse(array_any(
+            $route->middleware(),
+            static fn (mixed $middleware): bool => is_string($middleware)
+                && str_starts_with($middleware, 'throttle:'),
+        ));
     }
 }
