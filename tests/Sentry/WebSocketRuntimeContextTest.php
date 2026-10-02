@@ -191,6 +191,7 @@ class WebSocketRuntimeContextTest extends SentryTestCase
         $request->header = [
             'host' => 'example.com',
             Security::SEC_WEBSOCKET_KEY => $validSecurityKey ? 'dGhlIHNhbXBsZSBub25jZQ==' : 'invalid',
+            Security::SEC_WEBSOCKET_VERSION => Security::VERSION,
         ];
         $request->get = [];
         $request->post = [];

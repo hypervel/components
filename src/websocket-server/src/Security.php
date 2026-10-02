@@ -14,6 +14,8 @@ class Security
 
     public const string SEC_WEBSOCKET_KEY = 'sec-websocket-key';
 
+    public const string SEC_WEBSOCKET_VERSION = 'sec-websocket-version';
+
     public const string SEC_WEBSOCKET_PROTOCOL = 'sec-websocket-protocol';
 
     /**

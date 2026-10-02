@@ -48,6 +48,7 @@ use Swoole\Server as SwooleServer;
 use Swoole\WebSocket\Frame;
 use Swoole\WebSocket\Server as WebSocketServer;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Throwable;
 
 class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterface, OnMessageInterface
@@ -98,8 +99,9 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
      * Handle the WebSocket handshake request.
      *
      * Converts the Swoole request to HttpFoundation, validates the WebSocket
-     * security key, dispatches through the Router for route matching and
-     * middleware execution, then builds the 101 Switching Protocols response.
+     * security key and version, dispatches through the Router for route
+     * matching and middleware execution, then builds the 101 Switching
+     * Protocols response.
      */
     public function onHandshake(Request $request, SwooleResponse $response): void
     {
@@ -135,11 +137,19 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
 
                 $this->logger->debug(sprintf('WebSocket: fd[%d] start a handshake request.', $fd));
 
-                // Validate sec-websocket-key before routing
+                // Validate sec-websocket-key and sec-websocket-version before routing
                 $key = $httpRequest->headers->get(Security::SEC_WEBSOCKET_KEY);
                 $security = $this->container->make(Security::class);
                 if (! $key || $security->isInvalidSecurityKey($key)) {
                     throw new WebSocketHandshakeException('sec-websocket-key is invalid!');
+                }
+
+                if ($httpRequest->headers->get(Security::SEC_WEBSOCKET_VERSION) !== Security::VERSION) {
+                    throw new HttpException(Response::HTTP_UPGRADE_REQUIRED, 'sec-websocket-version is unsupported!', headers: [
+                        'Upgrade' => 'websocket',
+                        'Connection' => 'Upgrade',
+                        'Sec-WebSocket-Version' => Security::VERSION,
+                    ]);
                 }
 
                 // Route matching + middleware via Router.

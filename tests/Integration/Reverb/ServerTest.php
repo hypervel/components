@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Reverb;
 
+use Swoole\Coroutine\Http\Client;
+
 /**
  * End-to-end integration tests for the Reverb WebSocket server.
  *
@@ -37,6 +39,40 @@ class ServerTest extends ReverbIntegrationTestCase
         $errorData = json_decode($data['data'], associative: true);
         $this->assertSame(4001, $errorData['code']);
         $this->assertSame('Application does not exist', $errorData['message']);
+
+        $client->close();
+    }
+
+    public function testRejectsAHandshakeWithAnInvalidWebsocketKey(): void
+    {
+        $client = new Client($this->getServerHost(), $this->getServerPort());
+        $client->set(['timeout' => 5]);
+        $client->setHeaders([
+            'Connection' => 'Upgrade',
+            'Upgrade' => 'websocket',
+            'Sec-WebSocket-Key' => 'invalid-key',
+            'Sec-WebSocket-Version' => '13',
+        ]);
+        $client->get('/app/' . $this->appKey);
+
+        $this->assertSame(400, $client->getStatusCode());
+
+        $client->close();
+    }
+
+    public function testRejectsAHandshakeRequestingAnUnsupportedWebsocketVersion(): void
+    {
+        $client = new Client($this->getServerHost(), $this->getServerPort());
+        $client->set(['timeout' => 5]);
+        $client->setHeaders([
+            'Connection' => 'Upgrade',
+            'Upgrade' => 'websocket',
+            'Sec-WebSocket-Key' => 'dGhlIHNhbXBsZSBub25jZQ==',
+            'Sec-WebSocket-Version' => '8',
+        ]);
+        $client->get('/app/' . $this->appKey);
+
+        $this->assertSame(426, $client->getStatusCode());
 
         $client->close();
     }
