@@ -2,6 +2,11 @@
 
 declare(strict_types=1);
 
+use Hypervel\Cookie\Middleware\EncryptCookies;
+use Hypervel\Foundation\Http\Middleware\PreventRequestForgery;
+use Hypervel\Sanctum\Http\Middleware\AuthenticateSession;
+use Hypervel\Sanctum\Sanctum;
+
 return [
     /*
     |--------------------------------------------------------------------------
@@ -17,7 +22,8 @@ return [
     'stateful_domains' => explode(',', (string) env('SANCTUM_STATEFUL_DOMAINS', sprintf(
         '%s%s',
         'localhost,localhost:3000,127.0.0.1,127.0.0.1:8000,::1',
-        env('APP_URL') ? ',' . parse_url(env('APP_URL'), PHP_URL_HOST) : ''
+        Sanctum::currentApplicationUrlWithPort(),
+        // Sanctum::currentRequestHost(),
     ))),
 
     /*
@@ -69,15 +75,15 @@ return [
     | When authenticating your first-party SPA with Sanctum you may need to
     | customize some of the middleware Sanctum uses while processing the
     | request. Omitted cookie-encryption and CSRF entries use Sanctum's
-    | defaults, while session authentication is omitted by default. Set any
-    | entry to null to remove that middleware from the request pipeline.
+    | defaults, while an omitted session authentication entry disables it.
+    | Set any entry to null to remove that middleware from the pipeline.
     |
     */
 
     'middleware' => [
-        'authenticate_session' => \Hypervel\Sanctum\Http\Middleware\AuthenticateSession::class,
-        'encrypt_cookies' => \Hypervel\Cookie\Middleware\EncryptCookies::class,
-        'validate_csrf_token' => \Hypervel\Foundation\Http\Middleware\PreventRequestForgery::class,
+        'authenticate_session' => AuthenticateSession::class,
+        'encrypt_cookies' => EncryptCookies::class,
+        'validate_csrf_token' => PreventRequestForgery::class,
     ],
 
     /*

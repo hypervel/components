@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Sanctum;
 
 use Hypervel\Sanctum\Sanctum;
 use Hypervel\Support\Env;
-use Hypervel\Tests\TestCase;
+use Hypervel\Testbench\TestCase;
 
 class SanctumConfigTest extends TestCase
 {
@@ -48,6 +48,15 @@ class SanctumConfigTest extends TestCase
         ]);
 
         $this->assertSame([''], $config['stateful_domains']);
+    }
+
+    public function testDefaultStatefulDomainsIncludeTheApplicationUrlPort(): void
+    {
+        $this->app->make('config')->set('app.url', 'http://localhost:8000');
+
+        $config = $this->loadConfigWithEnvironmentValues([]);
+
+        $this->assertContains('localhost:8000', $config['stateful_domains']);
     }
 
     public function testRouteDefaultsAreDeclared(): void
