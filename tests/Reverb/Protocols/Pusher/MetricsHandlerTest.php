@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Reverb\Protocols\Pusher;
 
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Reverb\Contracts\ApplicationProvider;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelManager;
 use Hypervel\Reverb\Protocols\Pusher\MetricsHandler;
@@ -559,6 +560,51 @@ class MetricsHandlerTest extends ReverbTestCase
 
         $this->assertTrue($result['occupied']);
         $this->assertSame(5, $result['subscription_count']);
+    }
+
+    /**
+     * @see https://github.com/laravel/reverb/issues/331
+     */
+    public function testRemovesTheListenerAfterMetricsAreGatheredSuccessfully(): void
+    {
+        $app = $this->app->make(ApplicationProvider::class)->all()->first();
+        $serverManager = m::mock(ServerProviderManager::class);
+        $serverManager->expects('subscribesToEvents')->andReturnTrue();
+        $registeredEvent = null;
+        $registeredListener = null;
+        $pubSub = m::mock(PubSubProvider::class);
+        $pubSub->expects('on')->andReturnUsing(function (string $event, callable $listener) use (&$registeredEvent, &$registeredListener): void {
+            $registeredEvent = $event;
+            $registeredListener = $listener;
+        });
+        $responderId = null;
+        $pubSub->expects('publish')->andReturnUsing(function () use (&$registeredListener, &$responderId): int {
+            $responderId = Coroutine::create(function () use (&$registeredListener): void {
+                usleep(1000);
+                $registeredListener(['payload' => ['count' => 1]]);
+            });
+
+            return 1;
+        });
+        $pubSub->expects('stopListening')->with(m::on(function (string $key) use (&$registeredEvent): bool {
+            return $key === $registeredEvent;
+        }));
+        $handler = new MetricsHandlerProbe(
+            $serverManager,
+            $this->app->make(ChannelManager::class),
+            $pubSub,
+            $this->app->make(Server::class),
+        );
+
+        try {
+            $this->assertSame(['count' => 1], $handler->gather($app, 'connections'));
+            $this->assertSame([], $handler->metricsForTest());
+            $this->assertSame([], $handler->waitersForTest());
+        } finally {
+            if ($responderId !== null) {
+                Coroutine::join([$responderId]);
+            }
+        }
     }
 
     public function testScalingPublishFailureRemovesPendingMetricAndListener(): void
