@@ -26,29 +26,14 @@ interface Kernel
     public function bootstrap(): void;
 
     /**
-     * Define the application's command schedule.
-     */
-    public function schedule(Schedule $schedule): void;
-
-    /**
      * Resolve a console schedule instance.
      */
     public function resolveConsoleSchedule(): Schedule;
 
     /**
-     * Register the commands for the application.
-     */
-    public function commands(): void;
-
-    /**
      * Register a Closure based command with the application.
      */
     public function command(string $signature, Closure $callback): ClosureCommand;
-
-    /**
-     * Add loadPaths in the given directory.
-     */
-    public function load(array|string $paths): void;
 
     /**
      * Set the Artisan commands provided by the application.

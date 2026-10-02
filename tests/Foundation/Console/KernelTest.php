@@ -9,6 +9,7 @@ use Hypervel\Console\Application as ConsoleApplication;
 use Hypervel\Console\Command;
 use Hypervel\Console\Scheduling\CacheEventMutex;
 use Hypervel\Console\Scheduling\CacheSchedulingMutex;
+use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Contracts\Console\Application as ConsoleApplicationContract;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
@@ -261,6 +262,44 @@ PHP);
             $loader->unregister();
             $files->deleteDirectory($directory);
         }
+    }
+
+    public function testApplicationKernelsCanOverrideTheProtectedConsoleHooks(): void
+    {
+        $kernel = new class($this->app, $this->app->make('events')) extends Kernel {
+            public array $calls = [];
+
+            /**
+             * Record that the schedule was defined.
+             */
+            protected function schedule(Schedule $schedule): void
+            {
+                $this->calls[] = 'schedule';
+            }
+
+            /**
+             * Load the fixture commands directory.
+             */
+            protected function commands(): void
+            {
+                $this->load(__DIR__ . '/Commands');
+            }
+
+            /**
+             * Record the loaded paths before registering their commands.
+             */
+            protected function load(array|string $paths): void
+            {
+                $this->calls[] = $paths;
+
+                parent::load($paths);
+            }
+        };
+
+        $kernel->bootstrap();
+        $kernel->resolveConsoleSchedule();
+
+        $this->assertSame([__DIR__ . '/Commands', 'schedule'], $kernel->calls);
     }
 
     public function testSetArtisanSynchronizesTheKernelAndContainerBeforeReboundCallbacks(): void
