@@ -117,7 +117,7 @@ class EventsControllerTest extends ReverbTestCase
         $connection->assertReceivedCount(1);
     }
 
-    public function testPublishesARemoteSocketIdWhenTheConnectionIsNotLocal(): void
+    public function testPublishesTheOriginatingSocketIdOverRedisEvenWhenTheConnectionIsNotLocal(): void
     {
         app(ServerProviderManager::class)->withPublishing();
         $pubSub = m::mock(PubSubProvider::class);
@@ -271,6 +271,7 @@ class EventsControllerTest extends ReverbTestCase
         ], $body);
 
         $response->assertStatus(200);
+        $this->assertSame('{}', $response->getContent());
     }
 
     /**

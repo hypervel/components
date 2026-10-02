@@ -468,7 +468,11 @@ use Hypervel\Socialite\Socialite;
 $user = Socialite::driver('github')->userFromToken($token);
 ```
 
-If you are using Facebook Limited Login via an iOS application, Facebook will return an OIDC token instead of an access token. Like an access token, the OIDC token can be provided to the `userFromToken` method in order to retrieve user details.
+If you are using Facebook Limited Login via an iOS application, Facebook will return an OIDC token instead of an access token. To retrieve user details from the OIDC token, provide the nonce used to initiate the login to the `userFromToken` method:
+
+```php
+$user = Socialite::driver('facebook')->userFromToken($token, $nonce);
+```
 
 Google ID tokens may also be provided to the `google` driver's `userFromToken` method. Hypervel will verify the JWT token before returning the user details:
 

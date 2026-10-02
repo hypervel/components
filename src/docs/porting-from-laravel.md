@@ -31,6 +31,7 @@
     - [CSRF Protection](#csrf-protection)
     - [Fortify](#fortify)
     - [Scout](#scout)
+    - [Socialite](#socialite)
     - [JSON Schema](#json-schema)
     - [Validation](#validation)
     - [Request and Input Data](#request-and-input-data)
@@ -539,6 +540,13 @@ Fortify ignores Laravel's `fortify.passwords` setting. Declare the password rese
 ### Scout
 
 Hypervel compiles integer and float values passed to Scout's Algolia `where`, `whereIn`, and `whereNotIn` methods as numeric comparisons. Numeric-looking strings remain facet values. When porting an Algolia index, ensure the indexed attribute type matches the PHP value type used by these filters.
+
+<a name="socialite"></a>
+### Socialite
+
+Custom Socialite providers should read request-specific state through getters such as `getRequest()`, `getParameters()`, `getScopes()`, and `getClientId()`. Properties such as `$parameters`, `$scopes`, and `$clientId` only hold the defaults shared by every request, so reading them directly ignores `with()`, `scopes()`, and `setConfig()` calls. Build custom OAuth 2.0 drivers with `buildOAuth2Provider()` instead of `buildProvider()`. See [custom providers](/docs/{{version}}/socialite#custom-providers).
+
+Google users' raw data does not include Laravel's deprecated `id`, `verified_email`, and `link` keys. Read `sub`, `email_verified`, and `profile` instead.
 
 <a name="json-schema"></a>
 ### JSON Schema

@@ -8,6 +8,7 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Sentinel\Http\Middleware\SentinelMiddleware;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Telescope\Actions\UninstallAction;
@@ -35,6 +36,11 @@ class TelescopeServiceProvider extends ServiceProvider
         if (! config()->boolean('telescope.enabled')) {
             return;
         }
+
+        Route::middlewareGroup('telescope', [
+            SentinelMiddleware::class . ':telescope',
+            ...config()->array('telescope.middleware'),
+        ]);
 
         $this->registerRoutes();
         $this->registerResources();
@@ -66,7 +72,7 @@ class TelescopeServiceProvider extends ServiceProvider
     protected function registerRoutes(): void
     {
         Route::domain(config('telescope.domain'))
-            ->middleware(config()->array('telescope.middleware'))
+            ->middleware('telescope')
             ->prefix(config()->string('telescope.path'))
             ->namespace('Hypervel\Telescope\Http\Controllers')
             ->group(__DIR__ . '/../routes/web.php');

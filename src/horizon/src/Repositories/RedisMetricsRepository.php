@@ -248,7 +248,7 @@ class RedisMetricsRepository implements MetricsRepository
             json_encode([
                 'throughput' => $data['throughput'],
                 'runtime' => $data['runtime'],
-                'wait' => app(WaitTimeCalculator::class)->calculateFor($queue),
+                'wait' => app(WaitTimeCalculator::class)->calculateForQueueName($queue),
                 'time' => $time,
             ])
         );
@@ -275,10 +275,15 @@ class RedisMetricsRepository implements MetricsRepository
         $responses = $this->connection()->transaction(function ($trans) use ($key) {
             $trans->hmget($key, ['throughput', 'runtime']);
 
-            $trans->del($key);
+            // Keep the runtime so scaling and wait times have an estimate until the next
+            // job completes. Removing the throughput makes that job start a new average.
+            $trans->hdel($key, 'throughput');
         });
 
-        return $responses[0];
+        // A period without completed jobs only has the previous period's runtime.
+        return $responses[0]['throughput'] === false
+            ? ['throughput' => false, 'runtime' => false]
+            : $responses[0];
     }
 
     /**
@@ -346,7 +351,7 @@ class RedisMetricsRepository implements MetricsRepository
     /**
      * Get the Redis connection instance.
      */
-    protected function connection(): RedisProxy
+    public function connection(): RedisProxy
     {
         return $this->redis->connection('horizon');
     }

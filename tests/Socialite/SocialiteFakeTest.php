@@ -50,6 +50,72 @@ class SocialiteFakeTest extends TestCase
         $this->assertSame('test@example.com', $retrievedUser->getEmail());
     }
 
+    public function testItCanFakeADriverWithAFakeUser(): void
+    {
+        Socialite::fake('github', OAuth2User::fake([
+            'id' => '123',
+            'name' => 'Test User',
+            'email' => 'test@example.com',
+        ]));
+
+        $user = Socialite::driver('github')->user();
+
+        $this->assertSame('123', $user->getId());
+        $this->assertSame('Test User', $user->getName());
+        $this->assertSame('test@example.com', $user->getEmail());
+        $this->assertSame('fake-token', $user->token);
+    }
+
+    public function testItCanCreateAFakeOauth2User(): void
+    {
+        $user = OAuth2User::fake();
+
+        $this->assertInstanceOf(OAuth2User::class, $user);
+        $this->assertSame('123456789', $user->getId());
+        $this->assertSame('testuser', $user->getNickname());
+        $this->assertSame('Test User', $user->getName());
+        $this->assertSame('test@example.com', $user->getEmail());
+        $this->assertSame('https://example.com/avatar.jpg', $user->getAvatar());
+        $this->assertSame('fake-token', $user->token);
+        $this->assertSame('fake-refresh-token', $user->refreshToken);
+        $this->assertSame(3600, $user->expiresIn);
+        $this->assertSame([], $user->approvedScopes);
+        $this->assertSame([], $user->accessTokenResponseBody);
+        $this->assertSame('Test User', $user['name']);
+    }
+
+    public function testItCanCreateAFakeOauth2UserWithAttributes(): void
+    {
+        $user = OAuth2User::fake([
+            'id' => '987654321',
+            'nickname' => 'jane',
+            'name' => 'Jane Doe',
+            'email' => 'jane@example.com',
+            'avatar' => 'https://example.com/avatar.jpg',
+            'token' => 'custom-token',
+            'refreshToken' => 'custom-refresh-token',
+            'expiresIn' => 7200,
+            'approvedScopes' => ['read:user'],
+            'accessTokenResponseBody' => ['token_type' => 'Bearer'],
+            'organization' => 'Hypervel',
+        ]);
+
+        $this->assertSame('987654321', $user->getId());
+        $this->assertSame('jane', $user->getNickname());
+        $this->assertSame('Jane Doe', $user->getName());
+        $this->assertSame('jane@example.com', $user->getEmail());
+        $this->assertSame('https://example.com/avatar.jpg', $user->getAvatar());
+        $this->assertSame('custom-token', $user->token);
+        $this->assertSame('custom-refresh-token', $user->refreshToken);
+        $this->assertSame(7200, $user->expiresIn);
+        $this->assertSame(['read:user'], $user->approvedScopes);
+        $this->assertSame(['token_type' => 'Bearer'], $user->accessTokenResponseBody);
+        $this->assertSame('Hypervel', $user->organization);
+        $this->assertSame('Hypervel', $user['organization']);
+    }
+
+    // REMOVED: Laravel Socialite's OAuth 1 user fake tests do not apply; OAuth 1 is unsupported.
+
     public function testItCanFakeADriverWithAClosure(): void
     {
         Socialite::fake('github', function () {
@@ -83,30 +149,6 @@ class SocialiteFakeTest extends TestCase
 
         $this->assertInstanceOf(FakeProvider::class, $provider);
         $this->assertSame('enum-123', $provider->user()->getId());
-    }
-
-    public function testOAuthTwoUserFakeHasDefaultsAndAcceptsOverrides(): void
-    {
-        $default = OAuth2User::fake();
-
-        $this->assertSame('123456789', $default->id);
-        $this->assertSame('fake-token', $default->token);
-        $this->assertSame('fake-refresh-token', $default->refreshToken);
-        $this->assertSame(3600, $default->expiresIn);
-        $this->assertSame([], $default->approvedScopes);
-        $this->assertSame([], $default->accessTokenResponseBody);
-
-        $overridden = OAuth2User::fake([
-            'id' => 'custom-id',
-            'token' => 'custom-token',
-            'approvedScopes' => ['read'],
-            'accessTokenResponseBody' => ['token_type' => 'Bearer'],
-        ]);
-
-        $this->assertSame('custom-id', $overridden->id);
-        $this->assertSame('custom-token', $overridden->token);
-        $this->assertSame(['read'], $overridden->approvedScopes);
-        $this->assertSame(['token_type' => 'Bearer'], $overridden->accessTokenResponseBody);
     }
 
     public function testOAuthTwoUserFakeUsesLateStaticBinding(): void

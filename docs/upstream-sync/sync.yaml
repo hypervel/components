@@ -67,21 +67,30 @@ laravel/passkeys-server:
 
 laravel/sanctum:
   branch: 4.x
-  checked_through: null
-  last_reviewed_pr: null
-  sync_date: null
+  checked_through: 1aa53e0b955415571837971ee6ca0a9427c58a4f
+  last_reviewed_pr: 620
+  sync_date: '2026-10-02'
 
 laravel/socialite:
   branch: 5.x
-  checked_through: null
-  last_reviewed_pr: null
-  sync_date: null
+  checked_through: fa0181ee6204ca28a55cd67145fadd631ac209cf
+  last_reviewed_pr: 793
+  sync_date: '2026-10-02'
+  notes: Google, Facebook and generic OpenID Connect ID-token verification share Two\Concerns\InteractsWithJwks, so upstream key-loading changes (phpseclib, getPublicKeyOfOIDCToken) map there, and upstream tests that stub key loading use the RSA fixtures in tests/Socialite/Fixtures/CreatesJwksFixtures.php.
+
+laravel/sentinel:
+  branch: 1.x
+  checked_through: b8e15909d59bbcff3d63e74a7858c9350027b485
+  last_reviewed_pr: 17
+  sync_date: '2026-10-02'
+  notes: SentinelServiceProvider is not ported because its only job is a scoped SentinelManager binding. Hypervel auto-singletons the unbound manager, so drivers registered with extend() during boot reach every coroutine; a coroutine-scoped manager would lose them.
 
 laravel/horizon:
   branch: 5.x
-  checked_through: null
-  last_reviewed_pr: null
-  sync_date: null
+  checked_through: 5d9f80448a192d03ddb338cf91f73fbe5a50e250
+  last_reviewed_pr: 1823
+  sync_date: '2026-10-02'
+  notes: horizon:listen maps to Hypervel\Watcher and Console\HorizonRestartStrategy; assess behavior changes in upstream's bin/file-watcher.cjs against them instead of copying the Node script. Metric clearing uses the Redis flushByPattern/SafeScan operations instead of an inline SCAN loop. Rebuild dist with npm 11.10 or newer after resource or frontend dependency changes.
 
 laravel/reverb:
   branch: main

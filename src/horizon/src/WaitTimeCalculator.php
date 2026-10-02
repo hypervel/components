@@ -31,6 +31,27 @@ class WaitTimeCalculator
     }
 
     /**
+     * Calculate the longest time to clear in seconds for the pools processing a queue name.
+     *
+     * Metrics identify queues by name alone, so the pools may be on any connection and may process several queues.
+     */
+    public function calculateForQueueName(string $queue): float
+    {
+        $supervisors = collect($this->supervisors->all());
+
+        return $this->queueNames($supervisors)
+            ->filter(function (string $pool) use ($queue): bool {
+                return in_array($queue, explode(',', explode(':', $pool, 2)[1]), true);
+            })
+            ->map(function (string $pool) use ($supervisors): float {
+                [$connection, $queueNames] = explode(':', $pool, 2);
+
+                return $this->calculateTimeToClear($connection, $queueNames, $this->totalProcessesFor($supervisors, $pool));
+            })
+            ->max() ?? 0.0;
+    }
+
+    /**
      * Calculate the time to clear per queue in seconds.
      *
      * @return array<string, float>

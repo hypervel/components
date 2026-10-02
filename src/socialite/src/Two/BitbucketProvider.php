@@ -55,7 +55,7 @@ class BitbucketProvider extends AbstractProvider implements ProviderInterface
             $response = $this->getHttpClient()->get('https://api.bitbucket.org/2.0/user/emails', [
                 RequestOptions::HEADERS => ['Authorization' => 'Bearer ' . $token],
             ]);
-        } catch (Exception $e) {
+        } catch (Exception) {
             return null;
         }
 

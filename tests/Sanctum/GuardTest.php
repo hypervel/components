@@ -946,7 +946,7 @@ class GuardTest extends TestCase
         $this->assertNotNull($data['last_used_at']);
     }
 
-    public function testSuccessfulAuthenticationTracksLastUsedAtByDefault(): void
+    public function testLastUsedAtIsTrackedWhenEnabled(): void
     {
         [$user, $token, $plainToken] = $this->createUserWithToken();
 
@@ -980,7 +980,7 @@ class GuardTest extends TestCase
         $this->assertNull($token->fresh()->last_used_at);
     }
 
-    public function testSuccessfulAuthenticationDoesNotTrackLastUsedAtWhenDisabled(): void
+    public function testLastUsedAtIsNotTrackedWhenDisabled(): void
     {
         $this->app->make('config')->set('sanctum.last_used_at', false);
         [$user, $token, $plainToken] = $this->createUserWithToken();

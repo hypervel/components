@@ -48,7 +48,9 @@ class SupervisorOptions
      * @param int $balanceMaxShift the maximum number of processes to increase or decrease per one scaling
      * @param int $parentId the parent process identifier
      * @param int $rest the number of seconds to rest between jobs
-     * @param ?string $autoScalingStrategy indicates whether auto-scaling strategy should use "time" (time-to-complete) or "size" (total count of jobs) strategies
+     * @param ?string $autoScalingStrategy indicates whether auto-scaling strategy should use "time" (time-to-complete), "size" (total count of jobs), or "log" (logarithmic job count) strategies
+     * @param bool $json indicates if the workers should output their information as JSON
+     * @param int $concurrency the number of jobs each worker process may run at once
      */
     public function __construct(
         public string $name,
@@ -61,7 +63,6 @@ class SupervisorOptions
         public int $maxJobs = 0,
         public int $maxProcesses = 1,
         public int $minProcesses = 1,
-        public int $concurrency = 1,
         public int $memory = 128,
         public int $timeout = 60,
         public int $sleep = 3,
@@ -73,6 +74,8 @@ class SupervisorOptions
         public int $parentId = 0,
         public int $rest = 0,
         public ?string $autoScalingStrategy = 'time',
+        public bool $json = false,
+        public int $concurrency = 1,
     ) {
         $this->queue = $queue === null || $queue === ''
             ? config('queue.connections.' . $connection . '.queue')
@@ -111,6 +114,14 @@ class SupervisorOptions
     public function autoScaleByNumberOfJobs(): bool
     {
         return $this->autoScalingStrategy === 'size';
+    }
+
+    /**
+     * Determine if auto-scaling should use logarithmic queue sizes.
+     */
+    public function autoScaleLogarithmically(): bool
+    {
+        return $this->autoScalingStrategy === 'log';
     }
 
     /**
@@ -164,6 +175,7 @@ class SupervisorOptions
             'parentId' => $this->parentId,
             'rest' => $this->rest,
             'autoScalingStrategy' => $this->autoScalingStrategy,
+            'json' => $this->json,
             'concurrency' => $this->concurrency,
         ];
     }

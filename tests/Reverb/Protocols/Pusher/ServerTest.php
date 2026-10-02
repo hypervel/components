@@ -152,6 +152,39 @@ class ServerTest extends ReverbTestCase
         ]);
     }
 
+    public function testDecodesJsonStringEventData(): void
+    {
+        $this->server->message(
+            $connection = new FakeConnection,
+            json_encode([
+                'event' => 'pusher:subscribe',
+                'data' => json_encode(['channel' => 'test-channel']),
+            ])
+        );
+
+        $connection->assertReceived([
+            'event' => 'pusher_internal:subscription_succeeded',
+            'data' => '{}',
+            'channel' => 'test-channel',
+        ]);
+    }
+
+    public function testKeepsEventDataThatIsNotJson(): void
+    {
+        $this->server->message(
+            $connection = new FakeConnection,
+            json_encode([
+                'event' => 'pusher:ping',
+                'data' => '',
+            ])
+        );
+
+        $connection->assertReceived([
+            'event' => 'pusher:pong',
+        ]);
+        $connection->assertReceivedCount(1);
+    }
+
     public function testSendsAnErrorIfSomethingFails(): void
     {
         $this->server->message(

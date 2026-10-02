@@ -57,9 +57,13 @@ class QueueProcessingTest extends IntegrationTestCase
         $id = Queue::later(1, new BasicJob);
         $this->assertSame(1, $this->recentJobs());
         $this->assertSame('pending', Redis::connection('horizon')->hget($id, 'status'));
+    }
 
+    public function testPendingDelayedJobsAreStoredWithTheirDelay(): void
+    {
+        $id = Queue::later(60, new BasicJob);
         $payload = json_decode(Redis::connection('horizon')->hget($id, 'payload'), true);
-        $this->assertSame(1, $payload['delay']);
+        $this->assertSame(60, $payload['delay']);
     }
 
     public function testImmediateAndDelayedPayloadHooksReceiveTheResolvedQueue(): void

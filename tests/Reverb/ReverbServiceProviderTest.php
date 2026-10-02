@@ -12,6 +12,7 @@ use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelConnectionManager;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelManager;
 use Hypervel\Reverb\Protocols\Pusher\Managers\ArrayChannelManager;
 use Hypervel\Reverb\ReverbServiceProvider;
+use Hypervel\Reverb\Servers\Hypervel\Contracts\PubSubIncomingMessageHandler;
 use Hypervel\Reverb\Webhooks\WebhookBatchBuffer;
 use Hypervel\Support\Facades\Log;
 use Mockery as m;
@@ -105,17 +106,20 @@ class ReverbServiceProviderTest extends ReverbTestCase
         $this->assertSame('queue', $this->bufferRedisConnection($buffer)->getName());
     }
 
-    public function testPreservesCustomChannelManagerBindings(): void
+    public function testPreservesCustomPusherBindings(): void
     {
         $channelManager = m::mock(ChannelManager::class);
         $channelConnectionManager = m::mock(ChannelConnectionManager::class);
+        $messageHandler = m::mock(PubSubIncomingMessageHandler::class);
         $this->app->instance(ChannelManager::class, $channelManager);
         $this->app->instance(ChannelConnectionManager::class, $channelConnectionManager);
+        $this->app->instance(PubSubIncomingMessageHandler::class, $messageHandler);
 
         (new ReverbServiceProvider($this->app))->register();
 
         $this->assertSame($channelManager, $this->app->make(ChannelManager::class));
         $this->assertSame($channelConnectionManager, $this->app->make(ChannelConnectionManager::class));
+        $this->assertSame($messageHandler, $this->app->make(PubSubIncomingMessageHandler::class));
     }
 
     public function testConcreteAndContractChannelManagersShareOneRepository(): void

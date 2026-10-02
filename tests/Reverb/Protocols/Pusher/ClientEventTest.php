@@ -101,6 +101,8 @@ class ClientEventTest extends ReverbTestCase
         });
     }
 
+    // REMOVED: Laravel's "can forward an unauthenticated client message on public channel" test. In members mode,
+    // anyone can subscribe to a public channel, so membership there doesn't authorize publishing client events.
     public function testRejectClientEventOnPublicChannelInMembersMode(): void
     {
         $this->channels()->findOrCreate('test-channel');

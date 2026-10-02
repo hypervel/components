@@ -4,145 +4,78 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum;
 
-use Hypervel\Contracts\Auth\Factory as AuthFactory;
-use Hypervel\Contracts\Auth\Guard;
+use Hypervel\Auth\AuthenticationException;
 use Hypervel\Http\Request;
+use Hypervel\Sanctum\Contracts\HasAbilities;
+use Hypervel\Sanctum\Contracts\HasApiTokens;
+use Hypervel\Sanctum\Exceptions\MissingAbilityException;
 use Hypervel\Sanctum\Http\Middleware\CheckForAnyAbility;
-use Hypervel\Tests\Sanctum\Fixtures\DummyAuthenticatable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Symfony\Component\HttpFoundation\Response;
 
 class CheckForAnyAbilityTest extends TestCase
 {
-    /**
-     * Test request is passed along if any abilities are present on token.
-     */
-    public function testRequestIsPassedAlongIfAbilitiesArePresentOnToken()
+    public function testRequestIsPassedAlongIfAbilitiesArePresentOnToken(): void
     {
-        $user = new class extends DummyAuthenticatable {
-            private $token;
+        $middleware = new CheckForAnyAbility;
+        $request = new Request;
+        $user = m::mock(HasApiTokens::class);
+        $request->setUserResolver(fn (): HasApiTokens => $user);
+        $user->expects('currentAccessToken')->andReturn(m::mock(HasAbilities::class));
+        $user->expects('tokenCan')->with('foo')->andReturn(true);
+        $user->allows('tokenCan')->with('bar')->andReturn(false);
+        $expected = new Response('response');
 
-            public function __construct()
-            {
-                $this->token = new class {};
-            }
-
-            public function currentAccessToken()
-            {
-                return $this->token;
-            }
-
-            public function tokenCan(string $ability): bool
-            {
-                // Return true only for 'foo', false for others
-                return $ability === 'foo';
-            }
-        };
-
-        $request = Request::create('http://example.com');
-        $response = new Response;
-
-        $guard = m::mock(Guard::class);
-        $guard->shouldReceive('user')->andReturn($user);
-
-        $authFactory = m::mock(AuthFactory::class);
-        $authFactory->shouldReceive('guard')->andReturn($guard);
-
-        $middleware = new CheckForAnyAbility($authFactory);
-
-        $result = $middleware->handle($request, function ($req) use ($response) {
-            return $response;
+        $response = $middleware->handle($request, function () use ($expected): Response {
+            return $expected;
         }, 'foo', 'bar');
 
-        $this->assertSame($response, $result);
+        $this->assertSame($expected, $response);
     }
 
-    public function testExceptionIsThrownIfTokenDoesntHaveAbility()
+    public function testExceptionIsThrownIfTokenDoesntHaveAbility(): void
     {
-        $this->expectException(\Hypervel\Sanctum\Exceptions\MissingAbilityException::class);
+        $this->expectException(MissingAbilityException::class);
 
-        $user = new class extends DummyAuthenticatable {
-            private $token;
+        $middleware = new CheckForAnyAbility;
+        $request = new Request;
+        $user = m::mock(HasApiTokens::class);
+        $request->setUserResolver(fn (): HasApiTokens => $user);
+        $user->expects('currentAccessToken')->andReturn(m::mock(HasAbilities::class));
+        $user->expects('tokenCan')->with('foo')->andReturn(false);
+        $user->expects('tokenCan')->with('bar')->andReturn(false);
 
-            public function __construct()
-            {
-                $this->token = new class {};
-            }
-
-            public function currentAccessToken()
-            {
-                return $this->token;
-            }
-
-            public function tokenCan(string $ability): bool
-            {
-                return false;
-            }
-        };
-
-        $request = Request::create('http://example.com');
-
-        $guard = m::mock(Guard::class);
-        $guard->shouldReceive('user')->andReturn($user);
-
-        $authFactory = m::mock(AuthFactory::class);
-        $authFactory->shouldReceive('guard')->andReturn($guard);
-
-        $middleware = new CheckForAnyAbility($authFactory);
-
-        $middleware->handle($request, function ($req) {
-            // Handler
+        $middleware->handle($request, function (): Response {
+            return new Response('response');
         }, 'foo', 'bar');
     }
 
-    public function testExceptionIsThrownIfNoAuthenticatedUser()
+    public function testExceptionIsThrownIfNoAuthenticatedUser(): void
     {
-        $this->expectException(\Hypervel\Auth\AuthenticationException::class);
+        $this->expectException(AuthenticationException::class);
 
-        $request = Request::create('http://example.com');
+        $middleware = new CheckForAnyAbility;
+        $request = new Request;
+        $request->setUserResolver(fn (): null => null);
 
-        $guard = m::mock(Guard::class);
-        $guard->shouldReceive('user')->once()->andReturn(null);
-
-        $authFactory = m::mock(AuthFactory::class);
-        $authFactory->shouldReceive('guard')->andReturn($guard);
-
-        $middleware = new CheckForAnyAbility($authFactory);
-
-        $middleware->handle($request, function ($req) {
-            // Handler
+        $middleware->handle($request, function (): Response {
+            return new Response('response');
         }, 'foo', 'bar');
     }
 
-    public function testExceptionIsThrownIfNoToken()
+    public function testExceptionIsThrownIfNoToken(): void
     {
-        $this->expectException(\Hypervel\Auth\AuthenticationException::class);
+        $this->expectException(AuthenticationException::class);
 
-        $user = new class extends DummyAuthenticatable {
-            public function currentAccessToken()
-            {
-                return null;
-            }
+        $middleware = new CheckForAnyAbility;
+        $request = new Request;
+        $user = m::mock(HasApiTokens::class);
+        $request->setUserResolver(fn (): HasApiTokens => $user);
+        $user->expects('currentAccessToken')->andReturn(null);
 
-            public function tokenCan(string $ability): bool
-            {
-                return false;
-            }
-        };
-
-        $request = Request::create('http://example.com');
-
-        $guard = m::mock(Guard::class);
-        $guard->shouldReceive('user')->andReturn($user);
-
-        $authFactory = m::mock(AuthFactory::class);
-        $authFactory->shouldReceive('guard')->andReturn($guard);
-
-        $middleware = new CheckForAnyAbility($authFactory);
-
-        $middleware->handle($request, function ($req) {
-            // Handler
+        $middleware->handle($request, function (): Response {
+            return new Response('response');
         }, 'foo', 'bar');
     }
 }

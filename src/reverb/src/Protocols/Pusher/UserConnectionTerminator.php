@@ -26,7 +26,7 @@ class UserConnectionTerminator
         $exception = null;
 
         foreach ($this->channels->for($application)->connections() as $connection) {
-            if ((string) ($connection->data()['user_id'] ?? '') !== $userId) {
+            if ((string) $connection->data('user_id') !== $userId) {
                 continue;
             }
 

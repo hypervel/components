@@ -26,7 +26,7 @@ class FakePool extends ProcessPool
      */
     public function scale(int $processCount): void
     {
-        $this->processCount = $processCount;
+        $this->processCount = max(0, $processCount);
     }
 
     /**

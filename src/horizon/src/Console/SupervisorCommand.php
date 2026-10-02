@@ -35,12 +35,13 @@ class SupervisorCommand extends Command
                             {--sleep=3 : Number of seconds to sleep when no job is available}
                             {--timeout=60 : The number of seconds a child process can run}
                             {--tries=0 : Number of times to attempt a job before logging it failed}
-                            {--auto-scaling-strategy=time : If supervisor should scale by jobs or time to complete}
+                            {--auto-scaling-strategy=time : The auto-scaling strategy to use (time, size, or log)}
                             {--balance-cooldown=3 : The number of seconds to wait in between auto-scaling attempts}
                             {--balance-max-shift=1 : The maximum number of processes to increase or decrease per one scaling}
                             {--workers-name=default : The name that should be assigned to the workers}
                             {--parent-id=0 : The parent process ID}
-                            {--rest=0 : Number of seconds to rest between jobs}';
+                            {--rest=0 : Number of seconds to rest between jobs}
+                            {--json : Output the queue worker information as JSON}';
 
     /**
      * The console command description.
@@ -118,7 +119,6 @@ class SupervisorCommand extends Command
             (int) $this->option('max-jobs'),
             (int) $this->option('max-processes'),
             (int) $this->option('min-processes'),
-            (int) $this->option('concurrency'),
             (int) $this->option('memory'),
             (int) $this->option('timeout'),
             (int) $this->option('sleep'),
@@ -130,6 +130,8 @@ class SupervisorCommand extends Command
             (int) $this->option('parent-id'),
             (int) $this->option('rest'),
             $autoScalingStrategy,
+            $this->option('json'),
+            (int) $this->option('concurrency'),
         );
     }
 

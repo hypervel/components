@@ -58,13 +58,26 @@
             },
 
             delayed() {
-                if (this.unserialized && this.unserialized.delay && this.unserialized.delay.date) {
-                    return moment.tz(this.unserialized.delay.date, this.unserialized.delay.timezone)
+                const delay = this.unserialized && this.unserialized.delay;
+
+                if (delay && delay.date) {
+                    return moment.tz(delay.date, delay.timezone).fromNow(true);
+                }
+
+                if (delay && typeof delay === 'object') {
+                    // Use the delay the queue stored in seconds. A serialized DateInterval's
+                    // fields don't give its length: one built from a string has none, and an
+                    // inverted one points into the past.
+                    return this.formatDate(this.job.payload.pushedAt).add(this.job.payload.delay, 'seconds')
                         .fromNow(true);
-                } else if (this.unserialized && this.unserialized.delay) {
-                    return this.formatDate(this.job.payload.pushedAt).add(this.unserialized.delay, 'seconds')
+                }
+
+                if (delay) {
+                    return this.formatDate(this.job.payload.pushedAt).add(delay, 'seconds')
                         .fromNow(true);
-                } else if (this.job.delay > 0) {
+                }
+
+                if (this.job.delay > 0) {
                     return moment.duration(this.job.delay, 'seconds').humanize();
                 }
 

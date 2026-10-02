@@ -14,6 +14,7 @@ use Hypervel\Horizon\SystemProcessCounter;
 use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\FakePool;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class AutoScalerTest extends IntegrationTestCase
 {
@@ -279,6 +280,83 @@ class AutoScalerTest extends IntegrationTestCase
 
         $this->assertSame(52, $supervisor->processPools['first']->totalProcessCount());
         $this->assertSame(48, $supervisor->processPools['second']->totalProcessCount());
+    }
+
+    public function testScalerAssignsProcessesUsingLogarithmicQueueSizes(): void
+    {
+        [$scaler, $supervisor] = $this->with_scaling_scenario(10, [
+            'first' => ['current' => 1, 'size' => 999, 'runtime' => 10],
+            'second' => ['current' => 1, 'size' => 99, 'runtime' => 10],
+            'third' => ['current' => 1, 'size' => 99, 'runtime' => 10],
+            'fourth' => ['current' => 1, 'size' => 99, 'runtime' => 10],
+            'fifth' => ['current' => 1, 'size' => 9, 'runtime' => 10],
+        ], ['autoScalingStrategy' => 'log', 'balanceMaxShift' => 10]);
+
+        $scaler->scale($supervisor);
+
+        $this->assertSame(3, $supervisor->processPools['first']->totalProcessCount());
+        $this->assertSame(2, $supervisor->processPools['second']->totalProcessCount());
+        $this->assertSame(2, $supervisor->processPools['third']->totalProcessCount());
+        $this->assertSame(2, $supervisor->processPools['fourth']->totalProcessCount());
+        $this->assertSame(1, $supervisor->processPools['fifth']->totalProcessCount());
+    }
+
+    #[DataProvider('busyQueueRuntimes')]
+    public function testLogarithmicScalingAllocatesMoreWorkersToSmallerBusyQueueThanSizeScaling(int $runtime): void
+    {
+        $queues = [
+            'A' => ['current' => 1, 'size' => 946, 'runtime' => $runtime],
+            'B' => ['current' => 1, 'size' => 13702, 'runtime' => $runtime],
+            'C' => ['current' => 1, 'size' => 0, 'runtime' => 0],
+        ];
+
+        [$sizeScaler, $sizeSupervisor] = $this->with_scaling_scenario(25, $queues, [
+            'autoScalingStrategy' => 'size',
+            'balanceMaxShift' => 25,
+        ]);
+
+        $sizeScaler->scale($sizeSupervisor);
+
+        $this->assertSame(2, $sizeSupervisor->processPools['A']->totalProcessCount());
+        $this->assertSame(22, $sizeSupervisor->processPools['B']->totalProcessCount());
+        $this->assertSame(1, $sizeSupervisor->processPools['C']->totalProcessCount());
+        $this->assertSame(25, $sizeSupervisor->totalProcessCount());
+
+        [$logScaler, $logSupervisor] = $this->with_scaling_scenario(25, $queues, [
+            'autoScalingStrategy' => 'log',
+            'balanceMaxShift' => 25,
+        ]);
+
+        $logScaler->scale($logSupervisor);
+
+        $this->assertSame(11, $logSupervisor->processPools['A']->totalProcessCount());
+        $this->assertSame(13, $logSupervisor->processPools['B']->totalProcessCount());
+        $this->assertSame(1, $logSupervisor->processPools['C']->totalProcessCount());
+        $this->assertSame(25, $logSupervisor->totalProcessCount());
+    }
+
+    /**
+     * Get the runtimes recorded for the busy queues.
+     */
+    public static function busyQueueRuntimes(): array
+    {
+        return [
+            'recorded runtimes' => [1],
+            'no recorded runtimes' => [0],
+        ];
+    }
+
+    public function testLogarithmicScalingIsBasedOnQueueSizeInsteadOfRuntime(): void
+    {
+        [$scaler, $supervisor] = $this->with_scaling_scenario(3, [
+            'first' => ['current' => 1, 'size' => 99, 'runtime' => 1],
+            'second' => ['current' => 1, 'size' => 9, 'runtime' => 1000],
+        ], ['autoScalingStrategy' => 'log']);
+
+        $scaler->scale($supervisor);
+
+        $this->assertSame(2, $supervisor->processPools['first']->totalProcessCount());
+        $this->assertSame(1, $supervisor->processPools['second']->totalProcessCount());
     }
 
     public function testScalerWorksWithASingleProcessPool(): void
