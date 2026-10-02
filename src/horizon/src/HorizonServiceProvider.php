@@ -8,6 +8,7 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Horizon\Connectors\RedisConnector;
 use Hypervel\Queue\QueueManager;
+use Hypervel\Sentinel\Http\Middleware\SentinelMiddleware;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\ServiceProvider;
 
@@ -21,7 +22,11 @@ class HorizonServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // REMOVED: Laravel Sentinel middleware has no Hypervel integration.
+        Route::middlewareGroup('horizon', [
+            SentinelMiddleware::class . ':horizon',
+            ...$this->app->make('config')->array('horizon.middleware'),
+        ]);
+
         $this->normalizeConfig();
         $this->registerEvents();
         $this->registerRoutes();
@@ -67,7 +72,7 @@ class HorizonServiceProvider extends ServiceProvider
             'domain' => $config->get('horizon.domain'),
             'prefix' => $config->string('horizon.path'),
             'namespace' => 'Hypervel\Horizon\Http\Controllers',
-            'middleware' => $config->array('horizon.middleware'),
+            'middleware' => 'horizon',
         ], function () {
             $this->loadRoutesFrom(__DIR__ . '/../routes/web.php');
         });
