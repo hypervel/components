@@ -363,6 +363,28 @@ class OAuthTwoTest extends TestCase
         $provider->user();
     }
 
+    public function testExceptionIsThrownIfStateIsNotAString(): void
+    {
+        $this->expectException(InvalidStateException::class);
+
+        $request = m::mock(Request::class);
+        $request->shouldReceive('session')
+            ->andReturn($session = m::mock(SessionContract::class));
+        $request->shouldReceive('input')
+            ->with('state')
+            ->once()
+            ->andReturn([str_repeat('A', 40)]);
+
+        $session->expects('pull')->with('state')->andReturns(str_repeat('A', 40));
+        $provider = new OAuthTwoTestProviderStub(
+            $request,
+            'client_id',
+            'client_secret',
+            'redirect'
+        );
+        $provider->user();
+    }
+
     public function testExceptionIsThrownIfStateIsNotSet(): void
     {
         $this->expectException(InvalidStateException::class);
