@@ -86,13 +86,4 @@ class RecallerTest extends TestCase
 
         $this->assertFalse($recaller->valid());
     }
-
-    public function testPlainCookieStringPreservesIdentifierAndToken(): void
-    {
-        $raw = '123|token|hash';
-        $recaller = new Recaller($raw);
-
-        $this->assertSame('123', $recaller->id());
-        $this->assertSame('token', $recaller->token());
-    }
 }

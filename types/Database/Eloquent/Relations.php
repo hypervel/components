@@ -181,6 +181,11 @@ class User extends Model
         $hasMany = $this->hasMany(Post::class);
         assertType('Hypervel\Database\Eloquent\Relations\HasMany<Hypervel\Types\Relations\Post, $this(Hypervel\Types\Relations\User)>', $hasMany);
 
+        assertType(
+            'Hypervel\Database\Eloquent\Relations\HasManyThrough<Hypervel\Types\Relations\Comment, Hypervel\Types\Relations\Post, $this(Hypervel\Types\Relations\User)>',
+            $this->through($hasMany)->has(fn ($post) => $post->comments()),
+        );
+
         return $hasMany;
     }
 
@@ -234,7 +239,7 @@ class User extends Model
 
         $through = $this->through('mechanic');
         assertType(
-            'Hypervel\Database\Eloquent\PendingHasThroughRelationship<Hypervel\Database\Eloquent\Model, $this(Hypervel\Types\Relations\User)>',
+            'Hypervel\Database\Eloquent\PendingHasThroughRelationship<Hypervel\Database\Eloquent\Model, $this(Hypervel\Types\Relations\User), Hypervel\Database\Eloquent\Relations\HasOneOrMany<Hypervel\Database\Eloquent\Model, $this(Hypervel\Types\Relations\User), *>>',
             $through,
         );
         assertType(

@@ -6,7 +6,6 @@ namespace Hypervel\Passkeys\Actions;
 
 use Hypervel\Auth\EloquentUserProvider;
 use Hypervel\Contracts\Auth\StatefulGuard;
-use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Passkeys\Concerns\DispatchesEvents;
 use Hypervel\Passkeys\Contracts\PasskeyUser;
 use Hypervel\Passkeys\Events\PasskeyVerified;
@@ -15,6 +14,7 @@ use Hypervel\Passkeys\Passkey;
 use Hypervel\Passkeys\Passkeys;
 use Hypervel\Passkeys\Support\WebAuthn;
 use Hypervel\Support\Facades\Date;
+use Hypervel\Support\Facades\DB;
 use ParagonIE\ConstantTime\Base64UrlSafe;
 use RuntimeException;
 use Webauthn\AuthenticatorAssertionResponse;
@@ -26,11 +26,6 @@ use Webauthn\PublicKeyCredentialRequestOptions;
 class VerifyPasskey
 {
     use DispatchesEvents;
-
-    public function __construct(
-        private readonly ConnectionResolverInterface $database,
-    ) {
-    }
 
     /**
      * Validate the passkey credential and return the passkey.
@@ -48,11 +43,10 @@ class VerifyPasskey
             ? null
             : $this->ownerMorphClassForGuard(Passkeys::guard());
         $passkeyModel = Passkeys::passkeyModel();
-        /** @var Passkey $passkeyInstance */
-        $passkeyInstance = new $passkeyModel;
 
-        return $this->database->connection($passkeyInstance->getConnectionName())->transaction(function () use ($credential, $options, $user, $response, $ownerType): Passkey {
-            $passkey = $this->getPasskey($credential, lock: true, ownerType: $ownerType);
+        // The row lock only holds inside a transaction on the passkey model's own connection.
+        return DB::connection((new $passkeyModel)->getConnectionName())->transaction(function () use ($credential, $options, $user, $response, $ownerType): Passkey {
+            $passkey = $this->getPasskey($credential, lock: true);
 
             $this->ensurePasskeyBelongsToUser($passkey, $user);
 
@@ -95,7 +89,7 @@ class VerifyPasskey
      *
      * @throws InvalidPasskeyException
      */
-    public function getPasskey(PublicKeyCredential $credential, bool $lock = false, ?string $ownerType = null): Passkey
+    public function getPasskey(PublicKeyCredential $credential, bool $lock = false): Passkey
     {
         // Assertion ceremonies do not run CheckCredentialId, so enforce its CTAP2 limit before lookup.
         if (strlen($credential->rawId) > 1023) {
@@ -106,10 +100,6 @@ class VerifyPasskey
         $passkeyModel = Passkeys::passkeyModel();
 
         $query = $passkeyModel::query()->where('credential_id', $credentialId);
-
-        if ($ownerType !== null) {
-            $query->where('user_type', $ownerType);
-        }
 
         if ($lock) {
             $query->lockForUpdate();
@@ -151,9 +141,14 @@ class VerifyPasskey
      */
     protected function resolvePasskeyOwner(Passkey $passkey, string $ownerType): PasskeyUser
     {
+        // Compare the stored type first so another provider's owner type is never resolved.
+        if ($passkey->user_type !== $ownerType) {
+            throw InvalidPasskeyException::make('Passkey not recognized. It may have been removed from your account.');
+        }
+
         $user = $passkey->user;
 
-        if (! $user instanceof PasskeyUser || $user->getMorphClass() !== $ownerType) {
+        if (! $user instanceof PasskeyUser) {
             throw InvalidPasskeyException::make('Passkey not recognized. It may have been removed from your account.');
         }
 

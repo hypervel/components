@@ -4,20 +4,22 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Fortify;
 
-use Hypervel\Contracts\Auth\Authenticatable;
-use Hypervel\Contracts\Auth\Factory as AuthFactory;
-use Hypervel\Contracts\Auth\StatefulGuard;
 use Hypervel\Fortify\Contracts\CreatesNewUsers;
-use Hypervel\Fortify\Contracts\RegisterViewResponse;
-use Mockery as m;
+use Hypervel\Fortify\Fortify;
+use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Support\Facades\Auth;
+use Hypervel\Testbench\Attributes\WithMigration;
+use Workbench\App\Models\User;
+use Workbench\Database\Factories\UserFactory;
 
+#[WithMigration]
 class RegisteredUserControllerTest extends TestCase
 {
+    use RefreshDatabase;
+
     public function testTheRegisterViewIsReturned(): void
     {
-        $this->mock(RegisterViewResponse::class)
-            ->shouldReceive('toResponse')
-            ->andReturn(response('hello world'));
+        Fortify::registerView(fn (): string => 'hello world');
 
         $response = $this->get('/register');
 
@@ -29,27 +31,25 @@ class RegisteredUserControllerTest extends TestCase
     {
         $this->mock(CreatesNewUsers::class)
             ->shouldReceive('create')
-            ->andReturn(m::mock(Authenticatable::class));
-
-        $this->expectsGuardLogin();
+            ->andReturn($user = User::forceCreate(UserFactory::new()->raw()));
 
         $response = $this->post('/register', []);
 
         $response->assertRedirect('/home');
+        $this->assertAuthenticatedAs($user);
     }
 
     public function testUsersCanBeCreatedAndRedirectedToIntendedUrl(): void
     {
         $this->mock(CreatesNewUsers::class)
             ->shouldReceive('create')
-            ->andReturn(m::mock(Authenticatable::class));
-
-        $this->expectsGuardLogin();
+            ->andReturn($user = User::forceCreate(UserFactory::new()->raw()));
 
         $response = $this->withSession(['url.intended' => 'http://foo.com/bar'])
             ->post('/register', []);
 
         $response->assertRedirect('http://foo.com/bar');
+        $this->assertAuthenticatedAs($user);
     }
 
     public function testUsernamesWillBeStoredCaseInsensitive(): void
@@ -63,9 +63,7 @@ class RegisteredUserControllerTest extends TestCase
                 'password' => 'password',
             ])
             ->once()
-            ->andReturn(m::mock(Authenticatable::class));
-
-        $this->expectsGuardLogin();
+            ->andReturn($user = User::forceCreate(UserFactory::new()->raw()));
 
         $response = $this->post('/register', [
             'email' => 'TAYLOR@LARAVEL.COM',
@@ -73,6 +71,7 @@ class RegisteredUserControllerTest extends TestCase
         ]);
 
         $response->assertRedirect('/home');
+        $this->assertAuthenticatedAs($user);
     }
 
     public function testUsersCanBeCreatedWithRememberOption(): void
@@ -80,9 +79,7 @@ class RegisteredUserControllerTest extends TestCase
         $this->mock(CreatesNewUsers::class)
             ->shouldReceive('create')
             ->once()
-            ->andReturn(m::mock(Authenticatable::class));
-
-        $this->expectsGuardLogin(remember: true);
+            ->andReturn($user = User::forceCreate(UserFactory::new()->raw()));
 
         $response = $this->post('/register', [
             'email' => 'taylor@laravel.com',
@@ -91,20 +88,7 @@ class RegisteredUserControllerTest extends TestCase
         ]);
 
         $response->assertRedirect('/home');
-    }
-
-    private function expectsGuardLogin(bool $remember = false): void
-    {
-        $guard = m::mock(StatefulGuard::class);
-        $guard->shouldReceive('login')
-            ->with(m::type(Authenticatable::class), $remember)
-            ->once();
-
-        $auth = m::mock(AuthFactory::class);
-        $auth->shouldReceive('guard')
-            ->with(null)
-            ->andReturn($guard);
-
-        $this->app->instance(AuthFactory::class, $auth);
+        $this->assertAuthenticatedAs($user);
+        $response->assertCookie(Auth::guard()->getRecallerName());
     }
 }

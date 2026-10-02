@@ -5,8 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Fortify;
 
 use Hypervel\Auth\Events\Logout;
-use Hypervel\Contracts\Auth\Authenticatable;
-use Hypervel\Fortify\Contracts\LoginViewResponse;
+use Hypervel\Fortify\Fortify;
 use Hypervel\Fortify\LoginRateLimiter;
 use Hypervel\Foundation\Http\FormRequest;
 use Hypervel\Foundation\Testing\RefreshDatabase;
@@ -14,12 +13,13 @@ use Hypervel\Http\Request;
 use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\Support\Facades\Auth;
 use Hypervel\Support\Facades\Event;
+use Hypervel\Support\Sleep;
 use Hypervel\Testbench\Attributes\WithMigration;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionClass;
 use Workbench\App\Models\User;
+use Workbench\Database\Factories\UserFactory;
 
 #[WithMigration]
 class AuthenticatedSessionControllerTest extends TestCase
@@ -28,9 +28,7 @@ class AuthenticatedSessionControllerTest extends TestCase
 
     public function testTheLoginViewIsReturned(): void
     {
-        $this->mock(LoginViewResponse::class)
-            ->shouldReceive('toResponse')
-            ->andReturn(response('hello world'));
+        Fortify::loginView(fn (): string => 'hello world');
 
         $response = $this->get('/login');
 
@@ -68,7 +66,7 @@ class AuthenticatedSessionControllerTest extends TestCase
             'email' => 'taylor@laravel.com',
             'password' => 'secret',
             'remember' => $remember,
-        ]));
+        ], static fn (string|bool|null $value): bool => $value !== null));
 
         $response->assertRedirect('/home');
     }
@@ -92,13 +90,18 @@ class AuthenticatedSessionControllerTest extends TestCase
 
     public function testLoginAttemptsAreThrottled(): void
     {
-        $this->mock(LoginRateLimiter::class, function ($mock) {
-            $mock->shouldReceive('tooManyAttempts')->andReturn(true);
-            $mock->shouldReceive('availableIn')->andReturn(10);
-        });
+        // Skip the authentication timebox wait on each failed attempt.
+        Sleep::fake();
+
+        foreach (range(1, 5) as $attempt) {
+            $this->postJson('/login', [
+                'email' => 'taylor@hypervel.org',
+                'password' => 'secret',
+            ])->assertStatus(422);
+        }
 
         $response = $this->postJson('/login', [
-            'email' => 'taylor@laravel.com',
+            'email' => 'taylor@hypervel.org',
             'password' => 'secret',
         ]);
 
@@ -110,19 +113,13 @@ class AuthenticatedSessionControllerTest extends TestCase
     public function testCantBypassThrottleWithSpecialCharacters(string $username, string $expectedResult): void
     {
         $loginRateLimiter = new LoginRateLimiter(
-            $this->mock(RateLimiter::class)
+            $this->app->make(RateLimiter::class)
         );
 
         $reflection = new ReflectionClass($loginRateLimiter);
         $method = $reflection->getMethod('throttleKey');
 
-        $request = $this->mock(
-            Request::class,
-            static function ($mock) use ($username) {
-                $mock->shouldReceive('input')->andReturn($username);
-                $mock->shouldReceive('ip')->andReturn('192.168.0.1');
-            }
-        );
+        $request = Request::create('/login', 'POST', ['email' => $username], server: ['REMOTE_ADDR' => '192.168.0.1']);
 
         self::assertSame('web|' . $expectedResult . '|192.168.0.1', $method->invoke($loginRateLimiter, $request));
     }
@@ -163,26 +160,22 @@ class AuthenticatedSessionControllerTest extends TestCase
 
     public function testTheUserCanLogoutOfTheApplication(): void
     {
-        Auth::guard()->setUser(
-            m::mock(Authenticatable::class)->shouldIgnoreMissing()
-        );
+        $user = User::forceCreate(UserFactory::new()->raw());
 
-        $response = $this->post('/logout');
+        $response = $this->actingAs($user)->post('/logout');
 
         $response->assertRedirect('/');
-        $this->assertNull(Auth::guard()->getUser());
+        $this->assertGuest();
     }
 
     public function testTheUserCanLogoutOfTheApplicationUsingJsonRequest(): void
     {
-        Auth::guard()->setUser(
-            m::mock(Authenticatable::class)->shouldIgnoreMissing()
-        );
+        $user = User::forceCreate(UserFactory::new()->raw());
 
-        $response = $this->postJson('/logout');
+        $response = $this->actingAs($user)->postJson('/logout');
 
         $response->assertStatus(204);
-        $this->assertNull(Auth::guard()->getUser());
+        $this->assertGuest();
     }
 
     public function testCaseInsensitiveUsernamesCanBeUsed(): void

@@ -291,13 +291,16 @@ class QueueProcessingTest extends IntegrationTestCase
         Redis::connection('horizon')->hset($id, 'status', 'reserved');
 
         $status = null;
-        Event::listen(JobsMigrated::class, function (JobsMigrated $event) use ($id, &$status): void {
+        $queue = null;
+        Event::listen(JobsMigrated::class, function (JobsMigrated $event) use ($id, &$status, &$queue): void {
             $status = Redis::connection('horizon')->hget($id, 'status');
+            $queue = $event->queue;
         });
 
         $this->work();
 
         $this->assertSame('pending', $status);
+        $this->assertSame('default', $queue);
     }
 
     public function testInvalidRawPayloadIsTerminallyRemovedWithoutHorizonTelemetryFailure(): void

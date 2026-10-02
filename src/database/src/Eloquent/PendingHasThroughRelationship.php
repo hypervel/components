@@ -17,7 +17,7 @@ use Hypervel\Support\Stringable;
 /**
  * @template TIntermediateModel of Model
  * @template TDeclaringModel of Model
- * @template TLocalRelationship of HasOneOrMany<TIntermediateModel, TDeclaringModel>
+ * @template TLocalRelationship of HasOneOrMany<TIntermediateModel, TDeclaringModel, *>
  */
 class PendingHasThroughRelationship
 {
@@ -52,7 +52,7 @@ class PendingHasThroughRelationship
      *
      * @template TRelatedModel of Model
      *
-     * @param (callable(TIntermediateModel): (HasMany<TRelatedModel, TIntermediateModel>|HasOne<TRelatedModel, TIntermediateModel>|MorphOneOrMany<TRelatedModel, TIntermediateModel>))|string $callback
+     * @param (callable(TIntermediateModel): (HasMany<TRelatedModel, TIntermediateModel>|HasOne<TRelatedModel, TIntermediateModel>|MorphOneOrMany<TRelatedModel, TIntermediateModel, *>))|string $callback
      * @return (
      *     $callback is string
      *     ? HasManyThrough<Model, TIntermediateModel, TDeclaringModel>|HasOneThrough<Model, TIntermediateModel, TDeclaringModel>

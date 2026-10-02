@@ -116,7 +116,7 @@ trait ReplacesAttributes
      */
     protected function replaceExtensions(string $message, string $attribute, string $rule, array $parameters): string
     {
-        return str_replace(':values', implode(', ', $parameters), $message);
+        return $this->replaceMimes($message, $attribute, $rule, $parameters);
     }
 
     /**
@@ -176,10 +176,10 @@ trait ReplacesAttributes
      */
     protected function replaceMissingUnless(string $message, string $attribute, string $rule, array $parameters): string
     {
-        return str_replace([':other', ':value'], [
-            $this->getDisplayableAttribute($parameters[0]),
-            $this->getDisplayableValue($parameters[0], $parameters[1]),
-        ], $message);
+        return $this->replaceWhileKeepingCase($message, [
+            'other' => $this->getDisplayableAttribute($parameters[0]),
+            'value' => $this->getDisplayableValue($parameters[0], $parameters[1]),
+        ]);
     }
 
     /**
@@ -314,7 +314,7 @@ trait ReplacesAttributes
      */
     protected function replaceMimetypes(string $message, string $attribute, string $rule, array $parameters): string
     {
-        return str_replace(':values', implode(', ', $parameters), $message);
+        return $this->replaceMimes($message, $attribute, $rule, $parameters);
     }
 
     /**
@@ -324,7 +324,16 @@ trait ReplacesAttributes
      */
     protected function replaceMimes(string $message, string $attribute, string $rule, array $parameters): string
     {
-        return str_replace(':values', implode(', ', $parameters), $message);
+        // MIME types and extensions are shown literally, without custom display values.
+        return str_replace(
+            [':values', ':VALUES', ':Values'],
+            [
+                implode(', ', $parameters),
+                Str::upper(implode(', ', $parameters)),
+                implode(', ', array_map(Str::ucfirst(...), $parameters)),
+            ],
+            $message,
+        );
     }
 
     /**

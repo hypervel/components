@@ -465,7 +465,7 @@ trait HasRelationships
      * @param HasMany<TIntermediateModel, covariant $this>|HasOne<TIntermediateModel, covariant $this>|string $relationship
      * @return (
      *     $relationship is string
-     *     ? PendingHasThroughRelationship<Model, $this>
+     *     ? PendingHasThroughRelationship<Model, $this, HasOneOrMany<Model, $this, *>>
      *     : (
      *          $relationship is HasMany<TIntermediateModel, $this>
      *          ? PendingHasThroughRelationship<TIntermediateModel, $this, HasMany<TIntermediateModel, $this>>

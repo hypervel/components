@@ -1206,6 +1206,14 @@ $users = DB::table('users')
     ->get();
 ```
 
+The `<=>` operator compares two columns while treating two `NULL` values as equal, on every supported database:
+
+```php
+$users = DB::table('users')
+    ->whereColumn('billing_email', '<=>', 'email')
+    ->get();
+```
+
 You may also pass an array of column comparisons to the `whereColumn` method. These conditions will be joined using the `and` operator:
 
 ```php

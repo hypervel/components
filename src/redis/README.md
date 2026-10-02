@@ -3,8 +3,6 @@ Redis for Hypervel
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/hypervel/redis)
 
-Ported from: https://github.com/hyperf/hyperf/tree/master/src/redis
-
 ## Differences From Laravel
 
 - Hypervel uses phpredis-only pooled connections. Cluster and Sentinel settings belong to each named connection instead of Laravel's top-level cluster configuration.
@@ -17,3 +15,5 @@ Ported from: https://github.com/hyperf/hyperf/tree/master/src/redis
 - Native `reset()` is unavailable on pooled connections because it clears authentication and database state owned by the pool. Use `discard()`, `unwatch()`, or `exec()` to finish the corresponding stateful operation.
 - `Redis::funnel()->acquire()` returns a caller-held concurrency lease that can be refreshed and released explicitly after work spanning multiple operations. Laravel only exposes the callback-scoped funnel API. The Redis concurrency limiter's public `acquire()` returns that lease, so Laravel's protected `acquire($id)`, `lockScript()`, `release($key, $id)`, `releaseScript()`, and `getPrefix()` hooks are not provided. Override `claimSlot()` to customize slot acquisition; the returned lease releases the slot.
 - Redis funnel and throttle timeout failures throw `Hypervel\Contracts\Limiters\LimiterTimeoutException`, shared with cache funnels. Laravel uses `Illuminate\Contracts\Redis\LimiterTimeoutException` for Redis limiters.
+
+Ported from: https://github.com/laravel/framework/tree/13.x/src/Illuminate/Redis

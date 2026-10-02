@@ -20,6 +20,9 @@ class RegisteredUserController extends Controller
 {
     use DispatchesEvents;
 
+    /**
+     * Create a new controller instance.
+     */
     public function __construct(
         private readonly Container $container,
         private readonly Config $config,

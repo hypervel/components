@@ -61,13 +61,14 @@ trait PasskeyAuthenticatable
     /**
      * Get the unique user handle for WebAuthn.
      *
-     * This should be a stable identifier that does not reveal PII.
+     * This should be a stable identifier that does not reveal PII. The morph
+     * class keeps polymorphic owners that share a table and key distinct.
      */
     public function getPasskeyUserHandle(): string
     {
         return hash_hmac(
             'sha256',
-            $this->getTable() . '|' . $this->getKey(),
+            $this->getMorphClass() . '|' . $this->getTable() . '|' . $this->getKey(),
             Passkeys::userHandleSecret(),
             binary: true,
         );

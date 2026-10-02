@@ -84,7 +84,7 @@ class PasskeyRegistrationTest extends TestCase
             ->getJson('/user/passkeys/options')
             ->assertOk();
 
-        $this->assertNotNull(session('passkey.registration_options'));
+        $this->assertNotNull(session('passkey.registration_options_web'));
     }
 
     public function testRegistrationOptionsRemainInSessionWhenTheAuthenticatedUserChanges(): void
@@ -103,13 +103,13 @@ class PasskeyRegistrationTest extends TestCase
             ->getJson('/user/passkeys/options')
             ->assertOk();
 
-        $registrationOptions = session('passkey.registration_options');
+        $registrationOptions = session('passkey.registration_options_web');
 
         Passkeys::guard()->logout();
         Passkeys::guard()->login($secondUser);
 
         $this->assertTrue(Passkeys::guard()->user()?->is($secondUser));
-        $this->assertSame($registrationOptions, session('passkey.registration_options'));
+        $this->assertSame($registrationOptions, session('passkey.registration_options_web'));
     }
 
     public function testItRequiresPasswordConfirmationForRegistrationOptions(): void
@@ -162,7 +162,7 @@ class PasskeyRegistrationTest extends TestCase
 
         $this->actingAs($user)
             ->withSession(['auth.password_confirmed_at_web' => time()])
-            ->withSession(['passkey.registration_options' => WebAuthn::toJson($this->createRegistrationOptions($user))])
+            ->withSession(['passkey.registration_options_web' => WebAuthn::toJson($this->createRegistrationOptions($user))])
             ->postJson('/user/passkeys', [
                 'name' => 'My Passkey',
                 'credential' => $this->createRegistrationCredential(),

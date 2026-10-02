@@ -87,7 +87,7 @@
         "psr/log": "^3.0",
         "psr/simple-cache": "^3.0",
         "psy/psysh": "dev-main",
-        "sentry/sentry": "dev-master",
+        "sentry/sentry": "^4.32",
         "spomky-labs/otphp": "^11.0",
         "symfony/console": "^8.1.2",
         "symfony/dom-crawler": "^8.1",

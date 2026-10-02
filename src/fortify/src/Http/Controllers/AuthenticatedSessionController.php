@@ -23,6 +23,9 @@ use Hypervel\Routing\Pipeline;
 
 class AuthenticatedSessionController extends Controller
 {
+    /**
+     * Create a new controller instance.
+     */
     public function __construct(
         private readonly Container $container,
         private readonly Config $config,

@@ -13,6 +13,10 @@ class RecoveryCode
      */
     public static function generate(): string
     {
+        if ($generator = Fortify::recoveryCodeGenerator()) {
+            return $generator();
+        }
+
         return Str::random(10) . '-' . Str::random(10);
     }
 }

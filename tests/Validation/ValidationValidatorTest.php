@@ -949,7 +949,9 @@ class ValidationValidatorTest extends TestCase
 
     #[TestWith(['declined_if', ['foo' => 'yes', 'bar' => 'aAa']])]
     #[TestWith(['missing_if', ['foo' => 'yes', 'bar' => 'aAa']])]
+    #[TestWith(['missing_unless', ['foo' => 'yes', 'bar' => 'bBb']])]
     #[TestWith(['present_if', ['bar' => 'aAa']])]
+    #[TestWith(['present_unless', ['bar' => 'bBb']])]
     #[TestWith(['required_if', ['bar' => 'aAa']])]
     public function testConditionalRulePlaceholdersPreserveCasingVariants(string $rule, array $data): void
     {
@@ -1000,6 +1002,9 @@ class ValidationValidatorTest extends TestCase
     #[TestWith(['ends_with', 'other'])]
     #[TestWith(['doesnt_end_with', 'tAylor'])]
     #[TestWith(['doesnt_start_with', 'sVen'])]
+    #[TestWith(['extensions', 'file'])]
+    #[TestWith(['mimes', 'file'])]
+    #[TestWith(['mimetypes', 'file'])]
     public function testValueListRulePlaceholdersPreserveCasingVariants(string $rule, array|string $value): void
     {
         $validator = new Validator(

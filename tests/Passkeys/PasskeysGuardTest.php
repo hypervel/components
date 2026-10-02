@@ -10,15 +10,23 @@ use Hypervel\Contracts\Auth\StatefulGuard;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Passkeys\Actions\VerifyPasskey;
 use Hypervel\Passkeys\Exceptions\InvalidPasskeyException;
+use Hypervel\Passkeys\Http\Controllers\PasskeyConfirmationController;
+use Hypervel\Passkeys\Http\Controllers\PasskeyLoginController;
+use Hypervel\Passkeys\Http\Controllers\PasskeyRegistrationController;
+use Hypervel\Passkeys\Http\Requests\PasskeyRegistrationRequest;
+use Hypervel\Passkeys\Http\Requests\PasskeyVerificationRequest;
 use Hypervel\Passkeys\Passkey;
 use Hypervel\Passkeys\Passkeys;
+use Hypervel\Passkeys\Support\WebAuthn;
+use Hypervel\Support\Facades\Route;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Passkeys\Fixtures\Admin;
 use Hypervel\Tests\Passkeys\Fixtures\User;
 use ParagonIE\ConstantTime\Base64UrlSafe;
-use ReflectionMethod;
-use Webauthn\AuthenticatorResponse;
+use PHPUnit\Framework\Attributes\DataProvider;
+use Webauthn\AuthenticatorAssertionResponse;
 use Webauthn\PublicKeyCredential;
+use Webauthn\PublicKeyCredentialRequestOptions;
 
 class PasskeysGuardTest extends TestCase
 {
@@ -36,14 +44,99 @@ class PasskeysGuardTest extends TestCase
         $this->assertInstanceOf(StatefulGuard::class, Passkeys::guard());
     }
 
-    public function testSelectedGuardProviderScopesPasswordlessPasskeyLookup(): void
+    #[DataProvider('ownerTypesOutsideTheSelectedProvider')]
+    public function testSelectedGuardProviderScopesPasswordlessPasskeyVerification(string $ownerType): void
     {
         $this->configureAdminGuard();
-        $this->createAdminsTable();
 
         /** @var AuthFactory $auth */
         $auth = $this->app->make(AuthFactory::class);
         $auth->shouldUse('admin');
+
+        $user = User::create([
+            'name' => 'User',
+            'email' => 'user@example.com',
+        ]);
+
+        $rawCredentialId = random_bytes(32);
+        $credentialId = Base64UrlSafe::encodeUnpadded($rawCredentialId);
+
+        (new Passkey)->forceFill([
+            'user_type' => $ownerType,
+            'user_id' => $user->getKey(),
+            'name' => 'User key',
+            'credential_id' => $credentialId,
+            'credential' => ['id' => $credentialId],
+        ])->save();
+
+        $credential = PublicKeyCredential::create(
+            'public-key',
+            $rawCredentialId,
+            $this->createStub(AuthenticatorAssertionResponse::class),
+        );
+
+        $this->expectException(InvalidPasskeyException::class);
+        $this->expectExceptionMessage('Passkey not recognized. It may have been removed from your account.');
+
+        app(VerifyPasskey::class)($credential, PublicKeyCredentialRequestOptions::create(
+            challenge: random_bytes(32),
+            rpId: 'localhost',
+        ));
+    }
+
+    /**
+     * Get stored owner types that the admin guard provider does not own.
+     *
+     * @return array<string, array{string}>
+     */
+    public static function ownerTypesOutsideTheSelectedProvider(): array
+    {
+        return [
+            'another provider model' => [User::class],
+            'unresolvable owner type' => ['Missing\PasskeyOwner'],
+        ];
+    }
+
+    public function testLoginAndConfirmationOptionsArePendingSeparatelyForEachGuard(): void
+    {
+        $this->configureAdminGuard();
+
+        Route::middleware(['web', 'guest:admin'])
+            ->get('/admin/passkeys/login/options', [PasskeyLoginController::class, 'index']);
+        Route::middleware(['web', 'auth:web'])
+            ->get('/account/passkeys/confirm/options', [PasskeyConfirmationController::class, 'index']);
+
+        $user = User::create([
+            'name' => 'User',
+            'email' => 'user@example.com',
+        ]);
+
+        $adminLogin = $this->actingAs($user, 'web')
+            ->getJson('/admin/passkeys/login/options')
+            ->assertOk();
+
+        $userConfirmation = $this->getJson('/account/passkeys/confirm/options')
+            ->assertOk();
+
+        $this->assertSame($adminLogin->json('options.challenge'), $this->pendingVerificationChallenge('admin'));
+        $this->assertSame($userConfirmation->json('options.challenge'), $this->pendingVerificationChallenge('web'));
+    }
+
+    public function testRegistrationOptionsArePendingSeparatelyForEachGuard(): void
+    {
+        $this->configureAdminGuard();
+
+        Schema::create('admins', function (Blueprint $table): void {
+            $table->id();
+            $table->string('name');
+            $table->string('email');
+            $table->timestamps();
+        });
+
+        Route::middleware(['web', 'auth:web'])
+            ->get('/account/passkeys/options', [PasskeyRegistrationController::class, 'index']);
+        Route::middleware(['web', 'auth:admin'])
+            ->get('/admin/passkeys/options', [PasskeyRegistrationController::class, 'index']);
 
         $user = User::create([
             'name' => 'User',
@@ -54,32 +147,13 @@ class PasskeysGuardTest extends TestCase
             'email' => 'admin@example.com',
         ]);
 
-        $rawCredentialId = random_bytes(32);
-        $credentialId = Base64UrlSafe::encodeUnpadded($rawCredentialId);
+        $this->actingAs($user, 'web')->actingAs($admin, 'admin');
 
-        /** @var Passkey $passkey */
-        $passkey = $user->passkeys()->create([
-            'name' => 'User key',
-            'credential_id' => $credentialId,
-            'credential' => ['id' => $credentialId],
-        ]);
+        $userRegistration = $this->getJson('/account/passkeys/options')->assertOk();
+        $adminRegistration = $this->getJson('/admin/passkeys/options')->assertOk();
 
-        $credential = PublicKeyCredential::create(
-            'public-key',
-            $rawCredentialId,
-            $this->createStub(AuthenticatorResponse::class),
-        );
-
-        $verifier = new VerifyPasskey($this->app->make('db'));
-        $selectedOwnerMorphClass = $this->selectedOwnerMorphClass($verifier);
-
-        $this->assertSame($admin->getMorphClass(), $selectedOwnerMorphClass);
-        $this->assertNotSame($passkey->user_type, $selectedOwnerMorphClass);
-
-        $this->expectException(InvalidPasskeyException::class);
-        $this->expectExceptionMessage('Passkey not recognized. It may have been removed from your account.');
-
-        $verifier->getPasskey($credential, ownerType: $selectedOwnerMorphClass);
+        $this->assertSame($userRegistration->json('options.challenge'), $this->pendingRegistrationChallenge('web'));
+        $this->assertSame($adminRegistration->json('options.challenge'), $this->pendingRegistrationChallenge('admin'));
     }
 
     /**
@@ -110,26 +184,28 @@ class PasskeysGuardTest extends TestCase
     }
 
     /**
-     * Create the admins table fixture.
+     * Get the challenge from the guard's pending verification options.
      */
-    private function createAdminsTable(): void
+    private function pendingVerificationChallenge(string $guard): string
     {
-        Schema::create('admins', function (Blueprint $table): void {
-            $table->id();
-            $table->string('name');
-            $table->string('email')->unique();
-            $table->rememberToken();
-            $table->timestamps();
-        });
+        $this->app->make(AuthFactory::class)->shouldUse($guard);
+
+        $request = PasskeyVerificationRequest::create('/');
+        $request->setHypervelSession($this->app->make('session.store'));
+
+        return WebAuthn::toBrowserArray($request->verificationOptions())['challenge'];
     }
 
     /**
-     * Get the owner morph class for the selected guard.
+     * Get the challenge from the guard's pending registration options.
      */
-    private function selectedOwnerMorphClass(VerifyPasskey $verifier): string
+    private function pendingRegistrationChallenge(string $guard): string
     {
-        $method = new ReflectionMethod($verifier, 'ownerMorphClassForGuard');
+        $this->app->make(AuthFactory::class)->shouldUse($guard);
 
-        return $method->invoke($verifier, Passkeys::guard());
+        $request = PasskeyRegistrationRequest::create('/');
+        $request->setHypervelSession($this->app->make('session.store'));
+
+        return WebAuthn::toBrowserArray($request->registrationOptions())['challenge'];
     }
 }

@@ -4,10 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Passkeys\Feature\Actions;
 
-use Closure;
 use Hypervel\Contracts\Events\Dispatcher;
-use Hypervel\Database\ConnectionInterface;
-use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Passkeys\Actions\VerifyPasskey;
 use Hypervel\Passkeys\Events\PasskeyVerified;
 use Hypervel\Passkeys\Exceptions\InvalidPasskeyException;
@@ -16,6 +13,7 @@ use Hypervel\Passkeys\Passkeys;
 use Hypervel\Passkeys\Support\WebAuthn;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Passkeys\Fixtures\User;
 use Hypervel\Tests\Passkeys\Fixtures\WebAuthnFixtures;
 use Hypervel\Tests\Passkeys\TestCase;
@@ -69,9 +67,7 @@ class VerifyPasskeyTest extends TestCase
 
         $updatedSource = $this->createCredentialSource($userHandle, $credentialId, counter: 6);
 
-        $action = m::mock(VerifyPasskey::class, [
-            app(ConnectionResolverInterface::class),
-        ])
+        $action = m::mock(VerifyPasskey::class)
             ->makePartial()
             ->shouldAllowMockingProtectedMethods()
             ->shouldReceive('validate')
@@ -176,9 +172,7 @@ class VerifyPasskeyTest extends TestCase
             response: m::mock(AuthenticatorAssertionResponse::class),
         );
 
-        $action = m::mock(VerifyPasskey::class, [
-            app(ConnectionResolverInterface::class),
-        ])
+        $action = m::mock(VerifyPasskey::class)
             ->makePartial()
             ->shouldAllowMockingProtectedMethods()
             ->shouldReceive('validate')
@@ -315,7 +309,7 @@ class VerifyPasskeyTest extends TestCase
             rpId: 'registered.example.com',
         );
 
-        $action = new ExposesVerifyPasskeyHost(app(ConnectionResolverInterface::class));
+        $action = new ExposesVerifyPasskeyHost;
 
         $this->assertSame('registered.example.com', $action->host($options));
     }
@@ -326,7 +320,7 @@ class VerifyPasskeyTest extends TestCase
             challenge: random_bytes(32),
         );
 
-        $action = new ExposesVerifyPasskeyHost(app(ConnectionResolverInterface::class));
+        $action = new ExposesVerifyPasskeyHost;
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Passkey verification options must contain a relying party ID.');
@@ -334,6 +328,11 @@ class VerifyPasskeyTest extends TestCase
         $action->host($options);
     }
 
+    #[WithConfig('database.connections.passkeys', [
+        'driver' => 'sqlite',
+        'database' => ':memory:',
+        'foreign_key_constraints' => false,
+    ])]
     public function testItUsesTheConfiguredPasskeyModelConnectionForVerificationTransactions(): void
     {
         Passkeys::usePasskeyModel(CustomConnectionPasskey::class);
@@ -351,14 +350,6 @@ class VerifyPasskeyTest extends TestCase
             'credential_id' => 'credential-connection',
             'credential' => ['id' => 'credential-connection'],
         ]);
-
-        $database = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(ConnectionInterface::class);
-        $database->shouldReceive('connection')->once()->with('passkeys')->andReturn($connection);
-        $connection->shouldReceive('transaction')
-            ->once()
-            ->with(m::type(Closure::class))
-            ->andReturnUsing(static fn (Closure $callback): Passkey => $callback());
 
         $events = m::mock(Dispatcher::class)->shouldIgnoreMissing();
         $events->shouldReceive('hasListeners')->withAnyArgs()->andReturnFalse()->byDefault();
@@ -380,13 +371,13 @@ class VerifyPasskeyTest extends TestCase
         );
 
         $verifier = new ConnectionAwareVerifyPasskey(
-            $database,
             $passkey,
             $this->createStub(AuthenticatorAssertionResponse::class),
         );
 
         $this->assertSame($passkey, $verifier($credential, $options, $user));
         $this->assertTrue($verifier->receivedLockedLookup);
+        $this->assertSame(1, $verifier->lookupTransactionLevel);
     }
 
     /**
@@ -436,12 +427,12 @@ class ConnectionAwareVerifyPasskey extends VerifyPasskey
 {
     public bool $receivedLockedLookup = false;
 
+    public ?int $lookupTransactionLevel = null;
+
     public function __construct(
-        ConnectionResolverInterface $database,
         private readonly Passkey $passkey,
         private readonly AuthenticatorAssertionResponse $response,
     ) {
-        parent::__construct($database);
     }
 
     /**
@@ -455,9 +446,10 @@ class ConnectionAwareVerifyPasskey extends VerifyPasskey
     /**
      * Get the passkey by credential ID.
      */
-    public function getPasskey(PublicKeyCredential $credential, bool $lock = false, ?string $ownerType = null): Passkey
+    public function getPasskey(PublicKeyCredential $credential, bool $lock = false): Passkey
     {
         $this->receivedLockedLookup = $lock;
+        $this->lookupTransactionLevel = DB::connection('passkeys')->transactionLevel();
 
         return $this->passkey;
     }

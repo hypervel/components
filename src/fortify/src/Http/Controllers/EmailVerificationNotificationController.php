@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Fortify\Http\Controllers;
 
 use Hypervel\Contracts\Auth\MustVerifyEmail;
+use Hypervel\Contracts\Support\Responsable;
 use Hypervel\Fortify\Contracts\EmailVerificationNotificationSentResponse;
 use Hypervel\Fortify\Http\Responses\RedirectAsIntended;
 use Hypervel\Http\JsonResponse;
@@ -16,7 +17,7 @@ class EmailVerificationNotificationController extends Controller
     /**
      * Send a new email verification notification.
      */
-    public function store(Request $request): mixed
+    public function store(Request $request): JsonResponse|Responsable
     {
         /** @var MustVerifyEmail $user */
         $user = $request->user();

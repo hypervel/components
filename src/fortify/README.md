@@ -15,6 +15,6 @@ Documentation: https://hypervel.org/docs/fortify
 - Fortify's two-factor provider uses OTPHP instead of Google2FA and generates 32-character secrets by default.
 - Two-factor user models implement the `TwoFactorAuthenticationUser` contract as well as using the `TwoFactorAuthenticatable` trait. Recovery codes are consumed atomically through the user's `consumeRecoveryCode()` method; `TwoFactorLoginRequest::validRecoveryCode()` only checks a code and leaves the login challenge in the session.
 - Fortify omits Laravel's deprecated `Rules\Password`.
-- Fortify keeps Laravel's directly writable static configuration properties private so worker-lifetime state remains typed and resettable. Use `authenticateThrough()`, `authenticateUsing()`, `confirmPasswordsUsing()`, `encryptUsing()`, and `ignoreRoutes()` instead.
+- Fortify keeps Laravel's directly writable static configuration properties private so worker-lifetime state remains typed and resettable. Use `authenticateThrough()`, `authenticateUsing()`, `confirmPasswordsUsing()`, `generateRecoveryCodesUsing()`, `encryptUsing()`, and `ignoreRoutes()` instead.
 
 Ported from: https://github.com/laravel/fortify

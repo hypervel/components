@@ -294,7 +294,7 @@ class Kernel implements KernelContract
     /**
      * Define the application's command schedule.
      */
-    public function schedule(Schedule $schedule): void
+    protected function schedule(Schedule $schedule): void
     {
     }
 
@@ -329,7 +329,7 @@ class Kernel implements KernelContract
     /**
      * Register the commands for the application.
      */
-    public function commands(): void
+    protected function commands(): void
     {
     }
 
@@ -352,7 +352,7 @@ class Kernel implements KernelContract
     /**
      * Register all of the commands in the given directory.
      */
-    public function load(array|string $paths): void
+    protected function load(array|string $paths): void
     {
         $paths = array_unique(Arr::wrap($paths));
 

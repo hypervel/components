@@ -18,11 +18,15 @@ use Hypervel\Fortify\Fortify;
 use Hypervel\Fortify\Http\Requests\TwoFactorLoginRequest;
 use Hypervel\Http\Exceptions\HttpResponseException;
 use Hypervel\Routing\Controller;
+use Symfony\Component\HttpFoundation\Response;
 
 class TwoFactorAuthenticatedSessionController extends Controller
 {
     use DispatchesEvents;
 
+    /**
+     * Create a new controller instance.
+     */
     public function __construct(
         private readonly Container $container,
     ) {
@@ -43,7 +47,7 @@ class TwoFactorAuthenticatedSessionController extends Controller
     /**
      * Attempt to authenticate a new session using the two factor authentication code.
      */
-    public function store(TwoFactorLoginRequest $request): mixed
+    public function store(TwoFactorLoginRequest $request): Response|TwoFactorLoginResponse
     {
         /** @var Authenticatable&Model&TwoFactorAuthenticationUser $user */
         $user = $request->challengedUser();
