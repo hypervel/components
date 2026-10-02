@@ -8,7 +8,10 @@ use Closure;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Http\Middleware\TrustProxies;
+use Hypervel\Sentinel\Http\Middleware\SentinelMiddleware;
 use Hypervel\Telescope\Contracts\EntriesRepository;
+use Hypervel\Telescope\Http\Middleware\Authorize;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Storage\DatabaseEntriesRepository;
 use Hypervel\Telescope\Telescope;
@@ -188,6 +191,24 @@ class TelescopeServiceProviderTest extends FeatureTestCase
         $this->expectExceptionMessage('Configuration value for key [telescope.path] must be a string');
 
         $provider->registerRoutesForTest();
+    }
+
+    public function testDashboardRoutesRunSentinelBeforeTheConfiguredMiddleware(): void
+    {
+        $this->assertSame(
+            [SentinelMiddleware::class . ':telescope', Authorize::class],
+            $this->app->make('router')->getMiddlewareGroups()['telescope'],
+        );
+    }
+
+    public function testLocalDashboardRejectsRequestsForwardedForPublicIps(): void
+    {
+        $this->app->instance('env', 'local');
+        TrustProxies::at('*');
+
+        $this->withHeaders(['X-Forwarded-For' => '202.168.65.217'])
+            ->get('/telescope')
+            ->assertUnauthorized();
     }
 
     public function testDatabaseRepositoryUsesDefaultChunkSizeWhenSettingIsOmitted(): void

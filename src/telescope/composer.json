@@ -50,6 +50,7 @@
         "hypervel/notifications": "^0.4",
         "hypervel/queue": "^0.4",
         "hypervel/redis": "^0.4",
+        "hypervel/sentinel": "^0.4",
         "hypervel/support": "^0.4",
         "hypervel/view": "^0.4",
         "nesbot/carbon": "^3.13.1",

@@ -70,7 +70,3 @@
 ## Notifications
 
 - Design a provider-agnostic first-party SMS notification API before adding an SMS provider. Keep Horizon's existing `Horizon::routeSmsNotificationsTo(...)`, but have Horizon target the generic channel and message contract rather than a vendor class; provider packages should adapt that contract to Vonage or other services. Decide routing, provider selection, message construction, per-message client overrides, and failure reporting, then implement the first adapter and update the notification and Horizon documentation, stubs, and Boost references. Keep mutable third-party SDK clients isolated per send—Vonage's client caches resources that mutate request and response state around yielding HTTP calls—while reusing only immutable configuration and the coroutine-safe transport. Add standalone package, provider, direct-construction, routing, failure, Horizon mail/Slack/SMS, and deterministic concurrent-send coverage. Do not add obsolete Nexmo names or compatibility aliases.
-
-## Sentinel
-
-- Port `laravel/sentinel` as `hypervel/sentinel`, add direct Horizon and Telescope dependencies, and prepend `SentinelMiddleware:horizon` and `SentinelMiddleware:telescope` while preserving configured middleware. Remove Horizon's temporary `REMOVED:` source comment and cover both dashboards' security integration.

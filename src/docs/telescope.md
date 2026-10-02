@@ -161,6 +161,8 @@ protected function gate(): void
 }
 ```
 
+Since the dashboard doesn't require a login in the `local` environment, Telescope rejects local dashboard requests that a [trusted proxy](/docs/{{version}}/requests#configuring-trusted-proxies) forwards on behalf of a public IP address, such as visitors arriving through an ngrok or Expose tunnel. Until you configure trusted proxies, requests to ngrok and Expose hostnames fail with an error, since Telescope can't see the visitor's address. To share the dashboard through a tunnel, run the application in a non-local environment so the gate protects it.
+
 > [!WARNING]
 > You should ensure you change your `APP_ENV` environment variable to `production` in your production environment. Otherwise, your Telescope installation will be publicly available.
 
