@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Fortify;
 
+use Carbon\CarbonInterval;
 use Carbon\FactoryImmutable;
 use Hypervel\Database\Eloquent\MissingAttributeException;
 use Hypervel\Database\Eloquent\Model;
@@ -17,6 +18,7 @@ use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Support\Facades\Auth;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Hash;
+use Hypervel\Support\Sleep;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\Attributes\WithMigration;
@@ -175,6 +177,38 @@ class AuthenticatedSessionControllerWithTwoFactorTest extends TestCase
         $response->assertRedirect('/two-factor-challenge');
 
         $this->assertSame($user->password, $user->fresh()->password);
+    }
+
+    #[WithConfig('auth.timebox_duration', 1000000)]
+    public function testFailedCredentialValidationIsTimeboxed(): void
+    {
+        Sleep::fake();
+
+        UserWithTwoFactor::forceCreate([
+            'name' => 'Taylor Otwell',
+            'email' => 'taylor@hypervel.org',
+            'password' => bcrypt('secret'),
+            'two_factor_secret' => 'test-secret',
+        ]);
+
+        $this->post('/login', [
+            'email' => 'taylor@hypervel.org',
+            'password' => 'secret',
+        ])->assertRedirect('/two-factor-challenge');
+
+        Sleep::assertNeverSlept();
+
+        $this->post('/login', [
+            'email' => 'taylor@hypervel.org',
+            'password' => 'wrong-password',
+        ])->assertSessionHasErrors('email');
+
+        $this->post('/login', [
+            'email' => 'missing@hypervel.org',
+            'password' => 'secret',
+        ])->assertSessionHasErrors('email');
+
+        Sleep::assertSlept(static fn (CarbonInterval $duration): bool => $duration->totalMicroseconds > 500000, 2);
     }
 
     public function testTwoFactorChallengeCanBePassedViaCode(): void
