@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Fortify;
 use Hypervel\Fortify\Contracts;
 use Hypervel\Fortify\FortifyServiceProvider;
 use Hypervel\Fortify\Http\Responses;
-use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class ResponseBindingTest extends TestCase
@@ -18,6 +17,13 @@ class ResponseBindingTest extends TestCase
         $this->assertTrue(
             is_a($response, $contract, true),
             "The [{$response}] class should implement the [{$contract}] contract."
+        );
+
+        // Password reset responses receive the broker status from their controller.
+        $this->assertInstanceOf(
+            $response,
+            $this->app->make($contract, ['status' => 'passwords.sent']),
+            "The [{$contract}] contract should resolve to [{$response}]."
         );
     }
 
