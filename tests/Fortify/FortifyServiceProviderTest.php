@@ -9,12 +9,9 @@ use Hypervel\Contracts\Support\Responsable;
 use Hypervel\Fortify\Contracts\CreatesNewUsers;
 use Hypervel\Fortify\Contracts\RedirectsIfTwoFactorAuthenticatable;
 use Hypervel\Fortify\Contracts\TwoFactorAuthenticationProvider as TwoFactorAuthenticationProviderContract;
-use Hypervel\Fortify\Contracts\TwoFactorDisabledResponse as TwoFactorDisabledResponseContract;
-use Hypervel\Fortify\Contracts\TwoFactorEnabledResponse as TwoFactorEnabledResponseContract;
 use Hypervel\Fortify\Fortify;
 use Hypervel\Fortify\FortifyServiceProvider;
-use Hypervel\Fortify\Http\Responses\TwoFactorDisabledResponse;
-use Hypervel\Fortify\Http\Responses\TwoFactorEnabledResponse;
+use Hypervel\Fortify\RecoveryCode;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
 use Hypervel\Passkeys\Passkeys;
@@ -60,19 +57,6 @@ class FortifyServiceProviderTest extends TestCase
 
         $response->assertOk();
         $response->assertExactJson(['foo' => 'bar']);
-    }
-
-    public function testTwoFactorResponseBindingsUseMatchingContracts(): void
-    {
-        $this->assertInstanceOf(
-            TwoFactorEnabledResponse::class,
-            $this->app->make(TwoFactorEnabledResponseContract::class)
-        );
-
-        $this->assertInstanceOf(
-            TwoFactorDisabledResponse::class,
-            $this->app->make(TwoFactorDisabledResponseContract::class)
-        );
     }
 
     public function testTwoFactorAuthenticationProviderUsesFrameworkClock(): void
@@ -202,6 +186,13 @@ class FortifyServiceProviderTest extends TestCase
         $instanceB = $this->app->make(RedirectsIfTwoFactorAuthenticatable::class);
 
         $this->assertNotSame($instanceA, $instanceB);
+    }
+
+    public function testRecoveryCodeGenerationCanBeCustomized(): void
+    {
+        Fortify::generateRecoveryCodesUsing(fn (): string => 'recovery-code');
+
+        $this->assertSame('recovery-code', RecoveryCode::generate());
     }
 
     public function testActionsCanBeRegisteredWithNonClosureCallables(): void
