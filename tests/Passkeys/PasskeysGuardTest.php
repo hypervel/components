@@ -7,18 +7,17 @@ namespace Hypervel\Tests\Passkeys;
 use Hypervel\Auth\EloquentUserProvider;
 use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Contracts\Auth\StatefulGuard;
-use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Passkeys\Actions\VerifyPasskey;
 use Hypervel\Passkeys\Exceptions\InvalidPasskeyException;
 use Hypervel\Passkeys\Passkey;
 use Hypervel\Passkeys\Passkeys;
-use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Passkeys\Fixtures\Admin;
 use Hypervel\Tests\Passkeys\Fixtures\User;
 use ParagonIE\ConstantTime\Base64UrlSafe;
-use ReflectionMethod;
-use Webauthn\AuthenticatorResponse;
+use PHPUnit\Framework\Attributes\DataProvider;
+use Webauthn\AuthenticatorAssertionResponse;
 use Webauthn\PublicKeyCredential;
+use Webauthn\PublicKeyCredentialRequestOptions;
 
 class PasskeysGuardTest extends TestCase
 {
@@ -36,10 +35,10 @@ class PasskeysGuardTest extends TestCase
         $this->assertInstanceOf(StatefulGuard::class, Passkeys::guard());
     }
 
-    public function testSelectedGuardProviderScopesPasswordlessPasskeyLookup(): void
+    #[DataProvider('ownerTypesOutsideTheSelectedProvider')]
+    public function testSelectedGuardProviderScopesPasswordlessPasskeyVerification(string $ownerType): void
     {
         $this->configureAdminGuard();
-        $this->createAdminsTable();
 
         /** @var AuthFactory $auth */
         $auth = $this->app->make(AuthFactory::class);
@@ -49,37 +48,44 @@ class PasskeysGuardTest extends TestCase
             'name' => 'User',
             'email' => 'user@example.com',
         ]);
-        $admin = Admin::create([
-            'name' => 'Admin',
-            'email' => 'admin@example.com',
-        ]);
 
         $rawCredentialId = random_bytes(32);
         $credentialId = Base64UrlSafe::encodeUnpadded($rawCredentialId);
 
-        /** @var Passkey $passkey */
-        $passkey = $user->passkeys()->create([
+        (new Passkey)->forceFill([
+            'user_type' => $ownerType,
+            'user_id' => $user->getKey(),
             'name' => 'User key',
             'credential_id' => $credentialId,
             'credential' => ['id' => $credentialId],
-        ]);
+        ])->save();
 
         $credential = PublicKeyCredential::create(
             'public-key',
             $rawCredentialId,
-            $this->createStub(AuthenticatorResponse::class),
+            $this->createStub(AuthenticatorAssertionResponse::class),
         );
-
-        $verifier = new VerifyPasskey($this->app->make('db'));
-        $selectedOwnerMorphClass = $this->selectedOwnerMorphClass($verifier);
-
-        $this->assertSame($admin->getMorphClass(), $selectedOwnerMorphClass);
-        $this->assertNotSame($passkey->user_type, $selectedOwnerMorphClass);
 
         $this->expectException(InvalidPasskeyException::class);
         $this->expectExceptionMessage('Passkey not recognized. It may have been removed from your account.');
 
-        $verifier->getPasskey($credential, ownerType: $selectedOwnerMorphClass);
+        app(VerifyPasskey::class)($credential, PublicKeyCredentialRequestOptions::create(
+            challenge: random_bytes(32),
+            rpId: 'localhost',
+        ));
+    }
+
+    /**
+     * Get stored owner types that the admin guard provider does not own.
+     *
+     * @return array<string, array{string}>
+     */
+    public static function ownerTypesOutsideTheSelectedProvider(): array
+    {
+        return [
+            'another provider model' => [User::class],
+            'unresolvable owner type' => ['Missing\PasskeyOwner'],
+        ];
     }
 
     /**
@@ -107,29 +113,5 @@ class PasskeysGuardTest extends TestCase
                 ],
             ],
         ]);
-    }
-
-    /**
-     * Create the admins table fixture.
-     */
-    private function createAdminsTable(): void
-    {
-        Schema::create('admins', function (Blueprint $table): void {
-            $table->id();
-            $table->string('name');
-            $table->string('email')->unique();
-            $table->rememberToken();
-            $table->timestamps();
-        });
-    }
-
-    /**
-     * Get the owner morph class for the selected guard.
-     */
-    private function selectedOwnerMorphClass(VerifyPasskey $verifier): string
-    {
-        $method = new ReflectionMethod($verifier, 'ownerMorphClassForGuard');
-
-        return $method->invoke($verifier, Passkeys::guard());
     }
 }
