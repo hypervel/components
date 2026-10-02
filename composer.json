@@ -357,7 +357,8 @@
             "aliases": {
                 "OpenTelemetry": "Hypervel\\OpenTelemetry\\Facades\\OpenTelemetry",
                 "Saloon": "Hypervel\\Saloon\\Facades\\Saloon",
-                "Sentry": "Hypervel\\Sentry\\Facade"
+                "Sentry": "Hypervel\\Sentry\\Facade",
+                "Socialite": "Hypervel\\Socialite\\Socialite"
             },
             "providers": [
                 "Hypervel\\Auth\\AuthServiceProvider",

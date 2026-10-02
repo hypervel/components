@@ -47,7 +47,10 @@
         "hypervel": {
             "providers": [
                 "Hypervel\\Socialite\\SocialiteServiceProvider"
-            ]
+            ],
+            "aliases": {
+                "Socialite": "Hypervel\\Socialite\\Socialite"
+            }
         },
         "branch-alias": {
             "dev-main": "0.4-dev"
