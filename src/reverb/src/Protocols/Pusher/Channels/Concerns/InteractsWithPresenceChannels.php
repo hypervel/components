@@ -5,12 +5,16 @@ declare(strict_types=1);
 namespace Hypervel\Reverb\Protocols\Pusher\Channels\Concerns;
 
 use Hypervel\Reverb\Contracts\Connection;
+use Hypervel\Reverb\FailureReporter;
+use Hypervel\Reverb\Protocols\Pusher\Channels\ChannelConnection;
 use Hypervel\Reverb\Protocols\Pusher\EventDispatcher;
 use Hypervel\Reverb\Protocols\Pusher\MetricsHandler;
 use Hypervel\Reverb\Protocols\Pusher\MetricType;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
 use Hypervel\Reverb\Webhooks\Contracts\WebhookDispatcher;
 use Hypervel\Reverb\Webhooks\DeferredWebhookManager;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 trait InteractsWithPresenceChannels
 {
@@ -153,11 +157,28 @@ trait InteractsWithPresenceChannels
             ];
         }
 
-        $snapshot = app(MetricsHandler::class)->gather(
-            $connection->app(),
-            MetricType::Presence->value,
-            ['channel' => $this->name()],
-        );
+        try {
+            $snapshot = app(MetricsHandler::class)->gather(
+                $connection->app(),
+                MetricType::Presence->value,
+                ['channel' => $this->name()],
+            );
+        } catch (CanceledException $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            // The subscription is already committed, so still answer it with
+            // this worker's members when other workers or servers can't be reached.
+            FailureReporter::report($exception);
+
+            $snapshot = [
+                'users' => collect($this->connections->all())
+                    ->map(fn (ChannelConnection $member): array => $member->data())
+                    ->unique('user_id')
+                    ->values()
+                    ->all(),
+            ];
+        }
+
         $connections = collect($snapshot['users']);
 
         if ($connections->contains(fn ($connection) => ! isset($connection['user_id']))) {
@@ -174,7 +195,7 @@ trait InteractsWithPresenceChannels
             'presence' => [
                 'count' => $connections->count(),
                 'ids' => $connections->map(fn ($connection) => $connection['user_id'])->values()->all(),
-                'hash' => $connections->keyBy('user_id')->map->user_info->toArray(),
+                'hash' => $connections->pluck('user_info', 'user_id')->map(fn ($info) => $info ?: (object) [])->all(),
             ],
         ];
     }
