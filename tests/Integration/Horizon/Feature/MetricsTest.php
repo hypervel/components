@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Horizon\Feature;
 
 use Hypervel\Horizon\Contracts\MetricsRepository;
+use Hypervel\Horizon\Contracts\SupervisorRepository;
 use Hypervel\Horizon\Stopwatch;
+use Hypervel\Horizon\WaitTimeCalculator;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\Jobs\BasicJob;
@@ -141,11 +143,29 @@ class MetricsTest extends IntegrationTestCase
         CarbonImmutable::setTestNow($firstTimestamp);
         resolve(MetricsRepository::class)->snapshot();
 
+        // The runtime remains the latest estimate while the throughput restarts...
+        $this->assertSame(1.5, resolve(MetricsRepository::class)->runtimeForJob(BasicJob::class));
+        $this->assertSame(1.5, resolve(MetricsRepository::class)->runtimeForQueue('default'));
+        $this->assertSame(0, resolve(MetricsRepository::class)->throughputForJob(BasicJob::class));
+        $this->assertSame(0, resolve(MetricsRepository::class)->throughputForQueue('default'));
+
         // Work another job and take another snapshot...
         Queue::push(new BasicJob);
         $this->work();
         CarbonImmutable::setTestNow($secondTimestamp);
         resolve(MetricsRepository::class)->snapshot();
+
+        // Take two snapshots without completed jobs...
+        $thirdTimestamp = $secondTimestamp->addSecond();
+        $fourthTimestamp = $thirdTimestamp->addSecond();
+
+        CarbonImmutable::setTestNow($thirdTimestamp);
+        resolve(MetricsRepository::class)->snapshot();
+        CarbonImmutable::setTestNow($fourthTimestamp);
+        resolve(MetricsRepository::class)->snapshot();
+
+        $this->assertSame(3.0, resolve(MetricsRepository::class)->runtimeForJob(BasicJob::class));
+        $this->assertSame(3.0, resolve(MetricsRepository::class)->runtimeForQueue('default'));
 
         $snapshots = resolve(MetricsRepository::class)->snapshotsForJob(BasicJob::class);
 
@@ -160,6 +180,16 @@ class MetricsTest extends IntegrationTestCase
                 'throughput' => 1,
                 'runtime' => 3,
                 'time' => $secondTimestamp->getTimestamp(),
+            ],
+            (object) [
+                'throughput' => false,
+                'runtime' => false,
+                'time' => $thirdTimestamp->getTimestamp(),
+            ],
+            (object) [
+                'throughput' => false,
+                'runtime' => false,
+                'time' => $fourthTimestamp->getTimestamp(),
             ],
         ], $snapshots);
 
@@ -178,7 +208,57 @@ class MetricsTest extends IntegrationTestCase
                 'wait' => 0,
                 'time' => $secondTimestamp->getTimestamp(),
             ],
+            (object) [
+                'throughput' => false,
+                'runtime' => false,
+                'wait' => 0,
+                'time' => $thirdTimestamp->getTimestamp(),
+            ],
+            (object) [
+                'throughput' => false,
+                'runtime' => false,
+                'wait' => 0,
+                'time' => $fourthTimestamp->getTimestamp(),
+            ],
         ], $snapshots);
+    }
+
+    public function testQueueSnapshotsRecordTheWaitOfThePoolsProcessingTheQueue(): void
+    {
+        $stopwatch = m::mock(Stopwatch::class);
+        $stopwatch->shouldReceive('start');
+        $stopwatch->shouldReceive('forget');
+        $stopwatch->shouldReceive('check')->andReturn(1000);
+        $this->app->instance(Stopwatch::class, $stopwatch);
+
+        $supervisors = m::mock(SupervisorRepository::class);
+        $supervisors->shouldReceive('all')->andReturn([
+            (object) ['processes' => ['redis:high,default' => 1]],
+        ]);
+        $this->app->instance(SupervisorRepository::class, $supervisors);
+
+        Queue::push(new BasicJob);
+        $this->work();
+
+        // Leave two jobs waiting through a snapshot without completed jobs...
+        Queue::push(new BasicJob);
+        Queue::push(new BasicJob);
+
+        $firstTimestamp = CarbonImmutable::create(2026, 1, 1, 0, 0, 0);
+        $secondTimestamp = $firstTimestamp->addSecond();
+
+        CarbonImmutable::setTestNow($firstTimestamp);
+        resolve(MetricsRepository::class)->snapshot();
+        CarbonImmutable::setTestNow($secondTimestamp);
+        resolve(MetricsRepository::class)->snapshot();
+
+        $this->assertSame(2.0, resolve(WaitTimeCalculator::class)->calculateFor('redis:high,default'));
+        $this->assertSame(
+            [2, 2],
+            array_column(resolve(MetricsRepository::class)->snapshotsForQueue('default'), 'wait'),
+        );
+
+        CarbonImmutable::setTestNow();
     }
 
     public function testJobsProcessedPerMinuteSinceLastSnapshotIsCalculable(): void
@@ -318,6 +398,8 @@ class MetricsTest extends IntegrationTestCase
         $this->assertEmpty($metrics->measuredJobs());
         $this->assertEmpty($metrics->measuredQueues());
         $this->assertSame(0, $metrics->throughput());
+        $this->assertSame(0.0, $metrics->runtimeForJob(BasicJob::class));
+        $this->assertSame(0.0, $metrics->runtimeForQueue('default'));
         $this->assertEmpty($metrics->snapshotsForJob(BasicJob::class));
         $this->assertEmpty($metrics->snapshotsForJob(ConditionallyFailingJob::class));
         $this->assertEmpty($metrics->snapshotsForQueue('default'));
