@@ -512,6 +512,8 @@ The resolved relying party ID must be a registrable-domain suffix of the resolve
 
 `user_handle_secret` is a long-lived, nonempty secret used to derive stable WebAuthn user handles. It defaults to the app key for convenience, but production applications should set a dedicated value before registering passkeys. Changing it changes generated user handles.
 
+Each user handle is derived from the owner's morph type, table, and primary key. If one relying party serves several tenant databases whose owners can share the same type and key, override `getPasskeyUserHandle()` on your passkey user model to include a stable tenant identifier that does not reveal personal information.
+
 <a name="frontend-package"></a>
 ### Frontend Package
 
