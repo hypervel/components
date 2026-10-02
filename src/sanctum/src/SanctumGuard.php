@@ -47,6 +47,8 @@ class SanctumGuard implements GuardContract
 
     /**
      * Create a new guard instance.
+     *
+     * @param null|int $expiration the number of minutes tokens should be allowed to remain valid
      */
     public function __construct(
         protected string $name,
