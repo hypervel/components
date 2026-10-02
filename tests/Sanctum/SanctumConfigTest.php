@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sanctum;
 
 use Hypervel\Sanctum\Sanctum;
-use Hypervel\Support\Env;
 use Hypervel\Testbench\TestCase;
 
 class SanctumConfigTest extends TestCase
@@ -52,16 +51,21 @@ class SanctumConfigTest extends TestCase
 
     public function testDefaultStatefulDomainsIncludeTheApplicationUrlPort(): void
     {
-        $this->app->make('config')->set('app.url', 'http://localhost:8000');
+        config()->set('app.url', 'http://localhost:8000');
 
-        $config = $this->loadConfigWithEnvironmentValues([]);
+        $config = $this->loadConfigWithEnvironmentValues([
+            'SANCTUM_STATEFUL_DOMAINS' => null,
+        ]);
 
         $this->assertContains('localhost:8000', $config['stateful_domains']);
     }
 
     public function testRouteDefaultsAreDeclared(): void
     {
-        $config = $this->loadConfigWithEnvironmentValues([]);
+        $config = $this->loadConfigWithEnvironmentValues([
+            'SANCTUM_CACHE_TTL' => null,
+            'SANCTUM_LAST_USED_AT_UPDATE_INTERVAL' => null,
+        ]);
 
         $this->assertTrue($config['routes']);
         $this->assertSame('sanctum', $config['prefix']);
@@ -75,47 +79,14 @@ class SanctumConfigTest extends TestCase
     /**
      * Load the Sanctum configuration with temporary environment values.
      *
-     * @param array<string, string> $environment
+     * @param array<string, null|string> $environment
      * @return array<string, mixed>
      */
     private function loadConfigWithEnvironmentValues(array $environment): array
     {
-        $original = [];
-
-        foreach ($environment as $key => $value) {
-            $original[$key] = [
-                'putenv' => getenv($key),
-                'serverExists' => array_key_exists($key, $_SERVER),
-                'server' => $_SERVER[$key] ?? null,
-                'envExists' => array_key_exists($key, $_ENV),
-                'env' => $_ENV[$key] ?? null,
-            ];
-
-            $this->setEnvironmentValue($key, $value);
-        }
-
-        try {
-            return require dirname(__DIR__, 2) . '/src/sanctum/config/sanctum.php';
-        } finally {
-            foreach ($original as $key => $values) {
-                $values['putenv'] === false
-                    ? putenv($key)
-                    : putenv("{$key}={$values['putenv']}");
-
-                if ($values['serverExists']) {
-                    $_SERVER[$key] = $values['server'];
-                } else {
-                    unset($_SERVER[$key]);
-                }
-
-                if ($values['envExists']) {
-                    $_ENV[$key] = $values['env'];
-                } else {
-                    unset($_ENV[$key]);
-                }
-            }
-
-            Env::flushRepository();
-        }
+        return $this->withEnvironmentValues(
+            $environment,
+            fn (): array => require dirname(__DIR__, 2) . '/src/sanctum/config/sanctum.php',
+        );
     }
 }

@@ -35,6 +35,7 @@ class ConfigFileTest extends TestCase
             'REVERB_WEBHOOK_BATCHING_MAX_DELAY_MS' => '500',
             'REVERB_WEBHOOK_BATCHING_MAX_PAYLOAD_BYTES' => '524288',
             'REVERB_APP_ACTIVITY_TIMEOUT' => null,
+            'REVERB_APP_ACCEPT_CLIENT_EVENTS_FROM' => null,
         ];
         $this->withEnvironmentValues($environment, function (): void {
             $config = require dirname(__DIR__, 2) . '/src/reverb/config/reverb.php';
