@@ -1431,6 +1431,32 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertSame([1, 'bar'], $builder->getBindings());
     }
 
+    public function testWhereColumnNullSafeEqualsMySql(): void
+    {
+        $builder = $this->getMySqlBuilder();
+        $builder->select('*')->from('users')->whereColumn('first_name', '<=>', 'last_name');
+        $this->assertSame('select * from `users` where `first_name` <=> `last_name`', $builder->toSql());
+    }
+
+    public function testWhereColumnNullSafeEqualsSQLite(): void
+    {
+        $builder = $this->getSQLiteBuilder();
+        $builder->select('*')->from('users')->whereColumn('first_name', '<=>', 'last_name');
+        $this->assertSame('select * from "users" where "first_name" is "last_name"', $builder->toSql());
+    }
+
+    public function testWhereColumnNullSafeEqualsPostgres(): void
+    {
+        $builder = $this->getPostgresBuilder();
+        $builder->select('*')->from('users')->where('id', 1)->orWhereColumn('updated_at', '<=>', 'created_at');
+        $this->assertSame('select * from "users" where "id" = ? or "updated_at" is not distinct from "created_at"', $builder->toSql());
+        $this->assertSame([1], $builder->getBindings());
+
+        $builder = $this->getPostgresBuilder();
+        $builder->select('*')->from('users')->join('contacts', 'users.email', '<=>', 'contacts.email');
+        $this->assertSame('select * from "users" inner join "contacts" on "users"."email" is not distinct from "contacts"."email"', $builder->toSql());
+    }
+
     public function testWhereBetweens(): void
     {
         $builder = $this->getBuilder();

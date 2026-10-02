@@ -501,6 +501,13 @@ class Grammar extends BaseGrammar
      */
     protected function whereColumn(Builder $query, array $where): string
     {
+        if ($where['operator'] === '<=>') {
+            $where['column'] = $where['first'];
+            $where['value'] = new QueryExpression($this->wrap($where['second']));
+
+            return $this->whereNullSafeEquals($query, $where);
+        }
+
         $operator = str_replace('?', '??', $where['operator']);
 
         return $this->wrap($where['first']) . ' ' . $operator . ' ' . $this->wrap($where['second']);
