@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Passkeys\Http\Controllers;
 
 use Hypervel\Auth\AuthenticationException;
-use Hypervel\Contracts\Container\Container;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
 use Hypervel\Passkeys\Actions\DeletePasskey;
@@ -21,11 +20,6 @@ use Hypervel\Routing\Controller;
 
 class PasskeyRegistrationController extends Controller
 {
-    public function __construct(
-        private readonly Container $container,
-    ) {
-    }
-
     /**
      * Get passkey registration options for the authenticated user.
      */
@@ -57,12 +51,12 @@ class PasskeyRegistrationController extends Controller
 
         $passkey = $storePasskey(
             $user,
-            (string) $request->string('name'),
+            $request->string('name')->toString(),
             $request->credential(),
             $request->registrationOptions()
         );
 
-        return $this->container->make(PasskeyRegistrationResponse::class)->withPasskey($passkey);
+        return app(PasskeyRegistrationResponse::class)->withPasskey($passkey);
     }
 
     /**
@@ -77,6 +71,6 @@ class PasskeyRegistrationController extends Controller
 
         $deletePasskey($user, $passkey);
 
-        return $this->container->make(PasskeyDeletedResponse::class);
+        return app(PasskeyDeletedResponse::class);
     }
 }

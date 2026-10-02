@@ -84,10 +84,10 @@ class PasskeyVerificationRequest extends FormRequest
      *
      * @throws ValidationException
      */
-    public function verificationOptions(string $sessionKey): PublicKeyCredentialRequestOptions
+    public function verificationOptions(): PublicKeyCredentialRequestOptions
     {
         /** @var null|string $serialized */
-        $serialized = $this->session()->pull($sessionKey);
+        $serialized = $this->session()->pull('passkey.verification_options');
 
         if (! is_string($serialized) || $serialized === '') {
             throw ValidationException::withMessages([
