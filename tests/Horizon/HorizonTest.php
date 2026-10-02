@@ -40,6 +40,16 @@ class HorizonTest extends TestCase
         $this->assertStringContainsString('<script type="module" nonce="second">', (string) Horizon::js());
     }
 
+    public function testCspNonceValueIsEscapedWhenRendered(): void
+    {
+        Horizon::cspNonce('"><script>alert(1)</script>');
+
+        $html = Horizon::css() . Horizon::js();
+
+        $this->assertStringNotContainsString('<script>alert(1)</script>', $html);
+        $this->assertStringContainsString('&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;', $html);
+    }
+
     public function testCspNonceIsIsolatedBetweenConcurrentRequests(): void
     {
         [$first, $second] = parallel([
