@@ -60,33 +60,6 @@ abstract class TestCase extends TestbenchTestCase
     }
 
     /**
-     * Create fixture tables after refreshing the database.
-     */
-    protected function afterRefreshingDatabase(): void
-    {
-        Schema::create('users', function (Blueprint $table): void {
-            $table->id();
-            $table->string('name')->nullable();
-            $table->string('email')->unique();
-            $table->timestamp('email_verified_at')->nullable();
-            $table->string('password')->nullable();
-            $table->text('two_factor_secret')->nullable();
-            $table->text('two_factor_recovery_codes')->nullable();
-            $table->timestamp('two_factor_confirmed_at')->nullable();
-            $table->rememberToken();
-            $table->timestamps();
-        });
-
-        $this->createAdminsTable();
-
-        Schema::create('password_reset_tokens', function (Blueprint $table): void {
-            $table->string('email')->primary();
-            $table->string('token');
-            $table->timestamp('created_at')->nullable();
-        });
-    }
-
-    /**
      * Create the admins table.
      */
     protected function createAdminsTable(): void
