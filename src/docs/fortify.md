@@ -812,6 +812,7 @@ Call these only during application boot or tests:
 - `Fortify::updateUserProfileInformationUsing()`
 - `Fortify::updateUserPasswordsUsing()`
 - `Fortify::resetUserPasswordsUsing()`
+- `Fortify::generateRecoveryCodesUsing()`
 - `Fortify::redirectUserForTwoFactorAuthenticationUsing()`
 - `Features::twoFactorAuthentication($options)`
 - `Features::passkeys($options)`
