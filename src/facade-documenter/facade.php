@@ -30,6 +30,7 @@ use PHPStan\PhpDocParser\Ast\ConstExpr\ConstExprTrueNode;
 use PHPStan\PhpDocParser\Ast\ConstExpr\ConstFetchNode;
 use PHPStan\PhpDocParser\Ast\PhpDoc\MethodTagValueNode;
 use PHPStan\PhpDocParser\Ast\PhpDoc\MethodTagValueParameterNode;
+use PHPStan\PhpDocParser\Ast\PhpDoc\MixinTagValueNode;
 use PHPStan\PhpDocParser\Ast\PhpDoc\PhpDocNode;
 use PHPStan\PhpDocParser\Ast\Type\ArrayShapeNode;
 use PHPStan\PhpDocParser\Ast\Type\ArrayTypeNode;
@@ -1244,7 +1245,8 @@ function resolveDocMixins($class, $encountered = new Collection)
 
     $encountered[] = $class->getName();
 
-    return resolveDocTags($class->getDocComment() ?: '', '@mixin ')
+    return collect(parseDocblock($class->getDocComment())->getMixinTagValues())
+        ->map(fn (MixinTagValueNode $mixin): string => (string) ($mixin->type instanceof GenericTypeNode ? $mixin->type->type : $mixin->type))
         ->map(fn ($mixin) => determineFqcn($mixin, $class))
         ->each(fn ($mixin) => debug("  - {$mixin}"))
         ->map(fn ($mixin) => new ReflectionClass($mixin))

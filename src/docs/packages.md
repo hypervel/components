@@ -81,6 +81,20 @@ php -f vendor/bin/facade.php -- Courier\\Facades\\Courier
 
 You may pass several facade class names to the same command. The generator replaces the facade's class docblock with the generated `@method` and `@see` definitions. Any `@mixin` tags declared directly on the facade are preserved.
 
+If some of the underlying class's methods should not appear in the facade's docblock, define an `ignoredFacadeDocumenterMethods` method on the facade that returns their names. The generator also asks you to exclude methods with defaults such as `new DateTimeImmutable`, since those defaults cannot be written in a `@method` tag:
+
+```php
+/**
+ * Get methods that should be excluded from the generated facade docblock.
+ *
+ * @return array<int, string>
+ */
+protected static function ignoredFacadeDocumenterMethods(): array
+{
+    return ['extend'];
+}
+```
+
 To check the docblock without changing the file, add the `--lint` option. The command exits with a non-zero status when the generated docblock is not current, making it suitable for continuous integration:
 
 ```shell

@@ -31,6 +31,28 @@ class DocTagParsingTest extends FacadeDocumenterTestCase
         );
 
         $this->writeAppFile(
+            'DocTags/GenericMixin.php',
+            <<<'PHP'
+                <?php
+
+                declare(strict_types=1);
+
+                namespace App\DocTags;
+
+                /**
+                 * @template TValue
+                 */
+                class GenericMixin
+                {
+                    public function fromGenericMixin(): int
+                    {
+                        return 1;
+                    }
+                }
+                PHP
+        );
+
+        $this->writeAppFile(
             'DocTags/Proxy.php',
             <<<'PHP'
                 <?php
@@ -99,6 +121,7 @@ class DocTagParsingTest extends FacadeDocumenterTestCase
 
                 /**
                 __TAB__ * @mixin \App\DocTags\Mixin
+                __TAB__ * @mixin GenericMixin<string> Supplies generic helpers.
                 __TAB__ */
                 class TabbedProxy
                 {
@@ -169,6 +192,7 @@ class DocTagParsingTest extends FacadeDocumenterTestCase
         $tabbedContents = $this->appFileContents('App\DocTags\TabbedFacade');
 
         $this->assertStringContainsString('@method static int fromMixin()', $tabbedContents);
+        $this->assertStringContainsString('@method static int fromGenericMixin()', $tabbedContents);
         $this->assertStringContainsString('@method static string tabbedDynamicMethod(int $extra = null)', $tabbedContents);
         $this->assertStringContainsString('@method static string tabbedProxyMethod()', $tabbedContents);
         $this->assertStringNotContainsString('tabbedInternalMethod', $tabbedContents);
