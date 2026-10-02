@@ -782,6 +782,8 @@ When porting Laravel packages, whether first-party or third-party, keep them as 
 
 Hypervel has no obligation to preserve Hypervel-specific behavior from earlier versions, but supported Laravel APIs—including named arguments and protected extension points—must remain compatible unless the user approves a difference. If a Laravel API is unsuitable for Hypervel or preserving it would make the code worse, STOP, explain why, recommend the cleanest design, and obtain user approval before changing it.
 
+When Laravel or a tracked upstream introduces an equivalent to a Hypervel-specific enhancement, compare their capabilities, APIs, coroutine safety and performance, then consult the owner before deciding how to reconcile them. Normally prefer the upstream API when it meets Hypervel’s requirements. Obtain explicit owner approval before deprecating the Hypervel-specific API.
+
 Approved adaptations take precedence over upstream fidelity. Preserve Laravel upstream naming, structure, and style everywhere else.
 
 Hyperf is a historical reference rather than an ongoing merge target. For the rare Hyperf port, follow `docs/ai/porting-hyperf.md`.
