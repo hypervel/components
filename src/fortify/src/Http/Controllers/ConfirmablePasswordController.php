@@ -18,6 +18,9 @@ use Hypervel\Routing\Controller;
 
 class ConfirmablePasswordController extends Controller
 {
+    /**
+     * Create a new controller instance.
+     */
     public function __construct(
         private readonly Container $container,
     ) {
