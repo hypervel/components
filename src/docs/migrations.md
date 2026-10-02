@@ -248,6 +248,14 @@ Some migration operations are destructive, which means they may cause you to los
 php artisan migrate --force
 ```
 
+To prevent destructive database commands from running in production at all, even with `--force`, call the `DB` facade's `prohibitDestructiveCommands` method from the `boot` method of your application's `AppServiceProvider`. This prohibits the `db:wipe`, `migrate:fresh`, `migrate:refresh`, `migrate:reset`, and `migrate:rollback` commands:
+
+```php
+use Hypervel\Support\Facades\DB;
+
+DB::prohibitDestructiveCommands($this->app->isProduction());
+```
+
 <a name="rolling-back-migrations"></a>
 ### Rolling Back Migrations
 
