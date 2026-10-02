@@ -31,6 +31,9 @@ class RedisPrefixTest extends IntegrationTestCase
         Horizon::use('missing');
     }
 
+    // REMOVED: Laravel Horizon's top-level database.redis.clusters tests (standalone fallback, clusters registration
+    // and precedence over a same-named connection) do not apply; Hypervel configures Cluster within the named connection.
+
     public function testStandaloneConnectionConfigurationIsPreserved(): void
     {
         $connection = [
