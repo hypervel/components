@@ -48,7 +48,7 @@ class PasskeyConfirmationTest extends TestCase
             ->getJson('/passkeys/confirm/options')
             ->assertOk();
 
-        $this->assertNotNull(session('passkey.verification_options'));
+        $this->assertNotNull(session('passkey.verification_options_web'));
     }
 
     public function testItRequiresAuthenticationForConfirmationOptions(): void
@@ -84,7 +84,7 @@ class PasskeyConfirmationTest extends TestCase
             ->getMock());
 
         $this->actingAs($user)
-            ->withSession(['passkey.verification_options' => WebAuthn::toJson($this->createRequestOptions())])
+            ->withSession(['passkey.verification_options_web' => WebAuthn::toJson($this->createRequestOptions())])
             ->postJson('/passkeys/confirm', [
                 'credential' => $this->createAssertionCredential(),
             ])
@@ -116,7 +116,7 @@ class PasskeyConfirmationTest extends TestCase
             ->getMock());
 
         $this->actingAs($user)
-            ->withSession(['passkey.verification_options' => WebAuthn::toJson($this->createRequestOptions())])
+            ->withSession(['passkey.verification_options_web' => WebAuthn::toJson($this->createRequestOptions())])
             ->postJson('/passkeys/confirm', [
                 'credential' => $this->createAssertionCredential(),
             ])

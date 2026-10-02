@@ -38,7 +38,7 @@ class PasskeyLoginControllerTest extends TestCase
 
         Passkeys::authorizeLoginUsing(static fn (): bool => false);
 
-        $this->withSession(['passkey.verification_options' => WebAuthn::toJson($this->createRequestOptions())])
+        $this->withSession(['passkey.verification_options_web' => WebAuthn::toJson($this->createRequestOptions())])
             ->postJson('/passkeys/login', ['credential' => $this->createAssertionCredential()])
             ->assertUnprocessable();
 
@@ -70,7 +70,7 @@ class PasskeyLoginControllerTest extends TestCase
             ]);
         });
 
-        $this->withSession(['passkey.verification_options' => WebAuthn::toJson($this->createRequestOptions())])
+        $this->withSession(['passkey.verification_options_web' => WebAuthn::toJson($this->createRequestOptions())])
             ->postJson('/passkeys/login', ['credential' => $this->createAssertionCredential()])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['credential' => 'This account has been suspended.']);
@@ -99,7 +99,7 @@ class PasskeyLoginControllerTest extends TestCase
 
         Passkeys::authorizeLoginUsing(static fn (): bool => true);
 
-        $this->withSession(['passkey.verification_options' => WebAuthn::toJson($this->createRequestOptions())])
+        $this->withSession(['passkey.verification_options_web' => WebAuthn::toJson($this->createRequestOptions())])
             ->postJson('/passkeys/login', [
                 'credential' => $this->createAssertionCredential(),
                 'remember' => true,

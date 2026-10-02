@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Passkeys\Http\Requests;
 
 use Hypervel\Foundation\Http\FormRequest;
+use Hypervel\Passkeys\Passkeys;
 use Hypervel\Passkeys\Support\WebAuthn;
 use Hypervel\Validation\ValidationException;
 use Throwable;
@@ -82,12 +83,14 @@ class PasskeyVerificationRequest extends FormRequest
     /**
      * Get the verification options from the session.
      *
+     * Options are stored per guard because one session may hold pending ceremonies for several guards.
+     *
      * @throws ValidationException
      */
     public function verificationOptions(): PublicKeyCredentialRequestOptions
     {
         /** @var null|string $serialized */
-        $serialized = $this->session()->pull('passkey.verification_options');
+        $serialized = $this->session()->pull('passkey.verification_options_' . Passkeys::guardName());
 
         if (! is_string($serialized) || $serialized === '') {
             throw ValidationException::withMessages([

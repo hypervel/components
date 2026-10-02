@@ -36,7 +36,7 @@ class PasskeyConfirmationController extends Controller
 
         $serialized = WebAuthn::toJson($options);
 
-        $request->session()->put('passkey.verification_options', $serialized);
+        $request->session()->put('passkey.verification_options_' . Passkeys::guardName(), $serialized);
 
         return response()->json([
             'options' => WebAuthn::toBrowserArray($options),

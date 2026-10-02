@@ -32,7 +32,7 @@ class PasskeyRegistrationController extends Controller
 
         $serialized = WebAuthn::toJson($options);
 
-        $request->session()->put('passkey.registration_options', $serialized);
+        $request->session()->put('passkey.registration_options_' . Passkeys::guardName(), $serialized);
 
         return response()->json([
             'options' => WebAuthn::toBrowserArray($options),

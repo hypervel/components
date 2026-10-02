@@ -7,10 +7,19 @@ namespace Hypervel\Tests\Passkeys;
 use Hypervel\Auth\EloquentUserProvider;
 use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Contracts\Auth\StatefulGuard;
+use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Passkeys\Actions\VerifyPasskey;
 use Hypervel\Passkeys\Exceptions\InvalidPasskeyException;
+use Hypervel\Passkeys\Http\Controllers\PasskeyConfirmationController;
+use Hypervel\Passkeys\Http\Controllers\PasskeyLoginController;
+use Hypervel\Passkeys\Http\Controllers\PasskeyRegistrationController;
+use Hypervel\Passkeys\Http\Requests\PasskeyRegistrationRequest;
+use Hypervel\Passkeys\Http\Requests\PasskeyVerificationRequest;
 use Hypervel\Passkeys\Passkey;
 use Hypervel\Passkeys\Passkeys;
+use Hypervel\Passkeys\Support\WebAuthn;
+use Hypervel\Support\Facades\Route;
+use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Passkeys\Fixtures\Admin;
 use Hypervel\Tests\Passkeys\Fixtures\User;
 use ParagonIE\ConstantTime\Base64UrlSafe;
@@ -88,6 +97,65 @@ class PasskeysGuardTest extends TestCase
         ];
     }
 
+    public function testLoginAndConfirmationOptionsArePendingSeparatelyForEachGuard(): void
+    {
+        $this->configureAdminGuard();
+
+        Route::middleware(['web', 'guest:admin'])
+            ->get('/admin/passkeys/login/options', [PasskeyLoginController::class, 'index']);
+        Route::middleware(['web', 'auth:web'])
+            ->get('/account/passkeys/confirm/options', [PasskeyConfirmationController::class, 'index']);
+
+        $user = User::create([
+            'name' => 'User',
+            'email' => 'user@example.com',
+        ]);
+
+        $adminLogin = $this->actingAs($user, 'web')
+            ->getJson('/admin/passkeys/login/options')
+            ->assertOk();
+
+        $userConfirmation = $this->getJson('/account/passkeys/confirm/options')
+            ->assertOk();
+
+        $this->assertSame($adminLogin->json('options.challenge'), $this->pendingVerificationChallenge('admin'));
+        $this->assertSame($userConfirmation->json('options.challenge'), $this->pendingVerificationChallenge('web'));
+    }
+
+    public function testRegistrationOptionsArePendingSeparatelyForEachGuard(): void
+    {
+        $this->configureAdminGuard();
+
+        Schema::create('admins', function (Blueprint $table): void {
+            $table->id();
+            $table->string('name');
+            $table->string('email');
+            $table->timestamps();
+        });
+
+        Route::middleware(['web', 'auth:web'])
+            ->get('/account/passkeys/options', [PasskeyRegistrationController::class, 'index']);
+        Route::middleware(['web', 'auth:admin'])
+            ->get('/admin/passkeys/options', [PasskeyRegistrationController::class, 'index']);
+
+        $user = User::create([
+            'name' => 'User',
+            'email' => 'user@example.com',
+        ]);
+        $admin = Admin::create([
+            'name' => 'Admin',
+            'email' => 'admin@example.com',
+        ]);
+
+        $this->actingAs($user, 'web')->actingAs($admin, 'admin');
+
+        $userRegistration = $this->getJson('/account/passkeys/options')->assertOk();
+        $adminRegistration = $this->getJson('/admin/passkeys/options')->assertOk();
+
+        $this->assertSame($userRegistration->json('options.challenge'), $this->pendingRegistrationChallenge('web'));
+        $this->assertSame($adminRegistration->json('options.challenge'), $this->pendingRegistrationChallenge('admin'));
+    }
+
     /**
      * Configure the admin guard fixture.
      */
@@ -113,5 +181,31 @@ class PasskeysGuardTest extends TestCase
                 ],
             ],
         ]);
+    }
+
+    /**
+     * Get the challenge from the guard's pending verification options.
+     */
+    private function pendingVerificationChallenge(string $guard): string
+    {
+        $this->app->make(AuthFactory::class)->shouldUse($guard);
+
+        $request = PasskeyVerificationRequest::create('/');
+        $request->setHypervelSession($this->app->make('session.store'));
+
+        return WebAuthn::toBrowserArray($request->verificationOptions())['challenge'];
+    }
+
+    /**
+     * Get the challenge from the guard's pending registration options.
+     */
+    private function pendingRegistrationChallenge(string $guard): string
+    {
+        $this->app->make(AuthFactory::class)->shouldUse($guard);
+
+        $request = PasskeyRegistrationRequest::create('/');
+        $request->setHypervelSession($this->app->make('session.store'));
+
+        return WebAuthn::toBrowserArray($request->registrationOptions())['challenge'];
     }
 }

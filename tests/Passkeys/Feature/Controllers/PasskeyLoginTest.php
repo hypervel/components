@@ -34,7 +34,7 @@ class PasskeyLoginTest extends TestCase
     {
         $this->getJson('/passkeys/login/options')->assertOk();
 
-        $this->assertNotNull(session('passkey.verification_options'));
+        $this->assertNotNull(session('passkey.verification_options_web'));
     }
 
     public function testItReturnsValidationErrorWhenPasskeyIsInvalid(): void
@@ -45,7 +45,7 @@ class PasskeyLoginTest extends TestCase
             ->andThrow(InvalidPasskeyException::make('Unable to verify passkey. Please try again.'))
             ->getMock());
 
-        $this->withSession(['passkey.verification_options' => WebAuthn::toJson($this->createRequestOptions())])
+        $this->withSession(['passkey.verification_options_web' => WebAuthn::toJson($this->createRequestOptions())])
             ->postJson('/passkeys/login', [
                 'credential' => $this->createAssertionCredential(),
             ])
@@ -57,7 +57,7 @@ class PasskeyLoginTest extends TestCase
 
     public function testItReturnsValidationErrorWhenCredentialFormatIsInvalid(): void
     {
-        $this->withSession(['passkey.verification_options' => WebAuthn::toJson($this->createRequestOptions())])
+        $this->withSession(['passkey.verification_options_web' => WebAuthn::toJson($this->createRequestOptions())])
             ->postJson('/passkeys/login', [
                 'credential' => [
                     'id' => 'dGVzdC1pZA',
