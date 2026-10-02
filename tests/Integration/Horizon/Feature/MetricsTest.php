@@ -218,6 +218,34 @@ class MetricsTest extends IntegrationTestCase
         );
     }
 
+    public function testQueueWithMaximumRuntimeAndThroughputComparesLatestSnapshot(): void
+    {
+        $repository = resolve(MetricsRepository::class);
+        $connection = $repository->connection();
+
+        // Two measured queues, each with three snapshots (the case where the
+        // ZRANGE range matters — fewer than three would mask the bug). The most
+        // recent snapshot is the highest-scored member. "fast" has the greater
+        // throughput, "slow" the greater runtime, so each card must surface a
+        // different queue rather than an arbitrary one.
+        $connection->sAdd('measured_queues', 'queue:fast', 'queue:slow');
+
+        foreach ([
+            'fast' => [['throughput' => 10, 'runtime' => 5], ['throughput' => 50, 'runtime' => 10], ['throughput' => 102, 'runtime' => 21]],
+            'slow' => [['throughput' => 3, 'runtime' => 100], ['throughput' => 7, 'runtime' => 200], ['throughput' => 11, 'runtime' => 338]],
+        ] as $queue => $snapshots) {
+            foreach ($snapshots as $score => $snapshot) {
+                $connection->zAdd('snapshot:queue:' . $queue, $score, json_encode($snapshot));
+            }
+        }
+
+        $this->assertSame('fast', $repository->queueWithMaximumThroughput());
+        $this->assertSame('slow', $repository->queueWithMaximumRuntime());
+    }
+
+    // REMOVED: Laravel Horizon's null HMGET snapshot test does not apply; PhpRedis returns false fields for a
+    // missing hash, which RedisMetricsRepositoryTest covers.
+
     public function testOmittedRetentionSettingsKeepTheDefaultNumberOfSnapshots(): void
     {
         config()->set('horizon.metrics.trim_snapshots', []);
@@ -307,45 +335,5 @@ class MetricsTest extends IntegrationTestCase
         $this->assertEmpty($metrics->measuredJobs());
         $this->assertEmpty($metrics->measuredQueues());
         $this->assertSame(0, $metrics->throughput());
-    }
-
-    public function testQueueWithMaximumRuntime(): void
-    {
-        $metrics = resolve(MetricsRepository::class);
-
-        CarbonImmutable::setTestNow(CarbonImmutable::now());
-
-        // Multiple snapshots expose the old range; the z-prefix makes its fallback choose incorrectly.
-        for ($snapshot = 0; $snapshot < 3; ++$snapshot) {
-            $metrics->incrementQueue('z-fast-queue', 100.0);
-            $metrics->incrementQueue('slow-queue', 500.0);
-            $metrics->snapshot();
-            CarbonImmutable::setTestNow(CarbonImmutable::now()->addSecond());
-        }
-
-        $this->assertSame('slow-queue', $metrics->queueWithMaximumRuntime());
-
-        CarbonImmutable::setTestNow();
-    }
-
-    public function testQueueWithMaximumThroughput(): void
-    {
-        $metrics = resolve(MetricsRepository::class);
-
-        CarbonImmutable::setTestNow(CarbonImmutable::now());
-
-        // Multiple snapshots expose the old range; the z-prefix makes its fallback choose incorrectly.
-        for ($snapshot = 0; $snapshot < 3; ++$snapshot) {
-            $metrics->incrementQueue('busy-queue', 100.0);
-            $metrics->incrementQueue('busy-queue', 100.0);
-            $metrics->incrementQueue('busy-queue', 100.0);
-            $metrics->incrementQueue('z-quiet-queue', 100.0);
-            $metrics->snapshot();
-            CarbonImmutable::setTestNow(CarbonImmutable::now()->addSecond());
-        }
-
-        $this->assertSame('busy-queue', $metrics->queueWithMaximumThroughput());
-
-        CarbonImmutable::setTestNow();
     }
 }

@@ -346,7 +346,7 @@ class RedisMetricsRepository implements MetricsRepository
     /**
      * Get the Redis connection instance.
      */
-    protected function connection(): RedisProxy
+    public function connection(): RedisProxy
     {
         return $this->redis->connection('horizon');
     }
