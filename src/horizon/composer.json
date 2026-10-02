@@ -38,6 +38,7 @@
         "hypervel/contracts": "^0.4",
         "hypervel/database": "^0.4",
         "hypervel/events": "^0.4",
+        "hypervel/filesystem": "^0.4",
         "hypervel/foundation": "^0.4",
         "hypervel/http": "^0.4",
         "hypervel/mail": "^0.4",

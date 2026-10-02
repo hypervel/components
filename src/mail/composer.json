@@ -30,6 +30,7 @@
         "hypervel/conditionable": "^0.4",
         "hypervel/config": "^0.4",
         "hypervel/container": "^0.4",
+        "hypervel/context": "^0.4",
         "hypervel/contracts": "^0.4",
         "hypervel/log": "^0.4",
         "hypervel/macroable": "^0.4",
