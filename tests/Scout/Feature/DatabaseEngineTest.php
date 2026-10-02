@@ -60,7 +60,49 @@ class DatabaseEngineTest extends ScoutTestCase
         $this->assertEquals($model1->id, $results->first()->id);
     }
 
-    public function testSearchWithMultipleComparisonsOnTheSameField(): void
+    public function testItCanFilterWithGreaterThan(): void
+    {
+        $this->createAbigailAndTaylor();
+
+        $models = SearchableModel::search()->where('title', '>', 'B')->get();
+
+        $this->assertSame(['Taylor Otwell'], $models->pluck('title')->all());
+    }
+
+    public function testItCanFilterWithLessThan(): void
+    {
+        $this->createAbigailAndTaylor();
+
+        $models = SearchableModel::search()->where('title', '<', 'B')->get();
+
+        $this->assertSame(['Abigail Otwell'], $models->pluck('title')->all());
+    }
+
+    public function testItCanFilterWithGreaterThanOrEqual(): void
+    {
+        $this->createAbigailAndTaylor();
+
+        $this->assertSame(['Taylor Otwell'], SearchableModel::search()->where('title', '>=', 'T')->get()->pluck('title')->all());
+        $this->assertCount(2, SearchableModel::search()->where('title', '>=', 'A')->get());
+    }
+
+    public function testItCanFilterWithLessThanOrEqual(): void
+    {
+        $this->createAbigailAndTaylor();
+
+        $this->assertSame(['Abigail Otwell'], SearchableModel::search()->where('title', '<=', 'Abigail Otwell')->get()->pluck('title')->all());
+        $this->assertCount(2, SearchableModel::search()->where('title', '<=', 'Taylor Otwell')->get());
+    }
+
+    public function testItCanFilterWithNotEqual(): void
+    {
+        $this->createAbigailAndTaylor();
+
+        $this->assertSame(['Taylor Otwell'], SearchableModel::search()->where('title', '!=', 'Abigail Otwell')->get()->pluck('title')->all());
+        $this->assertSame(['Abigail Otwell'], SearchableModel::search()->where('title', '!=', 'Taylor Otwell')->get()->pluck('title')->all());
+    }
+
+    public function testItCanFilterWithMultipleWhereComparisons(): void
     {
         SearchableModel::create(['title' => 'First', 'body' => 'Body']);
         $second = SearchableModel::create(['title' => 'Second', 'body' => 'Body']);
@@ -448,6 +490,15 @@ class DatabaseEngineTest extends ScoutTestCase
         $results = SearchableModel::search('Test')->get();
 
         $this->assertCount(2, $results);
+    }
+
+    /**
+     * Create the models used by the where comparison tests.
+     */
+    private function createAbigailAndTaylor(): void
+    {
+        SearchableModel::create(['title' => 'Taylor Otwell', 'body' => 'Body']);
+        SearchableModel::create(['title' => 'Abigail Otwell', 'body' => 'Body']);
     }
 }
 

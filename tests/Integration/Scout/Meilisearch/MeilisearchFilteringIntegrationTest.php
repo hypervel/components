@@ -147,19 +147,23 @@ class MeilisearchFilteringIntegrationTest extends MeilisearchScoutIntegrationTes
 
     public function testComparisonFiltersReachMeilisearch(): void
     {
-        SearchableModel::create(['id' => 301, 'title' => 'First', 'body' => 'Body']);
-        SearchableModel::create(['id' => 302, 'title' => 'Second', 'body' => 'Body']);
-        SearchableModel::create(['id' => 303, 'title' => 'Third', 'body' => 'Body']);
+        SearchableModel::create(['id' => 35, 'title' => 'Taylor Otwell', 'body' => 'Body']);
+        SearchableModel::create(['id' => 30, 'title' => 'Abigail Otwell', 'body' => 'Body']);
 
         $this->engine->update(SearchableModel::query()->get());
         $this->waitForMeilisearchTasks();
 
-        $results = SearchableModel::search('')
-            ->where('id', '>', 301)
-            ->where('id', '!=', 303)
-            ->get();
+        $this->assertSame([35], SearchableModel::search('')->where('id', '>', 30)->get()->pluck('id')->all());
+        $this->assertEqualsCanonicalizing([35, 30], SearchableModel::search('')->where('id', '>=', 30)->get()->pluck('id')->all());
 
-        $this->assertSame([302], $results->pluck('id')->all());
+        $this->assertSame([30], SearchableModel::search('')->where('id', '<', 35)->get()->pluck('id')->all());
+        $this->assertEqualsCanonicalizing([35, 30], SearchableModel::search('')->where('id', '<=', 35)->get()->pluck('id')->all());
+
+        $this->assertSame([30], SearchableModel::search('')->where('id', '!=', 35)->get()->pluck('id')->all());
+        $this->assertSame([35], SearchableModel::search('')->where('id', '!=', 30)->get()->pluck('id')->all());
+
+        $this->assertSame([35], SearchableModel::search('')->where('id', '>', 30)->where('id', '<', 40)->get()->pluck('id')->all());
+        $this->assertSame([30], SearchableModel::search('')->where('id', '>', 25)->where('id', '<', 35)->get()->pluck('id')->all());
     }
 
     public function testBackedEnumsAndEscapedSetValuesReachMeilisearch(): void
