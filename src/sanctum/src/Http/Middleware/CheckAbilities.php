@@ -6,34 +6,28 @@ namespace Hypervel\Sanctum\Http\Middleware;
 
 use Closure;
 use Hypervel\Auth\AuthenticationException;
-use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Http\Request;
 use Hypervel\Sanctum\Exceptions\MissingAbilityException;
 use Symfony\Component\HttpFoundation\Response;
 
 class CheckAbilities
 {
-    public function __construct(
-        protected AuthFactory $auth
-    ) {
-    }
-
     /**
-     * Handle an incoming request.
+     * Handle the incoming request.
      *
      * @throws AuthenticationException
      * @throws MissingAbilityException
      */
     public function handle(Request $request, Closure $next, string ...$abilities): Response
     {
-        $user = $this->auth->guard()->user();
+        $user = $request->user();
 
-        if (! $user || ! method_exists($user, 'currentAccessToken') || ! $user->currentAccessToken()) {
+        if (! $user || ! $user->currentAccessToken()) {
             throw new AuthenticationException;
         }
 
         foreach ($abilities as $ability) {
-            if (! method_exists($user, 'tokenCan') || ! $user->tokenCan($ability)) {
+            if (! $user->tokenCan($ability)) {
                 throw new MissingAbilityException($ability);
             }
         }
