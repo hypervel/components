@@ -17,8 +17,8 @@ use PHPUnit\Framework\Attributes\Test;
 use ReflectionProperty;
 use RuntimeException;
 
+use function Hypervel\Filesystem\join_paths;
 use function Hypervel\Testbench\is_symlink;
-use function Hypervel\Testbench\join_paths;
 use function Hypervel\Testbench\package_path;
 use function Hypervel\Testbench\workbench_relative_path;
 

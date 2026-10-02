@@ -10,7 +10,7 @@ use RuntimeException;
 use Symfony\Component\Finder\SplFileInfo;
 use Throwable;
 
-use function Hypervel\Testbench\join_paths;
+use function Hypervel\Filesystem\join_paths;
 
 /**
  * Provides assertion helpers and cleanup utilities for testing file publishing.

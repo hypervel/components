@@ -6,7 +6,7 @@ namespace Hypervel\Testbench\Concerns;
 
 use Hypervel\Testbench\Foundation\Application as Testbench;
 
-use function Hypervel\Testbench\join_paths;
+use function Hypervel\Filesystem\join_paths;
 use function Hypervel\Testbench\uses_default_skeleton;
 use function Hypervel\Testbench\workbench_path;
 

@@ -14,7 +14,7 @@ use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
-use function Hypervel\Testbench\join_paths;
+use function Hypervel\Filesystem\join_paths;
 use function Hypervel\Testbench\package_path;
 
 class UsesVendorTest extends TestCase

@@ -10,7 +10,7 @@ use Hypervel\Testbench\Exceptions\DeprecatedException;
 use Hypervel\Testbench\Foundation\Env;
 use Override;
 
-use function Hypervel\Testbench\join_paths;
+use function Hypervel\Filesystem\join_paths;
 
 /**
  * @internal

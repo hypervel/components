@@ -28,8 +28,8 @@ use Symfony\Component\Console\Output\ConsoleOutputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Throwable;
 
+use function Hypervel\Filesystem\join_paths;
 use function Hypervel\Testbench\is_symlink;
-use function Hypervel\Testbench\join_paths;
 use function Hypervel\Testbench\package_path;
 
 /**
