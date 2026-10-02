@@ -790,6 +790,12 @@ When working on a package, check its README for the upstream reference before ma
 
 Read `docs/ai/porting-hyperf.md` only when porting a Hyperf package or update.
 
+### Global upstream exclusions
+
+Owner-approved exclusions that apply across packages. Package-specific differences belong in the package README.
+
+- Laravel Boost and package-provided Boost resources, including skills and guidelines.
+
 ### Source workflow
 
 #### 1. Package skeleton

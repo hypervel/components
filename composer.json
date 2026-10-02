@@ -145,7 +145,6 @@
     "replace": {
         "hypervel/api-client": "self.version",
         "hypervel/auth": "self.version",
-        "hypervel/boost": "self.version",
         "hypervel/broadcasting": "self.version",
         "hypervel/bus": "self.version",
         "hypervel/cache": "self.version",

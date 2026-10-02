@@ -11,10 +11,6 @@
 - Add a `composer dev` script to the `hypervel/hypervel` application skeleton. The script should start the Hypervel development server and frontend asset watcher together using the package manager tools already included with the skeleton, so new applications have a simple one-command local development workflow.
 - Track the Swoole fix for signal behavior after a coroutine signal wait ends. In Swoole 6.2.2, the generic signal backend used by default on macOS keeps intercepting a signal after `Coroutine\System::waitSignal()` returns and drops later deliveries, so `schedule:run`'s second termination signal releases running tasks' overlap mutexes but no longer stops the process. Linux's default signalfd backend is unaffected. Once a fixed release is available, raise the `ext-swoole` constraint and verify scheduler force-stop and Testbench signal cleanup on macOS.
 
-## Boost
-
-- Implement Hypervel Boost's interactive installer and supporting AI tools, consuming the existing Wayfinder and Horizon skill templates where appropriate. Once the package ships working functionality, add and verify its installation documentation.
-
 ## Wayfinder
 
 - Fix `@laravel/vite-plugin-wayfinder` generation scheduling upstream. Each plugin instance should capture its own hook context, normalize Windows path separators, parse a documented multiword command into an argument vector without shell expansion, serialize its own runs, collapse a burst into one follow-up run, recover after failure, and remain isolated from other plugin instances. Components should not carry a scheduler or shell workaround for plugin-owned behavior.
