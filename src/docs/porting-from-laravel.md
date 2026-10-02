@@ -29,9 +29,11 @@
     - [Broadcasting](#broadcasting)
     - [JSON:API Resources](#jsonapi-resources)
     - [CSRF Protection](#csrf-protection)
+    - [Fortify](#fortify)
     - [Scout](#scout)
     - [JSON Schema](#json-schema)
     - [Validation](#validation)
+    - [Request and Input Data](#request-and-input-data)
     - [Data Objects](#data-objects)
     - [Rate Limiting](#rate-limiting)
     - [Pagination](#pagination)
@@ -525,6 +527,13 @@ Mercure applications must configure a standalone HTTP hub. Hypervel runs on Swoo
 ### CSRF Protection
 
 Replace references to Laravel's deprecated `VerifyCsrfToken` and `ValidateCsrfToken` middleware with `Hypervel\Foundation\Http\Middleware\PreventRequestForgery`. If your application extends either class, extend `PreventRequestForgery` instead and declare any overridden exclusions as `protected array $except`. Replace `validateCsrfTokens()` configuration calls with `preventRequestForgery()`. See the [CSRF protection documentation](/docs/{{version}}/csrf).
+
+<a name="fortify"></a>
+### Fortify
+
+User models that use Fortify's `TwoFactorAuthenticatable` trait must also implement `Hypervel\Fortify\Contracts\TwoFactorAuthenticationUser`, or two-factor challenges will fail. See [two-factor authentication](/docs/{{version}}/fortify#two-factor-authentication).
+
+Fortify ignores Laravel's `fortify.passwords` setting. Declare the password reset broker with the guard's `passwords` key in `config/auth.php` instead. See [password resets](/docs/{{version}}/fortify#password-resets). Laravel's deprecated `Laravel\Fortify\Rules\Password` rule is not available; use `Hypervel\Validation\Rules\Password`.
 
 <a name="scout"></a>
 ### Scout
