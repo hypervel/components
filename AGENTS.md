@@ -729,7 +729,7 @@ Each integration group has its own workflow file in `.github/workflows/`:
 |----------|------|-----------|
 | `engine.yml` | HTTP test servers | `tests/Integration/Engine`, `tests/Integration/HttpServer` |
 | `databases.yml` | MySQL, MariaDB, PostgreSQL, SQLite | `tests/Integration/Database`, `tests/Integration/*/Database/*` |
-| `redis.yml` | Redis, Redis Cluster, Valkey | `tests/Integration/Auth/Redis`, `tests/Integration/Broadcasting/Redis`, `tests/Integration/Cache/Redis`, `tests/Integration/Horizon`, `tests/Integration/Http/Redis`, `tests/Integration/Queue/Redis`, `tests/Integration/RateLimiter/Redis`, `tests/Integration/Redis`, `tests/Integration/Session/Redis`; it also reruns the driver-neutral queue chaining and dispatching tests with Redis, the listed topology-neutral Reverb state tests with Cluster, and Reverb state recovery with Valkey |
+| `redis.yml` | Redis, Redis Cluster, Valkey | `tests/Integration/Auth/Redis`, `tests/Integration/Broadcasting/Redis`, `tests/Integration/Cache`, `tests/Integration/Horizon`, `tests/Integration/Http/Redis`, `tests/Integration/OpenTelemetry/Redis`, `tests/Integration/Queue`, `tests/Integration/RateLimiter/Redis`, `tests/Integration/Redis`, `tests/Integration/Session/Redis`; Cache and Queue run with Redis selected, and it also reruns the listed topology-neutral Reverb state tests with Cluster and Reverb state recovery with Valkey |
 | `reverb.yml` | Redis-backed Reverb servers and state | `tests/Integration/Reverb` |
 | `scout.yml` | Meilisearch, Typesense | `tests/Integration/Scout/*` |
 
@@ -929,7 +929,7 @@ Update upstream test imports to point at the new Fixtures namespace.
 Tests for these features should be **removed** (not commented out) without asking — they will never be supported:
 
 - **Databases:** SQL Server, MongoDB, DynamoDB — Hypervel only supports MySQL, MariaDB, PostgreSQL, and SQLite
-- **Cache drivers:** Memcached, DynamoDB, MongoDB
+- **Cache drivers:** Memcached, APC / APCu, DynamoDB, MongoDB
 - **Dynamic connections:** `DB::build()`, `DB::connectUsing()` — incompatible with Swoole connection pooling
 - **Container access:** ArrayAccess and dynamic service properties
 
