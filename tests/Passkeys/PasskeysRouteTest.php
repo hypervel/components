@@ -56,7 +56,7 @@ class PasskeysRouteTest extends TestCase
     }
 
     #[WithConfig('passkeys.throttle', null)]
-    public function testNullThrottleOmitsThrottleMiddlewareFromLoginAndManagementRoutes(): void
+    public function testNullThrottleOmitsThrottleMiddlewareFromLoginAndRegistrationRoutes(): void
     {
         foreach (['passkey.login', 'passkey.registration-options'] as $routeName) {
             $route = Route::getRoutes()->getByName($routeName);
@@ -70,7 +70,7 @@ class PasskeysRouteTest extends TestCase
         }
     }
 
-    public function testOmittedThrottleUsesDefaultMiddlewareOnLoginAndManagementRoutes(): void
+    public function testOmittedThrottleUsesDefaultMiddlewareOnLoginAndRegistrationRoutes(): void
     {
         $config = config()->array('passkeys');
         unset($config['throttle']);

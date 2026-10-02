@@ -278,7 +278,7 @@ PHP);
             }
 
             /**
-             * Load the fixture commands directory.
+             * Load commands the way a Laravel application kernel does.
              */
             protected function commands(): void
             {
