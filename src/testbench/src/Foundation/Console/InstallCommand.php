@@ -326,12 +326,9 @@ class InstallCommand extends Command
                 continue;
             }
 
-            // The basic scaffold has no route files for the application bootstrap to load.
-            $stub = $bootstrap === 'app' && $this->option('basic') === true
-                ? 'bootstrap.app.basic.stub'
-                : "bootstrap.{$bootstrap}.stub";
-
-            $this->copyStub($filesystem, $stub, join_paths($workingPath, 'workbench', 'bootstrap', "{$bootstrap}.php"), $workingPath);
+            // The application bootstrap leaves the route files to Workbench discovery, which testbench.yaml
+            // controls. Upstream's bootstrap also registers them, so discovery loaded them a second time.
+            $this->copyStub($filesystem, "bootstrap.{$bootstrap}.stub", join_paths($workingPath, 'workbench', 'bootstrap', "{$bootstrap}.php"), $workingPath);
         }
     }
 

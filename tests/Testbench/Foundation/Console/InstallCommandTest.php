@@ -16,6 +16,7 @@ use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Override;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\Test;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
@@ -205,8 +206,8 @@ class InstallCommandTest extends TestCase
             'TESTBENCH_PACKAGE_REMOTE' => '(true)',
         ]);
 
-        $this->assertStringContainsString('testbench.yaml] generated', $process->getOutput());
-        $this->assertStringContainsString('database.sqlite] generated', $process->getOutput());
+        $this->assertStringContainsString('testbench.yaml] would be generated', $process->getOutput());
+        $this->assertStringContainsString('database.sqlite] would be generated', $process->getOutput());
         $this->assertSame($testbenchYaml, $this->filesystem->get($this->path('testbench.yaml')));
         $this->assertSame($composer, $this->filesystem->get($this->path('composer.json')));
         $this->assertDirectoryDoesNotExist($this->path('workbench'));
@@ -412,7 +413,7 @@ class InstallCommandTest extends TestCase
         );
 
         $this->assertFileEquals(
-            $this->componentPath('src/testbench/src/Foundation/Console/stubs/bootstrap.app.basic.stub'),
+            $this->componentPath('src/testbench/src/Foundation/Console/stubs/bootstrap.app.stub'),
             $this->path('workbench/bootstrap/app.php')
         );
         $this->assertFileDoesNotExist($this->path('workbench/bootstrap/providers.php'));
@@ -423,6 +424,58 @@ class InstallCommandTest extends TestCase
             $this->workingPath,
             ['TESTBENCH_WORKING_PATH' => $this->workingPath],
         ))->setTimeout(null)->mustRun();
+    }
+
+    /**
+     * @param array<string, int> $expectedLoads
+     */
+    #[Test]
+    #[DataProvider('routeDiscoverySettings')]
+    public function itLeavesTheGeneratedBootstrapRouteFilesToWorkbenchDiscovery(bool $discovers, array $expectedLoads): void
+    {
+        $log = $this->path('route-loads.log');
+
+        $this->filesystem->ensureDirectoryExists($this->path('workbench/bootstrap'));
+        $this->filesystem->copy(
+            $this->componentPath('src/testbench/src/Foundation/Console/stubs/bootstrap.app.stub'),
+            $this->path('workbench/bootstrap/app.php')
+        );
+        $this->filesystem->ensureDirectoryExists($this->path('workbench/routes'));
+
+        foreach (['web', 'console'] as $routes) {
+            $this->filesystem->put(
+                $this->path("workbench/routes/{$routes}.php"),
+                sprintf("<?php\n\nfile_put_contents(%s, \"%s\\n\", FILE_APPEND);\n", var_export($log, true), $routes)
+            );
+        }
+
+        $discovery = $discovers ? 'true' : 'false';
+        $this->filesystem->put(
+            $this->path('testbench.yaml'),
+            "workbench:\n  discovers:\n    web: {$discovery}\n    commands: {$discovery}\n"
+        );
+
+        (new Process(
+            [php_binary(), $this->componentPath('src/testbench/bin/testbench'), 'list'],
+            $this->workingPath,
+            ['TESTBENCH_WORKING_PATH' => $this->workingPath],
+        ))->setTimeout(null)->mustRun();
+
+        $this->assertEquals(
+            $expectedLoads,
+            is_file($log) ? array_count_values(file($log, FILE_IGNORE_NEW_LINES)) : []
+        );
+    }
+
+    /**
+     * @return array<string, array{bool, array<string, int>}>
+     */
+    public static function routeDiscoverySettings(): array
+    {
+        return [
+            'discovery enabled' => [true, ['web' => 1, 'console' => 1]],
+            'discovery disabled' => [false, []],
+        ];
     }
 
     #[Test]

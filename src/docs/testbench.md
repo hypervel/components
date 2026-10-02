@@ -956,7 +956,7 @@ vendor/bin/testbench package:install
 
 The command creates a `workbench` directory, writes a `testbench.yaml` file, adds Workbench PSR-4 autoloading to `composer.json`, creates a SQLite database file for the runtime skeleton, and refreshes Composer's autoloader. The default scaffold is auth-ready and includes a `User` model, factory, seeder, route files, and Workbench discovery.
 
-When run interactively, the command also offers to generate `workbench/bootstrap/app.php` and `workbench/bootstrap/providers.php` files. With the default skeleton, Testbench uses these files, when present, to configure the application for `WithWorkbench` tests and Testbench CLI commands such as `serve`.
+When run interactively, the command also offers to generate `workbench/bootstrap/app.php` and `workbench/bootstrap/providers.php` files. With the default skeleton, Testbench uses these files, when present, to configure the application for `WithWorkbench` tests and Testbench CLI commands such as `serve`. The generated `app.php` doesn't register routes; Workbench discovery loads the route files according to the `discovers` settings in `testbench.yaml`.
 
 Existing files are not overwritten unless you pass the `--force` option. To generate only the core Workbench model, factory, seeder, provider, and `testbench.yaml` file, pass the `--basic` option:
 
