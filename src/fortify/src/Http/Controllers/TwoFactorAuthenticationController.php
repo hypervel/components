@@ -10,6 +10,7 @@ use Hypervel\Fortify\Actions\DisableTwoFactorAuthentication;
 use Hypervel\Fortify\Actions\EnableTwoFactorAuthentication;
 use Hypervel\Fortify\Contracts\TwoFactorDisabledResponse;
 use Hypervel\Fortify\Contracts\TwoFactorEnabledResponse;
+use Hypervel\Fortify\Fortify;
 use Hypervel\Http\Request;
 use Hypervel\Routing\Controller;
 
@@ -24,6 +25,12 @@ class TwoFactorAuthenticationController extends Controller
         $user = $request->user();
 
         $enable($user, $request->boolean('force', false));
+
+        if (Fortify::confirmsTwoFactorAuthentication()
+            && ! is_null($user->getAttribute('two_factor_secret'))
+            && is_null($user->getAttribute('two_factor_confirmed_at'))) {
+            $request->session()->remove('two_factor_confirming_at');
+        }
 
         return app(TwoFactorEnabledResponse::class);
     }
