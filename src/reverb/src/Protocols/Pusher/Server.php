@@ -103,16 +103,13 @@ class Server
                 throw new InvalidMessageFormat($exception->getMessage(), previous: $exception);
             }
 
-            // Try-decode data field instead of validate-then-decode (avoids double parse)
+            // Decode JSON string data once instead of validating it first. Other strings stay as sent,
+            // since some clients send pings with empty string data.
             if (is_string($event['data'] ?? null)) {
-                try {
-                    $event['data'] = json_decode(
-                        $event['data'],
-                        associative: true,
-                        flags: JSON_THROW_ON_ERROR,
-                    );
-                } catch (JsonException $exception) {
-                    throw new InvalidMessageFormat($exception->getMessage(), previous: $exception);
+                $data = json_decode($event['data'], associative: true);
+
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    $event['data'] = $data;
                 }
             }
 
