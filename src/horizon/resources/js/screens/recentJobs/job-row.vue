@@ -65,18 +65,11 @@
                 }
 
                 if (delay && typeof delay === 'object') {
-                    // A DateInterval / CarbonInterval instance serializes with
-                    // y/m/d/h/i/s keys, which don't line up with moment's own
-                    // shorthand unit keys (e.g. its "m" means minutes, not
-                    // months), so they must be mapped explicitly.
-                    return this.formatDate(this.job.payload.pushedAt).add({
-                        years: delay.y,
-                        months: delay.m,
-                        days: delay.d,
-                        hours: delay.h,
-                        minutes: delay.i,
-                        seconds: delay.s,
-                    }).fromNow(true);
+                    // Use the delay the queue stored in seconds. A serialized DateInterval's
+                    // fields don't give its length: one built from a string has none, and an
+                    // inverted one points into the past.
+                    return this.formatDate(this.job.payload.pushedAt).add(this.job.payload.delay, 'seconds')
+                        .fromNow(true);
                 }
 
                 if (delay) {
