@@ -35,7 +35,7 @@
         "hypervel/components": "0.4.x-dev",
         "hypervel/testbench": "0.4.x-dev",
         "mockery/mockery": "1.6.x-dev",
-        "phpunit/phpunit": "^13.0.3",
+        "phpunit/phpunit": "13.3.*",
         "symfony/yaml": "^8.1"
     },
     "extra": {
