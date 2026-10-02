@@ -87,11 +87,12 @@ class InstallCommandTest extends TestCase
         $this->assertFileExists(join_paths($runtimeBasePath, 'database', 'database.sqlite'));
 
         $this->assertSame([
-            'Tests\\\\' => 'tests/',
+            'Tests\\' => 'tests/',
             'Workbench\App\\' => 'workbench/app/',
             'Workbench\Database\Factories\\' => 'workbench/database/factories/',
             'Workbench\Database\Seeders\\' => 'workbench/database/seeders/',
         ], $this->composerAutoloadDevNamespaces());
+        $this->assertFileExists($this->path('vendor/autoload.php'));
 
         $config = Config::loadFromYaml($this->workingPath);
 
@@ -219,7 +220,7 @@ class InstallCommandTest extends TestCase
         $this->writeComposerJson([
             'autoload-dev' => [
                 'psr-4' => [
-                    'Tests\\\\' => 'tests/',
+                    'Tests\\' => 'tests/',
                     'App\\' => 'workbench/app/',
                     'Database\Factories\\' => 'workbench/database/factories/',
                     'Database\Seeders\\' => 'workbench/database/seeders/',
@@ -230,7 +231,7 @@ class InstallCommandTest extends TestCase
         $this->runInstallCommand(['--no-interaction']);
 
         $this->assertSame([
-            'Tests\\\\' => 'tests/',
+            'Tests\\' => 'tests/',
             'App\\' => 'workbench/app/',
             'Database\Factories\\' => 'workbench/database/factories/',
             'Database\Seeders\\' => 'workbench/database/seeders/',
@@ -245,7 +246,7 @@ class InstallCommandTest extends TestCase
         $this->writeComposerJson([
             'autoload-dev' => [
                 'psr-4' => [
-                    'Tests\\\\' => 'tests/',
+                    'Tests\\' => 'tests/',
                     'Workbench\App\\' => 'app/',
                 ],
             ],
@@ -569,12 +570,12 @@ class InstallCommandTest extends TestCase
             'description' => 'Test package',
             'autoload' => [
                 'psr-4' => [
-                    'Package\\\\' => 'src/',
+                    'Package\\' => 'src/',
                 ],
             ],
             'autoload-dev' => [
                 'psr-4' => [
-                    'Tests\\\\' => 'tests/',
+                    'Tests\\' => 'tests/',
                 ],
             ],
         ], $overrides);
