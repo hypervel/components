@@ -114,13 +114,13 @@ class Builder
      */
     public function __construct(
         Model $model,
-        string $query,
+        ?string $query,
         ?Closure $callback = null,
         bool $softDelete = false
     ) {
         /** @var SearchableInterface&TModel $model */
         $this->model = $model;
-        $this->query = $query;
+        $this->query = $query ?? '';
         $this->callback = $callback;
 
         if ($softDelete) {

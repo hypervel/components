@@ -240,7 +240,7 @@ trait Searchable
      *
      * @return Builder<static>
      */
-    public static function search(string $query = '', ?Closure $callback = null): Builder
+    public static function search(?string $query = '', ?Closure $callback = null): Builder
     {
         // @phpstan-ignore staticProperty.notFound (models may define the documented custom builder property)
         $builder = static::$scoutBuilder ?? Builder::class;
