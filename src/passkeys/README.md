@@ -7,6 +7,7 @@ Documentation: https://hypervel.org/docs/fortify
 
 - Passkeys use a polymorphic `user` owner relation so multiple authenticatable model classes can share the same passkeys table.
 - Standalone Passkeys follows Hypervel's current default guard selected by `Auth::shouldUse()` or `auth.defaults.guard`, with optional `passkeys.guard` route-group selection for built-in standalone routes.
+- The `{passkey}` route binding resolves only the authenticated owner's passkeys, so another user's passkey returns 404 instead of Laravel's 403. Routes that manage other users' passkeys should use a different parameter name.
 - Passkeys omit Laravel's `relyingPartyName()` because `web-auth/webauthn-lib` deprecates non-empty relying party names.
 - Passkeys include explicit orphan cleanup for polymorphic owners.
 - Passkeys support boot-time request-aware callbacks for redirects and WebAuthn relying party / origin settings, such as for custom domains, multi-guard apps, or multi-tenant apps.
