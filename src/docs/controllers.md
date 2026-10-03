@@ -581,7 +581,7 @@ Hypervel's pluralizer supports [several different languages which you may config
 ```text
 /publicacion/crear
 
-/publicacion/{publicaciones}/editar
+/publicacion/{publicacion}/editar
 ```
 
 <a name="restful-supplementing-resource-controllers"></a>

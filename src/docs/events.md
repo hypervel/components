@@ -28,7 +28,7 @@
     - [Registering Event Subscribers](#registering-event-subscribers)
 - [Testing](#testing)
     - [Faking a Subset of Events](#faking-a-subset-of-events)
-    - [Scoped Events Fakes](#scoped-event-fakes)
+    - [Scoped Event Fakes](#scoped-event-fakes)
 
 <a name="introduction"></a>
 ## Introduction
@@ -430,6 +430,8 @@ public function withDelay(OrderShipped $event): int
     return $event->highPriority ? 0 : 60;
 }
 ```
+
+If you would like all of your queued listeners to use the same queue without customizing each listener class, you may [route the `ShouldQueue` contract to a queue](/docs/{{version}}/queues#queue-routing) instead.
 
 <a name="conditionally-queueing-listeners"></a>
 #### Conditionally Queueing Listeners

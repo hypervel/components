@@ -23,6 +23,7 @@
     - [Automatic Streaming](#automatic-streaming)
     - [File Uploads](#file-uploads)
     - [File Visibility](#file-visibility)
+    - [Image Manipulation](#image-manipulation)
 - [Deleting Files](#deleting-files)
 - [Directories](#directories)
 - [Testing](#testing)
@@ -738,6 +739,8 @@ When `throw` is `false`, you may set the `report` option to `true` to report the
 ],
 ```
 
+If neither the `throw` nor `report` options are defined, the disk will silently return `false` on failure and the underlying exception will not be thrown or logged.
+
 <a name="prepending-appending-to-files"></a>
 ### Prepending and Appending To Files
 
@@ -963,6 +966,24 @@ When using the `local` driver, `public` [visibility](#file-visibility) translate
     ],
     'throw' => false,
 ],
+```
+
+<a name="image-manipulation"></a>
+### Image Manipulation
+
+If you need to resize, crop, or convert an uploaded image before storing it, you may use Hypervel's [image manipulation features](/docs/{{version}}/images):
+
+```php
+$path = $request->image('avatar')
+    ->cover(400, 400)
+    ->toWebp()
+    ->storePublicly('avatars', 'public');
+```
+
+You may also create an image instance from a file already stored on one of your filesystem disks:
+
+```php
+$image = Storage::disk('public')->image('avatars/photo.jpg');
 ```
 
 <a name="deleting-files"></a>

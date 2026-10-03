@@ -89,7 +89,7 @@ Xdebug support depends on your PHP and Swoole versions. If you experience corout
 <a name="creating-an-application"></a>
 ### Creating an Application
 
-After you have installed PHP, Composer, and Swoole, you're ready to create a new Hypervel application using Composer's `create-project` command:
+After you have installed PHP, Composer, and Swoole, you are ready to create a new Hypervel application using Composer's `create-project` command:
 
 ```shell
 composer create-project hypervel/hypervel example-app
@@ -102,7 +102,7 @@ cd example-app
 php artisan serve
 ```
 
-Once you have started the development server, your application will be accessible in your web browser at [http://localhost:8000](http://localhost:8000). The server host, port, worker count, and other Swoole options may be configured in your application's `config/server.php` file.
+Once you have started the development server, you can access your application in your web browser at [http://localhost:8000](http://localhost:8000). The server host, port, worker count, and other Swoole options may be configured in your application's `config/server.php` file.
 
 You may temporarily override the HTTP server address for the current process using the `--host` and `--port` options:
 
@@ -158,7 +158,7 @@ composer create-project hypervel/react-starter-kit example-app
 <a name="initial-configuration"></a>
 ## Initial Configuration
 
-All of the configuration files for the Hypervel framework are stored in the `config` directory. Each option is documented, so feel free to look through the files and get familiar with the options available to you.
+All configuration files for the Hypervel framework are stored in the `config` directory. Each option is documented, so feel free to look through the files and get familiar with the options available to you.
 
 Hypervel needs almost no additional configuration out of the box. You are free to get started developing! However, you may wish to review the `config/app.php` and `config/server.php` files and their documentation. These files contain options such as your application's URL, locale, server host, server port, and worker count.
 

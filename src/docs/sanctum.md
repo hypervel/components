@@ -424,7 +424,7 @@ For example, if we imagine an application that manages servers, this might mean 
 
 ```php
 return $request->user()->id === $server->user_id &&
-       $request->user()->tokenCan('server:update')
+       $request->user()->tokenCan('server:update');
 ```
 
 At first, allowing the `tokenCan` method to be called and always return `true` for first-party UI initiated requests may seem strange; however, it is convenient to be able to always assume an API token is available and can be inspected via the `tokenCan` method. By taking this approach, you may always call the `tokenCan` method within your application's authorization policies without worrying about whether the request was triggered from your application's UI or was initiated by one of your API's third-party consumers.
@@ -572,7 +572,7 @@ php artisan config:publish cors
 
 Next, you should ensure that your application's CORS configuration is returning the `Access-Control-Allow-Credentials` header with a value of `True`. This may be accomplished by setting the `supports_credentials` option within your application's `config/cors.php` configuration file to `true`.
 
-In addition, you should enable the `withCredentials` and `withXSRFToken` options on your application's global `axios` instance. Typically, this should be performed in your `resources/js/bootstrap.js` file. If you are not using Axios to make HTTP requests from your frontend, you should perform the equivalent configuration on your own HTTP client:
+In addition, you should enable the `withCredentials` and `withXSRFToken` options on your application's global `axios` instance. This can be performed in your `resources/js/app.js` file. If you are not using Axios to make HTTP requests from your frontend, you should perform the equivalent configuration on your own HTTP client:
 
 ```js
 axios.defaults.withCredentials = true;
@@ -612,6 +612,8 @@ If the login request is successful, you will be authenticated and subsequent req
 
 Of course, if your user's session expires due to lack of activity, subsequent requests to the Hypervel application may receive a 401 or 419 HTTP error response. In this case, you should redirect the user to your SPA's login page.
 
+Since this approach to SPA authentication is session based, you may use Hypervel's standard authentication services, including ["remember me"](/docs/{{version}}/authentication#remembering-users) functionality.
+
 > [!WARNING]
 > You are free to write your own `/login` endpoint; however, you should ensure that it authenticates the user using the standard, [session based authentication services that Hypervel provides](/docs/{{version}}/authentication#authenticating-users). Typically, this means using the `web` authentication guard.
 
@@ -643,6 +645,7 @@ return Application::configure(basePath: dirname(__DIR__))
         __DIR__.'/../routes/channels.php',
         ['prefix' => 'api', 'middleware' => ['api', 'auth:sanctum']],
     )
+    ->create();
 ```
 
 Next, in order for Pusher's authorization requests to succeed, you will need to provide a custom Pusher `authorizer` when initializing [Laravel Echo](/docs/{{version}}/broadcasting#client-side-installation). This allows your application to configure Pusher to use the `axios` instance that is [properly configured for cross-domain requests](#cors-and-cookies):

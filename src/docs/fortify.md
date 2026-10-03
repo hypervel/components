@@ -20,8 +20,12 @@
 - [Password Confirmation](#password-confirmation)
 - [Two-Factor Authentication](#two-factor-authentication)
 - [Passkeys](#passkeys)
-    - [Frontend Package](#frontend-package)
-    - [Request And Response Contracts](#request-and-response-contracts)
+    - [Enabling Passkeys](#enabling-passkeys)
+    - [JavaScript Client](#passkeys-javascript-client)
+    - [Authenticating With Passkeys](#authenticating-with-passkeys)
+    - [Confirming Password With Passkeys](#confirming-password-with-passkeys)
+    - [Registering Passkeys](#registering-passkeys)
+    - [Deleting Passkeys](#deleting-passkeys)
     - [Customizing Passkeys](#customizing-passkeys)
     - [Passkey Models](#passkey-models)
     - [Passkey Cleanup](#passkey-cleanup)
@@ -458,11 +462,45 @@ Submitting `force=true` to the two-factor enable route rotates the user's secret
 <a name="passkeys"></a>
 ## Passkeys
 
-Enable passkeys with `Features::passkeys()`. Fortify will register passkey login, confirmation, registration, and deletion routes when this feature is enabled.
+Fortify supports passkey authentication using WebAuthn. Passkeys allow users to authenticate without passwords using platform authenticators such as Face ID, Touch ID, Windows Hello, or hardware security keys.
 
-Passkey registration and deletion routes require [password confirmation](#password-confirmation) by default. Set `Features::passkeys(['confirmPassword' => false])` if your application should allow authenticated users to manage passkeys without first confirming their password.
+<a name="enabling-passkeys"></a>
+### Enabling Passkeys
 
-Fortify bridges these settings into the standalone Passkeys package:
+To get started, ensure the `passkeys` feature is enabled in your application's `fortify` configuration file. Fortify will then register its passkey login, confirmation, registration, and deletion routes:
+
+```php
+use Hypervel\Fortify\Features;
+
+'features' => [
+    // ...
+    Features::passkeys([
+        'confirmPassword' => true,
+    ]),
+],
+```
+
+The `confirmPassword` option determines whether Fortify requires [password confirmation](#password-confirmation) before passkeys may be registered or deleted. It defaults to `true`.
+
+Next, ensure your application's `App\Models\User` model implements `Hypervel\Passkeys\Contracts\PasskeyUser` and uses the `Hypervel\Passkeys\PasskeyAuthenticatable` trait:
+
+```php
+<?php
+
+namespace App\Models;
+
+use Hypervel\Foundation\Auth\User as Authenticatable;
+use Hypervel\Notifications\Notifiable;
+use Hypervel\Passkeys\Contracts\PasskeyUser;
+use Hypervel\Passkeys\PasskeyAuthenticatable;
+
+class User extends Authenticatable implements PasskeyUser
+{
+    use Notifiable, PasskeyAuthenticatable;
+}
+```
+
+Fortify's passkeys configuration options may be customized using the `passkeys` configuration array in your application's `config/fortify.php` file:
 
 ```php
 /** @var null|string $appUrl */
@@ -477,10 +515,15 @@ return [
         'relying_party_id' => env('PASSKEYS_RELYING_PARTY_ID', $defaultRelyingPartyId),
         'allowed_origins' => env_array('PASSKEYS_ALLOWED_ORIGINS', $defaultAllowedOrigins),
         'user_handle_secret' => env('PASSKEYS_USER_HANDLE_SECRET', config('app.key')),
-        'timeout' => (int) env('PASSKEYS_TIMEOUT', 60000),
+        'timeout' => (int) env('PASSKEYS_TIMEOUT', 60_000),
     ],
 ];
 ```
+
+> [!NOTE]
+> Fortify wraps the `hypervel/passkeys` Composer package and configures it for you. If you are using Fortify's passkeys feature, you should configure passkeys using your application's `config/fortify.php` file. You do not need to publish the `hypervel/passkeys` configuration file. Fortify overrides its relying party, origin, user handle, and timeout values, and its route settings only apply to [standalone passkeys](#standalone-passkeys).
+
+The `relying_party_id` should match your application's domain. The `allowed_origins` array lists the browser origins that may complete passkey registration and authentication. The `user_handle_secret` is used to derive opaque user identifiers, ensuring the same user is recognized across passkey registrations. The `timeout` option controls how long passkey registration and authentication operations may remain active.
 
 Each passkey member may be omitted. Fortify then uses these same application-derived identity values and a 60-second WebAuthn timeout. Explicit null or empty identity values remain explicit and are rejected when a WebAuthn operation first needs them; a configured timeout must be a positive integer.
 
@@ -510,14 +553,18 @@ These callbacks take priority over the static config values when a request is av
 
 The resolved relying party ID must be a registrable-domain suffix of the resolved origins. Otherwise, browsers will reject the WebAuthn ceremony before the server can verify it.
 
-`user_handle_secret` is a long-lived, nonempty secret used to derive stable WebAuthn user handles. It defaults to the app key for convenience, but production applications should set a dedicated value before registering passkeys. Changing it changes generated user handles.
+The `user_handle_secret` defaults to the app key for convenience, but production applications should set a dedicated, long-lived value before registering passkeys. Changing it changes generated user handles.
 
 Each user handle is derived from the owner's morph type, table, and primary key. If one relying party serves several tenant databases whose owners can share the same type and key, override `getPasskeyUserHandle()` on your passkey user model to include a stable tenant identifier that does not reveal personal information.
 
-<a name="frontend-package"></a>
-### Frontend Package
+The published configuration applies a dedicated `passkeys` rate limiter to Fortify's passkey login, confirmation, and registration routes. If needed, you may customize it using the `fortify.limiters.passkeys` configuration option and a corresponding `RateLimiter::for(...)` definition, as described in [rate limiting](#rate-limiting).
 
-Hypervel's passkey routes are compatible with the `@laravel/passkeys` frontend package:
+<a name="passkeys-javascript-client"></a>
+### JavaScript Client
+
+If you are building a custom frontend, including a Blade application with browser-side scripts, you may use the [`@laravel/passkeys`](https://www.npmjs.com/package/@laravel/passkeys) package, which is compatible with Fortify's passkey routes. This package handles browser WebAuthn ceremonies and sends requests to Fortify's passkey endpoints.
+
+Install the package via npm:
 
 ```shell
 npm install @laravel/passkeys
@@ -526,9 +573,9 @@ npm install @laravel/passkeys
 Then, you may initiate passkey registration and verification from your frontend:
 
 ```js
-import { Passkeys } from '@laravel/passkeys';
+import { Passkeys } from "@laravel/passkeys";
 
-await Passkeys.register({ name: 'MacBook Pro' });
+await Passkeys.register({ name: "MacBook Pro" });
 await Passkeys.verify();
 ```
 
@@ -548,42 +595,87 @@ If your application uses custom passkey endpoint URIs, you may override the rout
 ```js
 await Passkeys.verify({
     routes: {
-        options: '/passkeys/confirm/options',
-        submit: '/passkeys/confirm',
+        options: "/passkeys/confirm/options",
+        submit: "/passkeys/confirm",
     },
 });
 
 await Passkeys.register({
-    name: 'MacBook Pro',
+    name: "MacBook Pro",
     routes: {
-        options: '/user/passkeys/options',
-        submit: '/user/passkeys',
+        options: "/user/passkeys/options",
+        submit: "/user/passkeys",
     },
 });
 ```
 
 The package also provides React, Vue, and Svelte helpers via `@laravel/passkeys/react`, `@laravel/passkeys/vue`, and `@laravel/passkeys/svelte`.
 
-<a name="request-and-response-contracts"></a>
-### Request And Response Contracts
+If you write your own client instead, send JSON requests with an `Accept: application/json` header and include the normal CSRF token and session cookie. Each options endpoint described below returns a JSON object whose `options` key contains the WebAuthn options.
 
-Custom passkey frontends should use JSON requests and preserve the normal Hypervel CSRF/session credentials. The built-in endpoints use these request and response envelopes:
+<a name="authenticating-with-passkeys"></a>
+### Authenticating With Passkeys
+
+To authenticate a user with a passkey, your application should first make a GET request to the `/passkeys/login/options` endpoint. This endpoint returns the WebAuthn challenge options that your frontend should pass to `navigator.credentials.get(...)`.
+
+After the browser returns a credential, your application should make a POST request to `/passkeys/login` with the credential payload in a `credential` field. You may also include a boolean `remember` field.
+
+If the request is successful, Fortify will log the user in and return either:
 
 <div class="content-list" markdown="1">
 
-- `GET /passkeys/login/options` returns `{ "options": ... }`.
-- `POST /passkeys/login` accepts `{ "credential": ..., "remember": true|false }`, with `remember` optional, and returns `{ "redirect": "..." }` for JSON requests.
-- `GET /passkeys/confirm/options` returns `{ "options": ... }`.
-- `POST /passkeys/confirm` accepts `{ "credential": ... }` and returns `{ "redirect": "..." }` for JSON requests.
-- `GET /user/passkeys/options` returns `{ "options": ... }`.
-- `POST /user/passkeys` accepts `{ "name": "...", "credential": ... }` and returns `{ "status": "passkey-registered", "id": "...", "name": "..." }` for JSON requests.
-- `DELETE /user/passkeys/{passkey}` returns `{ "status": "passkey-deleted" }` for JSON requests.
+- A redirect response to your intended destination for standard requests.
+- A `200` HTTP response containing a JSON payload with a `redirect` key for JSON requests.
 
 </div>
 
-Standard requests receive redirects instead. Login and confirmation redirect to the intended destination, while registration and deletion redirect back with a `passkey-registered` or `passkey-deleted` status in the session.
+<a name="confirming-password-with-passkeys"></a>
+### Confirming Password With Passkeys
 
-A successful passkey confirmation marks the session as password confirmed for the current guard, so it satisfies that guard's `password.confirm` middleware.
+For authenticated sessions, Fortify provides passkey confirmation endpoints that satisfy Hypervel's password confirmation requirement for the current session.
+
+To confirm with a passkey, your application should first make a GET request to `/passkeys/confirm/options`. This endpoint returns the WebAuthn challenge options that your frontend should pass to `navigator.credentials.get(...)`.
+
+After the browser returns a credential, your application should make a POST request to `/passkeys/confirm` with the credential payload in a `credential` field.
+
+If the request is successful, Fortify marks the current session as password confirmed for the current guard, so it satisfies that guard's `password.confirm` middleware. Fortify then returns either:
+
+<div class="content-list" markdown="1">
+
+- A redirect response to your intended destination for standard requests.
+- A `200` HTTP response containing a JSON payload with a `redirect` key for JSON requests.
+
+</div>
+
+<a name="registering-passkeys"></a>
+### Registering Passkeys
+
+To register a passkey for an authenticated user, your application should first make a GET request to `/user/passkeys/options`. This endpoint returns the WebAuthn creation options that your frontend should pass to `navigator.credentials.create(...)`.
+
+After the browser returns a credential, your application should make a POST request to `/user/passkeys` with a `name` field and a `credential` field containing the serialized [`PublicKeyCredential`](https://developer.mozilla.org/en-US/docs/Web/API/PublicKeyCredential) object returned by `navigator.credentials.create(...)`.
+
+If the request is successful, Fortify will return either:
+
+<div class="content-list" markdown="1">
+
+- A redirect back response with a `passkey-registered` status in the session for standard requests.
+- A `200` HTTP response with a JSON payload containing a `status` key, along with the newly registered passkey's `id` and `name`, for JSON requests.
+
+</div>
+
+<a name="deleting-passkeys"></a>
+### Deleting Passkeys
+
+To delete a passkey, your application should make a DELETE request to `/user/passkeys/{passkey}`.
+
+If the request is successful, Fortify will return either:
+
+<div class="content-list" markdown="1">
+
+- A redirect back response with a `passkey-deleted` status in the session for standard requests.
+- A `200` HTTP response with a JSON payload containing a `status` key for JSON requests.
+
+</div>
 
 <a name="customizing-passkeys"></a>
 ### Customizing Passkeys
@@ -692,7 +784,7 @@ Passkeys dispatches `PasskeyRegistered`, `PasskeyVerified`, and `PasskeyDeleted`
 <a name="passkey-models"></a>
 ### Passkey Models
 
-Every model that owns passkeys should implement `Hypervel\Passkeys\Contracts\PasskeyUser` and use `Hypervel\Passkeys\PasskeyAuthenticatable`:
+Every model that owns passkeys should implement `Hypervel\Passkeys\Contracts\PasskeyUser` and use `Hypervel\Passkeys\PasskeyAuthenticatable`, as shown when [enabling passkeys](#enabling-passkeys). You may override the name and username that authenticators display:
 
 ```php
 use Hypervel\Foundation\Auth\User as Authenticatable;

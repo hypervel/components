@@ -135,6 +135,8 @@ The React starter kit uses [Hypervel Fortify](/docs/{{version}}/fortify) to hand
 
 Fortify automatically registers the following authentication routes based on the features that are enabled in your application's `config/fortify.php` configuration file:
 
+<div class="overflow-auto">
+
 | Route                              | Method | Description                         |
 | ---------------------------------- | ------ | ----------------------------------- |
 | `/login`                           | `GET`  | Display login form                  |
@@ -153,6 +155,8 @@ Fortify automatically registers the following authentication routes based on the
 | `/user/confirm-password`           | `POST` | Confirm password                    |
 | `/two-factor-challenge`            | `GET`  | Display 2FA challenge form          |
 | `/two-factor-challenge`            | `POST` | Verify 2FA code                     |
+
+</div>
 
 The `php artisan route:list` Artisan command can be used to display all of the routes in your application.
 
@@ -184,11 +188,15 @@ When using the React starter kit, you will also need to remove any references to
 
 When a user registers or resets their password, Fortify invokes action classes located in your application's `app/Actions/Fortify` directory:
 
+<div class="overflow-auto">
+
 | File                          | Description                          |
 | ----------------------------- | ------------------------------------ |
 | `CreateNewUser.php`           | Validates and creates new users      |
 | `ResetUserPassword.php`       | Validates and updates user passwords |
 | `PasswordValidationRules.php` | Defines password validation rules    |
+
+</div>
 
 For example, to customize your application's registration logic, you should edit the `CreateNewUser` action:
 

@@ -117,8 +117,8 @@ To get a better understanding of the `validate` method, let's jump back into the
 public function store(Request $request): RedirectResponse
 {
     $validated = $request->validate([
-        'title' => 'required|unique:posts|max:255',
-        'body' => 'required',
+        'title' => ['required', 'unique:posts', 'max:255'],
+        'body' => ['required'],
     ]);
 
     // The blog post is valid...
@@ -129,19 +129,10 @@ public function store(Request $request): RedirectResponse
 
 As you can see, the validation rules are passed into the `validate` method. Don't worry - all available validation rules are [documented](#available-validation-rules). Again, if the validation fails, the proper response will automatically be generated. If the validation passes, our controller will continue executing normally.
 
-Alternatively, validation rules may be specified as arrays of rules instead of a single `|` delimited string:
-
-```php
-$validatedData = $request->validate([
-    'title' => ['required', 'unique:posts', 'max:255'],
-    'body' => ['required'],
-]);
-```
-
 In addition, you may use the `validateWithBag` method to validate a request and store any error messages within a [named error bag](#named-error-bags):
 
 ```php
-$validatedData = $request->validateWithBag('post', [
+$validated = $request->validateWithBag('post', [
     'title' => ['required', 'unique:posts', 'max:255'],
     'body' => ['required'],
 ]);
@@ -170,8 +161,8 @@ Sometimes you may wish to stop running validation rules on an attribute after th
 
 ```php
 $request->validate([
-    'title' => 'bail|required|unique:posts|max:255',
-    'body' => 'required',
+    'title' => ['bail', 'required', 'unique:posts', 'max:255'],
+    'body' => ['required'],
 ]);
 ```
 
@@ -184,9 +175,9 @@ If the incoming HTTP request contains "nested" field data, you may specify these
 
 ```php
 $request->validate([
-    'title' => 'required|unique:posts|max:255',
-    'author.name' => 'required',
-    'author.description' => 'required',
+    'title' => ['required', 'unique:posts', 'max:255'],
+    'author.name' => ['required'],
+    'author.description' => ['required'],
 ]);
 ```
 
@@ -194,8 +185,8 @@ On the other hand, if your field name contains a literal period, you can explici
 
 ```php
 $request->validate([
-    'title' => 'required|unique:posts|max:255',
-    'v1\.0' => 'required',
+    'title' => ['required', 'unique:posts', 'max:255'],
+    'v1\.0' => ['required'],
 ]);
 ```
 
@@ -295,9 +286,9 @@ By default, Hypervel includes the `TrimStrings` and `ConvertEmptyStringsToNull` 
 
 ```php
 $request->validate([
-    'title' => 'required|unique:posts|max:255',
-    'body' => 'required',
-    'publish_at' => 'nullable|date',
+    'title' => ['required', 'unique:posts', 'max:255'],
+    'body' => ['required'],
+    'publish_at' => ['nullable', 'date'],
 ]);
 ```
 
@@ -312,11 +303,11 @@ Below, you can review an example of the JSON response format for validation erro
 
 ```json
 {
-    "message": "The team name must be a string. (and 4 more errors)",
+    "message": "The team name field must be a string. (and 4 more errors)",
     "errors": {
         "team_name": [
-            "The team name must be a string.",
-            "The team name must be at least 1 characters."
+            "The team name field must be a string.",
+            "The team name field must be at least 1 characters."
         ],
         "authorization.role": [
             "The selected authorization.role is invalid."
@@ -325,7 +316,7 @@ Below, you can review an example of the JSON response format for validation erro
             "The users.0.email field is required."
         ],
         "users.2.email": [
-            "The users.2.email must be a valid email address."
+            "The users.2.email field must be a valid email address."
         ]
     }
 }
@@ -356,8 +347,8 @@ As you might have guessed, the `authorize` method is responsible for determining
 public function rules(): array
 {
     return [
-        'title' => 'required|unique:posts|max:255',
-        'body' => 'required',
+        'title' => ['required', 'unique:posts', 'max:255'],
+        'body' => ['required'],
     ];
 }
 ```
@@ -976,8 +967,8 @@ class PostController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $validator = Validator::make($request->all(), [
-            'title' => 'required|unique:posts|max:255',
-            'body' => 'required',
+            'title' => ['required', 'unique:posts', 'max:255'],
+            'body' => ['required'],
         ]);
 
         if ($validator->fails()) {
@@ -1020,7 +1011,7 @@ Before running validation, you may use the `appendRules` method to add rules to 
 
 ```php
 $validator->appendRules([
-    'title' => 'min:5',
+    'title' => ['min:5'],
 ]);
 ```
 
@@ -1041,8 +1032,8 @@ If you would like to create a validator instance manually but still take advanta
 
 ```php
 Validator::make($request->all(), [
-    'title' => 'required|unique:posts|max:255',
-    'body' => 'required',
+    'title' => ['required', 'unique:posts', 'max:255'],
+    'body' => ['required'],
 ])->validate();
 ```
 
@@ -1050,8 +1041,8 @@ You may use the `validateWithBag` method to store the error messages in a [named
 
 ```php
 Validator::make($request->all(), [
-    'title' => 'required|unique:posts|max:255',
-    'body' => 'required',
+    'title' => ['required', 'unique:posts', 'max:255'],
+    'body' => ['required'],
 ])->validateWithBag('post');
 ```
 
@@ -1330,7 +1321,7 @@ Some of Hypervel's built-in validation rule error messages contain a `:value` pl
 
 ```php
 Validator::make($request->all(), [
-    'credit_card_number' => 'required_if:payment_type,cc'
+    'credit_card_number' => ['required_if:payment_type,cc']
 ]);
 ```
 
@@ -1500,6 +1491,7 @@ Below is a list of all available validation rules and their function:
 [File](#rule-file)
 [Image](#rule-image)
 [Max](#rule-max)
+[Min](#rule-min)
 [MIME Types](#rule-mimetypes)
 [MIME Type By File Extension](#rule-mimes)
 [Size](#rule-size)
@@ -1588,13 +1580,13 @@ Validator::fakeDnsLookups();
 The field under validation must be a value after a given date. The dates will be passed into the `strtotime` PHP function in order to be converted to a valid `DateTime` instance:
 
 ```php
-'start_date' => 'required|date|after:tomorrow'
+'start_date' => ['required', 'date', 'after:tomorrow']
 ```
 
 Instead of passing a date string to be evaluated by `strtotime`, you may specify another field to compare against the date:
 
 ```php
-'finish_date' => 'required|date|after:start_date'
+'finish_date' => ['required', 'date', 'after:start_date']
 ```
 
 If the referenced field is missing or `null`, validation passes. You should also apply the `required` rule if the referenced field must be present. An unparseable date string or an invalid value in a referenced field will fail validation.
@@ -1660,7 +1652,7 @@ The field under validation must be entirely Unicode alphabetic characters contai
 To restrict this validation rule to characters in the ASCII range (`a-z` and `A-Z`), you may provide the `ascii` option to the validation rule:
 
 ```php
-'username' => 'alpha:ascii',
+'username' => ['alpha:ascii'],
 ```
 
 <a name="rule-alpha-dash"></a>
@@ -1671,7 +1663,7 @@ The field under validation must be entirely Unicode alpha-numeric characters con
 To restrict this validation rule to characters in the ASCII range (`a-z`, `A-Z`, and `0-9`), you may provide the `ascii` option to the validation rule:
 
 ```php
-'username' => 'alpha_dash:ascii',
+'username' => ['alpha_dash:ascii'],
 ```
 
 <a name="rule-alpha-num"></a>
@@ -1682,7 +1674,7 @@ The field under validation must be entirely Unicode alpha-numeric characters con
 To restrict this validation rule to characters in the ASCII range (`a-z`, `A-Z`, and `0-9`), you may provide the `ascii` option to the validation rule:
 
 ```php
-'username' => 'alpha_num:ascii',
+'username' => ['alpha_num:ascii'],
 ```
 
 <a name="rule-array"></a>
@@ -1704,7 +1696,7 @@ $input = [
 ];
 
 Validator::make($input, [
-    'user' => 'array:name,username',
+    'user' => ['array:name,username'],
 ]);
 ```
 
@@ -1819,7 +1811,7 @@ The field under validation must be able to be cast as a boolean. Accepted input 
 You may use the `strict` parameter to only consider the field valid if its value is `true` or `false`:
 
 ```php
-'foo' => 'boolean:strict'
+'foo' => ['boolean:strict']
 ```
 
 <a name="rule-confirmed"></a>
@@ -1873,7 +1865,7 @@ Comparisons are strict. String and fluent rules encode parameters as strings, so
 The field under validation must match the authenticated user's password. You may specify an [authentication guard](/docs/{{version}}/authentication) using the rule's first parameter:
 
 ```php
-'password' => 'current_password:api'
+'password' => ['current_password:api']
 ```
 
 <a name="rule-date"></a>
@@ -1922,10 +1914,10 @@ The field under validation must be numeric and must contain the specified number
 
 ```php
 // Must have exactly two decimal places (9.99)...
-'price' => 'decimal:2'
+'price' => ['decimal:2']
 
 // Must have between 2 and 4 decimal places...
-'price' => 'decimal:2,4'
+'price' => ['decimal:2,4']
 ```
 
 <a name="rule-declined"></a>
@@ -1959,15 +1951,21 @@ The integer under validation must have a length between the given _min_ and _max
 The file under validation must be an image meeting the dimension constraints as specified by the rule's parameters:
 
 ```php
-'avatar' => 'dimensions:min_width=100,min_height=200'
+'avatar' => ['dimensions:min_width=100,min_height=200']
 ```
 
-Available constraints are: _min\_width_, _max\_width_, _min\_height_, _max\_height_, _width_, _height_, _ratio_.
+Available constraints are: _min\_width_, _max\_width_, _min\_height_, _max\_height_, _width_, _height_, _ratio_, _min\_ratio_, _max\_ratio_.
 
 A _ratio_ constraint should be represented as width divided by height. This can be specified either by a fraction like `3/2` or a float like `1.5`:
 
 ```php
-'avatar' => 'dimensions:ratio=3/2'
+'avatar' => ['dimensions:ratio=3/2']
+```
+
+The _min\_ratio_ and _max\_ratio_ constraints may be used to define a range of acceptable aspect ratios:
+
+```php
+'avatar' => ['dimensions:min_ratio=1/2,max_ratio=3/2']
 ```
 
 Since this rule requires several arguments, it is often more convenient to use the `Rule::dimensions` method to fluently construct the rule:
@@ -1987,25 +1985,31 @@ Validator::make($data, [
 ]);
 ```
 
+You may also use the `minRatio`, `maxRatio`, and `ratioBetween` methods to fluently define ratio constraints:
+
+```php
+Rule::dimensions()->ratioBetween(min: 1 / 2, max: 3 / 2);
+```
+
 <a name="rule-distinct"></a>
 #### distinct
 
 When validating arrays, the field under validation must not have any duplicate values:
 
 ```php
-'foo.*.id' => 'distinct'
+'foo.*.id' => ['distinct']
 ```
 
 Distinct uses loose variable comparisons by default. To use strict comparisons, you may add the `strict` parameter to your validation rule definition:
 
 ```php
-'foo.*.id' => 'distinct:strict'
+'foo.*.id' => ['distinct:strict']
 ```
 
 You may add `ignore_case` to the validation rule's arguments to make the rule ignore capitalization differences:
 
 ```php
-'foo.*.id' => 'distinct:ignore_case'
+'foo.*.id' => ['distinct:ignore_case']
 ```
 
 <a name="rule-doesnt-start-with"></a>
@@ -2024,7 +2028,7 @@ The field under validation must not end with one of the given values.
 The field under validation must be formatted as an email address. This validation rule utilizes the [egulias/email-validator](https://github.com/egulias/EmailValidator) package for validating the email address. By default, the `RFCValidation` validator is applied, but you can apply other validation styles as well:
 
 ```php
-'email' => 'email:rfc,dns'
+'email' => ['email:rfc,dns']
 ```
 
 The example above will apply the `RFCValidation` and `DNSCheckValidation` validations. Here's a full list of validation styles you can apply:
@@ -2204,7 +2208,7 @@ The field under validation must exist in a given database table.
 #### Basic Usage of Exists Rule
 
 ```php
-'state' => 'exists:states'
+'state' => ['exists:states']
 ```
 
 If the `column` option is not specified, the field name will be used. So, in this case, the rule will validate that the `states` database table contains a record with a `state` column value matching the request's `state` attribute value.
@@ -2215,22 +2219,22 @@ If the `column` option is not specified, the field name will be used. So, in thi
 You may explicitly specify the database column name that should be used by the validation rule by placing it after the database table name:
 
 ```php
-'state' => 'exists:states,abbreviation'
+'state' => ['exists:states,abbreviation']
 ```
 
 Occasionally, you may need to specify a specific database connection to be used for the `exists` query. You can accomplish this by prepending the connection name to the table name:
 
 ```php
-'email' => 'exists:connection.staff,email'
+'email' => ['exists:connection.staff,email']
 ```
 
 Instead of specifying the table name directly, you may specify the Eloquent model which should be used to determine the table name:
 
 ```php
-'user_id' => 'exists:App\Models\User,id'
+'user_id' => ['exists:App\Models\User,id']
 ```
 
-If you would like to customize the query executed by the validation rule, you may use the `Rule` class to fluently define the rule. In this example, we'll also specify the validation rules as an array instead of using the `|` character to delimit them:
+If you would like to customize the query executed by the validation rule, you may use the `Rule` class to fluently define the rule.
 
 ```php
 use Hypervel\Database\Query\Builder;
@@ -2250,7 +2254,7 @@ Validator::make($data, [
 You may explicitly specify the database column name that should be used by the `exists` rule generated by the `Rule::exists` method by providing the column name as the second argument to the `exists` method:
 
 ```php
-'state' => Rule::exists('states', 'abbreviation'),
+'state' => [Rule::exists('states', 'abbreviation')],
 ```
 
 Sometimes, you may wish to validate whether an array of values exists in the database. You can do so by adding both the `exists` and [array](#rule-array) rules to the field being validated:
@@ -2353,7 +2357,7 @@ The field under validation must exist in _anotherfield_'s values. Comparisons ar
 The field under validation must be an array having at least one of the given _values_ as a key within the array:
 
 ```php
-'config' => 'array|in_array_keys:timezone'
+'config' => ['array', 'in_array_keys:timezone']
 ```
 
 <a name="rule-integer"></a>
@@ -2364,7 +2368,7 @@ The field under validation must be an integer.
 You may use the `strict` parameter to only consider the field valid if its type is `integer`. Strings with integer values will be considered invalid:
 
 ```php
-'age' => 'integer:strict'
+'age' => ['integer:strict']
 ```
 
 > [!WARNING]
@@ -2431,9 +2435,9 @@ The integer under validation must have a maximum length of _value_.
 The file under validation must match one of the given MIME types:
 
 ```php
-'video' => 'mimetypes:video/avi,video/mpeg,video/quicktime',
+'video' => ['mimetypes:video/avi,video/mpeg,video/quicktime'],
 
-'media' => 'mimetypes:image/*,video/*',
+'media' => ['mimetypes:image/*,video/*'],
 ```
 
 To determine the MIME type of the uploaded file, the file's contents will be read and the framework will attempt to guess the MIME type, which may be different from the client's provided MIME type.
@@ -2444,7 +2448,7 @@ To determine the MIME type of the uploaded file, the file's contents will be rea
 The file under validation must have a MIME type corresponding to one of the listed extensions:
 
 ```php
-'photo' => 'mimes:jpg,bmp,png'
+'photo' => ['mimes:jpg,bmp,png']
 ```
 
 Even though you only need to specify the extensions, this rule actually validates the MIME type of the file by reading the file's contents and guessing its MIME type. A full listing of MIME types and their corresponding extensions may be found at the following location:
@@ -2517,10 +2521,7 @@ Validator::make($data, [
 
 The field under validation must not match the given regular expression.
 
-Internally, this rule uses the PHP `preg_match` function. The pattern specified should obey the same formatting required by `preg_match` and thus also include valid delimiters. For example: `'email' => 'not_regex:/^.+$/i'`.
-
-> [!WARNING]
-> When using the `regex` / `not_regex` patterns, it may be necessary to specify your validation rules using an array instead of using `|` delimiters, especially if the regular expression contains a `|` character.
+Internally, this rule uses the PHP `preg_match` function. The pattern specified should obey the same formatting required by `preg_match` and thus also include valid delimiters. For example: `'email' => ['not_regex:/^.+$/i']`.
 
 <a name="rule-nullable"></a>
 #### nullable
@@ -2535,7 +2536,7 @@ The field under validation must be [numeric](https://www.php.net/manual/en/funct
 You may use the `strict` parameter to only consider the field valid if its value is an integer or float type. Numeric strings will be considered invalid:
 
 ```php
-'amount' => 'numeric:strict'
+'amount' => ['numeric:strict']
 ```
 
 For convenience, numeric rules may also be constructed using the fluent `numeric` rule builder:
@@ -2676,10 +2677,7 @@ If the field under validation is not missing or empty, all fields in _anotherfie
 
 The field under validation must match the given regular expression.
 
-Internally, this rule uses the PHP `preg_match` function. The pattern specified should obey the same formatting required by `preg_match` and thus also include valid delimiters. For example: `'email' => 'regex:/^.+@.+$/i'`.
-
-> [!WARNING]
-> When using the `regex` / `not_regex` patterns, it may be necessary to specify rules in an array instead of using `|` delimiters, especially if the regular expression contains a `|` character.
+Internally, this rule uses the PHP `preg_match` function. The pattern specified should obey the same formatting required by `preg_match` and thus also include valid delimiters. For example: `'email' => ['regex:/^.+@.+$/i']`.
 
 <a name="rule-required"></a>
 #### required
@@ -2782,16 +2780,16 @@ The field under validation must have a size matching the given _value_. For stri
 
 ```php
 // Validate that a string is exactly 12 characters long...
-'title' => 'size:12';
+'title' => ['size:12'];
 
 // Validate that a provided integer equals 10...
-'seats' => 'integer|size:10';
+'seats' => ['integer', 'size:10'];
 
 // Validate that an array has exactly 5 elements...
-'tags' => 'array|size:5';
+'tags' => ['array', 'size:5'];
 
 // Validate that an uploaded file is exactly 512 kilobytes...
-'image' => 'file|size:512';
+'image' => ['file', 'size:512'];
 ```
 
 <a name="rule-starts-with"></a>
@@ -2828,11 +2826,11 @@ The field under validation must be a valid timezone identifier according to the 
 The arguments [accepted by the `DateTimeZone::listIdentifiers` method](https://www.php.net/manual/en/datetimezone.listidentifiers.php) may also be provided to this validation rule:
 
 ```php
-'timezone' => 'required|timezone:all';
+'timezone' => ['required', 'timezone:all'];
 
-'timezone' => 'required|timezone:Africa';
+'timezone' => ['required', 'timezone:Africa'];
 
-'timezone' => 'required|timezone:per_country,US';
+'timezone' => ['required', 'timezone:per_country,US'];
 ```
 
 <a name="rule-unique"></a>
@@ -2845,13 +2843,13 @@ The field under validation must not exist within the given database table.
 Instead of specifying the table name directly, you may specify the Eloquent model which should be used to determine the table name:
 
 ```php
-'email' => 'unique:App\Models\User,email_address'
+'email' => ['unique:App\Models\User,email_address']
 ```
 
 The `column` option may be used to specify the field's corresponding database column. If the `column` option is not specified, the name of the field under validation will be used.
 
 ```php
-'email' => 'unique:users,email_address'
+'email' => ['unique:users,email_address']
 ```
 
 **Specifying a Custom Database Connection**
@@ -2859,14 +2857,14 @@ The `column` option may be used to specify the field's corresponding database co
 Occasionally, you may need to set a custom connection for database queries made by the Validator. To accomplish this, you may prepend the connection name to the table name:
 
 ```php
-'email' => 'unique:connection.users,email_address'
+'email' => ['unique:connection.users,email_address']
 ```
 
 **Forcing a Unique Rule to Ignore a Given ID:**
 
 Sometimes, you may wish to ignore a given ID during unique validation. For example, consider an "update profile" screen that includes the user's name, email address, and location. You will probably want to verify that the email address is unique. However, if the user only changes the name field and not the email field, you do not want a validation error to be thrown because the user is already the owner of the email address in question.
 
-To instruct the validator to ignore the user's ID, we'll use the `Rule` class to fluently define the rule. In this example, we'll also specify the validation rules as an array instead of using the `|` character to delimit the rules:
+To instruct the validator to ignore the user's ID, we'll use the `Rule` class to fluently define the rule.
 
 ```php
 use Hypervel\Support\Facades\Validator;
@@ -2886,19 +2884,19 @@ Validator::make($data, [
 Instead of passing the model key's value to the `ignore` method, you may also pass the entire model instance. Hypervel will automatically extract the key from the model:
 
 ```php
-Rule::unique('users')->ignore($user)
+Rule::unique('users')->ignore($user);
 ```
 
 If your table uses a primary key column name other than `id`, you may specify the name of the column when calling the `ignore` method:
 
 ```php
-Rule::unique('users')->ignore($user->id, 'user_id')
+Rule::unique('users')->ignore($user->id, 'user_id');
 ```
 
 By default, the `unique` rule will check the uniqueness of the column matching the name of the attribute being validated. However, you may pass a different column name as the second argument to the `unique` method:
 
 ```php
-Rule::unique('users', 'email_address')->ignore($user->id)
+Rule::unique('users', 'email_address')->ignore($user->id);
 ```
 
 **Adding Additional Where Clauses:**
@@ -2939,9 +2937,9 @@ The field under validation must be a valid URL.
 If you would like to specify the URL protocols that should be considered valid, you may pass the protocols as validation rule parameters:
 
 ```php
-'url' => 'url:http,https',
+'url' => ['url:http,https'],
 
-'game' => 'url:minecraft,steam',
+'game' => ['url:minecraft,steam'],
 ```
 
 <a name="rule-ulid"></a>
@@ -2957,7 +2955,7 @@ The field under validation must be a valid RFC 9562 (version 1, 3, 4, 5, 6, 7, o
 You may also validate that the given UUID matches a UUID specification by version:
 
 ```php
-'uuid' => 'uuid:4'
+'uuid' => ['uuid:4']
 ```
 
 <a name="conditionally-adding-rules"></a>
@@ -2972,9 +2970,9 @@ You may occasionally wish to not validate a given field if another field has a g
 use Hypervel\Support\Facades\Validator;
 
 $validator = Validator::make($data, [
-    'has_appointment' => 'required|boolean',
-    'appointment_date' => 'exclude_if:has_appointment,false|required|date',
-    'doctor_name' => 'exclude_if:has_appointment,false|required|string',
+    'has_appointment' => ['required', 'boolean'],
+    'appointment_date' => ['exclude_if:has_appointment,false', 'required', 'date'],
+    'doctor_name' => ['exclude_if:has_appointment,false', 'required', 'string'],
 ]);
 ```
 
@@ -2982,9 +2980,9 @@ Alternatively, you may use the `exclude_unless` rule to not validate a given fie
 
 ```php
 $validator = Validator::make($data, [
-    'has_appointment' => 'required|boolean',
-    'appointment_date' => 'exclude_unless:has_appointment,true|required|date',
-    'doctor_name' => 'exclude_unless:has_appointment,true|required|string',
+    'has_appointment' => ['required', 'boolean'],
+    'appointment_date' => ['exclude_unless:has_appointment,true', 'required', 'date'],
+    'doctor_name' => ['exclude_unless:has_appointment,true', 'required', 'string'],
 ]);
 ```
 
@@ -2995,7 +2993,7 @@ In some situations, you may wish to run validation checks against a field **only
 
 ```php
 $validator = Validator::make($data, [
-    'email' => 'sometimes|required|email',
+    'email' => ['sometimes', 'required', 'email'],
 ]);
 ```
 
@@ -3013,8 +3011,8 @@ Sometimes you may wish to add validation rules based on more complex conditional
 use Hypervel\Support\Facades\Validator;
 
 $validator = Validator::make($request->all(), [
-    'email' => 'required|email',
-    'games' => 'required|integer|min:0',
+    'email' => ['required', 'email'],
+    'games' => ['required', 'integer', 'min:0'],
 ]);
 ```
 
@@ -3023,7 +3021,7 @@ Let's assume our web application is for game collectors. If a game collector reg
 ```php
 use Hypervel\Support\Fluent;
 
-$validator->sometimes('reason', 'required|max:500', function (Fluent $input) {
+$validator->sometimes('reason', ['required', 'max:500'], function (Fluent $input) {
     return $input->games >= 100;
 });
 ```
@@ -3086,7 +3084,7 @@ $input = [
 ];
 
 Validator::make($input, [
-    'user' => 'array:name,username',
+    'user' => ['array:name,username'],
 ]);
 ```
 
@@ -3101,7 +3099,7 @@ Validating nested array-based form input fields doesn't have to be a pain. You m
 use Hypervel\Support\Facades\Validator;
 
 $validator = Validator::make($request->all(), [
-    'photos.profile' => 'required|image',
+    'photos.profile' => ['required', 'image'],
 ]);
 ```
 
@@ -3109,8 +3107,8 @@ You may also validate each element of an array. For example, to validate that ea
 
 ```php
 $validator = Validator::make($request->all(), [
-    'users.*.email' => 'email|unique:users',
-    'users.*.first_name' => 'required_with:users.*.last_name',
+    'users.*.email' => ['email', 'unique:users'],
+    'users.*.first_name' => ['required_with:users.*.last_name'],
 ]);
 ```
 
@@ -3166,7 +3164,7 @@ $input = [
 ];
 
 Validator::validate($input, [
-    'photos.*.description' => 'required',
+    'photos.*.description' => ['required'],
 ], [
     'photos.*.description.required' => 'Please describe photo #:position.',
 ]);
@@ -3259,7 +3257,7 @@ File::image()->dimensions(
     Rule::dimensions()
         ->maxWidth(1000)
         ->maxHeight(500)
-)
+);
 ```
 
 > [!NOTE]
@@ -3312,7 +3310,7 @@ Internally, the `Password` rule object uses the [k-Anonymity](https://en.wikiped
 By default, if a password appears at least once in a data leak, it will be considered compromised. You can customize this threshold using the first argument of the `uncompromised` method:
 
 ```php
-// Ensure the password appears less than 3 times in the same data leak...
+// Ensure the password appears no more than 3 times in the same data leak...
 Password::min(8)->uncompromised(3);
 ```
 

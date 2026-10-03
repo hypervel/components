@@ -29,7 +29,7 @@
     - [Anonymous Index Components](#anonymous-index-components)
     - [Data Properties / Attributes](#data-properties-attributes)
     - [Accessing Parent Data](#accessing-parent-data)
-    - [Anonymous Components Paths](#anonymous-component-paths)
+    - [Anonymous Component Paths](#anonymous-component-paths)
 - [Building Layouts](#building-layouts)
     - [Layouts Using Components](#layouts-using-components)
     - [Layouts Using Template Inheritance](#layouts-using-template-inheritance)
@@ -149,7 +149,7 @@ The `@` symbol may also be used to escape Blade directives:
 
 Sometimes you may pass an array to your view with the intention of rendering it as JSON in order to initialize a JavaScript variable. For example:
 
-```php
+```blade
 <script>
     var app = <?php echo json_encode($array); ?>;
 </script>
@@ -793,7 +793,7 @@ Once your component has been registered, it may be rendered using its tag alias:
 <x-package-alert/>
 ```
 
-Alternatively, you may use the `componentNamespace` method to autoload component classes by convention. For example, a `Nightshade` package might have `Calendar` and `ColorPicker` components that reside within the `Package\Views\Components` namespace:
+Alternatively, you may use the `componentNamespace` method to autoload component classes by convention. For example, a `Nightshade` package might have `Calendar` and `ColorPicker` components that reside within the `Nightshade\Views\Components` namespace:
 
 ```php
 use Hypervel\Support\Facades\Blade;
@@ -1017,7 +1017,7 @@ return function (array $data) {
     // $data['slot'];
 
     return '<div {{ $attributes }}>Components content</div>';
-}
+};
 ```
 
 > [!WARNING]
@@ -1462,7 +1462,7 @@ Once your component has been registered, it may be rendered using its tag alias:
 
 #### Autoloading Package Components
 
-Alternatively, you may use the `componentNamespace` method to autoload component classes by convention. For example, a `Nightshade` package might have `Calendar` and `ColorPicker` components that reside within the `Package\Views\Components` namespace:
+Alternatively, you may use the `componentNamespace` method to autoload component classes by convention. For example, a `Nightshade` package might have `Calendar` and `ColorPicker` components that reside within the `Nightshade\Views\Components` namespace:
 
 ```php
 use Hypervel\Support\Facades\Blade;

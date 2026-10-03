@@ -679,7 +679,7 @@ $counted->all();
 <a name="method-crossjoin"></a>
 #### `crossJoin()` {.collection-method}
 
-The `crossJoin` method cross joins the collection's values among the given arrays or collections, returning a Cartesian product with all possible permutations:
+The `crossJoin` method cross joins the collection's values among the given arrays or collections, returning a Cartesian product with all possible combinations:
 
 ```php
 $collection = collect([1, 2]);
@@ -1490,11 +1490,11 @@ $result = $data->groupBy(['skill', function (array $item) {
             10 => ['user' => 1, 'skill' => 1, 'roles' => ['Role_1', 'Role_3']],
             20 => ['user' => 2, 'skill' => 1, 'roles' => ['Role_1', 'Role_2']],
         ],
-        'Role_2' => [
-            20 => ['user' => 2, 'skill' => 1, 'roles' => ['Role_1', 'Role_2']],
-        ],
         'Role_3' => [
             10 => ['user' => 1, 'skill' => 1, 'roles' => ['Role_1', 'Role_3']],
+        ],
+        'Role_2' => [
+            20 => ['user' => 2, 'skill' => 1, 'roles' => ['Role_1', 'Role_2']],
         ],
     ],
     2 => [
@@ -1568,7 +1568,7 @@ collect([1, 2, 3])->hasMany();
 collect([
     ['age' => 2],
     ['age' => 3],
-])->hasMany(fn ($item) => $item['age'] === 2)
+])->hasMany(fn ($item) => $item['age'] === 2);
 
 // false
 ```
@@ -1687,7 +1687,7 @@ $intersect->all();
 <a name="method-intersectassocusing"></a>
 #### `intersectAssocUsing()` {.collection-method}
 
-The `intersectAssocUsing` method compares the original collection against another collection or array, returning the key / value pairs that are present in both, using a custom comparison callback to determine equality for both keys and values:
+The `intersectAssocUsing` method compares the original collection against another collection or array, returning the key / value pairs that are present in both, using a custom comparison callback to compare the keys:
 
 ```php
 $collection = collect([
@@ -2549,9 +2549,9 @@ You may also provide multiple items to append to the end of the collection:
 $collection = collect([1, 2, 3, 4]);
 
 $collection->push(5, 6, 7);
- 
+
 $collection->all();
- 
+
 // [1, 2, 3, 4, 5, 6, 7]
 ```
 
@@ -2705,6 +2705,20 @@ $stats = $orders->reduceInto(new OrderStats, function (OrderStats $stats, array 
 $stats->total;
 
 // 400
+```
+
+When reducing into a scalar or array, you should accept it by reference in the callback so that your mutations are applied to the original value:
+
+```php
+$collection = collect([1, 2, 3, 4, 5]);
+
+$even = $collection->reduceInto([], function (array &$result, int $value) {
+    if ($value % 2 === 0) {
+        $result[] = $value;
+    }
+});
+
+// [2, 4]
 ```
 
 <a name="method-reduce-spread"></a>
@@ -3044,7 +3058,7 @@ $chunks->toArray();
 This is especially useful in conjunction with the [eachSpread](#method-eachspread) method:
 
 ```php
-$transactions->sliding(2)->eachSpread(function (Collection $previous, Collection $current) {
+$transactions->sliding(2)->eachSpread(function ($previous, $current) {
     $current->total = $previous->total + $current->amount;
 });
 ```
@@ -3580,11 +3594,7 @@ $collection = collect(['name' => 'Desk', 'price' => 200]);
 
 $collection->toArray();
 
-/*
-    [
-        ['name' => 'Desk', 'price' => 200],
-    ]
-*/
+// ['name' => 'Desk', 'price' => 200]
 ```
 
 > [!WARNING]
@@ -3611,7 +3621,7 @@ $collection = collect(['name' => 'Desk', 'price' => 200]);
 
 $collection->toJson();
 
-// '{"name":"Desk", "price":200}'
+// '{"name":"Desk","price":200}'
 ```
 
 <a name="method-to-pretty-json"></a>
@@ -4359,7 +4369,7 @@ LazyCollection::make(function () {
     }
 
     fclose($handle);
-})->chunk(4)->map(function (array $lines) {
+})->chunk(4)->map(function (LazyCollection $lines) {
     return LogEntry::fromLines($lines);
 })->each(function (LogEntry $logEntry) {
     // Process the log entry...
@@ -4714,7 +4724,7 @@ if ($lock->get()) {
             ->lazy()
             ->withHeartbeat(
                 CarbonInterval::minutes(4),
-                fn () => $lock->refresh(60 * 5)
+                fn () => $lock->refresh()
             )
             ->each(fn ($report) => $report->process());
     } finally {

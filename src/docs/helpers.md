@@ -289,7 +289,7 @@ $array = Arr::add(['name' => 'Desk', 'price' => null], 'price', 100);
 
 The `Arr::array` method retrieves a value from a deeply nested array using "dot" notation (just as [Arr::get()](#method-array-get) does), but throws an `InvalidArgumentException` if the requested value is not an `array`:
 
-```
+```php
 use Hypervel\Support\Arr;
 
 $array = ['name' => 'Joe', 'languages' => ['PHP', 'Ruby']];
@@ -308,7 +308,7 @@ $value = Arr::array($array, 'name');
 
 The `Arr::boolean` method retrieves a value from a deeply nested array using "dot" notation (just as [Arr::get()](#method-array-get) does), but throws an `InvalidArgumentException` if the requested value is not a `boolean`:
 
-```
+```php
 use Hypervel\Support\Arr;
 
 $array = ['name' => 'Joe', 'available' => true];
@@ -542,7 +542,7 @@ $flattened = Arr::flatten($array);
 
 The `Arr::float` method retrieves a value from a deeply nested array using "dot" notation (just as [Arr::get()](#method-array-get) does), but throws an `InvalidArgumentException` if the requested value is not a `float`:
 
-```
+```php
 use Hypervel\Support\Arr;
 
 $array = ['name' => 'Joe', 'balance' => 123.45];
@@ -679,7 +679,7 @@ $contains = Arr::hasAny($array, ['category', 'product.discount']);
 
 The `Arr::integer` method retrieves a value from a deeply nested array using "dot" notation (just as [Arr::get()](#method-array-get) does), but throws an `InvalidArgumentException` if the requested value is not an `int`:
 
-```
+```php
 use Hypervel\Support\Arr;
 
 $array = ['name' => 'Joe', 'age' => 42];
@@ -1074,7 +1074,7 @@ $array = [
 
 Arr::query($array);
 
-// name=Taylor&order[column]=created_at&order[direction]=desc
+// name=Taylor&order%5Bcolumn%5D=created_at&order%5Bdirection%5D=desc
 ```
 
 <a name="method-array-random"></a>
@@ -1315,7 +1315,7 @@ $sorted = Arr::sortRecursiveDesc($array);
 
 The `Arr::string` method retrieves a value from a deeply nested array using "dot" notation (just as [Arr::get()](#method-array-get) does), but throws an `InvalidArgumentException` if the requested value is not a `string`:
 
-```
+```php
 use Hypervel\Support\Arr;
 
 $array = ['name' => 'Joe', 'languages' => ['PHP', 'Ruby']];
@@ -1889,18 +1889,18 @@ $result = Number::pairs(25, 10, offset: 0);
 <a name="method-number-parse"></a>
 #### `Number::parse()` {.collection-method}
 
-The `Number::parse` method parses a string into an integer or float according to the specified locale:
+The `Number::parse` method parses a localized numeric string using PHP's `NumberFormatter`:
 
 ```php
 use Hypervel\Support\Number;
 
-$result = Number::parse('1,234.56');
+$result = Number::parse('10,123', locale: 'en');
 
-// (float) 1234.56
+// 10123.0
 
-$result = Number::parse('1.234,56', locale: 'de');
+$result = Number::parse('10,123', locale: 'fr');
 
-// (float) 1234.56
+// 10.123
 ```
 
 <a name="method-number-parse-int"></a>
@@ -2744,7 +2744,7 @@ The `fake` function resolves a [Faker](https://github.com/FakerPHP/Faker) single
 By default, the `fake` function will utilize the `app.faker_locale` configuration option in your `config/app.php` configuration. Typically, this configuration option is set via the `APP_FAKER_LOCALE` environment variable. You may also specify the locale by passing it to the `fake` function. Each locale will resolve an individual singleton:
 
 ```php
-fake('nl_NL')->name()
+fake('nl_NL')->name();
 ```
 
 <a name="method-filled"></a>
@@ -3830,7 +3830,7 @@ it('checks if ready three times', function () {
         Sleep::for(2)->seconds(),
         Sleep::for(3)->seconds(),
     ]);
-}
+});
 ```
 
 ```php tab=PHPUnit
