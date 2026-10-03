@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Console;
 
 use Closure;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Http\Kernel;
 use Hypervel\Http\Request;
 use Hypervel\Routing\Router;
 use Hypervel\Support\Facades\Artisan;
+use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\HttpFoundation\Response;
@@ -18,7 +20,6 @@ class RouteListCommandMiddlewareTest extends TestCase
     #[DataProvider('middlewareCacheStates')]
     public function testListingPreservesMiddlewareForSubsequentRequests(bool $warm): void
     {
-        $this->app->make(Kernel::class);
         $router = $this->app->make(Router::class);
         $router->middlewareGroup('inspection', [RouteListCommandInspectionMiddleware::class]);
         $route = $router->get('/middleware-inspection', static fn (): string => 'OK')
@@ -59,23 +60,11 @@ class RouteListCommandMiddlewareTest extends TestCase
         ];
     }
 
+    #[DefineEnvironment('configureInspectionMiddleware')]
     public function testListingInitializesConfiguredMiddlewareBeforeTheFirstRequest(): void
     {
-        $this->app->afterResolving(Kernel::class, static function (Kernel $kernel): void {
-            $kernel->setMiddlewareAliases([
-                ...$kernel->getMiddlewareAliases(),
-                'inspection.alias' => RouteListCommandInspectionMiddleware::class,
-            ]);
-            $kernel->setMiddlewareGroups([
-                ...$kernel->getMiddlewareGroups(),
-                'inspection' => ['inspection.alias'],
-            ]);
-        });
-
         $this->app->make(Router::class)->get('/configured-middleware', static fn (): string => 'OK')
             ->middleware('inspection');
-
-        $this->assertFalse($this->app->resolved(Kernel::class));
 
         Artisan::call('route:list', [
             '--json' => true,
@@ -88,6 +77,23 @@ class RouteListCommandMiddlewareTest extends TestCase
         $this->assertSame('configured-middleware', $routes[0]['uri']);
         $this->assertSame([RouteListCommandInspectionMiddleware::class], $routes[0]['middleware']);
         $this->get('/configured-middleware')->assertOk()->assertHeader('X-Route-Middleware', 'applied');
+    }
+
+    /**
+     * Configure an inspection alias and group on the HTTP kernel.
+     */
+    protected function configureInspectionMiddleware(ApplicationContract $app): void
+    {
+        $app->afterResolving(Kernel::class, static function (Kernel $kernel): void {
+            $kernel->setMiddlewareAliases([
+                ...$kernel->getMiddlewareAliases(),
+                'inspection.alias' => RouteListCommandInspectionMiddleware::class,
+            ]);
+            $kernel->setMiddlewareGroups([
+                ...$kernel->getMiddlewareGroups(),
+                'inspection' => ['inspection.alias'],
+            ]);
+        });
     }
 }
 

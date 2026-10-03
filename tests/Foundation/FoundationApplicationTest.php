@@ -8,6 +8,7 @@ use Hypervel\Config\Repository;
 use Hypervel\Contracts\Auth\PasswordBroker;
 use Hypervel\Contracts\Auth\PasswordBrokerFactory;
 use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
+use Hypervel\Contracts\Http\Kernel as HttpKernelContract;
 use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use Hypervel\Events\Dispatcher as EventDispatcher;
 use Hypervel\Filesystem\Filesystem;
@@ -509,6 +510,25 @@ class FoundationApplicationTest extends TestCase
         $application->booted($closure3);
 
         $this->assertEquals(4, $counter);
+    }
+
+    public function testBootResolvesTheBoundHttpKernelBeforeBootingCallbacks(): void
+    {
+        $application = new Application;
+        $events = [];
+
+        $application->singleton(HttpKernelContract::class, function () use (&$events): HttpKernelContract {
+            $events[] = 'kernel';
+
+            return m::mock(HttpKernelContract::class);
+        });
+        $application->booting(function () use (&$events): void {
+            $events[] = 'booting';
+        });
+
+        $application->boot();
+
+        $this->assertSame(['kernel', 'booting'], $events);
     }
 
     public function testGetNamespace(): void

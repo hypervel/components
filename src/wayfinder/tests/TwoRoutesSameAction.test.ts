@@ -23,15 +23,17 @@ it("creates a keyed dictionary of routes for multiple routes pointing to the sam
     });
 });
 
-it("coalesces separately registered verbs for the same action and URI", () => {
-    const route = sameUri["/two-routes-one-action-same-uri"];
+it("keys separately registered verbs for the same action and URI by verb", () => {
+    const get = sameUri["get /two-routes-one-action-same-uri"];
+    const post = sameUri["post /two-routes-one-action-same-uri"];
 
-    expect(route.definition.methods).toEqual(["get", "head", "post"]);
-    expect(route()).toEqual({
+    expect(get.definition.methods).toEqual(["get", "head"]);
+    expect(get()).toEqual({
         url: "/two-routes-one-action-same-uri",
         method: "get",
     });
-    expect(route.post()).toEqual({
+    expect(post.definition.methods).toEqual(["post"]);
+    expect(post()).toEqual({
         url: "/two-routes-one-action-same-uri",
         method: "post",
     });

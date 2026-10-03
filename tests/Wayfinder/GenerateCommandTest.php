@@ -12,6 +12,8 @@ use Hypervel\Routing\RouteCollection;
 use Hypervel\Routing\Router;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\Facades\URL;
+use Hypervel\Support\Str;
+use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Wayfinder\Fixtures\Controllers\Index as IndexController;
@@ -56,20 +58,36 @@ class GenerateCommandTest extends TestCase
         parent::tearDown();
     }
 
-    public function testSameActionAndUriRejectDifferentResolvedDefaults(): void
+    public function testSameActionAndUriKeepEachVerbsDefaults(): void
     {
         Route::get('/same-uri/{tenant}', [TwoRoutesSameActionController::class, 'sameUri'])
             ->middleware(FirstWayfinderDefaultsMiddleware::class);
         Route::post('/same-uri/{tenant}', [TwoRoutesSameActionController::class, 'sameUri'])
             ->middleware(SecondWayfinderDefaultsMiddleware::class);
 
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('resolve different parameter metadata');
-
         $this->artisan('wayfinder:generate', [
             '--path' => $this->tempPath,
             '--skip-routes' => true,
-        ])->run();
+        ])->assertSuccessful();
+
+        $content = (new Filesystem)->get(join_paths(
+            $this->tempPath,
+            'actions',
+            'Hypervel',
+            'Tests',
+            'Wayfinder',
+            'Fixtures',
+            'Controllers',
+            'TwoRoutesSameActionController.ts',
+        ));
+
+        foreach (['get' => 'first', 'post' => 'second'] as $verb => $default) {
+            $this->assertSame(1, preg_match("/'{$verb} \\/same-uri\\/\\{tenant\\?\\}': (\\w+),/", $content, $matches));
+
+            $declaration = Str::before(Str::after($content, "const {$matches[1]} = "), "\nconst ");
+
+            $this->assertStringContainsString("tenant: args?.tenant ?? '{$default}'", $declaration);
+        }
     }
 
     public function testExplicitEmptyOutputPathIsRejected(): void
@@ -201,19 +219,9 @@ class GenerateCommandTest extends TestCase
         $this->assertDirectoryDoesNotExist(join_paths($this->tempPath, 'routes'));
     }
 
+    #[DefineEnvironment('configureParameterizedDefaultsMiddleware')]
     public function testParameterizedMiddlewareUsesItsResolvedClassForUrlDefaults(): void
     {
-        $this->app->afterResolving(HttpKernel::class, static function (HttpKernel $kernel): void {
-            $kernel->setMiddlewareAliases([
-                ...$kernel->getMiddlewareAliases(),
-                'wayfinder.defaults' => ParameterizedWayfinderDefaultsMiddleware::class,
-            ]);
-            $kernel->setMiddlewareGroups([
-                ...$kernel->getMiddlewareGroups(),
-                'wayfinder' => ['wayfinder.defaults:tenant'],
-            ]);
-        });
-
         Route::get('/direct/{tenant}', [ParameterizedWayfinderDefaultsController::class, 'direct'])
             ->middleware(ParameterizedWayfinderDefaultsMiddleware::class . ':tenant');
         Route::get('/alias/{tenant}', [ParameterizedWayfinderDefaultsController::class, 'alias'])
@@ -245,6 +253,23 @@ class GenerateCommandTest extends TestCase
         $this->assertStringContainsString("url: '/plain/{tenant?}'", $content);
         $this->assertStringContainsString("url: '/group/{tenant?}'", $content);
         $this->assertStringContainsString("url: '/missing/{tenant}'", $content);
+    }
+
+    /**
+     * Configure a parameterized defaults alias and group on the HTTP kernel.
+     */
+    protected function configureParameterizedDefaultsMiddleware(ApplicationContract $app): void
+    {
+        $app->afterResolving(HttpKernel::class, static function (HttpKernel $kernel): void {
+            $kernel->setMiddlewareAliases([
+                ...$kernel->getMiddlewareAliases(),
+                'wayfinder.defaults' => ParameterizedWayfinderDefaultsMiddleware::class,
+            ]);
+            $kernel->setMiddlewareGroups([
+                ...$kernel->getMiddlewareGroups(),
+                'wayfinder' => ['wayfinder.defaults:tenant'],
+            ]);
+        });
     }
 
     public function testUppercaseExplicitOctalMiddlewareDefaultIsParsed(): void

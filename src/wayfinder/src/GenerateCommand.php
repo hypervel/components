@@ -84,32 +84,21 @@ class GenerateCommand extends Command
             throw new InvalidArgumentException('The --path option may not be empty.');
         }
 
-        // Console bootstrap leaves the HTTP kernel unresolved. Resolving it installs
-        // the application's middleware groups, aliases, and priority on the router.
-        $this->hypervel->make(HttpKernel::class);
-
         $this->view->replaceNamespace('wayfinder', __DIR__ . '/../resources');
         $this->view->addExtension('blade.ts', 'blade');
 
         $this->forcedScheme = $this->url->getForcedScheme();
 
-        $globalUrlDefaults = collect(URL::getDefaultParameters())->filter(
-            fn (mixed $value): bool => $value instanceof UrlRoutable
-                || $value instanceof BackedEnum
-                || is_scalar($value),
-        );
+        $globalUrlDefaults = collect(URL::getDefaultParameters())
+            ->filter(
+                fn (mixed $value): bool => $value instanceof UrlRoutable
+                    || $value instanceof BackedEnum
+                    || is_scalar($value),
+            )
+            ->merge($this->urlDefaultsForMiddleware($this->hypervel->make(HttpKernel::class)->getGlobalMiddleware()));
 
         $routes = collect($this->router->getRoutes())->map(function (BaseRoute $route) use ($globalUrlDefaults) {
-            $defaults = collect($this->router->gatherRouteMiddleware($route))->map(function (mixed $middleware): array {
-                if ($middleware instanceof Closure) {
-                    return [];
-                }
-
-                $middleware = Str::before($middleware, ':');
-                $this->urlDefaults[$middleware] ??= $this->getDefaultsForMiddleware($middleware);
-
-                return $this->urlDefaults[$middleware];
-            })->flatMap(fn (array $r) => $r);
+            $defaults = $this->urlDefaultsForMiddleware($this->router->gatherRouteMiddleware($route));
 
             return new Route($route, $globalUrlDefaults->merge($defaults), $this->forcedScheme);
         });
@@ -162,6 +151,23 @@ class GenerateCommand extends Command
         }
 
         return Command::SUCCESS;
+    }
+
+    /**
+     * Collect the URL defaults set by the given middleware.
+     *
+     * @param array<int, Closure|string> $middleware
+     * @return Collection<string, null|bool|float|int|string>
+     */
+    private function urlDefaultsForMiddleware(array $middleware): Collection
+    {
+        return collect($middleware)
+            ->reject(fn (Closure|string $name): bool => $name instanceof Closure)
+            ->flatMap(function (string $name): array {
+                $name = Str::before($name, ':');
+
+                return $this->urlDefaults[$name] ??= $this->getDefaultsForMiddleware($name);
+            });
     }
 
     /**
@@ -514,37 +520,8 @@ class GenerateCommand extends Command
     private function writeMultiRouteControllerMethodExport(Collection $routes, string $path, string $method): void
     {
         $isInvokable = $routes->first()->hasInvokableController();
-        $renderedRoutes = $routes->groupBy(fn (Route $route) => $route->uri())
-            ->map(function (Collection $sameUriRoutes, string $uri) use ($method): array {
-                $route = $sameUriRoutes->first();
-                $descriptor = $this->parameterDescriptor($route);
 
-                foreach ($sameUriRoutes->skip(1) as $candidate) {
-                    $candidateDescriptor = $this->parameterDescriptor($candidate);
-
-                    if ($candidateDescriptor !== $descriptor) {
-                        throw new InvalidArgumentException(sprintf(
-                            'Routes for [%s::%s] and URI [%s] resolve different parameter metadata: %s and %s.',
-                            $route->controller(),
-                            $route->originalJsMethod(),
-                            $uri,
-                            json_encode($descriptor, JSON_THROW_ON_ERROR),
-                            json_encode($candidateDescriptor, JSON_THROW_ON_ERROR),
-                        ));
-                    }
-                }
-
-                return [
-                    'method' => $route->originalJsMethod(),
-                    'tempMethod' => $method . hash('xxh128', $uri),
-                    'parameters' => $route->parameters(),
-                    'verbs' => $sameUriRoutes
-                        ->flatMap(fn (Route $route) => $route->verbs())
-                        ->unique(fn (Verb $verb) => $verb->actual)
-                        ->values(),
-                    'uri' => $uri,
-                ];
-            })->values();
+        $duplicateUris = $routes->duplicates(fn (Route $route) => $route->uri());
 
         $this->appendContent($path, $this->view->make('wayfinder::multi-method', [
             'method' => $method,
@@ -556,25 +533,20 @@ class GenerateCommand extends Command
             'shouldExport' => ! $isInvokable,
             'withForm' => $this->option('with-form') === true,
             ...$this->safeParamNames($method),
-            'routes' => $renderedRoutes,
-        ])->render());
-    }
+            'routes' => $routes->map(function (Route $route) use ($duplicateUris, $method): array {
+                $uri = $route->uri();
+                $key = $duplicateUris->contains($uri) ? $route->verbPrefixedUri() : $uri;
 
-    /**
-     * Return the resolved parameter metadata that must agree for one URI entry.
-     *
-     * @return array<int, array{name: string, optional: bool, routeOptional: bool, key: ?string, default: null|bool|float|int|string, types: string}>
-     */
-    private function parameterDescriptor(Route $route): array
-    {
-        return $route->parameters()->map(fn (Parameter $parameter): array => [
-            'name' => $parameter->name,
-            'optional' => $parameter->optional,
-            'routeOptional' => $parameter->routeOptional,
-            'key' => $parameter->key,
-            'default' => $parameter->default,
-            'types' => $parameter->types,
-        ])->all();
+                return [
+                    'method' => $route->originalJsMethod(),
+                    'tempMethod' => $method . hash('xxh128', $key),
+                    'parameters' => $route->parameters(),
+                    'verbs' => $route->verbs(),
+                    'uri' => $uri,
+                    'key' => $key,
+                ];
+            })->values(),
+        ])->render());
     }
 
     /**

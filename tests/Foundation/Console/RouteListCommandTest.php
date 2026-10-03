@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Console;
 
 use Hypervel\Console\Application;
-use Hypervel\Contracts\Http\Kernel as KernelContract;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Foundation\Application as FoundationApplication;
 use Hypervel\Foundation\Console\RouteListCommand;
@@ -48,7 +47,7 @@ class RouteListCommandTest extends TestCase
 
         $kernel->prependToMiddlewarePriority('Middleware 5');
 
-        $hypervel->instance(KernelContract::class, $kernel);
+        $hypervel->instance(Kernel::class, $kernel);
 
         $router->get('/example', function (): string {
             return 'Hello World';
@@ -254,7 +253,7 @@ class RouteListCommandTest extends TestCase
         $hypervel = new FoundationApplication(__DIR__);
         $router = new Router(new Dispatcher($hypervel));
 
-        $hypervel->instance(KernelContract::class, new Kernel($hypervel, $router));
+        $hypervel->instance(Kernel::class, new Kernel($hypervel, $router));
 
         $command = new RouteListCommand($router);
         $command->setHypervel($hypervel);
@@ -291,7 +290,7 @@ class RouteListCommandTest extends TestCase
             protected array $middlewareGroups = [];
         };
 
-        $hypervel->instance(KernelContract::class, $kernel);
+        $hypervel->instance(Kernel::class, $kernel);
 
         $router->get('/controller-route', [RouteListCommandTestController::class, 'index']);
 

@@ -205,6 +205,26 @@ import { index } from '@/actions/App/Http/Controllers/ClientPaymentsController';
 index['/clients/{client}/payments']({ client: 1 });
 ```
 
+If two of those routes share a URI and differ only by verb, each key is prefixed with the verb, so you can still pick the one you want:
+
+```php
+Route::get('/exports/{report}', ExportController::class)
+    ->name('exports.show');
+
+Route::post('/exports/{report}', ExportController::class)
+    ->middleware('throttle:5,1')
+    ->name('exports.run');
+```
+
+```ts
+import ExportController from '@/actions/App/Http/Controllers/ExportController';
+
+ExportController['get /exports/{report}']({ report: 1 });
+ExportController['post /exports/{report}']({ report: 1 });
+```
+
+A route that answers to more than one verb joins them with `|`, as in `ExportController['put|patch /exports/{report}']`. Exports whose URIs are already unique keep the plain URI keys shown above. A single route registered for several verbs, such as `Route::match(['get', 'post'], ...)`, still generates one route function with a method for each verb.
+
 In most cases, importing the named route provides a simpler call:
 
 ```ts
@@ -212,8 +232,6 @@ import { index } from '@/routes/clients/payments';
 
 index({ client: 1 });
 ```
-
-When the same action and URI support multiple HTTP methods, Wayfinder produces one route function with a method for each supported verb.
 
 <a name="conventional-forms"></a>
 ### Conventional Forms
