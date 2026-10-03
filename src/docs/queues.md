@@ -1920,6 +1920,24 @@ In this example, the job is released for ten seconds if the application is unabl
 
 `MaxExceptions` tracks failures using an atomic counter on your default cache store. If that store uses Redis with PhpRedis serialization, configure counters as described in the [cache increment and decrement documentation](/docs/{{version}}/cache#incrementing-decrementing-values).
 
+By default, an attempt that ends because the worker process crashed or was killed, such as when it runs out of memory, does not count towards the job's maximum number of exceptions. If you would like these attempts to count as an exception, you may add the `CountCrashesAsExceptions` attribute to your job class:
+
+```php
+use Hypervel\Queue\Attributes\CountCrashesAsExceptions;
+use Hypervel\Queue\Attributes\MaxExceptions;
+use Hypervel\Queue\Attributes\Tries;
+
+#[Tries(25)]
+#[MaxExceptions(3)]
+#[CountCrashesAsExceptions]
+class ProcessPodcast implements ShouldQueue
+{
+    // ...
+}
+```
+
+When this attribute is present, the worker stores a marker in your application's cache while the job is processing. If the marker still exists when the job is next attempted, the previous attempt is counted as an exception.
+
 <a name="stopping-retries-by-exception"></a>
 #### Stopping Retries by Exception
 
