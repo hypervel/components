@@ -35,10 +35,13 @@ class BatchWatcherTest extends FeatureTestCase
         // entries first, as the dispatching request would, for its updates to apply.
         $this->terminateTelescope();
 
+        // The worker measures the whole test process against its memory limit,
+        // so the default can stop it before the second job runs.
         $this->artisan('queue:work', [
             'connection' => 'database',
             '--max-jobs' => 2,
             '--queue' => 'on-demand',
+            '--memory' => 1024,
         ])->run();
 
         $entries = $this->loadTelescopeEntries()->all();
