@@ -961,6 +961,8 @@ class MiddlewareTest extends TestCase
     }
 
     /**
+     * Register an Inertia endpoint handled by the given or an example middleware.
+     *
      * @param array<string, mixed> $shared
      */
     private function prepareMockEndpoint(int|string|null $version = null, array $shared = [], ?Middleware $middleware = null): RouteInstance
