@@ -77,6 +77,12 @@ export default {
             document.title = this.title + " - Telescope";
             this.ready = false;
 
+            // The component is reused when the route ID changes, so a failed load must not leave the previous entry on screen.
+            this.entry = null;
+            this.batch = null;
+            this.$parent.entry = null;
+            this.$parent.batch = [];
+
             if (this.unwatchReady) this.unwatchReady();
 
             const unwatch = this.unwatchReady = this.$watch('ready', newVal => {
@@ -100,7 +106,7 @@ export default {
         },
 
 
-        loadEntry(after){
+        loadEntry(after, polling = false){
             const {signal} = this.requestController;
 
             return axios.get(Telescope.basePath + '/telescope-api/' + this.resource + '/' + this.id, {signal}).then(response => {
@@ -114,7 +120,8 @@ export default {
 
                 this.ready = true;
 
-                if (this.mayRetry(error, signal)) this.updateEntry();
+                // A failed first load shows the not found card; only polling a loaded entry retries or reports that it stopped.
+                if (polling && this.mayRetry(error, signal)) this.updateEntry();
             })
         },
 
@@ -137,7 +144,7 @@ export default {
                     this.ready = true;
 
                     this.updateEntry();
-                });
+                }, true);
             }, this.updateEntryTimer);
         }
     }

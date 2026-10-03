@@ -31,6 +31,8 @@ export default {
             this.tags = response.data.tags;
 
             this.ready = true;
+        }).catch(error => {
+            if (!signal.aborted) throw error;
         })
     },
 
