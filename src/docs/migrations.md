@@ -994,9 +994,9 @@ $table->mediumText('data')->charset('binary'); // MEDIUMBLOB
 <a name="column-method-morphs"></a>
 #### `morphs()` {.collection-method}
 
-The `morphs` method is a convenience method that adds a `{column}_id` equivalent column and a `{column}_type` `VARCHAR` equivalent column. The column type for the `{column}_id` will be `UNSIGNED BIGINT`, `CHAR(36)`, or `CHAR(26)` depending on the model key type.
+The `morphs` method is a convenience method that adds a `{column}_type` `VARCHAR` equivalent column and a `{column}_id` equivalent column. The column type for the `{column}_id` will be `UNSIGNED BIGINT`, `CHAR(36)`, or `CHAR(26)` depending on the model key type.
 
-This method is intended to be used when defining the columns necessary for a polymorphic [Eloquent relationship](/docs/{{version}}/eloquent-relationships). In the following example, `taggable_id` and `taggable_type` columns would be created:
+This method is intended to be used when defining the columns necessary for a polymorphic [Eloquent relationship](/docs/{{version}}/eloquent-relationships). In the following example, `taggable_type` and `taggable_id` columns would be created:
 
 ```php
 $table->morphs('taggable');
@@ -1242,9 +1242,9 @@ $table->unsignedTinyInteger('votes');
 <a name="column-method-ulidMorphs"></a>
 #### `ulidMorphs()` {.collection-method}
 
-The `ulidMorphs` method is a convenience method that adds a `{column}_id` `CHAR(26)` equivalent column and a `{column}_type` `VARCHAR` equivalent column.
+The `ulidMorphs` method is a convenience method that adds a `{column}_type` `VARCHAR` equivalent column and a `{column}_id` `CHAR(26)` equivalent column.
 
-This method is intended to be used when defining the columns necessary for a polymorphic [Eloquent relationship](/docs/{{version}}/eloquent-relationships) that use ULID identifiers. In the following example, `taggable_id` and `taggable_type` columns would be created:
+This method is intended to be used when defining the columns necessary for a polymorphic [Eloquent relationship](/docs/{{version}}/eloquent-relationships) that use ULID identifiers. In the following example, `taggable_type` and `taggable_id` columns would be created:
 
 ```php
 $table->ulidMorphs('taggable');
@@ -1253,9 +1253,9 @@ $table->ulidMorphs('taggable');
 <a name="column-method-uuidMorphs"></a>
 #### `uuidMorphs()` {.collection-method}
 
-The `uuidMorphs` method is a convenience method that adds a `{column}_id` `CHAR(36)` equivalent column and a `{column}_type` `VARCHAR` equivalent column.
+The `uuidMorphs` method is a convenience method that adds a `{column}_type` `VARCHAR` equivalent column and a `{column}_id` `CHAR(36)` equivalent column.
 
-This method is intended to be used when defining the columns necessary for a [polymorphic Eloquent relationship](/docs/{{version}}/eloquent-relationships#polymorphic-relationships) that use UUID identifiers. In the following example, `taggable_id` and `taggable_type` columns would be created:
+This method is intended to be used when defining the columns necessary for a [polymorphic Eloquent relationship](/docs/{{version}}/eloquent-relationships#polymorphic-relationships) that use UUID identifiers. In the following example, `taggable_type` and `taggable_id` columns would be created:
 
 ```php
 $table->uuidMorphs('taggable');
@@ -1518,7 +1518,7 @@ Hypervel provides several convenient methods related to dropping common types of
 
 | Command                             | Description                                           |
 | ----------------------------------- | ----------------------------------------------------- |
-| `$table->dropMorphs('morphable');`  | Drop the `morphable_id` and `morphable_type` columns. |
+| `$table->dropMorphs('morphable');`  | Drop the `morphable_type` and `morphable_id` columns. |
 | `$table->dropRememberToken();`      | Drop the `remember_token` column.                     |
 | `$table->dropSoftDeletes();`        | Drop the `deleted_at` column.                         |
 | `$table->dropSoftDeletesTz();`      | Alias of `dropSoftDeletes()` method.                  |
@@ -1648,7 +1648,7 @@ The `whereNotNull` modifier must be chained onto the index definition returned b
 To rename an index, you may use the `renameIndex` method provided by the schema builder blueprint. This method accepts the current index name as its first argument and the desired name as its second argument:
 
 ```php
-$table->renameIndex('from', 'to')
+$table->renameIndex('from', 'to');
 ```
 
 <a name="dropping-indexes"></a>
@@ -1804,22 +1804,22 @@ Schema::withoutForeignKeyConstraints(function () {
 <a name="events"></a>
 ## Events
 
-For convenience, each migration operation will dispatch an [event](/docs/{{version}}/events). The following events are dispatched during migration operations:
+For convenience, each migration operation will dispatch an [event](/docs/{{version}}/events). With the exception of `SchemaDumped`, `SchemaLoaded`, and `MigrationsPruned`, all of the following events implement the `Hypervel\Contracts\Database\Events\MigrationEvent` interface:
 
 <div class="overflow-auto">
 
-| Class                                          | Description                                      |
-| ---------------------------------------------- | ------------------------------------------------ |
-| `Hypervel\Database\Events\MigrationsStarted`   | A batch of migrations is about to be executed.   |
-| `Hypervel\Database\Events\MigrationsEnded`     | A batch of migrations has finished executing.    |
-| `Hypervel\Database\Events\MigrationStarted`    | A single migration is about to be executed.      |
-| `Hypervel\Database\Events\MigrationEnded`      | A single migration has finished executing.       |
-| `Hypervel\Database\Events\MigrationSkipped`    | A single migration has been skipped.             |
-| `Hypervel\Database\Events\NoPendingMigrations` | A migration command found no pending migrations. |
-| `Hypervel\Database\Events\DatabaseRefreshed`   | The database has been refreshed.                 |
-| `Hypervel\Database\Events\SchemaDumped`        | A database schema dump has completed.            |
-| `Hypervel\Database\Events\SchemaLoaded`        | An existing database schema dump has loaded.     |
-| `Hypervel\Database\Events\MigrationsPruned`    | Existing migration files have been pruned.       |
+| Class                                          | Description                                                                                      |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `Hypervel\Database\Events\DatabaseRefreshed`   | The `migrate:fresh` or `migrate:refresh` command has run its migrations, before any seeders run. |
+| `Hypervel\Database\Events\MigrationsStarted`   | A batch of migrations is about to be executed.                                                   |
+| `Hypervel\Database\Events\MigrationsEnded`     | A batch of migrations has finished.                                                              |
+| `Hypervel\Database\Events\MigrationStarted`    | A single migration is about to be executed.                                                      |
+| `Hypervel\Database\Events\MigrationEnded`      | A single migration has finished.                                                                 |
+| `Hypervel\Database\Events\MigrationSkipped`    | A single migration has been skipped.                                                             |
+| `Hypervel\Database\Events\NoPendingMigrations` | A migration command found no pending migrations.                                                 |
+| `Hypervel\Database\Events\SchemaDumped`        | A database schema dump has finished.                                                             |
+| `Hypervel\Database\Events\SchemaLoaded`        | An existing database schema dump has loaded.                                                     |
+| `Hypervel\Database\Events\MigrationsPruned`    | Existing migration files have been pruned.                                                       |
 
 </div>
 

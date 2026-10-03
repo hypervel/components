@@ -112,10 +112,12 @@ class TelescopeServiceProvider extends ServiceProvider
         $this->commands([
             Console\ClearCommand::class,
             Console\InstallCommand::class,
+            Console\ListCommand::class,
             Console\PauseCommand::class,
             Console\PruneCommand::class,
             Console\PublishCommand::class,
             Console\ResumeCommand::class,
+            Console\ShowCommand::class,
         ]);
     }
 

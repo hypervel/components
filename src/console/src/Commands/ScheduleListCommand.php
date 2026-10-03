@@ -18,6 +18,7 @@ use Hypervel\Support\Collection;
 use ReflectionClass;
 use ReflectionFunction;
 use Symfony\Component\Console\Attribute\AsCommand;
+use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Terminal;
 
 #[AsCommand(name: 'schedule:list')]
@@ -86,6 +87,7 @@ class ScheduleListCommand extends Command
      */
     protected function displayJson(Collection $events, DateTimeZone $timezone): void
     {
+        // Formatting would strip console style tags, and backslashes before < or >, from shell commands.
         $this->output->writeln($events->map(function ($event) use ($timezone) {
             $nextDueDate = $this->getNextDueDateForEvent($event, $timezone);
 
@@ -117,7 +119,7 @@ class ScheduleListCommand extends Command
                 'repeat_seconds' => $event->isRepeatable() ? $event->repeatSeconds : null,
                 'environments' => $event->environments,
             ];
-        })->values()->toJson());
+        })->values()->toJson(), OutputInterface::OUTPUT_RAW);
     }
 
     /**

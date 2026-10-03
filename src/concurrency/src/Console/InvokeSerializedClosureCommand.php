@@ -10,6 +10,7 @@ use Hypervel\Console\Command;
 use ReflectionClass;
 use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
+use Symfony\Component\Console\Output\OutputInterface;
 use Throwable;
 
 #[AsCommand(name: 'invoke-serialized-closure')]
@@ -29,12 +30,13 @@ class InvokeSerializedClosureCommand extends Command
     public function handle(): int
     {
         try {
+            // The parent process decodes this envelope, so console formatting must not alter it.
             $this->output->write(json_encode([
                 'successful' => true,
                 'result' => base64_encode(serialize(
                     $this->hypervel->call($this->resolveSerializedClosure())
                 )),
-            ], JSON_THROW_ON_ERROR));
+            ], JSON_THROW_ON_ERROR), false, OutputInterface::OUTPUT_RAW);
         } catch (Throwable $exception) {
             try {
                 report($exception);
@@ -88,7 +90,7 @@ class InvokeSerializedClosureCommand extends Command
                 ], JSON_THROW_ON_ERROR);
             }
 
-            $this->output->write($payload);
+            $this->output->write($payload, false, OutputInterface::OUTPUT_RAW);
         }
 
         return self::SUCCESS;

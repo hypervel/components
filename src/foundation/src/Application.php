@@ -15,6 +15,7 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Foundation\CachesConfiguration;
 use Hypervel\Contracts\Foundation\CachesRoutes;
 use Hypervel\Contracts\Foundation\MaintenanceMode as MaintenanceModeContract;
+use Hypervel\Contracts\Http\Kernel as HttpKernelContract;
 use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use Hypervel\Events\EventServiceProvider;
 use Hypervel\Filesystem\Filesystem;
@@ -1126,6 +1127,13 @@ class Application extends Container implements ApplicationContract, CachesConfig
     {
         if ($this->isBooted()) {
             return;
+        }
+
+        // Constructing the HTTP kernel writes its middleware groups and aliases onto
+        // the router, replacing existing entries, so it must happen before providers
+        // boot and change them. Laravel builds the kernel before bootstrapping too.
+        if ($this->bound(HttpKernelContract::class)) {
+            $this->make(HttpKernelContract::class);
         }
 
         // Once the application has booted we will also fire some "booted" callbacks

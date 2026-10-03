@@ -16,6 +16,7 @@
     - [Rate Limiting](#rate-limiting)
     - [Preventing Job Overlaps](#preventing-job-overlaps)
     - [Throttling Exceptions](#throttling-exceptions)
+    - [Releasing Jobs](#releasing-jobs)
     - [Skipping Jobs](#skipping-jobs)
 - [Dispatching Jobs](#dispatching-jobs)
     - [Delayed Dispatching](#delayed-dispatching)
@@ -785,7 +786,7 @@ In the example above, we defined an hourly rate limit; however, you may easily d
 return Limit::perMinute(50)->by($job->user->id);
 ```
 
-Named queue rate limiters use the same [key scope resolver](/docs/{{version}}/routing#scoping-named-rate-limits) as named route rate limiters.
+Named queue rate limiters use the same [key scope resolver](/docs/{{version}}/rate-limiting#scoping-named-rate-limits) as named route rate limiters.
 
 Queue rate limiters may use fixed-window, sliding-window, or leaky-bucket rate limits, and each operation may have a weighted cost. If a named limiter returns several limits, Hypervel [consumes them together](/docs/{{version}}/rate-limiting#consuming-multiple-limits). A denied job does not consume capacity from the other limits, subject to the documented Redis Cluster limitation.
 
@@ -1735,6 +1736,7 @@ Typically, you should call the `route` method from the `boot` method of a servic
 use App\Concerns\RequiresVideo;
 use App\Jobs\ProcessPodcast;
 use App\Jobs\ProcessVideo;
+use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
 use Hypervel\Support\Facades\Queue;
 
 /**
@@ -1744,6 +1746,7 @@ public function boot(): void
 {
     Queue::route(ProcessPodcast::class, connection: 'redis', queue: 'podcasts');
     Queue::route(RequiresVideo::class, queue: 'video');
+    Queue::route(ShouldBroadcast::class, queue: 'events');
 }
 ```
 
@@ -1985,7 +1988,7 @@ class ProcessPodcast implements ShouldQueue
 Sometimes, IO blocking processes such as sockets or outgoing HTTP connections may not respect your specified timeout. Therefore, when using these features, you should always attempt to specify a timeout using their APIs as well. For example, when using [Guzzle](https://docs.guzzlephp.org), you should always specify a connection and request timeout value.
 
 > [!WARNING]
-> A job's "timeout" value should always be less than its ["retry after"](#job-expiration) value. Otherwise, the job may be re-attempted before it has actually finished executing or timed out. The [PCNTL](https://www.php.net/manual/en/book.pcntl.php) PHP extension is recommended so workers can respond to process signals gracefully.
+> A job's "timeout" value should always be less than its ["retry after"](#job-expiration) value. Otherwise, the job may be re-attempted before it has actually finished executing or timed out. The `--timeout` option has no effect when the `queue:work` command is invoked with the `--once` option. The [PCNTL](https://www.php.net/manual/en/book.pcntl.php) PHP extension is recommended so workers can respond to process signals gracefully.
 
 <a name="failing-on-timeout"></a>
 #### Failing on Timeout
@@ -2090,12 +2093,15 @@ class ProcessOrder implements ShouldQueue
 
 When utilizing FIFO queues, you will also need to define message groups on listeners, mail, and notifications. Alternatively, you can dispatch queued instances of these objects to a non-FIFO queue.
 
-To define the message group for a [queued event listener](/docs/{{version}}/events#queued-event-listeners), define a `messageGroup` method on the listener. You may also optionally define a `deduplicationId` method:
+To define the message group for a [queued event listener](/docs/{{version}}/events#queued-event-listeners), define a `messageGroup` method on the listener. You may also optionally define a `deduplicator` method, which receives the event and should return a closure that generates the deduplication ID:
 
 ```php
 <?php
 
 namespace App\Listeners;
+
+use App\Events\OrderShipped;
+use Closure;
 
 class SendShipmentNotification
 {
@@ -2110,11 +2116,11 @@ class SendShipmentNotification
     }
 
     /**
-     * Get the job's deduplication ID.
+     * Get the job's deduplicator.
      */
-    public function deduplicationId(): string
+    public function deduplicator(OrderShipped $event): Closure
     {
-        return "shipment-notification-{$this->shipment->id}";
+        return fn () => "shipment-notification-{$event->order->id}";
     }
 }
 ```
@@ -2191,7 +2197,7 @@ QUEUE_CONNECTION=failover
 
 Next, start a worker for each child connection that uses an external worker. With the default connection list, only the database child needs one:
 
-```bash
+```shell
 php artisan queue:work database
 ```
 

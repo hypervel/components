@@ -21,9 +21,7 @@ use Hypervel\Queue\Jobs\Job;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Queue\SerializesModels;
 use Hypervel\Support\Str;
-use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\EntryType;
-use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\Watchers\JobWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
@@ -106,6 +104,49 @@ class JobWatcherTest extends FeatureTestCase
         $this->assertArrayNotHasKey('args', $entry->content['exception']['trace'][0]);
         $this->assertSame(MyFailedDatabaseJob::class, $entry->content['exception']['trace'][0]['class']);
         $this->assertSame('handle', $entry->content['exception']['trace'][0]['function']);
+    }
+
+    public function testProcessedJobClearsStaleFailureStateLeftByADuplicateReservation(): void
+    {
+        // A long-running job whose runtime exceeds the queue's retry_after can be
+        // reserved twice: a second worker fails it with MaxAttemptsExceededException
+        // (JobFailed) while the original worker eventually completes it (JobProcessed).
+        // Both events target the same telescope_uuid, so the processed update must not
+        // leave behind the failure's exception payload or "failed" tag.
+        $watcher = new JobWatcher;
+
+        $entry = $watcher->recordJob('redis', 'default', [
+            'job' => 'Hypervel\Queue\CallQueuedHandler@call',
+            'displayName' => MyDatabaseJob::class,
+            'maxTries' => 1,
+            'timeout' => 30,
+            'data' => ['payload' => 'long-running'],
+        ]);
+
+        $job = m::mock(Job::class);
+        $job->shouldReceive('payload')->andReturn(['telescope_uuid' => $entry->uuid]);
+
+        $watcher->recordFailedJob(new QueueJobFailed(
+            'redis',
+            $job,
+            new Exception(MyDatabaseJob::class . ' has been attempted too many times.')
+        ));
+
+        $watcher->recordProcessedJob(new QueueJobProcessed('redis', $job));
+
+        $stored = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame(EntryType::JOB, $stored->type);
+        $this->assertSame('processed', $stored->content['status']);
+        $this->assertNull($stored->content['exception']);
+
+        $hasFailedTag = $this->app->make('db')->connection('testing')
+            ->table('telescope_entries_tags')
+            ->where('entry_uuid', $entry->uuid)
+            ->where('tag', 'failed')
+            ->exists();
+
+        $this->assertFalse($hasFailedTag, 'The "failed" tag must be removed once the job is processed.');
     }
 
     public function testItHandlesPushedJobs()
@@ -270,25 +311,6 @@ class JobWatcherTest extends FeatureTestCase
 
         $this->assertSame(1, $job->payloadReads);
         $this->assertCount(0, $this->loadTelescopeEntries());
-    }
-
-    public function testProcessedJobClearsPriorFailureState(): void
-    {
-        $entry = IncomingEntry::make(['status' => 'pending']);
-        Telescope::recordJob($entry);
-
-        $job = new TelescopeQueueJob(['telescope_uuid' => $entry->uuid]);
-        $watcher = $this->app->make(JobWatcher::class);
-
-        $watcher->recordFailedJob(new QueueJobFailed('database', $job, new Exception('failed')));
-        $watcher->recordProcessedJob(new QueueJobProcessed('database', $job));
-
-        $stored = $this->loadTelescopeEntries()->first();
-        $result = $this->app->make(EntriesRepository::class)->find($entry->uuid)->jsonSerialize();
-
-        $this->assertSame('processed', $stored->content['status']);
-        $this->assertNull($stored->content['exception']);
-        $this->assertNotContains('failed', $result['tags']);
     }
 
     public function testBatchIdFailureRestoresRecordingState(): void

@@ -25,6 +25,7 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Stringable;
 use Symfony\Component\Console\Attribute\AsCommand;
+use Symfony\Component\Console\Output\OutputInterface;
 use Throwable;
 
 use function Termwind\terminal;
@@ -401,7 +402,8 @@ class WorkCommand extends Command
             $log['duration'] = round(microtime(true) - $this->getLatestStartedAt(), 6);
         }
 
-        $this->output->writeln(json_encode($log));
+        // Exception messages may contain invalid UTF-8 or console style tags, which formatting would strip.
+        $this->output->writeln(json_encode($log, JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE), OutputInterface::OUTPUT_RAW);
     }
 
     /**

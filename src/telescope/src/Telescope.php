@@ -160,6 +160,8 @@ class Telescope
                 'horizon:supervisor',
                 'watch',
                 'telescope:clear',
+                'telescope:list',
+                'telescope:show',
             ], config()->array('telescope.ignore_commands', [])),
             true
         );

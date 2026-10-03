@@ -3,6 +3,7 @@
 - [Introduction](#introduction)
     - [How it Works](#how-it-works)
 - [Running Concurrent Tasks](#running-concurrent-tasks)
+    - [Named Results](#named-results)
     - [Task Timeouts](#task-timeouts)
 - [Choosing a Driver](#choosing-a-driver)
 - [Deferring Concurrent Tasks](#deferring-concurrent-tasks)
@@ -46,18 +47,6 @@ use Hypervel\Support\Facades\DB;
 ]);
 ```
 
-The keys from the task array are preserved in the returned results:
-
-```php
-$results = Concurrency::run([
-    'users' => fn () => DB::table('users')->count(),
-    'orders' => fn () => DB::table('orders')->count(),
-]);
-
-$results['users'];
-$results['orders'];
-```
-
 When using the `coroutine` driver, each task receives a copy of the parent coroutine context. Adding or replacing values in that context does not affect sibling tasks or the parent coroutine. Objects stored directly as context values are shared by default. Values that implement `Hypervel\Context\ReplicableContext` are copied independently, while values that implement `Hypervel\Context\NonCopyableContext` are omitted. Hypervel does not inspect objects nested within arrays or other objects.
 
 For example, a task receives the parent's default database connection name, but it borrows its own database or Redis connection when needed. See the [coroutine context](/docs/{{version}}/coroutine-context) documentation for more information.
@@ -75,6 +64,24 @@ php artisan config:publish concurrency
 ```
 
 In practice, you almost never need to change this default. Coroutine concurrency is fundamental to Hypervel's Swoole architecture, so prefer using `Concurrency::driver(...)` at the call site when a task needs a different driver.
+
+<a name="named-results"></a>
+### Named Results
+
+If you would like to access concurrent task results by name rather than by position, you may provide an associative array of closures. Each result will be returned using the same key as its corresponding closure:
+
+```php
+use Hypervel\Support\Facades\Concurrency;
+use Hypervel\Support\Facades\DB;
+
+$results = Concurrency::run([
+    'users' => fn () => DB::table('users')->count(),
+    'orders' => fn () => DB::table('orders')->count(),
+]);
+
+$userCount = $results['users'];
+$orderCount = $results['orders'];
+```
 
 <a name="task-timeouts"></a>
 ### Task Timeouts

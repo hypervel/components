@@ -11,6 +11,7 @@ use Hypervel\Prompts\Prompt;
 use Hypervel\Support\Stringable;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputOption;
+use Symfony\Component\Console\Output\OutputInterface;
 
 #[AsCommand(name: 'dev:list')]
 class DevListCommand extends Command
@@ -35,7 +36,8 @@ class DevListCommand extends Command
         ]), $this->filterCommands(DevCommands::commands()));
 
         if ($this->option('json') || ! $this->input->isInteractive()) {
-            $this->output->writeln(json_encode($devCommands, JSON_THROW_ON_ERROR));
+            // Formatting would strip console style tags, and backslashes before < or >, from shell commands.
+            $this->output->writeln(json_encode($devCommands, JSON_THROW_ON_ERROR), OutputInterface::OUTPUT_RAW);
 
             return empty($devCommands) && $this->isFiltering() ? self::FAILURE : self::SUCCESS;
         }

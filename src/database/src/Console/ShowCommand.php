@@ -11,6 +11,8 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Number;
 use Symfony\Component\Console\Attribute\AsCommand;
+use Symfony\Component\Console\Formatter\OutputFormatter;
+use Symfony\Component\Console\Output\OutputInterface;
 
 #[AsCommand(name: 'db:show')]
 class ShowCommand extends DatabaseInspectionCommand
@@ -121,7 +123,8 @@ class ShowCommand extends DatabaseInspectionCommand
      */
     protected function displayJson(array $data): void
     {
-        $this->output->writeln(json_encode($data, JSON_THROW_ON_ERROR));
+        // Formatting would strip console style tags, and backslashes before < or >, from table comments.
+        $this->output->writeln(json_encode($data, JSON_THROW_ON_ERROR), OutputInterface::OUTPUT_RAW);
     }
 
     /**
@@ -171,7 +174,7 @@ class ShowCommand extends DatabaseInspectionCommand
                 if ($this->output->isVerbose()) {
                     if ($table['comment']) {
                         $this->components->bulletList([
-                            $table['comment'],
+                            OutputFormatter::escape($table['comment']),
                         ]);
                     }
                 }

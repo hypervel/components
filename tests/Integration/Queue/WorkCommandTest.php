@@ -387,6 +387,23 @@ class WorkCommandTest extends QueueTestCase
         ])->expectsOutputToContain('"status":"stopped","reason":"memory","exit_code":12')
             ->assertExitCode(12);
     }
+
+    public function testFailedJobMessageIsWrittenAsJson(): void
+    {
+        Exceptions::fake();
+
+        Queue::push(new JobFailsWithMessage);
+        $this->withoutMockingConsoleOutput()->artisan('queue:work', ['--once' => true, '--json' => true]);
+
+        $logs = array_map(
+            static fn (string $line): array => json_decode($line, true, flags: JSON_THROW_ON_ERROR),
+            array_filter(explode("\n", Artisan::output()))
+        );
+        $failed = array_values(array_filter($logs, static fn (array $log): bool => $log['status'] === 'failed'));
+
+        $this->assertCount(1, $failed);
+        $this->assertSame("<info>Upstream</info> returned \u{FFFD} for a\\>b", $failed[0]['message']);
+    }
 }
 
 class FirstJob implements ShouldQueue
@@ -450,5 +467,19 @@ class JobWillFail implements ShouldQueue
     public function handle(): never
     {
         throw new RuntimeException;
+    }
+}
+
+class JobFailsWithMessage implements ShouldQueue
+{
+    use Dispatchable;
+    use Queueable;
+
+    /**
+     * Fail with a message containing console markup and an invalid UTF-8 byte.
+     */
+    public function handle(): never
+    {
+        throw new RuntimeException("<info>Upstream</info> returned \xFF for a\\>b");
     }
 }

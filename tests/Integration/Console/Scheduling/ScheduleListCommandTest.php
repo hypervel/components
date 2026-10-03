@@ -127,6 +127,16 @@ class ScheduleListCommandTest extends TestCase
         $this->assertSame('echo hello', $data[9]['command']);
     }
 
+    public function testDisplayScheduleAsJsonPreservesShellCommands(): void
+    {
+        $this->schedule->exec('grep -c "\<error\>" storage/logs/hypervel.log')->everyMinute();
+
+        $this->withoutMockingConsoleOutput()->artisan(ScheduleListCommand::class, ['--json' => true]);
+        $data = json_decode(Artisan::output(), true, flags: JSON_THROW_ON_ERROR);
+
+        $this->assertSame('grep -c "\<error\>" storage/logs/hypervel.log', $data[0]['command']);
+    }
+
     public function testDisplayScheduleAsJsonWithEnvironmentData(): void
     {
         $environment = 'production';

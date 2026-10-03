@@ -567,9 +567,11 @@ Local fonts are resolved from the `src` or `variants` options described above in
 <a name="blade-processing-static-assets"></a>
 ### Processing Static Assets With Vite
 
-When referencing assets in your JavaScript or CSS, Vite automatically processes and versions them. In addition, when building Blade based applications, Vite can also process and version static assets that you reference solely in Blade templates.
+When referencing assets in your JavaScript or CSS, Vite automatically processes and versions them. In addition, when building Blade-based applications, Vite can also process and version static assets that you reference solely in Blade templates.
 
-However, in order to accomplish this, you need to make Vite aware of your assets by specifying them in the plugin's `assets` option. For example, if you want to process and version all images stored in `resources/images` and all fonts stored in `resources/fonts`, you should add the following to your Vite configuration:
+However, to accomplish this, you need to make Vite aware of your assets by specifying them in the plugin's `assets` option. This option is intended for static files that you want to reference directly with `Vite::asset`. If you want Hypervel to generate font CSS and preload links, use the [`fonts` option](#working-with-fonts) instead.
+
+For example, if you want to process and version all images stored in `resources/images` and all fonts stored in `resources/fonts`, you should add the following to your Vite configuration:
 
 ```js
 laravel({

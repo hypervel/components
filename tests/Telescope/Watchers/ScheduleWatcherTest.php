@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
+use DateTimeZone;
 use Hypervel\Console\Events\ScheduledTaskFailed;
 use Hypervel\Console\Events\ScheduledTaskFinished;
 use Hypervel\Console\Events\ScheduledTaskStarting;
@@ -47,6 +48,17 @@ class ScheduleWatcherTest extends FeatureTestCase
         $this->assertSame('finished', $entry->content['status']);
         $this->assertSame(0, $entry->content['exit_code']);
         $this->assertArrayNotHasKey('exception', $entry->content);
+    }
+
+    public function testScheduleRecordsTheNameOfATimezoneObject(): void
+    {
+        $task = $this->makeTask('command');
+        $task->timezone = new DateTimeZone('Europe/London');
+
+        $this->app->make(Dispatcher::class)
+            ->dispatch(new ScheduledTaskFinished($task, 0.1));
+
+        $this->assertSame('Europe/London', $this->loadTelescopeEntries()->first()->content['timezone']);
     }
 
     public function testScheduleWatcherDoesNotPersistOpaqueCommandLines(): void

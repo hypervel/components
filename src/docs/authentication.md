@@ -95,6 +95,9 @@ Hypervel provides optional packages to assist you in managing API tokens and aut
 
 Passport is an OAuth2 authentication provider, offering a variety of OAuth2 "grant types" which allow you to issue various types of tokens. In general, this is a robust and complex package for API authentication. However, most applications do not require the complex features offered by the OAuth2 spec, which can be confusing for both users and developers. In addition, developers have been historically confused about how to authenticate SPA applications or mobile applications using OAuth2 authentication providers like Passport.
 
+> [!NOTE]
+> Hypervel's port of Passport is coming soon.
+
 **Sanctum**
 
 In response to the complexity of OAuth2 and developer confusion, we set out to build a simpler, more streamlined authentication package that could handle both first-party web requests from a web browser and API requests via tokens. This goal was realized with the release of [Hypervel Sanctum](/docs/{{version}}/sanctum), which should be considered the preferred and recommended authentication package for applications that will be offering a first-party web UI in addition to an API, or will be powered by a single-page application (SPA) that exists separately from the backend Hypervel application, or applications that offer a mobile client.
@@ -685,7 +688,7 @@ You may customize the cookie lifetime for a session guard using the `remember` o
 ],
 ```
 
-If your application offers "remember me" functionality, you may use the `viaRemember`  method to determine if the currently authenticated user was authenticated using the "remember me" cookie:
+If your application offers "remember me" functionality, you may use the `viaRemember` method to determine if the currently authenticated user was authenticated using the "remember me" cookie:
 
 ```php
 use Hypervel\Support\Facades\Auth;

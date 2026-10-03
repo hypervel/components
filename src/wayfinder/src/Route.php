@@ -193,31 +193,19 @@ class Route
     }
 
     /**
-     * Build the URI template used in the generated TypeScript output.
+     * Return the URI template used in the generated TypeScript output.
      */
     public function uri(): string
     {
-        $defaultParams = $this->paramDefaults->mapWithKeys(fn (mixed $value, string $key) => ["{{$key}}" => "{{$key}?}"]);
+        return Js::from($this->rawUri(), JSON_UNESCAPED_SLASHES)->toHtml();
+    }
 
-        $uri = str($this->base->uri)->start('/')->toString();
-
-        if (($basePath = $this->basePath()) !== '') {
-            $uri = str($basePath)->finish('/')->append(ltrim($uri, '/'))->toString();
-        }
-
-        if (($domain = $this->domain()) !== null) {
-            $uri = ($this->scheme() ?? '//') . $domain . $uri;
-        }
-
-        $uri = str($uri)
-            ->replace($defaultParams->keys()->toArray(), $defaultParams->values()->toArray())
-            ->toString();
-
-        if ($uri !== '/') {
-            $uri = rtrim($uri, '/');
-        }
-
-        return Js::from($uri, JSON_UNESCAPED_SLASHES)->toHtml();
+    /**
+     * Return the URI template prefixed with the route's verbs, for keying routes that share a URI.
+     */
+    public function verbPrefixedUri(): string
+    {
+        return Js::from($this->keyVerbs()->implode('|') . ' ' . $this->rawUri(), JSON_UNESCAPED_SLASHES)->toHtml();
     }
 
     /**
@@ -320,6 +308,46 @@ class Route
         }
 
         return 0;
+    }
+
+    /**
+     * Return the verbs that identify this route in a shared-URI key, omitting HEAD alongside GET.
+     *
+     * @return Collection<int, string>
+     */
+    private function keyVerbs(): Collection
+    {
+        $verbs = $this->verbs()->pluck('actual');
+
+        return $verbs->contains('get') ? $verbs->reject(fn (string $verb) => $verb === 'head') : $verbs;
+    }
+
+    /**
+     * Build the unquoted URI template, including the base path, domain, and URL defaults.
+     */
+    private function rawUri(): string
+    {
+        $defaultParams = $this->paramDefaults->mapWithKeys(fn (mixed $value, string $key) => ["{{$key}}" => "{{$key}?}"]);
+
+        $uri = str($this->base->uri)->start('/')->toString();
+
+        if (($basePath = $this->basePath()) !== '') {
+            $uri = str($basePath)->finish('/')->append(ltrim($uri, '/'))->toString();
+        }
+
+        if (($domain = $this->domain()) !== null) {
+            $uri = ($this->scheme() ?? '//') . $domain . $uri;
+        }
+
+        $uri = str($uri)
+            ->replace($defaultParams->keys()->toArray(), $defaultParams->values()->toArray())
+            ->toString();
+
+        if ($uri !== '/') {
+            $uri = rtrim($uri, '/');
+        }
+
+        return $uri;
     }
 
     /**

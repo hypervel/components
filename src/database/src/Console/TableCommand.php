@@ -10,6 +10,8 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Number;
 use Symfony\Component\Console\Attribute\AsCommand;
+use Symfony\Component\Console\Formatter\OutputFormatter;
+use Symfony\Component\Console\Output\OutputInterface;
 
 use function Hypervel\Prompts\search;
 
@@ -180,7 +182,8 @@ class TableCommand extends DatabaseInspectionCommand
      */
     protected function displayJson(array $data): void
     {
-        $this->output->writeln(json_encode($data, JSON_THROW_ON_ERROR));
+        // Formatting would strip console style tags, and backslashes before < or >, from column defaults and comments.
+        $this->output->writeln(json_encode($data, JSON_THROW_ON_ERROR), OutputInterface::OUTPUT_RAW);
     }
 
     /**
@@ -194,7 +197,7 @@ class TableCommand extends DatabaseInspectionCommand
 
         $this->newLine();
 
-        $this->components->twoColumnDetail('<fg=green;options=bold>' . $table['schema_qualified_name'] . '</>', $table['comment'] ? '<fg=gray>' . $table['comment'] . '</>' : null);
+        $this->components->twoColumnDetail('<fg=green;options=bold>' . $table['schema_qualified_name'] . '</>', $table['comment'] ? '<fg=gray>' . OutputFormatter::escape($table['comment']) . '</>' : null);
         $this->components->twoColumnDetail('Columns', $table['columns']);
 
         if (! is_null($table['size'])) {
@@ -217,7 +220,7 @@ class TableCommand extends DatabaseInspectionCommand
             $columns->each(function ($column) {
                 $this->components->twoColumnDetail(
                     $column['column'] . ' <fg=gray>' . $column['attributes']->implode(', ') . '</>',
-                    (! is_null($column['default']) ? '<fg=gray>' . $column['default'] . '</> ' : '') . $column['type']
+                    (! is_null($column['default']) ? '<fg=gray>' . OutputFormatter::escape($column['default']) . '</> ' : '') . $column['type']
                 );
             });
 

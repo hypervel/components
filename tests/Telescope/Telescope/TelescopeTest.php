@@ -300,6 +300,8 @@ class TelescopeTest extends FeatureTestCase
         return [
             ['package:discover'],
             ['watch'],
+            ['telescope:list'],
+            ['telescope:show'],
         ];
     }
 

@@ -14,7 +14,7 @@
 - [Retrieving Models](#retrieving-models)
     - [Collections](#collections)
     - [Chunking Results](#chunking-results)
-    - [Chunk Using Lazy Collections](#chunking-using-lazy-collections)
+    - [Chunking Using Lazy Collections](#chunking-using-lazy-collections)
     - [Cursors](#cursors)
     - [Advanced Subqueries](#advanced-subqueries)
 - [Retrieving Single Models / Aggregates](#retrieving-single-models)
@@ -318,7 +318,7 @@ class Flight extends Model
 }
 ```
 
-If you need to customize the format of your model's timestamps, you may use the `dateFormat` argument on the `Table` attribute. This determines how date attributes are stored in the database as well as their format when the model is serialized to an array or JSON:
+If you need to customize the format of your model's timestamps, you may use the `dateFormat` argument on the `Table` attribute. This determines how date attributes are stored in the database:
 
 ```php
 <?php
@@ -1808,6 +1808,8 @@ Once the expected arguments have been added to your scope method's signature, yo
 ```php
 $users = User::ofType('admin')->get();
 ```
+
+Attributed scope methods should be `protected`. When calling an attributed scope from within the model class, call the scope through a query builder instance, such as `static::query()->ofType('admin')`, to ensure the call is routed through Eloquent's scope handling.
 
 <a name="applying-scope-callbacks"></a>
 ### Applying Scope Callbacks

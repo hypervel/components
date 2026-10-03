@@ -417,7 +417,7 @@ $name = $request->string('name')->trim();
 <a name="retrieving-integer-input-values"></a>
 #### Retrieving Integer Input Values
 
-To retrieve input values as integers, you may use the `integer` method. This method casts the input value to an integer. If the input is not present, it will return the default value you specify, or `0` if you don't specify one. This is particularly useful for pagination or other numeric inputs:
+To retrieve input values as integers, you may use the `integer` method. This method will attempt to cast the input value to an integer. If the input is not present, it will return the default value you specify, or `0` if you don't specify one. This is particularly useful for pagination or other numeric inputs:
 
 ```php
 $perPage = $request->integer('per_page');

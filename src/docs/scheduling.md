@@ -328,7 +328,7 @@ use Hypervel\Support\Facades\Schedule;
 
 Schedule::command('report:generate')
     ->timezone('America/New_York')
-    ->at('2:00')
+    ->at('2:00');
 ```
 
 If you are repeatedly assigning the same timezone to all of your scheduled tasks, you can specify which timezone should be assigned to all schedules by defining a `schedule_timezone` option within your application's `app` configuration file:
@@ -342,7 +342,7 @@ If you are repeatedly assigning the same timezone to all of your scheduled tasks
 When this option is omitted, scheduled tasks use the application timezone.
 
 > [!WARNING]
-> Remember that some timezones utilize daylight savings time. When daylight saving time changes occur, your scheduled task may run twice or even not run at all. For this reason, we recommend avoiding timezone scheduling when possible.
+> Remember that some timezones utilize daylight saving time. When daylight saving time changes occur, your scheduled task may run twice or even not run at all. For this reason, we recommend avoiding timezone scheduling when possible.
 
 When using `schedule:list --timezone`, the next due date is displayed in the requested timezone while the cron expression remains in the timezone in which it is evaluated. If these timezones differ, the CLI displays the expression timezone beside the expression. JSON output provides the display timezone as `timezone` and the expression timezone as `expression_timezone`.
 

@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
+use Closure;
 use Hypervel\Http\Request;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Log\Context\Repository as ContextRepository;
+use Hypervel\Routing\Controllers\HasMiddleware;
 use Hypervel\Session\Middleware\StartSession;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Response;
@@ -44,6 +46,17 @@ class RequestWatchersTest extends FeatureTestCase
         $this->assertSame('/emails', $entry->content['uri']);
         $this->assertSame($result, $entry->content['response']);
         $this->assertSame(5000, $entry->content['duration']);
+    }
+
+    public function testRequestWatcherRecordsClosureMiddleware(): void
+    {
+        Route::get('/closure-middleware', ClosureMiddlewareController::class)->middleware(StartSession::class);
+
+        $this->get('/closure-middleware')->assertSuccessful();
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame([StartSession::class, 'Closure'], $entry->content['middleware']);
     }
 
     public function testRequestWatcherRecordsResponseAtTheEntryContentChildLimit(): void
@@ -418,6 +431,27 @@ class RequestWatchersTest extends FeatureTestCase
         }
 
         return $value;
+    }
+}
+
+class ClosureMiddlewareController implements HasMiddleware
+{
+    /**
+     * Get the middleware that should be assigned to the controller.
+     */
+    public static function middleware(): array
+    {
+        return [
+            static fn (Request $request, Closure $next): mixed => $next($request),
+        ];
+    }
+
+    /**
+     * Handle the request.
+     */
+    public function __invoke(): string
+    {
+        return 'ok';
     }
 }
 

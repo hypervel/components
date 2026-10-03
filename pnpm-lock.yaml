@@ -21,7 +21,7 @@ importers:
   src/wayfinder:
     devDependencies:
       happy-dom:
-        specifier: ^20.0.2
+        specifier: ^20.8.9
         version: 20.9.0
 
 packages:

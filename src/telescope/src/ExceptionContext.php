@@ -44,8 +44,9 @@ class ExceptionContext
             return [];
         }
 
+        // A negative offset would slice from the end of the file.
         return Collection::make(explode("\n", $contents))
-            ->slice($exception->getLine() - 10, 20)
+            ->slice(max($exception->getLine() - 10, 0), 20)
             ->mapWithKeys(function ($value, $key) {
                 return [$key + 1 => $value];
             })->all();

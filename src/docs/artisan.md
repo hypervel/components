@@ -34,7 +34,7 @@
 <a name="introduction"></a>
 ## Introduction
 
-Artisan is the command line interface included with Hypervel. Artisan exists at the root of your application as the `artisan` script and provides a number of helpful commands that can assist you while you build your application. To view a list of all available Artisan commands, you may use the `list` command:
+Artisan is the command line interface included with Hypervel. Artisan exists at the root of your application as the `artisan` script and provides a number of helpful commands you can use while building your application. To view a list of all available Artisan commands, you may use the `list` command:
 
 ```shell
 php artisan list
@@ -219,7 +219,7 @@ class SendEmails extends Command
 You may define command aliases using the `$aliases` property. If you would like to hide a command from the command list while keeping it executable, define a `$hidden` property with a value of `true`.
 
 > [!NOTE]
-> For greater code reuse, it is good practice to keep your console commands light and let them defer to application services to accomplish their tasks. In the example above, note that we inject a service class to do the "heavy lifting" of sending the e-mails.
+> For greater code reuse, it is good practice to keep your console commands light and let them defer to application services to accomplish their tasks. In the example above, note that we inject a service class to do the "heavy lifting" of sending the emails.
 
 <a name="command-attributes"></a>
 #### Command Attributes
@@ -1038,7 +1038,7 @@ $this->callSilently('mail:send', [
 <a name="signal-handling"></a>
 ## Signal Handling
 
-As you may know, operating systems allow signals to be sent to running processes. For example, the `SIGTERM` signal is how operating systems ask a program to terminate. If you wish to listen for signals in your Artisan console commands and execute code when they occur, you may use the `trap` method:
+As you may know, operating systems allow signals to be sent to running processes. For example, the `SIGTERM` signal is how operating systems ask a program to terminate gracefully. If you wish to listen for signals in your Artisan console commands and execute code when they occur, you may use the `trap` method:
 
 ```php
 /**

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
+use Closure;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application;
@@ -59,7 +60,11 @@ class RequestWatcher extends Watcher
             'uri' => str_replace($event->request->root(), '', $event->request->fullUrl()) ?: '/',
             'method' => $event->request->method(),
             'controller_action' => $event->request->route()?->getActionName(),
-            'middleware' => array_values($event->request->route()?->gatherMiddleware() ?? []),
+            // Closure middleware would otherwise be stored as an empty JSON object.
+            'middleware' => array_map(
+                static fn (Closure|string $middleware): string => $middleware instanceof Closure ? 'Closure' : $middleware,
+                array_values($event->request->route()?->gatherMiddleware() ?? []),
+            ),
             'headers' => $this->headers($event->request->headers->all()),
             'payload' => $this->payload($this->input($event->request)),
             'session' => $this->payload($this->sessionVariables($event->request)),

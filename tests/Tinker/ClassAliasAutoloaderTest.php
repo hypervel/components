@@ -8,8 +8,8 @@ use Hypervel\Tests\TestCase;
 use Hypervel\Tests\Tinker\Fixtures\App\Foo\TinkerBar;
 use Hypervel\Tests\Tinker\Fixtures\Vendor\One\Two\TinkerThree;
 use Hypervel\Tinker\ClassAliasAutoloader;
-use Mockery as m;
 use Psy\Shell;
+use Symfony\Component\Console\Output\BufferedOutput;
 
 class ClassAliasAutoloaderTest extends TestCase
 {
@@ -17,11 +17,18 @@ class ClassAliasAutoloaderTest extends TestCase
 
     protected ?ClassAliasAutoloader $loader = null;
 
+    protected Shell $shell;
+
+    protected BufferedOutput $output;
+
     protected function setUp(): void
     {
         parent::setUp();
 
         $this->classmapPath = __DIR__ . '/Fixtures/Vendor/composer/autoload_classmap.php';
+        $this->output = new BufferedOutput;
+        $this->shell = new Shell;
+        $this->shell->setOutput($this->output);
     }
 
     protected function tearDown(): void
@@ -36,66 +43,59 @@ class ClassAliasAutoloaderTest extends TestCase
     public function testCanAliasClasses(): void
     {
         $this->loader = ClassAliasAutoloader::register(
-            $shell = m::mock(Shell::class),
+            $this->shell,
             $this->classmapPath
         );
 
-        $shell->shouldReceive('writeStdout')
-            ->with("[!] Aliasing 'TinkerBar' to 'Hypervel\\Tests\\Tinker\\Fixtures\\App\\Foo\\TinkerBar' for this Tinker session.\n")
-            ->once();
-
         $this->assertTrue(class_exists('TinkerBar'));
+        $this->assertSame("[!] Aliasing 'TinkerBar' to 'Hypervel\\Tests\\Tinker\\Fixtures\\App\\Foo\\TinkerBar' for this Tinker session.\n", $this->output->fetch());
         $this->assertInstanceOf(TinkerBar::class, new \TinkerBar);
     }
 
     public function testCanExcludeNamespacesFromAliasing(): void
     {
         $this->loader = ClassAliasAutoloader::register(
-            $shell = m::mock(Shell::class),
+            $this->shell,
             $this->classmapPath,
             [],
             ['Hypervel\Tests\Tinker\Fixtures\App\Baz']
         );
 
-        $shell->shouldNotReceive('writeStdout');
-
         $this->assertFalse(class_exists('TinkerQux'));
+        $this->assertSame('', $this->output->fetch());
     }
 
     public function testVendorClassesAreExcluded(): void
     {
         $loader = new ClassAliasAutoloader(
-            $shell = m::mock(Shell::class),
+            $this->shell,
             $this->classmapPath
         );
 
-        $shell->shouldNotReceive('writeStdout');
-
-        // PHP class aliases are permanent, so call the loader directly and let the
-        // Mockery expectation prove this vendor class was excluded.
+        // PHP class aliases are permanent, so call the loader directly instead of
+        // checking class_exists(), which a whitelisting test may already satisfy.
         $loader->aliasClass('TinkerThree');
+
+        $this->assertSame('', $this->output->fetch());
     }
 
     public function testVendorClassesCanBeWhitelisted(): void
     {
         $this->loader = ClassAliasAutoloader::register(
-            $shell = m::mock(Shell::class),
+            $this->shell,
             $this->classmapPath,
             ['Hypervel\Tests\Tinker\Fixtures\Vendor\One\Two']
         );
 
-        $shell->shouldReceive('writeStdout')
-            ->with("[!] Aliasing 'TinkerThree' to 'Hypervel\\Tests\\Tinker\\Fixtures\\Vendor\\One\\Two\\TinkerThree' for this Tinker session.\n")
-            ->once();
-
         $this->assertTrue(class_exists('TinkerThree'));
+        $this->assertSame("[!] Aliasing 'TinkerThree' to 'Hypervel\\Tests\\Tinker\\Fixtures\\Vendor\\One\\Two\\TinkerThree' for this Tinker session.\n", $this->output->fetch());
         $this->assertInstanceOf(TinkerThree::class, new \TinkerThree);
     }
 
     public function testIncludedAliasesMatchClassAndNamespaceBoundaries(): void
     {
         $loader = new ClassAliasAutoloader(
-            m::mock(Shell::class),
+            $this->shell,
             $this->classmapPath,
             ['Acme\Package\Thing\\'],
         );
@@ -109,7 +109,7 @@ class ClassAliasAutoloaderTest extends TestCase
     public function testExcludedAliasesMatchClassAndNamespaceBoundaries(): void
     {
         $loader = new ClassAliasAutoloader(
-            m::mock(Shell::class),
+            $this->shell,
             $this->classmapPath,
             [],
             ['App\Nova\\'],
@@ -123,7 +123,7 @@ class ClassAliasAutoloaderTest extends TestCase
 
     public function testVendorPathsMatchDirectoryBoundaries(): void
     {
-        $loader = new ClassAliasAutoloader(m::mock(Shell::class), $this->classmapPath);
+        $loader = new ClassAliasAutoloader($this->shell, $this->classmapPath);
         $vendorPath = dirname($this->classmapPath, 2);
 
         $this->assertFalse($loader->isAliasable('Vendor\Package\Thing', $vendorPath . '/Package/Thing.php'));

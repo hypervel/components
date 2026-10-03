@@ -43,6 +43,7 @@
     - [Authorizing Presence Channels](#authorizing-presence-channels)
     - [Joining Presence Channels](#joining-presence-channels)
     - [Broadcasting to Presence Channels](#broadcasting-to-presence-channels)
+- [Encrypted Private Channels](#encrypted-private-channels)
 - [Model Broadcasting](#model-broadcasting)
     - [Model Broadcasting Conventions](#model-broadcasting-conventions)
     - [Listening for Model Broadcasts](#listening-for-model-broadcasts)
@@ -170,6 +171,24 @@ BROADCAST_CONNECTION=pusher
 
 Finally, you are ready to install and configure [Laravel Echo](#client-side-installation), which will receive the broadcast events on the client-side.
 
+<a name="pusher-manual-installation-encrypted-private-channels"></a>
+#### Encrypted Private Channels
+
+If you plan to use [end-to-end encrypted private channels](#encrypted-private-channels), you should add an `encryption_master_key_base64` option containing a base64 encoded, 32-byte key to the `pusher` connection's `options` array:
+
+```php
+'options' => [
+    // ...
+    'encryption_master_key_base64' => env('PUSHER_ENCRYPTION_MASTER_KEY'),
+],
+```
+
+You may generate a suitable key using the `openssl` command:
+
+```shell
+openssl rand -base64 32
+```
+
 <a name="ably"></a>
 ### Ably
 
@@ -210,19 +229,24 @@ Finally, you are ready to install and configure [Laravel Echo](#client-side-inst
 <a name="mercure"></a>
 ### Mercure
 
-[Mercure](https://mercure.rocks) is a real-time protocol that uses server-sent events. Hypervel publishes to a standalone Mercure hub over HTTP. To install its dependencies and configure the hub URLs and credentials, run:
+To quickly enable support for Hypervel's broadcasting features while using [Mercure](https://mercure.rocks) as your event broadcaster, invoke the `install:broadcasting` Artisan command with the `--mercure` option. This Artisan command will prompt you for your Mercure credentials, install the required PHP and JavaScript packages, and update your application's `.env` file with the appropriate variables:
 
 ```shell
 php artisan install:broadcasting --mercure
 ```
 
-Alternatively, install the server-side dependencies using Composer:
+Hypervel publishes to a standalone Mercure hub over HTTP.
+
+<a name="mercure-manual-installation"></a>
+#### Manual Installation
+
+To install Mercure support manually, you should install the Symfony Mercure component, the Symfony HTTP client, and the JWT library:
 
 ```shell
-composer require symfony/mercure symfony/http-client web-token/jwt-library
+composer require symfony/mercure:^0.8 symfony/http-client:^8.1 web-token/jwt-library:^4.2.3
 ```
 
-To broadcast events through a Mercure hub, configure the `mercure` connection in your application's `.env` file:
+Next, you should configure the Mercure connection in your application's `.env` file:
 
 ```ini
 BROADCAST_CONNECTION=mercure
@@ -238,7 +262,7 @@ Relative hub URLs resolve against the current request's origin, or `APP_URL` out
 
 For private channels and presence channels, serve the hub under the application's domain or a subdomain so the authorization cookie can reach it. Enable the hub's `subscriptions` directive for presence events and allow your application's origin with `publish_origins` for client events. Configure the hub's CORS settings when browsers connect across origins. For plain-HTTP development, set `MERCURE_COOKIE_NAME=mercure_access_token` and configure the hub to use the same cookie name; the default cookie requires HTTPS.
 
-To use end-to-end encrypted private channels, configure a base64-encoded 32-byte `MERCURE_ENCRYPTION_KEY` environment variable. You may generate a key with:
+To use [end-to-end encrypted private channels](#encrypted-private-channels), configure a base64-encoded 32-byte `MERCURE_ENCRYPTION_KEY` environment variable. You may generate a key with:
 
 ```shell
 php -r "echo base64_encode(random_bytes(32));"
@@ -249,6 +273,8 @@ MERCURE_ENCRYPTION_KEY=<your-base64-encoded-encryption-key>
 ```
 
 Mercure publishing uses pooled HTTP clients so concurrent coroutines do not share an active connection. Network waits yield to other coroutines. You may set Symfony HTTP client options through the connection's `client_options` array and bound concurrent publishing through its [pool configuration](/docs/{{version}}/pools#object-pool-options). Configure the connection during worker boot, not per request.
+
+Finally, you are ready to install and configure [Laravel Echo](#client-side-installation), which will receive the broadcast events on the client-side.
 
 <a name="client-side-installation"></a>
 ## Client Side Installation
@@ -269,7 +295,7 @@ To manually configure Laravel Echo for your application's frontend, first instal
 npm install --save-dev laravel-echo pusher-js
 ```
 
-Once Echo is installed, you are ready to create a fresh Echo instance in your application's JavaScript. A great place to do this is your application's `resources/js/bootstrap.js` file:
+Once Echo is installed, you are ready to create a fresh Echo instance in your application's JavaScript. A great place to do this is at the bottom of your application's `resources/js/app.js` file:
 
 ```js tab=JavaScript
 import Echo from 'laravel-echo';
@@ -353,7 +379,7 @@ To manually configure Laravel Echo for your application's frontend, first instal
 npm install --save-dev laravel-echo pusher-js
 ```
 
-Once Echo is installed, you are ready to create a fresh Echo instance in your application's `resources/js/bootstrap.js` file:
+Once Echo is installed, you are ready to create a fresh Echo instance in your application's `resources/js/app.js` file:
 
 ```js tab=JavaScript
 import Echo from 'laravel-echo';
@@ -481,7 +507,7 @@ npm install --save-dev laravel-echo pusher-js
 
 **Before continuing, you should enable Pusher protocol support in your Ably application settings. You may enable this feature within the "Protocol Adapter Settings" portion of your Ably application's settings dashboard.**
 
-Once Echo is installed, you are ready to create a fresh Echo instance in your application's `resources/js/bootstrap.js` file:
+Once Echo is installed, you are ready to create a fresh Echo instance in your application's `resources/js/app.js` file:
 
 ```js tab=JavaScript
 import Echo from 'laravel-echo';
@@ -852,7 +878,7 @@ The method may also return an enum. Backed enums use their value as the broadcas
 
 If you customize the broadcast name using the `broadcastAs` method, you should make sure to register your listener with a leading `.` character. This will instruct Echo to not prepend the application's namespace to the event:
 
-```javascript
+```js
 .listen('.server.created', function (e) {
     // ...
 });
@@ -915,6 +941,8 @@ public function broadcastQueue(): string
     return 'default';
 }
 ```
+
+If you would like all of your broadcast events to use the same queue without customizing each event class, you may [route the `ShouldBroadcast` contract to a queue](/docs/{{version}}/queues#queue-routing) instead.
 
 If you would like to broadcast your event using the `sync` queue instead of the default queue driver, you can implement the `ShouldBroadcastNow` interface instead of `ShouldBroadcast`:
 
@@ -1683,6 +1711,43 @@ The possible status values are:
 
 </div>
 
+<a name="react-vue-socket-id"></a>
+#### Socket ID
+
+You may retrieve the current WebSocket socket ID using the `useSocketId` hook, which provides a reactive value that automatically updates when the connection reconnects with a new socket ID:
+
+```js tab=React
+import { useSocketId } from "@laravel/echo-react";
+
+function SocketIndicator() {
+    const socketId = useSocketId();
+
+    return <div>Socket ID: {socketId}</div>;
+}
+```
+
+```vue tab=Vue
+<script setup lang="ts">
+import { useSocketId } from "@laravel/echo-vue";
+
+const socketId = useSocketId();
+</script>
+
+<template>
+    <div>Socket ID: {{ socketId }}</div>
+</template>
+```
+
+```svelte tab=Svelte
+<script>
+import { useSocketId } from "@laravel/echo-svelte";
+
+const socketId = useSocketId();
+</script>
+
+<div>Socket ID: {socketId()}</div>
+```
+
 <a name="presence-channels"></a>
 ## Presence Channels
 
@@ -1765,6 +1830,47 @@ Echo.join(`chat.${roomId}`)
     .listen('NewMessage', (e) => {
         // ...
     });
+```
+
+<a name="encrypted-private-channels"></a>
+## Encrypted Private Channels
+
+Private channels ensure that only authorized users may listen on a channel. However, the event data itself still passes through your broadcasting service in plain text. When using Pusher Channels or Mercure, you may use end-to-end encrypted private channels so that only your application and its authorized clients are able to read the event's data.
+
+To get started, configure an encryption key for [Pusher Channels](#pusher-manual-installation-encrypted-private-channels) or [Mercure](#mercure-manual-installation). Then, return an instance of `EncryptedPrivateChannel` from your event's `broadcastOn` method:
+
+```php
+use Hypervel\Broadcasting\EncryptedPrivateChannel;
+
+/**
+ * Get the channels the event should broadcast on.
+ *
+ * @return array<int, \Hypervel\Broadcasting\Channel>
+ */
+public function broadcastOn(): array
+{
+    return [
+        new EncryptedPrivateChannel('orders.'.$this->order->id),
+    ];
+}
+```
+
+Encrypted private channels are authorized exactly like private channels, so an `orders.{orderId}` authorization callback in your application's `routes/channels.php` file will also authorize the encrypted `orders.1` channel.
+
+In your JavaScript application, you may subscribe to the channel using Echo's `encryptedPrivate` method:
+
+```js
+Echo.encryptedPrivate(`orders.${orderId}`)
+    .listen('OrderShipmentStatusUpdated', (e) => {
+        console.log(e.order);
+    });
+```
+
+When using Pusher Channels, the default `pusher-js` build does not include the code needed to decrypt messages. Instead, you should import the `with-encryption` build when [configuring Echo](#pusher-client-manual-installation):
+
+```js
+import Pusher from 'pusher-js/with-encryption';
+window.Pusher = Pusher;
 ```
 
 <a name="model-broadcasting"></a>

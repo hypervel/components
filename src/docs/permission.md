@@ -1548,7 +1548,6 @@ Configuration and context failures use focused exceptions:
 - Hypervel accepts pure unit enums anywhere enum names are valid role or permission inputs. Backed enums use their values; unit enums use their case names.
 - Hypervel adds opt-in generic row partitioning through `PermissionRegistrar::resolvePartitionUsing(...)`. It scopes model lifecycle operations, every package relation and pivot, queries, commands, cache identities, and invalidation without depending on any partition domain.
 - Hypervel's cache config uses `expiration_seconds` and separate named cache keys so role, model-role, model-permission, and assignment-token caches can be invalidated independently.
-- Undefined `permission.cache.store` values fail fast through Hypervel's cache manager instead of silently falling back to an array store.
 
 <a name="credits"></a>
 ## Credits
