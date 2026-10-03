@@ -5,7 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Scout\Meilisearch;
 
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Scout\Builder;
+use Hypervel\Scout\Engines\MeilisearchEngine;
 use Hypervel\Scout\Jobs\RemoveFromSearch;
+use Hypervel\Scout\Searchable;
 use Hypervel\Tests\Scout\Fixtures\Models\CustomScoutKeyModel;
 use Hypervel\Tests\Scout\Fixtures\Models\SearchableModel;
 use Meilisearch\Client;
@@ -191,6 +195,47 @@ class MeilisearchEngineIntegrationTest extends MeilisearchScoutIntegrationTestCa
         $this->assertSame(10, $page1->total());
     }
 
+    public function testItCanUseUserProvidedEmbeddingsForSemanticSearch(): void
+    {
+        $model = new MeilisearchEmbeddingModel;
+
+        $task = $this->meilisearch->index($model->indexableAs())->updateEmbedders([
+            'default' => [
+                'source' => 'userProvided',
+                'dimensions' => 2,
+            ],
+        ]);
+        $this->meilisearch->waitForTask($task['taskUid']);
+
+        $engine = new MeilisearchEngine($this->meilisearch, false, [
+            'model-settings' => [
+                MeilisearchEmbeddingModel::class => [
+                    'embedding' => [
+                        'embedder' => 'default',
+                        'dimensions' => 2,
+                    ],
+                ],
+            ],
+        ]);
+
+        $cat = new MeilisearchEmbeddingModel(['id' => 1, 'name' => 'A sleeping cat']);
+        $cat->setAttribute('embedding', [1, 0]);
+
+        $rocket = new MeilisearchEmbeddingModel(['id' => 2, 'name' => 'A rocket launch']);
+        $rocket->setAttribute('embedding', [0, 1]);
+
+        $engine->update($model->newCollection([$cat, $rocket]));
+        $this->waitForMeilisearchTasks();
+
+        $results = $engine->search(
+            (new Builder($model, 'a relaxed pet'))
+                ->options(['vector' => [1, 0]])
+                ->semantic()
+        );
+
+        $this->assertSame(1, $results['hits'][0]['id']);
+    }
+
     public function testFlushRemovesAllDocumentsFromIndex(): void
     {
         $models = new EloquentCollection([
@@ -287,5 +332,32 @@ class MeilisearchEngineIntegrationTest extends MeilisearchScoutIntegrationTestCa
         $keys = SearchableModel::search('')->keys();
 
         $this->assertCount(2, $keys);
+    }
+}
+
+class MeilisearchEmbeddingModel extends Model
+{
+    use Searchable;
+
+    protected array $fillable = ['id', 'name'];
+
+    public bool $timestamps = false;
+
+    /**
+     * Get the index name for the model when searching.
+     */
+    public function searchableAs(): string
+    {
+        return config()->string('scout.prefix') . 'semantic';
+    }
+
+    /**
+     * Get the precomputed vector to index.
+     *
+     * @return array<int, float|int>
+     */
+    public function toSearchableEmbedding(): array
+    {
+        return $this->embedding;
     }
 }

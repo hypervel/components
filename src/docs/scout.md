@@ -18,6 +18,7 @@
     - [Meilisearch](#meilisearch-configuration)
         - [Tenant Tokens](#meilisearch-tenant-tokens)
     - [Typesense](#typesense-configuration)
+    - [Turbopuffer](#turbopuffer-configuration)
 - [Third-Party Engine Indexing](#indexing)
     - [Batch Import](#batch-import)
     - [Adding Records](#adding-records)
@@ -28,6 +29,7 @@
 - [Searching](#searching)
     - [Where Clauses](#where-clauses)
     - [Combining Raw and Builder Filters](#combining-raw-and-builder-filters)
+    - [Semantic Search](#semantic-search)
     - [Pagination](#pagination)
     - [Soft Deleting](#soft-deleting)
     - [Customizing Engine Searches](#customizing-engine-searches)
@@ -40,7 +42,7 @@
 
 Scout ships with a built-in `database` engine that uses MySQL / PostgreSQL full-text indexes and `LIKE` clauses to search your existing database — no external service required. For most applications, this is all you need. For an overview of all search options available in Hypervel, consult the [search documentation](/docs/{{version}}/search).
 
-Scout also includes drivers for [Algolia](https://www.algolia.com/), [Meilisearch](https://www.meilisearch.com), and [Typesense](https://typesense.org) when you need features like typo tolerance, faceted filtering, or geo-search at massive scale. A "collection" driver is also available for local development, and you are free to write [custom engines](#custom-engines) as well.
+Scout also includes drivers for [Algolia](https://www.algolia.com/), [Meilisearch](https://www.meilisearch.com), [Typesense](https://typesense.org), and [Turbopuffer](https://turbopuffer.com) when you need features like typo tolerance, faceted filtering, vector search, or geo-search at massive scale. A "collection" driver is also available for local development, and you are free to write [custom engines](#custom-engines) as well.
 
 <a name="installation"></a>
 ## Installation
@@ -209,6 +211,19 @@ TYPESENSE_PROTOCOL=http
 
 Additional settings and schema definitions for your Typesense collections can be found within your application's `config/scout.php` configuration file. For more information regarding Typesense, please consult the [Typesense documentation](https://typesense.org/docs/guide/#quick-start).
 
+<a name="turbopuffer"></a>
+### Turbopuffer
+
+[Turbopuffer](https://turbopuffer.com) is a search engine that supports full-text, semantic, and hybrid search. To use the Turbopuffer driver, set the `SCOUT_DRIVER` environment variable and provide your Turbopuffer API key:
+
+```ini
+SCOUT_DRIVER=turbopuffer
+TURBOPUFFER_API_KEY=tpuf_...
+TURBOPUFFER_REGION=gcp-us-central1
+```
+
+The `TURBOPUFFER_REGION` environment variable is optional and defaults to `gcp-us-central1`.
+
 <a name="configuration"></a>
 ## Configuration
 
@@ -321,7 +336,7 @@ Scout::guardModelFlushUsing(function (Model $model, Engine $engine, bool $force)
 });
 ```
 
-Registering a callback replaces the previously registered callback for that lifecycle. Builder preparation runs once before each terminal Scout search and before filtered deletion through `DeletesByFilter`. Document preparation receives the final document, including Scout metadata and its engine key. Settings preparation runs for `scout:index`, `scout:sync-index-settings`, and lazy Typesense collection creation.
+Registering a callback replaces the previously registered callback for that lifecycle. Builder preparation runs once before each terminal Scout search and before filtered deletion through `DeletesByFilter`. Document preparation receives the final document, including Scout metadata, its engine key, and any embedding Scout adds. Settings preparation runs for `scout:index`, `scout:sync-index-settings`, lazy Typesense collection creation, and the `schema` and `distance_metric` settings Scout sends with each Turbopuffer write.
 
 > [!WARNING]
 > Lifecycle callbacks persist for the worker lifetime. Register them only during application boot and do not capture request-scoped state. Arbitrary direct engine and search SDK calls remain low-level operations and do not invoke these callbacks automatically; `DeletesByFilter::deleteByFilter` is an explicit prepared Builder terminal.
@@ -620,6 +635,80 @@ After configuring your application's index settings, you must invoke the `scout:
 php artisan scout:sync-index-settings
 ```
 
+<a name="meilisearch-semantic-and-hybrid-search"></a>
+#### Semantic and Hybrid Search
+
+To use semantic or hybrid search with Meilisearch, configure an embedder in the index settings and embedding settings for each searchable model:
+
+```php
+'meilisearch' => [
+    // ...
+    'index-settings' => [
+        Article::class => [
+            'embedders' => [
+                'default' => [
+                    'source' => 'userProvided',
+                    'dimensions' => 1536,
+                ],
+            ],
+        ],
+    ],
+    'model-settings' => [
+        Article::class => [
+            'embedding' => [
+                'embedder' => 'default',
+                'dimensions' => 1536,
+            ],
+        ],
+    ],
+],
+```
+
+The model's `toSearchableEmbedding` method should return the record's precomputed embedding, which Scout adds to the indexed document. After updating the configuration, run the `scout:sync-index-settings` command:
+
+```php
+/**
+ * Get the embedding for the model.
+ *
+ * @return array<int, float>
+ */
+public function toSearchableEmbedding(): array
+{
+    return $this->embedding;
+}
+```
+
+Scout does not generate embeddings, so provide each semantic or hybrid search's [query embedding](#semantic-search) using the `vector` search option.
+
+Alternatively, you may use Meilisearch's native embeddings by setting the embedding `driver` to `meilisearch`. In this mode, Meilisearch generates document and query embeddings using the configured embedder, so the `dimensions` option and `toSearchableEmbedding` method are not required:
+
+```php
+'meilisearch' => [
+    'index-settings' => [
+        Article::class => [
+            'embedders' => [
+                'default' => [
+                    'source' => 'openAi',
+                    'apiKey' => env('OPENAI_API_KEY'),
+                    'model' => 'text-embedding-3-small',
+                    'documentTemplate' => 'An article titled {{ doc.title }}: {{ doc.body }}',
+                ],
+            ],
+        ],
+    ],
+    'model-settings' => [
+        Article::class => [
+            'embedding' => [
+                'embedder' => 'default',
+                'driver' => 'meilisearch',
+            ],
+        ],
+    ],
+],
+```
+
+When using native embeddings, Scout will not add vectors to indexed documents. You may still provide a precomputed query vector using the `vector` search option.
+
 <a name="meilisearch-data-types"></a>
 #### Searchable Data Types
 
@@ -709,6 +798,65 @@ User::class => [
 ],
 ```
 
+<a name="typesense-embeddings"></a>
+#### Embeddings
+
+To enable semantic and hybrid search, define an `embedding` setting and vector field in the model's Typesense configuration:
+
+```php
+use App\Models\Article;
+
+'model-settings' => [
+    Article::class => [
+        'collection-schema' => [
+            'fields' => [
+                ['name' => 'title', 'type' => 'string'],
+                ['name' => 'embedding', 'type' => 'float[]', 'num_dim' => 1536],
+            ],
+        ],
+        'search-parameters' => ['query_by' => 'title'],
+        'embedding' => [
+            'attribute' => 'embedding',
+            'dimensions' => 1536,
+        ],
+    ],
+],
+```
+
+Your model's `toSearchableEmbedding` method should return the record's precomputed embedding array. Scout does not generate embeddings, so provide each semantic or hybrid search's [query embedding](#semantic-search) using the `vector` search option:
+
+```php
+public function toSearchableEmbedding(): array
+{
+    return $this->embedding;
+}
+```
+
+Alternatively, Typesense may generate document and query embeddings itself using an [auto-embedding field](https://typesense.org/docs/latest/api/vector-search.html). Set the embedding `driver` to `typesense` and define the field's `embed` configuration in the collection schema. Native embeddings do not require a `toSearchableEmbedding` method:
+
+```php
+'collection-schema' => [
+    'fields' => [
+        ['name' => 'title', 'type' => 'string'],
+        [
+            'name' => 'embedding',
+            'type' => 'float[]',
+            'embed' => [
+                'from' => ['title'],
+                'model_config' => ['model_name' => 'ts/all-MiniLM-L12-v2'],
+            ],
+        ],
+    ],
+],
+'search-parameters' => ['query_by' => 'title'],
+'embedding' => [
+    'driver' => 'typesense',
+    'attribute' => 'embedding',
+],
+```
+
+Hybrid searches require at least one keyword field in the `query_by` search parameter.
+
 <a name="typesense-dynamic-search-parameters"></a>
 #### Dynamic Search Parameters
 
@@ -726,11 +874,86 @@ Scout owns the `page` and `per_page` parameters used by Typesense. Choose the re
 
 Typesense accepts between 1 and 250 results per paginator page. Scout rejects values outside that range before sending the search request.
 
+<a name="turbopuffer-configuration"></a>
+### Turbopuffer
+
+Turbopuffer requires a schema and searchable attributes for each model. Define them in the `model-settings` array of your `turbopuffer` configuration within the `scout` configuration file:
+
+```php
+use App\Models\Article;
+
+'turbopuffer' => [
+    // ...
+    'model-settings' => [
+        Article::class => [
+            'searchable-attributes' => [
+                'title' => 3,
+                'body' => 1,
+            ],
+            'schema' => [
+                'title' => ['type' => 'string', 'full_text_search' => true],
+                'body' => ['type' => 'string', 'full_text_search' => true],
+                'status' => ['type' => 'string'],
+            ],
+        ],
+    ],
+],
+```
+
+The numeric values assigned to `searchable-attributes` are relative BM25 weights. In the example above, matches in the article title contribute three times the score of matches in the body.
+
+To enable semantic and hybrid search, use Turbopuffer's native embeddings. Set the embedding `driver` to `turbopuffer` and configure an `embed` schema on the searchable source attribute:
+
+```php
+'embedding' => [
+    'driver' => 'turbopuffer',
+    'attribute' => 'embedding_text',
+],
+
+'schema' => [
+    // ...
+    'embedding_text' => [
+        'type' => 'string',
+        'embed' => [
+            'model' => 'voyage/voyage-4',
+            'dimensions' => 1024,
+            'attribute' => 'embedding',
+        ],
+    ],
+],
+```
+
+The source attribute must be included in the model's `toSearchableArray` output.
+
+You may also index precomputed embeddings by adding an `embedding` setting and vector schema to the model's configuration, then returning the embedding array from the model's `toSearchableEmbedding` method:
+
+```php
+'embedding' => [
+    'attribute' => 'embedding',
+    'dimensions' => 1536,
+],
+
+'schema' => [
+    // ...
+    'embedding' => ['type' => '[1536]f32', 'ann' => true],
+],
+```
+
+Since Scout does not generate query embeddings, search precomputed embeddings by passing a Turbopuffer `rank_by` expression to the `options` method rather than using the `semantic` and `hybrid` methods:
+
+```php
+$articles = Article::search()
+    ->options(['rank_by' => ['embedding', 'ANN', $queryEmbedding]])
+    ->get();
+```
+
+Scout pages through Turbopuffer results by fetching the requested window, so paginated searches may not go beyond 10,000 results.
+
 <a name="indexing"></a>
 ## Third-Party Engine Indexing
 
 > [!NOTE]
-> The indexing features described in this section are primarily relevant when using a third-party engine (Algolia, Meilisearch, or Typesense). The database engine searches your database tables directly, so it does not require manual index management.
+> The indexing features described in this section are primarily relevant when using a third-party engine (Algolia, Meilisearch, Typesense, or Turbopuffer). The database engine searches your database tables directly, so it does not require manual index management.
 
 <a name="batch-import"></a>
 ### Batch Import
@@ -946,7 +1169,7 @@ The optional `force` argument is passed to any registered [model-flush guard](#c
 Order::removeAllFromSearch(force: true);
 ```
 
-Algolia, Meilisearch, and Typesense can also delete only the documents matched by a Scout Builder:
+Algolia, Meilisearch, Typesense, and Turbopuffer can also delete only the documents matched by a Scout Builder:
 
 ```php
 use App\Models\Order;
@@ -965,7 +1188,7 @@ $engine->deleteByFilter($builder);
 
 Filtered deletion refuses an empty filter. It uses an explicit `within` index when provided and otherwise targets the model's writable `indexableAs` index. A missing target index is a successful no-op. The method returns only after the engine reports completion; SDK timeout and transport exceptions are not hidden.
 
-Since Algolia and Meilisearch perform these deletions asynchronously, Scout waits for them to finish before returning. Large deletions may take several minutes; Meilisearch waits up to 500 seconds and checks every five seconds, so long deletions should run in a queued job or console command instead of a web request. Typesense deletes synchronously.
+Since Algolia and Meilisearch perform these deletions asynchronously, Scout waits for them to finish before returning. Large deletions may take several minutes; Meilisearch waits up to 500 seconds and checks every five seconds, so long deletions should run in a queued job or console command instead of a web request. Typesense deletes synchronously. Turbopuffer limits how many documents each request may delete, so Scout repeats the request until no matching documents remain.
 
 <a name="pausing-indexing"></a>
 ### Pausing Indexing
@@ -1135,7 +1358,7 @@ When using Algolia, Scout preserves the type of each filter value. Pass integers
 <a name="combining-raw-and-builder-filters"></a>
 ### Combining Raw and Builder Filters
 
-Algolia, Meilisearch, and Typesense preserve a raw application filter supplied through `options` when you also add Scout `where` clauses. Scout groups the application expression with its compiled Builder expression so neither side changes the other's precedence:
+Algolia, Meilisearch, Typesense, and Turbopuffer preserve a raw application filter supplied through `options` when you also add Scout `where` clauses. Scout groups the application expression with its compiled Builder expression so neither side changes the other's precedence:
 
 ```php
 Order::search('Star Trek')
@@ -1144,7 +1367,7 @@ Order::search('Star Trek')
     ->get();
 ```
 
-Use `filter` for Meilisearch and `filter_by` for Typesense. Meilisearch array filters retain their documented nested OR and outer AND structure; Scout appends its Builder expression as one additional outer AND term. Engine search callbacks receive the final composed options.
+Use `filter` for Meilisearch, `filter_by` for Typesense, and `filters` for Turbopuffer. Meilisearch array filters retain their documented nested OR and outer AND structure; Scout appends its Builder expression as one additional outer AND term. Engine search callbacks receive the final composed options.
 
 <a name="customizing-the-eloquent-results-query"></a>
 #### Customizing the Eloquent Results Query
@@ -1161,6 +1384,46 @@ $orders = Order::search('Star Trek')
 ```
 
 When using a third-party engine, this callback is invoked after the relevant models have already been retrieved from the search engine, so it should not be used for "filtering" results — use [Scout where clauses](#where-clauses) instead. However, when using the database engine, the `query` method's constraints are applied directly to the database query, so you may use it for filtering as well.
+
+<a name="semantic-search"></a>
+### Semantic Search
+
+The Meilisearch, Typesense, and Turbopuffer engines support semantic search, which matches records based on the meaning of a query. Scout does not generate embeddings, so semantic and hybrid searches use [Meilisearch's](#meilisearch-semantic-and-hybrid-search), [Typesense's](#typesense-embeddings), or [Turbopuffer's](#turbopuffer-configuration) native embeddings, or a precomputed query vector on Meilisearch and Typesense.
+
+After configuring embeddings for the selected engine, invoke the `semantic` method on a search query:
+
+```php
+$articles = Article::search('staying cool in the summer')
+    ->semantic()
+    ->get();
+```
+
+When the engine searches precomputed embeddings, provide the query's embedding using the `vector` option:
+
+```php
+$articles = Article::search('staying cool in the summer')
+    ->options(['vector' => $queryEmbedding])
+    ->semantic()
+    ->get();
+```
+
+When using Meilisearch or Typesense, you may provide a minimum similarity threshold between `0` and `1`. Turbopuffer does not support similarity thresholds and ignores this argument:
+
+```php
+$articles = Article::search('renewable energy storage')
+    ->semantic(minSimilarity: 0.6)
+    ->get();
+```
+
+To combine full-text and semantic search, use the `hybrid` method. Its first two arguments control the relative weights of text and semantic results:
+
+```php
+$articles = Article::search('renewable energy storage')
+    ->hybrid(textWeight: 1, semanticWeight: 2)
+    ->get();
+```
+
+Engines without semantic search support throw a `NotSupportedException` for semantic searches and perform a normal full-text search for hybrid searches.
 
 <a name="pagination"></a>
 ### Pagination

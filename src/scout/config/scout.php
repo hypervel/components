@@ -12,7 +12,8 @@ return [
     | using Scout. This connection is used when syncing all models to the
     | search service. You should adjust this based on your needs.
     |
-    | Supported: "algolia", "meilisearch", "typesense", "database", "collection", "null"
+    | Supported: "algolia", "meilisearch", "typesense", "turbopuffer",
+    |            "database", "collection", "null"
     |
     */
 
@@ -197,6 +198,21 @@ return [
             // 'users' => [
             //     'filterableAttributes' => ['id', 'name', 'email'],
             //     'sortableAttributes' => ['created_at'],
+            //     'embedders' => [
+            //         'default' => [
+            //             'source' => 'userProvided',
+            //             'dimensions' => 1536,
+            //         ],
+            //     ],
+            // ],
+        ],
+        'model-settings' => [
+            // Per-model settings can be defined here:
+            // App\Models\User::class => [
+            //     'embedding' => [
+            //         'embedder' => 'default',
+            //         'dimensions' => 1536,
+            //     ],
             // ],
         ],
     ],
@@ -250,8 +266,52 @@ return [
             //     'search-parameters' => [
             //         'query_by' => 'name',
             //     ],
+            //     'embedding' => [
+            //         'attribute' => 'embedding',
+            //         'dimensions' => 1536,
+            //     ],
             // ],
         ],
         'import_action' => env('TYPESENSE_IMPORT_ACTION', 'upsert'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Turbopuffer Configuration
+    |--------------------------------------------------------------------------
+    |
+    | Here you may configure your Turbopuffer connection and the schema and
+    | searchable attributes defined by each of your application's models.
+    | Turbopuffer is a scalable engine with full-text and vector search.
+    | Timeouts are measured in seconds. Omitted region, timeout, and retry
+    | members use the values shown below.
+    |
+    */
+
+    'turbopuffer' => [
+        'api_key' => env('TURBOPUFFER_API_KEY'),
+        'region' => env('TURBOPUFFER_REGION', 'gcp-us-central1'),
+        'base_url' => env('TURBOPUFFER_BASE_URL'),
+        'timeout' => (int) env('TURBOPUFFER_TIMEOUT', 60),
+        'connect_timeout' => (int) env('TURBOPUFFER_CONNECT_TIMEOUT', 5),
+        'retries' => (int) env('TURBOPUFFER_RETRIES', 3),
+        'model-settings' => [
+            // Per-model settings can be defined here:
+            // App\Models\User::class => [
+            //     'searchable-attributes' => [
+            //         'name' => 2,
+            //         'email' => 1,
+            //     ],
+            //     'embedding' => [
+            //         'attribute' => 'embedding',
+            //         'dimensions' => 1536,
+            //     ],
+            //     'schema' => [
+            //         'name' => ['type' => 'string', 'full_text_search' => true],
+            //         'email' => ['type' => 'string', 'full_text_search' => true],
+            //         'embedding' => ['type' => '[1536]f32', 'ann' => true],
+            //     ],
+            // ],
+        ],
     ],
 ];

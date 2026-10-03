@@ -17,7 +17,10 @@ use Hypervel\Pagination\Paginator;
 use Hypervel\Scout\Contracts\PaginatesEloquentModels;
 use Hypervel\Scout\Contracts\PaginatesEloquentModelsUsingDatabase;
 use Hypervel\Scout\Contracts\SearchableInterface;
+use Hypervel\Scout\Contracts\SupportsSemanticSearch;
 use Hypervel\Scout\Engines\Engine;
+use Hypervel\Scout\Exceptions\NotSupportedException;
+use Hypervel\Scout\Exceptions\ScoutException;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Support\Traits\Conditionable;
@@ -99,6 +102,23 @@ class Builder
      * @var array<array{column: string, direction: string}>
      */
     public array $orders = [];
+
+    /**
+     * Indicates that the query should use semantic search.
+     */
+    public bool $semanticSearch = false;
+
+    /**
+     * The minimum similarity for semantic search results.
+     */
+    public float|int|null $minimumSimilarity = null;
+
+    /**
+     * The hybrid search ranking weights.
+     *
+     * @var null|array{text_weight: float|int, semantic_weight: float|int}
+     */
+    public ?array $hybridSearch = null;
 
     /**
      * Extra options that should be applied to the search.
@@ -287,6 +307,53 @@ class Builder
         $column ??= $this->model->getCreatedAtColumn() ?? 'created_at';
 
         return $this->orderBy($column, 'asc');
+    }
+
+    /**
+     * Perform a semantic search for the query expression.
+     *
+     * @return $this
+     */
+    public function semantic(float|int|null $minSimilarity = null): static
+    {
+        if (trim($this->query) === '') {
+            throw new ScoutException('Semantic searches require a non-empty query.');
+        }
+
+        $this->semanticSearch = true;
+        $this->minimumSimilarity = $minSimilarity;
+        $this->hybridSearch = null;
+
+        return $this;
+    }
+
+    /**
+     * Perform a hybrid full-text and semantic search for the query expression.
+     *
+     * @return $this
+     */
+    public function hybrid(
+        float|int $textWeight = 1,
+        float|int $semanticWeight = 1,
+        float|int|null $minSimilarity = null
+    ): static {
+        if (trim($this->query) === '') {
+            throw new ScoutException('Hybrid searches require a non-empty query.');
+        }
+
+        if ($textWeight <= 0 || $semanticWeight <= 0) {
+            throw new ScoutException('Hybrid search weights must be positive numbers.');
+        }
+
+        $this->semanticSearch = false;
+        $this->minimumSimilarity = $minSimilarity;
+
+        $this->hybridSearch = [
+            'text_weight' => $textWeight,
+            'semantic_weight' => $semanticWeight,
+        ];
+
+        return $this;
     }
 
     /**
@@ -619,6 +686,11 @@ class Builder
         $engine = $this->engine();
 
         Scout::prepareBuilder($this, $engine);
+
+        // Check after preparation because the callback may enable semantic search.
+        if ($this->semanticSearch && ! $engine instanceof SupportsSemanticSearch) {
+            throw new NotSupportedException('The configured Scout engine does not support semantic search.');
+        }
 
         return $engine;
     }
