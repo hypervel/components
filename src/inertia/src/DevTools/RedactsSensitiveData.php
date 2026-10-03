@@ -50,7 +50,7 @@ trait RedactsSensitiveData
         // Keys are redacted only within application values. A configured key such as id or name
         // can also name part of the entry's own structure: its metadata, route and source
         // details, the props map (each prop's metadata, keyed by prop path) and each captured
-        // body's status. The metadata's URLs still have their sensitive query parameters redacted.
+        // body's status. The metadata's URLs are request data, so the URL pass below still covers them.
         $payload = array_replace($payload, $this->redact(
             Arr::except($payload, ['__meta', 'props', 'route', 'renderSource', 'componentPath', 'http']),
             $keys,
@@ -161,7 +161,8 @@ trait RedactsSensitiveData
                 }
 
                 if (is_string($value) && is_string($key) && in_array(strtolower($key), ['url', 'redirectlocation'], true)) {
-                    return $this->redactUrl($value, $lowered);
+                    // A URL is request data, so one stored under a configured key is redacted whole.
+                    return in_array(strtolower($key), $lowered, true) ? self::REDACTED : $this->redactUrl($value, $lowered);
                 }
 
                 return $value;

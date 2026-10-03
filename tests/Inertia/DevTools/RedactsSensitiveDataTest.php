@@ -156,6 +156,21 @@ class RedactsSensitiveDataTest extends TestCase
         $this->assertSame(['enabled' => false, 'limit' => 5], $redacted['propValues']['requestHeaders']);
     }
 
+    public function testStoragePayloadRedactsEntryUrlsWholeUnderAConfiguredKey(): void
+    {
+        config()->set('inertia.devtools.redact.keys', ['url', 'token']);
+
+        $redacted = $this->redactor->exposeRedactSensitiveStoragePayload([
+            '__meta' => [
+                'url' => '/reset-password/secret-token',
+                'redirectLocation' => '/login?token=abc',
+            ],
+        ]);
+
+        $this->assertSame('[REDACTED]', $redacted['__meta']['url']);
+        $this->assertSame('/login?token=%5BREDACTED%5D', $redacted['__meta']['redirectLocation']);
+    }
+
     public function testStoragePayloadRedactsResponseBodiesCustomKeysUploadsInvalidUtf8AndLargeArrays(): void
     {
         config()->set('inertia.devtools.redact.keys', ['password', 'token', 'client_secret', 'internal_flag']);
