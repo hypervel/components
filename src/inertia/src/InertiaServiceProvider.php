@@ -4,17 +4,22 @@ declare(strict_types=1);
 
 namespace Hypervel\Inertia;
 
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Http\Kernel as HttpKernelContract;
+use Hypervel\Http\Client\Factory as HttpFactory;
 use Hypervel\Http\RedirectResponse;
 use Hypervel\Http\Request;
+use Hypervel\Inertia\DevTools\DevTools;
+use Hypervel\Inertia\DevTools\DevToolsServiceProvider;
+use Hypervel\Inertia\DevTools\SourceLocator;
 use Hypervel\Inertia\Ssr\Gateway;
 use Hypervel\Inertia\Ssr\HttpGateway;
 use Hypervel\Inertia\Support\Header;
 use Hypervel\Inertia\Testing\TestResponseMacros;
 use Hypervel\Routing\Router;
-use Hypervel\Support\Facades\Blade;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Testing\TestResponse;
+use Hypervel\View\Compilers\BladeCompiler;
 use Hypervel\View\FileViewFinder;
 use LogicException;
 
@@ -42,6 +47,7 @@ class InertiaServiceProvider extends ServiceProvider
         $this->registerRouterMacro();
         $this->registerTestingMacros();
         $this->registerMiddleware();
+        $this->app->register(DevToolsServiceProvider::class);
 
         $this->app->singleton('inertia.view-finder', function ($app) {
             $config = $app->make('config');
@@ -57,10 +63,16 @@ class InertiaServiceProvider extends ServiceProvider
     /**
      * Boot the service provider.
      */
-    public function boot(): void
+    public function boot(HttpFactory $http, Repository $config): void
     {
         $this->registerConsoleCommands();
         $this->pushRedirectMiddleware();
+
+        // A null timeout is left out so the HTTP client's global options apply.
+        $http->registerConnection(HttpGateway::CONNECTION, array_filter([
+            'connect_timeout' => $config->get('inertia.ssr.connect_timeout', 2.0),
+            'timeout' => $config->get('inertia.ssr.timeout', 5.0),
+        ], fn (mixed $timeout): bool => $timeout !== null));
 
         $this->publishes([
             __DIR__ . '/../config/inertia.php' => config_path('inertia.php'),
@@ -82,8 +94,8 @@ class InertiaServiceProvider extends ServiceProvider
      */
     protected function registerBladeComponents(): void
     {
-        $this->callAfterResolving('blade.compiler', function () {
-            Blade::componentNamespace('Hypervel\Inertia\View\Components', 'inertia');
+        $this->callAfterResolving('blade.compiler', function (BladeCompiler $blade): void {
+            $blade->componentNamespace('Hypervel\Inertia\View\Components', 'inertia');
         });
     }
 
@@ -150,9 +162,19 @@ class InertiaServiceProvider extends ServiceProvider
          * @param  array<array-key, mixed>  $props
          */
         Router::macro('inertia', function ($uri, $component, $props = []) {
-            return $this->match(['GET', 'HEAD'], $uri, '\\' . Controller::class)
+            $route = $this->match(['GET', 'HEAD'], $uri, '\\' . Controller::class)
                 ->defaults('component', $component)
                 ->defaults('props', $props);
+
+            if (DevTools::enabled()) {
+                $source = app(SourceLocator::class)->captureCallerSource();
+
+                if ($source !== null) {
+                    $route->defaults(DevTools::RENDER_SOURCE_KEY, $source);
+                }
+            }
+
+            return $route;
         });
     }
 

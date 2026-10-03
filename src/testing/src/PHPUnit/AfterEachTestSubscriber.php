@@ -381,6 +381,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
      */
     protected function flushInertiaState(): void
     {
+        $this->callIfExists(\Hypervel\Inertia\DevTools\EntryStore::class, 'flushState');
         $this->callIfExists(\Hypervel\Inertia\Middleware::class, 'flushState');
         $this->callIfExists(\Hypervel\Inertia\Response::class, 'flushState');
         $this->callIfExists(\Hypervel\Inertia\ResponseFactory::class, 'flushState');

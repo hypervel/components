@@ -10,7 +10,10 @@ use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Http\Kernel;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Foundation\Exceptions\Handler as ExceptionHandler;
+use Hypervel\Http\RedirectResponse;
 use Hypervel\Http\Request as HttpRequest;
+use Hypervel\Inertia\DevTools\DevTools;
+use Hypervel\Inertia\Ssr\ConfiguresSsrRequests;
 use Hypervel\Inertia\Ssr\DisablesSsr;
 use Hypervel\Inertia\Ssr\ExcludesSsrPaths;
 use Hypervel\Inertia\Ssr\Gateway;
@@ -25,7 +28,7 @@ use Hypervel\Support\Facades\Response as BaseResponse;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
 use LogicException;
-use Symfony\Component\HttpFoundation\RedirectResponse;
+use Symfony\Component\HttpFoundation\RedirectResponse as SymfonyRedirectResponse;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use UnitEnum;
 
@@ -64,12 +67,16 @@ class ResponseFactory
 
         if (is_array($key)) {
             $state->sharedProps = array_merge($state->sharedProps, $key);
+            DevTools::recorder()?->propsShared(array_keys($key));
         } elseif ($key instanceof Arrayable) {
-            $state->sharedProps = array_merge($state->sharedProps, $key->toArray());
+            $resolved = $key->toArray();
+            $state->sharedProps = array_merge($state->sharedProps, $resolved);
+            DevTools::recorder()?->propsShared(array_keys($resolved));
         } elseif ($key instanceof ProvidesInertiaProperties) {
             $state->sharedProps = array_merge($state->sharedProps, [$key]);
         } else {
             Arr::set($state->sharedProps, $key, $value);
+            DevTools::recorder()?->propsShared([(string) $key]);
         }
     }
 
@@ -94,7 +101,10 @@ class ResponseFactory
      */
     public function flushShared(): void
     {
-        $this->state()->sharedProps = [];
+        $state = $this->state();
+
+        $state->sharedProps = [];
+        $state->shareSources = [];
     }
 
     /**
@@ -187,6 +197,20 @@ class ResponseFactory
         }
 
         $gateway->except($paths);
+    }
+
+    /**
+     * Configure the HTTP request that is sent to the SSR server.
+     */
+    public function configureSsrRequestUsing(?Closure $callback = null): void
+    {
+        $gateway = app(Gateway::class);
+
+        if (! $gateway instanceof ConfiguresSsrRequests) {
+            throw new LogicException('The configured SSR gateway does not support configuring server-side rendering requests.');
+        }
+
+        $gateway->configureRequestUsing($callback);
     }
 
     /**
@@ -319,7 +343,7 @@ class ResponseFactory
 
         $state = $this->state();
 
-        return new Response(
+        $response = new Response(
             $component,
             $state->sharedProps,
             $props,
@@ -328,18 +352,22 @@ class ResponseFactory
             $state->encryptHistory ?? config()->boolean('inertia.history.encrypt', false),
             $state->urlResolver,
         );
+
+        DevTools::recorder()?->pageRendering($component, $response);
+
+        return $response;
     }
 
     /**
      * Create an Inertia location response.
      */
-    public function location(string|RedirectResponse $url): SymfonyResponse
+    public function location(string|SymfonyRedirectResponse $url): SymfonyResponse
     {
         if (Request::inertia()) {
-            return BaseResponse::make('', 409, [Header::LOCATION => $url instanceof RedirectResponse ? $url->getTargetUrl() : $url]);
+            return BaseResponse::make('', 409, [Header::LOCATION => $url instanceof SymfonyRedirectResponse ? $url->getTargetUrl() : $url]);
         }
 
-        return $url instanceof RedirectResponse ? $url : Redirect::away($url);
+        return $url instanceof SymfonyRedirectResponse ? $url : Redirect::away($url);
     }
 
     /**
@@ -415,7 +443,7 @@ class ResponseFactory
      *
      * @param array<string, string> $headers
      */
-    public function back(int $status = 302, array $headers = [], mixed $fallback = false): RedirectResponse
+    public function back(int $status = 302, array $headers = [], bool|string $fallback = false): RedirectResponse
     {
         return Redirect::back($status, $headers, $fallback);
     }

@@ -35,7 +35,7 @@
         "ext-filter": "*",
         "ext-mbstring": "*",
         "ext-swoole": "^6.2.2",
-        "guzzlehttp/guzzle": "^7.15.1 || ^8.2",
+        "guzzlehttp/guzzle": "^7.15.2 || ^8.2",
         "guzzlehttp/promises": "^2.5.2 || ^3.0.2",
         "hypervel/cache": "^0.4",
         "hypervel/config": "^0.4",

@@ -12,6 +12,7 @@
 - [Managing User Sessions](#managing-user-sessions)
 - [Session Cache](#session-cache)
 - [Session Blocking](#session-blocking)
+- [Read-Only Sessions](#read-only-sessions)
 - [Configuring the Session Cookie](#configuring-the-session-cookie)
 - [Adding Custom Session Drivers](#adding-custom-session-drivers)
     - [Implementing the Driver](#implementing-the-driver)
@@ -456,6 +457,25 @@ If neither of these arguments is passed, the lock will be obtained for a maximum
 Route::post('/profile', function () {
     // ...
 })->block();
+```
+
+<a name="read-only-sessions"></a>
+## Read-Only Sessions
+
+Some routes only need to read the session, such as endpoints your frontend polls in the background while the user works in your application. Since the entire session is saved at the end of each request, a request like this can overwrite data that a concurrent request saved in the meantime, and it ages the session's flash data. To prevent this, you may chain the `readOnlySession` method onto the route definition:
+
+```php
+Route::get('/notifications/unread', function () {
+    // ...
+})->readOnlySession();
+```
+
+The session is started as usual, so the route can read session data and authenticate the user. However, the session is not saved when the request finishes, and neither the session cookie nor the `XSRF-TOKEN` cookie is added to the response. Changes made to the session are available until the request ends, and regenerating or invalidating the session ID does not delete the stored session. The request is also not recorded as the session's previous URL.
+
+You may also make the current request's session read-only from your route or controller using the `markAsReadOnly` method:
+
+```php
+$request->session()->markAsReadOnly();
 ```
 
 <a name="configuring-the-session-cookie"></a>

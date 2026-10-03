@@ -10,6 +10,7 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Http\Middleware\HandlePrecognitiveRequests;
 use Hypervel\Foundation\Testing\Concerns\MakesHttpRequests;
 use Hypervel\Foundation\Testing\Stubs\FakeMiddleware;
+use Hypervel\Http\RedirectResponse;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
 use Hypervel\HttpServer\Events\RequestHandled;
@@ -428,6 +429,30 @@ class MakesHttpRequestsTest extends TestCase
         }
     }
 
+    public function testReadOnlySessionChangesDoNotCarryIntoTheNextRequest(): void
+    {
+        $router = $this->app->make(Router::class);
+        $router->get('/read-only', function (): string {
+            session()->put('name', 'Taylor');
+            session()->regenerate();
+
+            return 'read-only';
+        })->middleware('web')->readOnlySession();
+        $router->get('/writable', fn (): string => session('name', 'absent'))->middleware('web');
+
+        $this->withSession(['team' => 'Hypervel']);
+        $sessionId = session()->getId();
+
+        $this->get('/read-only')->assertOk();
+
+        $this->assertSame($sessionId, session()->getId());
+
+        $this->get('/writable')->assertContent('absent');
+
+        $stored = json_decode($this->app->make('session')->driver()->getHandler()->read(session()->getId()), true);
+        $this->assertSame('Hypervel', $stored['team']);
+    }
+
     public function testAssertSessionHasErrors()
     {
         $this->app->instance('session.store', $store = new Store('test-session', new ArraySessionHandler(1)));
@@ -577,7 +602,7 @@ class MakesHttpRequestsTest extends TestCase
         };
 
         $router->get('from', function () {
-            return new \Hypervel\Http\RedirectResponse('http://localhost/to');
+            return new RedirectResponse('http://localhost/to');
         })->middleware(TerminatingMiddleware::class);
 
         $router->get('to', function () {
@@ -587,6 +612,18 @@ class MakesHttpRequestsTest extends TestCase
         $this->followingRedirects()->get('from');
 
         $this->assertEquals(['from', 'to'], $callOrder);
+    }
+
+    public function testFollowingRedirectsSyncsTheFinalSessionToParentCoroutine(): void
+    {
+        $router = $this->app->make(Router::class);
+        $router->post('/save', fn (): RedirectResponse => redirect('/saved')->with('status', 'saved'))->middleware('web');
+        $router->get('/saved', fn (): string => session('status', 'absent'))->middleware('web');
+
+        $this->followingRedirects()
+            ->post('/save')
+            ->assertContent('saved')
+            ->assertSessionMissing('status');
     }
 
     public function testQuerySendsRequestBodyUsingQueryMethod(): void

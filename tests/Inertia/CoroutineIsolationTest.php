@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Inertia;
 use Closure;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\RequestContext;
+use Hypervel\Http\Client\PendingRequest;
 use Hypervel\Http\Request;
 use Hypervel\Inertia\InertiaState;
 use Hypervel\Inertia\PropsResolver;
@@ -22,12 +23,15 @@ class CoroutineIsolationTest extends TestCase
 
     protected Closure $componentTransformer;
 
+    protected Closure $ssrRequestConfigurator;
+
     protected function setUp(): void
     {
         parent::setUp();
 
         $this->urlResolver = fn () => '/boot-url';
         $this->componentTransformer = fn (string $component) => "Boot/{$component}";
+        $this->ssrRequestConfigurator = fn (PendingRequest $request): PendingRequest => $request;
 
         $factory = new ResponseFactory;
         $factory->share('boot', 'shared');
@@ -38,6 +42,7 @@ class CoroutineIsolationTest extends TestCase
         $factory->transformComponentUsing($this->componentTransformer);
         $factory->disableSsr();
         $factory->withoutSsr('/private');
+        $factory->configureSsrRequestUsing($this->ssrRequestConfigurator);
     }
 
     public function testBootConfigurationIsInheritedByRequestCoroutines(): void
@@ -54,6 +59,7 @@ class CoroutineIsolationTest extends TestCase
         $this->assertSame($this->componentTransformer, $state->componentTransformer);
         $this->assertTrue($state->ssrDisabled);
         $this->assertSame(['/private'], $state->ssrExcludedPaths);
+        $this->assertSame($this->ssrRequestConfigurator, $state->ssrRequestConfigurator);
         $this->assertSame([], $state->page);
         $this->assertFalse($state->ssrDispatched);
         $this->assertNull($state->ssrResponse);
@@ -104,6 +110,30 @@ class CoroutineIsolationTest extends TestCase
 
         $this->assertContains('layout-a', $results);
         $this->assertContains('layout-b', $results);
+    }
+
+    public function testSsrRequestConfiguratorIsIsolatedBetweenCoroutines(): void
+    {
+        $first = fn (PendingRequest $request): PendingRequest => $request->withHeader('X-Tenant', 'first');
+        $second = fn (PendingRequest $request): PendingRequest => $request->withHeader('X-Tenant', 'second');
+
+        $results = parallel([
+            function () use ($first): Closure {
+                (new ResponseFactory)->configureSsrRequestUsing($first);
+                usleep(1000);
+
+                return InertiaState::current()->ssrRequestConfigurator;
+            },
+            function () use ($second): Closure {
+                (new ResponseFactory)->configureSsrRequestUsing($second);
+                usleep(1000);
+
+                return InertiaState::current()->ssrRequestConfigurator;
+            },
+        ]);
+
+        $this->assertSame($first, $results[0]);
+        $this->assertSame($second, $results[1]);
     }
 
     public function testFlushSharedOnlyClearsTheCurrentRequest(): void

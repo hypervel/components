@@ -139,6 +139,10 @@ class StartSession
             $session->setRequestOnHandler($request);
 
             $session->start();
+
+            if ($request->route() instanceof Route && $request->route()->hasReadOnlySession()) {
+                $session->markAsReadOnly();
+            }
         });
     }
 
@@ -162,7 +166,7 @@ class StartSession
         // Here we will see if this request hits the garbage collection lottery by hitting
         // the odds needed to perform garbage collection on any given request. If we do
         // hit it, we'll call this handler to let it delete all the expired sessions.
-        if ($this->configHitsLottery($config)) {
+        if (! $session->isReadOnly() && $this->configHitsLottery($config)) {
             $session->getHandler()->gc($this->getSessionLifetimeInSeconds());
         }
     }
@@ -184,7 +188,8 @@ class StartSession
             && $request->route() instanceof Route
             && ! $request->ajax()
             && ! $request->prefetch()
-            && ! $request->isPrecognitive()) {
+            && ! $request->isPrecognitive()
+            && ! $session->isReadOnly()) {
             $session->setPreviousUrl($request->fullUrl());
 
             if (method_exists($session, 'setPreviousRoute')) {
@@ -198,7 +203,8 @@ class StartSession
      */
     protected function addCookieToResponse(Request $request, Response $response, Session $session): void
     {
-        if ($this->sessionIsPersistent($config = $this->manager->getSessionConfig())) {
+        // The ID of a read-only session is never saved, so the browser keeps its current cookie.
+        if (! $session->isReadOnly() && $this->sessionIsPersistent($config = $this->manager->getSessionConfig())) {
             $cookieConfig = $this->resolveSessionCookieConfig($request, $config);
 
             $response->headers->setCookie(new Cookie(

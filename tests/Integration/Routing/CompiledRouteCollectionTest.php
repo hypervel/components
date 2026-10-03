@@ -758,6 +758,17 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertSame(['user' => 'username', 'post' => 'slug'], $route->bindingFields());
     }
 
+    public function testReadOnlySessionRoutesAreProperlySaved(): void
+    {
+        $this->routeCollection->add($this->newRoute('GET', 'entries', ['uses' => 'FooController@index', 'as' => 'entries'])->readOnlySession());
+        $this->routeCollection->add($this->newRoute('GET', 'posts', ['uses' => 'FooController@index', 'as' => 'posts']));
+
+        $routes = $this->collection();
+
+        $this->assertTrue($routes->getByName('entries')->hasReadOnlySession());
+        $this->assertFalse($routes->getByName('posts')->hasReadOnlySession());
+    }
+
     public function testMatchingSlashedRoutes()
     {
         $this->routeCollection->add(

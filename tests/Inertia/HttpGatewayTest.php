@@ -4,20 +4,22 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Inertia;
 
-use GuzzleHttp\Client;
-use GuzzleHttp\Exception\ConnectException;
-use GuzzleHttp\Handler\MockHandler;
-use GuzzleHttp\HandlerStack;
-use GuzzleHttp\Middleware;
-use GuzzleHttp\Psr7\Request as GuzzleRequest;
-use GuzzleHttp\Psr7\Response as GuzzleResponse;
+use GuzzleHttp\Promise\PromiseInterface;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Http\Client\ConnectionException;
+use Hypervel\Http\Client\PendingRequest;
+use Hypervel\Http\Client\Request as ClientRequest;
+use Hypervel\Http\Client\Response as ClientResponse;
+use Hypervel\Http\Client\StrayRequestException;
 use Hypervel\Inertia\Ssr\HttpGateway;
 use Hypervel\Inertia\Ssr\SsrErrorType;
 use Hypervel\Inertia\Ssr\SsrException;
 use Hypervel\Inertia\Ssr\SsrRenderFailed;
 use Hypervel\Support\Facades\Event;
+use Hypervel\Support\Facades\Http;
 use Hypervel\Support\Facades\Vite;
+use Hypervel\Testbench\Attributes\DefineEnvironment;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
 use ReflectionProperty;
@@ -27,11 +29,16 @@ class HttpGatewayTest extends TestCase
 {
     protected HttpGateway $gateway;
 
+    protected string $renderUrl;
+
     protected function setUp(): void
     {
         parent::setUp();
 
         $this->gateway = app(HttpGateway::class);
+        $this->renderUrl = $this->gateway->getProductionUrl('/render');
+
+        Http::preventStrayRequests();
     }
 
     protected function tearDown(): void
@@ -39,21 +46,6 @@ class HttpGatewayTest extends TestCase
         $this->removeHotFile();
 
         parent::tearDown();
-    }
-
-    /**
-     * Create a Guzzle client with a MockHandler queuing the given responses.
-     */
-    protected function mockSsrClient(array $responses): MockHandler
-    {
-        $mock = new MockHandler($responses);
-        $client = new Client([
-            'handler' => HandlerStack::create($mock),
-            'http_errors' => false,
-        ]);
-        HttpGateway::useTestingClient($client);
-
-        return $mock;
     }
 
     protected function createHotFile(string $url = 'http://localhost:5173'): void
@@ -96,8 +88,8 @@ class HttpGatewayTest extends TestCase
             'inertia.ssr.bundle' => __DIR__ . '/Fixtures/ssr-bundle.js',
         ]);
 
-        $this->mockSsrClient([
-            new GuzzleResponse(200, [], json_encode([
+        Http::fake([
+            $this->renderUrl => Http::response(json_encode([
                 'head' => ['<title>SSR Test</title>', '<style></style>'],
                 'body' => '<div id="app">SSR Response</div>',
             ])),
@@ -119,8 +111,8 @@ class HttpGatewayTest extends TestCase
             'inertia.ssr.bundle' => null,
         ]);
 
-        $this->mockSsrClient([
-            new GuzzleResponse(200, [], json_encode([
+        Http::fake([
+            $this->renderUrl => Http::response(json_encode([
                 'head' => ['<title>SSR Test</title>', '<style></style>'],
                 'body' => '<div id="app">SSR Response</div>',
             ])),
@@ -141,8 +133,8 @@ class HttpGatewayTest extends TestCase
             'inertia.ssr.bundle' => __DIR__ . '/Fixtures/ssr-bundle.js',
         ]);
 
-        $this->mockSsrClient([
-            new GuzzleResponse(500),
+        Http::fake([
+            $this->renderUrl => Http::response(null, 500),
         ]);
 
         $this->assertNull($this->gateway->dispatch(['page' => self::EXAMPLE_PAGE_OBJECT]));
@@ -156,14 +148,16 @@ class HttpGatewayTest extends TestCase
             'inertia.ssr.bundle' => __DIR__ . '/Fixtures/ssr-bundle.js',
         ]);
 
-        $this->mockSsrClient([
-            new GuzzleResponse(200, [], $body),
+        Http::fake([
+            $this->renderUrl => Http::response($body),
         ]);
 
         $this->assertNull($this->gateway->dispatch(['page' => self::EXAMPLE_PAGE_OBJECT]));
     }
 
     /**
+     * Provide malformed SSR response bodies.
+     *
      * @return array<string, array{string}>
      */
     public static function malformedSsrResponses(): array
@@ -180,6 +174,36 @@ class HttpGatewayTest extends TestCase
         ];
     }
 
+    #[DataProvider('ssrResponseStatuses')]
+    public function testMalformedResponsesFallBackWhenHttpJsonDecodingThrows(int $status): void
+    {
+        ClientResponse::$defaultJsonDecodingFlags = JSON_THROW_ON_ERROR;
+
+        config([
+            'inertia.ssr.enabled' => true,
+            'inertia.ssr.bundle' => __DIR__ . '/Fixtures/ssr-bundle.js',
+        ]);
+
+        Http::fake([
+            $this->renderUrl => Http::response('invalid json', $status),
+        ]);
+
+        $this->assertNull($this->gateway->dispatch(['page' => self::EXAMPLE_PAGE_OBJECT]));
+    }
+
+    /**
+     * Provide successful and failed SSR response statuses.
+     *
+     * @return array<string, array{int}>
+     */
+    public static function ssrResponseStatuses(): array
+    {
+        return [
+            'successful response' => [200],
+            'failed response' => [500],
+        ];
+    }
+
     public function testMalformedSuccessDispatchesFailureAndHonorsThrowOnError(): void
     {
         Event::fake([SsrRenderFailed::class]);
@@ -190,9 +214,10 @@ class HttpGatewayTest extends TestCase
             'inertia.ssr.throw_on_error' => true,
         ]);
 
-        $mock = $this->mockSsrClient([
-            new GuzzleResponse(200, [], json_encode(['head' => [], 'body' => []])),
-            new GuzzleResponse(200, [], json_encode(['head' => [], 'body' => '<div>SSR</div>'])),
+        Http::fake([
+            $this->renderUrl => Http::sequence()
+                ->push(json_encode(['head' => [], 'body' => []]))
+                ->push(json_encode(['head' => [], 'body' => '<div>SSR</div>'])),
         ]);
 
         try {
@@ -204,7 +229,7 @@ class HttpGatewayTest extends TestCase
 
         // Backoff must be armed before throw_on_error raises the exception.
         $this->assertNull($this->gateway->dispatch(self::EXAMPLE_PAGE_OBJECT));
-        $this->assertSame(1, $mock->count());
+        Http::assertSentCount(1);
         Event::assertDispatched(
             SsrRenderFailed::class,
             fn (SsrRenderFailed $event): bool => $event->error === 'Invalid SSR response.',
@@ -213,10 +238,11 @@ class HttpGatewayTest extends TestCase
 
     public function testHealthCheckTheSsrServer(): void
     {
-        $this->mockSsrClient([
-            new GuzzleResponse(200),
-            new GuzzleResponse(500),
-            new ConnectException('Connection refused', new GuzzleRequest('GET', '/')),
+        Http::fake([
+            $this->gateway->getProductionUrl('/health') => Http::sequence()
+                ->push(status: 200)
+                ->push(status: 500)
+                ->pushFailedConnection('Connection refused'),
         ]);
 
         $this->assertTrue($this->gateway->isHealthy());
@@ -226,9 +252,10 @@ class HttpGatewayTest extends TestCase
 
     public function testShutdownReportsTheSsrServerResponse(): void
     {
-        $this->mockSsrClient([
-            new GuzzleResponse(200),
-            new GuzzleResponse(500),
+        Http::fake([
+            $this->gateway->getProductionUrl('/shutdown') => Http::sequence()
+                ->push(status: 200)
+                ->push(status: 500),
         ]);
 
         $this->assertTrue($this->gateway->shutdown());
@@ -237,13 +264,26 @@ class HttpGatewayTest extends TestCase
 
     public function testShutdownPreservesTransportFailures(): void
     {
-        $this->mockSsrClient([
-            new ConnectException('Connection closed', new GuzzleRequest('GET', '/shutdown')),
+        Http::fake([
+            $this->gateway->getProductionUrl('/shutdown') => Http::failedConnection('Connection closed'),
         ]);
 
-        $this->expectException(ConnectException::class);
+        $this->expectException(ConnectionException::class);
 
         $this->gateway->shutdown();
+    }
+
+    public function testHealthCheckAndShutdownReportFailedResponsesWhenTheRequestThrows(): void
+    {
+        Http::fake([
+            $this->gateway->getProductionUrl('/health') => Http::response(status: 500),
+            $this->gateway->getProductionUrl('/shutdown') => Http::response(status: 500),
+        ]);
+
+        $this->gateway->configureRequestUsing(fn (PendingRequest $request): PendingRequest => $request->throw());
+
+        $this->assertFalse($this->gateway->isHealthy());
+        $this->assertFalse($this->gateway->shutdown());
     }
 
     public function testItUsesViteHotUrlWhenRunningHot(): void
@@ -252,8 +292,8 @@ class HttpGatewayTest extends TestCase
 
         $this->createHotFile("http://localhost:5173/\n");
 
-        $mock = $this->mockSsrClient([
-            new GuzzleResponse(200, [], json_encode([
+        Http::fake([
+            'http://localhost:5173/__inertia_ssr' => Http::response(json_encode([
                 'head' => ['<title>Hot SSR</title>'],
                 'body' => '<div id="app">Hot Response</div>',
             ])),
@@ -265,12 +305,10 @@ class HttpGatewayTest extends TestCase
         $this->assertEquals('<title>Hot SSR</title>', $response->head);
         $this->assertEquals('<div id="app">Hot Response</div>', $response->body);
 
-        // Verify the request was sent to the hot URL
-        $lastRequest = $mock->getLastRequest();
-        $this->assertSame('http://localhost:5173/__inertia_ssr', (string) $lastRequest->getUri());
+        Http::assertSent(fn (ClientRequest $request): bool => $request->url() === 'http://localhost:5173/__inertia_ssr');
     }
 
-    public function testItPrefersTheConfiguredHotUrl(): void
+    public function testItUsesConfiguredHotUrlWhenRunningHot(): void
     {
         config([
             'inertia.ssr.enabled' => true,
@@ -279,18 +317,20 @@ class HttpGatewayTest extends TestCase
 
         $this->createHotFile('http://localhost:5173');
 
-        $mock = $this->mockSsrClient([
-            new GuzzleResponse(200, [], json_encode([
-                'head' => [],
-                'body' => '<div id="app">Hot Response</div>',
+        Http::fake([
+            'http://localhost:4173/base/__inertia_ssr' => Http::response(json_encode([
+                'head' => ['<title>Custom Hot SSR</title>'],
+                'body' => '<div id="app">Custom Hot Response</div>',
             ])),
         ]);
 
-        $this->assertNotNull($this->gateway->dispatch(self::EXAMPLE_PAGE_OBJECT));
-        $this->assertSame(
-            'http://localhost:4173/base/__inertia_ssr',
-            (string) $mock->getLastRequest()->getUri(),
-        );
+        $response = $this->gateway->dispatch(['page' => self::EXAMPLE_PAGE_OBJECT]);
+
+        $this->assertNotNull($response);
+        $this->assertEquals('<title>Custom Hot SSR</title>', $response->head);
+        $this->assertEquals('<div id="app">Custom Hot Response</div>', $response->body);
+
+        Http::assertSent(fn (ClientRequest $request): bool => $request->url() === 'http://localhost:4173/base/__inertia_ssr');
     }
 
     public function testFalseHotUrlUsesTheViteHotFile(): void
@@ -302,18 +342,16 @@ class HttpGatewayTest extends TestCase
 
         $this->createHotFile('http://localhost:5173');
 
-        $mock = $this->mockSsrClient([
-            new GuzzleResponse(200, [], json_encode([
+        Http::fake([
+            'http://localhost:5173/__inertia_ssr' => Http::response(json_encode([
                 'head' => [],
                 'body' => '<div id="app">Hot Response</div>',
             ])),
         ]);
 
         $this->assertNotNull($this->gateway->dispatch(self::EXAMPLE_PAGE_OBJECT));
-        $this->assertSame(
-            'http://localhost:5173/__inertia_ssr',
-            (string) $mock->getLastRequest()->getUri(),
-        );
+
+        Http::assertSent(fn (ClientRequest $request): bool => $request->url() === 'http://localhost:5173/__inertia_ssr');
     }
 
     public function testItFallsBackToClientRenderingWhenTheHotFileDisappears(): void
@@ -322,7 +360,6 @@ class HttpGatewayTest extends TestCase
 
         config(['inertia.ssr.enabled' => true]);
         $this->createHotFile();
-        $this->mockSsrClient([]);
 
         $gateway = new HotFileRemovedHttpGateway;
 
@@ -340,10 +377,14 @@ class HttpGatewayTest extends TestCase
 
         $this->createHotFile('http://localhost:5173');
 
-        $mock = $this->mockSsrClient([
-            new GuzzleResponse(200, [], json_encode([
+        Http::fake([
+            'http://localhost:5173/__inertia_ssr' => Http::response(json_encode([
                 'head' => ['<title>Hot SSR</title>'],
                 'body' => '<div id="app">Hot Response</div>',
+            ])),
+            $this->renderUrl => Http::response(json_encode([
+                'head' => ['<title>Production SSR</title>'],
+                'body' => '<div id="app">Production Response</div>',
             ])),
         ]);
 
@@ -352,10 +393,6 @@ class HttpGatewayTest extends TestCase
         $this->assertNotNull($response);
         $this->assertEquals('<title>Hot SSR</title>', $response->head);
         $this->assertEquals('<div id="app">Hot Response</div>', $response->body);
-
-        // Verify hot URL was used, not production
-        $lastRequest = $mock->getLastRequest();
-        $this->assertStringContainsString('localhost:5173/__inertia_ssr', (string) $lastRequest->getUri());
     }
 
     public function testItReturnsNullWhenPathIsExcludedFromSsr(): void
@@ -379,8 +416,8 @@ class HttpGatewayTest extends TestCase
             'inertia.ssr.bundle' => __DIR__ . '/Fixtures/ssr-bundle.js',
         ]);
 
-        $this->mockSsrClient([
-            new GuzzleResponse(200, [], json_encode([
+        Http::fake([
+            $this->renderUrl => Http::response(json_encode([
                 'head' => ['<title>SSR Test</title>'],
                 'body' => '<div id="app">SSR Response</div>',
             ])),
@@ -454,13 +491,13 @@ class HttpGatewayTest extends TestCase
             'inertia.ssr.bundle' => __DIR__ . '/Fixtures/ssr-bundle.js',
         ]);
 
-        $this->mockSsrClient([
-            new GuzzleResponse(500, [], json_encode([
+        Http::fake([
+            $this->renderUrl => Http::response(json_encode([
                 'error' => 'window is not defined',
                 'type' => 'browser-api',
                 'hint' => 'Wrap in lifecycle hook',
                 'browserApi' => 'window',
-            ])),
+            ]), 500),
         ]);
 
         $this->assertNull($this->gateway->dispatch(self::EXAMPLE_PAGE_OBJECT));
@@ -489,11 +526,11 @@ class HttpGatewayTest extends TestCase
             'inertia.ssr.bundle' => __DIR__ . '/Fixtures/ssr-bundle.js',
         ]);
 
-        $this->mockSsrClient([
-            new GuzzleResponse(500, [], json_encode([
+        Http::fake([
+            $this->renderUrl => Http::response(json_encode([
                 'error' => 'window is not defined',
                 'type' => 'browser-api',
-            ])),
+            ]), 500),
         ]);
 
         $this->assertNull($this->gateway->dispatch(self::EXAMPLE_PAGE_OBJECT));
@@ -516,11 +553,11 @@ class HttpGatewayTest extends TestCase
             'inertia.ssr.throw_on_error' => true,
         ]);
 
-        $this->mockSsrClient([
-            new GuzzleResponse(500, [], json_encode([
+        Http::fake([
+            $this->renderUrl => Http::response(json_encode([
                 'error' => 'window is not defined',
                 'type' => 'browser-api',
-            ])),
+            ]), 500),
         ]);
 
         $caughtException = null;
@@ -546,15 +583,15 @@ class HttpGatewayTest extends TestCase
             'inertia.ssr.bundle' => __DIR__ . '/Fixtures/ssr-bundle.js',
         ]);
 
-        $this->mockSsrClient([
-            new GuzzleResponse(500, [], json_encode([
+        Http::fake([
+            $this->renderUrl => Http::response(json_encode([
                 'error' => ['invalid'],
                 'type' => 123,
                 'hint' => false,
                 'browserApi' => ['window'],
                 'stack' => new stdClass,
                 'sourceLocation' => 10,
-            ])),
+            ]), 500),
         ]);
 
         $this->assertNull($this->gateway->dispatch(self::EXAMPLE_PAGE_OBJECT));
@@ -578,8 +615,8 @@ class HttpGatewayTest extends TestCase
             'inertia.ssr.bundle' => __DIR__ . '/Fixtures/ssr-bundle.js',
         ]);
 
-        $this->mockSsrClient([
-            new ConnectException('Connection refused', new GuzzleRequest('GET', '/')),
+        Http::fake([
+            $this->renderUrl => Http::failedConnection('Connection refused'),
         ]);
 
         $this->assertNull($this->gateway->dispatch(self::EXAMPLE_PAGE_OBJECT));
@@ -600,14 +637,14 @@ class HttpGatewayTest extends TestCase
             'inertia.ssr.throw_on_error' => true,
         ]);
 
-        $this->mockSsrClient([
-            new GuzzleResponse(500, [], json_encode([
+        Http::fake([
+            $this->renderUrl => Http::response(json_encode([
                 'error' => 'window is not defined',
                 'type' => 'browser-api',
                 'hint' => 'Wrap in lifecycle hook',
                 'browserApi' => 'window',
                 'sourceLocation' => 'resources/js/Pages/Dashboard.vue:10:5',
-            ])),
+            ]), 500),
         ]);
 
         $this->expectException(SsrException::class);
@@ -626,14 +663,14 @@ class HttpGatewayTest extends TestCase
             'inertia.ssr.throw_on_error' => true,
         ]);
 
-        $this->mockSsrClient([
-            new GuzzleResponse(500, [], json_encode([
+        Http::fake([
+            $this->renderUrl => Http::response(json_encode([
                 'error' => 'window is not defined',
                 'type' => 'browser-api',
                 'hint' => 'Wrap in lifecycle hook',
                 'browserApi' => 'window',
                 'sourceLocation' => 'resources/js/Pages/Dashboard.vue:10:5',
-            ])),
+            ]), 500),
         ]);
 
         try {
@@ -658,8 +695,8 @@ class HttpGatewayTest extends TestCase
             'inertia.ssr.throw_on_error' => true,
         ]);
 
-        $this->mockSsrClient([
-            new ConnectException('Connection refused', new GuzzleRequest('GET', '/')),
+        Http::fake([
+            $this->renderUrl => Http::failedConnection('Connection refused'),
         ]);
 
         $this->expectException(SsrException::class);
@@ -701,14 +738,34 @@ class HttpGatewayTest extends TestCase
 
         $this->gateway->disable(false);
 
-        $this->mockSsrClient([
-            new GuzzleResponse(200, [], json_encode([
+        Http::fake([
+            $this->renderUrl => Http::response(json_encode([
                 'head' => ['<title>SSR Test</title>'],
                 'body' => '<div id="app">SSR Response</div>',
             ])),
         ]);
 
         $this->assertNotNull($this->gateway->dispatch(['page' => self::EXAMPLE_PAGE_OBJECT]));
+    }
+
+    public function testItDoesNotThrowExceptionWhenThrowOnErrorIsDisabled(): void
+    {
+        Event::fake([SsrRenderFailed::class]);
+
+        config([
+            'inertia.ssr.enabled' => true,
+            'inertia.ssr.bundle' => __DIR__ . '/Fixtures/ssr-bundle.js',
+            'inertia.ssr.throw_on_error' => false,
+        ]);
+
+        Http::fake([
+            $this->renderUrl => Http::response(json_encode([
+                'error' => 'window is not defined',
+                'type' => 'browser-api',
+            ]), 500),
+        ]);
+
+        $this->assertNull($this->gateway->dispatch(self::EXAMPLE_PAGE_OBJECT));
     }
 
     public function testItDoesNotThrowExceptionWhenThrowOnErrorIsOmitted(): void
@@ -720,11 +777,11 @@ class HttpGatewayTest extends TestCase
             'bundle' => __DIR__ . '/Fixtures/ssr-bundle.js',
         ]]);
 
-        $this->mockSsrClient([
-            new GuzzleResponse(500, [], json_encode([
+        Http::fake([
+            $this->renderUrl => Http::response(json_encode([
                 'error' => 'window is not defined',
                 'type' => 'browser-api',
-            ])),
+            ]), 500),
         ]);
 
         $this->assertNull($this->gateway->dispatch(self::EXAMPLE_PAGE_OBJECT));
@@ -738,20 +795,21 @@ class HttpGatewayTest extends TestCase
             'inertia.ssr.backoff' => 5.0,
         ]);
 
-        $mock = $this->mockSsrClient([
-            new GuzzleResponse(500, [], json_encode([
-                'error' => 'Server down',
-                'type' => 'connection',
-            ])),
-            new GuzzleResponse(200, [], json_encode([
-                'head' => ['<title>SSR</title>'],
-                'body' => '<div>SSR</div>',
-            ])),
+        Http::fake([
+            $this->renderUrl => Http::sequence()
+                ->push(json_encode([
+                    'error' => 'Server down',
+                    'type' => 'connection',
+                ]), 500)
+                ->push(json_encode([
+                    'head' => ['<title>SSR</title>'],
+                    'body' => '<div>SSR</div>',
+                ])),
         ]);
 
         $this->assertNull($this->gateway->dispatch(self::EXAMPLE_PAGE_OBJECT));
         $this->assertNotNull($this->gateway->dispatch(self::EXAMPLE_PAGE_OBJECT));
-        $this->assertSame(0, $mock->count());
+        Http::assertSentCount(2);
     }
 
     public function testConnectionFailureActivatesTransportBackoff(): void
@@ -762,17 +820,18 @@ class HttpGatewayTest extends TestCase
             'inertia.ssr.backoff' => 5.0,
         ]);
 
-        $mock = $this->mockSsrClient([
-            new ConnectException('Connection refused', new GuzzleRequest('POST', '/render')),
-            new GuzzleResponse(200, [], json_encode([
-                'head' => [],
-                'body' => '<div>SSR</div>',
-            ])),
+        Http::fake([
+            $this->renderUrl => Http::sequence()
+                ->pushFailedConnection('Connection refused')
+                ->push(json_encode([
+                    'head' => [],
+                    'body' => '<div>SSR</div>',
+                ])),
         ]);
 
         $this->assertNull($this->gateway->dispatch(self::EXAMPLE_PAGE_OBJECT));
         $this->assertNull($this->gateway->dispatch(self::EXAMPLE_PAGE_OBJECT));
-        $this->assertSame(1, $mock->count());
+        Http::assertSentCount(1);
     }
 
     public function testMalformedSuccessActivatesTransportBackoff(): void
@@ -783,17 +842,18 @@ class HttpGatewayTest extends TestCase
             'inertia.ssr.backoff' => 5.0,
         ]);
 
-        $mock = $this->mockSsrClient([
-            new GuzzleResponse(200, [], json_encode(['head' => [], 'body' => []])),
-            new GuzzleResponse(200, [], json_encode([
-                'head' => [],
-                'body' => '<div>SSR</div>',
-            ])),
+        Http::fake([
+            $this->renderUrl => Http::sequence()
+                ->push(json_encode(['head' => [], 'body' => []]))
+                ->push(json_encode([
+                    'head' => [],
+                    'body' => '<div>SSR</div>',
+                ])),
         ]);
 
         $this->assertNull($this->gateway->dispatch(self::EXAMPLE_PAGE_OBJECT));
         $this->assertNull($this->gateway->dispatch(self::EXAMPLE_PAGE_OBJECT));
-        $this->assertSame(1, $mock->count());
+        Http::assertSentCount(1);
     }
 
     public function testTransportBackoffResetsAfterFlushState(): void
@@ -804,18 +864,15 @@ class HttpGatewayTest extends TestCase
             'inertia.ssr.backoff' => 5.0,
         ]);
 
-        $this->mockSsrClient([
-            new ConnectException('Connection refused', new GuzzleRequest('POST', '/render')),
-            new GuzzleResponse(200, [], json_encode(['head' => ['<title>SSR</title>'], 'body' => '<div>SSR</div>'])),
+        Http::fake([
+            $this->renderUrl => Http::sequence()
+                ->pushFailedConnection('Connection refused')
+                ->push(json_encode(['head' => ['<title>SSR</title>'], 'body' => '<div>SSR</div>'])),
         ]);
 
         $this->gateway->dispatch(self::EXAMPLE_PAGE_OBJECT);
 
         HttpGateway::flushState();
-
-        $this->mockSsrClient([
-            new GuzzleResponse(200, [], json_encode(['head' => ['<title>SSR</title>'], 'body' => '<div>SSR</div>'])),
-        ]);
 
         $response = $this->gateway->dispatch(self::EXAMPLE_PAGE_OBJECT);
         $this->assertNotNull($response);
@@ -830,9 +887,9 @@ class HttpGatewayTest extends TestCase
             'inertia.ssr.backoff' => 5.0,
         ]);
 
-        $this->mockSsrClient([
-            new ConnectException('Connection refused', new GuzzleRequest('POST', '/render')),
-            new GuzzleResponse(200),
+        Http::fake([
+            $this->renderUrl => Http::failedConnection('Connection refused'),
+            $this->gateway->getProductionUrl('/health') => Http::response(status: 200),
         ]);
 
         $this->assertNull($this->gateway->dispatch(self::EXAMPLE_PAGE_OBJECT));
@@ -848,13 +905,14 @@ class HttpGatewayTest extends TestCase
         ]);
 
         $backoff = new ReflectionProperty(HttpGateway::class, 'ssrUnavailableUntil');
-        $this->mockSsrClient([
-            static function () use ($backoff): GuzzleResponse {
-                $backoff->setValue(null, microtime(true) + 5.0);
+        Http::fake([
+            $this->renderUrl => Http::sequence()
+                ->pushResponse(static function () use ($backoff): PromiseInterface {
+                    $backoff->setValue(null, microtime(true) + 5.0);
 
-                return new GuzzleResponse(200, [], json_encode(['head' => [], 'body' => '<div>First</div>']));
-            },
-            new GuzzleResponse(200, [], json_encode(['head' => [], 'body' => '<div>Second</div>'])),
+                    return Http::response(json_encode(['head' => [], 'body' => '<div>First</div>']));
+                })
+                ->push(json_encode(['head' => [], 'body' => '<div>Second</div>'])),
         ]);
 
         $first = $this->gateway->dispatch(self::EXAMPLE_PAGE_OBJECT);
@@ -873,110 +931,190 @@ class HttpGatewayTest extends TestCase
             'inertia.ssr.bundle' => __DIR__ . '/Fixtures/ssr-bundle.js',
         ]);
 
-        $mock = $this->mockSsrClient([
-            new GuzzleResponse(500, [], '"Internal Server Error"'),
-            new GuzzleResponse(200, [], json_encode(['head' => [], 'body' => '<div>SSR</div>'])),
+        Http::fake([
+            $this->renderUrl => Http::sequence()
+                ->push('"Internal Server Error"', 500)
+                ->push(json_encode(['head' => [], 'body' => '<div>SSR</div>'])),
         ]);
 
         $this->assertNull($this->gateway->dispatch(self::EXAMPLE_PAGE_OBJECT));
         $this->assertNull($this->gateway->dispatch(self::EXAMPLE_PAGE_OBJECT));
-        $this->assertSame(1, $mock->count());
+        Http::assertSentCount(1);
 
         Event::assertDispatched(SsrRenderFailed::class, function (SsrRenderFailed $event) {
             return $event->error === 'Unknown SSR error';
         });
     }
 
-    public function testSsrClientIsReusedAcrossDispatches(): void
+    #[DefineEnvironment('useCustomSsrTimeouts')]
+    public function testItAppliesTheConfiguredTimeoutToTheSsrRequest(): void
+    {
+        $request = $this->captureSsrRequest();
+
+        $this->assertSame(HttpGateway::CONNECTION, $request->getConnection());
+        $this->assertSame(1.5, $request->getOptions()['connect_timeout']);
+        $this->assertSame(7.5, $request->getOptions()['timeout']);
+    }
+
+    #[DefineEnvironment('useNullSsrTimeouts')]
+    public function testItDoesNotOverrideGloballyConfiguredHttpOptions(): void
+    {
+        Http::globalOptions(['connect_timeout' => 3, 'timeout' => 5]);
+
+        $request = $this->captureSsrRequest();
+
+        $this->assertSame(3, $request->getOptions()['connect_timeout']);
+        $this->assertSame(5, $request->getOptions()['timeout']);
+    }
+
+    public function testTheSsrRequestCallbackOverridesTheConfiguredTimeouts(): void
+    {
+        config([
+            'inertia.ssr.enabled' => true,
+            'inertia.ssr.ensure_bundle_exists' => false,
+        ]);
+
+        Http::fake([
+            $this->renderUrl => Http::response(json_encode(['head' => [], 'body' => ''])),
+        ]);
+
+        $this->gateway->configureRequestUsing(function (PendingRequest $request) use (&$captured): PendingRequest {
+            return $captured = $request->connectTimeout(4)->timeout(9);
+        });
+
+        $this->gateway->dispatch(self::EXAMPLE_PAGE_OBJECT);
+
+        $this->assertSame(4, $captured->getOptions()['connect_timeout']);
+        $this->assertSame(9, $captured->getOptions()['timeout']);
+    }
+
+    public function testItConfiguresTheSsrRequestUsingTheGivenCallback(): void
+    {
+        config([
+            'inertia.ssr.enabled' => true,
+            'inertia.ssr.ensure_bundle_exists' => false,
+        ]);
+
+        Http::fake([
+            $this->renderUrl => Http::response(json_encode([
+                'head' => ['<title>SSR Test</title>'],
+                'body' => '<div id="app">SSR Response</div>',
+            ])),
+        ]);
+
+        $this->gateway->configureRequestUsing(fn (PendingRequest $request): PendingRequest => $request->withHeader('X-Tenant', 'acme'));
+
+        $this->assertNotNull($this->gateway->dispatch(self::EXAMPLE_PAGE_OBJECT));
+
+        Http::assertSent(fn (ClientRequest $request): bool => $request->hasHeader('X-Tenant', 'acme'));
+    }
+
+    public function testItConfiguresTheSsrRequestWhenTheCallbackReturnsNothing(): void
+    {
+        config([
+            'inertia.ssr.enabled' => true,
+            'inertia.ssr.ensure_bundle_exists' => false,
+        ]);
+
+        Http::fake([
+            $this->renderUrl => Http::response(json_encode([
+                'head' => ['<title>SSR Test</title>'],
+                'body' => '<div id="app">SSR Response</div>',
+            ])),
+        ]);
+
+        $this->gateway->configureRequestUsing(function (PendingRequest $request): void {
+            $request->withHeader('X-Tenant', 'acme');
+        });
+
+        $this->assertNotNull($this->gateway->dispatch(self::EXAMPLE_PAGE_OBJECT));
+
+        Http::assertSent(fn (ClientRequest $request): bool => $request->hasHeader('X-Tenant', 'acme'));
+    }
+
+    public function testItConfiguresTheHealthCheckRequest(): void
+    {
+        Http::fake([
+            $this->gateway->getProductionUrl('/health') => Http::response(status: 200),
+        ]);
+
+        $this->gateway->configureRequestUsing(fn (PendingRequest $request): PendingRequest => $request->withHeader('X-Tenant', 'acme'));
+
+        $this->assertTrue($this->gateway->isHealthy());
+
+        Http::assertSent(fn (ClientRequest $request): bool => $request->hasHeader('X-Tenant', 'acme'));
+    }
+
+    public function testTheSsrRequestConfiguratorCanBeReset(): void
+    {
+        config([
+            'inertia.ssr.enabled' => true,
+            'inertia.ssr.ensure_bundle_exists' => false,
+        ]);
+
+        Http::fake([
+            $this->renderUrl => Http::response(json_encode([
+                'head' => ['<title>SSR Test</title>'],
+                'body' => '<div id="app">SSR Response</div>',
+            ])),
+        ]);
+
+        $this->gateway->configureRequestUsing(fn (PendingRequest $request): PendingRequest => $request->withHeader('X-Tenant', 'acme'));
+        $this->gateway->configureRequestUsing();
+
+        $this->assertNotNull($this->gateway->dispatch(self::EXAMPLE_PAGE_OBJECT));
+
+        Http::assertSent(fn (ClientRequest $request): bool => ! $request->hasHeader('X-Tenant'));
+    }
+
+    public function testStructuredErrorsSurviveExhaustedRetries(): void
+    {
+        Event::fake([SsrRenderFailed::class]);
+
+        config([
+            'inertia.ssr.enabled' => true,
+            'inertia.ssr.bundle' => __DIR__ . '/Fixtures/ssr-bundle.js',
+        ]);
+
+        $error = json_encode([
+            'error' => 'window is not defined',
+            'type' => 'browser-api',
+        ]);
+
+        Http::fake([
+            $this->renderUrl => Http::sequence()
+                ->push($error, 500)
+                ->push($error, 500)
+                ->push(json_encode(['head' => [], 'body' => '<div>SSR</div>'])),
+        ]);
+
+        $this->gateway->configureRequestUsing(fn (PendingRequest $request): PendingRequest => $request->retry(2));
+
+        $this->assertNull($this->gateway->dispatch(self::EXAMPLE_PAGE_OBJECT));
+
+        Event::assertDispatched(SsrRenderFailed::class, function (SsrRenderFailed $event): bool {
+            return $event->error === 'window is not defined'
+                && $event->type === SsrErrorType::BrowserApi;
+        });
+
+        // A structured render error is not a transport failure, so SSR stays available.
+        $this->assertNotNull($this->gateway->dispatch(self::EXAMPLE_PAGE_OBJECT));
+        Http::assertSentCount(3);
+    }
+
+    public function testStrayRequestsAreNotTreatedAsSsrFailures(): void
     {
         config([
             'inertia.ssr.enabled' => true,
             'inertia.ssr.bundle' => __DIR__ . '/Fixtures/ssr-bundle.js',
         ]);
 
-        // Don't use useTestingClient — let the real ssrClient() create the client
-        HttpGateway::flushState();
-
-        $mock = new MockHandler([
-            new GuzzleResponse(200, [], json_encode(['head' => [], 'body' => '<div>1</div>'])),
-            new GuzzleResponse(200, [], json_encode(['head' => [], 'body' => '<div>2</div>'])),
-        ]);
-
-        $client = new Client([
-            'handler' => HandlerStack::create($mock),
-            'http_errors' => false,
-        ]);
-
-        HttpGateway::useTestingClient($client);
-
-        $response1 = $this->gateway->dispatch(self::EXAMPLE_PAGE_OBJECT);
-        $response2 = $this->gateway->dispatch(self::EXAMPLE_PAGE_OBJECT);
-
-        $this->assertNotNull($response1);
-        $this->assertNotNull($response2);
-        $this->assertSame('<div>1</div>', $response1->body);
-        $this->assertSame('<div>2</div>', $response2->body);
-
-        // Both dispatches used the same mock (2 responses consumed = same client)
-        $this->assertSame(0, $mock->count());
-    }
-
-    public function testSsrClientDoesNotLeakCookiesBetweenRequests(): void
-    {
-        config([
-            'inertia.ssr.enabled' => true,
-            'inertia.ssr.bundle' => __DIR__ . '/Fixtures/ssr-bundle.js',
-        ]);
-
-        $history = [];
-        $mock = new MockHandler([
-            new GuzzleResponse(200, ['Set-Cookie' => 'session=abc123'], json_encode(['head' => [], 'body' => '<div>1</div>'])),
-            new GuzzleResponse(200, [], json_encode(['head' => [], 'body' => '<div>2</div>'])),
-        ]);
-
-        $stack = HandlerStack::create($mock);
-        $stack->push(Middleware::history($history));
-
-        $client = new Client([
-            'handler' => $stack,
-            'http_errors' => false,
-            'cookies' => false,
-        ]);
-
-        HttpGateway::useTestingClient($client);
+        $this->expectException(StrayRequestException::class);
 
         $this->gateway->dispatch(self::EXAMPLE_PAGE_OBJECT);
-        $this->gateway->dispatch(self::EXAMPLE_PAGE_OBJECT);
-
-        // Second request should NOT have a Cookie header
-        $this->assertCount(2, $history);
-        $this->assertFalse($history[1]['request']->hasHeader('Cookie'));
     }
 
-    public function testSsrClientUsesConfiguredTimeouts(): void
-    {
-        config([
-            'inertia.ssr.connect_timeout' => 3,
-            'inertia.ssr.timeout' => 10,
-        ]);
-
-        // Flush to force client rebuild with new config
-        HttpGateway::flushState();
-
-        // Access the client via reflection to check its config
-        $gateway = new HttpGateway;
-        $method = new ReflectionMethod($gateway, 'ssrClient');
-        $client = $method->invoke($gateway);
-
-        $this->assertSame(3, $client->getConfig('connect_timeout'));
-        $this->assertSame(10, $client->getConfig('timeout'));
-        $this->assertFalse($client->getConfig('cookies'));
-        $this->assertFalse($client->getConfig('http_errors'));
-
-        // Verify the client is memoized (same instance on second call)
-        $this->assertSame($client, $method->invoke($gateway));
-    }
-
+    #[DefineEnvironment('usePartialSsrConfig')]
     public function testPartialSsrConfigUsesTransportDefaults(): void
     {
         $shippedConfig = $this->withEnvironmentValues([
@@ -984,14 +1122,13 @@ class HttpGatewayTest extends TestCase
             'INERTIA_SSR_TIMEOUT' => null,
             'INERTIA_SSR_BACKOFF' => null,
         ], fn (): array => require dirname(__DIR__, 2) . '/src/inertia/config/inertia.php');
-        config(['inertia.ssr' => []]);
-        HttpGateway::flushState();
 
         $gateway = new HttpGateway;
-        $client = (new ReflectionMethod($gateway, 'ssrClient'))->invoke($gateway);
 
-        $this->assertSame($shippedConfig['ssr']['connect_timeout'], $client->getConfig('connect_timeout'));
-        $this->assertSame($shippedConfig['ssr']['timeout'], $client->getConfig('timeout'));
+        $this->assertSame([
+            'connect_timeout' => $shippedConfig['ssr']['connect_timeout'],
+            'timeout' => $shippedConfig['ssr']['timeout'],
+        ], Http::getConnectionOptions(HttpGateway::CONNECTION));
         $this->assertSame('http://127.0.0.1:13714/render', $gateway->getProductionUrl('/render'));
         $this->assertTrue((new ReflectionMethod($gateway, 'shouldEnsureBundleExists'))->invoke($gateway));
 
@@ -1000,6 +1137,55 @@ class HttpGatewayTest extends TestCase
         $unavailableUntil = (new ReflectionProperty(HttpGateway::class, 'ssrUnavailableUntil'))->getValue();
 
         $this->assertEqualsWithDelta($startedAt + $shippedConfig['ssr']['backoff'], $unavailableUntil, 0.1);
+    }
+
+    /**
+     * Capture the pending HTTP request that is sent to the SSR server.
+     */
+    protected function captureSsrRequest(): PendingRequest
+    {
+        config([
+            'inertia.ssr.enabled' => true,
+            'inertia.ssr.ensure_bundle_exists' => false,
+        ]);
+
+        Http::fake([
+            $this->renderUrl => Http::response(json_encode(['head' => [], 'body' => ''])),
+        ]);
+
+        $this->gateway->configureRequestUsing(function (PendingRequest $request) use (&$captured): void {
+            $captured = $request;
+        });
+
+        $this->gateway->dispatch(self::EXAMPLE_PAGE_OBJECT);
+
+        return $captured;
+    }
+
+    /**
+     * Configure custom SSR timeouts before the SSR connection is registered.
+     */
+    protected function useCustomSsrTimeouts(ApplicationContract $app): void
+    {
+        $app->make('config')->set('inertia.ssr.connect_timeout', 1.5);
+        $app->make('config')->set('inertia.ssr.timeout', 7.5);
+    }
+
+    /**
+     * Configure null SSR timeouts before the SSR connection is registered.
+     */
+    protected function useNullSsrTimeouts(ApplicationContract $app): void
+    {
+        $app->make('config')->set('inertia.ssr.connect_timeout', null);
+        $app->make('config')->set('inertia.ssr.timeout', null);
+    }
+
+    /**
+     * Configure an SSR section that omits every optional setting.
+     */
+    protected function usePartialSsrConfig(ApplicationContract $app): void
+    {
+        $app->make('config')->set('inertia.ssr', []);
     }
 }
 

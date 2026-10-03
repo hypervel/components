@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Inertia\Commands;
 
-use GuzzleHttp\Exception\TransferException;
 use Hypervel\Console\Command;
+use Hypervel\Http\Client\ConnectionException;
 use Hypervel\Inertia\Ssr\HttpGateway;
 use Symfony\Component\Console\Attribute\AsCommand;
 
@@ -39,7 +39,7 @@ class StopSsr extends Command
 
                 return self::FAILURE;
             }
-        } catch (TransferException) {
+        } catch (ConnectionException) {
             // The official shutdown endpoint terminates after a verified health
             // response and may close the connection without sending a response.
         }

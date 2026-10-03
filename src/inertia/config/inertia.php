@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+$devtoolsEnabled = env('INERTIA_DEVTOOLS_ENABLED');
+
 return [
     /*
     |--------------------------------------------------------------------------
@@ -41,14 +43,16 @@ return [
         | SSR Timeouts
         |--------------------------------------------------------------------------
         |
-        | Configure connection and read timeouts for SSR requests. These prevent
-        | coroutines from hanging indefinitely when the SSR server is unresponsive.
+        | Configure the connection and total timeouts for SSR requests, in seconds.
+        | Short timeouts let pages fall back to client-side rendering quickly when
+        | the SSR server is slow or unresponsive. Set either option to null to use
+        | the HTTP client's global timeout instead.
         |
         */
 
-        'connect_timeout' => (int) env('INERTIA_SSR_CONNECT_TIMEOUT', 2),
+        'connect_timeout' => ($timeout = env('INERTIA_SSR_CONNECT_TIMEOUT', 2)) === null ? null : (float) $timeout,
 
-        'timeout' => (int) env('INERTIA_SSR_TIMEOUT', 5),
+        'timeout' => ($timeout = env('INERTIA_SSR_TIMEOUT', 5)) === null ? null : (float) $timeout,
 
         /*
         |--------------------------------------------------------------------------
@@ -158,5 +162,62 @@ return [
 
     'history' => [
         'encrypt' => (bool) env('INERTIA_ENCRYPT_HISTORY', false),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | DevTools
+    |--------------------------------------------------------------------------
+    |
+    | Records one entry per request to disk so the DevTools Chrome extension may
+    | read it back over HTTP. When `enabled` is null, recording is limited to
+    | your local environment. Omitted DevTools members use the defaults shown
+    | below. See https://inertiajs.com/docs/devtools for the gate and storage
+    | options.
+    |
+    */
+
+    'devtools' => [
+        'enabled' => $devtoolsEnabled === null ? null : (bool) $devtoolsEnabled,
+
+        'except' => ['telescope*', 'horizon*', '_inertia/devtools*'],
+
+        'storage' => [
+            'path' => storage_path('inertia-devtools'),
+
+            'ttl' => (int) env('INERTIA_DEVTOOLS_TTL_HOURS', 24),
+
+            'prune_interval' => (int) env('INERTIA_DEVTOOLS_PRUNE_INTERVAL_SECONDS', 300),
+
+            'limit' => (int) env('INERTIA_DEVTOOLS_LIMIT', 100),
+        ],
+
+        'middleware' => ['web'],
+
+        'gate' => env('INERTIA_DEVTOOLS_GATE'),
+
+        'redact' => [
+            'keys' => [
+                'password',
+                'password_confirmation',
+                'current_password',
+                'token',
+                '_token',
+                'access_token',
+                'refresh_token',
+                'secret',
+                'client_secret',
+                'api_key',
+            ],
+
+            'headers' => [
+                'cookie',
+                'set-cookie',
+                'authorization',
+                'proxy-authorization',
+                'x-xsrf-token',
+                'x-csrf-token',
+            ],
+        ],
     ],
 ];

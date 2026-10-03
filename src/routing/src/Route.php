@@ -124,6 +124,11 @@ class Route
     protected ?int $waitSeconds = null;
 
     /**
+     * Indicates if the route should use a read-only session.
+     */
+    protected bool $readOnlySession = false;
+
+    /**
      * The computed gathered middleware.
      *
      * Safe to cache on the Route instance — middleware is deterministic
@@ -1444,6 +1449,24 @@ class Route
     public function waitsFor(): ?int
     {
         return $this->waitSeconds;
+    }
+
+    /**
+     * Specify that the route should read the session without saving it.
+     */
+    public function readOnlySession(bool $readOnly = true): static
+    {
+        $this->readOnlySession = $readOnly;
+
+        return $this;
+    }
+
+    /**
+     * Determine if the route uses a read-only session.
+     */
+    public function hasReadOnlySession(): bool
+    {
+        return $this->readOnlySession;
     }
 
     /**

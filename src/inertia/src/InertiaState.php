@@ -37,6 +37,14 @@ class InertiaState implements ReplicableContext
     public array $sharedProps = [];
 
     /**
+     * The source locations of the shared properties, recorded for DevTools. Kept beside the
+     * shared properties so props shared during boot carry their sources into each request.
+     *
+     * @var array<string, array{file: string, line: int}>
+     */
+    public array $shareSources = [];
+
+    /**
      * The asset version resolver or value.
      */
     public Closure|string|null $version = null;
@@ -88,6 +96,11 @@ class InertiaState implements ReplicableContext
      * @var array<int, string>
      */
     public array $ssrExcludedPaths = [];
+
+    /**
+     * The callback that configures the HTTP request sent to the SSR server.
+     */
+    public ?Closure $ssrRequestConfigurator = null;
 
     /**
      * Get the current Inertia state.

@@ -891,7 +891,20 @@ php artisan inertia:start-ssr --runtime=bun
 
 You may also configure the runtime using the `INERTIA_SSR_RUNTIME` environment variable. Runtime values may be executable names or absolute paths.
 
-The `hot_url` option within your application's `inertia.ssr` configuration may be used to specify the SSR server URL while Vite is running. This option may also be configured using the `INERTIA_SSR_HOT_URL` environment variable. The `connect_timeout` and `timeout` options control how long Hypervel waits for the SSR server, while the `backoff` option determines how long a worker skips SSR after a connection failure or malformed response.
+The `hot_url` option within your application's `inertia.ssr` configuration may be used to specify the SSR server URL while Vite is running. This option may also be configured using the `INERTIA_SSR_HOT_URL` environment variable. The `connect_timeout` and `timeout` options control how many seconds Hypervel waits for the SSR server; you may set either option to `null` to use the HTTP client's global timeout instead. The `backoff` option determines how long a worker skips SSR after a connection failure or malformed response.
+
+For more control, you may use the `Inertia::configureSsrRequestUsing` method, typically from a service provider. The closure receives the `PendingRequest` before it is sent, so you may add retries, headers, or any other option supported by Hypervel's [HTTP client](/docs/{{version}}/http-client):
+
+```php
+use Hypervel\Http\Client\PendingRequest;
+use Hypervel\Inertia\Inertia;
+
+Inertia::configureSsrRequestUsing(function (PendingRequest $request) {
+    $request->timeout(3)->retry(2);
+});
+```
+
+The closure also applies to the health check and shutdown requests sent by the `inertia:check-ssr` and `inertia:stop-ssr` commands. Since SSR requests are sent using the HTTP client, `Http::fake` and `Http::preventStrayRequests` apply to them in your tests.
 
 When an SSR render request fails, Hypervel renders the page on the client and dispatches a `Hypervel\Inertia\Ssr\SsrRenderFailed` event. To throw an exception instead, enable the `throw_on_error` option within your application's `inertia.ssr` configuration.
 

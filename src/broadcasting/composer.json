@@ -25,7 +25,7 @@
     },
     "require": {
         "php": "^8.4",
-        "guzzlehttp/guzzle": "^7.15.1 || ^8.2",
+        "guzzlehttp/guzzle": "^7.15.2 || ^8.2",
         "hypervel/bus": "^0.4",
         "hypervel/collections": "^0.4",
         "hypervel/connection-pool": "^0.4",

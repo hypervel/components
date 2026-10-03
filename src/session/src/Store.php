@@ -55,6 +55,11 @@ class Store implements Session
     public const string ID_CONTEXT_KEY_PREFIX = '__session.store.id.';
 
     /**
+     * Context key for whether the session is read-only.
+     */
+    protected const string READ_ONLY_CONTEXT_KEY_PREFIX = '__session.store.read_only.';
+
+    /**
      * The supported session serialization strategies.
      */
     protected const array SUPPORTED_SERIALIZATIONS = ['json', 'php'];
@@ -78,6 +83,11 @@ class Store implements Session
      * The context key for this session's ID.
      */
     protected readonly string $idContextKey;
+
+    /**
+     * The context key for whether this session is read-only.
+     */
+    protected readonly string $readOnlyContextKey;
 
     /**
      * Create a new session instance.
@@ -105,9 +115,11 @@ class Store implements Session
         $this->startedContextKey = self::STARTED_CONTEXT_KEY_PREFIX . $suffix;
         $this->attributesContextKey = self::ATTRIBUTES_CONTEXT_KEY_PREFIX . $suffix;
         $this->idContextKey = self::ID_CONTEXT_KEY_PREFIX . $suffix;
+        $this->readOnlyContextKey = self::READ_ONLY_CONTEXT_KEY_PREFIX . $suffix;
 
         CoroutineContext::set($this->startedContextKey, false);
         CoroutineContext::set($this->attributesContextKey, []);
+        CoroutineContext::set($this->readOnlyContextKey, false);
 
         $this->setId($id);
     }
@@ -117,6 +129,10 @@ class Store implements Session
      */
     public function start(): bool
     {
+        // Read-only applies to the request that marks it, so a later request handled in the
+        // same coroutine starts with a writable session.
+        CoroutineContext::set($this->readOnlyContextKey, false);
+
         $this->loadSession();
 
         if (! $this->has('_token')) {
@@ -222,6 +238,10 @@ class Store implements Session
      */
     public function save(): void
     {
+        if ($this->isReadOnly()) {
+            return;
+        }
+
         // Publish the aged attributes only after the handler commits, so a failed
         // write leaves the live flash data and error bag intact for the retry.
         $attributes = $this->ageFlashDataIn($this->getAttributes());
@@ -614,7 +634,7 @@ class Store implements Session
      */
     public function migrate(bool $destroy = false): bool
     {
-        if ($destroy) {
+        if ($destroy && ! $this->isReadOnly()) {
             $this->handler->destroy($this->getId());
         }
 
@@ -631,6 +651,26 @@ class Store implements Session
     public function isStarted(): bool
     {
         return CoroutineContext::get($this->startedContextKey, false);
+    }
+
+    /**
+     * Mark the session as read-only for the current request.
+     *
+     * A read-only session is not saved, and regenerating its ID does not destroy the stored
+     * session, so the request cannot overwrite session data saved by concurrent requests.
+     * Changes made during the request remain available until it ends.
+     */
+    public function markAsReadOnly(): void
+    {
+        CoroutineContext::set($this->readOnlyContextKey, true);
+    }
+
+    /**
+     * Determine if the session is read-only for the current request.
+     */
+    public function isReadOnly(): bool
+    {
+        return CoroutineContext::get($this->readOnlyContextKey, false);
     }
 
     /**

@@ -100,6 +100,18 @@ class DirectiveTest extends TestCase
         $this->fail('The unencodable page did not throw a view exception.');
     }
 
+    public function testInertiaDirectiveEscapesHtmlTagsInThePageData(): void
+    {
+        Config::set(['inertia.ssr.enabled' => false]);
+
+        $page = ['component' => 'Foo/Bar', 'props' => ['foo' => '</script><!--<script>'], 'url' => '/test', 'version' => ''];
+        $html = $this->renderView('@inertia', ['page' => $page]);
+
+        $this->assertStringContainsString('\u003C\/script\u003E\u003C!--\u003Cscript\u003E', $html);
+        $this->assertStringNotContainsString('<!--', $html);
+        $this->assertSame(1, substr_count($html, '</script>'));
+    }
+
     public function testInertiaHeadDirectiveRendersNothing(): void
     {
         Config::set(['inertia.ssr.enabled' => false]);

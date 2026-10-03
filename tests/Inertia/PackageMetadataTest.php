@@ -29,10 +29,8 @@ class PackageMetadataTest extends TestCase
             JSON_THROW_ON_ERROR,
         );
 
-        foreach (['guzzlehttp/guzzle', 'guzzlehttp/promises'] as $dependency) {
-            $this->assertArrayHasKey($dependency, $rootComposer['require']);
-            $this->assertArrayHasKey($dependency, $composer['require']);
-            $this->assertSame($rootComposer['require'][$dependency], $composer['require'][$dependency]);
-        }
+        $this->assertArrayHasKey('guzzlehttp/promises', $rootComposer['require']);
+        $this->assertArrayHasKey('guzzlehttp/promises', $composer['require']);
+        $this->assertSame($rootComposer['require']['guzzlehttp/promises'], $composer['require']['guzzlehttp/promises']);
     }
 }

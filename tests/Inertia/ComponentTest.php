@@ -75,6 +75,18 @@ class ComponentTest extends TestCase
         $this->assertStringContainsString('data-page="app"', $rendered);
     }
 
+    public function testAppComponentEscapesHtmlTagsInThePageData(): void
+    {
+        Config::set(['inertia.ssr.enabled' => false]);
+
+        $page = ['component' => 'Foo/Bar', 'props' => ['foo' => '</script><!--<script>'], 'url' => '/test', 'version' => ''];
+        $rendered = $this->renderView('<x-inertia::app />', ['page' => $page]);
+
+        $this->assertStringContainsString('\u003C\/script\u003E\u003C!--\u003Cscript\u003E', $rendered);
+        $this->assertStringNotContainsString('<!--', $rendered);
+        $this->assertSame(1, substr_count($rendered, '</script>'));
+    }
+
     public function testAppComponentReportsPageEncodingFailures(): void
     {
         Config::set(['inertia.ssr.enabled' => false]);
@@ -229,14 +241,13 @@ class ComponentTest extends TestCase
         $this->assertStringNotContainsString('"component":"FirstPage"', $second);
     }
 
-    public function testInertiaStateDoesNotLeakBetweenRequests(): void
+    public function testSsrStateIsScopedAndDoesNotLeakBetweenRequests(): void
     {
         Config::set(['inertia.ssr.enabled' => true]);
 
         $state1 = InertiaState::current();
         $state1->page = self::EXAMPLE_PAGE_OBJECT;
-        $state1->ssrDispatched = true;
-        $state1->ssrResponse = app(Gateway::class)->dispatch($state1->page);
+        $state1->dispatchSsr();
 
         $this->assertNotNull($state1->ssrResponse);
 

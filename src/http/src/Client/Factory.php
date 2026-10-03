@@ -226,16 +226,21 @@ class Factory
      */
     protected static function normalizeResponseHeaders(array $headers): array
     {
+        $normalized = [];
+
+        // Fresh arrays never write through, or keep, references in the caller's data.
         foreach ($headers as $name => $value) {
             if (is_array($value)) {
                 if ($value === []) {
-                    $headers[$name] = '';
+                    $normalized[$name] = '';
 
                     continue;
                 }
 
+                $normalizedValue = [];
+
                 foreach ($value as $key => $item) {
-                    $value[$key] = match (true) {
+                    $normalizedValue[$key] = match (true) {
                         $item === null => '',
                         is_scalar($item) => static::normalizeScalarString($item),
                         $item instanceof Stringable => $item->toString(),
@@ -243,12 +248,12 @@ class Factory
                     };
                 }
 
-                $headers[$name] = $value;
+                $normalized[$name] = $normalizedValue;
 
                 continue;
             }
 
-            $headers[$name] = match (true) {
+            $normalized[$name] = match (true) {
                 $value === null => '',
                 is_scalar($value) => static::normalizeScalarString($value),
                 $value instanceof Stringable => $value->toString(),
@@ -256,7 +261,7 @@ class Factory
             };
         }
 
-        return $headers;
+        return $normalized;
     }
 
     /**

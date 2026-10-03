@@ -4,44 +4,61 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Inertia\Commands;
 
-use GuzzleHttp\Exception\ConnectException;
-use GuzzleHttp\Psr7\Request;
+use Hypervel\Http\Client\Request;
 use Hypervel\Inertia\Ssr\HttpGateway;
+use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Inertia\TestCase;
-use Mockery as m;
 
 class StopSsrTest extends TestCase
 {
+    protected string $healthUrl;
+
+    protected string $shutdownUrl;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $gateway = app(HttpGateway::class);
+        $this->healthUrl = $gateway->getProductionUrl('/health');
+        $this->shutdownUrl = $gateway->getProductionUrl('/shutdown');
+
+        Http::preventStrayRequests();
+    }
+
     public function testFailsWhenTheSsrServerIsUnhealthy(): void
     {
-        $gateway = m::mock(HttpGateway::class);
-        $gateway->shouldReceive('isHealthy')->once()->andReturn(false);
-        $gateway->shouldNotReceive('shutdown');
-        $this->app->instance(HttpGateway::class, $gateway);
+        Http::fake([
+            $this->healthUrl => Http::response(status: 500),
+        ]);
 
         $this->artisan('inertia:stop-ssr')
             ->expectsOutput('Unable to connect to Inertia SSR server.')
             ->assertExitCode(1);
+
+        Http::assertSentCount(1);
     }
 
     public function testSucceedsWhenTheSsrServerStops(): void
     {
-        $gateway = m::mock(HttpGateway::class);
-        $gateway->shouldReceive('isHealthy')->once()->andReturn(true);
-        $gateway->shouldReceive('shutdown')->once()->andReturn(true);
-        $this->app->instance(HttpGateway::class, $gateway);
+        Http::fake([
+            $this->healthUrl => Http::response(status: 200),
+            $this->shutdownUrl => Http::response(status: 200),
+        ]);
 
         $this->artisan('inertia:stop-ssr')
             ->expectsOutput('Inertia SSR server stopped.')
             ->assertExitCode(0);
+
+        Http::assertSent(fn (Request $request): bool => $request->url() === $this->shutdownUrl);
     }
 
     public function testFailsWhenTheSsrServerRefusesToStop(): void
     {
-        $gateway = m::mock(HttpGateway::class);
-        $gateway->shouldReceive('isHealthy')->once()->andReturn(true);
-        $gateway->shouldReceive('shutdown')->once()->andReturn(false);
-        $this->app->instance(HttpGateway::class, $gateway);
+        Http::fake([
+            $this->healthUrl => Http::response(status: 200),
+            $this->shutdownUrl => Http::response(status: 500),
+        ]);
 
         $this->artisan('inertia:stop-ssr')
             ->expectsOutput('Inertia SSR server refused to stop.')
@@ -50,13 +67,10 @@ class StopSsrTest extends TestCase
 
     public function testAcceptsAResponseLessCloseAfterTheHealthCheck(): void
     {
-        $gateway = m::mock(HttpGateway::class);
-        $gateway->shouldReceive('isHealthy')->once()->andReturn(true);
-        $gateway->shouldReceive('shutdown')->once()->andThrow(new ConnectException(
-            'Connection closed',
-            new Request('GET', 'http://localhost:13714/shutdown'),
-        ));
-        $this->app->instance(HttpGateway::class, $gateway);
+        Http::fake([
+            $this->healthUrl => Http::response(status: 200),
+            $this->shutdownUrl => Http::failedConnection('Connection closed'),
+        ]);
 
         $this->artisan('inertia:stop-ssr')
             ->expectsOutput('Inertia SSR server stopped.')

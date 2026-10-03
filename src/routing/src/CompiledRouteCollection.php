@@ -613,6 +613,7 @@ class CompiledRouteCollection extends AbstractRouteCollection
             ->setWheres($attributes['wheres'])
             ->setBindingFields($attributes['bindingFields'])
             ->block($attributes['lockSeconds'] ?? null, $attributes['waitSeconds'] ?? null)
+            ->readOnlySession($attributes['readOnlySession'])
             ->withTrashed($attributes['withTrashed'] ?? false);
     }
 

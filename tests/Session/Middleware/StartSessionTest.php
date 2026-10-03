@@ -198,6 +198,7 @@ class StartSessionTest extends TestCase
 
         $session->shouldReceive('setRequestOnHandler')->once()->with($request);
         $session->shouldReceive('start')->once()->andReturnTrue();
+        $session->shouldReceive('isReadOnly')->once()->andReturnFalse();
         $manager->shouldReceive('getSessionConfig')->once()->andReturn([
             'lottery' => [0, 1],
         ]);
@@ -240,6 +241,7 @@ class StartSessionTest extends TestCase
 
         $session->shouldReceive('setRequestOnHandler')->once()->with($request);
         $session->shouldReceive('start')->once()->andReturnTrue();
+        $session->shouldReceive('isReadOnly')->twice()->andReturnFalse();
         $manager->shouldReceive('getSessionConfig')->twice()->andReturn([
             'lottery' => [0, 1],
             'driver' => null,
