@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Inertia\DevTools;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\RedirectResponse;
+use Hypervel\Http\Request;
 use Hypervel\Http\Response as HttpResponse;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Inertia\DevTools\DevToolsHeader;
@@ -21,6 +22,7 @@ use Hypervel\Support\Facades\Route;
 use Hypervel\Tests\Inertia\Fixtures\DevToolsRootViewMiddleware;
 use Hypervel\Tests\Inertia\TestCase;
 use JsonSerializable;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class MiddlewareDevToolsTest extends TestCase
 {
@@ -102,7 +104,12 @@ class MiddlewareDevToolsTest extends TestCase
 
     public function testInitialInertiaHtmlResponseIncludesTheDevtoolsIdScriptTag(): void
     {
-        Route::middleware(DevToolsRootViewMiddleware::class)->get('/devtools-html', fn (): Response => Inertia::render('Users/Index', ['name' => 'Alice']));
+        Route::middleware(DevToolsRootViewMiddleware::class)->get('/devtools-html', function (Request $request): SymfonyResponse {
+            $response = Inertia::render('Users/Index', ['name' => 'Alice'])->toResponse($request);
+            $response->headers->set('Content-Length', (string) strlen((string) $response->getContent()));
+
+            return $response;
+        });
 
         $response = $this->get('/devtools-html');
 
@@ -113,6 +120,8 @@ class MiddlewareDevToolsTest extends TestCase
         $this->assertStringContainsString('data-inertia-devtools-id', $content);
         $this->assertStringContainsString('</body>', $content);
         $this->assertMatchesRegularExpression('/<script data-inertia-devtools-id type="application\/json">"[A-Z0-9]+"<\/script><\/body>/', $content);
+        // The length set before the tag was added no longer matches the page.
+        $this->assertFalse($response->headers->has('Content-Length'));
     }
 
     public function testTheDevtoolsIdScriptTagIsInjectedBeforeAnUppercaseClosingBodyTag(): void

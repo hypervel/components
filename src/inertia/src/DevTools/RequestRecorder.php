@@ -351,6 +351,9 @@ class RequestRecorder
         if ($response instanceof HttpResponse) {
             $response->original = $original;
         }
+
+        // The tag lengthens the page, so a length the application set for it would cut it short.
+        $response->headers->remove('Content-Length');
     }
 
     /**
