@@ -74,10 +74,13 @@ class PropClassifier
     /**
      * A prop is a deep merge when it deep-merges nested data (`->deepMerge()`) or matches
      * array items on a key (`->matchOn()`) to upsert them rather than blindly appending.
+     * Matching has no effect unless the prop merges.
      */
     protected function isDeepMerge(mixed $prop): bool
     {
-        return $prop instanceof Mergeable && ($prop->shouldDeepMerge() || count($prop->matchesOn()) > 0);
+        return $prop instanceof Mergeable
+            && $prop->shouldMerge()
+            && ($prop->shouldDeepMerge() || count($prop->matchesOn()) > 0);
     }
 
     /**

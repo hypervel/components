@@ -236,6 +236,14 @@ class PropClassifierTest extends TestCase
         $this->assertSame('append', $result['mergeDirection']);
     }
 
+    public function testMatchOnWithoutMergingIsNotADeepMerge(): void
+    {
+        $result = $this->classify('items', Inertia::defer(fn (): array => [['id' => 1]])->matchOn('id'));
+
+        $this->assertFalse($result['deepMerge']);
+        $this->assertNull($result['mergeDirection']);
+    }
+
     public function testPlainMergeIsNotADeepMerge(): void
     {
         $result = $this->classify('items', Inertia::merge(['a']));
