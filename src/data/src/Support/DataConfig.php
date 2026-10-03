@@ -9,6 +9,7 @@ use Hypervel\Data\Casts\Cast;
 use Hypervel\Data\Contracts\BaseData;
 use Hypervel\Data\Mappers\NameMapper;
 use Hypervel\Data\Normalizers\Normalizer;
+use Hypervel\Data\RuleInferrers\RuleInferrer;
 use Hypervel\Data\Support\Creation\ValidationStrategy;
 use Hypervel\Data\Transformers\Transformer;
 use InvalidArgumentException;
@@ -61,6 +62,13 @@ class DataConfig
     public readonly array $transformers;
 
     /**
+     * The configured rule inferrers, run after the fixed rule inference.
+     *
+     * @var list<class-string<RuleInferrer>>
+     */
+    public readonly array $ruleInferrers;
+
+    /**
      * The configured global normalizers.
      *
      * @var list<class-string<Normalizer>>
@@ -76,6 +84,21 @@ class DataConfig
      * The maximum nested transformation depth.
      */
     public readonly ?int $maxTransformationDepth;
+
+    /**
+     * Indicates if nested partials targeting unknown properties should be ignored instead of rejected.
+     */
+    public readonly bool $ignoreInvalidPartials;
+
+    /**
+     * Indicates if reaching the maximum transformation depth throws instead of returning an empty array.
+     */
+    public readonly bool $throwWhenMaxTransformationDepthReached;
+
+    /**
+     * Indicates if supplied computed property values should be ignored instead of rejected.
+     */
+    public readonly bool $ignoreComputedPropertyInput;
 
     /** @var array<string, class-string<BaseData>> */
     protected array $morphMap = [];
@@ -99,6 +122,11 @@ class DataConfig
             Transformer::class,
             'data.transformers',
         );
+        $this->ruleInferrers = self::extensionList(
+            $config->array('data.rule_inferrers'),
+            RuleInferrer::class,
+            'data.rule_inferrers',
+        );
         $this->normalizers = self::extensionList(
             $config->array('data.normalizers'),
             Normalizer::class,
@@ -108,6 +136,13 @@ class DataConfig
         $this->maxTransformationDepth = self::nullablePositiveInteger(
             $config,
             'data.max_transformation_depth',
+        );
+        $this->ignoreInvalidPartials = $config->boolean('data.ignore_invalid_partials');
+        $this->throwWhenMaxTransformationDepthReached = $config->boolean(
+            'data.throw_when_max_transformation_depth_reached',
+        );
+        $this->ignoreComputedPropertyInput = $config->boolean(
+            'data.features.ignore_exception_when_trying_to_set_computed_property_value',
         );
     }
 

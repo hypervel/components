@@ -6,14 +6,25 @@ namespace Hypervel\Data\Support\Validation;
 
 use DateTimeInterface;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Data\Attributes\Validation\ArrayType;
+use Hypervel\Data\Attributes\Validation\BooleanType;
+use Hypervel\Data\Attributes\Validation\IntegerType;
+use Hypervel\Data\Attributes\Validation\Nullable;
+use Hypervel\Data\Attributes\Validation\Numeric;
+use Hypervel\Data\Attributes\Validation\Required;
+use Hypervel\Data\Attributes\Validation\Sometimes;
+use Hypervel\Data\Attributes\Validation\StringType;
+use Hypervel\Data\Attributes\Validation\ValidationAttribute;
 use Hypervel\Data\Contracts\BaseData;
 use Hypervel\Data\Exceptions\CannotBuildValidationRule;
 use Hypervel\Data\Lazy;
 use Hypervel\Data\Optional;
+use Hypervel\Data\RuleInferrers\RuleInferrer;
 use Hypervel\Data\Support\Creation\ConstructionState;
 use Hypervel\Data\Support\Creation\CreationMode;
 use Hypervel\Data\Support\DataClass;
 use Hypervel\Data\Support\DataClassRepository;
+use Hypervel\Data\Support\DataConfig;
 use Hypervel\Data\Support\DataProperty;
 use Hypervel\Data\Support\Types\NamedType;
 use Hypervel\Validation\Rules\RequiredIf as NativeRequiredIf;
@@ -48,6 +59,7 @@ class DataValidationCompiler
         protected readonly DataClassRepository $dataClasses,
         protected readonly Container $container,
         protected readonly RuleDenormalizer $ruleDenormalizer,
+        protected readonly DataConfig $config,
     ) {
     }
 
@@ -56,6 +68,7 @@ class DataValidationCompiler
      */
     public function compile(ConstructionState $state): CompiledValidation
     {
+        $state->setRuleInferrers($this->resolveRuleInferrers());
         $accumulator = new ValidationAccumulator;
         $compileUnknownFields = $state->unknownInput() !== null;
         $lifecycleDeclarations = [
@@ -93,6 +106,7 @@ class DataValidationCompiler
         ConstructionState $state,
         string $dataClass,
     ): CompiledValidation {
+        $state->setRuleInferrers($this->resolveRuleInferrers());
         $accumulator = new ValidationAccumulator;
         $compileUnknownFields = $state->unknownInput() !== null;
         $lifecycleDeclarations = [
@@ -503,16 +517,10 @@ class DataValidationCompiler
         bool $expectsArray,
         bool &$inferredRequired,
     ): array {
-        $attributeRules = [];
-        $hasPresenceRule = false;
+        $attributes = [];
 
         foreach ($property->attributes->all(ValidationRule::class) as $recipe) {
-            $attribute = $recipe->newInstance();
-            $denormalizedRules = $this->ruleDenormalizer->execute($attribute, $nodePath);
-            $hasPresenceRule = $hasPresenceRule
-                || $attribute instanceof RequiringRule
-                || $this->hasPresenceRule($denormalizedRules);
-            array_push($attributeRules, ...$denormalizedRules);
+            $attributes[] = $recipe->newInstance();
         }
 
         $generatedRules = null;
@@ -525,13 +533,60 @@ class DataValidationCompiler
             }
         }
 
-        if ($generatedRules === null) {
-            $generatedRules = $this->inferRules($property, $expectsArray, $hasPresenceRule);
-            $inferredRequired = in_array('required', $generatedRules, true);
+        if ($generatedRules === null && $this->config->ruleInferrers !== []) {
+            $evaluatedRules = [];
+            $hasPresenceRule = false;
+
+            foreach ($attributes as $attribute) {
+                if ($attribute instanceof RequiringRule) {
+                    $hasPresenceRule = true;
+                } elseif ($attribute instanceof ValidationAttribute) {
+                    // A keyword shows presence without resolving parameters an inferrer may remove.
+                    $hasPresenceRule = $hasPresenceRule
+                        || in_array($attribute::keyword(), self::PRESENCE_RULES, true);
+                } else {
+                    $evaluatedRules[spl_object_id($attribute)] = $denormalizedRules = $this->ruleDenormalizer->execute($attribute, $nodePath);
+                    $hasPresenceRule = $hasPresenceRule || $this->hasPresenceRule($denormalizedRules);
+                }
+            }
+
+            $inferredRules = $this->inferRules($property, $expectsArray, $hasPresenceRule);
+            $propertyRules = $this->applyRuleInferrers($property, $attributes, $inferredRules, $nodePath, $state);
+            // An inferrer may remove the inferred requirement; class rules must not treat it as present.
+            $inferredRequired = in_array('required', $inferredRules, true)
+                && $propertyRules->hasType(Required::class);
+            $rules = [];
+
+            // Surviving rules reuse any evaluation needed for presence; removed keyword attributes never resolve.
+            foreach ($propertyRules->all() as $rule) {
+                array_push(
+                    $rules,
+                    ...($evaluatedRules[spl_object_id($rule)] ?? $this->ruleDenormalizer->execute($rule, $nodePath)),
+                );
+            }
         } else {
-            $generatedRules = $this->ruleDenormalizer->execute($generatedRules, $nodePath);
+            $attributeRules = [];
+            $hasPresenceRule = false;
+
+            foreach ($attributes as $attribute) {
+                $denormalizedRules = $this->ruleDenormalizer->execute($attribute, $nodePath);
+                $hasPresenceRule = $hasPresenceRule
+                    || $attribute instanceof RequiringRule
+                    || $this->hasPresenceRule($denormalizedRules);
+                array_push($attributeRules, ...$denormalizedRules);
+            }
+
+            if ($generatedRules !== null) {
+                $rules = $this->mergeRules(
+                    $attributeRules,
+                    $this->ruleDenormalizer->execute($generatedRules, $nodePath),
+                );
+            } else {
+                $generatedRules = $this->inferRules($property, $expectsArray, $hasPresenceRule);
+                $inferredRequired = in_array('required', $generatedRules, true);
+                $rules = $this->mergeRules($attributeRules, $generatedRules);
+            }
         }
-        $rules = $this->mergeRules($attributeRules, $generatedRules);
 
         foreach ($state->context->afterRulesHooks as $hook) {
             $rules = $this->ruleDenormalizer->execute(
@@ -546,7 +601,7 @@ class DataValidationCompiler
     /**
      * Infer fixed presence and type rules for one property.
      *
-     * @return list<string>
+     * @return list<'array'|'boolean'|'integer'|'nullable'|'numeric'|'required'|'sometimes'|'string'>
      */
     protected function inferRules(
         DataProperty $property,
@@ -571,6 +626,72 @@ class DataValidationCompiler
         }
 
         return $rules;
+    }
+
+    /**
+     * Run the configured rule inferrers over one property's attribute and inferred rules.
+     *
+     * Explicit attributes take precedence over inferred rules of the same type.
+     *
+     * @param list<ValidationRule> $attributes
+     * @param list<'array'|'boolean'|'integer'|'nullable'|'numeric'|'required'|'sometimes'|'string'> $inferredRules
+     */
+    protected function applyRuleInferrers(
+        DataProperty $property,
+        array $attributes,
+        array $inferredRules,
+        ValidationPath $nodePath,
+        ConstructionState $state,
+    ): PropertyRules {
+        $rules = new PropertyRules($attributes);
+
+        foreach ($inferredRules as $inferredRule) {
+            $rule = match ($inferredRule) {
+                'sometimes' => new Sometimes,
+                'nullable' => new Nullable,
+                'required' => new Required,
+                'array' => new ArrayType,
+                'boolean' => new BooleanType,
+                'numeric' => new Numeric,
+                'integer' => new IntegerType,
+                'string' => new StringType,
+            };
+
+            if (! $rules->hasType($rule::class)) {
+                $rules->add($rule);
+            }
+        }
+
+        $context = new ValidationContext(
+            payload: $state->currentPayload(),
+            fullPayload: $state->payload(),
+            path: $nodePath,
+        );
+
+        foreach ($state->ruleInferrers() as $inferrer) {
+            $rules = $inferrer->handle($property, $rules, $context);
+        }
+
+        return $rules;
+    }
+
+    /**
+     * Resolve the configured rule inferrers for one compilation.
+     *
+     * They are resolved per compilation, so scoped inferrers follow the current coroutine.
+     *
+     * @return list<RuleInferrer>
+     */
+    protected function resolveRuleInferrers(): array
+    {
+        if ($this->config->ruleInferrers === []) {
+            return [];
+        }
+
+        return array_map(
+            fn (string $inferrer): RuleInferrer => $this->container->make($inferrer),
+            $this->config->ruleInferrers,
+        );
     }
 
     /**
@@ -1193,11 +1314,14 @@ class DataValidationCompiler
     ): bool {
         return $this->dataClasses->hasDynamicRuleGraph($dataClass)
             || $state->context->beforeRulesHooks !== []
-            || $state->context->afterRulesHooks !== [];
+            || $state->context->afterRulesHooks !== []
+            || $this->config->ruleInferrers !== [];
     }
 
     /**
      * Get one unambiguous primitive validation rule.
+     *
+     * @return null|'array'|'boolean'|'integer'|'numeric'|'string'
      */
     protected function primitiveRule(DataProperty $property): ?string
     {

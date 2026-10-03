@@ -27,7 +27,7 @@ class CannotPerformPartialOnDataField extends InvalidArgumentException
         string $class,
     ): self {
         return new self(sprintf(
-            'Cannot %s unknown data property [%s] on [%s].',
+            'Cannot apply the [%s] partial to unknown data property [%s] on [%s].',
             $operation,
             $field,
             $class,

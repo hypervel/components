@@ -12,11 +12,13 @@ final readonly class PartialTree
      * Create a compiled partial tree.
      *
      * @param array<string, self> $children
+     * @param list<string> $nestedProperties the children whose selection continues into their own value
      */
     private function __construct(
         public bool $selected,
         public bool $all,
         public array $children,
+        public array $nestedProperties = [],
     ) {
     }
 
@@ -86,6 +88,8 @@ final readonly class PartialTree
         }
 
         $children = [];
+        $all = $this->all || $other->all;
+        $nestedProperties = [];
 
         foreach ($this->children as $property => $child) {
             $children[$property] = $child->merge($other->child($property));
@@ -95,10 +99,17 @@ final readonly class PartialTree
             $children[$property] ??= $child->merge($this->child($property));
         }
 
+        foreach ($children as $property => $child) {
+            if (self::continuesBeneath($child, $all)) {
+                $nestedProperties[] = $property;
+            }
+        }
+
         return new self(
             $this->selected || $other->selected,
-            $this->all || $other->all,
+            $all,
             $children,
+            $nestedProperties,
         );
     }
 
@@ -216,11 +227,26 @@ final readonly class PartialTree
     {
         $all = $inheritedAll || $tree['all'];
         $children = [];
+        $nestedProperties = [];
 
         foreach ($tree['children'] as $property => $child) {
             $children[$property] = self::hydrate($child, $all);
+
+            if (self::continuesBeneath($children[$property], $all)) {
+                $nestedProperties[] = $property;
+            }
         }
 
-        return new self($tree['selected'], $all, $children);
+        return new self($tree['selected'], $all, $children, $nestedProperties);
+    }
+
+    /**
+     * Determine if a child's selection continues into the child's own value.
+     *
+     * A child's own terminal * continues the selection; one inherited from its parent does not.
+     */
+    private static function continuesBeneath(self $child, bool $parentAll): bool
+    {
+        return $child->children !== [] || ($child->all && ! $parentAll);
     }
 }

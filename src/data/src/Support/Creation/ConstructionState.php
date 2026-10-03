@@ -6,6 +6,7 @@ namespace Hypervel\Data\Support\Creation;
 
 use Hypervel\Data\Contracts\BaseData;
 use Hypervel\Data\Normalizers\Normalized\UnknownProperty;
+use Hypervel\Data\RuleInferrers\RuleInferrer;
 use Hypervel\Pagination\AbstractCursorPaginator;
 use Hypervel\Pagination\AbstractPaginator;
 
@@ -16,6 +17,13 @@ final class ConstructionState
 
     /** @var null|array<array-key, mixed> */
     private ?array $unknownInput = null;
+
+    /**
+     * The rule inferrers resolved for the current compilation.
+     *
+     * @var list<RuleInferrer>
+     */
+    private array $ruleInferrers = [];
 
     /**
      * @var array{
@@ -114,6 +122,24 @@ final class ConstructionState
     }
 
     /**
+     * Write the normalized input the current node's declared values are filled over.
+     *
+     * @param array<array-key, mixed> $input
+     */
+    public function writeNodeInput(array $input): void
+    {
+        $path = $this->path();
+
+        if ($path === []) {
+            $this->payload = $input;
+
+            return;
+        }
+
+        $this->writeAtPath($path, $input, false);
+    }
+
+    /**
      * Write a mapped property value beneath the current path.
      *
      * @param non-empty-list<array-key> $path
@@ -182,6 +208,16 @@ final class ConstructionState
     }
 
     /**
+     * Read a value beneath the current path, or an unknown property when it is absent.
+     *
+     * @param non-empty-list<array-key> $path
+     */
+    public function read(array $path): mixed
+    {
+        return $this->valueAtPath($path);
+    }
+
+    /**
      * Get the complete construction payload.
      *
      * @return array<array-key, mixed>
@@ -246,6 +282,26 @@ final class ConstructionState
     public function unknownInput(): ?array
     {
         return $this->unknownInput;
+    }
+
+    /**
+     * Set the rule inferrers resolved for the current compilation.
+     *
+     * @param list<RuleInferrer> $ruleInferrers
+     */
+    public function setRuleInferrers(array $ruleInferrers): void
+    {
+        $this->ruleInferrers = $ruleInferrers;
+    }
+
+    /**
+     * Get the rule inferrers resolved for the current compilation.
+     *
+     * @return list<RuleInferrer>
+     */
+    public function ruleInferrers(): array
+    {
+        return $this->ruleInferrers;
     }
 
     /**
@@ -544,6 +600,7 @@ final class ConstructionState
         $payload = $this->payloadAtCurrentPath();
         $snapshot->payload = self::payloadSkeleton($this->path(), $payload);
         $snapshot->unknownInput = null;
+        $snapshot->ruleInferrers = [];
 
         $templatePath = [];
         $exactPath = [];

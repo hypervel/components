@@ -576,7 +576,18 @@ When porting `spatie/laravel-data`, replace its namespace with `Hypervel\Data` a
 
 Replace Spatie's `From*` attributes with Hypervel contextual constructor attributes and its `withOptionalValues()` and `withoutOptionalValues()` factory switches with declared `Optional` unions. `SerializeTransformer` and `UnserializeCast` are not included; use native PHP serialization or explicit custom casts and transformers. Livewire and TypeScript integrations are also not included.
 
-Model attributes containing `null` remain explicit values, including for non-nullable properties with defaults. When several payloads are supplied to `from()`, the first payload containing a property's input key wins, including when its value is `null`.
+In `config/data.php`, the `casts`, `transformers`, `normalizers`, and `rule_inferrers` options only hold your own extensions; remove Spatie's built-in entries, since Hypervel's built-in handling is fixed. Typed iterables are always cast and transformed.
+
+Review these behavior differences in ported code:
+
+- `Resource` authorizes and validates request input, like `Data` and `Dto`.
+- A named factory that receives a request and returns the finished object must validate the request itself.
+- When `from()` receives several payloads, the combined input is validated once, and a later explicit `null` replaces an earlier value.
+- Responses use the `200` status code for `POST` requests. Set `201` in `withResponse()` instead of overriding `calculateResponseStatus()`.
+- Data classes whose properties share an input path or output key are rejected when first used.
+- Custom `pipeline()` overrides and `DataPipe` classes are not supported. Rebuild them with named factories, `prepareForPipeline()`, or factory hooks.
+- A custom cast's `$properties` contains only declared property values keyed by PHP property name, without undeclared input or raw input names.
+- Replace `getDataContext()` with `getPartialsDefinition()` and `getWrap()`, and `make:data --namespace` with `--target-namespace` and a complete namespace.
 
 <a name="rate-limiting"></a>
 ### Rate Limiting

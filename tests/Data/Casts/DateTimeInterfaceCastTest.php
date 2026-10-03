@@ -16,7 +16,6 @@ use Hypervel\Data\Casts\Uncastable;
 use Hypervel\Data\Contracts\BaseData;
 use Hypervel\Data\Exceptions\CannotCastDate;
 use Hypervel\Data\Support\Annotations\DataIterableAnnotationReader;
-use Hypervel\Data\Support\Creation\ConstructionState;
 use Hypervel\Data\Support\Creation\CreationContext;
 use Hypervel\Data\Support\DataConfig;
 use Hypervel\Data\Support\DataProperty;
@@ -36,7 +35,7 @@ class DateTimeInterfaceCastTest extends TestCase
      */
     public function testCastsConfiguredFormatsToExactConcreteTypes(): void
     {
-        [$state, $context] = $this->operation(['Y-m-d', 'Y-m-d H:i:s.uP']);
+        [$properties, $context] = $this->operation(['Y-m-d', 'Y-m-d H:i:s.uP']);
         $cast = new DateTimeInterfaceCast;
 
         $types = [
@@ -51,7 +50,7 @@ class DateTimeInterfaceCastTest extends TestCase
         ];
 
         foreach ($types as $property => $type) {
-            $date = $cast->cast($this->property($property), '2026-08-30', $state, $context);
+            $date = $cast->cast($this->property($property), '2026-08-30', $properties, $context);
 
             $this->assertSame($type, $date::class);
             $this->assertSame('2026-08-30', $date->format('Y-m-d'));
@@ -63,12 +62,12 @@ class DateTimeInterfaceCastTest extends TestCase
      */
     public function testCastsDateInterfacesThroughTheDateFactory(): void
     {
-        [$state, $context] = $this->operation(['Y-m-d']);
+        [$properties, $context] = $this->operation(['Y-m-d']);
 
         $date = (new DateTimeInterfaceCast)->cast(
             $this->property('interface'),
             '2026-08-30',
-            $state,
+            $properties,
             $context,
         );
 
@@ -81,7 +80,7 @@ class DateTimeInterfaceCastTest extends TestCase
      */
     public function testAppliesTimezonesAndTruncatesNanoseconds(): void
     {
-        [$state, $context] = $this->operation(['Y-m-d H:i:s.uP']);
+        [$properties, $context] = $this->operation(['Y-m-d H:i:s.uP']);
         $cast = new DateTimeInterfaceCast(
             format: 'Y-m-d H:i:s.uP',
             type: DateTimeImmutable::class,
@@ -92,7 +91,7 @@ class DateTimeInterfaceCastTest extends TestCase
         $date = $cast->cast(
             $this->property('immutable'),
             '2026-08-30 12:00:00.123456789+00:00',
-            $state,
+            $properties,
             $context,
         );
 
@@ -104,7 +103,7 @@ class DateTimeInterfaceCastTest extends TestCase
      */
     public function testTimezoneConversionPreservesExactConcreteTypes(): void
     {
-        [$state, $context] = $this->operation(['Y-m-d H:i:s']);
+        [$properties, $context] = $this->operation(['Y-m-d H:i:s']);
         $types = [
             'mutable' => DateTime::class,
             'immutable' => DateTimeImmutable::class,
@@ -121,7 +120,7 @@ class DateTimeInterfaceCastTest extends TestCase
                 format: 'Y-m-d H:i:s',
                 setTimeZone: 'America/New_York',
                 timeZone: 'UTC',
-            ))->cast($this->property($property), '2026-08-30 12:00:00', $state, $context);
+            ))->cast($this->property($property), '2026-08-30 12:00:00', $properties, $context);
 
             $this->assertSame($type, $date::class);
             $this->assertSame('2026-08-30 08:00:00-04:00', $date->format('Y-m-d H:i:sP'));
@@ -133,15 +132,15 @@ class DateTimeInterfaceCastTest extends TestCase
      */
     public function testCastsIterableDatesAndDeclinesNonDateProperties(): void
     {
-        [$state, $context] = $this->operation(['Y-m-d']);
+        [$properties, $context] = $this->operation(['Y-m-d']);
         $cast = new DateTimeInterfaceCast;
 
-        $date = $cast->castIterableItem($this->property('dates'), '2026-08-30', $state, $context);
+        $date = $cast->castIterableItem($this->property('dates'), '2026-08-30', $properties, $context);
 
         $this->assertInstanceOf(DateTimeImmutable::class, $date);
         $this->assertSame(
             Uncastable::create(),
-            $cast->cast($this->property('name'), '2026-08-30', $state, $context),
+            $cast->cast($this->property('name'), '2026-08-30', $properties, $context),
         );
     }
 
@@ -150,7 +149,7 @@ class DateTimeInterfaceCastTest extends TestCase
      */
     public function testThrowsWhenNoDateFormatMatches(): void
     {
-        [$state, $context] = $this->operation(['Y-m-d']);
+        [$properties, $context] = $this->operation(['Y-m-d']);
 
         $this->expectException(CannotCastDate::class);
         $this->expectExceptionMessageIsOrContains(DateTimeImmutable::class);
@@ -159,7 +158,7 @@ class DateTimeInterfaceCastTest extends TestCase
         (new DateTimeInterfaceCast)->cast(
             $this->property('immutable'),
             'not-a-date',
-            $state,
+            $properties,
             $context,
         );
     }
@@ -169,7 +168,7 @@ class DateTimeInterfaceCastTest extends TestCase
      */
     public function testThrowsForAbstractDateTarget(): void
     {
-        [$state, $context] = $this->operation(['Y-m-d']);
+        [$properties, $context] = $this->operation(['Y-m-d']);
 
         $this->expectException(CannotCastDate::class);
         $this->expectExceptionMessageIsOrContains(AbstractDateTimeImmutable::class);
@@ -177,7 +176,7 @@ class DateTimeInterfaceCastTest extends TestCase
         (new DateTimeInterfaceCast)->cast(
             $this->property('abstract'),
             '2026-08-30',
-            $state,
+            $properties,
             $context,
         );
     }
@@ -210,16 +209,14 @@ class DateTimeInterfaceCastTest extends TestCase
      * Create one date cast operation.
      *
      * @param non-empty-list<string> $formats
-     * @return array{ConstructionState, CreationContext}
+     * @return array{array<string, mixed>, CreationContext}
      */
     protected function operation(array $formats): array
     {
-        $context = new CreationContext(
+        return [[], new CreationContext(
             dataClass: DateCastDataContract::class,
             dateFormats: $formats,
-        );
-
-        return [ConstructionState::create($context, DateCastDataContract::class), $context];
+        )];
     }
 }
 

@@ -4,18 +4,26 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Data\Support\Validation;
 
+use Attribute;
 use Hypervel\Auth\Access\AuthorizationException;
 use Hypervel\Auth\Access\Response as AuthorizationResponse;
 use Hypervel\Container\Attributes\Config;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Contracts\Routing\Registrar;
+use Hypervel\Data\Attributes\Computed;
 use Hypervel\Data\Attributes\DataCollectionOf;
 use Hypervel\Data\Attributes\MapInputName;
 use Hypervel\Data\Attributes\MergeValidationRules;
 use Hypervel\Data\Attributes\PropertyForMorph;
+use Hypervel\Data\Attributes\Validation\ArrayType;
+use Hypervel\Data\Attributes\Validation\Confirmed;
+use Hypervel\Data\Attributes\Validation\CustomValidationAttribute;
 use Hypervel\Data\Attributes\Validation\Distinct;
+use Hypervel\Data\Attributes\Validation\Max;
 use Hypervel\Data\Attributes\Validation\Required;
 use Hypervel\Data\Attributes\Validation\RequiredUnless;
+use Hypervel\Data\Attributes\Validation\Sometimes;
 use Hypervel\Data\Attributes\Validation\StringType;
 use Hypervel\Data\Attributes\WithoutValidation;
 use Hypervel\Data\Contracts\PropertyMorphableData;
@@ -27,7 +35,10 @@ use Hypervel\Data\Exceptions\CannotBuildValidationRule;
 use Hypervel\Data\Normalizers\Normalizer;
 use Hypervel\Data\Optional;
 use Hypervel\Data\Resource;
+use Hypervel\Data\RuleInferrers\RuleInferrer;
 use Hypervel\Data\Support\DataProperty;
+use Hypervel\Data\Support\Validation\PropertyRules;
+use Hypervel\Data\Support\Validation\References\ContainerReference;
 use Hypervel\Data\Support\Validation\ValidationContext;
 use Hypervel\Data\Support\Validation\ValidationPath;
 use Hypervel\Database\Eloquent\Model;
@@ -39,6 +50,7 @@ use Hypervel\Foundation\Http\Attributes\StopOnFirstFailure;
 use Hypervel\Http\Request;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Validation\Factory as ValidationFactory;
 use Hypervel\Validation\ValidationException;
@@ -46,6 +58,8 @@ use Hypervel\Validation\Validator;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
 use Symfony\Component\HttpKernel\Exception\HttpException;
+
+use function Hypervel\Coroutine\parallel;
 
 class DataValidatorTest extends TestCase
 {
@@ -122,6 +136,65 @@ class DataValidatorTest extends TestCase
     }
 
     /**
+     * Test a confirmation rule reads its undeclared confirmation field.
+     */
+    public function testConfirmedRuleReadsItsUndeclaredConfirmationField(): void
+    {
+        $data = ConfirmedPasswordDataFixture::validateAndCreate([
+            'password' => 'secret123',
+            'password_confirmation' => 'secret123',
+        ]);
+
+        $this->assertSame('secret123', $data->password);
+
+        try {
+            ConfirmedPasswordDataFixture::validateAndCreate([
+                'password' => 'secret123',
+                'password_confirmation' => 'different',
+            ]);
+            $this->fail('Expected a mismatched confirmation to fail validation.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('password', $exception->errors());
+        }
+    }
+
+    /**
+     * Test rules may reference undeclared input that the validated payload omits.
+     */
+    public function testRulesReferenceUndeclaredInputWithoutReturningIt(): void
+    {
+        try {
+            ConditionalNameDataFixture::validate(['mode' => 'admin']);
+            $this->fail('Expected the undeclared condition to require the name.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('name', $exception->errors());
+        }
+
+        $this->assertSame(
+            ['name' => 'Taylor'],
+            ConditionalNameDataFixture::validate(['mode' => 'admin', 'name' => 'Taylor']),
+        );
+    }
+
+    /**
+     * Test undeclared input beside a dot-mapped property remains available to its rules.
+     */
+    public function testUndeclaredInputBesideADotMappedPropertyRemainsAvailable(): void
+    {
+        try {
+            MappedConditionalNameDataFixture::validate(['profile' => ['mode' => 'strict']]);
+            $this->fail('Expected the sibling condition to require the mapped name.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('profile.name', $exception->errors());
+        }
+
+        $this->assertSame(
+            ['profile' => ['name' => 'Taylor']],
+            MappedConditionalNameDataFixture::validate(['profile' => ['mode' => 'strict', 'name' => 'Taylor']]),
+        );
+    }
+
+    /**
      * Test inferred rules follow the declared presence and primitive types.
      */
     public function testExposesInferredValidationRules(): void
@@ -132,6 +205,125 @@ class DataValidatorTest extends TestCase
         $this->assertSame(['nullable', 'string'], $rules['nickname']);
         $this->assertSame(['sometimes', 'string'], $rules['note']);
         $this->assertSame(['string'], $rules['label']);
+    }
+
+    /**
+     * Test configured rule inferrers adjust attribute and inferred rules.
+     */
+    #[WithConfig('data.rule_inferrers', [MaxStringRuleInferrer::class, OptionalNicknameRuleInferrer::class])]
+    public function testConfiguredRuleInferrersAdjustTheInferredRules(): void
+    {
+        $rules = RuleInferrerDataFixture::getValidationRules([]);
+
+        $this->assertSame(['required', 'string', 'max:255'], $rules['name']);
+        $this->assertSame(['string', 'max:255', 'sometimes'], $rules['nickname']);
+        $this->assertSame(['max:20', 'required', 'string'], $rules['code']);
+        $this->assertSame(['array:id', 'required'], $rules['meta']);
+        $this->assertSame(['required', 'integer'], $rules['age']);
+    }
+
+    /**
+     * Test merged class presence rules replace a requirement left by the inferrers.
+     */
+    #[WithConfig('data.rule_inferrers', [MaxStringRuleInferrer::class])]
+    public function testMergedClassPresenceRulesStillReplaceAnInferredRequirement(): void
+    {
+        $rules = MergedRuleInferrerDataFixture::getValidationRules([]);
+
+        $this->assertSame(['string', 'max:255', 'required_with:other'], $rules['name']);
+    }
+
+    /**
+     * Test rule inferrers receive each collection item's payload.
+     */
+    #[WithConfig('data.rule_inferrers', [PayloadLengthRuleInferrer::class])]
+    public function testRuleInferrersReceiveEachCollectionItemPayload(): void
+    {
+        $rules = RuleInferrerParentDataFixture::getValidationRules([
+            'items' => [['name' => 'Taylor'], ['name' => 'Swift', 'long' => true]],
+        ]);
+
+        $this->assertSame(['required', 'string', 'max:5'], $rules['items.0.name']);
+        $this->assertSame(['required', 'string', 'max:100'], $rules['items.1.name']);
+        $this->assertSame([], $rules['items.*.name']);
+    }
+
+    /**
+     * Test scoped rule inferrers are resolved for each compilation.
+     */
+    #[WithConfig('data.rule_inferrers', [ScopedMaxRuleInferrer::class])]
+    public function testScopedRuleInferrersFollowTheCurrentCoroutine(): void
+    {
+        $this->app->scoped(
+            ScopedMaxRuleInferrer::class,
+            static fn (): ScopedMaxRuleInferrer => new ScopedMaxRuleInferrer(
+                CoroutineContext::get('__data.test.max'),
+            ),
+        );
+
+        $nameRules = static function (int $max): array {
+            CoroutineContext::set('__data.test.max', $max);
+            usleep(5000);
+
+            return RuleInferrerDataFixture::getValidationRules([])['name'];
+        };
+
+        [$first, $second] = parallel([
+            static fn (): array => $nameRules(10),
+            static fn (): array => $nameRules(20),
+        ]);
+
+        $this->assertSame(['required', 'string', 'max:10'], $first);
+        $this->assertSame(['required', 'string', 'max:20'], $second);
+    }
+
+    /**
+     * Test a rule removed by an inferrer never resolves its references.
+     */
+    #[WithConfig('data.rule_inferrers', [RemoveMaxRuleInferrer::class])]
+    public function testRuleInferrersRemoveRulesBeforeTheirReferencesResolve(): void
+    {
+        $rules = UnboundReferenceDataFixture::getValidationRules([]);
+
+        $this->assertSame(['required', 'string'], $rules['name']);
+    }
+
+    /**
+     * Test rules that survive the inferrers resolve their values once.
+     */
+    #[WithConfig('data.rule_inferrers', [MaxStringRuleInferrer::class])]
+    public function testRulesSurvivingInferrersResolveOnce(): void
+    {
+        $resolutions = 0;
+        $this->app->bind('counted-limit', static function () use (&$resolutions): int {
+            ++$resolutions;
+
+            return 10;
+        });
+        CountingRuleAttribute::$evaluations = 0;
+
+        $rules = CountedReferenceDataFixture::getValidationRules([]);
+
+        $this->assertSame(['max:10', 'alpha', 'required', 'string'], $rules['name']);
+        $this->assertSame(1, $resolutions);
+        $this->assertSame(1, CountingRuleAttribute::$evaluations);
+    }
+
+    /**
+     * Test class rules and rule inferrers receive undeclared input at every level.
+     */
+    #[WithConfig('data.rule_inferrers', [RecordingContextRuleInferrer::class])]
+    public function testValidationContextsIncludeUndeclaredInput(): void
+    {
+        RecordingContextRuleInferrer::$contexts = [];
+        ContextParentDataFixture::$contexts = [];
+        $payload = ['mode' => 'admin', 'child' => ['kind' => 'primary', 'value' => 'a']];
+
+        ContextParentDataFixture::getValidationRules($payload);
+
+        $this->assertSame([$payload, $payload], ContextParentDataFixture::$contexts['parent']);
+        $this->assertSame([$payload['child'], $payload], ContextParentDataFixture::$contexts['child']);
+        $this->assertSame([$payload['child'], $payload], RecordingContextRuleInferrer::$contexts['value']);
     }
 
     /**
@@ -612,6 +804,21 @@ class DataValidatorTest extends TestCase
             $payload['meta'],
             UnvalidatedArrayKeysDataFixture::validateAndCreate($payload)->meta,
         );
+    }
+
+    /**
+     * Test ignored computed input retained with unvalidated array keys is never cast.
+     */
+    #[WithConfig('data.features.ignore_exception_when_trying_to_set_computed_property_value', true)]
+    public function testIgnoredComputedInputRetainedWithUnvalidatedArrayKeysIsNotCast(): void
+    {
+        $this->app->make(ValidationFactory::class)->includeUnvalidatedArrayKeys();
+
+        $data = ComputedParentDataFixture::validateAndCreate([
+            'child' => ['first' => 'Taylor', 'full' => ['not', 'a', 'string']],
+        ]);
+
+        $this->assertSame('Taylor!', $data->child->full);
     }
 
     /**
@@ -1373,6 +1580,41 @@ class DataValidatorTest extends TestCase
     }
 
     /**
+     * Test validation hooks receive and may supply undeclared input, including for a node they add.
+     */
+    public function testValidationHooksReceiveAndSupplyUndeclaredInput(): void
+    {
+        $received = null;
+
+        try {
+            ConditionalNameDataFixture::factory()
+                ->alwaysValidate()
+                ->beforeValidation(function (array $payload) use (&$received): array {
+                    $received = $payload;
+
+                    return [...$payload, 'mode' => 'admin'];
+                })
+                ->from(['locale' => 'en']);
+            $this->fail('Expected the hook-supplied condition to require the name.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('name', $exception->errors());
+        }
+
+        $this->assertSame(['locale' => 'en'], $received);
+
+        ContextParentDataFixture::$contexts = [];
+        ContextParentDataFixture::factory()
+            ->alwaysValidate()
+            ->beforeValidation(static fn (array $payload): array => [
+                ...$payload,
+                'child' => ['kind' => 'primary', 'value' => 'a'],
+            ])
+            ->from([]);
+
+        $this->assertSame(['kind' => 'primary', 'value' => 'a'], ContextParentDataFixture::$contexts['child'][0]);
+    }
+
+    /**
      * Test validation hooks can add a nested data value before rules are compiled.
      */
     public function testBeforeValidationReconcilesHookAddedNestedData(): void
@@ -1865,6 +2107,303 @@ class ValidatedDataFixture extends Data
     }
 }
 
+class ConfirmedPasswordDataFixture extends Data
+{
+    /**
+     * Create a confirmed password fixture.
+     */
+    public function __construct(
+        #[Confirmed]
+        public string $password,
+    ) {
+    }
+}
+
+class ConditionalNameDataFixture extends Data
+{
+    /**
+     * Create a conditional name fixture.
+     */
+    public function __construct(
+        public ?string $name = null,
+    ) {
+    }
+
+    /**
+     * Get class-owned validation rules.
+     */
+    public static function rules(): array
+    {
+        return ['name' => ['nullable', 'required_if:mode,admin']];
+    }
+}
+
+class MappedConditionalNameDataFixture extends Data
+{
+    /**
+     * Create a dot-mapped conditional name fixture.
+     */
+    public function __construct(
+        #[MapInputName('profile.name')]
+        public ?string $name = null,
+    ) {
+    }
+
+    /**
+     * Get class-owned validation rules.
+     */
+    public static function rules(): array
+    {
+        return ['name' => ['nullable', 'required_if:profile.mode,strict']];
+    }
+}
+
+class MaxStringRuleInferrer implements RuleInferrer
+{
+    /**
+     * Limit strings that have no maximum yet.
+     */
+    public function handle(DataProperty $property, PropertyRules $rules, ValidationContext $context): PropertyRules
+    {
+        if ($rules->hasType(StringType::class) && ! $rules->hasType(Max::class)) {
+            $rules->add(new Max(255));
+        }
+
+        return $rules;
+    }
+}
+
+class OptionalNicknameRuleInferrer implements RuleInferrer
+{
+    /**
+     * Make the nickname optional.
+     */
+    public function handle(DataProperty $property, PropertyRules $rules, ValidationContext $context): PropertyRules
+    {
+        if ($property->name === 'nickname') {
+            $rules->removeType(Required::class)->add(new Sometimes);
+        }
+
+        return $rules;
+    }
+}
+
+class ScopedMaxRuleInferrer implements RuleInferrer
+{
+    /**
+     * Create a scoped maximum-length rule inferrer.
+     */
+    public function __construct(
+        public readonly int $max,
+    ) {
+    }
+
+    /**
+     * Limit the name to this inferrer's maximum.
+     */
+    public function handle(DataProperty $property, PropertyRules $rules, ValidationContext $context): PropertyRules
+    {
+        if ($property->name === 'name') {
+            $rules->add(new Max($this->max));
+        }
+
+        return $rules;
+    }
+}
+
+class RemoveMaxRuleInferrer implements RuleInferrer
+{
+    /**
+     * Remove every maximum rule.
+     */
+    public function handle(DataProperty $property, PropertyRules $rules, ValidationContext $context): PropertyRules
+    {
+        return $rules->removeType(Max::class);
+    }
+}
+
+#[Attribute(Attribute::TARGET_PROPERTY | Attribute::TARGET_PARAMETER)]
+class CountingRuleAttribute extends CustomValidationAttribute
+{
+    public static int $evaluations = 0;
+
+    /**
+     * Get the Validator rules.
+     */
+    public function getRules(ValidationPath $path): array
+    {
+        ++static::$evaluations;
+
+        return ['alpha'];
+    }
+}
+
+class UnboundReferenceDataFixture extends Data
+{
+    /**
+     * Create an unbound reference fixture.
+     */
+    public function __construct(
+        #[Max(new ContainerReference('unbound-limit'))]
+        public string $name,
+    ) {
+    }
+}
+
+class CountedReferenceDataFixture extends Data
+{
+    /**
+     * Create a counted reference fixture.
+     */
+    public function __construct(
+        #[Max(new ContainerReference('counted-limit')), CountingRuleAttribute]
+        public string $name,
+    ) {
+    }
+}
+
+class RecordingContextRuleInferrer implements RuleInferrer
+{
+    /** @var array<string, array{mixed, mixed}> */
+    public static array $contexts = [];
+
+    /**
+     * Record the property's validation context.
+     */
+    public function handle(DataProperty $property, PropertyRules $rules, ValidationContext $context): PropertyRules
+    {
+        static::$contexts[$property->name] = [$context->payload, $context->fullPayload];
+
+        return $rules;
+    }
+}
+
+class ContextChildDataFixture extends Data
+{
+    /**
+     * Create a context-recording child fixture.
+     */
+    public function __construct(
+        public string $value,
+    ) {
+    }
+
+    /**
+     * Record the class rule context.
+     */
+    public static function rules(ValidationContext $context): array
+    {
+        ContextParentDataFixture::$contexts['child'] = [$context->payload, $context->fullPayload];
+
+        return [];
+    }
+}
+
+class ContextParentDataFixture extends Data
+{
+    /** @var array<string, array{mixed, mixed}> */
+    public static array $contexts = [];
+
+    /**
+     * Create a context-recording parent fixture.
+     */
+    public function __construct(
+        public ContextChildDataFixture $child,
+    ) {
+    }
+
+    /**
+     * Record the class rule context.
+     */
+    public static function rules(ValidationContext $context): array
+    {
+        static::$contexts['parent'] = [$context->payload, $context->fullPayload];
+
+        return [];
+    }
+}
+
+class PayloadLengthRuleInferrer implements RuleInferrer
+{
+    /**
+     * Limit the name according to the item's long flag.
+     */
+    public function handle(DataProperty $property, PropertyRules $rules, ValidationContext $context): PropertyRules
+    {
+        if ($property->name === 'name') {
+            $rules->add(new Max(($context->payload['long'] ?? false) ? 100 : 5));
+        }
+
+        return $rules;
+    }
+}
+
+class RuleInferrerDataFixture extends Data
+{
+    /**
+     * Create a rule inferrer fixture.
+     *
+     * @param array<string, int> $meta
+     */
+    public function __construct(
+        public string $name,
+        public string $nickname,
+        #[Max(20)]
+        public string $code,
+        #[ArrayType('id')]
+        public array $meta,
+        public int $age,
+    ) {
+    }
+}
+
+#[MergeValidationRules]
+class MergedRuleInferrerDataFixture extends Data
+{
+    /**
+     * Create a merged-rules inferrer fixture.
+     */
+    public function __construct(
+        public string $name,
+        public ?string $other = null,
+    ) {
+    }
+
+    /**
+     * Get the class-owned validation rules.
+     */
+    public static function rules(): array
+    {
+        return ['name' => ['required_with:other']];
+    }
+}
+
+class RuleInferrerItemDataFixture extends Data
+{
+    /**
+     * Create a rule inferrer item fixture.
+     */
+    public function __construct(
+        public string $name,
+        public bool $long = false,
+    ) {
+    }
+}
+
+class RuleInferrerParentDataFixture extends Data
+{
+    /**
+     * Create a rule inferrer parent fixture.
+     *
+     * @param array<array-key, RuleInferrerItemDataFixture> $items
+     */
+    public function __construct(
+        #[DataCollectionOf(RuleInferrerItemDataFixture::class)]
+        public array $items,
+    ) {
+    }
+}
+
 class ValidatedDtoFixture extends Dto
 {
     public function __construct(
@@ -2342,6 +2881,32 @@ class UnvalidatedArrayKeysDataFixture extends Data
     public static function rules(): array
     {
         return ['meta.known' => ['nullable', 'string']];
+    }
+}
+
+class ComputedChildDataFixture extends Data
+{
+    #[Computed]
+    public string $full;
+
+    /**
+     * Create a computed child fixture.
+     */
+    public function __construct(
+        public string $first,
+    ) {
+        $this->full = $first . '!';
+    }
+}
+
+class ComputedParentDataFixture extends Data
+{
+    /**
+     * Create a computed parent fixture.
+     */
+    public function __construct(
+        public ComputedChildDataFixture $child,
+    ) {
     }
 }
 

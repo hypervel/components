@@ -25,7 +25,7 @@ class DataCollectionResource extends ResourceCollection implements ProvidesResou
      * @param array<array-key, mixed> $transformed
      */
     public function __construct(
-        protected readonly BaseDataCollectable $data,
+        protected readonly BaseDataCollectable&ResponsableData $data,
         protected readonly Collection $originalItems,
         protected readonly array $transformed,
         protected readonly ?string $wrapper,
@@ -75,6 +75,8 @@ class DataCollectionResource extends ResourceCollection implements ProvidesResou
     {
         // Collections have no item-owned response hook, so retain the original Data objects.
         $response->original = $this->originalItems;
+
+        $this->data->withResponse($request, $response);
     }
 
     /**

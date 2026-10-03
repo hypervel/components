@@ -160,7 +160,18 @@ trait BaseData
         return [];
     }
 
-    // REMOVED: Configurable pipelines and prepareForPipeline(); use named factories and factory hooks.
+    /**
+     * Prepare one normalized payload before its properties are read.
+     *
+     * @param array<array-key, mixed> $properties
+     * @return array<array-key, mixed>
+     */
+    public static function prepareForPipeline(array $properties): array
+    {
+        return $properties;
+    }
+
+    // REMOVED: Configurable pipelines; use named factories, prepareForPipeline(), and factory hooks.
 
     /**
      * Create a data object from the current request.

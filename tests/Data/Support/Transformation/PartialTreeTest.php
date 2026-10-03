@@ -28,6 +28,7 @@ class PartialTreeTest extends TestCase
         $this->assertTrue($tree->contains('songs'));
         $this->assertFalse($tree->selects('songs'));
         $this->assertFalse($tree->selects('year'));
+        $this->assertSame(['artist', 'songs'], $tree->nestedProperties);
 
         $artist = $tree->child('artist');
 
@@ -36,6 +37,7 @@ class PartialTreeTest extends TestCase
         $this->assertTrue($artist->selects('email'));
         $this->assertTrue($artist->selects('role'));
         $this->assertFalse($artist->selects('id'));
+        $this->assertSame([], $artist->nestedProperties);
 
         $songs = $tree->child('songs');
 
@@ -83,6 +85,10 @@ class PartialTreeTest extends TestCase
         $this->assertTrue($all->selects('anything'));
         $this->assertTrue($all->child('artist')->all);
         $this->assertTrue($all->child('artist')->selects('name'));
+        $this->assertSame(['artist'], $all->nestedProperties);
+
+        // An inherited * ends the selection at the child; only the child's own * continues it.
+        $this->assertSame([], PartialTree::compile(['*', 'artist'])->nestedProperties);
 
         $unlisted = $all->child('unlisted');
 
@@ -108,6 +114,7 @@ class PartialTreeTest extends TestCase
         $this->assertSame(['name', 'email'], array_keys($merged->child('artist')->children));
         $this->assertTrue($merged->child('songs')->all);
         $this->assertTrue($merged->child('profile')->selects('name'));
+        $this->assertSame(['artist', 'songs', 'profile'], $merged->nestedProperties);
         $this->assertSame($tree, $tree->merge(null));
     }
 

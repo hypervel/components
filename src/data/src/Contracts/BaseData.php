@@ -125,4 +125,12 @@ interface BaseData extends RequestCastable, SelfBuilding
      * @return list<class-string<Normalizer>>
      */
     public static function normalizers(): array;
+
+    /**
+     * Prepare one normalized payload before its properties are read.
+     *
+     * @param array<array-key, mixed> $properties
+     * @return array<array-key, mixed>
+     */
+    public static function prepareForPipeline(array $properties): array;
 }

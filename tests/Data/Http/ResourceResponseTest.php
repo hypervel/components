@@ -98,6 +98,16 @@ class ResourceResponseTest extends ResourceResponseTestCase
         $this->assertSame($data, $response->getOriginalContent());
     }
 
+    public function testCollectionResponseHookIsDelegatedWithoutChangingTheOriginal(): void
+    {
+        $collection = new CreatedResponseCollection(ResponseData::class, [['id' => 1, 'name' => 'Taylor']]);
+        $response = $collection->toResponse(Request::create('/', 'POST'));
+
+        $this->assertSame(201, $response->getStatusCode());
+        $this->assertSame([['id' => 1, 'name' => 'Taylor']], $response->getData(true));
+        $this->assertSame($collection[0], $response->getOriginalContent()[0]);
+    }
+
     public function testAllowedRequestIncludesAreAppliedToResponseTransformation(): void
     {
         $excluded = new LazyResponseData(1, Lazy::create(static fn (): string => 'secret'));
@@ -362,6 +372,17 @@ class HookedResponseData extends Data
     public function withResponse(Request $request, JsonResponse $response): void
     {
         $response->headers->set('X-Data-Hook', 'applied');
+    }
+}
+
+class CreatedResponseCollection extends DataCollection
+{
+    /**
+     * Customize the outgoing resource response.
+     */
+    public function withResponse(Request $request, JsonResponse $response): void
+    {
+        $response->setStatusCode(201);
     }
 }
 

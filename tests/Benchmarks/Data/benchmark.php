@@ -18,7 +18,6 @@ use Hypervel\Data\DataCollection;
 use Hypervel\Data\DataServiceProvider;
 use Hypervel\Data\Eloquent\DataEloquentCast;
 use Hypervel\Data\Lazy;
-use Hypervel\Data\Support\Creation\ConstructionState;
 use Hypervel\Data\Support\Creation\CreationContext;
 use Hypervel\Data\Support\DataClassRepository;
 use Hypervel\Data\Support\DataProperty;
@@ -31,6 +30,7 @@ use Hypervel\Database\Eloquent\Relations\HasOne;
 use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Http\Request;
+use Hypervel\Support\Arr;
 use Hypervel\Support\ClassMetadataCache;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Testbench\Bootstrapper;
@@ -63,6 +63,29 @@ class DataBenchmarkUser extends Data
         public bool $active,
         public ?DataBenchmarkAddress $address,
     ) {
+    }
+}
+
+class DataBenchmarkPreparedUser extends Data
+{
+    /**
+     * Create a benchmark user prepared from flat address input.
+     */
+    public function __construct(
+        public int $id,
+        public string $name,
+        public DataBenchmarkAddress $address,
+    ) {
+    }
+
+    /**
+     * Group the flat address fields into the nested address payload.
+     */
+    public static function prepareForPipeline(array $properties): array
+    {
+        $properties['address'] = Arr::only($properties, ['line_one', 'city', 'country_code']);
+
+        return $properties;
     }
 }
 
@@ -209,7 +232,7 @@ class DataBenchmarkPrefixCast implements Cast
     public function cast(
         DataProperty $property,
         mixed $value,
-        ConstructionState $state,
+        array $properties,
         CreationContext $context,
     ): string {
         return 'cast:' . $value;
@@ -430,11 +453,23 @@ class DataBenchmark
         $plainFiveData = new DataBenchmarkPlainFive;
         $plainTwentyData = new DataBenchmarkPlainTwenty;
         $request = Request::create('/');
+        $validationRequest = Request::create('/', 'POST', [...$nestedPayload, 'source' => 'web', 'locale' => 'en']);
+        $preparedPayload = [
+            'id' => 1001,
+            'name' => 'Taylor Otwell',
+            'line_one' => '1 Framework Way',
+            'city' => 'Little Rock',
+            'country_code' => 'US',
+        ];
         $model = new DataBenchmarkUserModel;
         /** @var DataEloquentCast<DataBenchmarkUser> $eloquentCast */
         $eloquentCast = new DataEloquentCast(DataBenchmarkUser::class);
         $encodedNestedData = $eloquentCast->set($model, 'payload', $nestedData, [])
             ?? throw new LogicException('The benchmark Data cast returned null for a Data value.');
+        $partialCollection = DataBenchmarkUser::collect(
+            array_fill(0, 1_000, $nestedPayload),
+            DataCollection::class,
+        );
         $lazyTransformData = DataBenchmarkLazyItem::from($lazyRows[0])
             ->includePermanently('address')
             ->onlyPermanently('id', 'address.lineOne');
@@ -502,6 +537,16 @@ class DataBenchmark
                 $nestedWarmup,
                 fn (): int => DataBenchmarkRoot::from($deepPayload)->child->child->child->id,
             ],
+            'data-from-multiple-payloads' => [
+                $nestedOperations,
+                $nestedWarmup,
+                fn (): int => DataBenchmarkUser::from(['active' => false], $flatPayload)->id,
+            ],
+            'data-from-prepared-input' => [
+                $nestedOperations,
+                $nestedWarmup,
+                fn (): int => DataBenchmarkPreparedUser::from($preparedPayload)->address->countryCode === 'US' ? 1 : 0,
+            ],
             'collect-1000-eager' => [
                 $collectionOperations,
                 $collectionWarmup,
@@ -535,6 +580,16 @@ class DataBenchmark
                     ->alwaysValidate()
                     ->collect($validationRows, DataCollection::class)
                     ->count(),
+            ],
+            'validate-flat' => [
+                $nestedOperations,
+                $nestedWarmup,
+                fn (): int => DataBenchmarkValidatedItem::validateAndCreate($validationRows[0])->id,
+            ],
+            'validate-request-nested' => [
+                $nestedOperations,
+                $nestedWarmup,
+                fn (): int => DataBenchmarkUser::from($validationRequest)->id,
             ],
             'factory-direct' => [
                 $standardOperations,
@@ -595,6 +650,11 @@ class DataBenchmark
                 $standardOperations,
                 $standardWarmup,
                 fn (): int => $nestedData->toArray()['address']['countryCode'] === 'US' ? 1 : 0,
+            ],
+            'transform-collection-partial' => [
+                $collectionOperations,
+                $collectionWarmup,
+                fn (): int => count($partialCollection->only('id', 'address.city')->toArray()),
             ],
             'transform-lazy-partial' => [
                 $nestedOperations,

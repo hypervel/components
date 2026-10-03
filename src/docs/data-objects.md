@@ -7,7 +7,9 @@
     - [Creating Instances](#creating-instances)
     - [Associating a Data Class](#associating-a-data-class)
     - [Defaults, Null, and Optional Values](#defaults-null-and-optional-values)
+    - [Empty Representations](#empty-representations)
     - [Named Factories](#named-factories)
+    - [Preparing Input](#preparing-input)
     - [Property Name Conversion](#property-name-conversion)
 - [Type Conversion](#type-conversion)
     - [Date and Time Values](#date-and-time-values)
@@ -189,13 +191,13 @@ $user = UserData::from([
 
 `from` accepts arrays, JSON strings, `Arrayable` objects, initialized public properties from ordinary objects, Eloquent models, and requests. Existing instances of the requested data type pass through unchanged.
 
-You may pass multiple payloads. For each property, the first payload containing its input key wins, including when that value is `null`:
+You may pass multiple payloads. Later payloads take precedence: for each property, the last payload containing its input key wins, including when that value is `null`. An `Optional` value never replaces a value supplied by an earlier payload:
 
 ```php
-$user = UserData::from($routeValues, $requestValues, $defaults);
+$user = UserData::from($defaults, $requestValues, $routeValues);
 ```
 
-Payloads may also be passed as PHP named arguments. Hypervel preserves their names while selecting a named factory. When no factory matches, the payload values are processed in call order, so the same first-payload-wins precedence applies.
+Payloads may also be passed as PHP named arguments. Hypervel preserves their names while selecting a named factory. When no factory matches, the payload values are processed in call order, so the same precedence applies.
 
 Use `optional` when the whole object may be absent. It returns `null` when no payload is supplied or every supplied payload is `null`:
 
@@ -304,11 +306,53 @@ class UserData extends Data
 }
 ```
 
-Named methods may receive dependencies from the service container as well as a `CreationContext`. When a named method returns the requested data object, Hypervel uses it directly without validating, casting, or running creation hooks for it again. If the method returns another supported input value, Hypervel creates the object from that value without calling another named factory.
+Named methods may receive dependencies from the service container as well as a `CreationContext`. When a named method returns the requested data object, Hypervel uses it directly without validating, casting, or running creation hooks for it again. This also applies to requests, so a named method that returns the finished object from a request is responsible for validating it. The data class's authorization still runs first. If the method returns another supported input value, Hypervel creates the object from that value without calling another named factory.
 
 During ordinary creation, Hypervel maps each input value to a public property. It cannot determine how one property should be divided among variadic constructor arguments. A private or protected constructor is also unavailable to ordinary creation. In either case, use a named factory that returns the finished object.
 
 You may also define public static methods beginning with `collect` to customize collection creation. These methods receive the source's own array, collection, or paginator shape after its values have been converted to data objects, rather than the original source values. An Eloquent collection source is provided as a base `Hypervel\Support\Collection`. When you request an explicit collection target, the method's declared return type must also match that target.
+
+<a name="preparing-input"></a>
+### Preparing Input
+
+Define a static `prepareForPipeline` method when a class needs to reshape its input before its properties are read:
+
+```php
+use Hypervel\Support\Arr;
+
+class SongMetadataData extends Data
+{
+    public function __construct(
+        public string $year,
+        public string $producer,
+    ) {
+    }
+}
+
+class SongData extends Data
+{
+    public function __construct(
+        public string $title,
+        public SongMetadataData $metadata,
+    ) {
+    }
+
+    public static function prepareForPipeline(array $properties): array
+    {
+        $properties['metadata'] = Arr::only($properties, ['year', 'producer']);
+
+        return $properties;
+    }
+}
+
+$song = SongData::from([
+    'title' => 'Never Gonna Give You Up',
+    'year' => '1987',
+    'producer' => 'Stock Aitken Waterman',
+]);
+```
+
+The method receives each payload separately. When a factory has `prepareData` hooks, they run first, and the method receives their merged result once. An Eloquent model is passed as an array of its declared property values. For a property-morphable class, the method of the selected class is called. A named factory that returns the finished object skips this method.
 
 <a name="property-name-conversion"></a>
 ### Property Name Conversion
@@ -573,6 +617,22 @@ class InvoiceData extends Data
 
 A cast implements `Hypervel\Data\Casts\Cast`; a transformer implements `Hypervel\Data\Transformers\Transformer`. Return `Uncastable::create()` from a cast when the next applicable candidate should be tried. Returning `null` means the cast produced a real null value.
 
+A cast's `cast` method receives the property, its input value, the object's declared property values keyed by property name, and the `CreationContext`. Undeclared input, contextual constructor values, and computed properties are not included. Properties that come earlier in the class have already been cast. Later properties contain their supplied input, or the default, `Optional`, or `null` value the object will receive when their input is absent:
+
+```php
+use Hypervel\Data\Casts\Cast;
+use Hypervel\Data\Support\Creation\CreationContext;
+use Hypervel\Data\Support\DataProperty;
+
+class MoneyCast implements Cast
+{
+    public function cast(DataProperty $property, mixed $value, array $properties, CreationContext $context): Money
+    {
+        return new Money($value, $properties['currency']);
+    }
+}
+```
+
 Use `Castable` when a value class owns its input conversion, `IterableItemCast` when a cast also applies to typed iterable items, or `factory()->withCast()` for a single creation. Application-wide replacement casts and transformers belong in `config/data.php`; built-in date, enum, iterable, and `Arrayable` handling does not need to be configured.
 
 Custom normalizers convert a source value into input before Hypervel reads its properties. Declare normalizers for a data class with `normalizers()` or add them to a factory with `withNormalizers()`. Prefer a typed named factory when only one source type needs special handling.
@@ -596,6 +656,33 @@ $rules = UserData::getValidationRules($payload);
 ```
 
 Hypervel infers presence, nullable, scalar, enum, date, nested data, and typed collection rules from your PHP declarations. These rules cover the entire nested object, including items within typed collections. Uniform collections use wildcard rules, while collections with different item shapes or rules use exact indexed rules.
+
+To adjust the rules of every data property, add your own rule inferrers to the `data.rule_inferrers` configuration option. An inferrer implements `Hypervel\Data\RuleInferrers\RuleInferrer`. After Hypervel's own inference, it receives the property, its rules, and a `ValidationContext`:
+
+```php
+use Hypervel\Data\Attributes\Validation\Max;
+use Hypervel\Data\Attributes\Validation\StringType;
+use Hypervel\Data\RuleInferrers\RuleInferrer;
+use Hypervel\Data\Support\DataProperty;
+use Hypervel\Data\Support\Validation\PropertyRules;
+use Hypervel\Data\Support\Validation\ValidationContext;
+
+class MaxStringLengthRuleInferrer implements RuleInferrer
+{
+    public function handle(DataProperty $property, PropertyRules $rules, ValidationContext $context): PropertyRules
+    {
+        if ($rules->hasType(StringType::class) && ! $rules->hasType(Max::class)) {
+            $rules->add(new Max(255));
+        }
+
+        return $rules;
+    }
+}
+```
+
+Validation attributes take precedence over inferred rules of the same type. Inferrers are resolved from the container for each validation, so they may depend on scoped services.
+
+The validator receives the complete input, so rules may refer to fields that are not data properties, such as the `password_confirmation` field read by `Confirmed` or a field used by `required_if`.
 
 After validation, Hypervel creates the object from the validated values. Properties marked with `#[WithoutValidation]` are preserved, as are existing nested data objects. Other input is discarded. By default, this includes unvalidated keys nested inside an array; calling `Validator::includeUnvalidatedArrayKeys()` during your application's boot retains those nested keys.
 
@@ -621,7 +708,32 @@ class UserData extends Data
 }
 ```
 
-Database-aware `Exists` and `Unique` attributes support the familiar fluent constraints. References to another field or an external value use the package's typed validation reference objects rather than interpolated strings.
+Database-aware `Exists` and `Unique` attributes support the familiar fluent constraints. Use a `FieldReference` to refer to another input field rather than interpolating its name into a string.
+
+Attribute arguments may also reference values that are only known during validation. `RouteParameterReference` reads a route parameter, `AuthenticatedUserReference` reads the authenticated user, and `ContainerReference` resolves a service from the container. Each reference accepts an optional property to read from the resolved value:
+
+```php
+use Hypervel\Data\Attributes\Validation\Max;
+use Hypervel\Data\Attributes\Validation\Unique;
+use Hypervel\Data\Support\Validation\References\AuthenticatedUserReference;
+use Hypervel\Data\Support\Validation\References\ContainerReference;
+use Hypervel\Data\Support\Validation\References\RouteParameterReference;
+
+class SongData extends Data
+{
+    public function __construct(
+        #[Max(new ContainerReference(SongSettings::class, 'maxTitleLength'))]
+        public string $title,
+        #[Unique('songs', ignore: new RouteParameterReference('song'))]
+        public string $slug,
+        #[Unique('users', 'email', ignore: new AuthenticatedUserReference(guard: 'api'))]
+        public string $contactEmail,
+    ) {
+    }
+}
+```
+
+A missing route parameter throws an exception unless the reference is created with `nullable: true`. A guest resolves to `null`. A container dependency that cannot be resolved throws an exception instead of producing a `null` rule value; pass `parameters` when the dependency needs constructor arguments.
 
 <a name="manual-rules-and-hooks"></a>
 ### Manual Rules and Hooks
@@ -640,7 +752,7 @@ public static function rules(ValidationContext $context): array
 }
 ```
 
-A class rule replaces inferred rules for that property. Add `#[MergeValidationRules]` to merge instead. Property keys use PHP property names; Hypervel translates them to the input paths selected for the current payload.
+The `ValidationContext` provides the current object's input as `payload`, the complete input as `fullPayload`, and the object's input `path`. A class rule replaces inferred rules for that property. Add `#[MergeValidationRules]` to merge instead. Property keys use PHP property names; Hypervel translates them to the input paths selected for the current payload.
 
 Use `withValidator(Validator $validator)` and `after(): array` like a FormRequest. Authorization, messages, translated attribute names, error bags, redirects, stop-on-first-failure, Precognition, and `#[FailOnUnknownFields]` use the corresponding Hypervel request-validation behavior. A declared class method overrides the matching Foundation attribute when both are present.
 
@@ -684,7 +796,7 @@ Factories may change the validation strategy, enable or disable name mapping and
 7. `beforeCreation`
 8. `afterCreation`
 
-The `prepareData`, `beforeCreation`, and `afterCreation` hooks run even when validation is skipped. The other hooks run while generating rules or validating, as appropriate. Call `alwaysValidate()` when validation hooks should also apply to an array, model, JSON value, or another non-request source.
+The `prepareData`, `beforeCreation`, and `afterCreation` hooks run even when validation is skipped. The other hooks run while generating rules or validating, as appropriate. The `beforeValidation` hook receives the complete input and may add fields for the rules to read, while `afterValidation` receives the validated payload. Call `alwaysValidate()` when validation hooks should also apply to an array, model, JSON value, or another non-request source.
 
 Each call to `factory()` returns a new factory. Keep a reused factory scoped to the current operation instead of storing it across requests.
 
@@ -702,6 +814,8 @@ $json = $product->toJson();
 ```
 
 `toArray()` recursively transforms nested transformable data, typed iterable items, dates, enums, and `Arrayable` values. The `all()` method returns visible property values without transforming nested values. For more control over a single transformation, pass a `TransformationContext` or `TransformationContextFactory` to `transform()`.
+
+To guard against infinite recursion, such as when including a recursive relationship, set the `data.max_transformation_depth` configuration option. Reaching that depth throws an exception. Set `data.throw_when_max_transformation_depth_reached` to `false` to transform deeper values into an empty array instead, or pass `throw: false` to a factory's `maxDepth()` method for a single transformation. Values stored by Eloquent casts always throw instead of being truncated.
 
 `Dto` has no transformation API. Use public properties directly, or choose `Data` or `Resource` when output mapping, `Optional` omission, lazy values, or built-in transformation is required.
 
@@ -749,14 +863,16 @@ return $user
     ->toArray();
 ```
 
-The ordinary methods apply to the next transformation. Their `Permanently` variants apply to every transformation of that object, and the `When` variants accept a boolean or closure condition. A terminal `*` selects the complete subtree. Invalid partial paths fail instead of being silently ignored.
+The ordinary methods apply to the next transformation. Their `Permanently` variants apply to every transformation of that object, and the `When` variants accept a boolean or closure condition. A terminal `*` selects the complete subtree.
+
+A malformed path, such as one with an empty segment, always throws an exception. A name that matches no property selects nothing, while a nested path through a property the object does not have throws an exception. Set the `data.ignore_invalid_partials` configuration option to `true` to skip those nested paths instead.
 
 Selections owned by nested objects and collection items are composed with selections from their parent. Temporary selections are consumed only when that object is actually reached; collection reads and iteration do not consume them.
 
 <a name="hidden-computed-and-appended-values"></a>
 ### Hidden, Computed, and Appended Values
 
-`#[Hidden]` omits a declared property from ordinary output. `#[Computed]` marks an output-only property whose value is set by the class; caller input for it is rejected. PHP 8.4 virtual properties are treated as output-only in the same way.
+`#[Hidden]` omits a declared property from ordinary output. `#[Computed]` marks an output-only property whose value is set by the class; caller input for it is rejected. To ignore that input instead, set the `data.features.ignore_exception_when_trying_to_set_computed_property_value` configuration option to `true`. PHP 8.4 virtual properties are treated as output-only in the same way.
 
 Return response-only values from `with()` or add them to one object with `additional()`:
 
@@ -808,7 +924,21 @@ return UserData::collect($users, DataCollection::class);
 
 Responses use Hypervel's JSON resources and paginator support, including their links and pagination details. Use `wrap()` or `withoutWrapping()` on an object or collection. You may also define the default wrapper using the `data.wrap` configuration option.
 
-Override static `jsonOptions()` or `withResponse(Request $request, JsonResponse $response)` for Laravel-style response customization. Query-string `include`, `exclude`, `only`, and `except` selections are disabled unless the data class allows them through `allowedRequestIncludes()`, `allowedRequestExcludes()`, `allowedRequestOnly()`, or `allowedRequestExcept()`.
+Override static `jsonOptions()` or `withResponse(Request $request, JsonResponse $response)` for Laravel-style response customization. A custom data collection class may also override `withResponse()`, while its JSON options come from its data class. Responses use the `200` status code for every request method, so set a `201` status for a newly created object yourself:
+
+```php
+use Hypervel\Http\JsonResponse;
+use Hypervel\Http\Request;
+
+public function withResponse(Request $request, JsonResponse $response): void
+{
+    if ($request->isMethod('POST')) {
+        $response->setStatusCode(201);
+    }
+}
+```
+
+Query-string `include`, `exclude`, `only`, and `except` selections are disabled unless the data class allows them through `allowedRequestIncludes()`, `allowedRequestExcludes()`, `allowedRequestOnly()`, or `allowedRequestExcept()`.
 
 <a name="form-request-casting"></a>
 ## Form Request Casting
@@ -992,10 +1122,18 @@ Saloon attaches the response to the data object through its existing `WithRespon
 Generate a class with the `make:data` command:
 
 ```shell
-php bin/hypervel.php make:data UserData
+php artisan make:data User
 ```
 
-The class is placed under your application's `Data` namespace, normally `App\Data`. The command does not append a suffix, so supply the complete class name you want. Like Hypervel's other generators, it honors an application stub override and supports `--force`.
+By default, the class is placed in the `App\Data` namespace and suffixed with `Data`, so this command creates `App\Data\UserData`. A name that already ends with the suffix is left unchanged. You may change these defaults using the `data.commands.make.namespace` and `data.commands.make.suffix` configuration options. Set the suffix to an empty string to disable it.
+
+For a single class, pass `--suffix` to use a different suffix or `--target-namespace` to choose the complete namespace:
+
+```shell
+php artisan make:data Post --suffix=Dto --target-namespace="App\DataTransferObjects"
+```
+
+Like Hypervel's other generators, the command honors an application stub override and supports `--force`.
 
 <a name="worker-lifetime"></a>
 ## Worker Lifetime
@@ -1004,7 +1142,7 @@ Hypervel analyzes each data class when it is first used and keeps that descripti
 
 Register `Lazy`, `DataCollection`, `PaginatedDataCollection`, and `CursorPaginatedDataCollection` macros during provider boot. These macros remain registered for the worker lifetime, so they must not contain request-specific callbacks or values. Configure morph aliases during boot for the same reason.
 
-When dumped, a transformable data object displays the same values as `all()`. Data collections display their values under an `items` key. Internal package state is not included.
+When dumped, a transformable data object displays the same values as `all()`. Data collections display their values under an `items` key. Internal package state is not included. By default, this dump format is only used in the `local` and `testing` environments. Set the `data.var_dumper_caster_mode` configuration option to `enabled` to use it in every environment, or `disabled` to dump the complete object.
 
 Data objects do not implement `ArrayAccess`. Read public properties or call `toArray()`. Data collections support enumeration and provide keyed access when their underlying collection supports it.
 

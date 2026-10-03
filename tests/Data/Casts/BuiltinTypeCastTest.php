@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Data\Casts;
 
 use Hypervel\Data\Casts\BuiltinTypeCast;
 use Hypervel\Data\Contracts\BaseData;
-use Hypervel\Data\Support\Creation\ConstructionState;
 use Hypervel\Data\Support\Creation\CreationContext;
 use Hypervel\Data\Support\DataProperty;
 use Hypervel\Tests\TestCase;
@@ -21,12 +20,11 @@ class BuiltinTypeCastTest extends TestCase
     public function testCastsBuiltInValues(string $type, mixed $value, mixed $expected): void
     {
         $context = new CreationContext(BuiltinTypeCastDataFixture::class);
-        $state = ConstructionState::create($context, BuiltinTypeCastDataFixture::class);
         $property = $this->createStub(DataProperty::class);
         $cast = new BuiltinTypeCast($type);
 
-        $this->assertSame($expected, $cast->cast($property, $value, $state, $context));
-        $this->assertSame($expected, $cast->castIterableItem($property, $value, $state, $context));
+        $this->assertSame($expected, $cast->cast($property, $value, [], $context));
+        $this->assertSame($expected, $cast->castIterableItem($property, $value, [], $context));
     }
 
     /**

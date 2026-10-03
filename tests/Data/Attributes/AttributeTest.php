@@ -18,7 +18,6 @@ use Hypervel\Data\Contracts\BaseData;
 use Hypervel\Data\Exceptions\CannotCreateCastAttribute;
 use Hypervel\Data\Exceptions\CannotCreateTransformerAttribute;
 use Hypervel\Data\Exceptions\CannotFindDataClass;
-use Hypervel\Data\Support\Creation\ConstructionState;
 use Hypervel\Data\Support\Creation\CreationContext;
 use Hypervel\Data\Support\DataProperty;
 use Hypervel\Data\Support\Transformation\TransformationContext;
@@ -102,7 +101,7 @@ class AttributeTestArgumentCast implements Cast
     public function cast(
         DataProperty $property,
         mixed $value,
-        ConstructionState $state,
+        array $properties,
         CreationContext $context,
     ): mixed {
         return $value;

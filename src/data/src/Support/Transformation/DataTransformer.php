@@ -21,6 +21,7 @@ use Hypervel\Data\Contracts\WrappableData;
 use Hypervel\Data\CursorPaginatedDataCollection;
 use Hypervel\Data\DataCollection;
 use Hypervel\Data\Enums\DataPropertyOperation;
+use Hypervel\Data\Exceptions\CannotPerformPartialOnDataField;
 use Hypervel\Data\Exceptions\CannotTransformData;
 use Hypervel\Data\Exceptions\MaxTransformationDepthReached;
 use Hypervel\Data\Lazy;
@@ -62,10 +63,12 @@ class DataTransformer
             : new DateTimeZone($config->dateTimezone);
         $this->defaultContext = new TransformationContext(
             maxDepth: $config->maxTransformationDepth,
+            throwWhenMaxDepthReached: $config->throwWhenMaxTransformationDepthReached,
         );
         $this->allContext = new TransformationContext(
             transformValues: false,
             maxDepth: $config->maxTransformationDepth,
+            throwWhenMaxDepthReached: $config->throwWhenMaxTransformationDepthReached,
         );
         $this->persistenceContext = TransformationContextFactory::persistenceContext(
             $config->maxTransformationDepth,
@@ -158,7 +161,11 @@ class DataTransformer
         bool $includeAdditionalData = true,
     ): array {
         if ($context->maxDepth !== null && $context->depth >= $context->maxDepth) {
-            throw MaxTransformationDepthReached::create($context->maxDepth);
+            if ($context->throwWhenMaxDepthReached) {
+                throw MaxTransformationDepthReached::create($context->maxDepth);
+            }
+
+            return [];
         }
 
         $dataClass = $this->dataClasses->get($data::class);
@@ -189,6 +196,15 @@ class DataTransformer
                     $includeAdditionalData,
                 );
             }
+        }
+
+        if (! $this->config->ignoreInvalidPartials
+            && (($context->include->nestedProperties ?? []) !== []
+                || ($context->exclude->nestedProperties ?? []) !== []
+                || ($context->only->nestedProperties ?? []) !== []
+                || ($context->except->nestedProperties ?? []) !== [])
+        ) {
+            $this->ensureNestedPartialsExist($dataClass, $context);
         }
 
         // Raw storage keeps excluded property hooks from running as a side effect.
@@ -261,7 +277,11 @@ class DataTransformer
         ?Collection $rootItems = null,
     ): array {
         if ($context->maxDepth !== null && $context->depth >= $context->maxDepth) {
-            throw MaxTransformationDepthReached::create($context->maxDepth);
+            if ($context->throwWhenMaxDepthReached) {
+                throw MaxTransformationDepthReached::create($context->maxDepth);
+            }
+
+            return [];
         }
 
         $transformed = [];
@@ -598,6 +618,33 @@ class DataTransformer
         return $context->wrapExecutionType === WrapExecutionType::Enabled
             ? WrapExecutionType::Enabled
             : WrapExecutionType::TemporarilyDisabled;
+    }
+
+    /**
+     * Ensure every nested partial path starts with a visible property of the data class.
+     *
+     * Flat selections of unknown names select nothing, as upstream allows.
+     */
+    protected function ensureNestedPartialsExist(DataClass $dataClass, TransformationContext $context): void
+    {
+        foreach ([
+            'include' => $context->include,
+            'exclude' => $context->exclude,
+            'only' => $context->only,
+            'except' => $context->except,
+        ] as $operation => $tree) {
+            if ($tree === null) {
+                continue;
+            }
+
+            foreach ($tree->nestedProperties as $name) {
+                $property = $dataClass->properties[$name] ?? null;
+
+                if ($property === null || ($property->hidden && ! $context->constructable)) {
+                    throw CannotPerformPartialOnDataField::missingProperty($operation, $name, $dataClass->name);
+                }
+            }
+        }
     }
 
     /**

@@ -475,6 +475,7 @@ class DataClassFactory
             'withValidator',
             'after',
             'normalizers',
+            'prepareForPipeline',
             'stopOnFirstFailure',
             'redirect',
             'redirectRoute',
@@ -570,6 +571,7 @@ class DataClassFactory
         if ($reflectionClass->isAbstract()
             || $propertyMorphable
             || isset($lifecycleMethods['normalizers'])
+            || isset($lifecycleMethods['prepareForPipeline'])
             || $this->config->normalizers !== []) {
             return null;
         }

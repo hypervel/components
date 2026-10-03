@@ -47,6 +47,7 @@ class TransformationContextFactoryTest extends TestCase
         $this->assertFalse($context->transformValues);
         $this->assertFalse($context->mapPropertyNames);
         $this->assertSame(4, $context->maxDepth);
+        $this->assertTrue($context->throwWhenMaxDepthReached);
         $this->assertTrue($context->hasPartials());
         $this->assertTrue($context->include?->child('profile')?->selects('avatar'));
         $this->assertTrue($context->exclude?->child('profile')?->selects('secret'));
@@ -66,6 +67,17 @@ class TransformationContextFactoryTest extends TestCase
         $this->assertFalse($nested['include'][0]->permanent);
         $this->assertTrue($nested['include'][1]->permanent);
         $this->assertNull($nested['include'][1]->condition);
+    }
+
+    public function testCanSetAMaxTransformationDepthWithoutFailing(): void
+    {
+        $context = TransformationContextFactory::create()
+            ->maxDepth(4, throw: false)
+            ->get(new stdClass);
+
+        $this->assertSame(4, $context->maxDepth);
+        $this->assertSame(0, $context->depth);
+        $this->assertFalse($context->throwWhenMaxDepthReached);
     }
 
     /**
@@ -93,7 +105,7 @@ class TransformationContextFactoryTest extends TestCase
             ->withPropertyNameMapping()
             ->withWrapping()
             ->only('name')
-            ->maxDepth(5)
+            ->maxDepth(5, throw: false)
             ->get($data);
 
         $this->assertTrue($context->transformValues);

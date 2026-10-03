@@ -62,7 +62,7 @@ class DataServiceProviderTest extends TestCase
 
             $provider = new DataServiceProvider($application);
             $provider->register();
-            $provider->boot();
+            $provider->boot($application->make('config'));
 
             $this->assertTrue($application->resolved(DataConfig::class));
             $this->assertFalse($application->resolved(DataCreator::class));

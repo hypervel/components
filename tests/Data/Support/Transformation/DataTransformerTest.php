@@ -24,7 +24,9 @@ use Hypervel\Data\Data;
 use Hypervel\Data\DataCollection;
 use Hypervel\Data\DataServiceProvider;
 use Hypervel\Data\Dto;
+use Hypervel\Data\Exceptions\CannotPerformPartialOnDataField;
 use Hypervel\Data\Exceptions\CannotTransformData;
+use Hypervel\Data\Exceptions\MaxTransformationDepthReached;
 use Hypervel\Data\Lazy;
 use Hypervel\Data\Normalizers\Normalized\Normalized;
 use Hypervel\Data\Normalizers\Normalizer;
@@ -40,7 +42,9 @@ use Hypervel\Inertia\DeferProp;
 use Hypervel\Inertia\OptionalProp;
 use Hypervel\Pagination\CursorPaginator;
 use Hypervel\Pagination\LengthAwarePaginator;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionProperty;
 use RuntimeException;
 use Traversable;
@@ -912,6 +916,90 @@ class DataTransformerTest extends TestCase
         $data->transform(TransformationContextFactory::create()->maxDepth(1));
     }
 
+    public function testReturnsAnEmptyArrayAtMaximumDepthWhenNotThrowing(): void
+    {
+        $nested = new NestedData(new NestedData(new SimpleData('deep')));
+        $collection = new NestedCollectionOwnerData(
+            new DataCollection(NestedLazyData::class, [new NestedLazyData('first', 'kept')]),
+        );
+
+        $this->assertSame(
+            ['nested' => []],
+            $nested->transform(TransformationContextFactory::create()->maxDepth(1, throw: false)),
+        );
+        $this->assertSame(
+            ['collection' => []],
+            $collection->transform(TransformationContextFactory::create()->maxDepth(1, throw: false)),
+        );
+    }
+
+    #[DataProvider('partialOperationProvider')]
+    public function testNestedPartialsOnUnknownPropertiesThrow(string $operation): void
+    {
+        $this->expectException(CannotPerformPartialOnDataField::class);
+        $this->expectExceptionMessage(
+            "Cannot apply the [{$operation}] partial to unknown data property [certainly-not-simple]",
+        );
+
+        PartialTargetData::make()->{$operation}('certainly-not-simple.string')->toArray();
+    }
+
+    /**
+     * Get the partial operations that validate nested paths.
+     *
+     * @return array<string, array{string}>
+     */
+    public static function partialOperationProvider(): array
+    {
+        return [
+            'include' => ['include'],
+            'exclude' => ['exclude'],
+            'only' => ['only'],
+            'except' => ['except'],
+        ];
+    }
+
+    public function testNestedPartialsOnHiddenPropertiesThrow(): void
+    {
+        $this->expectException(CannotPerformPartialOnDataField::class);
+
+        PartialTargetData::make()->include('secret.value')->toArray();
+    }
+
+    public function testFlatUnknownPartialsSelectNothing(): void
+    {
+        $this->assertSame(
+            ['string' => 'World'],
+            PartialTargetData::make()->include('missing', 'string')->toArray(),
+        );
+        $this->assertSame(
+            ['simple' => ['value' => 'Hello'], 'string' => 'World'],
+            PartialTargetData::make()->include('*', 'missing')->toArray(),
+        );
+    }
+
+    #[WithConfig('data.ignore_invalid_partials', true)]
+    public function testInvalidNestedPartialsCanBeIgnored(): void
+    {
+        $this->assertSame(
+            ['string' => 'World'],
+            PartialTargetData::make()->include('certainly-not-simple.string', 'string')->toArray(),
+        );
+    }
+
+    #[WithConfig('data.max_transformation_depth', 1)]
+    #[WithConfig('data.throw_when_max_transformation_depth_reached', false)]
+    public function testConfiguredDepthReturnsEmptyArraysButPersistenceStillThrows(): void
+    {
+        $data = new NestedData(new NestedData(new SimpleData('deep')));
+
+        $this->assertSame(['nested' => []], $data->toArray());
+
+        $this->expectException(MaxTransformationDepthReached::class);
+
+        $data->transform(TransformationContextFactory::forPersistence());
+    }
+
     /**
      * Test persistence transforms the complete constructable graph without changing partial stores.
      */
@@ -1095,6 +1183,31 @@ class SimpleData extends Data
 {
     public function __construct(public string $value)
     {
+    }
+}
+
+class PartialTargetData extends Data
+{
+    /**
+     * Create a partial target fixture.
+     */
+    public function __construct(
+        public Lazy|SimpleData $simple,
+        public Lazy|string $string,
+        #[Hidden]
+        public ?SimpleData $secret = null,
+    ) {
+    }
+
+    /**
+     * Create the partial target with lazy values.
+     */
+    public static function make(): self
+    {
+        return new self(
+            Lazy::create(static fn (): SimpleData => new SimpleData('Hello')),
+            Lazy::create(static fn (): string => 'World'),
+        );
     }
 }
 

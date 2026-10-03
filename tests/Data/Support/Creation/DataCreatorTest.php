@@ -22,6 +22,8 @@ use Hypervel\Data\Attributes\PropertyForMorph;
 use Hypervel\Data\Attributes\WithCast;
 use Hypervel\Data\Casts\Cast;
 use Hypervel\Data\Casts\Castable;
+use Hypervel\Data\Casts\IterableItemCast;
+use Hypervel\Data\Casts\Uncastable;
 use Hypervel\Data\Contracts\PropertyMorphableData;
 use Hypervel\Data\Data;
 use Hypervel\Data\DataCollection;
@@ -38,7 +40,6 @@ use Hypervel\Data\Normalizers\Normalizer;
 use Hypervel\Data\Optional;
 use Hypervel\Data\Resource;
 use Hypervel\Data\Support\Creation\AutoLazyReplayMode;
-use Hypervel\Data\Support\Creation\ConstructionState;
 use Hypervel\Data\Support\Creation\CreationContext;
 use Hypervel\Data\Support\Creation\CreationContextFactory;
 use Hypervel\Data\Support\Creation\CreationMode;
@@ -49,6 +50,7 @@ use Hypervel\Data\Support\DataProperty;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\Request;
 use Hypervel\Pagination\Paginator;
+use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
@@ -85,11 +87,11 @@ class DataCreatorTest extends TestCase
         $this->assertInstanceOf(Optional::class, $data->note);
     }
 
-    public function testFirstSourceContainingAPropertyWinsAndMappingCanBeDisabled(): void
+    public function testLaterSourceContainingAPropertyWinsAndMappingCanBeDisabled(): void
     {
-        $first = BasicCreationData::from(
-            ['name' => 'First'],
-            ['profile' => ['name' => 'Second']],
+        $later = BasicCreationData::from(
+            ['name' => 'First', 'nickname' => 'Tay', 'note' => 'kept'],
+            ['profile' => ['name' => 'Second'], 'nickname' => null, 'note' => Optional::create()],
         );
         $unmapped = BasicCreationData::factory()
             ->withoutPropertyNameMapping()
@@ -98,9 +100,70 @@ class DataCreatorTest extends TestCase
                 'profile' => ['name' => 'Mapped'],
             ]);
 
-        $this->assertSame('First', $first->name);
+        $this->assertSame('Second', $later->name);
+        $this->assertNull($later->nickname);
+        $this->assertSame('kept', $later->note);
         $this->assertSame('Plain', $unmapped->name);
         $this->assertNotSame(BasicCreationData::factory(), BasicCreationData::factory());
+    }
+
+    public function testAnExplicitOptionalIsKeptWhenNoSourceSuppliesAValue(): void
+    {
+        $data = OptionalDefaultCreationData::from(['note' => Optional::create()], []);
+
+        $this->assertInstanceOf(Optional::class, $data->note);
+    }
+
+    public function testAPrepareDataHookReturningItsInputChangesNothing(): void
+    {
+        $sources = [
+            ['name' => 'First', 'meta' => ['a' => 1]],
+            ['name' => 'Second', 'meta' => ['b' => 2]],
+        ];
+
+        $plain = PrepareDataIdentityData::from(...$sources);
+        $hooked = PrepareDataIdentityData::factory()
+            ->prepareData(static fn (array $data): array => $data)
+            ->from(...$sources);
+
+        $this->assertSame(['b' => 2], $plain->meta);
+        $this->assertSame($plain->toArray(), $hooked->toArray());
+
+        $mappedCases = [
+            'php name after a dot mapping' => [
+                ['profile' => ['name' => 'old', 'bio' => 'kept'], 'user_code' => 'a'],
+                ['name' => 'new'],
+            ],
+            'dot mapping after a php name' => [
+                ['name' => 'old', 'user_code' => 'a'],
+                ['profile' => ['name' => 'new']],
+            ],
+            'php name after a flat mapping' => [
+                ['name' => 'Taylor', 'user_code' => 'old'],
+                ['code' => 'new'],
+            ],
+        ];
+
+        foreach ($mappedCases as $case => $mappedSources) {
+            $plain = MappedPrepareDataIdentityData::from(...$mappedSources);
+            $hooked = MappedPrepareDataIdentityData::factory()
+                ->prepareData(static fn (array $data): array => $data)
+                ->from(...$mappedSources);
+
+            $this->assertSame($plain->all(), $hooked->all(), $case);
+        }
+
+        $received = null;
+        MappedPrepareDataIdentityData::factory()
+            ->prepareData(static function (array $data) use (&$received): array {
+                $received = $data;
+
+                return $data;
+            })
+            ->from(...$mappedCases['php name after a dot mapping']);
+
+        // The selected value moves to the spelling resolution reads first; sibling input remains.
+        $this->assertSame(['name' => 'new', 'bio' => 'kept'], $received['profile']);
     }
 
     public function testFreshDefaultFactoriesShareOnlyTheirImmutableContext(): void
@@ -1280,11 +1343,131 @@ class DataCreatorTest extends TestCase
         $this->assertSame(7, $data->children->first()->id);
     }
 
+    public function testUserCastsReceiveTheDeclaredPropertyValues(): void
+    {
+        RecordingInputsCast::$properties = null;
+
+        $data = CastInputsData::from([
+            'first' => '5',
+            'recorded' => 'value',
+            'later_value' => 'raw later',
+            'count' => '7',
+        ]);
+        $properties = RecordingInputsCast::$properties;
+
+        $this->assertSame(
+            ['first', 'recorded', 'later', 'count', 'optional', 'nullable', 'default'],
+            array_keys($properties),
+        );
+        $this->assertSame(5, $properties['first']);
+        $this->assertSame('value', $properties['recorded']);
+        $this->assertSame('raw later', $properties['later']);
+        $this->assertSame('7', $properties['count']);
+        $this->assertInstanceOf(Optional::class, $properties['optional']);
+        $this->assertNull($properties['nullable']);
+        $this->assertSame($data->default, $properties['default']);
+
+        $leading = CastInputsLeadingDefaultData::from(['recorded' => 'value']);
+
+        $this->assertSame($leading->default, RecordingInputsCast::$properties['default']);
+    }
+
+    public function testIterableItemCastsShareTheDeclaredPropertyValues(): void
+    {
+        RecordingItemInputsCast::$received = [];
+
+        $data = CastInputsIterableData::from(['name' => 'Taylor', 'tags' => ['a', 'b']]);
+
+        $this->assertSame(['A', 'B'], $data->tags);
+        $this->assertSame(
+            array_fill(0, 2, ['name' => 'Taylor', 'tags' => ['a', 'b']]),
+            RecordingItemInputsCast::$received,
+        );
+    }
+
+    public function testDeferredUserCastsSeeTheValuesFromWhenTheyWereDeferred(): void
+    {
+        RecordingInputsCast::$properties = null;
+
+        $data = CastInputsLazyData::from(['first' => '5', 'recorded' => 'value']);
+
+        $this->assertNull(RecordingInputsCast::$properties);
+        $this->assertSame('value', $data->recorded->resolve());
+        $this->assertSame(['first' => 5, 'recorded' => 'value'], RecordingInputsCast::$properties);
+
+        RecordingInputsCast::$properties = null;
+
+        $factoryCast = FactoryCastInputsLazyData::factory()
+            ->withCast('string', RecordingInputsCast::class)
+            ->from(['first' => '5', 'recorded' => 'value']);
+
+        $this->assertSame('value', $factoryCast->recorded->resolve());
+        $this->assertSame(['first' => 5, 'recorded' => 'value'], RecordingInputsCast::$properties);
+    }
+
     public function testUnrelatedUnionArmPassesThroughAmbiguousDataCollectableTypes(): void
     {
         $data = AmbiguousDataCollectableCreationData::from(['children' => 'unchanged']);
 
         $this->assertSame('unchanged', $data->children);
+    }
+
+    public function testCanRestructurePayloadBeforeEnteringThePipeline(): void
+    {
+        $instance = PreparedAddressData::from([
+            'name' => 'Freek',
+            'line_1' => '123 Sesame St',
+            'city' => 'New York',
+            'state' => 'NJ',
+            'zipcode' => '10010',
+        ]);
+
+        $this->assertSame(
+            ['name' => 'Freek', 'address' => '123 Sesame St,New York,NJ,10010'],
+            $instance->toArray(),
+        );
+    }
+
+    public function testPrepareForPipelineRunsForEachSource(): void
+    {
+        PreparedAddressData::$calls = 0;
+
+        PreparedAddressData::from(['name' => 'Taylor'], ['line_1' => '1 Main St']);
+
+        $this->assertSame(2, PreparedAddressData::$calls);
+    }
+
+    public function testNestedObjectsArePreparedBeforeValidation(): void
+    {
+        $data = PreparedOwnerData::validateAndCreate([
+            'label' => 'home',
+            'owner' => ['line_1' => '1 Main St', 'city' => 'Chicago'],
+        ]);
+
+        $this->assertSame('1 Main St, Chicago', $data->owner->address);
+    }
+
+    public function testModelSourcesArePreparedAsTheirDeclaredProperties(): void
+    {
+        $data = PreparedNameData::from((new PreparedNameModel)->forceFill(['name' => 'taylor']));
+
+        $this->assertSame('TAYLOR', $data->name);
+    }
+
+    public function testTheMorphedClassPreparesItsPayload(): void
+    {
+        $shape = PreparedShapeData::from(['type' => 'circle', 'r' => '3']);
+
+        $this->assertInstanceOf(PreparedCircleData::class, $shape);
+        $this->assertSame(3, $shape->radius);
+
+        // prepareData hooks run first, so their output selects the class whose method then prepares it.
+        $hooked = PreparedShapeData::factory()
+            ->prepareData(static fn (array $input): array => [...$input, 'type' => 'circle', 'r' => '4'])
+            ->from(['type' => 'square']);
+
+        $this->assertInstanceOf(PreparedCircleData::class, $hooked);
+        $this->assertSame(4, $hooked->radius);
     }
 
     public function testClassNormalizersCustomCastsAndCreationHooksShareOneOperation(): void
@@ -1334,6 +1517,27 @@ class DataCreatorTest extends TestCase
             ->from(['name' => 'Taylor']);
     }
 
+    #[DefineEnvironment('withIgnoredComputedInput')]
+    public function testSuppliedComputedAndVirtualValuesCanBeIgnored(): void
+    {
+        $payload = ['id' => 1, 'computed' => 'client', 'virtual' => 'client'];
+
+        $created = [
+            DirectOutputOnlyCreationData::from($payload),
+            DirectOutputOnlyCreationData::validateAndCreate($payload),
+            DirectOutputOnlyCreationData::factory()
+                ->alwaysValidate()
+                ->beforeValidation(static fn (array $payload): array => [...$payload, 'computed' => 'hook'])
+                ->from(['id' => 1]),
+        ];
+
+        foreach ($created as $data) {
+            $this->assertSame(1, $data->id);
+            $this->assertSame('computed', $data->computed);
+            $this->assertSame('virtual', $data->virtual);
+        }
+    }
+
     /**
      * Capture a creation value or its exact failure contract.
      *
@@ -1359,6 +1563,14 @@ class DataCreatorTest extends TestCase
     {
         $app->make('config')->set('data.normalizers', [CreationSourceNormalizer::class]);
     }
+
+    /**
+     * Ignore supplied computed property values.
+     */
+    protected function withIgnoredComputedInput(Application $app): void
+    {
+        $app->make('config')->set('data.features.ignore_exception_when_trying_to_set_computed_property_value', true);
+    }
 }
 
 class BasicCreationData extends Data
@@ -1369,6 +1581,45 @@ class BasicCreationData extends Data
         public ?string $nickname,
         public string|Optional $note,
         public int $age = 18,
+    ) {
+    }
+}
+
+class OptionalDefaultCreationData extends Data
+{
+    /**
+     * Create an optional default fixture.
+     */
+    public function __construct(
+        public string|Optional $note = 'default',
+    ) {
+    }
+}
+
+class PrepareDataIdentityData extends Data
+{
+    /**
+     * Create a prepare-data identity fixture.
+     *
+     * @param array<string, int> $meta
+     */
+    public function __construct(
+        public string $name,
+        public array $meta = [],
+    ) {
+    }
+}
+
+class MappedPrepareDataIdentityData extends Data
+{
+    /**
+     * Create a mapped prepare-data identity fixture.
+     */
+    public function __construct(
+        #[MapInputName('profile.name')]
+        public string $name,
+        #[MapInputName('user_code')]
+        public string $code,
     ) {
     }
 }
@@ -1676,7 +1927,7 @@ class DeferredItemCreationCast implements Cast
     public function cast(
         DataProperty $property,
         mixed $value,
-        ConstructionState $state,
+        array $properties,
         CreationContext $context,
     ): int {
         return (int) $value;
@@ -2415,7 +2666,7 @@ class PriorityCreationCast implements Cast
     public function cast(
         DataProperty $property,
         mixed $value,
-        ConstructionState $state,
+        array $properties,
         CreationContext $context,
     ): PriorityCreationCastable {
         return new PriorityCreationCastable((string) $value);
@@ -2464,7 +2715,7 @@ class AmbiguousDataCollectableCreationCast implements Cast
     public function cast(
         DataProperty $property,
         mixed $value,
-        ConstructionState $state,
+        array $properties,
         CreationContext $context,
     ): Collection {
         return new Collection([new ChildCreationData((int) $value)]);
@@ -2520,7 +2771,7 @@ class CreationIdentifierCast implements Cast
     public function cast(
         DataProperty $property,
         mixed $value,
-        ConstructionState $state,
+        array $properties,
         CreationContext $context,
     ): int {
         return 123;
@@ -2532,10 +2783,268 @@ class CreationLabelCast implements Cast
     public function cast(
         DataProperty $property,
         mixed $value,
-        ConstructionState $state,
+        array $properties,
         CreationContext $context,
     ): string {
         return 'cast:' . $value;
+    }
+}
+
+class RecordingInputsCast implements Cast
+{
+    /** @var null|array<string, mixed> */
+    public static ?array $properties = null;
+
+    /**
+     * Record the declared property values and return the value.
+     */
+    public function cast(
+        DataProperty $property,
+        mixed $value,
+        array $properties,
+        CreationContext $context,
+    ): string {
+        static::$properties = $properties;
+
+        return $value;
+    }
+}
+
+class RecordingItemInputsCast implements Cast, IterableItemCast
+{
+    /** @var list<array<string, mixed>> */
+    public static array $received = [];
+
+    /**
+     * Leave the whole property to the item casts.
+     */
+    public function cast(
+        DataProperty $property,
+        mixed $value,
+        array $properties,
+        CreationContext $context,
+    ): Uncastable {
+        return Uncastable::create();
+    }
+
+    /**
+     * Record the declared property values and uppercase the item.
+     */
+    public function castIterableItem(
+        DataProperty $property,
+        mixed $value,
+        array $properties,
+        CreationContext $context,
+    ): string {
+        static::$received[] = $properties;
+
+        return strtoupper($value);
+    }
+}
+
+class CastInputsDefault
+{
+}
+
+class CastInputsData extends Data
+{
+    #[Computed]
+    public string $summary;
+
+    /**
+     * Create a cast-inputs fixture.
+     */
+    public function __construct(
+        public int $first,
+        #[WithCast(RecordingInputsCast::class)]
+        public string $recorded,
+        #[MapInputName('later_value')]
+        public string $later,
+        public int $count,
+        public string|Optional $optional,
+        public ?string $nullable,
+        #[Config('app.name')]
+        public string $appName,
+        public CastInputsDefault $default = new CastInputsDefault,
+    ) {
+        $this->summary = $recorded;
+    }
+}
+
+class CastInputsLeadingDefaultData extends Data
+{
+    /**
+     * Create a cast-inputs fixture whose default precedes the cast property.
+     */
+    public function __construct(
+        public CastInputsDefault $default = new CastInputsDefault,
+        #[WithCast(RecordingInputsCast::class)]
+        public string $recorded = 'fallback',
+    ) {
+    }
+}
+
+class CastInputsIterableData extends Data
+{
+    /**
+     * Create an iterable cast-inputs fixture.
+     *
+     * @param list<string> $tags
+     */
+    public function __construct(
+        public string $name,
+        #[WithCast(RecordingItemInputsCast::class)]
+        public array $tags,
+    ) {
+    }
+}
+
+class CastInputsLazyData extends Data
+{
+    /**
+     * Create a deferred cast-inputs fixture.
+     */
+    public function __construct(
+        public int $first,
+        #[AutoLazy, WithCast(RecordingInputsCast::class)]
+        public Lazy|string $recorded,
+    ) {
+    }
+}
+
+class FactoryCastInputsLazyData extends Data
+{
+    /**
+     * Create a deferred fixture for a factory-supplied cast.
+     */
+    public function __construct(
+        public int $first,
+        #[AutoLazy]
+        public Lazy|string $recorded,
+    ) {
+    }
+}
+
+class PreparedAddressData extends Data
+{
+    public static int $calls = 0;
+
+    /**
+     * Create a prepared address fixture.
+     */
+    public function __construct(
+        public ?string $name = null,
+        public ?string $address = null,
+    ) {
+    }
+
+    /**
+     * Join the flat address fields into one address.
+     */
+    public static function prepareForPipeline(array $properties): array
+    {
+        ++static::$calls;
+
+        $properties['address'] = implode(',', Arr::only($properties, ['line_1', 'city', 'state', 'zipcode']));
+
+        return $properties;
+    }
+}
+
+class PreparedRequiredAddressData extends Data
+{
+    /**
+     * Create a prepared required-address fixture.
+     */
+    public function __construct(public string $address)
+    {
+    }
+
+    /**
+     * Join the flat address fields into the required address.
+     */
+    public static function prepareForPipeline(array $properties): array
+    {
+        $properties['address'] = implode(', ', Arr::only($properties, ['line_1', 'city']));
+
+        return $properties;
+    }
+}
+
+class PreparedOwnerData extends Data
+{
+    /**
+     * Create a fixture whose nested owner prepares its own input.
+     */
+    public function __construct(
+        public string $label,
+        public PreparedRequiredAddressData $owner,
+    ) {
+    }
+}
+
+class PreparedNameModel extends Model
+{
+}
+
+class PreparedNameData extends Data
+{
+    /**
+     * Create a prepared name fixture.
+     */
+    public function __construct(public string $name)
+    {
+    }
+
+    /**
+     * Uppercase the name before it is read.
+     */
+    public static function prepareForPipeline(array $properties): array
+    {
+        $properties['name'] = strtoupper($properties['name']);
+
+        return $properties;
+    }
+}
+
+abstract class PreparedShapeData extends Data implements PropertyMorphableData
+{
+    /**
+     * Create a prepared shape fixture.
+     */
+    public function __construct(
+        #[PropertyForMorph]
+        public string $type,
+    ) {
+    }
+
+    /**
+     * Resolve the concrete shape class.
+     */
+    public static function morph(array $properties): ?string
+    {
+        return $properties['type'] === 'circle' ? PreparedCircleData::class : null;
+    }
+}
+
+class PreparedCircleData extends PreparedShapeData
+{
+    /**
+     * Create a prepared circle fixture.
+     */
+    public function __construct(string $type, public int $radius)
+    {
+        parent::__construct($type);
+    }
+
+    /**
+     * Read the radius from its short input name.
+     */
+    public static function prepareForPipeline(array $properties): array
+    {
+        $properties['radius'] ??= $properties['r'] ?? null;
+
+        return $properties;
     }
 }
 

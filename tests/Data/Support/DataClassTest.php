@@ -32,7 +32,6 @@ use Hypervel\Data\Mappers\SnakeCaseMapper;
 use Hypervel\Data\Normalizers\Normalized\Normalized;
 use Hypervel\Data\Normalizers\Normalizer;
 use Hypervel\Data\Support\Annotations\DataIterableAnnotationReader;
-use Hypervel\Data\Support\Creation\ConstructionState;
 use Hypervel\Data\Support\Creation\CreationContext;
 use Hypervel\Data\Support\DataConfig;
 use Hypervel\Data\Support\DataProperty;
@@ -260,6 +259,7 @@ class DataClassTest extends TestCase
             AbstractDirectArrayCreationDataFixture::class,
             MorphableDirectArrayCreationDataFixture::class,
             ClassNormalizerDirectArrayCreationDataFixture::class,
+            PreparedDirectArrayCreationDataFixture::class,
             PromotedContextualDataFixture::class,
             AutoLazyDirectArrayCreationDataFixture::class,
             LoadRelationDirectArrayCreationDataFixture::class,
@@ -670,6 +670,17 @@ class ClassNormalizerDirectArrayCreationDataFixture extends DirectArrayCreationD
     }
 }
 
+class PreparedDirectArrayCreationDataFixture extends DirectArrayCreationDataFixture
+{
+    /**
+     * Prepare one normalized payload.
+     */
+    public static function prepareForPipeline(array $properties): array
+    {
+        return $properties;
+    }
+}
+
 class AutoLazyDirectArrayCreationDataFixture extends Data
 {
     /**
@@ -720,7 +731,7 @@ class DirectArrayCreationCast implements Cast
     public function cast(
         DataProperty $property,
         mixed $value,
-        ConstructionState $state,
+        array $properties,
         CreationContext $context,
     ): mixed {
         return $value;

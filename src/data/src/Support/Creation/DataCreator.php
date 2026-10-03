@@ -166,6 +166,7 @@ class DataCreator
         mixed $value,
         ConstructionState $state,
         ?AutoLazyReplayMode $replay,
+        ?array $castInputs = null,
     ): mixed {
         $class = $state->nodeClass() ?? $state->context->dataClass;
         $property = $this->dataClasses->get($class)->properties[$propertyName];
@@ -187,7 +188,7 @@ class DataCreator
             $value = $state->getValue($inputPath);
         }
 
-        return $this->castProperty($property, $value, $state, $extensions);
+        return $this->castProperty($property, $value, $state, $extensions, [], $castInputs);
     }
 
     /**
@@ -783,7 +784,7 @@ class DataCreator
         $resolvedProperties = $this->resolveProperties($dataClass, $propertySources, $state->context);
 
         if ($state->context->prepareDataHooks !== []) {
-            $input = $this->mergeSources($dataClass, $propertySources, $state->context);
+            $input = $this->prepareDataInput($dataClass, $propertySources, $resolvedProperties, $state->context);
 
             foreach ($state->context->prepareDataHooks as $hook) {
                 $input = $hook($input);
@@ -798,6 +799,16 @@ class DataCreator
         if ($class !== $dataClass->name) {
             $dataClass = $this->dataClasses->get($class);
             $resolvedProperties = $this->resolveProperties($dataClass, $propertySources, $state->context);
+        }
+
+        if ($dataClass->hasLifecycleMethod('prepareForPipeline')) {
+            $propertySources = $this->prepareSourcesForPipeline($dataClass, $propertySources, $state->context);
+            $resolvedProperties = $this->resolveProperties($dataClass, $propertySources, $state->context);
+        }
+
+        if ($compilesRules) {
+            // Rules may read undeclared input, such as a confirmation field or a condition.
+            $state->writeNodeInput($this->mergeArraySources($propertySources));
         }
 
         $state->setNodeClass($class);
@@ -907,6 +918,10 @@ class DataCreator
             }
 
             if ($property->computed) {
+                if ($this->config->ignoreComputedPropertyInput) {
+                    continue;
+                }
+
                 throw CannotSetComputedValue::create($property);
             }
 
@@ -987,6 +1002,10 @@ class DataCreator
             $resolvedProperties = $this->resolveProperties($dataClass, [$source], $state->context);
         }
 
+        if ($compilesRules && is_array($source)) {
+            $state->writeNodeInput($source);
+        }
+
         $state->setNodeClass($class);
         $this->fillResolvedProperties(
             $dataClass,
@@ -1063,6 +1082,10 @@ class DataCreator
             }
 
             if ($property->computed) {
+                if ($this->config->ignoreComputedPropertyInput) {
+                    continue;
+                }
+
                 throw CannotSetComputedValue::create($property);
             }
 
@@ -1455,6 +1478,10 @@ class DataCreator
             }
 
             if (! $value instanceof UnknownProperty && $property->computed) {
+                if ($this->config->ignoreComputedPropertyInput) {
+                    continue;
+                }
+
                 throw CannotSetComputedValue::create($property);
             }
 
@@ -1750,26 +1777,37 @@ class DataCreator
         $class = $state->nodeClass() ?? $state->context->dataClass;
         $dataClass = $this->dataClasses->get($class);
         $properties = [];
+        // The declared values given to user casts, built on the first one that needs them.
+        $castInputs = null;
         $contextualParameters = $dataClass->contextualParameters;
 
         foreach ($dataClass->properties as $property) {
-            if (isset($contextualParameters[$property->name])) {
+            if ($property->computed || isset($contextualParameters[$property->name])) {
                 continue;
             }
 
             $wireKey = $state->originalKey($property->name);
             $inputPath = $property->inputPath($wireKey);
+            $value = $state->read($inputPath);
 
-            if (! $state->hasValue($inputPath)) {
+            if ($value instanceof UnknownProperty) {
                 if ($property->autoLazy !== null && $property->hasDefaultValue) {
-                    $value = $this->propertyDefaultValue($dataClass, $property);
+                    $value = $castInputs !== null && array_key_exists($property->name, $castInputs)
+                        ? $castInputs[$property->name]
+                        : $this->propertyDefaultValue($dataClass, $property);
                     $state->writePropertyValue($inputPath, $value);
                     $properties[$property->name] = $this->buildAutoLazy(
                         $property,
                         $value,
                         $state,
                         $extensions,
+                        $properties,
+                        $castInputs,
                     );
+
+                    if ($castInputs !== null) {
+                        $castInputs[$property->name] = $properties[$property->name];
+                    }
 
                     continue;
                 }
@@ -1780,7 +1818,13 @@ class DataCreator
                         UnknownProperty::create(),
                         $state,
                         $extensions,
+                        $properties,
+                        $castInputs,
                     );
+
+                    if ($castInputs !== null) {
+                        $castInputs[$property->name] = $properties[$property->name];
+                    }
 
                     continue;
                 }
@@ -1798,10 +1842,25 @@ class DataCreator
                 continue;
             }
 
-            $value = $state->getValue($inputPath);
             $properties[$property->name] = $property->autoLazy === null
-                ? $this->castProperty($property, $value, $state, $extensions)
-                : $this->buildAutoLazy($property, $value, $state, $extensions);
+                ? $this->castProperty($property, $value, $state, $extensions, $properties, $castInputs)
+                : $this->buildAutoLazy($property, $value, $state, $extensions, $properties, $castInputs);
+
+            if ($castInputs !== null) {
+                $castInputs[$property->name] = $properties[$property->name];
+            }
+        }
+
+        if ($castInputs !== null) {
+            // A default given to a user cast is the same instance the object is constructed with.
+            foreach ($dataClass->properties as $property) {
+                if ($property->hasDefaultValue
+                    && ! array_key_exists($property->name, $properties)
+                    && array_key_exists($property->name, $castInputs)
+                ) {
+                    $properties[$property->name] = $castInputs[$property->name];
+                }
+            }
         }
 
         foreach ($state->context->beforeCreationHooks as $hook) {
@@ -1831,9 +1890,16 @@ class DataCreator
         mixed $value,
         ConstructionState $state,
         array &$extensions,
+        array $properties = [],
+        ?array &$castInputs = null,
     ): mixed {
         if ($value === null || $value instanceof Optional || $value instanceof Lazy) {
             return $value;
+        }
+
+        // A deferred user cast sees the declared values as they are now, like a non-lazy cast would.
+        if ($castInputs === null && $this->requiresCastInputs($property, $state->context, $extensions)) {
+            $castInputs = $this->castInputs($state, $properties);
         }
 
         /** @var array{source: mixed, replay?: AutoLazyReplayMode} $recipe */
@@ -1841,10 +1907,12 @@ class DataCreator
         $snapshot = $state->snapshotForProperty($property->name);
         $propertyName = $property->name;
         $replay = $recipe['replay'] ?? null;
+        $inputs = $castInputs;
         $castValue = static function (mixed $resolvedValue) use (
             $propertyName,
             $replay,
             $snapshot,
+            $inputs,
         ): mixed {
             $state = clone $snapshot;
             /** @var self $creator */
@@ -1855,6 +1923,7 @@ class DataCreator
                 $resolvedValue,
                 $state,
                 $replay,
+                $inputs,
             );
         };
 
@@ -1876,6 +1945,8 @@ class DataCreator
         mixed $value,
         ConstructionState $state,
         array &$extensions,
+        array $properties = [],
+        ?array &$castInputs = null,
     ): mixed {
         if ($value === null || $value instanceof Optional) {
             return $value;
@@ -1894,8 +1965,12 @@ class DataCreator
             ? $this->propertyCasts($property, $state->context, $extensions)
             : [];
 
+        if ($casts !== []) {
+            $castInputs ??= $this->castInputs($state, $properties);
+        }
+
         foreach ($casts as $cast) {
-            $casted = $cast->cast($property, $value, $state, $state->context);
+            $casted = $cast->cast($property, $value, $castInputs, $state->context);
 
             if (! $casted instanceof Uncastable) {
                 return $casted;
@@ -1909,7 +1984,16 @@ class DataCreator
         $iterable = $property->type->getNonDataIterableType();
 
         if ($iterable !== null) {
-            return $this->castTypedIterable($property, $iterable, $value, $state, $extensions, $casts);
+            return $this->castTypedIterable(
+                $property,
+                $iterable,
+                $value,
+                $state,
+                $extensions,
+                $casts,
+                $properties,
+                $castInputs,
+            );
         }
 
         if (count($dataCollectableTypes) > 1) {
@@ -1966,7 +2050,8 @@ class DataCreator
             $key = 'castable:' . $type->name;
             /** @var CastableCast $cast */
             $cast = $extensions[$key] ??= new CastableCast($type->name);
-            $casted = $cast->cast($property, $value, $state, $state->context);
+            $castInputs ??= $this->castInputs($state, $properties);
+            $casted = $cast->cast($property, $value, $castInputs, $state->context);
 
             if (! $casted instanceof Uncastable) {
                 return $casted;
@@ -1980,10 +2065,11 @@ class DataCreator
             /** @var DateTimeInterfaceCast $cast */
             $cast = $extensions[$key] ??= new DateTimeInterfaceCast(type: $dateType);
 
+            // The fixed built-in casts ignore sibling values, so none are built for them.
             return $cast->cast(
                 $property,
                 $value,
-                $state,
+                [],
                 $state->context,
             );
         }
@@ -1998,7 +2084,7 @@ class DataCreator
             return $cast->cast(
                 $property,
                 $value,
-                $state,
+                [],
                 $state->context,
             );
         }
@@ -2013,7 +2099,7 @@ class DataCreator
             return $cast->cast(
                 $property,
                 $value,
-                $state,
+                [],
                 $state->context,
             );
         }
@@ -2101,6 +2187,8 @@ class DataCreator
      *
      * @param OperationMemo $extensions
      * @param list<Cast> $casts
+     * @param array<string, mixed> $properties
+     * @param null|array<string, mixed> $castInputs
      */
     protected function castTypedIterable(
         DataProperty $property,
@@ -2109,12 +2197,23 @@ class DataCreator
         ConstructionState $state,
         array &$extensions,
         array $casts,
+        array $properties,
+        ?array &$castInputs,
     ): mixed {
+        // Built before entering the property, so every item's cast sees the owning object's values.
+        if ($castInputs === null
+            && ($casts !== [] || $this->hasCastableType($type->iterableItemType))
+        ) {
+            $castInputs = $this->castInputs($state, $properties);
+        }
+
+        $itemInputs = $castInputs ?? [];
+
         if ($value instanceof LazyCollection
             && ! $type->kind->isPaginator()
             && ! $type->kind->isCursorPaginator()
         ) {
-            return $value->map(function (mixed $item) use ($property, $type, $state, &$extensions, $casts): mixed {
+            return $value->map(function (mixed $item) use ($property, $type, $state, &$extensions, $casts, $itemInputs): mixed {
                 return $this->castIterableItem(
                     $property,
                     $type->iterableItemType,
@@ -2122,6 +2221,7 @@ class DataCreator
                     $state,
                     $extensions,
                     $casts,
+                    $itemInputs,
                 );
             });
         }
@@ -2145,6 +2245,7 @@ class DataCreator
                     $state,
                     $extensions,
                     $casts,
+                    $itemInputs,
                 );
             }
 
@@ -2159,6 +2260,7 @@ class DataCreator
      *
      * @param OperationMemo $extensions
      * @param list<Cast> $casts
+     * @param array<string, mixed> $castInputs
      */
     protected function castIterableItem(
         DataProperty $property,
@@ -2167,6 +2269,7 @@ class DataCreator
         ConstructionState $state,
         array &$extensions,
         array $casts,
+        array $castInputs,
     ): mixed {
         if ($value === null) {
             return $value;
@@ -2177,7 +2280,7 @@ class DataCreator
                 continue;
             }
 
-            $casted = $cast->castIterableItem($property, $value, $state, $state->context);
+            $casted = $cast->castIterableItem($property, $value, $castInputs, $state->context);
 
             if (! $casted instanceof Uncastable) {
                 return $casted;
@@ -2196,7 +2299,7 @@ class DataCreator
             $key = 'iterable-castable:' . $namedType->name;
             /** @var CastableCast $cast */
             $cast = $extensions[$key] ??= new CastableCast($namedType->name);
-            $casted = $cast->cast($property, $value, $state, $state->context);
+            $casted = $cast->cast($property, $value, $castInputs, $state->context);
 
             if (! $casted instanceof Uncastable) {
                 return $casted;
@@ -2213,7 +2316,7 @@ class DataCreator
             return $cast->castIterableItem(
                 $property,
                 $value,
-                $state,
+                [],
                 $state->context,
             );
         }
@@ -2228,7 +2331,7 @@ class DataCreator
             return $cast->castIterableItem(
                 $property,
                 $value,
-                $state,
+                [],
                 $state->context,
             );
         }
@@ -2243,7 +2346,7 @@ class DataCreator
             return $cast->castIterableItem(
                 $property,
                 $value,
-                $state,
+                [],
                 $state->context,
             );
         }
@@ -2269,6 +2372,89 @@ class DataCreator
         $autoLazy = $extensions[$key];
 
         return $autoLazy;
+    }
+
+    /**
+     * Build the declared property values a user cast receives for the current node.
+     *
+     * Values already cast for this node are used as they are, other supplied input stays raw,
+     * and absent properties resolve as construction would resolve them. Contextual constructor
+     * values are excluded because they are resolved when the object is constructed.
+     *
+     * @param array<string, mixed> $properties values already cast for this node
+     * @return array<string, mixed>
+     */
+    protected function castInputs(ConstructionState $state, array $properties): array
+    {
+        $dataClass = $this->dataClasses->get($state->nodeClass() ?? $state->context->dataClass);
+        $inputs = [];
+
+        foreach ($dataClass->properties as $property) {
+            $name = $property->name;
+
+            if ($property->computed || isset($dataClass->contextualParameters[$name])) {
+                continue;
+            }
+
+            if (array_key_exists($name, $properties)) {
+                $inputs[$name] = $properties[$name];
+
+                continue;
+            }
+
+            $value = $state->read($property->inputPath($state->originalKey($name)));
+
+            if (! $value instanceof UnknownProperty) {
+                $inputs[$name] = $value;
+            } elseif ($property->hasDefaultValue) {
+                $inputs[$name] = $this->propertyDefaultValue($dataClass, $property);
+            } elseif ($property->type->isOptional) {
+                $inputs[$name] = Optional::create();
+            } elseif ($property->type->isNullable) {
+                $inputs[$name] = null;
+            }
+        }
+
+        return $inputs;
+    }
+
+    /**
+     * Determine if casting a property can reach a user cast that receives the declared values.
+     *
+     * @param OperationMemo $extensions
+     */
+    protected function requiresCastInputs(
+        DataProperty $property,
+        CreationContext $context,
+        array &$extensions,
+    ): bool {
+        if ($this->propertyCasts($property, $context, $extensions) !== []) {
+            return true;
+        }
+
+        foreach ($property->type->getNamedTypes() as $type) {
+            if ($type->isCastable
+                || ($type->iterableItemType !== null && $this->hasCastableType($type->iterableItemType))
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Determine if a type accepts a Castable class.
+     */
+    protected function hasCastableType(Type $type): bool
+    {
+        foreach ($type->getNamedTypes() as $namedType) {
+            if ($namedType->isCastable) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -2407,7 +2593,7 @@ class DataCreator
     }
 
     /**
-     * Resolve one property with mapped-key precedence inside each source.
+     * Resolve one property from the last source that supplies it, with mapped-key precedence inside each source.
      *
      * @param list<array|Normalized> $sources
      * @return array{array-key, mixed}
@@ -2418,16 +2604,26 @@ class DataCreator
         CreationContext $context,
     ): array {
         $mappedKey = $this->propertyInputKey($property, $context);
+        $optional = null;
 
-        foreach ($sources as $source) {
-            $match = $this->matchPropertySource($source, $property, $mappedKey);
+        for ($index = count($sources) - 1; $index >= 0; --$index) {
+            $match = $this->matchPropertySource($sources[$index], $property, $mappedKey);
 
-            if ($match !== null) {
-                return $match;
+            if ($match === null) {
+                continue;
             }
+
+            // Optional marks absence, so it never overrides a value from an earlier source.
+            if ($match[1] instanceof Optional) {
+                $optional ??= $match;
+
+                continue;
+            }
+
+            return $match;
         }
 
-        return [$mappedKey, UnknownProperty::create()];
+        return $optional ?? [$mappedKey, UnknownProperty::create()];
     }
 
     /**
@@ -2454,8 +2650,10 @@ class DataCreator
 
         $mappedKey = $this->propertyInputKey($property, $context);
 
-        foreach ($sources as $index => $source) {
-            if ($this->matchPropertySource($source, $property, $mappedKey) !== null) {
+        for ($index = count($sources) - 1; $index >= 0; --$index) {
+            $match = $this->matchPropertySource($sources[$index], $property, $mappedKey);
+
+            if ($match !== null && ! $match[1] instanceof Optional) {
                 return $payloads[$index];
             }
         }
@@ -2503,7 +2701,99 @@ class DataCreator
     }
 
     /**
-     * Merge normalized sources for a prepare-data hook.
+     * Pass each normalized source through the class's prepareForPipeline() method.
+     *
+     * A model source is first projected to its declared properties, as upstream does.
+     *
+     * @param list<array|Normalized> $sources
+     * @return list<array<array-key, mixed>>
+     */
+    protected function prepareSourcesForPipeline(
+        DataClass $dataClass,
+        array $sources,
+        CreationContext $context,
+    ): array {
+        $class = $dataClass->name;
+        $prepared = [];
+
+        foreach ($sources as $source) {
+            $prepared[] = $class::prepareForPipeline(
+                is_array($source) ? $source : $this->projectNormalizedSource($dataClass, $source, $context),
+            );
+        }
+
+        return $prepared;
+    }
+
+    /**
+     * Build the prepare-data hook input from the values property resolution selects.
+     *
+     * Later array sources supply undeclared keys. Each declared property's selected value is written
+     * under the spelling resolution reads first, so a hook that returns its input changes nothing.
+     *
+     * @param list<array|Normalized> $sources
+     * @param array<string, array{array-key, mixed}> $resolvedProperties
+     * @return array<array-key, mixed>
+     */
+    protected function prepareDataInput(
+        DataClass $dataClass,
+        array $sources,
+        array $resolvedProperties,
+        CreationContext $context,
+    ): array {
+        if (count($sources) === 1) {
+            return is_array($sources[0])
+                ? $sources[0]
+                : $this->projectNormalizedSource($dataClass, $sources[0], $context);
+        }
+
+        $input = $this->mergeArraySources($sources);
+
+        foreach ($dataClass->properties as $property) {
+            $value = $resolvedProperties[$property->name][1];
+
+            if ($value instanceof UnknownProperty) {
+                continue;
+            }
+
+            $target = &$input;
+
+            foreach ($property->inputPath($this->propertyInputKey($property, $context)) as $segment) {
+                if (! is_array($target)) {
+                    $target = [];
+                }
+
+                $target = &$target[$segment];
+            }
+
+            $target = $value;
+            unset($target);
+        }
+
+        return $input;
+    }
+
+    /**
+     * Merge the array sources, with later sources taking precedence.
+     *
+     * @param list<array|Normalized> $sources
+     * @return array<array-key, mixed>
+     */
+    protected function mergeArraySources(array $sources): array
+    {
+        $input = [];
+
+        foreach ($sources as $source) {
+            if (is_array($source)) {
+                $input = $input === [] ? $source : array_replace($input, $source);
+            }
+        }
+
+        return $input;
+    }
+
+    /**
+     * Merge the keys of every normalized source for unknown-field detection.
      *
      * @param list<array|Normalized> $sources
      * @return array<array-key, mixed>

@@ -21,7 +21,6 @@ use Hypervel\Data\Casts\Cast;
 use Hypervel\Data\Mappers\KebabCaseMapper;
 use Hypervel\Data\Mappers\SnakeCaseMapper;
 use Hypervel\Data\Optional;
-use Hypervel\Data\Support\Creation\ConstructionState;
 use Hypervel\Data\Support\Creation\CreationContext;
 use Hypervel\Data\Support\DataConfig;
 use Hypervel\Data\Support\DataProperty;
@@ -336,7 +335,7 @@ class PropertyCast implements Cast
     public function cast(
         DataProperty $property,
         mixed $value,
-        ConstructionState $state,
+        array $properties,
         CreationContext $context,
     ): mixed {
         return $value;
