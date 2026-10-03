@@ -141,6 +141,8 @@ INERTIA_DEVTOOLS_GATE=viewInertiaDevTools
 
 Your local environment is always allowed, so a gate can never lock you out of DevTools while you work locally.
 
+The gate only controls who may view entries. Requests are recorded no matter who makes them, so only enable the recorder outside your local environment when untrusted visitors can't reach the application.
+
 <a name="inertia-starter-kits"></a>
 ### Starter Kits
 
