@@ -17,6 +17,7 @@ use Hypervel\Inertia\ProvidesScrollMetadata;
 use Hypervel\Inertia\RenderContext;
 use Hypervel\Inertia\Response;
 use Hypervel\Inertia\ScrollProp;
+use JsonSerializable;
 use RuntimeException;
 
 class PropsResolverTest extends TestCase
@@ -1371,6 +1372,52 @@ class PropsResolverTest extends TestCase
         ]);
 
         $this->assertGreaterThan(0, $spy->calls);
+    }
+
+    public function testItDescendsIntoJsonSerializableProps(): void
+    {
+        $dto = new class implements JsonSerializable {
+            /**
+             * Get the JSON serializable representation of the object.
+             */
+            public function jsonSerialize(): array
+            {
+                return ['nested' => ['name' => 'John']];
+            }
+        };
+
+        $page = $this->makePage(Request::create('/'), ['dto' => $dto]);
+
+        $this->assertSame(['nested' => ['name' => 'John']], $page['props']['dto']);
+    }
+
+    public function testPropTypesNestedInJsonSerializablePropsAreResolved(): void
+    {
+        $props = fn (): array => [
+            'dto' => new class implements JsonSerializable {
+                /**
+                 * Get the JSON serializable representation of the object.
+                 */
+                public function jsonSerialize(): array
+                {
+                    return ['thing' => Inertia::defer(fn (): string => 'deferred value'), 'plain' => 1];
+                }
+            },
+        ];
+
+        $page = $this->makePage(Request::create('/'), $props());
+
+        $this->assertSame(['plain' => 1], $page['props']['dto']);
+        $this->assertSame(['default' => ['dto.thing']], $page['deferredProps']);
+
+        $request = Request::create('/');
+        $request->headers->add(['X-Inertia' => 'true']);
+        $request->headers->add(['X-Inertia-Partial-Component' => 'TestComponent']);
+        $request->headers->add(['X-Inertia-Partial-Data' => 'dto.thing']);
+
+        $page = $this->makePage($request, $props());
+
+        $this->assertSame('deferred value', $page['props']['dto']['thing']);
     }
 
     /**

@@ -14,6 +14,7 @@ use Hypervel\Inertia\DevTools\RequestRecorder;
 use Hypervel\Inertia\Support\Header;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\App;
+use JsonSerializable;
 use Throwable;
 
 class PropsResolver
@@ -487,6 +488,10 @@ class PropsResolver
                 if (method_exists($response, 'getData')) {
                     $value = $response->getData(true);
                 }
+            }
+
+            if ($value instanceof JsonSerializable) {
+                $value = $value->jsonSerialize();
             }
 
             return $value;
