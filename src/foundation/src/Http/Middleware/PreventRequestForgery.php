@@ -80,7 +80,8 @@ class PreventRequestForgery
             || $this->tokensMatch($request)
         ) {
             return tap($next($request), function ($response) use ($request) {
-                if ($this->shouldAddXsrfTokenCookie()) {
+                // A read-only session's token is never saved, so the browser keeps its current cookie.
+                if ($this->shouldAddXsrfTokenCookie() && ! $request->session()->isReadOnly()) {
                     $this->addCookieToResponse($request, $response);
                 }
             });

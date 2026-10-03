@@ -22,7 +22,9 @@ use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Routing\Router;
+use Hypervel\Session\SessionId;
 use Hypervel\Support\Facades\Event;
+use Hypervel\Support\Facades\Route;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Support\Str;
 use Hypervel\Support\Testing\Fakes\EventFake;
@@ -317,6 +319,31 @@ class AuthenticationTest extends TestCase
         ]);
 
         $this->assertNull($provider->retrieveByToken($user->id, $token));
+    }
+
+    public function testRememberedUserIsResolvedOnAReadOnlySessionRouteWithoutChangingTheStoredSession(): void
+    {
+        $guard = $this->app->make('auth')->guard();
+        $user = AuthTestUser::first();
+        $user->setRememberToken('remember-token');
+        $user->save();
+
+        $session = $this->app->make('session')->driver();
+        $sessionId = SessionId::generate();
+        $stored = json_encode(['_token' => Str::random(40), 'cart' => 'kept']);
+        $session->getHandler()->write($sessionId, $stored);
+
+        Route::get('read-only', fn (): string => (string) $this->app->make('auth')->id())
+            ->middleware('web')
+            ->readOnlySession();
+
+        $this->withCookies([
+            $session->getName() => $sessionId,
+            $guard->getRecallerName() => $user->id . '|remember-token|' . $guard->hashPasswordForCookie($user->getAuthPassword()),
+        ])->get('read-only')->assertOk()->assertContent((string) $user->id);
+
+        // The login regenerated the session ID in memory only, so the stored session is unchanged.
+        $this->assertSame($stored, $session->getHandler()->read($sessionId));
     }
 
     public function testResolvedSessionGuardFollowsTheActiveEventDispatcher(): void

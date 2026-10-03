@@ -57,6 +57,39 @@ class SessionPersistenceTest extends TestCase
         $this->assertSame(2, $handler->writeCount);
     }
 
+    public function testReadOnlySessionIsNotPersistedOrGarbageCollected(): void
+    {
+        $handler = new FakeNullSessionHandler;
+
+        Session::extend('fake-null', fn (): FakeNullSessionHandler => $handler);
+
+        Route::get('/', fn (): string => 'response')->middleware('web')->readOnlySession();
+
+        $this->app->make('config')->set('session.lottery', [1, 1]);
+
+        $this->get('/')->assertOk();
+
+        $this->assertFalse($handler->written);
+        $this->assertFalse($handler->collected);
+    }
+
+    public function testReadOnlySessionIsNotPersistedWhenAnExceptionIsThrownFromRoute(): void
+    {
+        Exceptions::spy()->expects('render')->andReturn(new Response);
+
+        $handler = new FakeNullSessionHandler;
+
+        Session::extend('fake-null', fn (): FakeNullSessionHandler => $handler);
+
+        Route::get('/', function (): never {
+            throw new TokenMismatchException;
+        })->middleware('web')->readOnlySession();
+
+        $this->get('/');
+
+        $this->assertFalse($handler->written);
+    }
+
     /**
      * Configure the test session driver.
      */
@@ -73,6 +106,8 @@ class FakeNullSessionHandler extends NullSessionHandler
 {
     public bool $written = false;
 
+    public bool $collected = false;
+
     /**
      * Record that the session was saved.
      */
@@ -81,6 +116,16 @@ class FakeNullSessionHandler extends NullSessionHandler
         $this->written = true;
 
         return true;
+    }
+
+    /**
+     * Record that expired sessions were collected.
+     */
+    public function gc(int $lifetime): int
+    {
+        $this->collected = true;
+
+        return 0;
     }
 }
 

@@ -151,6 +151,16 @@ interface Session
     public function isStarted(): bool;
 
     /**
+     * Mark the session as read-only for the current request.
+     */
+    public function markAsReadOnly(): void;
+
+    /**
+     * Determine if the session is read-only for the current request.
+     */
+    public function isReadOnly(): bool;
+
+    /**
      * Get the previous URL from the session.
      */
     public function previousUrl(): ?string;

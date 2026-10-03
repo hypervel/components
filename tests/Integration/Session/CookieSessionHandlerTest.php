@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Session;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Http\Request;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
@@ -40,6 +41,29 @@ class CookieSessionHandlerTest extends TestCase
 
         $this->assertTrue($secureSessionIdCookie->isSecure());
         $this->assertTrue($secureSessionValueCookie->isSecure());
+    }
+
+    public function testReadOnlySessionRouteSendsNoSessionCookies(): void
+    {
+        Route::get('/', function (Request $request): string {
+            $request->session()->regenerate(true);
+
+            return '';
+        })->middleware('web')->readOnlySession();
+
+        $this->assertSame([], $this->get('/')->headers->getCookies());
+    }
+
+    public function testSessionMarkedReadOnlyDuringTheRequestSendsNoSessionCookies(): void
+    {
+        Route::get('/', function (Request $request): string {
+            $request->session()->markAsReadOnly();
+            $request->session()->regenerate(true);
+
+            return '';
+        })->middleware('web');
+
+        $this->assertSame([], $this->get('/')->headers->getCookies());
     }
 
     protected function defineEnvironment(ApplicationContract $app): void

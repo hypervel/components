@@ -118,6 +118,7 @@ class SessionStoreTest extends TestCase
                 CoroutineContext::set(self::STARTED_CONTEXT_KEY_PREFIX . $suffix, true);
                 CoroutineContext::set(self::ATTRIBUTES_CONTEXT_KEY_PREFIX . $suffix, ['name' => 'stale']);
                 CoroutineContext::set(self::ID_CONTEXT_KEY_PREFIX . $suffix, str_repeat('a', 40));
+                CoroutineContext::set(self::READ_ONLY_CONTEXT_KEY_PREFIX . $suffix, true);
 
                 parent::__construct($name, $handler, $id);
             }
@@ -126,6 +127,7 @@ class SessionStoreTest extends TestCase
         $this->assertSame(str_repeat('b', 40), $session->getId());
         $this->assertSame([], $session->all());
         $this->assertFalse($session->isStarted());
+        $this->assertFalse($session->isReadOnly());
     }
 
     public function testStoreLazilyCreatesAnIdInAFreshCoroutine(): void
@@ -348,6 +350,79 @@ class SessionStoreTest extends TestCase
         $this->assertSame([], $session->get('_flash.new'));
         $this->assertSame(['status'], $session->get('_flash.old'));
         $this->assertSame($payloads[0], $payloads[1]);
+    }
+
+    public function testReadOnlySessionIsNotSaved(): void
+    {
+        $session = $this->getSession();
+        $session->getHandler()->expects('read')->andReturn(serialize([]));
+        $session->getHandler()->shouldReceive('write')->never();
+        $session->start();
+        $session->markAsReadOnly();
+        $session->flash('status', 'saved');
+
+        $session->save();
+
+        // The request keeps its changes, and its flash data is not aged.
+        $this->assertSame('saved', $session->get('status'));
+        $this->assertSame(['status'], $session->get('_flash.new'));
+    }
+
+    public function testReadOnlySessionRegenerationDoesNotDestroyTheStoredSession(): void
+    {
+        $session = $this->getSession();
+        $session->getHandler()->shouldReceive('destroy')->never();
+        $session->markAsReadOnly();
+
+        $this->assertTrue($session->regenerate(true));
+        $this->assertNotSame($this->getSessionId(), $regeneratedId = $session->getId());
+
+        $this->assertTrue($session->invalidate());
+        $this->assertNotSame($regeneratedId, $session->getId());
+    }
+
+    public function testStartingTheSessionMakesItWritableAgain(): void
+    {
+        $session = $this->getSession();
+        $session->getHandler()->expects('read')->twice()->andReturn(serialize([]));
+        $session->getHandler()->expects('write')->once()->andReturnTrue();
+
+        $session->start();
+        $session->markAsReadOnly();
+        $session->save();
+
+        $session->start();
+        $this->assertFalse($session->isReadOnly());
+        $session->save();
+    }
+
+    public function testReadOnlyIsIsolatedBetweenCoroutines(): void
+    {
+        $handler = m::mock(SessionHandlerInterface::class);
+        $handler->expects('read')->twice()->andReturn(serialize([]));
+        $handler->expects('write')->once()->andReturnTrue();
+        $session = new Store('name', $handler, $this->getSessionId());
+
+        [$readOnly, $writable] = parallel([
+            function () use ($session): bool {
+                $session->start();
+                $session->markAsReadOnly();
+                usleep(5000);
+                $session->save();
+
+                return $session->isReadOnly();
+            },
+            function () use ($session): bool {
+                $session->start();
+                usleep(5000);
+                $session->save();
+
+                return $session->isReadOnly();
+            },
+        ]);
+
+        $this->assertTrue($readOnly);
+        $this->assertFalse($writable);
     }
 
     public function testOldInputFlashing(): void
