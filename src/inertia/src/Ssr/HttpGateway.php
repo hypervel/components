@@ -8,7 +8,6 @@ use Closure;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Foundation\Http\Middleware\Concerns\ExcludesPaths;
 use Hypervel\Http\Client\ConnectionException;
-use Hypervel\Http\Client\HttpClientException;
 use Hypervel\Http\Client\PendingRequest;
 use Hypervel\Http\Client\RequestException;
 use Hypervel\Http\Request;
@@ -241,11 +240,25 @@ class HttpGateway implements ConfiguresSsrRequests, DisablesSsr, ExcludesSsrPath
      */
     public function isHealthy(): bool
     {
+        try {
+            return $this->checkHealth();
+        } catch (ConnectionException) {
+            return false;
+        }
+    }
+
+    /**
+     * Determine if the SSR server is healthy, throwing when it cannot be reached.
+     *
+     * @throws ConnectionException
+     */
+    public function checkHealth(): bool
+    {
         $pendingRequest = $this->pendingRequest();
 
         try {
             return $pendingRequest->get($this->getProductionUrl('/health'))->successful();
-        } catch (HttpClientException) {
+        } catch (RequestException) {
             return false;
         }
     }

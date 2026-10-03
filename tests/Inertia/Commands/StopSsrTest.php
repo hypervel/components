@@ -26,10 +26,32 @@ class StopSsrTest extends TestCase
         Http::preventStrayRequests();
     }
 
-    public function testFailsWhenTheSsrServerIsUnhealthy(): void
+    public function testFailureWhenTheSsrServerIsNotRunning(): void
     {
         Http::fake([
-            $this->healthUrl => Http::response(status: 500),
+            $this->healthUrl => Http::failedConnection('Connection refused'),
+        ]);
+
+        $this->artisan('inertia:stop-ssr')
+            ->expectsOutput('Unable to connect to Inertia SSR server.')
+            ->assertExitCode(1);
+    }
+
+    public function testSuccessWhenTheSsrServerIsNotRunningAndTheGracefulOptionIsUsed(): void
+    {
+        Http::fake([
+            $this->healthUrl => Http::failedConnection('Connection refused'),
+        ]);
+
+        $this->artisan('inertia:stop-ssr', ['--graceful' => true])
+            ->expectsOutput('Inertia SSR server is not running.')
+            ->assertExitCode(0);
+    }
+
+    public function testFailureWhenAnotherServiceRespondsOnTheSsrUrl(): void
+    {
+        Http::fake([
+            $this->healthUrl => Http::response('Hello from another service', 404),
         ]);
 
         $this->artisan('inertia:stop-ssr')
@@ -37,6 +59,28 @@ class StopSsrTest extends TestCase
             ->assertExitCode(1);
 
         Http::assertSentCount(1);
+    }
+
+    public function testFailureWhenAnotherServiceRespondsOnTheSsrUrlAndTheGracefulOptionIsUsed(): void
+    {
+        Http::fake([
+            $this->healthUrl => Http::response('Hello from another service', 404),
+        ]);
+
+        $this->artisan('inertia:stop-ssr', ['--graceful' => true])
+            ->expectsOutput('Unable to connect to Inertia SSR server.')
+            ->assertExitCode(1);
+    }
+
+    public function testTheResponseBodyIsNotPrintedToTheConsole(): void
+    {
+        Http::fake([
+            $this->healthUrl => Http::response('Hello from another service', 404),
+        ]);
+
+        $this->expectOutputString('');
+
+        $this->artisan('inertia:stop-ssr')->run();
     }
 
     public function testSucceedsWhenTheSsrServerStops(): void
