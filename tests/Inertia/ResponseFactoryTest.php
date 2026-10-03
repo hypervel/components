@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Inertia;
 
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Http\Client\PendingRequest;
+use Hypervel\Http\Client\Request as ClientRequest;
 use Hypervel\Http\RedirectResponse;
 use Hypervel\Http\Request as HttpRequest;
 use Hypervel\Http\Response;
@@ -18,10 +20,12 @@ use Hypervel\Inertia\OptionalProp;
 use Hypervel\Inertia\ResponseFactory;
 use Hypervel\Inertia\ScrollMetadata;
 use Hypervel\Inertia\ScrollProp;
+use Hypervel\Inertia\Ssr\Gateway;
 use Hypervel\Inertia\Ssr\HttpGateway;
 use Hypervel\Session\Middleware\StartSession;
 use Hypervel\Session\NullSessionHandler;
 use Hypervel\Session\Store;
+use Hypervel\Support\Facades\Http;
 use Hypervel\Support\Facades\Request;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Tests\Inertia\Fixtures\Enums\IntBackedEnum;
@@ -29,7 +33,9 @@ use Hypervel\Tests\Inertia\Fixtures\Enums\StringBackedEnum;
 use Hypervel\Tests\Inertia\Fixtures\Enums\UnitEnum;
 use Hypervel\Tests\Inertia\Fixtures\ExampleInertiaPropsProvider;
 use Hypervel\Tests\Inertia\Fixtures\ExampleMiddleware;
+use Hypervel\Tests\Inertia\Fixtures\FakeGateway;
 use InvalidArgumentException;
+use LogicException;
 
 class ResponseFactoryTest extends TestCase
 {
@@ -1025,6 +1031,36 @@ class ResponseFactoryTest extends TestCase
         Inertia::withoutSsr('admin/*');
 
         $this->assertContains('admin/*', app(HttpGateway::class)->getExcludedPaths());
+    }
+
+    public function testConfigureSsrRequestUsingRegistersTheCallbackWithTheGateway(): void
+    {
+        config([
+            'inertia.ssr.enabled' => true,
+            'inertia.ssr.ensure_bundle_exists' => false,
+        ]);
+
+        Http::fake([
+            app(HttpGateway::class)->getProductionUrl('/render') => Http::response(json_encode([
+                'head' => [],
+                'body' => '<div id="app"></div>',
+            ])),
+        ]);
+
+        Inertia::configureSsrRequestUsing(fn (PendingRequest $request): PendingRequest => $request->withHeader('X-Tenant', 'acme'));
+
+        $this->assertNotNull(app(HttpGateway::class)->dispatch(self::EXAMPLE_PAGE_OBJECT));
+
+        Http::assertSent(fn (ClientRequest $request): bool => $request->hasHeader('X-Tenant', 'acme'));
+    }
+
+    public function testConfigureSsrRequestUsingThrowsWhenTheGatewayDoesNotSupportIt(): void
+    {
+        $this->app->instance(Gateway::class, new FakeGateway);
+
+        $this->expectExceptionObject(new LogicException('The configured SSR gateway does not support configuring server-side rendering requests.'));
+
+        Inertia::configureSsrRequestUsing(fn (PendingRequest $request): PendingRequest => $request);
     }
 
     public function testFlushStateClearsMacros(): void

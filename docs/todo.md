@@ -35,6 +35,10 @@
 
 - Investigate FTP support with Swoole's built-in coroutine FTP implementation. It supplies `ftp_*` functions but is not discoverable as `ext-ftp`, so Composer rejects `league/flysystem-ftp` and `RequiresPhpExtension('ftp')` skips the driver test. Resolve normal development and production installation without bypassing dependency checks, then add the adapter to root `require-dev`, use a test requirement that accepts either FTP implementation, and update the installation guidance. Basic transfers through Hypervel and Flysystem have been verified inside a Swoole coroutine.
 
+## HTTP Client
+
+- Once the HTTP client can optionally use Swoole's coroutine HTTP client as its transport instead of curl, explore and benchmark that transport for Inertia SSR requests. Each SSR render posts the page JSON to a local SSR server through the `inertia-ssr` connection (`HttpGateway::CONNECTION`), which makes it a good candidate for the alternative transport. Compare the curl and Swoole transports on that connection against a local SSR server under concurrent load, measuring latency, throughput, client CPU, memory and connection reuse, and use the Swoole transport for the SSR connection if it is a clear improvement.
+
 ## HTTP Server
 
 - Require a Swoole release that resets signal-listener state in forked server workers before releasing Hypervel 0.4. In Swoole 6.2.3 and earlier, a worker forked after the manager calls `Process::signal()` inherits the listener count, so `Coroutine\System::waitSignal()` fails in it. Hypervel's SIGINT shutdown handling registers a manager callback in both server modes, so after a reload, `max_request` recycling or a crash restart, replacement workers stop receiving configured signal handlers and Artisan traps. Once a fixed release is verified, raise the `ext-swoole` constraint and remove the version skip from `ShutdownOnInterruptListenerTest::testReplacementWorkersKeepTheirSignalHandlers()`.

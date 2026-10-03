@@ -43,14 +43,16 @@ return [
         | SSR Timeouts
         |--------------------------------------------------------------------------
         |
-        | Configure connection and read timeouts for SSR requests. These prevent
-        | coroutines from hanging indefinitely when the SSR server is unresponsive.
+        | Configure the connection and total timeouts for SSR requests, in seconds.
+        | Short timeouts let pages fall back to client-side rendering quickly when
+        | the SSR server is slow or unresponsive. Set either option to null to use
+        | the HTTP client's global timeout instead.
         |
         */
 
-        'connect_timeout' => (int) env('INERTIA_SSR_CONNECT_TIMEOUT', 2),
+        'connect_timeout' => ($timeout = env('INERTIA_SSR_CONNECT_TIMEOUT', 2)) === null ? null : (float) $timeout,
 
-        'timeout' => (int) env('INERTIA_SSR_TIMEOUT', 5),
+        'timeout' => ($timeout = env('INERTIA_SSR_TIMEOUT', 5)) === null ? null : (float) $timeout,
 
         /*
         |--------------------------------------------------------------------------

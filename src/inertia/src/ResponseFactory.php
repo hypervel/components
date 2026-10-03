@@ -10,8 +10,10 @@ use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Http\Kernel;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Foundation\Exceptions\Handler as ExceptionHandler;
+use Hypervel\Http\RedirectResponse;
 use Hypervel\Http\Request as HttpRequest;
 use Hypervel\Inertia\DevTools\DevTools;
+use Hypervel\Inertia\Ssr\ConfiguresSsrRequests;
 use Hypervel\Inertia\Ssr\DisablesSsr;
 use Hypervel\Inertia\Ssr\ExcludesSsrPaths;
 use Hypervel\Inertia\Ssr\Gateway;
@@ -26,7 +28,7 @@ use Hypervel\Support\Facades\Response as BaseResponse;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
 use LogicException;
-use Symfony\Component\HttpFoundation\RedirectResponse;
+use Symfony\Component\HttpFoundation\RedirectResponse as SymfonyRedirectResponse;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use UnitEnum;
 
@@ -195,6 +197,20 @@ class ResponseFactory
     }
 
     /**
+     * Configure the HTTP request that is sent to the SSR server.
+     */
+    public function configureSsrRequestUsing(?Closure $callback = null): void
+    {
+        $gateway = app(Gateway::class);
+
+        if (! $gateway instanceof ConfiguresSsrRequests) {
+            throw new LogicException('The configured SSR gateway does not support configuring server-side rendering requests.');
+        }
+
+        $gateway->configureRequestUsing($callback);
+    }
+
+    /**
      * Create an optional property.
      */
     public function optional(callable $callback): OptionalProp
@@ -342,13 +358,13 @@ class ResponseFactory
     /**
      * Create an Inertia location response.
      */
-    public function location(string|RedirectResponse $url): SymfonyResponse
+    public function location(string|SymfonyRedirectResponse $url): SymfonyResponse
     {
         if (Request::inertia()) {
-            return BaseResponse::make('', 409, [Header::LOCATION => $url instanceof RedirectResponse ? $url->getTargetUrl() : $url]);
+            return BaseResponse::make('', 409, [Header::LOCATION => $url instanceof SymfonyRedirectResponse ? $url->getTargetUrl() : $url]);
         }
 
-        return $url instanceof RedirectResponse ? $url : Redirect::away($url);
+        return $url instanceof SymfonyRedirectResponse ? $url : Redirect::away($url);
     }
 
     /**
@@ -424,7 +440,7 @@ class ResponseFactory
      *
      * @param array<string, string> $headers
      */
-    public function back(int $status = 302, array $headers = [], mixed $fallback = false): RedirectResponse
+    public function back(int $status = 302, array $headers = [], bool|string $fallback = false): RedirectResponse
     {
         return Redirect::back($status, $headers, $fallback);
     }

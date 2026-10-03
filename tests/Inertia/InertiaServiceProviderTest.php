@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Inertia;
 
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Http\Kernel as HttpKernelContract;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Http\Request;
@@ -13,9 +14,11 @@ use Hypervel\Inertia\Ssr\Gateway;
 use Hypervel\Inertia\Ssr\HttpGateway;
 use Hypervel\RateLimiter\Limit;
 use Hypervel\Support\Facades\Blade;
+use Hypervel\Support\Facades\Facade;
 use Hypervel\Support\Facades\RateLimiter;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Tests\Inertia\Fixtures\ExampleMiddleware;
+use Hypervel\View\Compilers\BladeCompiler;
 use Hypervel\View\ViewFinderInterface;
 use InvalidArgumentException;
 use Mockery as m;
@@ -25,6 +28,31 @@ class InertiaServiceProviderTest extends TestCase
     public function testBladeDirectiveIsRegistered(): void
     {
         $this->assertArrayHasKey('inertia', Blade::getCustomDirectives());
+    }
+
+    public function testBladeComponentNamespaceIsRegisteredOnTheResolvedCompiler(): void
+    {
+        $otherCompiler = new BladeCompiler($this->app->make('files'), sys_get_temp_dir());
+
+        $otherContainer = new Container;
+        $otherContainer->instance('blade.compiler', $otherCompiler);
+
+        $facadeApplication = Facade::getFacadeApplication();
+
+        Facade::clearResolvedInstances();
+        Facade::setFacadeApplication($otherContainer);
+
+        try {
+            $this->app->forgetInstance('blade.compiler');
+
+            $compiler = $this->app->make('blade.compiler');
+        } finally {
+            Facade::clearResolvedInstances();
+            Facade::setFacadeApplication($facadeApplication);
+        }
+
+        $this->assertArrayHasKey('inertia', $compiler->getClassComponentNamespaces());
+        $this->assertArrayNotHasKey('inertia', $otherCompiler->getClassComponentNamespaces());
     }
 
     public function testRequestMacroIsRegistered(): void

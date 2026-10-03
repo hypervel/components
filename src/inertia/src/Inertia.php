@@ -8,8 +8,9 @@ use Hypervel\Support\Facades\Facade;
 
 /**
  * @method static \Hypervel\Inertia\AlwaysProp always(mixed $value)
- * @method static \Symfony\Component\HttpFoundation\RedirectResponse back(int $status = 302, array<string, string> $headers = [], mixed $fallback = false)
+ * @method static \Hypervel\Http\RedirectResponse back(int $status = 302, array<string, string> $headers = [], string|bool $fallback = false)
  * @method static void clearHistory()
+ * @method static void configureSsrRequestUsing(\Closure|null $callback = null)
  * @method static \Hypervel\Inertia\MergeProp deepMerge(mixed $value)
  * @method static \Hypervel\Inertia\DeferProp defer(callable $callback, string $group = 'default', bool $rescue = false)
  * @method static void disableSsr(\Closure|bool $condition = true)

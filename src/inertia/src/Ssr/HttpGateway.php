@@ -5,22 +5,32 @@ declare(strict_types=1);
 namespace Hypervel\Inertia\Ssr;
 
 use Closure;
-use GuzzleHttp\Client;
-use GuzzleHttp\ClientInterface;
-use GuzzleHttp\Exception\TransferException;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Foundation\Http\Middleware\Concerns\ExcludesPaths;
+use Hypervel\Http\Client\ConnectionException;
+use Hypervel\Http\Client\HttpClientException;
+use Hypervel\Http\Client\PendingRequest;
+use Hypervel\Http\Client\RequestException;
 use Hypervel\Http\Request;
 use Hypervel\Inertia\InertiaState;
 use Hypervel\Inertia\ResolvesCallables;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Facades\Http;
 use Hypervel\Support\Facades\Vite;
 use Hypervel\Support\Str;
 
-class HttpGateway implements DisablesSsr, ExcludesSsrPaths, Gateway, HasHealthCheck
+class HttpGateway implements ConfiguresSsrRequests, DisablesSsr, ExcludesSsrPaths, Gateway, HasHealthCheck
 {
     use ExcludesPaths;
     use ResolvesCallables;
+
+    /**
+     * The HTTP client connection for SSR requests.
+     *
+     * The service provider registers it with the configured timeouts. Its shared
+     * transport handler reuses connections to the SSR server across requests.
+     */
+    public const string CONNECTION = 'inertia-ssr';
 
     /**
      * The time until which SSR is considered unavailable for this worker.
@@ -31,57 +41,11 @@ class HttpGateway implements DisablesSsr, ExcludesSsrPaths, Gateway, HasHealthCh
     private static ?float $ssrUnavailableUntil = null;
 
     /**
-     * The reusable Guzzle client for SSR requests.
-     *
-     * Cached for the worker lifetime to avoid rebuilding the client,
-     * handler stack, and curl handle cache on every SSR dispatch.
-     */
-    private static ?ClientInterface $ssrClient = null;
-
-    /**
-     * A testing-only client override.
-     */
-    private static ?ClientInterface $testingClient = null;
-
-    /**
      * Get the per-request Inertia state.
      */
     private function state(): InertiaState
     {
         return InertiaState::current();
-    }
-
-    /**
-     * Get the Guzzle client for SSR requests.
-     *
-     * Uses a dedicated raw Guzzle client instead of the Http facade to avoid
-     * per-request PendingRequest, HandlerStack, and Client allocations.
-     * The client is cached for the worker lifetime, allowing Guzzle's
-     * internal CurlFactory to reuse curl handles (TCP connection reuse).
-     */
-    protected function ssrClient(): ClientInterface
-    {
-        if (self::$testingClient !== null) {
-            return self::$testingClient;
-        }
-
-        return self::$ssrClient ??= new Client([
-            'connect_timeout' => config()->integer('inertia.ssr.connect_timeout', 2),
-            'timeout' => config()->integer('inertia.ssr.timeout', 5),
-            'cookies' => false,
-            'http_errors' => false,
-        ]);
-    }
-
-    /**
-     * Set a Guzzle client for testing purposes.
-     *
-     * Tests only. The client persists in a static property for the worker
-     * lifetime and is used by every SSR dispatch on this worker.
-     */
-    public static function useTestingClient(?ClientInterface $client): void
-    {
-        self::$testingClient = $client;
     }
 
     /**
@@ -109,39 +73,15 @@ class HttpGateway implements DisablesSsr, ExcludesSsrPaths, Gateway, HasHealthCh
             return null;
         }
 
+        $pendingRequest = $this->pendingRequest();
+
         try {
-            $response = $this->ssrClient()->request('POST', $url, [
-                'json' => $page,
-            ]);
-            self::$ssrUnavailableUntil = null;
-
-            if ($response->getStatusCode() >= 400) {
-                $decoded = json_decode((string) $response->getBody(), true);
-                $structured = is_array($decoded);
-
-                if (! $structured) {
-                    $this->armTransportBackoff();
-                }
-
-                $this->handleSsrFailure($page, $structured ? $decoded : null);
-
-                return null;
-            }
-
-            $data = json_decode((string) $response->getBody(), true);
-
-            if (! $this->isValidSsrResponse($data)) {
-                $this->armTransportBackoff();
-                $this->handleSsrFailure($page, ['error' => 'Invalid SSR response.']);
-
-                return null;
-            }
-
-            return new Response(
-                implode("\n", $data['head']),
-                $data['body'],
-            );
-        } catch (TransferException $e) {
+            $response = $pendingRequest->post($url, $page);
+        } catch (RequestException $e) {
+            // A configured retry() or throw() raises the failed response, which
+            // still carries the SSR server's error details.
+            $response = $e->response;
+        } catch (ConnectionException $e) {
             $this->armTransportBackoff();
             $this->handleSsrFailure($page, [
                 'error' => $e->getMessage(),
@@ -150,6 +90,38 @@ class HttpGateway implements DisablesSsr, ExcludesSsrPaths, Gateway, HasHealthCh
 
             return null;
         }
+
+        self::$ssrUnavailableUntil = null;
+
+        if ($response->failed()) {
+            // Decode SSR bodies directly: Response::json() applies the HTTP client's
+            // global decoding flags, which could make a malformed body throw
+            // instead of falling back to client-side rendering.
+            $decoded = json_decode($response->body(), true);
+            $structured = is_array($decoded);
+
+            if (! $structured) {
+                $this->armTransportBackoff();
+            }
+
+            $this->handleSsrFailure($page, $structured ? $decoded : null);
+
+            return null;
+        }
+
+        $data = json_decode($response->body(), true);
+
+        if (! $this->isValidSsrResponse($data)) {
+            $this->armTransportBackoff();
+            $this->handleSsrFailure($page, ['error' => 'Invalid SSR response.']);
+
+            return null;
+        }
+
+        return new Response(
+            implode("\n", $data['head']),
+            $data['body'],
+        );
     }
 
     /**
@@ -182,6 +154,29 @@ class HttpGateway implements DisablesSsr, ExcludesSsrPaths, Gateway, HasHealthCh
     public function getExcludedPaths(): array
     {
         return $this->state()->ssrExcludedPaths;
+    }
+
+    /**
+     * Configure the HTTP request that is sent to the SSR server.
+     */
+    public function configureRequestUsing(?Closure $callback = null): void
+    {
+        $this->state()->ssrRequestConfigurator = $callback;
+    }
+
+    /**
+     * Create the pending HTTP request for the SSR server.
+     */
+    protected function pendingRequest(): PendingRequest
+    {
+        $request = Http::connection(self::CONNECTION);
+        $configurator = $this->state()->ssrRequestConfigurator;
+
+        if ($configurator === null) {
+            return $request;
+        }
+
+        return $configurator($request) ?? $request;
     }
 
     /**
@@ -246,11 +241,11 @@ class HttpGateway implements DisablesSsr, ExcludesSsrPaths, Gateway, HasHealthCh
      */
     public function isHealthy(): bool
     {
-        try {
-            $response = $this->ssrClient()->request('GET', $this->getProductionUrl('/health'));
+        $pendingRequest = $this->pendingRequest();
 
-            return $response->getStatusCode() >= 200 && $response->getStatusCode() < 300;
-        } catch (TransferException) {
+        try {
+            return $pendingRequest->get($this->getProductionUrl('/health'))->successful();
+        } catch (HttpClientException) {
             return false;
         }
     }
@@ -258,17 +253,17 @@ class HttpGateway implements DisablesSsr, ExcludesSsrPaths, Gateway, HasHealthCh
     /**
      * Shut down the SSR server.
      *
-     * @throws TransferException
+     * @throws ConnectionException
      */
     public function shutdown(): bool
     {
-        $response = $this->ssrClient()->request(
-            'GET',
-            $this->getProductionUrl('/shutdown'),
-        );
+        $pendingRequest = $this->pendingRequest();
 
-        return $response->getStatusCode() >= 200
-            && $response->getStatusCode() < 300;
+        try {
+            return $pendingRequest->get($this->getProductionUrl('/shutdown'))->successful();
+        } catch (RequestException) {
+            return false;
+        }
     }
 
     /**
@@ -361,7 +356,5 @@ class HttpGateway implements DisablesSsr, ExcludesSsrPaths, Gateway, HasHealthCh
     public static function flushState(): void
     {
         self::$ssrUnavailableUntil = null;
-        self::$ssrClient = null;
-        self::$testingClient = null;
     }
 }

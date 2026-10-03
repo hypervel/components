@@ -90,6 +90,11 @@ class InertiaState implements ReplicableContext
     public array $ssrExcludedPaths = [];
 
     /**
+     * The callback that configures the HTTP request sent to the SSR server.
+     */
+    public ?Closure $ssrRequestConfigurator = null;
+
+    /**
      * Get the current Inertia state.
      */
     public static function current(): self
