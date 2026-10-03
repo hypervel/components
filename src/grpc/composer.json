@@ -36,6 +36,7 @@
         "ext-zlib": "*",
         "google/common-protos": "^4.14",
         "google/protobuf": "^5.35",
+        "hypervel/collections": "^0.4",
         "hypervel/console": "^0.4",
         "hypervel/container": "^0.4",
         "hypervel/context": "^0.4",
