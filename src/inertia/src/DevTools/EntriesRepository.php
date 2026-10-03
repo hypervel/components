@@ -38,12 +38,19 @@ class EntriesRepository
         }
 
         $encoded = json_encode($data, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $meta = $this->normalizeIndexMeta($data['__meta'] ?? []);
 
-        $this->ensureDirectory();
-        // Filesystem::replace writes to a temp file and renames it into place, so an interrupted
-        // write may never leave a half-written entry: readers see the previous file or the new one.
-        $this->files->replace($this->filePath($id), $encoded);
-        $this->writeIndexMeta($id, $this->normalizeIndexMeta($data['__meta'] ?? []));
+        // The entry file is written under the index lock, so a save that cannot open or lock the
+        // index leaves no file behind that the index would never list or prune.
+        $this->mutateIndex(function (array $index) use ($id, $encoded, $meta): array {
+            // Filesystem::replace writes to a temp file and renames it into place, so an interrupted
+            // write never leaves a half-written entry: readers see the previous file or the new one.
+            $this->files->replace($this->filePath($id), $encoded);
+
+            $index[$id] = $meta;
+
+            return $index;
+        });
     }
 
     /**
@@ -269,20 +276,6 @@ class EntriesRepository
     }
 
     /**
-     * Write the given entry's metadata to the index.
-     *
-     * @param array<string, mixed> $meta
-     */
-    protected function writeIndexMeta(string $id, array $meta): void
-    {
-        $this->mutateIndex(function (array $index) use ($id, $meta): array {
-            $index[$id] = $this->normalizeIndexMeta($meta);
-
-            return $index;
-        });
-    }
-
-    /**
      * Apply the given change to the index while holding its exclusive lock.
      *
      * @param callable(array<string, array<string, mixed>>): array<string, array<string, mixed>> $mutator
@@ -291,8 +284,8 @@ class EntriesRepository
     {
         $this->ensureDirectory();
 
-        // An index that cannot be updated would hide every entry saved since, and leave their
-        // files outside pruning, so the failure reaches the entry store's breaker and log.
+        // An index that cannot be updated would silently drop every entry saved since, so the
+        // failure reaches the entry store's breaker and log.
         $handle = @fopen($this->indexPath(), 'c+');
 
         if ($handle === false) {

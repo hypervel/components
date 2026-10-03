@@ -219,15 +219,21 @@ class EntriesRepositoryTest extends TestCase
         }
     }
 
-    public function testSaveFailsWhenTheIndexCannotBeOpened(): void
+    public function testSaveFailsWithoutWritingTheEntryWhenTheIndexCannotBeOpened(): void
     {
         mkdir($this->storagePath . DIRECTORY_SEPARATOR . '_meta.json', 0700, true);
         $entry = $this->envelope();
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to open the Inertia DevTools index');
+        $this->assertThrows(
+            function () use ($entry): void {
+                $this->makeRepository()->save($entry['__meta']['id'], $entry);
+            },
+            RuntimeException::class,
+            'Unable to open the Inertia DevTools index',
+        );
 
-        $this->makeRepository()->save($entry['__meta']['id'], $entry);
+        // The index would never list or prune an entry file written by the failed save.
+        $this->assertFileDoesNotExist($this->storagePath . DIRECTORY_SEPARATOR . $entry['__meta']['id'] . '.json');
     }
 
     public function testAllReturnsEveryEntrySortedDescendingById(): void
