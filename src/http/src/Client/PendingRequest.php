@@ -797,6 +797,7 @@ class PendingRequest implements Transient
      * @phpstan-return (TAsync is false ? Response : PromiseInterface)
      *
      * @throws ConnectionException
+     * @throws HttpRequestException
      * @throws InvalidArgumentException
      */
     public function get(string $url, Arrayable|array|JsonSerializable|string|null $query = null): PromiseInterface|Response
@@ -816,6 +817,7 @@ class PendingRequest implements Transient
      * @phpstan-return (TAsync is false ? Response : PromiseInterface)
      *
      * @throws ConnectionException
+     * @throws HttpRequestException
      * @throws InvalidArgumentException
      */
     public function head(string $url, Arrayable|array|JsonSerializable|string|null $query = null): PromiseInterface|Response
@@ -835,6 +837,7 @@ class PendingRequest implements Transient
      * @phpstan-return (TAsync is false ? Response : PromiseInterface)
      *
      * @throws ConnectionException
+     * @throws HttpRequestException
      * @throws InvalidArgumentException
      */
     public function query(string $url, Arrayable|array|JsonSerializable $data = []): PromiseInterface|Response
@@ -850,6 +853,7 @@ class PendingRequest implements Transient
      * @phpstan-return (TAsync is false ? Response : PromiseInterface)
      *
      * @throws ConnectionException
+     * @throws HttpRequestException
      * @throws InvalidArgumentException
      */
     public function post(string $url, Arrayable|array|JsonSerializable $data = []): PromiseInterface|Response
@@ -865,6 +869,7 @@ class PendingRequest implements Transient
      * @phpstan-return (TAsync is false ? Response : PromiseInterface)
      *
      * @throws ConnectionException
+     * @throws HttpRequestException
      * @throws InvalidArgumentException
      */
     public function patch(string $url, Arrayable|array|JsonSerializable $data = []): PromiseInterface|Response
@@ -880,6 +885,7 @@ class PendingRequest implements Transient
      * @phpstan-return (TAsync is false ? Response : PromiseInterface)
      *
      * @throws ConnectionException
+     * @throws HttpRequestException
      * @throws InvalidArgumentException
      */
     public function put(string $url, Arrayable|array|JsonSerializable $data = []): PromiseInterface|Response
@@ -895,6 +901,7 @@ class PendingRequest implements Transient
      * @phpstan-return (TAsync is false ? Response : PromiseInterface)
      *
      * @throws ConnectionException
+     * @throws HttpRequestException
      * @throws InvalidArgumentException
      */
     public function delete(string $url, Arrayable|array|JsonSerializable $data = []): PromiseInterface|Response
