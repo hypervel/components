@@ -174,6 +174,22 @@ class HttpClientTest extends TestCase
         $this->assertSame(['NAN', 'INF', '-INF'], $response->getHeader('X-Multiple'));
     }
 
+    public function testFakeResponseHeaderNormalizationLeavesReferencedCallerValuesUnchanged(): void
+    {
+        $header = new Stringable('single');
+        $item = new Stringable('item');
+
+        $response = $this->factory::response('OK', 200, [
+            'X-Single' => &$header,
+            'X-Multiple' => ['first', &$item],
+        ])->wait();
+
+        $this->assertInstanceOf(Stringable::class, $header);
+        $this->assertInstanceOf(Stringable::class, $item);
+        $this->assertSame(['single'], $response->getHeader('X-Single'));
+        $this->assertSame(['first', 'item'], $response->getHeader('X-Multiple'));
+    }
+
     #[DataProvider('invalidFakeResponseHeaderValuesProvider')]
     public function testInvalidFakeResponseHeaderValuesAreRejected(mixed $value): void
     {
@@ -1360,6 +1376,28 @@ class HttpClientTest extends TestCase
         });
     }
 
+    public function testStructuredDataNormalizationLeavesReferencedCallerDataUnchanged(): void
+    {
+        $this->factory->fake();
+
+        $name = new Stringable('Alice');
+        $email = 'alice@example.com';
+        $data = ['user' => ['name' => &$name, 'email' => &$email]];
+
+        $this->factory->post('http://foo.com/json', $data);
+
+        $this->assertInstanceOf(Stringable::class, $name);
+
+        // Changing the caller's variables afterwards must not reach the captured request data.
+        $name = 'Changed';
+        $email = 'changed@example.com';
+
+        $this->factory->assertSent(function (Request $request): bool {
+            return $request->body() === '{"user":{"name":"Alice","email":"alice@example.com"}}'
+                && $request['user'] === ['name' => 'Alice', 'email' => 'alice@example.com'];
+        });
+    }
+
     public function testCanSendJsonDataWithStringable(): void
     {
         $this->factory->fake();
@@ -1410,6 +1448,27 @@ class HttpClientTest extends TestCase
                 && $request->hasHeader('X-Hypervel-Stringable', 'hypervel stringable')
                 && $request->hasHeader('X-Multiple', ['first', '123', '1', '', '', 'NAN', 'INF', '-INF'])
                 && $request->hasHeader('X-Empty', '');
+        });
+    }
+
+    public function testHeaderNormalizationLeavesReferencedCallerValuesUnchanged(): void
+    {
+        $this->factory->fake();
+
+        $header = new Stringable('single');
+        $item = new Stringable('item');
+
+        $this->factory->withHeaders([
+            'X-Single' => &$header,
+            'X-Multiple' => ['first', &$item],
+        ])->get('http://foo.com/get');
+
+        $this->assertInstanceOf(Stringable::class, $header);
+        $this->assertInstanceOf(Stringable::class, $item);
+
+        $this->factory->assertSent(function (Request $request): bool {
+            return $request->hasHeader('X-Single', 'single')
+                && $request->hasHeader('X-Multiple', ['first', 'item']);
         });
     }
 
@@ -1876,6 +1935,30 @@ class HttpClientTest extends TestCase
                 && $request[0]['headers']['X-Negative-Inf'] === '-INF'
                 && $request[0]['headers']['X-Empty'] === ''
                 && $request[0]['headers']['X-Hypervel-Stringable'] === 'hypervel stringable';
+        });
+    }
+
+    public function testMultipartNormalizationLeavesReferencedCallerValuesUnchanged(): void
+    {
+        $this->factory->fake();
+
+        $contents = new Stringable('original');
+        $header = new Stringable('header');
+
+        $this->factory->asMultipart()->post('http://foo.com/multipart', [
+            ['name' => 'text', 'contents' => &$contents, 'headers' => ['X-Part' => &$header]],
+        ]);
+
+        $this->assertInstanceOf(Stringable::class, $contents);
+        $this->assertInstanceOf(Stringable::class, $header);
+
+        // Changing the caller's variables afterwards must not reach the captured request data.
+        $contents = 'changed';
+        $header = 'changed';
+
+        $this->factory->assertSent(function (Request $request): bool {
+            return $request[0]['contents'] === 'original'
+                && $request[0]['headers']['X-Part'] === 'header';
         });
     }
 

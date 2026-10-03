@@ -1348,6 +1348,11 @@ class PendingRequest implements Transient
                 continue;
             }
 
+            // parseRequestData() has already normalized the logical request data into fresh arrays.
+            if ($key === self::DATA_OPTION) {
+                continue;
+            }
+
             $options[$key] = $this->normalizeRequestOptionValue($value);
         }
 
@@ -1359,15 +1364,18 @@ class PendingRequest implements Transient
      */
     protected function normalizeHeaderValues(array $headers): array
     {
+        $normalized = [];
+
+        // A fresh array never writes through, or keeps, references in the caller's data.
         foreach ($headers as $name => $value) {
             if (! is_string($name)) {
                 throw new InvalidArgumentException('HTTP header names must be strings.');
             }
 
-            $headers[$name] = $this->normalizeHeaderValue($value);
+            $normalized[$name] = $this->normalizeHeaderValue($value);
         }
 
-        return $headers;
+        return $normalized;
     }
 
     /**
@@ -1382,8 +1390,11 @@ class PendingRequest implements Transient
                 return '';
             }
 
+            $normalized = [];
+
+            // A fresh array never writes through, or keeps, references in the caller's data.
             foreach ($value as $key => $item) {
-                $value[$key] = match (true) {
+                $normalized[$key] = match (true) {
                     $item === null => '',
                     is_scalar($item) => $this->normalizeScalarString($item),
                     $item instanceof Stringable => $item->toString(),
@@ -1391,7 +1402,7 @@ class PendingRequest implements Transient
                 };
             }
 
-            return $value;
+            return $normalized;
         }
 
         return match (true) {
@@ -1423,33 +1434,40 @@ class PendingRequest implements Transient
      */
     protected function normalizeMultipartOption(array $multipart): array
     {
+        $normalized = [];
+
+        // Fresh arrays never write through, or keep, references in the caller's data.
         foreach ($multipart as $index => $part) {
             if (! is_array($part)) {
-                $multipart[$index] = $this->normalizeRequestOptionValue($part);
+                $normalized[$index] = $this->normalizeRequestOptionValue($part);
 
                 continue;
             }
 
+            $normalizedPart = [];
+
             foreach ($part as $key => $value) {
                 if ($key === 'headers' && is_array($value)) {
+                    $normalizedPart[$key] = $value;
+
                     continue;
                 }
 
-                $part[$key] = $this->normalizeStructuredDataValue($value);
+                $normalizedPart[$key] = $this->normalizeStructuredDataValue($value);
 
                 if ($key === 'contents') {
-                    if (is_array($part[$key])) {
-                        $part[$key] = $this->normalizeNonFiniteFloatValues($part[$key]);
-                    } elseif (is_float($part[$key]) && ! is_finite($part[$key])) {
-                        $part[$key] = $this->normalizeScalarString($part[$key]);
+                    if (is_array($normalizedPart[$key])) {
+                        $normalizedPart[$key] = $this->normalizeNonFiniteFloatValues($normalizedPart[$key]);
+                    } elseif (is_float($normalizedPart[$key]) && ! is_finite($normalizedPart[$key])) {
+                        $normalizedPart[$key] = $this->normalizeScalarString($normalizedPart[$key]);
                     }
                 }
             }
 
-            $multipart[$index] = $part;
+            $normalized[$index] = $normalizedPart;
         }
 
-        return $this->normalizeMultipartHeaders($multipart);
+        return $this->normalizeMultipartHeaders($normalized);
     }
 
     /**
@@ -1461,8 +1479,11 @@ class PendingRequest implements Transient
     {
         foreach ($multipart as $index => $part) {
             if (is_array($part) && isset($part['headers']) && is_array($part['headers'])) {
+                $headers = [];
+
+                // A fresh array never writes through, or keeps, references in the caller's data.
                 foreach ($part['headers'] as $name => $value) {
-                    $multipart[$index]['headers'][$name] = match (true) {
+                    $headers[$name] = match (true) {
                         $value === [] => '',
                         $value === null => '',
                         is_scalar($value) => $this->normalizeScalarString($value),
@@ -1470,6 +1491,8 @@ class PendingRequest implements Transient
                         default => throw new InvalidArgumentException('Multipart header values must be scalar, null, or Hypervel Stringable.'),
                     };
                 }
+
+                $multipart[$index]['headers'] = $headers;
             }
         }
 
@@ -1481,8 +1504,20 @@ class PendingRequest implements Transient
      */
     protected function normalizeRequestOptionValue(mixed $value): mixed
     {
+        if (is_array($value)) {
+            $normalized = [];
+
+            // A fresh array never writes through, or keeps, references in the caller's data.
+            foreach ($value as $key => $item) {
+                $normalized[$key] = is_array($item) || is_object($item)
+                    ? $this->normalizeRequestOptionValue($item)
+                    : $item;
+            }
+
+            return $normalized;
+        }
+
         return match (true) {
-            is_array($value) => array_map(fn ($item) => $this->normalizeRequestOptionValue($item), $value),
             $value instanceof Stringable => $value->toString(),
             $value instanceof JsonSerializable => $value,
             $value instanceof Arrayable => $this->normalizeRequestOptionValue($value->toArray()),
@@ -1511,8 +1546,20 @@ class PendingRequest implements Transient
      */
     protected function normalizeStructuredDataValue(mixed $value): mixed
     {
+        if (is_array($value)) {
+            $normalized = [];
+
+            // A fresh array never writes through, or keeps, references in the caller's data.
+            foreach ($value as $key => $item) {
+                $normalized[$key] = is_array($item) || is_object($item)
+                    ? $this->normalizeStructuredDataValue($item)
+                    : $item;
+            }
+
+            return $normalized;
+        }
+
         return match (true) {
-            is_array($value) => array_map(fn ($item) => $this->normalizeStructuredDataValue($item), $value),
             $value instanceof Stringable => $value->toString(),
             $value instanceof JsonSerializable => $this->normalizeStructuredDataValue($value->jsonSerialize()),
             $value instanceof Arrayable => $this->normalizeStructuredDataValue($value->toArray()),
