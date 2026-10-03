@@ -115,6 +115,20 @@ class MiddlewareDevToolsTest extends TestCase
         $this->assertMatchesRegularExpression('/<script data-inertia-devtools-id type="application\/json">"[A-Z0-9]+"<\/script><\/body>/', $content);
     }
 
+    public function testTheDevtoolsIdScriptTagIsInjectedBeforeAnUppercaseClosingBodyTag(): void
+    {
+        Route::middleware(Middleware::class)->get('/devtools-html', function (): Response {
+            Inertia::setRootView('devtools-app-uppercase');
+
+            return Inertia::render('Users/Index', ['name' => 'Alice']);
+        });
+
+        $response = $this->get('/devtools-html');
+
+        $response->assertOk();
+        $this->assertMatchesRegularExpression('/<script data-inertia-devtools-id type="application\/json">"[A-Z0-9]+"<\/script><\/BODY>/', (string) $response->getContent());
+    }
+
     public function testAnInjectedIdTagLeavesThePageObjectAssertable(): void
     {
         Route::middleware(DevToolsRootViewMiddleware::class)->get('/devtools-html', fn (): Response => Inertia::render('Users/Index', ['name' => 'Alice']));

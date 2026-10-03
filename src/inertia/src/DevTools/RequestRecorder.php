@@ -318,7 +318,14 @@ class RequestRecorder
     {
         $content = $response->getContent();
 
-        if (! is_string($content) || $content === '' || ! str_contains($content, '</body>')) {
+        if (! is_string($content)) {
+            return;
+        }
+
+        // HTML tag names are case-insensitive, so a root view may close its body as </BODY>.
+        $closingBodyPosition = strripos($content, '</body>');
+
+        if ($closingBodyPosition === false) {
             return;
         }
 
@@ -333,7 +340,7 @@ class RequestRecorder
         // assertions read the page object from, so it is put back.
         $original = $response instanceof HttpResponse ? $response->original : null;
 
-        $response->setContent(Str::replaceLast('</body>', $tag . '</body>', $content));
+        $response->setContent(substr_replace($content, $tag, $closingBodyPosition, 0));
 
         if ($response instanceof HttpResponse) {
             $response->original = $original;
