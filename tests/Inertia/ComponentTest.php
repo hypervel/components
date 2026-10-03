@@ -75,6 +75,18 @@ class ComponentTest extends TestCase
         $this->assertStringContainsString('data-page="app"', $rendered);
     }
 
+    public function testAppComponentEscapesHtmlTagsInThePageData(): void
+    {
+        Config::set(['inertia.ssr.enabled' => false]);
+
+        $page = ['component' => 'Foo/Bar', 'props' => ['foo' => '</script><!--<script>'], 'url' => '/test', 'version' => ''];
+        $rendered = $this->renderView('<x-inertia::app />', ['page' => $page]);
+
+        $this->assertStringContainsString('\u003C\/script\u003E\u003C!--\u003Cscript\u003E', $rendered);
+        $this->assertStringNotContainsString('<!--', $rendered);
+        $this->assertSame(1, substr_count($rendered, '</script>'));
+    }
+
     public function testAppComponentReportsPageEncodingFailures(): void
     {
         Config::set(['inertia.ssr.enabled' => false]);
