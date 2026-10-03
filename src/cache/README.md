@@ -3,6 +3,8 @@ Cache for Hypervel
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/hypervel/cache)
 
+Documentation: https://hypervel.org/docs/cache
+
 ## Differences From Laravel
 
 Laravel's APC / APCu, DynamoDB, and Memcached cache stores are not provided. Use the `swoole` store for local shared-memory caching. See the [cache porting guide](https://hypervel.org/docs/porting-from-laravel#cache).

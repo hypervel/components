@@ -3,6 +3,8 @@ Redis for Hypervel
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/hypervel/redis)
 
+Documentation: https://hypervel.org/docs/redis
+
 ## Differences From Laravel
 
 - Hypervel uses phpredis-only pooled connections. Cluster and Sentinel settings belong to each named connection instead of Laravel's top-level cluster configuration.
