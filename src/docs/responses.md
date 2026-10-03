@@ -110,7 +110,7 @@ return response($content)->withoutHeader(['X-Debug', 'X-Powered-By']);
 <a name="cache-control-middleware"></a>
 #### Cache Control Middleware
 
-Hypervel includes a `cache.headers` middleware, which may be used to quickly set the `Cache-Control` header for a group of routes. Directives should be provided using the "snake case" equivalent of the corresponding cache-control directive and should be separated by a semicolon. If `etag` is specified in the list of directives, a hash of the response content will automatically be set as the ETag identifier:
+Hypervel includes a `cache.headers` middleware, which may be used to quickly set the `Cache-Control` header for a group of routes. Directives should be provided using the "snake case" equivalent of the corresponding cache-control directive and should be separated by a semicolon. If `etag` is specified in the list of directives, an xxh128 hash of the response content will automatically be set as the ETag identifier:
 
 ```php
 Route::middleware('cache.headers:public;max_age=30;s_maxage=300;stale_while_revalidate=600;etag')->group(function () {

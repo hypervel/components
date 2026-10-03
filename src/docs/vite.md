@@ -586,9 +586,6 @@ These assets will now be processed by Vite when running `npm run build`. You can
 <img src="{{ Vite::asset('resources/images/logo.png') }}">
 ```
 
-> [!NOTE]
-> Prior to version 3 of the Laravel Vite plugin, static assets had to be imported in your application's entry point using `import.meta.glob`. The `assets` option was introduced due to changes in Vite 8.
-
 <a name="blade-refreshing-on-save"></a>
 ### Refreshing on Save
 

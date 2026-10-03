@@ -555,7 +555,7 @@ Since the purpose of these methods is not readily understandable, here is an ove
 - The `read` method should return the string version of the session data associated with the given `$sessionId`. There is no need to do any serialization or other encoding when retrieving or storing session data in your driver, as Hypervel will perform the serialization for you.
 - The `write` method should write the given `$data` string associated with the `$sessionId` to a persistent storage system of your choice and return `true` when the write succeeds or `false` when it fails. A failed write will cause the request to fail rather than accepting the loss of session data. Again, you should not perform any serialization - Hypervel will have already handled that for you.
 - The `destroy` method should remove the data associated with the `$sessionId` from persistent storage.
-- The `gc` method should destroy all session data older than the given `$lifetime` in seconds. For self-expiring systems like Redis, this method may return `0`.
+- The `gc` method should destroy all session data that is older than the given `$lifetime`, which is a number of seconds. For self-expiring systems like Redis, this method may return `0`.
 
 </div>
 

@@ -122,7 +122,7 @@ $response->conflict() : bool;            // 409 Conflict
 $response->unprocessableContent() : bool; // 422 Unprocessable Content
 $response->unprocessableEntity() : bool;  // 422 Unprocessable Entity
 $response->tooManyRequests() : bool;     // 429 Too Many Requests
-$response->serverError() : bool;         // 500 Internal Server Error
+$response->serverError() : bool;         // >= 500 Server Error
 ```
 
 <a name="uri-templates"></a>

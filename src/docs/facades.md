@@ -203,7 +203,7 @@ Below you will find many of Hypervel's facades and their underlying classes. Thi
 | Facade | Class | Service Container Binding |
 | --- | --- | --- |
 | App | [Hypervel\Foundation\Application](https://api.hypervel.org/docs/{{version}}/Hypervel/Foundation/Application.html) | `app` |
-| Artisan | [Hypervel\Contracts\Console\Kernel](https://api.hypervel.org/docs/{{version}}/Hypervel/Contracts/Console/Kernel.html) | `artisan` |
+| Artisan | [Hypervel\Contracts\Console\Kernel](https://api.hypervel.org/docs/{{version}}/Hypervel/Contracts/Console/Kernel.html) | &nbsp; |
 | Auth (Instance) | [Hypervel\Contracts\Auth\Guard](https://api.hypervel.org/docs/{{version}}/Hypervel/Contracts/Auth/Guard.html) | `auth.driver` |
 | Auth | [Hypervel\Auth\AuthManager](https://api.hypervel.org/docs/{{version}}/Hypervel/Auth/AuthManager.html) | `auth` |
 | Blade | [Hypervel\View\Compilers\BladeCompiler](https://api.hypervel.org/docs/{{version}}/Hypervel/View/Compilers/BladeCompiler.html) | `blade.compiler` |
@@ -230,7 +230,8 @@ Below you will find many of Hypervel's facades and their underlying classes. Thi
 | Jwt | [Hypervel\Jwt\JwtManager](https://api.hypervel.org/docs/{{version}}/Hypervel/Jwt/JwtManager.html) | `jwt` |
 | Lang | [Hypervel\Translation\Translator](https://api.hypervel.org/docs/{{version}}/Hypervel/Translation/Translator.html) | `translator` |
 | Log | [Hypervel\Log\LogManager](https://api.hypervel.org/docs/{{version}}/Hypervel/Log/LogManager.html) | `log` |
-| Mail | [Hypervel\Mail\Mailer](https://api.hypervel.org/docs/{{version}}/Hypervel/Mail/Mailer.html) | `mailer` |
+| Mail (Instance) | [Hypervel\Mail\Mailer](https://api.hypervel.org/docs/{{version}}/Hypervel/Mail/Mailer.html) | `mailer` |
+| Mail | [Hypervel\Mail\MailManager](https://api.hypervel.org/docs/{{version}}/Hypervel/Mail/MailManager.html) | `mail.manager` |
 | Notification | [Hypervel\Notifications\ChannelManager](https://api.hypervel.org/docs/{{version}}/Hypervel/Notifications/ChannelManager.html) | &nbsp; |
 | Password (Instance) | [Hypervel\Auth\Passwords\PasswordBroker](https://api.hypervel.org/docs/{{version}}/Hypervel/Auth/Passwords/PasswordBroker.html) | `auth.password.broker` |
 | Password | [Hypervel\Auth\Passwords\PasswordBrokerManager](https://api.hypervel.org/docs/{{version}}/Hypervel/Auth/Passwords/PasswordBrokerManager.html) | `auth.password` |

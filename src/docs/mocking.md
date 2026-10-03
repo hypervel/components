@@ -266,7 +266,7 @@ $this->freezeTime(function (CarbonInterface $time) {
 // Freeze time at the current second and resume normal time after executing closure...
 $this->freezeSecond(function (CarbonInterface $time) {
     // ...
-})
+});
 ```
 
 As you would expect, all of the methods discussed above are primarily useful for testing time sensitive application behavior, such as locking inactive posts on a discussion forum:

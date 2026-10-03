@@ -80,6 +80,9 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffer_size 32k;
+        proxy_buffers 8 32k;
+        proxy_busy_buffers_size 64k;
 
         proxy_pass http://127.0.0.1:8000;
     }

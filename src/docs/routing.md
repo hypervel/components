@@ -222,7 +222,7 @@ php artisan route:list -v --middleware=auth
 
 Use `-vv` to match middleware within middleware groups.
 
-You may also instruct Hypervel to only show routes that begin with a given URI:
+You may also instruct Hypervel to only show routes whose URI contains a given string:
 
 ```shell
 php artisan route:list --path=api
@@ -693,19 +693,7 @@ Route::get('/posts/{post:slug}', function (Post $post) {
 });
 ```
 
-If you would like model binding to always use a database column other than `id` when retrieving a given model class, you may override the `getRouteKeyName` method on the Eloquent model:
-
-```php
-/**
- * Get the route key for the model.
- */
-public function getRouteKeyName(): string
-{
-    return 'slug';
-}
-```
-
-Alternatively, you may apply the `RouteKey` attribute to the model:
+If you would like model binding to always use a database column other than `id` when retrieving a given model class, you may apply the `RouteKey` attribute to the Eloquent model:
 
 ```php
 use Hypervel\Database\Eloquent\Attributes\RouteKey;
@@ -717,8 +705,6 @@ class Post extends Model
     // ...
 }
 ```
-
-The attribute applies to implicit route model binding, while overriding `getRouteKeyName` remains available when the key must be determined by custom logic.
 
 <a name="implicit-model-binding-scoping"></a>
 #### Custom Keys and Scoping

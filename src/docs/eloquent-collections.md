@@ -43,7 +43,7 @@ The `duplicates` and `duplicatesStrict` methods also return a base collection wh
 
 All Eloquent collections extend the base [Hypervel collection](/docs/{{version}}/collections#available-methods) object; therefore, they inherit all of the powerful methods provided by the base collection class.
 
-In addition, the `Hypervel\Database\Eloquent\Collection` class provides a superset of methods to aid with managing your model collections. Most methods return `Hypervel\Database\Eloquent\Collection` instances; however, some methods, such as `modelKeys`, return arrays.
+In addition, the `Hypervel\Database\Eloquent\Collection` class provides a superset of methods to aid with managing your model collections. Most methods return `Hypervel\Database\Eloquent\Collection` instances; however, some methods, like `pluck`, return a `Hypervel\Support\Collection` instance.
 
 <style>
     .collection-method-list > p {
