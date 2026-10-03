@@ -8,6 +8,7 @@
     - [Dashboard Authorization](#dashboard-authorization)
 - [Upgrading Telescope](#upgrading-telescope)
 - [Managing Telescope](#managing-telescope)
+    - [Viewing Entries From the Command Line](#viewing-entries-from-the-command-line)
     - [Controlling Recording](#controlling-recording)
     - [Deferred Storage](#deferred-storage)
 - [Filtering](#filtering)
@@ -111,6 +112,35 @@ If desired, you may disable Telescope's data collection entirely using the `enab
 'enabled' => (bool) env('TELESCOPE_ENABLED', true),
 ```
 
+<a name="content-security-policy-csp-nonce"></a>
+#### Content Security Policy (CSP) Nonce
+
+If you would like to use a [nonce attribute](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Global_attributes/nonce) on the script and style tags used in Telescope views as part of your [Content Security Policy](https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP), you may use the `Telescope::cspNonce` method to specify the nonce to use. This method should typically be invoked within middleware so that a new nonce is assigned for each request:
+
+```php
+use Closure;
+use Hypervel\Http\Request;
+use Hypervel\Telescope\Telescope;
+use Symfony\Component\HttpFoundation\Response;
+
+public function handle(Request $request, Closure $next): Response
+{
+    Telescope::cspNonce('csp-nonce');
+
+    return $next($request);
+}
+```
+
+You may add this middleware to the `middleware` option in your application's `config/telescope.php` configuration file:
+
+```php
+'middleware' => [
+    'web',
+    App\Http\Middleware\AddTelescopeCspNonce::class,
+    Authorize::class,
+],
+```
+
 <a name="data-pruning"></a>
 ### Data Pruning
 
@@ -197,6 +227,28 @@ You may delete all Telescope entries and monitored tags using the `telescope:cle
 ```shell
 php artisan telescope:clear
 ```
+
+<a name="viewing-entries-from-the-command-line"></a>
+### Viewing Entries From the Command Line
+
+In addition to the dashboard, you may inspect recorded entries using the `telescope:list` and `telescope:show` Artisan commands. The `telescope:list` command lists the most recent entries, optionally filtered by entry type, tag, batch ID, or family hash:
+
+```shell
+php artisan telescope:list request
+php artisan telescope:list exception --limit=5
+php artisan telescope:list request --tag=Auth:42
+```
+
+When more entries are available, the command displays a `--before` value you may pass to view the next page.
+
+The `telescope:show` command displays an entry along with the other entries recorded in the same batch, such as the queries, cache operations, and logs recorded while handling a request. You may pass a full entry UUID, the shortened UUID displayed by `telescope:list`, `latest`, or `latest:{type}`. The `--type` option limits the related entries to the given types:
+
+```shell
+php artisan telescope:show latest:request
+php artisan telescope:show 79a09461 --type=query,cache
+```
+
+Long SQL queries, messages, and payloads are truncated unless you provide the `--full` option. Both commands also accept a `--json` option if you would like to process their output with other tools.
 
 <a name="controlling-recording"></a>
 ### Controlling Recording
