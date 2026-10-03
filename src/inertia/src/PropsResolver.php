@@ -9,6 +9,8 @@ use GuzzleHttp\Promise\PromiseInterface;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Responsable;
 use Hypervel\Http\Request;
+use Hypervel\Inertia\DevTools\DevTools;
+use Hypervel\Inertia\DevTools\RequestRecorder;
 use Hypervel\Inertia\Support\Header;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\App;
@@ -130,6 +132,13 @@ class PropsResolver
     protected array $sharedPropKeys = [];
 
     /**
+     * The devtools recorder, resolved only while recording is active. It stays null when
+     * devtools is disabled so the per-prop resolution loop never touches it, keeping the
+     * hot path free of recorder calls, container lookups, and prop classification.
+     */
+    protected ?RequestRecorder $recorder = null;
+
+    /**
      * Create a new props resolver instance.
      */
     public function __construct(Request $request, string $component)
@@ -143,6 +152,8 @@ class PropsResolver
         $this->except = $this->parseHeader(Header::PARTIAL_EXCEPT);
         $this->resetProps = $this->parseHeader(Header::RESET) ?? [];
         $this->loadedOnceProps = $this->parseHeader(Header::EXCEPT_ONCE_PROPS) ?? [];
+
+        $this->recorder = DevTools::recorder($request);
     }
 
     /**
@@ -268,6 +279,8 @@ class PropsResolver
             $value = $this->resolveValue($prop, $path, $props);
 
             if (in_array($path, $this->rescuedProps, true)) {
+                $this->recorder?->propRescued($path, $prop);
+
                 continue;
             }
 
@@ -287,6 +300,7 @@ class PropsResolver
             }
 
             $this->collectMetadata($prop, $path);
+            $this->recorder?->propResolved($path, $prop);
 
             // When the resolved value is an array, we recurse into it. If the
             // original prop was not already an array (e.g. a closure that

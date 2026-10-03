@@ -6,6 +6,7 @@ namespace Hypervel\Inertia;
 
 use Closure;
 use Hypervel\Http\Request;
+use Hypervel\Inertia\DevTools\DevTools;
 use Hypervel\Inertia\Ssr\ExcludesSsrPaths;
 use Hypervel\Inertia\Ssr\Gateway;
 use Hypervel\Inertia\Support\Header;
@@ -125,11 +126,19 @@ class Middleware
      */
     public function handle(Request $request, Closure $next): Response
     {
+        $recorder = DevTools::recorder($request);
+
+        $recorder?->requestStarted($request);
+
         Inertia::version(function () use ($request) {
             return $this->version($request);
         });
 
-        Inertia::share($this->share($request));
+        $shared = $this->share($request);
+
+        Inertia::share($shared);
+
+        $recorder?->sharedPropsResolved($this, $shared);
 
         foreach ($this->shareOnce($request) as $key => $value) {
             if ($value instanceof OnceProp) {
@@ -160,6 +169,8 @@ class Middleware
         if (! $request->header(Header::INERTIA)) {
             $this->addInertiaVaryHeader($response);
 
+            $recorder?->respondedWith($request, $response);
+
             return $response;
         }
 
@@ -180,6 +191,8 @@ class Middleware
         }
 
         $this->addInertiaVaryHeader($response);
+
+        $recorder?->respondedWith($request, $response);
 
         return $response;
     }

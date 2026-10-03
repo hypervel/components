@@ -7,6 +7,9 @@ namespace Hypervel\Inertia;
 use Hypervel\Contracts\Http\Kernel as HttpKernelContract;
 use Hypervel\Http\RedirectResponse;
 use Hypervel\Http\Request;
+use Hypervel\Inertia\DevTools\DevTools;
+use Hypervel\Inertia\DevTools\DevToolsServiceProvider;
+use Hypervel\Inertia\DevTools\SourceLocator;
 use Hypervel\Inertia\Ssr\Gateway;
 use Hypervel\Inertia\Ssr\HttpGateway;
 use Hypervel\Inertia\Support\Header;
@@ -42,6 +45,7 @@ class InertiaServiceProvider extends ServiceProvider
         $this->registerRouterMacro();
         $this->registerTestingMacros();
         $this->registerMiddleware();
+        $this->app->register(DevToolsServiceProvider::class);
 
         $this->app->singleton('inertia.view-finder', function ($app) {
             $config = $app->make('config');
@@ -150,9 +154,19 @@ class InertiaServiceProvider extends ServiceProvider
          * @param  array<array-key, mixed>  $props
          */
         Router::macro('inertia', function ($uri, $component, $props = []) {
-            return $this->match(['GET', 'HEAD'], $uri, '\\' . Controller::class)
+            $route = $this->match(['GET', 'HEAD'], $uri, '\\' . Controller::class)
                 ->defaults('component', $component)
                 ->defaults('props', $props);
+
+            if (DevTools::enabled()) {
+                $source = app(SourceLocator::class)->captureCallerSource();
+
+                if ($source !== null) {
+                    $route->defaults(DevTools::RENDER_SOURCE_KEY, $source);
+                }
+            }
+
+            return $route;
         });
     }
 

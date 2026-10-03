@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Inertia;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response as BaseResponse;
+use Hypervel\Inertia\DevTools\RequestRecorder;
 use Hypervel\Inertia\Inertia;
 use Hypervel\Inertia\MergeProp;
 use Hypervel\Inertia\PropertyContext;
@@ -1302,6 +1303,74 @@ class PropsResolverTest extends TestCase
         ]);
 
         $this->assertSame(['Context', 'comment'], $page['props']['job']['fields']);
+    }
+
+    public function testRecorderIsNotInvokedWhileResolvingPropsWhenDevtoolsIsDisabled(): void
+    {
+        config()->set('inertia.devtools.enabled', false);
+
+        $spy = new class extends RequestRecorder {
+            public int $calls = 0;
+
+            /**
+             * Count the resolved prop.
+             */
+            public function propResolved(string $path, mixed $prop): void
+            {
+                ++$this->calls;
+            }
+
+            /**
+             * Count the rescued prop.
+             */
+            public function propRescued(string $path, mixed $prop): void
+            {
+                ++$this->calls;
+            }
+        };
+
+        $this->app->instance(RequestRecorder::class, $spy);
+
+        $this->makePage(Request::create('/'), [
+            'auth' => fn (): array => ['user' => 'Jane'],
+            'team' => 'Acme',
+        ]);
+
+        $this->assertSame(0, $spy->calls);
+    }
+
+    public function testRecorderIsInvokedWhileResolvingPropsWhenDevtoolsIsEnabled(): void
+    {
+        config()->set('inertia.devtools.enabled', true);
+
+        $spy = new class extends RequestRecorder {
+            public int $calls = 0;
+
+            /**
+             * Count the resolved prop.
+             */
+            public function propResolved(string $path, mixed $prop): void
+            {
+                ++$this->calls;
+            }
+
+            /**
+             * Count the rescued prop.
+             */
+            public function propRescued(string $path, mixed $prop): void
+            {
+                ++$this->calls;
+            }
+        };
+
+        $this->app->instance(RequestRecorder::class, $spy);
+
+        $this->makePage(Request::create('/'), [
+            'auth' => fn (): array => ['user' => 'Jane'],
+            'team' => 'Acme',
+        ]);
+
+        $this->assertGreaterThan(0, $spy->calls);
     }
 
     /**

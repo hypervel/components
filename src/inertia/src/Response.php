@@ -9,6 +9,7 @@ use Closure;
 use Hypervel\Contracts\Support\Responsable;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
+use Hypervel\Inertia\DevTools\DevTools;
 use Hypervel\Inertia\Support\Header;
 use Hypervel\Inertia\Support\SessionKey;
 use Hypervel\Support\Facades\App;
@@ -186,6 +187,8 @@ class Response implements Responsable
             $this->resolveFlashData($request),
             $this->resolvePreserveFragment($request),
         );
+
+        DevTools::recorder($request)?->pageRendered($request, $page, $resolvedProps);
 
         if ($request->header(Header::INERTIA)) {
             return new JsonResponse($page, 200, [Header::INERTIA => 'true']);

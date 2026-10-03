@@ -11,6 +11,7 @@ use Hypervel\Contracts\Http\Kernel;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Foundation\Exceptions\Handler as ExceptionHandler;
 use Hypervel\Http\Request as HttpRequest;
+use Hypervel\Inertia\DevTools\DevTools;
 use Hypervel\Inertia\Ssr\DisablesSsr;
 use Hypervel\Inertia\Ssr\ExcludesSsrPaths;
 use Hypervel\Inertia\Ssr\Gateway;
@@ -64,12 +65,16 @@ class ResponseFactory
 
         if (is_array($key)) {
             $state->sharedProps = array_merge($state->sharedProps, $key);
+            DevTools::recorder()?->propsShared(array_keys($key));
         } elseif ($key instanceof Arrayable) {
-            $state->sharedProps = array_merge($state->sharedProps, $key->toArray());
+            $resolved = $key->toArray();
+            $state->sharedProps = array_merge($state->sharedProps, $resolved);
+            DevTools::recorder()?->propsShared(array_keys($resolved));
         } elseif ($key instanceof ProvidesInertiaProperties) {
             $state->sharedProps = array_merge($state->sharedProps, [$key]);
         } else {
             Arr::set($state->sharedProps, $key, $value);
+            DevTools::recorder()?->propsShared([(string) $key]);
         }
     }
 
@@ -319,7 +324,7 @@ class ResponseFactory
 
         $state = $this->state();
 
-        return new Response(
+        $response = new Response(
             $component,
             $state->sharedProps,
             $props,
@@ -328,6 +333,10 @@ class ResponseFactory
             $state->encryptHistory ?? config()->boolean('inertia.history.encrypt', false),
             $state->urlResolver,
         );
+
+        DevTools::recorder()?->pageRendering($component, $response, $state->sharedProps);
+
+        return $response;
     }
 
     /**

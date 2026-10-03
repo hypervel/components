@@ -112,6 +112,35 @@ As you can see, Inertia allows you to leverage the full power of React, Svelte, 
 
 If you're concerned about diving into Inertia because your application requires server-side rendering, don't worry. Inertia offers [server-side rendering support](https://inertiajs.com/server-side-rendering). And, when deploying your application via [SonicStack](https://sonicstack.io), it's a breeze to ensure that Inertia's server-side rendering process is always running.
 
+#### DevTools
+
+[Inertia DevTools](https://inertiajs.com/docs/devtools) is a browser extension that records every Inertia visit and displays it in a dedicated DevTools panel, showing which props each visit returned, whether they were deferred or merged, the request and response headers, and which route and controller handled it. There is no separate package to install: Hypervel's Inertia adapter includes the recorder, so you only need the browser extension and the Inertia client-side adapter at `^3.6`.
+
+The recorder is enabled automatically in your local environment. You may set the `INERTIA_DEVTOOLS_ENABLED` environment variable to override that default:
+
+```ini
+INERTIA_DEVTOOLS_ENABLED=false
+```
+
+Entries are written to `storage/inertia-devtools` and pruned automatically, and sensitive keys and headers are redacted before an entry is stored. You may adjust the storage, redaction, and excluded paths under the `devtools` key of your application's `config/inertia.php` configuration file.
+
+To allow access outside your local environment, define a gate and reference it using the `INERTIA_DEVTOOLS_GATE` environment variable:
+
+```php
+use Hypervel\Support\Facades\Gate;
+
+Gate::define('viewInertiaDevTools', function ($user) {
+    return $user->isAdmin();
+});
+```
+
+```ini
+INERTIA_DEVTOOLS_ENABLED=true
+INERTIA_DEVTOOLS_GATE=viewInertiaDevTools
+```
+
+Your local environment is always allowed, so a gate can never lock you out of DevTools while you work locally.
+
 <a name="inertia-starter-kits"></a>
 ### Starter Kits
 
