@@ -115,19 +115,24 @@ If desired, you may disable Telescope's data collection entirely using the `enab
 <a name="content-security-policy-csp-nonce"></a>
 #### Content Security Policy (CSP) Nonce
 
-If you would like to use a [nonce attribute](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Global_attributes/nonce) on the script and style tags used in Telescope views as part of your [Content Security Policy](https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP), you may use the `Telescope::cspNonce` method to specify the nonce to use. This method should typically be invoked within middleware so that a new nonce is assigned for each request:
+If you would like to use a [nonce attribute](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Global_attributes/nonce) on the script and style tags used in Telescope views as part of your [Content Security Policy](https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP), you may use the `Telescope::cspNonce` method to specify the nonce to use. Because the nonce is scoped to the current request, invoke this method within middleware so that a new nonce is assigned for each request:
 
 ```php
 use Closure;
 use Hypervel\Http\Request;
+use Hypervel\Support\Str;
 use Hypervel\Telescope\Telescope;
 use Symfony\Component\HttpFoundation\Response;
 
 public function handle(Request $request, Closure $next): Response
 {
-    Telescope::cspNonce('csp-nonce');
+    $nonce = Str::random(40);
 
-    return $next($request);
+    Telescope::cspNonce($nonce);
+
+    return $next($request)->withHeaders([
+        'Content-Security-Policy' => "script-src 'nonce-{$nonce}'; style-src 'nonce-{$nonce}'",
+    ]);
 }
 ```
 

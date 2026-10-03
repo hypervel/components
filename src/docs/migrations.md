@@ -1808,18 +1808,18 @@ For convenience, each migration operation will dispatch an [event](/docs/{{versi
 
 <div class="overflow-auto">
 
-| Class                                          | Description                                                    |
-| ---------------------------------------------- | -------------------------------------------------------------- |
-| `Hypervel\Database\Events\DatabaseRefreshed`   | The `migrate:fresh` or `migrate:refresh` command has finished. |
-| `Hypervel\Database\Events\MigrationsStarted`   | A batch of migrations is about to be executed.                 |
-| `Hypervel\Database\Events\MigrationsEnded`     | A batch of migrations has finished.                            |
-| `Hypervel\Database\Events\MigrationStarted`    | A single migration is about to be executed.                    |
-| `Hypervel\Database\Events\MigrationEnded`      | A single migration has finished.                               |
-| `Hypervel\Database\Events\MigrationSkipped`    | A single migration has been skipped.                           |
-| `Hypervel\Database\Events\NoPendingMigrations` | A migration command found no pending migrations.               |
-| `Hypervel\Database\Events\SchemaDumped`        | A database schema dump has finished.                           |
-| `Hypervel\Database\Events\SchemaLoaded`        | An existing database schema dump has loaded.                   |
-| `Hypervel\Database\Events\MigrationsPruned`    | Existing migration files have been pruned.                     |
+| Class                                          | Description                                                                                      |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `Hypervel\Database\Events\DatabaseRefreshed`   | The `migrate:fresh` or `migrate:refresh` command has run its migrations, before any seeders run. |
+| `Hypervel\Database\Events\MigrationsStarted`   | A batch of migrations is about to be executed.                                                   |
+| `Hypervel\Database\Events\MigrationsEnded`     | A batch of migrations has finished.                                                              |
+| `Hypervel\Database\Events\MigrationStarted`    | A single migration is about to be executed.                                                      |
+| `Hypervel\Database\Events\MigrationEnded`      | A single migration has finished.                                                                 |
+| `Hypervel\Database\Events\MigrationSkipped`    | A single migration has been skipped.                                                             |
+| `Hypervel\Database\Events\NoPendingMigrations` | A migration command found no pending migrations.                                                 |
+| `Hypervel\Database\Events\SchemaDumped`        | A database schema dump has finished.                                                             |
+| `Hypervel\Database\Events\SchemaLoaded`        | An existing database schema dump has loaded.                                                     |
+| `Hypervel\Database\Events\MigrationsPruned`    | Existing migration files have been pruned.                                                       |
 
 </div>
 
