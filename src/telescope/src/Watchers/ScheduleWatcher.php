@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
+use DateTimeZone;
 use Hypervel\Console\Events\ScheduledTaskFailed;
 use Hypervel\Console\Events\ScheduledTaskFinished;
 use Hypervel\Console\Scheduling\CallbackEvent;
@@ -127,7 +128,7 @@ class ScheduleWatcher extends Watcher
                 : 'Scheduled command',
             'description' => $task->description,
             'expression' => $task->expression,
-            'timezone' => $task->timezone,
+            'timezone' => $task->timezone instanceof DateTimeZone ? $task->timezone->getName() : $task->timezone,
             'output' => $task->getOutput($this->app),
         ], $outcome));
     }
