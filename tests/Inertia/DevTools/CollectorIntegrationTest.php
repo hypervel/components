@@ -10,11 +10,9 @@ use Hypervel\Inertia\DevTools\EntryStore;
 use Hypervel\Inertia\Inertia;
 use Hypervel\Inertia\Middleware;
 use Hypervel\Inertia\Response;
-use Hypervel\Support\Facades\Facade;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Tests\Inertia\Fixtures\ExampleInertiaPropsProvider;
 use Hypervel\Tests\Inertia\TestCase;
-use ReflectionClass;
 use RuntimeException;
 
 class CollectorIntegrationTest extends TestCase
@@ -451,12 +449,9 @@ class CollectorIntegrationTest extends TestCase
 
         $this->app->make(EntryStore::class)->flush($this->repo);
 
-        $source = $this->latestRecordedEntry()['props']['once_shared']['shareSource'] ?? null;
-        $frameworkDirectory = dirname((new ReflectionClass(Facade::class))->getFileName(), 4) . DIRECTORY_SEPARATOR;
-
-        // The share call runs inside Inertia's middleware, so the frames above it belong to the
-        // framework's pipeline and middleware, which must not be reported as the share source.
-        $this->assertStringStartsNotWith($frameworkDirectory, $source['file'] ?? '');
+        // The share call runs inside Inertia's middleware, so every frame above it belongs to the
+        // framework's pipeline and middleware, and none of them may be reported as the share source.
+        $this->assertArrayNotHasKey('shareSource', $this->latestRecordedEntry()['props']['once_shared']);
     }
 
     public function testNumericPropKeysAreRecorded(): void
