@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Inertia;
 
 use Closure;
+use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
 use Hypervel\Inertia\DevTools\DevTools;
 use Hypervel\Inertia\Ssr\ExcludesSsrPaths;
 use Hypervel\Inertia\Ssr\Gateway;
 use Hypervel\Inertia\Support\Header;
 use Hypervel\Inertia\Support\SessionKey;
+use Hypervel\Routing\Route;
 use Hypervel\Session\Store;
 use Hypervel\Support\Facades\Redirect;
 use Hypervel\Support\MessageBag;
@@ -174,6 +176,8 @@ class Middleware
             return $response;
         }
 
+        $this->storeCurrentUrl($request, $response);
+
         if ($request->method() === 'GET' && $request->header(Header::VERSION, '') !== Inertia::getVersion()) {
             $response = $this->onVersionChange($request, $response);
         }
@@ -195,6 +199,55 @@ class Middleware
         $recorder?->respondedWith($request, $response);
 
         return $response;
+    }
+
+    /**
+     * Store the current URL and route as the previous location, which Hypervel's
+     * session middleware skips for Inertia visits.
+     */
+    protected function storeCurrentUrl(Request $request, Response $response): void
+    {
+        if (! $this->shouldStoreCurrentUrl($request, $response)) {
+            return;
+        }
+
+        /** @var Store $session */
+        $session = $request->session();
+        $session->setPreviousUrl($request->fullUrl());
+        $session->setPreviousRoute($request->route()?->getName());
+    }
+
+    /**
+     * Determine if the visit should be stored as the previous location. Partial
+     * reloads are excluded, since deferred props, polling, and infinite scroll
+     * requests aren't navigations the user came from.
+     */
+    public function shouldStoreCurrentUrl(Request $request, Response $response): bool
+    {
+        if (! config()->boolean('inertia.store_previous_url')
+            || ! $request->hasSession()
+            || ! $request->isMethod('GET')
+            || ! $request->route() instanceof Route
+            || ! $request->ajax()
+            || $request->prefetch()
+            || $request->isPrecognitive()) {
+            return false;
+        }
+
+        return ! $this->isPartialReload($request, $response);
+    }
+
+    /**
+     * Determine if the request is a partial reload of the component that was rendered.
+     */
+    protected function isPartialReload(Request $request, Response $response): bool
+    {
+        if (! $component = $request->header(Header::PARTIAL_COMPONENT)) {
+            return false;
+        }
+
+        return $response instanceof JsonResponse
+            && $component === data_get($response->getOriginalContent(), 'component');
     }
 
     /**
