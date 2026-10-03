@@ -8,6 +8,6 @@
         "typecheck": "php tests/generate.php tests/.generated && tsc --noEmit --project tsconfig.json"
     },
     "devDependencies": {
-        "happy-dom": "^20.0.2"
+        "happy-dom": "^20.8.9"
     }
 }
