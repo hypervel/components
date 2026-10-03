@@ -15,6 +15,7 @@ use Hypervel\Telescope\Watchers\ExceptionWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Telescope\FeatureTestCase;
+use LogicException;
 use ParseError;
 
 #[WithConfig('logging.default', 'null')]
@@ -130,6 +131,32 @@ class ExceptionWatcherTest extends FeatureTestCase
 
             $this->assertSame('deleted source', $entry->content['message']);
             $this->assertSame([], $entry->content['line_preview']);
+        } finally {
+            $filesystem->deleteDirectory($directory);
+        }
+    }
+
+    public function testExceptionWatcherPreviewsTheStartOfTheFileForAnExceptionNearTheTop(): void
+    {
+        $filesystem = new Filesystem;
+        $directory = ParallelTesting::tempDir('TelescopeExceptionWatcherTest');
+        $filesystem->deleteDirectory($directory);
+        $filesystem->ensureDirectoryExists($directory);
+        $file = $directory . '/throws.php';
+        $filesystem->put($file, "<?php\nthrow new \\LogicException('near the top');\n" . str_repeat("//\n", 30));
+
+        try {
+            try {
+                require $file;
+                $this->fail('The fixture was expected to throw.');
+            } catch (LogicException $exception) {
+                $this->app->make(ExceptionHandler::class)->report($exception);
+            }
+
+            $preview = $this->loadTelescopeEntries()->first()->content['line_preview'];
+
+            $this->assertSame(range(1, 20), array_keys($preview));
+            $this->assertSame("throw new \\LogicException('near the top');", $preview[2]);
         } finally {
             $filesystem->deleteDirectory($directory);
         }
