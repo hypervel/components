@@ -12,6 +12,7 @@ use Hypervel\Inertia\Middleware;
 use Hypervel\Inertia\Response;
 use Hypervel\Support\Facades\Facade;
 use Hypervel\Support\Facades\Route;
+use Hypervel\Tests\Inertia\Fixtures\ExampleInertiaPropsProvider;
 use Hypervel\Tests\Inertia\TestCase;
 use ReflectionClass;
 use RuntimeException;
@@ -145,11 +146,16 @@ class CollectorIntegrationTest extends TestCase
 
         $this->app->make(EntryStore::class)->flush($this->repo);
 
-        $propValues = $this->latestRecordedEntry()['propValues'];
+        $entry = $this->latestRecordedEntry();
+        $propValues = $entry['propValues'];
 
         $this->assertSame('[REDACTED]', $propValues['token']);
         $this->assertSame('John', $propValues['auth']['user']['name']);
         $this->assertSame('[REDACTED]', $propValues['auth']['user']['api_key']);
+
+        // Only the value is secret: the prop's metadata is kept under its name.
+        $this->assertFalse($entry['props']['token']['shared']);
+        $this->assertSourceLineContains($entry['props']['token']['renderSource'], "'token' => 'super-secret'");
     }
 
     public function testNestedPropValuesAreRedactedByTheirPath(): void
@@ -278,6 +284,42 @@ class CollectorIntegrationTest extends TestCase
         $this->assertTrue($entry['props']['flash']['shared']);
         $this->assertArrayHasKey('file', $entry['props']['flash']['shareSource']);
         $this->assertArrayHasKey('line', $entry['props']['flash']['shareSource']);
+    }
+
+    public function testPropsFromSharedPropertyProvidersAreMarkedShared(): void
+    {
+        // DevTools classifies shared props even when the page object does not expose their keys.
+        config()->set('inertia.expose_shared_prop_keys', false);
+
+        Inertia::share(new ExampleInertiaPropsProvider(['locale' => 'en']));
+
+        Route::middleware(Middleware::class)->get('/provider-share-route', fn (): Response => Inertia::render('Users/Index', ['name' => 'Alice']));
+
+        $this->get('/provider-share-route', ['X-Inertia' => 'true', 'X-Inertia-Version' => ''])->assertOk();
+
+        $this->app->make(EntryStore::class)->flush($this->repo);
+
+        $props = $this->latestRecordedEntry()['props'];
+
+        $this->assertTrue($props['locale']['shared']);
+        $this->assertFalse($props['name']['shared']);
+    }
+
+    public function testFlushedSharedPropsLeaveNoShareSourceBehind(): void
+    {
+        Inertia::share('name', 'Shared');
+        Inertia::flushShared();
+
+        Route::middleware(Middleware::class)->get('/flushed-share-route', fn (): Response => Inertia::render('Users/Index', ['name' => 'Alice']));
+
+        $this->get('/flushed-share-route', ['X-Inertia' => 'true', 'X-Inertia-Version' => ''])->assertOk();
+
+        $this->app->make(EntryStore::class)->flush($this->repo);
+
+        $prop = $this->latestRecordedEntry()['props']['name'];
+
+        $this->assertFalse($prop['shared']);
+        $this->assertArrayNotHasKey('shareSource', $prop);
     }
 
     public function testShareSourcesResolveEachArrayKeyLine(): void

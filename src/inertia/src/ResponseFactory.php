@@ -101,7 +101,10 @@ class ResponseFactory
      */
     public function flushShared(): void
     {
-        $this->state()->sharedProps = [];
+        $state = $this->state();
+
+        $state->sharedProps = [];
+        $state->shareSources = [];
     }
 
     /**
@@ -350,7 +353,7 @@ class ResponseFactory
             $state->urlResolver,
         );
 
-        DevTools::recorder()?->pageRendering($component, $response, $state->sharedProps);
+        DevTools::recorder()?->pageRendering($component, $response);
 
         return $response;
     }

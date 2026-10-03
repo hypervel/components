@@ -184,6 +184,8 @@ class PropsResolver
     {
         $resolved = $this->resolvePropertyProviders($shared);
 
+        $this->recorder?->sharedPropsExpanded($resolved);
+
         if (! config()->boolean('inertia.expose_shared_prop_keys')) {
             return $resolved;
         }

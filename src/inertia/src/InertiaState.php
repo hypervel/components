@@ -37,6 +37,14 @@ class InertiaState implements ReplicableContext
     public array $sharedProps = [];
 
     /**
+     * The source locations of the shared properties, recorded for DevTools. Kept beside the
+     * shared properties so props shared during boot carry their sources into each request.
+     *
+     * @var array<string, array{file: string, line: int}>
+     */
+    public array $shareSources = [];
+
+    /**
      * The asset version resolver or value.
      */
     public Closure|string|null $version = null;

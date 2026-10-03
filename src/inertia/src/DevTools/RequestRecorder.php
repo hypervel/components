@@ -6,6 +6,7 @@ namespace Hypervel\Inertia\DevTools;
 
 use Hypervel\Http\Request;
 use Hypervel\Http\Response as HttpResponse;
+use Hypervel\Inertia\InertiaState;
 use Hypervel\Inertia\Response;
 use Hypervel\Inertia\Support\Header;
 use Hypervel\Support\Facades\App;
@@ -21,11 +22,6 @@ use Throwable;
  */
 class RequestRecorder
 {
-    /**
-     * @var array<string, array{file: string, line: int}>
-     */
-    protected array $shareSources = [];
-
     protected ?Collector $collector = null;
 
     /**
@@ -84,10 +80,12 @@ class RequestRecorder
             return;
         }
 
+        $state = InertiaState::current();
+
         foreach ($keys as $key) {
             $key = (string) $key;
 
-            $this->shareSources[$key] = [
+            $state->shareSources[$key] = [
                 'file' => $source['file'],
                 'line' => $locator->findPropKeyLine($source['file'], $source['line'], $key) ?? $source['line'],
             ];
@@ -96,10 +94,8 @@ class RequestRecorder
 
     /**
      * Start collecting the page being rendered.
-     *
-     * @param array<array-key, mixed> $sharedProps
      */
-    public function pageRendering(string $component, Response $response, array $sharedProps): void
+    public function pageRendering(string $component, Response $response): void
     {
         if (! DevTools::enabled()) {
             return;
@@ -113,10 +109,20 @@ class RequestRecorder
             $collector->setRenderSource($renderSource['file'], $renderSource['line']);
         }
 
-        $collector->setShareSources($this->shareSources);
-        $collector->setSharedKeys($this->topLevelSharedKeys($sharedProps));
+        $collector->setShareSources(InertiaState::current()->shareSources);
 
         $this->collector = $collector;
+    }
+
+    /**
+     * Mark which of the page's props are shared, once shared property providers have been
+     * expanded into the props they provide.
+     *
+     * @param array<array-key, mixed> $shared
+     */
+    public function sharedPropsExpanded(array $shared): void
+    {
+        $this->collector?->setSharedKeys($this->topLevelSharedKeys($shared));
     }
 
     /**
@@ -250,8 +256,10 @@ class RequestRecorder
      */
     protected function setShareSource(array $keys, array $source): void
     {
+        $state = InertiaState::current();
+
         foreach ($keys as $key) {
-            $this->shareSources[(string) $key] = $source;
+            $state->shareSources[(string) $key] = $source;
         }
     }
 

@@ -12,6 +12,11 @@ use Hypervel\Inertia\DevTools\Data\IncomingEntry;
 use Hypervel\Inertia\DevTools\EntryStore;
 use Hypervel\Inertia\DevTools\IncomingEntryBuilder;
 use Hypervel\Inertia\DevTools\SourceLocator;
+use Hypervel\Inertia\Inertia;
+use Hypervel\Inertia\InertiaState;
+use Hypervel\Inertia\Middleware;
+use Hypervel\Inertia\Response as InertiaResponse;
+use Hypervel\Support\Facades\Route;
 use Hypervel\Tests\Inertia\TestCase;
 
 use function Hypervel\Coroutine\parallel;
@@ -19,6 +24,10 @@ use function Hypervel\Coroutine\parallel;
 class CoroutineIsolationTest extends TestCase
 {
     use InteractsWithDevToolsStorage;
+
+    // Like a server's request coroutines, tests see only what InertiaState replicates from
+    // the boot baseline, not a copy of the whole non-coroutine context.
+    protected bool $copyNonCoroutineContext = false;
 
     /**
      * Define the test environment.
@@ -36,6 +45,9 @@ class CoroutineIsolationTest extends TestCase
         parent::setUp();
 
         $this->bindEntriesRepository();
+
+        // Shared outside a coroutine, as a service provider does during boot.
+        Inertia::share('booted', 'value');
     }
 
     /**
@@ -64,6 +76,45 @@ class CoroutineIsolationTest extends TestCase
         foreach (['store', 'builder', 'locator'] as $service) {
             $this->assertNotSame($first[$service], $second[$service]);
         }
+    }
+
+    public function testShareSourcesFromBootReachEachRequest(): void
+    {
+        Route::middleware(Middleware::class)->get('/boot-share-route', fn (): InertiaResponse => Inertia::render('Users/Index'));
+
+        $this->get('/boot-share-route', ['X-Inertia' => 'true', 'X-Inertia-Version' => ''])->assertOk();
+
+        $this->app->make(EntryStore::class)->flush($this->repo);
+
+        $prop = $this->latestRecordedEntry()['props']['booted'];
+
+        $this->assertTrue($prop['shared']);
+        $this->assertSame(__FILE__, $prop['shareSource']['file']);
+    }
+
+    public function testShareSourcesRecordedDuringARequestStayInThatRequest(): void
+    {
+        [$first, $second] = parallel([
+            function (): array {
+                Inertia::share('flash', 'first');
+                usleep(5000);
+
+                return InertiaState::current()->shareSources;
+            },
+            function (): array {
+                Inertia::share('flash', 'second');
+                usleep(5000);
+
+                return InertiaState::current()->shareSources;
+            },
+        ]);
+
+        $lines = file(__FILE__);
+
+        $this->assertStringContainsString("'first'", $lines[$first['flash']['line'] - 1]);
+        $this->assertStringContainsString("'second'", $lines[$second['flash']['line'] - 1]);
+        $this->assertArrayHasKey('booted', $first);
+        $this->assertArrayHasKey('booted', $second);
     }
 
     /**
