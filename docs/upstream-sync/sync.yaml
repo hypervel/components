@@ -125,7 +125,7 @@ laravel/tinker:
   sync_date: '2026-10-03'
 
 laravel/wayfinder:
-  branch: main
+  branch: next
   checked_through: null
   last_reviewed_pr: null
   sync_date: null
@@ -135,7 +135,7 @@ laravel/docs:
   checked_through: null
   last_reviewed_pr: null
   sync_date: null
-  notes: Shared documentation for the framework and Laravel packages.
+  notes: Shared documentation for the framework and Laravel packages. Reconcile upstream changes with existing Hypervel documentation, including independently written coverage. Replace custom wording for equivalent content with upstream wording, adapting it for Hypervel and preserving enhancements and intentional differences absent upstream. Do not duplicate existing coverage.
 
 inertiajs/inertia-laravel:
   branch: 3.x
