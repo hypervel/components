@@ -125,10 +125,11 @@ laravel/tinker:
   sync_date: '2026-10-03'
 
 laravel/wayfinder:
-  branch: next
+  branch: main
   checked_through: null
   last_reviewed_pr: null
   sync_date: null
+  notes: Track main for applicable fixes. Wayfinder next and its Surveyor, Ranger and Structure Discoverer dependency ports are deferred until Wayfinder v1. At each sync, check whether v1 has been released; if so, notify the owner and obtain approval before changing the tracked branch or beginning those ports.
 
 laravel/docs:
   branch: 13.x
