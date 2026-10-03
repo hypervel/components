@@ -483,7 +483,7 @@ trait MakesHttpRequests
         array $server = [],
         ?string $content = null
     ): TestResponse {
-        return $this->getWaiter()->wait(function () use ($method, $uri, $parameters, $cookies, $files, $server, $content) {
+        $response = $this->getWaiter()->wait(function () use ($method, $uri, $parameters, $cookies, $files, $server, $content): TestResponse {
             $kernel = $this->app->make(HttpKernel::class);
 
             $files = array_merge($files, $this->extractFilesFromDataArray($parameters));
@@ -539,14 +539,16 @@ trait MakesHttpRequests
 
             $this->syncRequestContextToParent($request);
 
-            $response = $this->createTestResponse($response, $request);
-
-            if ($this->followRedirects) {
-                $response = $this->followRedirects($response);
-            }
-
-            return $response;
+            return $this->createTestResponse($response, $request);
         }, 10.0, copyContext: true);
+
+        // Follow redirects from the test coroutine, so each followed request syncs its
+        // session, authentication and request state back to the test.
+        if ($this->followRedirects) {
+            return $this->followRedirects($response);
+        }
+
+        return $response;
     }
 
     /**
@@ -570,10 +572,14 @@ trait MakesHttpRequests
     {
         $synchronizer = new RequestContextSynchronizer;
 
-        $synchronizer->syncSnapshotToParent(
-            $this->sessionContextSnapshot($request),
-            $this->sessionContextKeys()
-        );
+        // A read-only session is never saved, so the test keeps the session it had before
+        // the request, just as the next real request would load the unchanged stored session.
+        if (! $request->hasSession() || ! $request->session()->isReadOnly()) {
+            $synchronizer->syncSnapshotToParent(
+                $this->sessionContextSnapshot($request),
+                $this->sessionContextKeys()
+            );
+        }
 
         $synchronizer->syncContextKeysToParent($this->authenticationContextKeys());
     }
