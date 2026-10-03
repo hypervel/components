@@ -320,6 +320,8 @@ class EntriesRepositoryTest extends TestCase
 
     public function testPruneIfDueSkipsUntilIntervalElapsed(): void
     {
+        config()->set('inertia.devtools.storage.prune_interval', 300);
+
         $repo = $this->makeRepository();
         $old = $this->envelope(['utime' => microtime(true) - (48 * 3600)]);
 
