@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Inertia\DevTools;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Http\Request;
+use Hypervel\Session\SessionId;
 use Hypervel\Support\Facades\Gate;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\Str;
@@ -75,6 +76,29 @@ class FlashDataTest extends TestCase
 
         $this->get('/app-page')->assertSee('saved');
         $this->get('/app-page')->assertDontSee('saved');
+    }
+
+    public function testEntryRequestsDoNotOverwriteSessionDataSavedByConcurrentRequests(): void
+    {
+        $session = $this->app->make('session')->driver();
+        $sessionId = SessionId::generate();
+        $token = Str::random(40);
+        $session->getHandler()->write($sessionId, json_encode(['_token' => $token, 'cart' => 'original']));
+        $updated = json_encode(['_token' => $token, 'cart' => 'updated']);
+
+        // The gate runs inside the entry request after its session has started, which is when
+        // an application request saves newer session data here.
+        Gate::define('viewInertiaDevtools', function (?Authenticatable $user = null) use ($session, $sessionId, $updated): bool {
+            $session->getHandler()->write($sessionId, $updated);
+
+            return true;
+        });
+
+        $this->withCookie($session->getName(), $sessionId)
+            ->get('/_inertia/devtools/entries')
+            ->assertOk();
+
+        $this->assertSame($updated, $session->getHandler()->read($sessionId));
     }
 
     /**

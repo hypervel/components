@@ -7,8 +7,6 @@ namespace Hypervel\Inertia\DevTools;
 use Hypervel\Foundation\Http\Events\RequestHandled;
 use Hypervel\Inertia\DevTools\Http\Authorize;
 use Hypervel\Inertia\DevTools\Http\EntriesController;
-use Hypervel\Inertia\DevTools\Http\PreserveFlashData;
-use Hypervel\Inertia\DevTools\Http\PreventPreviousUrlTracking;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\ServiceProvider;
@@ -54,18 +52,16 @@ class DevToolsServiceProvider extends ServiceProvider
             $this->app->make(EntryStore::class)->flush($this->app->make(EntriesRepository::class));
         });
 
-        $middleware = [
-            PreventPreviousUrlTracking::class,
-            ...$this->routeMiddleware(),
-            PreserveFlashData::class,
-            Authorize::class,
-        ];
-
-        Route::middleware($middleware)
+        // The extension fetches entries while the app's own requests are in flight, so the entry
+        // routes read the session without saving it. Saving would overwrite session data those
+        // requests save, age the flash data a redirect is about to read, and record the entry
+        // URL as the app's previous URL. This replaces upstream's PreserveFlashData and
+        // PreventPreviousUrlTracking middleware, which covered only the last two.
+        Route::middleware([...$this->routeMiddleware(), Authorize::class])
             ->prefix('_inertia/devtools')
             ->group(function (): void {
-                Route::get('entries', [EntriesController::class, 'index']);
-                Route::get('entries/{id}', [EntriesController::class, 'show']);
+                Route::get('entries', [EntriesController::class, 'index'])->readOnlySession();
+                Route::get('entries/{id}', [EntriesController::class, 'show'])->readOnlySession();
             });
     }
 
