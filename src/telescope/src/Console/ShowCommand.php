@@ -15,6 +15,8 @@ use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Storage\EntryQueryOptions;
 use Hypervel\Telescope\Telescope;
 use Symfony\Component\Console\Attribute\AsCommand;
+use Symfony\Component\Console\Formatter\OutputFormatter;
+use Symfony\Component\Console\Output\OutputInterface;
 
 #[AsCommand(name: 'telescope:show')]
 class ShowCommand extends Command
@@ -64,7 +66,7 @@ class ShowCommand extends Command
                 ->values();
 
             if ($this->option('json')) {
-                $this->line($this->jsonBlock(['entry' => $entry, 'batch' => $batchEntries->all()]));
+                $this->writeJson(['entry' => $entry, 'batch' => $batchEntries->all()]);
 
                 return 0;
             }
@@ -126,7 +128,7 @@ class ShowCommand extends Command
     {
         $content = $entry->content;
 
-        $this->info('Request: ' . ($content['method'] ?? '') . ' ' . ($content['uri'] ?? '') . ' -> ' . ($content['response_status'] ?? ''));
+        $this->info('Request: ' . ($content['method'] ?? '') . ' ' . OutputFormatter::escape($content['uri'] ?? '') . ' -> ' . ($content['response_status'] ?? ''));
 
         $this->details($entry, [
             'Controller' => $content['controller_action'] ?? 'Closure',
@@ -134,7 +136,7 @@ class ShowCommand extends Command
             'Memory' => $this->unit($content['memory'] ?? null, 'MB'),
             'IP' => $content['ip_address'] ?? '',
             'Middleware' => implode(', ', (array) ($content['middleware'] ?? [])),
-            'User' => $this->formatUser($content['user'] ?? []),
+            'User' => OutputFormatter::escape($this->formatUser($content['user'] ?? [])),
         ]);
 
         $this->block('Payload', $content['payload'] ?? null);
@@ -157,14 +159,14 @@ class ShowCommand extends Command
             'Resolved' => $content['resolved_at'] ?? '<fg=yellow>No</>',
         ]);
 
-        $this->error($content['message'] ?? '');
+        $this->error(OutputFormatter::escape($content['message'] ?? ''));
 
         if (! empty($content['line_preview'])) {
             $this->info('Code Context');
 
             $this->table([], collect($content['line_preview'])->map(fn (string $code, int $lineNo): array => [
                 $lineNo === ($content['line'] ?? 0) ? "<fg=red>{$lineNo} ></>" : $lineNo,
-                $code,
+                OutputFormatter::escape($code),
             ])->values());
         }
 
@@ -191,7 +193,7 @@ class ShowCommand extends Command
         $this->block('Data', $content['data'] ?? null, 500);
 
         if (! empty($content['exception'])) {
-            $this->error($content['exception']['message'] ?? '');
+            $this->error(OutputFormatter::escape($content['exception']['message'] ?? ''));
             $this->renderTrace($content['exception']['trace'] ?? [], 10);
         }
     }
@@ -208,7 +210,7 @@ class ShowCommand extends Command
 
         $this->info($config['subtitle'] === ''
             ? $config['label']
-            : "{$config['label']}: {$config['subtitle']}");
+            : "{$config['label']}: " . OutputFormatter::escape($config['subtitle']));
 
         $this->details($entry, $config['fields']);
 
@@ -233,30 +235,30 @@ class ShowCommand extends Command
                     'Connection' => $content['connection'] ?? '',
                     'Duration' => $this->unit($content['time'] ?? null, 'ms') . (! empty($content['slow']) ? '  <fg=red>SLOW</>' : ''),
                     'Source' => isset($content['file']) ? ($content['file']) . ':' . ($content['line'] ?? '') : '',
-                    'SQL' => $content['sql'] ?? '',
+                    'SQL' => OutputFormatter::escape($content['sql'] ?? ''),
                 ],
                 'blocks' => ['Bindings' => 'bindings'],
             ],
             EntryType::CACHE => [
                 'label' => 'Cache', 'subtitle' => $content['type'] ?? '',
                 'fields' => [
-                    'Key' => $content['key'] ?? '',
+                    'Key' => OutputFormatter::escape($content['key'] ?? ''),
                     'Expiration' => $this->unit($content['expiration'] ?? null, 's'),
                 ],
                 'blocks' => ['Value' => 'value'],
             ],
             EntryType::LOG => [
                 'label' => 'Log', 'subtitle' => $content['level'] ?? '',
-                'fields' => ['Message' => $content['message'] ?? ''],
+                'fields' => ['Message' => OutputFormatter::escape($content['message'] ?? '')],
                 'blocks' => ['Context' => 'context'],
             ],
             EntryType::MAIL => [
                 'label' => 'Mail', 'subtitle' => $content['subject'] ?? '',
                 'fields' => [
-                    'Mailable' => $content['mailable'] ?? '', 'Subject' => $content['subject'] ?? '',
+                    'Mailable' => $content['mailable'] ?? '', 'Subject' => OutputFormatter::escape($content['subject'] ?? ''),
                     'Queued' => ! empty($content['queued']) ? 'Yes' : '',
-                    'To' => $this->formatAddresses($content['to'] ?? []),
-                    'From' => $this->formatAddresses($content['from'] ?? []),
+                    'To' => OutputFormatter::escape($this->formatAddresses($content['to'] ?? [])),
+                    'From' => OutputFormatter::escape($this->formatAddresses($content['from'] ?? [])),
                 ],
             ],
             EntryType::EVENT => [
@@ -274,7 +276,7 @@ class ShowCommand extends Command
                 'label' => 'Scheduled Task', 'subtitle' => $content['command'] ?? '',
                 'fields' => [
                     'Expression' => $content['expression'] ?? '', 'Timezone' => $content['timezone'] ?? '',
-                    'Description' => $content['description'] ?? '',
+                    'Description' => OutputFormatter::escape($content['description'] ?? ''),
                     'Status' => $content['status'] ?? '', 'Exit Code' => (string) ($content['exit_code'] ?? ''),
                 ],
                 'blocks' => ['Exception' => 'exception', 'Output' => 'output'],
@@ -319,7 +321,7 @@ class ShowCommand extends Command
                 'fields' => [
                     'Connection' => $content['connection'] ?? '',
                     'Duration' => $this->unit($content['time'] ?? null, 'ms'),
-                    'Command' => $content['command'] ?? '',
+                    'Command' => OutputFormatter::escape($content['command'] ?? ''),
                 ],
             ],
             default => [
@@ -386,7 +388,7 @@ class ShowCommand extends Command
                 $index + 1,
                 $this->shortUuid($query->id),
                 round((float) ($query->content['time'] ?? 0), 2) . 'ms',
-                $this->limit($query->content['sql'] ?? '', 60),
+                OutputFormatter::escape($this->limit($query->content['sql'] ?? '', 60)),
                 isset($query->content['file']) ? basename($query->content['file']) . ':' . ($query->content['line'] ?? '') : '',
                 trim(
                     (! empty($query->content['slow']) ? '<fg=red>SLOW</> ' : '')
@@ -413,7 +415,7 @@ class ShowCommand extends Command
             ['UUID', 'Exception', 'Location'],
             $exceptions->take(10)->map(fn (EntryResult $exception): array => [
                 $this->shortUuid($exception->id),
-                ($exception->content['class'] ?? '') . ': ' . $this->limit($exception->content['message'] ?? '', 80),
+                OutputFormatter::escape(($exception->content['class'] ?? '') . ': ' . $this->limit($exception->content['message'] ?? '', 80)),
                 ($exception->content['file'] ?? '') . ':' . ($exception->content['line'] ?? ''),
             ])
         );
@@ -441,7 +443,7 @@ class ShowCommand extends Command
             ['Action', 'Key'],
             $cacheEntries->take(10)->map(fn (EntryResult $cacheEntry): array => [
                 $this->colorCacheAction($cacheEntry->content['type'] ?? ''),
-                $this->limit($cacheEntry->content['key'] ?? '', 60),
+                OutputFormatter::escape($this->limit($cacheEntry->content['key'] ?? '', 60)),
             ])
         );
 
@@ -463,7 +465,7 @@ class ShowCommand extends Command
             ['Level', 'Message'],
             $logs->take(10)->map(fn (EntryResult $log): array => [
                 $this->colorLevel($log->content['level'] ?? ''),
-                $this->limit($log->content['message'] ?? '', 80),
+                OutputFormatter::escape($this->limit($log->content['message'] ?? '', 80)),
             ])
         );
 
@@ -472,6 +474,8 @@ class ShowCommand extends Command
 
     /**
      * Render the entry's common fields followed by the given fields as a key/value table.
+     *
+     * Field values may contain console styles, so callers escape recorded text.
      *
      * @param array<string, null|string> $fields
      */
@@ -489,13 +493,13 @@ class ShowCommand extends Command
     }
 
     /**
-     * Render a titled single-column list.
+     * Render a titled single-column list of literal text items.
      */
     protected function listing(string $title, array $items): void
     {
         $this->info($title);
 
-        $this->table([], collect($items)->map(fn (string $item): array => [$item]));
+        $this->table([], collect($items)->map(fn (string $item): array => [OutputFormatter::escape($item)]));
     }
 
     /**
@@ -509,7 +513,8 @@ class ShowCommand extends Command
 
         $this->info($label);
 
-        $this->line($this->limit(is_string($value) ? $value : $this->jsonBlock($value), $limit));
+        // Formatting would strip console style tags, and backslashes before < or >, from recorded content.
+        $this->output->writeln($this->limit(is_string($value) ? $value : $this->jsonBlock($value), $limit), OutputInterface::OUTPUT_RAW);
     }
 
     /**

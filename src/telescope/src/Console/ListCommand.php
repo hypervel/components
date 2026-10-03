@@ -14,6 +14,7 @@ use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Storage\EntryQueryOptions;
 use Hypervel\Telescope\Telescope;
 use Symfony\Component\Console\Attribute\AsCommand;
+use Symfony\Component\Console\Formatter\OutputFormatter;
 
 #[AsCommand(name: 'telescope:list')]
 class ListCommand extends Command
@@ -55,10 +56,18 @@ class ListCommand extends Command
                 return 1;
             }
 
+            $before = $this->option('before');
+
+            if ($before !== null && (! ctype_digit((string) $before) || (int) $before < 1)) {
+                $this->error('The --before option must be a positive integer.');
+
+                return 1;
+            }
+
             $entries = collect($storage->get($type, $this->queryOptions($limit)));
 
             if ($this->option('json')) {
-                $this->line($this->jsonBlock($entries->all()));
+                $this->writeJson($entries->all());
 
                 return 0;
             }
@@ -109,7 +118,7 @@ class ListCommand extends Command
                 fn (EntryResult $entry): array => [
                     $this->shortUuid($entry->id),
                     $this->colorMethod($entry->content['method'] ?? ''),
-                    Str::limit($entry->content['uri'] ?? '', 40),
+                    OutputFormatter::escape(Str::limit($entry->content['uri'] ?? '', 40)),
                     $this->colorStatus((int) ($entry->content['response_status'] ?? 0)),
                     $this->unit($entry->content['duration'] ?? null, 'ms'),
                     $this->humanTime($entry->createdAt),
@@ -119,7 +128,7 @@ class ListCommand extends Command
                 ['UUID', 'SQL', 'Time', 'Slow', 'Connection', 'Created'],
                 fn (EntryResult $entry): array => [
                     $this->shortUuid($entry->id),
-                    Str::limit($entry->content['sql'] ?? '', 60),
+                    OutputFormatter::escape(Str::limit($entry->content['sql'] ?? '', 60)),
                     $this->unit($entry->content['time'] ?? null, 'ms'),
                     ! empty($entry->content['slow']) ? '<fg=red>Yes</>' : 'No',
                     $entry->content['connection'] ?? '',
@@ -131,7 +140,7 @@ class ListCommand extends Command
                 fn (EntryResult $entry): array => [
                     $this->shortUuid($entry->id),
                     class_basename($entry->content['class'] ?? ''),
-                    Str::limit($entry->content['message'] ?? '', 50),
+                    OutputFormatter::escape(Str::limit($entry->content['message'] ?? '', 50)),
                     $entry->content['occurrences'] ?? 1,
                     $this->humanTime($entry->createdAt),
                 ],
@@ -151,7 +160,7 @@ class ListCommand extends Command
                 fn (EntryResult $entry): array => [
                     $this->shortUuid($entry->id),
                     $this->colorCacheAction($entry->content['type'] ?? ''),
-                    Str::limit($entry->content['key'] ?? '', 50),
+                    OutputFormatter::escape(Str::limit($entry->content['key'] ?? '', 50)),
                     $this->humanTime($entry->createdAt),
                 ],
             ],
@@ -160,7 +169,7 @@ class ListCommand extends Command
                 fn (EntryResult $entry): array => [
                     $this->shortUuid($entry->id),
                     $this->colorLevel($entry->content['level'] ?? ''),
-                    Str::limit($entry->content['message'] ?? '', 60),
+                    OutputFormatter::escape(Str::limit($entry->content['message'] ?? '', 60)),
                     $this->humanTime($entry->createdAt),
                 ],
             ],
@@ -169,7 +178,7 @@ class ListCommand extends Command
                 fn (EntryResult $entry): array => [
                     $this->shortUuid($entry->id),
                     class_basename($entry->content['mailable'] ?? ''),
-                    Str::limit($entry->content['subject'] ?? '', 40),
+                    OutputFormatter::escape(Str::limit($entry->content['subject'] ?? '', 40)),
                     Str::limit(implode(', ', array_keys($entry->content['to'] ?? [])), 30),
                     $this->humanTime($entry->createdAt),
                 ],
@@ -178,7 +187,7 @@ class ListCommand extends Command
                 ['UUID', 'Command', 'Exit Code', 'Created'],
                 fn (EntryResult $entry): array => [
                     $this->shortUuid($entry->id),
-                    Str::limit($entry->content['command'] ?? '', 50),
+                    OutputFormatter::escape(Str::limit($entry->content['command'] ?? '', 50)),
                     $entry->content['exit_code'] ?? '',
                     $this->humanTime($entry->createdAt),
                 ],
@@ -188,7 +197,7 @@ class ListCommand extends Command
                 fn (EntryResult $entry): array => [
                     $this->shortUuid($entry->id),
                     $this->colorMethod($entry->content['method'] ?? ''),
-                    Str::limit($entry->content['uri'] ?? '', 40),
+                    OutputFormatter::escape(Str::limit($entry->content['uri'] ?? '', 40)),
                     isset($entry->content['response_status']) ? $this->colorStatus((int) $entry->content['response_status']) : 'N/A',
                     $this->unit($entry->content['duration'] ?? null, 'ms'),
                     $this->humanTime($entry->createdAt),
@@ -199,7 +208,7 @@ class ListCommand extends Command
                 fn (EntryResult $entry): array => [
                     $this->shortUuid($entry->id),
                     $entry->type,
-                    $this->summarizeEntry($entry),
+                    OutputFormatter::escape($this->summarizeEntry($entry)),
                     $this->humanTime($entry->createdAt),
                 ],
             ],

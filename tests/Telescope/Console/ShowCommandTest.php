@@ -350,20 +350,51 @@ class ShowCommandTest extends FeatureTestCase
         $this->assertStringContainsString('Mailer unavailable', $output);
     }
 
+    public function testShowPreservesConsoleMarkupInRecordedValues(): void
+    {
+        $batchId = (string) Str::uuid();
+
+        $request = $this->createRequest(['response' => '<info>Saved</info> a\>b'], ['sequence' => 100, 'batch_id' => $batchId]);
+        $this->createQuery(['sql' => "select * from posts where body ~ '\\<draft\\>'"], ['sequence' => 101, 'batch_id' => $batchId]);
+        $this->createEntry(EntryType::REDIS, ['command' => "set greeting '<comment>hi</comment>'"], ['sequence' => 102, 'batch_id' => $batchId]);
+
+        Artisan::call('telescope:show', ['id' => $request->uuid]);
+        $output = Artisan::output();
+
+        $this->assertStringContainsString('<info>Saved</info> a\>b', $output);
+        $this->assertStringContainsString("select * from posts where body ~ '\\<draft\\>'", $output);
+        $this->assertStringContainsString("set greeting '<comment>hi</comment>'", $output);
+    }
+
+    public function testShowPreservesConsoleMarkupInExceptionDetails(): void
+    {
+        $entry = $this->createException([
+            'message' => 'Unable to render "<info>Synced</info>" near a\>b',
+            'line' => 38,
+            'line_preview' => [38 => "\$this->line('<info>Synced</info>');"],
+        ]);
+
+        Artisan::call('telescope:show', ['id' => $entry->uuid]);
+        $output = Artisan::output();
+
+        $this->assertStringContainsString('Unable to render "<info>Synced</info>" near a\>b', $output);
+        $this->assertStringContainsString("\$this->line('<info>Synced</info>');", $output);
+    }
+
     public function testShowOutputsJson(): void
     {
         $batchId = (string) Str::uuid();
 
         $request = $this->createRequest([], ['sequence' => 100, 'batch_id' => $batchId]);
-        $this->createQuery([], ['sequence' => 101, 'batch_id' => $batchId]);
+        $this->createQuery(['sql' => "select * from posts where body = '<info>a\\>b</info>'"], ['sequence' => 101, 'batch_id' => $batchId]);
         $this->createEntry(EntryType::CACHE, ['type' => 'hit', 'key' => 'test'], ['sequence' => 102, 'batch_id' => $batchId]);
 
         Artisan::call('telescope:show', ['id' => $request->uuid, '--json' => true, '--type' => 'query']);
-        $json = json_decode(Artisan::output(), true);
+        $json = json_decode(Artisan::output(), true, flags: JSON_THROW_ON_ERROR);
 
         $this->assertSame($request->uuid, $json['entry']['id']);
         $this->assertCount(1, $json['batch']);
-        $this->assertSame('select 1', $json['batch'][0]['content']['sql']);
+        $this->assertSame("select * from posts where body = '<info>a\\>b</info>'", $json['batch'][0]['content']['sql']);
     }
 
     public function testShowEntryNotFound(): void

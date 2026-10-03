@@ -8,6 +8,7 @@ use Carbon\CarbonInterface;
 use Hypervel\Support\Str;
 use Hypervel\Telescope\EntryResult;
 use Hypervel\Telescope\EntryType;
+use Symfony\Component\Console\Output\OutputInterface;
 
 trait FormatsOutput
 {
@@ -154,5 +155,14 @@ trait FormatsOutput
     protected function jsonBlock(mixed $data): string
     {
         return json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * Write the given data as JSON output.
+     */
+    protected function writeJson(mixed $data): void
+    {
+        // Formatting would strip console style tags, and backslashes before < or >, from recorded values.
+        $this->output->writeln($this->jsonBlock($data), OutputInterface::OUTPUT_RAW);
     }
 }

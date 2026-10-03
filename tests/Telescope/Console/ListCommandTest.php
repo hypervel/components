@@ -82,10 +82,8 @@ class ListCommandTest extends FeatureTestCase
 
     public function testListPrintsACursorWhenThePageIsFull(): void
     {
-        $last = null;
-
         foreach (range(1, 3) as $sequence) {
-            $last = $this->createRequest([], ['sequence' => $sequence]);
+            $this->createRequest([], ['sequence' => $sequence]);
         }
 
         Artisan::call('telescope:list', ['type' => 'request', '--limit' => 2]);
@@ -104,6 +102,16 @@ class ListCommandTest extends FeatureTestCase
         foreach (['abc', '0', '-1'] as $limit) {
             $this->assertSame(1, $this->artisan('telescope:list', ['type' => 'request', '--limit' => $limit]));
             $this->assertStringContainsString('--limit option must be a positive integer', Artisan::output());
+        }
+    }
+
+    public function testListRejectsANonPositiveBeforeCursor(): void
+    {
+        $this->createRequest();
+
+        foreach (['abc', '0', '-1'] as $before) {
+            $this->assertSame(1, $this->artisan('telescope:list', ['type' => 'request', '--before' => $before]));
+            $this->assertStringContainsString('--before option must be a positive integer', Artisan::output());
         }
     }
 
@@ -126,15 +134,28 @@ class ListCommandTest extends FeatureTestCase
         $this->assertStringContainsString('hit user:1', $output);
     }
 
+    public function testListPreservesConsoleMarkupInRecordedValues(): void
+    {
+        $this->createQuery(['sql' => "select * from posts where body ~ '\\<draft\\>'"]);
+        $this->createEntry(EntryType::LOG, ['level' => 'info', 'message' => '<info>Synced</info> orders']);
+
+        Artisan::call('telescope:list', ['type' => 'query']);
+        $this->assertStringContainsString("select * from posts where body ~ '\\<draft\\>'", Artisan::output());
+
+        Artisan::call('telescope:list');
+        $this->assertStringContainsString('[info] <info>Synced</info> orders', Artisan::output());
+    }
+
     public function testListOutputsJson(): void
     {
-        $entry = $this->createRequest();
+        $entry = $this->createRequest(['payload' => ['note' => '<info>Saved</info> a\>b']]);
 
         Artisan::call('telescope:list', ['type' => 'request', '--json' => true]);
-        $json = json_decode(Artisan::output(), true);
+        $json = json_decode(Artisan::output(), true, flags: JSON_THROW_ON_ERROR);
 
         $this->assertSame($entry->uuid, $json[0]['id']);
         $this->assertSame('/test', $json[0]['content']['uri']);
+        $this->assertSame(['note' => '<info>Saved</info> a\>b'], $json[0]['content']['payload']);
     }
 
     public function testListOutputsAnEmptyJsonArrayWhenEmpty(): void
