@@ -47,18 +47,28 @@ trait RedactsSensitiveData
     {
         $keys = config()->array('inertia.devtools.redact.keys', DevTools::DEFAULT_REDACT_KEYS);
 
-        // The props map is keyed by prop path and holds each prop's metadata, not its value, so
-        // it stays out of the value passes: a prop named after a sensitive key keeps its
-        // metadata. Its value is redacted under propValues.
-        $values = $this->redactUrls($this->redact(Arr::except($payload, 'props'), $keys), $keys);
+        // Keys are redacted only within application values. A configured key such as id or name
+        // can also name part of the entry's own structure: its metadata, route and source
+        // details, the props map (each prop's metadata, keyed by prop path) and each captured
+        // body's status. The metadata's URLs still have their sensitive query parameters redacted.
+        $payload = array_replace($payload, $this->redact(
+            Arr::except($payload, ['__meta', 'props', 'route', 'renderSource', 'componentPath', 'http']),
+            $keys,
+        ));
 
-        foreach (['requestHeaders', 'responseHeaders'] as $bag) {
-            if (is_array($values['http'][$bag] ?? null)) {
-                $values['http'][$bag] = $this->redactHeaders($values['http'][$bag]);
+        foreach (['requestBody', 'responseBody'] as $body) {
+            if (is_array($payload['http'][$body]['value'] ?? null)) {
+                $payload['http'][$body]['value'] = $this->redact($payload['http'][$body]['value'], $keys);
             }
         }
 
-        return $this->sanitizeForJsonEncoding(array_replace($payload, $values));
+        foreach (['requestHeaders', 'responseHeaders'] as $bag) {
+            if (is_array($payload['http'][$bag] ?? null)) {
+                $payload['http'][$bag] = $this->redactHeaders($this->redact($payload['http'][$bag], $keys));
+            }
+        }
+
+        return $this->sanitizeForJsonEncoding(array_replace($payload, $this->redactUrls(Arr::except($payload, 'props'), $keys)));
     }
 
     /**

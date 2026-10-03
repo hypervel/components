@@ -332,6 +332,27 @@ class MiddlewareDevToolsTest extends TestCase
         $this->assertSame('alice', $entry['http']['requestBody']['value']['name']);
     }
 
+    public function testConfiguredKeysThatNamePartsOfTheEntryOnlyRedactApplicationValues(): void
+    {
+        config()->set('inertia.devtools.redact.keys', ['id', 'name', 'value']);
+
+        Route::middleware(Middleware::class)
+            ->get('/devtools-user', fn (): Response => Inertia::render('Users/Show', ['id' => 7, 'name' => 'Alice']))
+            ->name('users.show');
+
+        $response = $this->get('/devtools-user', [Header::INERTIA => 'true']);
+
+        // The entry is listed and then retrieved by its id, so this also fails if the id is redacted.
+        $entry = $this->lastSavedEntry();
+
+        $this->assertNotNull($entry);
+        $this->assertSame($response->headers->get(DevToolsHeader::DEVTOOLS_ID), $entry['__meta']['id']);
+        $this->assertSame('users.show', $entry['route']['name']);
+        $this->assertSame('present', $entry['http']['responseBody']['status']);
+        $this->assertSame('[REDACTED]', $entry['http']['responseBody']['value']['props']['id']);
+        $this->assertSame('[REDACTED]', $entry['propValues']['id']);
+    }
+
     public function testUploadedFilesAreSummarizedInsteadOfSerialized(): void
     {
         Route::middleware(Middleware::class)->post('/devtools-upload', fn (): string => 'ok');
@@ -508,6 +529,42 @@ class MiddlewareDevToolsTest extends TestCase
         $this->assertSame('navigate', $entry['__meta']['requestType']);
         $this->assertSame(409, $entry['__meta']['status']);
         $this->assertSame('https://example.com', $entry['__meta']['redirectLocation']);
+    }
+
+    public function testAPageReplacedOnAVersionChangeIsNotRecordedAsTheResponse(): void
+    {
+        Route::middleware(Middleware::class)->get('/devtools-stale', fn (): Response => Inertia::render('Users/Index', ['name' => 'Alice']));
+
+        $this->get('/devtools-stale', [
+            Header::INERTIA => 'true',
+            Header::VERSION => 'stale',
+        ])->assertStatus(409);
+
+        $entry = $this->lastSavedEntry();
+
+        $this->assertNotNull($entry);
+        $this->assertSame(409, $entry['__meta']['status']);
+        $this->assertNull($entry['__meta']['component']);
+        $this->assertSame([], $entry['props']);
+        $this->assertArrayNotHasKey('value', $entry['http']['responseBody']);
+    }
+
+    public function testAPageWhoseRootViewFailsIsNotRecordedAsTheResponse(): void
+    {
+        Route::middleware(Middleware::class)->get('/devtools-missing-view', function (): Response {
+            Inertia::setRootView('devtools-missing-root-view');
+
+            return Inertia::render('Users/Index', ['name' => 'Alice']);
+        });
+
+        $this->get('/devtools-missing-view')->assertStatus(500);
+
+        $entry = $this->lastSavedEntry();
+
+        $this->assertNotNull($entry);
+        $this->assertSame(500, $entry['__meta']['status']);
+        $this->assertNull($entry['__meta']['component']);
+        $this->assertSame([], $entry['props']);
     }
 
     public function testPartialRequestsEchoTheIncomingParentHeaderAsParentOut(): void

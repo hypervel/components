@@ -188,15 +188,19 @@ class Response implements Responsable
             $this->resolvePreserveFragment($request),
         );
 
-        DevTools::recorder($request)?->pageRendered($request, $page, $resolvedProps);
-
         if ($request->header(Header::INERTIA)) {
-            return new JsonResponse($page, 200, [Header::INERTIA => 'true']);
+            $response = new JsonResponse($page, 200, [Header::INERTIA => 'true']);
+        } else {
+            InertiaState::current()->page = $page;
+
+            $response = ResponseFactory::view($this->rootView, ['page' => $page] + $this->viewData);
         }
 
-        InertiaState::current()->page = $page;
+        // Recorded once the response exists, so a page whose root view or JSON encoding fails
+        // is not recorded as the error response that replaces it.
+        DevTools::recorder($request)?->pageRendered($request, $page, $resolvedProps);
 
-        return ResponseFactory::view($this->rootView, ['page' => $page] + $this->viewData);
+        return $response;
     }
 
     /**

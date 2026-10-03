@@ -226,6 +226,12 @@ class RequestRecorder
      */
     protected function recordResponse(Request $request, SymfonyResponse $response): void
     {
+        // The middleware may replace a rendered page, as on a version change, so the page's
+        // payload only describes an Inertia request's response while it is still the page.
+        if ($request->header(Header::INERTIA) && ! $response->headers->has(Header::INERTIA)) {
+            $request->attributes->remove(RequestAttribute::PAYLOAD);
+        }
+
         $id = (string) Str::ulid();
         $isPrefetch = $request->prefetch();
         [$batchId, $parentOut] = $this->resolveLineage($request, $id);
