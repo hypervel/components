@@ -270,7 +270,7 @@ class HttpGatewayTest extends TestCase
         $this->assertSame('http://localhost:5173/__inertia_ssr', (string) $lastRequest->getUri());
     }
 
-    public function testItPrefersTheConfiguredHotUrl(): void
+    public function testItUsesConfiguredHotUrlWhenRunningHot(): void
     {
         config([
             'inertia.ssr.enabled' => true,
@@ -281,12 +281,16 @@ class HttpGatewayTest extends TestCase
 
         $mock = $this->mockSsrClient([
             new GuzzleResponse(200, [], json_encode([
-                'head' => [],
-                'body' => '<div id="app">Hot Response</div>',
+                'head' => ['<title>Custom Hot SSR</title>'],
+                'body' => '<div id="app">Custom Hot Response</div>',
             ])),
         ]);
 
-        $this->assertNotNull($this->gateway->dispatch(self::EXAMPLE_PAGE_OBJECT));
+        $response = $this->gateway->dispatch(['page' => self::EXAMPLE_PAGE_OBJECT]);
+
+        $this->assertNotNull($response);
+        $this->assertEquals('<title>Custom Hot SSR</title>', $response->head);
+        $this->assertEquals('<div id="app">Custom Hot Response</div>', $response->body);
         $this->assertSame(
             'http://localhost:4173/base/__inertia_ssr',
             (string) $mock->getLastRequest()->getUri(),
@@ -709,6 +713,26 @@ class HttpGatewayTest extends TestCase
         ]);
 
         $this->assertNotNull($this->gateway->dispatch(['page' => self::EXAMPLE_PAGE_OBJECT]));
+    }
+
+    public function testItDoesNotThrowExceptionWhenThrowOnErrorIsDisabled(): void
+    {
+        Event::fake([SsrRenderFailed::class]);
+
+        config([
+            'inertia.ssr.enabled' => true,
+            'inertia.ssr.bundle' => __DIR__ . '/Fixtures/ssr-bundle.js',
+            'inertia.ssr.throw_on_error' => false,
+        ]);
+
+        $this->mockSsrClient([
+            new GuzzleResponse(500, [], json_encode([
+                'error' => 'window is not defined',
+                'type' => 'browser-api',
+            ])),
+        ]);
+
+        $this->assertNull($this->gateway->dispatch(self::EXAMPLE_PAGE_OBJECT));
     }
 
     public function testItDoesNotThrowExceptionWhenThrowOnErrorIsOmitted(): void
