@@ -122,7 +122,7 @@ The recorder is enabled automatically in your local environment. You may set the
 INERTIA_DEVTOOLS_ENABLED=false
 ```
 
-Entries are written to `storage/inertia-devtools` and pruned automatically, and sensitive keys and headers are redacted before an entry is stored. You may adjust the storage, redaction, and excluded paths under the `devtools` key of your application's `config/inertia.php` configuration file.
+Entries are written to `storage/inertia-devtools` and pruned automatically. Before an entry is stored, the values of sensitive keys are redacted from props, request data, JSON bodies, and URL query strings, and sensitive headers are redacted entirely. Other request and response bodies, such as HTML or plain text, are stored as they were sent, so you may exclude any paths whose responses contain secrets. You may adjust the storage, redaction, and excluded paths under the `devtools` key of your application's `config/inertia.php` configuration file.
 
 To allow access outside your local environment, define a gate and reference it using the `INERTIA_DEVTOOLS_GATE` environment variable:
 

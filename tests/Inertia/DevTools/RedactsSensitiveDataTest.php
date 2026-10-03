@@ -48,17 +48,14 @@ class RedactsSensitiveDataTest extends TestCase
             ],
         ], ['token', 'client_secret', 'api_key']);
 
-        // Hypervel\Support\Uri rebuilds the query via http_build_query, so the redacted marker
-        // and bracketed nested keys come back percent-encoded. Scheme, host, path, non-sensitive
-        // params and the fragment are preserved.
         $this->assertSame(
-            'https://app.test/users?Token=%5BREDACTED%5D&safe=1&filter%5BCLIENT_SECRET%5D=%5BREDACTED%5D#section',
+            'https://app.test/users?Token=%5BREDACTED%5D&safe=1&filter[CLIENT_SECRET]=%5BREDACTED%5D#section',
             $redacted['__meta']['url'],
         );
         $this->assertSame('/next?api_key=%5BREDACTED%5D', $redacted['__meta']['redirectLocation']);
     }
 
-    public function testRelativeUrlsAreRedactedAndUnparseableUrlsAreReturnedUnchanged(): void
+    public function testRelativeAndMalformedUrlsAreRedacted(): void
     {
         $redacted = $this->redactor->exposeRedactUrls([
             '__meta' => [
@@ -68,14 +65,30 @@ class RedactsSensitiveDataTest extends TestCase
         ], ['password', 'token']);
 
         $this->assertSame('/search?password=%5BREDACTED%5D&q=hi', $redacted['__meta']['url']);
-        $this->assertSame('http://exa mple.test/?token=abc', $redacted['__meta']['redirectLocation']);
+        $this->assertSame('http://exa mple.test/?token=%5BREDACTED%5D', $redacted['__meta']['redirectLocation']);
+    }
+
+    public function testUrlRedactionKeepsEveryOtherParameterAsRecorded(): void
+    {
+        $redacted = $this->redactor->exposeRedactUrls([
+            'unchanged' => ['url' => '/search?q=a+b&filter.name=x&tags[]=1&tags[]=2&encoded=%ZZ&flag'],
+            'redacted' => ['url' => '/search?q=a+b&token=abc&filter.name=x&token=def&tags[]=1#results?token=kept'],
+            'fragment' => ['url' => '/page#section?token=kept'],
+        ], ['token']);
+
+        $this->assertSame('/search?q=a+b&filter.name=x&tags[]=1&tags[]=2&encoded=%ZZ&flag', $redacted['unchanged']['url']);
+        $this->assertSame(
+            '/search?q=a+b&token=%5BREDACTED%5D&filter.name=x&token=%5BREDACTED%5D&tags[]=1#results?token=kept',
+            $redacted['redacted']['url'],
+        );
+        $this->assertSame('/page#section?token=kept', $redacted['fragment']['url']);
     }
 
     public function testHeaderBagsRedactCookiesAndAuthHeadersCaseInsensitively(): void
     {
         config()->set('inertia.devtools.redact.headers', ['authorization', 'cookie', 'set-cookie']);
 
-        $redacted = $this->redactor->exposeRedactHeaderBags([
+        $redacted = $this->redactor->exposeRedactSensitiveStoragePayload([
             'http' => [
                 'requestHeaders' => [
                     'Authorization' => ['Bearer secret'],
@@ -94,6 +107,53 @@ class RedactsSensitiveDataTest extends TestCase
         $this->assertSame('application/json', $redacted['http']['requestHeaders']['Accept']);
         $this->assertSame('[REDACTED]', $redacted['http']['responseHeaders']['Set-Cookie']);
         $this->assertSame('application/json', $redacted['http']['responseHeaders']['Content-Type']);
+    }
+
+    public function testUrlHeadersRedactSensitiveQueryParameters(): void
+    {
+        config()->set('inertia.devtools.redact.keys', ['token']);
+        config()->set('inertia.devtools.redact.headers', ['x-inertia-location']);
+
+        $redacted = $this->redactor->exposeRedactSensitiveStoragePayload([
+            'http' => [
+                'requestHeaders' => [
+                    'referer' => ['https://app.test/reset?token=abc&step=2'],
+                ],
+                'responseHeaders' => [
+                    'location' => ['/reset?token=abc'],
+                    'x-inertia-location' => ['/elsewhere'],
+                    'content-location' => ['/reset?token=abc'],
+                ],
+            ],
+        ]);
+
+        $this->assertSame('https://app.test/reset?token=%5BREDACTED%5D&step=2', $redacted['http']['requestHeaders']['referer']);
+        $this->assertSame('/reset?token=%5BREDACTED%5D', $redacted['http']['responseHeaders']['location']);
+        // A header configured as sensitive is redacted whole.
+        $this->assertSame('[REDACTED]', $redacted['http']['responseHeaders']['x-inertia-location']);
+        $this->assertSame('/reset?token=abc', $redacted['http']['responseHeaders']['content-location']);
+    }
+
+    public function testStoragePayloadLeavesPropMetadataAndValuesNamedLikeHeaderBagsIntact(): void
+    {
+        config()->set('inertia.devtools.redact.keys', ['token']);
+
+        $props = [
+            'token' => ['shared' => false, 'inertiaType' => null],
+            'requestHeaders' => ['shared' => false, 'inertiaType' => null],
+        ];
+
+        $redacted = $this->redactor->exposeRedactSensitiveStoragePayload([
+            'props' => $props,
+            'propValues' => [
+                'token' => 'secret',
+                'requestHeaders' => ['enabled' => false, 'limit' => 5],
+            ],
+        ]);
+
+        $this->assertSame($props, $redacted['props']);
+        $this->assertSame('[REDACTED]', $redacted['propValues']['token']);
+        $this->assertSame(['enabled' => false, 'limit' => 5], $redacted['propValues']['requestHeaders']);
     }
 
     public function testStoragePayloadRedactsResponseBodiesCustomKeysUploadsInvalidUtf8AndLargeArrays(): void
@@ -196,17 +256,6 @@ class ExposedRedactsSensitiveData
     public function exposeRedactUrls(array $data, array $keys): array
     {
         return $this->redactUrls($data, $keys);
-    }
-
-    /**
-     * Redact the sensitive headers in every header bag in the data.
-     *
-     * @param array<array-key, mixed> $data
-     * @return array<array-key, mixed>
-     */
-    public function exposeRedactHeaderBags(array $data): array
-    {
-        return $this->redactHeaderBags($data);
     }
 
     /**

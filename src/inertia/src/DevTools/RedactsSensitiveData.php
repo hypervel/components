@@ -4,14 +4,18 @@ declare(strict_types=1);
 
 namespace Hypervel\Inertia\DevTools;
 
-use Hypervel\Support\Uri;
-use Throwable;
+use Hypervel\Support\Arr;
 
 trait RedactsSensitiveData
 {
     protected const string REDACTED = '[REDACTED]';
 
     protected const string UNSERIALIZABLE = '[UNSERIALIZABLE]';
+
+    /**
+     * The headers whose value is a URL, so their sensitive query parameters are redacted.
+     */
+    protected const array URL_HEADERS = ['location', 'referer', 'x-inertia-location'];
 
     /**
      * Redact the values of the given keys throughout the data.
@@ -43,11 +47,18 @@ trait RedactsSensitiveData
     {
         $keys = config()->array('inertia.devtools.redact.keys', DevTools::DEFAULT_REDACT_KEYS);
 
-        $payload = $this->redact($payload, $keys);
-        $payload = $this->redactUrls($payload, $keys);
-        $payload = $this->redactHeaderBags($payload);
+        // The props map is keyed by prop path and holds each prop's metadata, not its value, so
+        // it stays out of the value passes: a prop named after a sensitive key keeps its
+        // metadata. Its value is redacted under propValues.
+        $values = $this->redactUrls($this->redact(Arr::except($payload, 'props'), $keys), $keys);
 
-        return $this->sanitizeForJsonEncoding($payload);
+        foreach (['requestHeaders', 'responseHeaders'] as $bag) {
+            if (is_array($values['http'][$bag] ?? null)) {
+                $values['http'][$bag] = $this->redactHeaders($values['http'][$bag]);
+            }
+        }
+
+        return $this->sanitizeForJsonEncoding(array_replace($payload, $values));
     }
 
     /**
@@ -71,7 +82,8 @@ trait RedactsSensitiveData
     }
 
     /**
-     * Flatten the given headers, redacting the sensitive ones.
+     * Flatten the given headers, redacting the sensitive ones and the sensitive query
+     * parameters of URL headers.
      *
      * @param array<array-key, mixed> $headers
      * @return array<array-key, string>
@@ -79,14 +91,19 @@ trait RedactsSensitiveData
     protected function redactHeaders(array $headers): array
     {
         $sensitive = $this->normalizeSensitiveKeys(config()->array('inertia.devtools.redact.headers', DevTools::DEFAULT_REDACT_HEADERS));
+        $keys = config()->array('inertia.devtools.redact.keys', DevTools::DEFAULT_REDACT_KEYS);
 
         return collect($headers)
-            ->map(function (mixed $value, int|string $name) use ($sensitive): string {
-                if (is_string($name) && in_array(strtolower($name), $sensitive, true)) {
+            ->map(function (mixed $value, int|string $name) use ($sensitive, $keys): string {
+                $header = strtolower((string) $name);
+
+                if (in_array($header, $sensitive, true)) {
                     return self::REDACTED;
                 }
 
-                return is_array($value) ? implode(', ', $value) : (string) $value;
+                $value = is_array($value) ? implode(', ', $value) : (string) $value;
+
+                return in_array($header, self::URL_HEADERS, true) ? $this->redactUrl($value, $keys) : $value;
             })
             ->all();
     }
@@ -143,81 +160,34 @@ trait RedactsSensitiveData
     }
 
     /**
-     * Redact sensitive query parameters, preserving scheme, host, path and fragment. The URL
-     * may be relative or malformed, so an unparseable value is returned unchanged rather
-     * than throwing: redaction must never break the recorder.
+     * Redact the values of sensitive query parameters. A parameter matches when its decoded
+     * name or any of its bracketed segments (e.g. `filter[secret]`) is a sensitive key. The
+     * query is not parsed and rebuilt, so every other byte of the URL is kept as recorded,
+     * and relative or malformed URLs are redacted the same way.
      *
-     * @param array<int, string> $keys
+     * @param array<array-key, mixed> $keys
      */
     protected function redactUrl(string $url, array $keys): string
     {
         $lowered = $this->normalizeSensitiveKeys($keys);
+        [$beforeFragment, $fragment] = array_pad(explode('#', $url, 2), 2, null);
 
-        if ($lowered === [] || ! str_contains($url, '?')) {
+        if ($lowered === [] || ! str_contains($beforeFragment, '?')) {
             return $url;
         }
 
-        try {
-            $uri = Uri::of($url);
-            $params = $uri->query()->all();
+        [$location, $query] = explode('?', $beforeFragment, 2);
 
-            if ($params === []) {
-                return $url;
-            }
+        $parameters = array_map(function (string $parameter) use ($lowered): string {
+            [$name, $value] = array_pad(explode('=', $parameter, 2), 2, null);
+            $segments = preg_split('/[\[\]]+/', strtolower(urldecode($name)), -1, PREG_SPLIT_NO_EMPTY) ?: [];
 
-            return $uri->withQuery($this->redactQueryParameters($params, $lowered), merge: false)->value();
-        } catch (Throwable) {
-            return $url;
-        }
-    }
+            return $value !== null && array_intersect($segments, $lowered) !== []
+                ? $name . '=' . rawurlencode(self::REDACTED)
+                : $parameter;
+        }, explode('&', $query));
 
-    /**
-     * Walk the parsed query parameters and replace the value of any sensitive key with the
-     * redacted marker. A sensitive key redacts its whole subtree; nested keys (e.g. from
-     * `filter[secret]`) are matched at their own depth.
-     *
-     * @param array<array-key, mixed> $params
-     * @param array<int, string> $loweredKeys
-     * @return array<array-key, mixed>
-     */
-    protected function redactQueryParameters(array $params, array $loweredKeys): array
-    {
-        $result = [];
-
-        foreach ($params as $key => $value) {
-            if (is_string($key) && in_array(strtolower($key), $loweredKeys, true)) {
-                $result[$key] = self::REDACTED;
-
-                continue;
-            }
-
-            $result[$key] = is_array($value) ? $this->redactQueryParameters($value, $loweredKeys) : $value;
-        }
-
-        return $result;
-    }
-
-    /**
-     * Redact the sensitive headers in every header bag in the data.
-     *
-     * @param array<array-key, mixed> $data
-     * @return array<array-key, mixed>
-     */
-    protected function redactHeaderBags(array $data): array
-    {
-        return collect($data)
-            ->map(function (mixed $value, int|string $key): mixed {
-                if (! is_array($value)) {
-                    return $value;
-                }
-
-                if (is_string($key) && in_array(strtolower($key), ['requestheaders', 'responseheaders'], true)) {
-                    return $this->redactHeaders($value);
-                }
-
-                return $this->redactHeaderBags($value);
-            })
-            ->all();
+        return $location . '?' . implode('&', $parameters) . ($fragment === null ? '' : '#' . $fragment);
     }
 
     /**
