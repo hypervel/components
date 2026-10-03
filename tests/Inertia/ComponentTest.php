@@ -229,14 +229,13 @@ class ComponentTest extends TestCase
         $this->assertStringNotContainsString('"component":"FirstPage"', $second);
     }
 
-    public function testInertiaStateDoesNotLeakBetweenRequests(): void
+    public function testSsrStateIsScopedAndDoesNotLeakBetweenRequests(): void
     {
         Config::set(['inertia.ssr.enabled' => true]);
 
         $state1 = InertiaState::current();
         $state1->page = self::EXAMPLE_PAGE_OBJECT;
-        $state1->ssrDispatched = true;
-        $state1->ssrResponse = app(Gateway::class)->dispatch($state1->page);
+        $state1->dispatchSsr();
 
         $this->assertNotNull($state1->ssrResponse);
 
