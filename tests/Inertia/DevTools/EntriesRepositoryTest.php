@@ -11,6 +11,7 @@ use Hypervel\Support\Str;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Inertia\TestCase;
 use InvalidArgumentException;
+use RuntimeException;
 
 class EntriesRepositoryTest extends TestCase
 {
@@ -218,6 +219,17 @@ class EntriesRepositoryTest extends TestCase
         }
     }
 
+    public function testSaveFailsWhenTheIndexCannotBeOpened(): void
+    {
+        mkdir($this->storagePath . DIRECTORY_SEPARATOR . '_meta.json', 0700, true);
+        $entry = $this->envelope();
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Unable to open the Inertia DevTools index');
+
+        $this->makeRepository()->save($entry['__meta']['id'], $entry);
+    }
+
     public function testAllReturnsEveryEntrySortedDescendingById(): void
     {
         $repo = $this->makeRepository();
@@ -258,6 +270,33 @@ class EntriesRepositoryTest extends TestCase
         $this->assertSame(array_slice($ids, -2), $remaining);
     }
 
+    public function testEnforceTabLimitLimitsEntriesWithoutATabAsOneGroup(): void
+    {
+        $repo = $this->makeRepository();
+
+        $untabbed = [];
+        for ($i = 0; $i < 3; ++$i) {
+            $id = (string) Str::ulid();
+            $untabbed[] = $id;
+            $repo->save($id, $this->envelope(['id' => $id, 'tabUuid' => null]));
+        }
+
+        $tabbed = $this->envelope(['tabUuid' => 'tab-a']);
+        $repo->save($tabbed['__meta']['id'], $tabbed);
+
+        sort($untabbed);
+
+        $repo->enforceTabLimit(null, 2);
+
+        $remaining = array_column($repo->all(), 'id');
+        sort($remaining);
+
+        $expected = [...array_slice($untabbed, -2), $tabbed['__meta']['id']];
+        sort($expected);
+
+        $this->assertSame($expected, $remaining);
+    }
+
     public function testPruneDropsEntriesOlderThanCutoff(): void
     {
         $repo = $this->makeRepository();
@@ -283,12 +322,13 @@ class EntriesRepositoryTest extends TestCase
 
         $this->assertNull($repo->get($old['__meta']['id']));
 
-        $fresh = $this->envelope();
-        $repo->save($fresh['__meta']['id'], $fresh);
+        // Expired too, so it survives only because the prune is skipped.
+        $skipped = $this->envelope(['utime' => microtime(true) - (48 * 3600)]);
+        $repo->save($skipped['__meta']['id'], $skipped);
         file_put_contents($this->storagePath . DIRECTORY_SEPARATOR . '_last_prune', (string) time(), LOCK_EX);
         $repo->pruneIfDue();
 
-        $this->assertNotNull($repo->get($fresh['__meta']['id']));
+        $this->assertNotNull($repo->get($skipped['__meta']['id']));
     }
 }
 

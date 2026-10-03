@@ -47,8 +47,8 @@ class RecorderResilienceTest extends TestCase
 
     public function testAMisconfiguredExceptListDoesNotBreakTheResponse(): void
     {
-        // Recording is a passive observer: a bad config value must drop the entry, not turn
-        // every request in the app into a 500.
+        // Recording is a passive observer: a bad config value must not turn every request in
+        // the app into a 500.
         config()->set('inertia.devtools.except', 'not-an-array');
 
         Route::middleware(Middleware::class)->get('/devtools-misconfigured', fn (): Response => Inertia::render('Users/Index', ['name' => 'Alice']));

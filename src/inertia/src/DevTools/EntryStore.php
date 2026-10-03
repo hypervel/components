@@ -66,12 +66,10 @@ class EntryStore
         try {
             $repo->save($entry->id, $this->redactSensitiveStoragePayload($entry->toArray()));
 
-            if ($entry->tabUuid !== null) {
-                $limit = config()->integer('inertia.devtools.storage.limit', 100);
+            $limit = config()->integer('inertia.devtools.storage.limit', 100);
 
-                if ($limit > 0) {
-                    $repo->enforceTabLimit($entry->tabUuid, $limit);
-                }
+            if ($limit > 0) {
+                $repo->enforceTabLimit($entry->tabUuid, $limit);
             }
 
             // Pruning shares the storage directory, so a storage failure here must trip the
@@ -80,11 +78,18 @@ class EntryStore
 
             static::$suppressedUntil = null;
         } catch (Throwable $e) {
-            if (static::$suppressedUntil === null) {
-                Log::warning('Inertia DevTools: failed to persist entry: ' . $e->getMessage());
-            }
+            $firstFailure = static::$suppressedUntil === null;
 
             static::$suppressedUntil = microtime(true) + self::SUPPRESS_SECONDS;
+
+            if ($firstFailure) {
+                try {
+                    Log::warning('Inertia DevTools: failed to persist entry: ' . $e->getMessage());
+                } catch (Throwable) {
+                    // The log often shares the failing storage, such as a full disk, and
+                    // recording must still never break the response.
+                }
+            }
         }
     }
 

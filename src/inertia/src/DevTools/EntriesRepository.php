@@ -7,6 +7,7 @@ namespace Hypervel\Inertia\DevTools;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
+use RuntimeException;
 use Throwable;
 
 class EntriesRepository
@@ -100,9 +101,11 @@ class EntriesRepository
     }
 
     /**
-     * Delete all but the given number of newest entries for the tab.
+     * Delete all but the given number of newest entries for the tab. Entries recorded without
+     * a tab, such as initial page loads and requests made without the extension, are limited
+     * as one group.
      */
-    public function enforceTabLimit(string $tabUuid, int $limit): void
+    public function enforceTabLimit(?string $tabUuid, int $limit): void
     {
         if ($limit <= 0 || ! $this->files->isDirectory($this->path)) {
             return;
@@ -239,7 +242,7 @@ class EntriesRepository
      */
     protected function rebuildIndexFromFiles(): array
     {
-        $index = null;
+        $index = [];
 
         // Rebuild under the index lock, where mutateIndex() reseeds a missing or corrupt index
         // from the entry files, so recovery cannot overwrite an entry saved since the read.
@@ -247,7 +250,7 @@ class EntriesRepository
             return $index = $current;
         });
 
-        return $index ?? $this->metaFromFiles();
+        return $index;
     }
 
     /**
@@ -288,15 +291,17 @@ class EntriesRepository
     {
         $this->ensureDirectory();
 
+        // An index that cannot be updated would hide every entry saved since, and leave their
+        // files outside pruning, so the failure reaches the entry store's breaker and log.
         $handle = @fopen($this->indexPath(), 'c+');
 
         if ($handle === false) {
-            return;
+            throw new RuntimeException("Unable to open the Inertia DevTools index [{$this->indexPath()}].");
         }
 
         try {
             if (! flock($handle, LOCK_EX)) {
-                return;
+                throw new RuntimeException("Unable to lock the Inertia DevTools index [{$this->indexPath()}].");
             }
 
             $contents = stream_get_contents($handle);

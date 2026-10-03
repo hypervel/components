@@ -68,7 +68,7 @@ class EntryStoreTest extends TestCase
         $this->assertSame([['tabUuid' => 'tab-a', 'limit' => 12]], $repo->tabLimitCalls);
     }
 
-    public function testFlushSkipsTabLimitEnforcementForEntriesWithoutTabId(): void
+    public function testFlushLimitsEntriesWithoutTabIdUnlessTheLimitIsDisabled(): void
     {
         config()->set('inertia.devtools.storage.limit', 12);
 
@@ -78,7 +78,14 @@ class EntryStoreTest extends TestCase
         $recorder->record(new IncomingEntry);
         $recorder->flush($repo);
 
-        $this->assertSame([], $repo->tabLimitCalls);
+        $this->assertSame([['tabUuid' => null, 'limit' => 12]], $repo->tabLimitCalls);
+
+        config()->set('inertia.devtools.storage.limit', 0);
+
+        $recorder->record(new IncomingEntry);
+        $recorder->flush($repo);
+
+        $this->assertCount(1, $repo->tabLimitCalls);
     }
 
     public function testCircuitBreakerSuppressesAfterRepositoryError(): void
@@ -98,6 +105,22 @@ class EntryStoreTest extends TestCase
 
         $this->assertSame(1, $failing->calls, 'Second flush should be suppressed by circuit breaker.');
     }
+
+    public function testCircuitBreakerSuppressesWhenLoggingTheFailureAlsoFails(): void
+    {
+        Log::shouldReceive('warning')->once()->andThrow(new RuntimeException('log disk full'));
+
+        $recorder = new EntryStore;
+        $failing = new FailingEntriesRepository;
+
+        $recorder->record(new IncomingEntry);
+        $recorder->flush($failing);
+
+        $recorder->record(new IncomingEntry);
+        $recorder->flush($failing);
+
+        $this->assertSame(1, $failing->calls, 'Second flush should be suppressed by circuit breaker.');
+    }
 }
 
 /**
@@ -108,7 +131,7 @@ class RecorderSpyRepo extends EntriesRepository
     /** @var array<string, array<string, mixed>> */
     public array $saved = [];
 
-    /** @var array<int, array{tabUuid: string, limit: int}> */
+    /** @var array<int, array{tabUuid: ?string, limit: int}> */
     public array $tabLimitCalls = [];
 
     public int $pruneCalls = 0;
@@ -133,7 +156,7 @@ class RecorderSpyRepo extends EntriesRepository
     /**
      * Record the tab limit enforcement.
      */
-    public function enforceTabLimit(string $tabUuid, int $limit): void
+    public function enforceTabLimit(?string $tabUuid, int $limit): void
     {
         $this->tabLimitCalls[] = ['tabUuid' => $tabUuid, 'limit' => $limit];
     }
