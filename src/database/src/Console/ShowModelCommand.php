@@ -12,6 +12,7 @@ use Hypervel\Database\Eloquent\ModelInfo;
 use Hypervel\Database\Eloquent\ModelInspector;
 use Hypervel\Support\Collection;
 use Symfony\Component\Console\Attribute\AsCommand;
+use Symfony\Component\Console\Formatter\OutputFormatter;
 use Symfony\Component\Console\Output\OutputInterface;
 
 use function Hypervel\Prompts\suggest;
@@ -69,8 +70,10 @@ class ShowModelCommand extends DatabaseInspectionCommand implements PromptsForMi
      */
     protected function displayJson(ModelInfo $modelData): void
     {
+        // Formatting would strip console style tags, and backslashes before < or >, from attribute defaults.
         $this->output->writeln(
-            (new Collection($modelData))->toJson()
+            (new Collection($modelData))->toJson(),
+            OutputInterface::OUTPUT_RAW
         );
     }
 
@@ -115,7 +118,7 @@ class ShowModelCommand extends DatabaseInspectionCommand implements PromptsForMi
 
             if ($attribute['default'] !== null) {
                 $this->components->bulletList(
-                    [sprintf('default: %s', $attribute['default'])],
+                    [OutputFormatter::escape(sprintf('default: %s', $attribute['default']))],
                     OutputInterface::VERBOSITY_VERBOSE
                 );
             }

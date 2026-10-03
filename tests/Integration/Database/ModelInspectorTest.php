@@ -65,6 +65,18 @@ class ModelInspectorTest extends DatabaseTestCase
         $this->assertModelInfo($modelInfo);
     }
 
+    public function testCommandPreservesAttributeDefaults(): void
+    {
+        $this->artisan('model:show', ['model' => ModelInspectorTestModelWithDefault::class, '--json' => true]);
+        $modelInfo = json_decode(Artisan::output(), true, flags: JSON_THROW_ON_ERROR);
+
+        $this->assertSame('<info>Pending</info> a\>b', $modelInfo['attributes'][2]['default']);
+
+        $this->artisan('model:show', ['model' => ModelInspectorTestModelWithDefault::class, '-v' => true]);
+
+        $this->assertStringContainsString('default: <info>Pending</info> a\>b', Artisan::output());
+    }
+
     /**
      * Assert the extracted model details.
      */
@@ -231,6 +243,13 @@ class ParentTestModel extends Model
     public ?string $table = 'parent_test_models';
 
     public bool $timestamps = false;
+}
+
+class ModelInspectorTestModelWithDefault extends Model
+{
+    public ?string $table = 'model_info_extractor_test_model';
+
+    protected array $attributes = ['name' => '<info>Pending</info> a\>b'];
 }
 
 class ModelInspectorTestModelObserver
