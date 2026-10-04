@@ -740,7 +740,7 @@ class MaxStringLengthRuleInferrer implements RuleInferrer
 }
 ```
 
-Validation attributes take precedence over inferred rules of the same type. Inferrers are resolved from the container for each validation, so they may depend on scoped services.
+Validation attributes take precedence over inferred rules of the same type. Rules written in a `Rule` attribute, such as `#[Rule('required|string')]`, count as the matching attributes, so they replace inferred rules too and inferrers see them by type. Inferrers are resolved from the container for each validation, so they may depend on scoped services.
 
 The validator receives the complete input, so rules may refer to fields that are not data properties, such as the `password_confirmation` field read by `Confirmed` or a field used by `required_if`.
 

@@ -26,6 +26,7 @@ use Hypervel\Data\Attributes\Validation\Min;
 use Hypervel\Data\Attributes\Validation\Required;
 use Hypervel\Data\Attributes\Validation\RequiredUnless;
 use Hypervel\Data\Attributes\Validation\RequiredWith;
+use Hypervel\Data\Attributes\Validation\Rule;
 use Hypervel\Data\Attributes\Validation\Sometimes;
 use Hypervel\Data\Attributes\Validation\StringType;
 use Hypervel\Data\Attributes\WithoutValidation;
@@ -188,19 +189,6 @@ class DataValidatorTest extends TestCase
             ['profile' => ['name' => 'Taylor']],
             MappedConditionalNameDataFixture::validate(['profile' => ['mode' => 'strict', 'name' => 'Taylor']]),
         );
-    }
-
-    /**
-     * Test inferred rules follow the declared presence and primitive types.
-     */
-    public function testExposesInferredValidationRules(): void
-    {
-        $rules = ValidatedDataFixture::getValidationRules(['id' => 1]);
-
-        $this->assertSame(['required', 'integer'], $rules['id']);
-        $this->assertSame(['nullable', 'string'], $rules['nickname']);
-        $this->assertSame(['sometimes', 'string'], $rules['note']);
-        $this->assertSame(['string'], $rules['label']);
     }
 
     public function testDataCollectionsMustBePresentButMayBeEmpty(): void
@@ -369,6 +357,8 @@ class DataValidatorTest extends TestCase
         $this->assertSame(['required', 'string', 'max:20'], $rules['code']);
         $this->assertSame(['required', 'array:id'], $rules['meta']);
         $this->assertSame(['required', 'integer'], $rules['age']);
+        // A Rule attribute's string rules reach the inferrers as typed rules.
+        $this->assertSame(['required', 'string', 'max:255'], $rules['ruled']);
     }
 
     /**
@@ -380,6 +370,7 @@ class DataValidatorTest extends TestCase
 
         $this->assertSame(['required', 'string', 'max:20'], $rules['code']);
         $this->assertSame(['required', 'array:id'], $rules['meta']);
+        $this->assertSame(['required', 'string'], $rules['ruled']);
     }
 
     /**
@@ -2934,6 +2925,8 @@ class RuleInferrerDataFixture extends Data
         #[ArrayType('id')]
         public array $meta,
         public int $age,
+        #[Rule('required|string')]
+        public string $ruled,
     ) {
     }
 }

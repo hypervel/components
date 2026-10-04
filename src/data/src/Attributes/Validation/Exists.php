@@ -101,6 +101,11 @@ class Exists extends ObjectValidationAttribute
      */
     public static function create(string ...$parameters): static
     {
+        // Additional where conditions stay in the original rule string.
+        if (count($parameters) > 2) {
+            throw CannotBuildValidationRule::create('Could not make an exists rule from more than a table and column.');
+        }
+
         return new static(rule: new BaseExists($parameters[0], $parameters[1] ?? 'NULL'));
     }
 }

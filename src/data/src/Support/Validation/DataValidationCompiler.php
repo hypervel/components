@@ -15,6 +15,7 @@ use Hypervel\Data\Attributes\Validation\Nullable;
 use Hypervel\Data\Attributes\Validation\Numeric;
 use Hypervel\Data\Attributes\Validation\Present;
 use Hypervel\Data\Attributes\Validation\Required;
+use Hypervel\Data\Attributes\Validation\Rule;
 use Hypervel\Data\Attributes\Validation\Sometimes;
 use Hypervel\Data\Attributes\Validation\StringType;
 use Hypervel\Data\Attributes\Validation\ValidationAttribute;
@@ -79,6 +80,7 @@ class DataValidationCompiler
         protected readonly DataClassRepository $dataClasses,
         protected readonly Container $container,
         protected readonly RuleDenormalizer $ruleDenormalizer,
+        protected readonly RuleNormalizer $ruleNormalizer,
         protected readonly DataConfig $config,
     ) {
     }
@@ -655,7 +657,14 @@ class DataValidationCompiler
         $attributes = [];
 
         foreach ($property->attributes->all(ValidationRule::class) as $recipe) {
-            $attributes[] = $recipe->newInstance();
+            $attribute = $recipe->newInstance();
+
+            // A Rule attribute's rules become typed attributes where possible, so they replace inferred rules of their type.
+            if ($attribute instanceof Rule) {
+                array_push($attributes, ...$this->ruleNormalizer->execute($attribute));
+            } else {
+                $attributes[] = $attribute;
+            }
         }
 
         $generatedRules = null;
