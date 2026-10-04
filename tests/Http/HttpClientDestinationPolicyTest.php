@@ -11,6 +11,8 @@ use GuzzleHttp\Psr7\Response as Psr7Response;
 use GuzzleHttp\TransferStats;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Http\Client\ConnectionException;
+use Hypervel\Http\Client\Destinations\CurlCapabilities;
+use Hypervel\Http\Client\Destinations\DestinationPolicyException;
 use Hypervel\Http\Client\Destinations\DestinationResolutionException;
 use Hypervel\Http\Client\Destinations\DisallowedDestinationException;
 use Hypervel\Http\Client\Destinations\ProxyConnectionException;
@@ -22,6 +24,7 @@ use Hypervel\Tests\Http\Fixtures\FakeDestinationPolicy;
 use Hypervel\Tests\Http\Fixtures\LoopbackHttpServer;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use ReflectionProperty;
 use Swoole\Coroutine\Socket;
 use Throwable;
 
@@ -326,6 +329,34 @@ class HttpClientDestinationPolicyTest extends TestCase
 
         $this->assertInstanceOf(DisallowedDestinationException::class, $exception);
         $this->assertCount(1, $policy->urls);
+        $this->assertSame(0, $decisions);
+    }
+
+    #[DataProvider('sendModes')]
+    public function testMissingCurlCapabilitiesAreNeverRetried(bool $async): void
+    {
+        (new ReflectionProperty(CurlCapabilities::class, 'versionInfo'))->setValue(null, [
+            'version' => '7.74.0',
+            'features' => CURL_VERSION_SSL,
+        ]);
+
+        $attempts = 0;
+        $decisions = 0;
+        $request = $this->factory()
+            ->withDestinationPolicy($this->loopbackPolicy('destination.invalid'))
+            ->beforeSending(static function () use (&$attempts): void {
+                ++$attempts;
+            })
+            ->retry(3, when: static function () use (&$decisions): bool {
+                ++$decisions;
+
+                return true;
+            });
+
+        $exception = $this->failure($request, 'http://destination.invalid/', $async);
+
+        $this->assertInstanceOf(DestinationPolicyException::class, $exception);
+        $this->assertSame(1, $attempts);
         $this->assertSame(0, $decisions);
     }
 

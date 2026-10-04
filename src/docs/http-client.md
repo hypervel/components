@@ -1065,6 +1065,8 @@ If the proxy cannot be resolved or refuses the connection, a `Hypervel\Http\Clie
 
 Pinning relies on Guzzle's cURL handler and libcurl 7.75 or newer. For this reason, restricted requests may not use the `stream` option, set their own `proxy` or raw `curl` options, or use a custom handler from the `setHandler` method; such requests throw a `DisallowedDestinationException`. To write a large response to a file, use the `sink` method instead of streaming it.
 
+If the installed cURL transport lacks a required capability, a `Hypervel\Http\Client\Destinations\DestinationPolicyException` is thrown. These failures are never retried, and your retry callback is not called, because another attempt cannot change the installed transport.
+
 A client supplied using the `setClient` method owns its whole handler stack, so the policy does not apply to its requests. Faked requests never reach the policy either, so `Http::fake()` works as usual in your tests.
 
 If you extend the HTTP client factory to replace its connection handler, your transport must honor the policy's cURL pinning options. A transport that ignores those options bypasses destination enforcement.

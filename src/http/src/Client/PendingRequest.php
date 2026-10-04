@@ -1060,8 +1060,8 @@ class PendingRequest implements Transient
                 throw $e;
             }
         }, $this->retryDelay, function ($exception) use (&$shouldRetry) {
-            // A disallowed destination is rejected the same way on every attempt.
-            $result = $shouldRetry ?? (! $exception instanceof DisallowedDestinationException && ($this->retryWhenCallback ? call_user_func( // @phpstan-ignore nullCoalesce.variable ($shouldRetry is set by the retry callback closure via shared &$ref)
+            // Destination rejections and missing cURL capabilities fail the same way on every attempt.
+            $result = $shouldRetry ?? (! $exception instanceof DisallowedDestinationException && ! $exception instanceof DestinationPolicyException && ($this->retryWhenCallback ? call_user_func( // @phpstan-ignore nullCoalesce.variable ($shouldRetry is set by the retry callback closure via shared &$ref)
                 $this->retryWhenCallback,
                 $exception,
                 $this,
@@ -1231,8 +1231,8 @@ class PendingRequest implements Transient
         try {
             $exception = $response instanceof Response ? $response->toException() : $response;
 
-            // A disallowed destination is rejected the same way on every attempt.
-            $shouldRetry = ! $exception instanceof DisallowedDestinationException && ($this->retryWhenCallback ? call_user_func(
+            // Destination rejections and missing cURL capabilities fail the same way on every attempt.
+            $shouldRetry = ! $exception instanceof DisallowedDestinationException && ! $exception instanceof DestinationPolicyException && ($this->retryWhenCallback ? call_user_func(
                 $this->retryWhenCallback,
                 $exception,
                 $this,
