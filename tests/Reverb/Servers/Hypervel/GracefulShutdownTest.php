@@ -201,7 +201,7 @@ class GracefulShutdownTest extends ReverbTestCase
 
     // ── Webhook flush ─────────────────────────────────────────────────
 
-    public function testFlushWebhookBuffersSchedulesFlushJob(): void
+    public function testScheduleWebhookFlushesDispatchesWhenTheBufferGrantsIt(): void
     {
         Queue::fake([FlushWebhookBatchJob::class]);
 
@@ -212,30 +212,29 @@ class GracefulShutdownTest extends ReverbTestCase
         config()->set('reverb.apps.apps.0.webhooks', $webhooks);
 
         $buffer = m::mock(WebhookBatchBuffer::class);
-        $buffer->shouldReceive('clearFlushLock')->once();
-        $buffer->shouldReceive('hasRemaining')->andReturn(true);
+        $buffer->shouldReceive('shouldScheduleFlush')->once()->andReturnTrue();
         $this->app->instance(WebhookBatchBuffer::class, $buffer);
 
         $provider = $this->app->getProvider(ReverbServiceProvider::class);
-        $method = new ReflectionMethod($provider, 'flushWebhookBuffers');
+        $method = new ReflectionMethod($provider, 'scheduleWebhookFlushes');
         $method->invoke($provider);
 
         Queue::assertPushed(FlushWebhookBatchJob::class);
     }
 
-    public function testFlushWebhookBuffersSkipsWhenNoBatching(): void
+    public function testScheduleWebhookFlushesSkipsWhenNoBatching(): void
     {
         Queue::fake([FlushWebhookBatchJob::class]);
 
         // Default config disables batching.
         $provider = $this->app->getProvider(ReverbServiceProvider::class);
-        $method = new ReflectionMethod($provider, 'flushWebhookBuffers');
+        $method = new ReflectionMethod($provider, 'scheduleWebhookFlushes');
         $method->invoke($provider);
 
         Queue::assertNotPushed(FlushWebhookBatchJob::class);
     }
 
-    public function testFlushWebhookBuffersSkipsWhenBufferEmpty(): void
+    public function testScheduleWebhookFlushesSkipsWhenTheBufferRefuses(): void
     {
         Queue::fake([FlushWebhookBatchJob::class]);
 
@@ -246,12 +245,11 @@ class GracefulShutdownTest extends ReverbTestCase
         config()->set('reverb.apps.apps.0.webhooks', $webhooks);
 
         $buffer = m::mock(WebhookBatchBuffer::class);
-        $buffer->shouldReceive('clearFlushLock')->once();
-        $buffer->shouldReceive('hasRemaining')->andReturn(false);
+        $buffer->shouldReceive('shouldScheduleFlush')->once()->andReturnFalse();
         $this->app->instance(WebhookBatchBuffer::class, $buffer);
 
         $provider = $this->app->getProvider(ReverbServiceProvider::class);
-        $method = new ReflectionMethod($provider, 'flushWebhookBuffers');
+        $method = new ReflectionMethod($provider, 'scheduleWebhookFlushes');
         $method->invoke($provider);
 
         Queue::assertNotPushed(FlushWebhookBatchJob::class);
@@ -433,7 +431,7 @@ class GracefulShutdownServiceProviderProbe extends ReverbServiceProvider
         $this->fail('subscriber');
     }
 
-    protected function flushWebhookBuffers(): void
+    protected function scheduleWebhookFlushes(): void
     {
         $this->fail('webhooks');
     }

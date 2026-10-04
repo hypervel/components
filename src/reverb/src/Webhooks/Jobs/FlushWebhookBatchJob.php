@@ -9,9 +9,8 @@ use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Foundation\Bus\Dispatchable;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Reverb\Contracts\ApplicationProvider;
+use Hypervel\Reverb\Webhooks\Contracts\WebhookSender;
 use Hypervel\Reverb\Webhooks\WebhookBatchBuffer;
-use Hypervel\Reverb\Webhooks\WebhookPayload;
-use Hypervel\Support\Str;
 
 class FlushWebhookBatchJob implements ShouldQueue
 {
@@ -33,7 +32,7 @@ class FlushWebhookBatchJob implements ShouldQueue
     /**
      * Execute the job.
      */
-    public function handle(WebhookBatchBuffer $buffer): void
+    public function handle(WebhookBatchBuffer $buffer, WebhookSender $sender): void
     {
         // Clear the debounce lock at the START so new events arriving
         // during this flush can schedule a new flush job. This is correct:
@@ -44,38 +43,22 @@ class FlushWebhookBatchJob implements ShouldQueue
         $maxEvents = $config['batching']['max_events'];
         $maxBytes = $config['batching']['max_payload_bytes'];
 
-        // Claim events atomically — moves them from buffer to processing hash.
-        // If claim returns empty, either the buffer is empty or another flush
-        // is in-flight (processing key exists). Either way, nothing to do.
-        // If the job crashes after claiming, the processing hash retains the
-        // events with a timestamp — recoverStaleProcessingKeys() handles recovery.
-        $events = $buffer->claim($this->appId, $maxEvents, $maxBytes);
+        // Claim a batch atomically — moves events from the buffer to the processing
+        // hash. Null means the buffer is empty or another flush holds a current
+        // claim. If this job dies after claiming, a later flush takes the batch
+        // over with the same webhook ID once the claim times out.
+        $batch = $buffer->claim($this->appId, $maxEvents, $maxBytes);
 
-        if (empty($events)) {
+        if ($batch === null) {
             return;
         }
 
         $application = app(ApplicationProvider::class)->findById($this->appId);
 
-        $payload = new WebhookPayload(
-            webhookId: (string) Str::orderedUuid(),
-            timeMs: (int) (microtime(true) * 1000),
-            events: $events,
-        );
+        $sender->send($application, $config, $batch['payload']);
 
-        WebhookDeliveryJob::dispatch(
-            $payload,
-            $config['url'],
-            $application->key(),
-            $application->secret(),
-            $config['retries'],
-            $config['retry_delay'],
-            $config['timeout'],
-            $config['headers'],
-        );
-
-        // Acknowledge — delete the processing key now that delivery is queued
-        $buffer->acknowledge($this->appId);
+        // A flush that took the batch over owns it now, so this only deletes our own claim.
+        $buffer->acknowledge($this->appId, $batch['token']);
 
         // If more events remain in the buffer, schedule another flush immediately
         if ($buffer->hasRemaining($this->appId)) {

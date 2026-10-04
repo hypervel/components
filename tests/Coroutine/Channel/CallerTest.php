@@ -81,6 +81,48 @@ class CallerTest extends TestCase
         });
     }
 
+    public function testPooledFalseStaysUsableAfterAnotherCallTimesOut(): void
+    {
+        $caller = new Caller(static fn (): bool => false, 0.001);
+        $release = new Channel(1);
+        $held = new Channel(1);
+        $calls = 0;
+
+        $holderId = go(static function () use ($caller, $release, $held): void {
+            $held->push(['value' => $caller->call(static function (bool $instance) use ($release): bool {
+                $release->pop();
+
+                return $instance;
+            })]);
+        });
+
+        try {
+            try {
+                $caller->call(static function () use (&$calls): void {
+                    ++$calls;
+                });
+                $this->fail('Expected the call to time out while the pooled value is held.');
+            } catch (WaitTimeoutException) {
+            }
+
+            $release->push(true);
+
+            $this->assertSame(['value' => false], $held->pop(1));
+            $this->assertSame(0, $calls);
+
+            // A successful pop of false must not be mistaken for the earlier timeout.
+            $this->assertSame(['ran' => false], $caller->call(static fn (bool $instance): array => ['ran' => $instance]));
+            $this->assertSame(['ran' => false], $caller->call(static fn (bool $instance): array => ['ran' => $instance]));
+        } finally {
+            $release->push(true, 0.001);
+
+            if (Coroutine::exists($holderId)) {
+                EngineCoroutine::cancelById($holderId, throwException: true);
+                Coroutine::join([$holderId], 1);
+            }
+        }
+    }
+
     #[TestWith([false])]
     #[TestWith([true])]
     public function testCanceledWaiterRunsNoClosureAndLeavesTheInstanceUsable(bool $throwException): void

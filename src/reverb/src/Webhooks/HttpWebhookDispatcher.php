@@ -8,8 +8,8 @@ use Hypervel\Reverb\Application;
 use Hypervel\Reverb\Contracts\Connection;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelManager;
 use Hypervel\Reverb\Webhooks\Contracts\WebhookDispatcher;
+use Hypervel\Reverb\Webhooks\Contracts\WebhookSender;
 use Hypervel\Reverb\Webhooks\Jobs\FlushWebhookBatchJob;
-use Hypervel\Reverb\Webhooks\Jobs\WebhookDeliveryJob;
 use Hypervel\Support\Str;
 use Throwable;
 
@@ -78,16 +78,7 @@ class HttpWebhookDispatcher implements WebhookDispatcher
                 events: [$eventData],
             );
 
-            WebhookDeliveryJob::dispatch(
-                $payload,
-                $webhooks['url'],
-                $application->key(),
-                $application->secret(),
-                $webhooks['retries'],
-                $webhooks['retry_delay'],
-                $webhooks['timeout'],
-                $webhooks['headers'],
-            );
+            app(WebhookSender::class)->send($application, $webhooks, $payload);
         }
     }
 

@@ -6,10 +6,12 @@ namespace Hypervel\Tests\Reverb\Webhooks;
 
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcher;
 use Hypervel\Reverb\Application;
+use Hypervel\Reverb\Webhooks\Contracts\WebhookSender;
 use Hypervel\Reverb\Webhooks\HttpWebhookDispatcher;
 use Hypervel\Reverb\Webhooks\Jobs\FlushWebhookBatchJob;
 use Hypervel\Reverb\Webhooks\Jobs\WebhookDeliveryJob;
 use Hypervel\Reverb\Webhooks\WebhookBatchBuffer;
+use Hypervel\Reverb\Webhooks\WebhookPayload;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 use Mockery as m;
@@ -446,6 +448,29 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
         $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'test-channel']);
 
         Queue::assertPushed(WebhookDeliveryJob::class);
+    }
+
+    public function testImmediateWebhooksAreHandedToTheBoundSender(): void
+    {
+        Queue::fake();
+
+        $app = $this->makeApp(webhooks: array_replace($this->webhookConfig(), [
+            'url' => 'https://example.com/webhook',
+            'events' => ['channel_occupied'],
+        ]));
+        $sender = m::mock(WebhookSender::class);
+        $sender->expects('send')->with(
+            $app,
+            $app->webhooks(),
+            m::on(static fn (WebhookPayload $payload): bool => $payload->events === [
+                ['name' => 'channel_occupied', 'channel' => 'test-channel'],
+            ]),
+        );
+        $this->app->instance(WebhookSender::class, $sender);
+
+        (new HttpWebhookDispatcher)->dispatch($app, 'channel_occupied', ['channel' => 'test-channel']);
+
+        Queue::assertNotPushed(WebhookDeliveryJob::class);
     }
 
     public function testSubscriptionCountEventIncludesCountInPayload(): void
