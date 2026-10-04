@@ -58,7 +58,7 @@ class Processor
      * Process the results of a tables query.
      *
      * @param list<array<string, mixed>> $results
-     * @return list<array{name: string, schema: null|string, schema_qualified_name: string, size: null|int, comment: null|string, collation: null|string, engine: null|string}>
+     * @return list<array{name: string, schema: null|string, schema_qualified_name: string, size: null|int, comment: null|string, collation: null|string, engine: null|string, partition_of: null|string}>
      */
     public function processTables(array $results): array
     {
@@ -73,6 +73,7 @@ class Processor
                 'comment' => $result->comment ?? null, // MySQL and PostgreSQL
                 'collation' => $result->collation ?? null, // MySQL only
                 'engine' => $result->engine ?? null, // MySQL only
+                'partition_of' => $result->partition_of ?? null, // PostgreSQL only
             ];
         }, $results);
     }
@@ -139,5 +140,25 @@ class Processor
     public function processForeignKeys(array $results): array
     {
         return $results;
+    }
+
+    /**
+     * Process the results of a partitions query.
+     *
+     * @param list<array<string, mixed>> $results
+     * @return list<array{name: string, schema: string, schema_qualified_name: string, bounds: string}>
+     */
+    public function processPartitions(array $results): array
+    {
+        return array_map(function ($result) {
+            $result = (object) $result;
+
+            return [
+                'name' => $result->name,
+                'schema' => $result->schema,
+                'schema_qualified_name' => $result->schema . '.' . $result->name,
+                'bounds' => $result->bounds,
+            ];
+        }, $results);
     }
 }

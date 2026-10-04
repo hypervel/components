@@ -6,7 +6,6 @@ namespace Hypervel\Queue\Middleware;
 
 use DateInterval;
 use DateTimeInterface;
-use Hypervel\Cache\CacheManager;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Support\InteractsWithTime;
@@ -41,6 +40,11 @@ class WithoutOverlapping
     public bool $shareKey = false;
 
     /**
+     * The cache store that should hold the lock.
+     */
+    protected ?string $storeName = null;
+
+    /**
      * Create a new middleware instance.
      *
      * @param int|string|UnitEnum $key the job's unique key used for preventing overlaps
@@ -61,14 +65,10 @@ class WithoutOverlapping
      */
     public function handle(mixed $job, callable $next): mixed
     {
-        /** @var CacheManager $cache */
-        $cache = Container::getInstance()
-            ->make(CacheFactory::class);
-
-        $lock = $cache->lock(
-            $this->getLockKey($job),
-            $this->expiresAfter
-        );
+        $lock = Container::getInstance()
+            ->make(CacheFactory::class)
+            ->store($this->storeName)
+            ->lock($this->getLockKey($job), $this->expiresAfter); // @phpstan-ignore method.notFound (lock() is on LockProvider, which concrete stores implement)
 
         if ($lock->get()) {
             try {
@@ -129,6 +129,16 @@ class WithoutOverlapping
     public function shared(): static
     {
         $this->shareKey = true;
+
+        return $this;
+    }
+
+    /**
+     * Specify the cache store that should hold the lock.
+     */
+    public function store(UnitEnum|string $store): static
+    {
+        $this->storeName = (string) enum_value($store);
 
         return $this;
     }

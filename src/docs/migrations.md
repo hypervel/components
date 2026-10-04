@@ -10,6 +10,7 @@
     - [Creating Tables](#creating-tables)
     - [Updating Tables](#updating-tables)
     - [Renaming / Dropping Tables](#renaming-and-dropping-tables)
+    - [Partitioning Tables](#partitioning-tables)
 - [Columns](#columns)
     - [Creating Columns](#creating-columns)
     - [Available Column Types](#available-column-types)
@@ -486,6 +487,50 @@ Schema::dropIfExists('users');
 
 Before renaming a table, you should verify that any foreign key constraints on the table have an explicit name in your migration files instead of letting Hypervel assign a convention based name. Otherwise, the foreign key constraint name will refer to the old table name.
 
+<a name="partitioning-tables"></a>
+### Partitioning Tables
+
+PostgreSQL can split a large table into partitions, each holding a range of its rows. Your queries still use the table itself, but old data can be removed by dropping a whole partition instead of deleting rows one at a time, which is much faster and leaves no bloat behind. This makes partitioning a good fit for large, append-heavy tables such as logs and event histories. Range partitioning requires PostgreSQL 10 or later; primary keys and unique indexes on the partitioned table, as in the example below, require PostgreSQL 11 or later.
+
+To partition a table, call the `partitionByRange` method with the columns that decide which partition each row belongs to. The table's primary key and unique indexes must include all of these columns:
+
+```php
+Schema::create('events', function (Blueprint $table) {
+    $table->id();
+    $table->string('type');
+    $table->timestamp('created_at');
+
+    $table->primary(['id', 'created_at']);
+    $table->partitionByRange('created_at');
+});
+```
+
+A row can only be stored once a partition covers it, so create partitions ahead of time using the `createRangePartition` method. Each bound lists one value per partition column. The lower bound is inclusive and the upper bound is exclusive:
+
+```php
+Schema::createRangePartition('events', 'events_2026_10', from: ['2026-10-01'], to: ['2026-11-01']);
+```
+
+The `getPartitions` method returns a table's partitions and their bounds. The `getTables` method lists partitions as well, and the `partition_of` key of each partition contains the schema-qualified name of the table it belongs to:
+
+```php
+$partitions = Schema::getPartitions('events');
+
+// [['name' => 'events_2026_10', 'schema' => 'public', 'schema_qualified_name' => 'public.events_2026_10', 'bounds' => "FOR VALUES FROM ('2026-10-01 00:00:00') TO ('2026-11-01 00:00:00')"]]
+```
+
+A partition is a table of its own, so you may drop it, along with all of its rows, using the `drop` method. Dropping a partition briefly locks the whole partitioned table, so it waits for any queries that are using the table. To avoid waiting behind a long-running query, set a lock timeout in the same transaction. If the timeout passes, the drop fails and leaves the partition in place, so you may try again later:
+
+```php
+use Hypervel\Support\Facades\DB;
+
+DB::transaction(function () {
+    DB::statement("set local lock_timeout = '5s'");
+
+    Schema::drop('events_2026_01');
+});
+```
+
 <a name="columns"></a>
 ## Columns
 
@@ -604,6 +649,8 @@ The schema builder blueprint offers a variety of methods that correspond to the 
 <div class="collection-method-list" markdown="1">
 
 [binary](#column-method-binary)
+[longBinary](#column-method-longBinary)
+[mediumBinary](#column-method-mediumBinary)
 
 </div>
 
@@ -706,6 +753,8 @@ $table->binary('data', length: 16); // VARBINARY(16)
 
 $table->binary('data', length: 16, fixed: true); // BINARY(16)
 ```
+
+On MySQL and MariaDB, a `BLOB` column holds up to 64 KB. Use the [mediumBinary](#column-method-mediumBinary) or [longBinary](#column-method-longBinary) methods for larger values.
 
 <a name="column-method-boolean"></a>
 #### `boolean()` {.collection-method}
@@ -934,6 +983,15 @@ $table->jsonb('options');
 
 When using SQLite, a `TEXT` column will be created.
 
+<a name="column-method-longBinary"></a>
+#### `longBinary()` {.collection-method}
+
+The `longBinary` method creates a `LONGBLOB` equivalent column, which holds up to 4 GB on MySQL and MariaDB:
+
+```php
+$table->longBinary('archive');
+```
+
 <a name="column-method-longText"></a>
 #### `longText()` {.collection-method}
 
@@ -943,11 +1001,7 @@ The `longText` method creates a `LONGTEXT` equivalent column:
 $table->longText('description');
 ```
 
-When utilizing MySQL or MariaDB, you may apply a `binary` character set to the column in order to create a `LONGBLOB` equivalent column:
-
-```php
-$table->longText('data')->charset('binary'); // LONGBLOB
-```
+To store binary data, use the [longBinary](#column-method-longBinary) method instead.
 
 <a name="column-method-macAddress"></a>
 #### `macAddress()` {.collection-method}
@@ -956,6 +1010,15 @@ The `macAddress` method creates a column that is intended to hold a MAC address.
 
 ```php
 $table->macAddress('device');
+```
+
+<a name="column-method-mediumBinary"></a>
+#### `mediumBinary()` {.collection-method}
+
+The `mediumBinary` method creates a `MEDIUMBLOB` equivalent column, which holds up to 16 MB on MySQL and MariaDB:
+
+```php
+$table->mediumBinary('payload');
 ```
 
 <a name="column-method-mediumIncrements"></a>
@@ -985,11 +1048,7 @@ The `mediumText` method creates a `MEDIUMTEXT` equivalent column:
 $table->mediumText('description');
 ```
 
-When utilizing MySQL or MariaDB, you may apply a `binary` character set to the column in order to create a `MEDIUMBLOB` equivalent column:
-
-```php
-$table->mediumText('data')->charset('binary'); // MEDIUMBLOB
-```
+To store binary data, use the [mediumBinary](#column-method-mediumBinary) method instead.
 
 <a name="column-method-morphs"></a>
 #### `morphs()` {.collection-method}

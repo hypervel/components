@@ -11,6 +11,7 @@ use Hypervel\Database\Schema\Builder;
  * @method static void create(string $table, \Closure $callback)
  * @method static bool createDatabase(string $name)
  * @method static void createMigrationRepositoryTable(string $table)
+ * @method static void createRangePartition(string $table, string $partition, array<int, \Hypervel\Contracts\Database\Query\Expression|float|int|string> $from, array<int, \Hypervel\Contracts\Database\Query\Expression|float|int|string> $to)
  * @method static void defaultMorphKeyType(string $type)
  * @method static void defaultStringLength(int $length)
  * @method static void defaultTimePrecision(int|null $precision)
@@ -37,6 +38,7 @@ use Hypervel\Database\Schema\Builder;
  * @method static array<int, array> getForeignKeys(string $table)
  * @method static array<int, array> getIndexes(string $table)
  * @method static array<int, string> getIndexListing(string $table)
+ * @method static array<int, array> getPartitions(string $table)
  * @method static array<int, array> getSchemas()
  * @method static array<int, string> getTableListing(array|string|null $schema = null, bool $schemaQualified = true)
  * @method static array<int, array> getTables(null|string|string[] $schema = null)
@@ -62,6 +64,7 @@ use Hypervel\Database\Schema\Builder;
  * @method static void whenTableDoesntHaveIndex(string $table, array|string $index, \Closure $callback, string|null $type = null)
  * @method static void whenTableHasColumn(string $table, string $column, \Closure $callback)
  * @method static void whenTableHasIndex(string $table, array|string $index, \Closure $callback, string|null $type = null)
+ * @method static array<int, array> withoutCoveredPartitions(array<int, array> $tables, array<int, string> $except = [])
  * @method static mixed withoutForeignKeyConstraints(\Closure $callback)
  *
  * @see \Hypervel\Database\Schema\Builder

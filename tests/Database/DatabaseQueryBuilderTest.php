@@ -5533,12 +5533,12 @@ class DatabaseQueryBuilderTest extends TestCase
     public function testUpdateMethodWithJoinsOnPostgres()
     {
         $builder = $this->getPostgresBuilder();
-        $builder->getConnection()->expects('update')->with('update "users" set "email" = ?, "name" = ? where "ctid" in (select "users"."ctid" from "users" inner join "orders" on "users"."id" = "orders"."user_id" where "users"."id" = ?)', ['foo', 'bar', 1])->andReturn(1);
+        $builder->getConnection()->expects('update')->with('update "users" set "email" = ?, "name" = ? where ("tableoid", "ctid") in (select "users"."tableoid", "users"."ctid" from "users" inner join "orders" on "users"."id" = "orders"."user_id" where "users"."id" = ?)', ['foo', 'bar', 1])->andReturn(1);
         $result = $builder->from('users')->join('orders', 'users.id', '=', 'orders.user_id')->where('users.id', '=', 1)->update(['email' => 'foo', 'name' => 'bar']);
         $this->assertEquals(1, $result);
 
         $builder = $this->getPostgresBuilder();
-        $builder->getConnection()->expects('update')->with('update "users" set "email" = ?, "name" = ? where "ctid" in (select "users"."ctid" from "users" inner join "orders" on "users"."id" = "orders"."user_id" and "users"."id" = ?)', ['foo', 'bar', 1])->andReturn(1);
+        $builder->getConnection()->expects('update')->with('update "users" set "email" = ?, "name" = ? where ("tableoid", "ctid") in (select "users"."tableoid", "users"."ctid" from "users" inner join "orders" on "users"."id" = "orders"."user_id" and "users"."id" = ?)', ['foo', 'bar', 1])->andReturn(1);
         $result = $builder->from('users')->join('orders', function ($join) {
             $join->on('users.id', '=', 'orders.user_id')
                 ->where('users.id', '=', 1);
@@ -5546,7 +5546,7 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertEquals(1, $result);
 
         $builder = $this->getPostgresBuilder();
-        $builder->getConnection()->expects('update')->with('update "users" set "email" = ?, "name" = ? where "ctid" in (select "users"."ctid" from "users" inner join "orders" on "users"."id" = "orders"."user_id" and "users"."id" = ? where "name" = ?)', ['foo', 'bar', 1, 'baz'])->andReturn(1);
+        $builder->getConnection()->expects('update')->with('update "users" set "email" = ?, "name" = ? where ("tableoid", "ctid") in (select "users"."tableoid", "users"."ctid" from "users" inner join "orders" on "users"."id" = "orders"."user_id" and "users"."id" = ? where "name" = ?)', ['foo', 'bar', 1, 'baz'])->andReturn(1);
         $result = $builder->from('users')
             ->join('orders', function ($join) {
                 $join->on('users.id', '=', 'orders.user_id')
@@ -5586,12 +5586,12 @@ class DatabaseQueryBuilderTest extends TestCase
     public static function rawSourcesForLimitedWrites(): array
     {
         return [
-            'Postgres opaque source' => ['Postgres', null, '"prefix_users"', '"ctid"', '"ctid"'],
-            'Postgres explicit alias' => ['Postgres', 'target', '"prefix_users" as "prefix_target"', '"ctid"', '"prefix_target"."ctid"'],
+            'Postgres opaque source' => ['Postgres', null, '"prefix_users"', '("tableoid", "ctid")', '"tableoid", "ctid"'],
+            'Postgres explicit alias' => ['Postgres', 'target', '"prefix_users" as "prefix_target"', '("tableoid", "ctid")', '"prefix_target"."tableoid", "prefix_target"."ctid"'],
             'SQLite opaque source' => ['SQLite', null, '"prefix_users"', '"rowid"', '"rowid"'],
             'SQLite explicit alias' => ['SQLite', 'target', '"prefix_users" as "prefix_target"', '"rowid"', '"prefix_target"."rowid"'],
-            'Postgres opaque source with join' => ['Postgres', null, '"prefix_users"', '"ctid"', '"ctid"', true],
-            'Postgres explicit alias with join' => ['Postgres', 'target', '"prefix_users" as "prefix_target"', '"ctid"', '"prefix_target"."ctid"', true],
+            'Postgres opaque source with join' => ['Postgres', null, '"prefix_users"', '("tableoid", "ctid")', '"tableoid", "ctid"', true],
+            'Postgres explicit alias with join' => ['Postgres', 'target', '"prefix_users" as "prefix_target"', '("tableoid", "ctid")', '"prefix_target"."tableoid", "prefix_target"."ctid"', true],
             'SQLite opaque source with join' => ['SQLite', null, '"prefix_users"', '"rowid"', '"rowid"', true],
             'SQLite explicit alias with join' => ['SQLite', 'target', '"prefix_users" as "prefix_target"', '"rowid"', '"prefix_target"."rowid"', true],
         ];
@@ -5821,22 +5821,22 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertEquals(1, $result);
 
         $builder = $this->getPostgresBuilder();
-        $builder->getConnection()->expects('delete')->with('delete from "users" where "ctid" in (select "users"."ctid" from "users" inner join "contacts" on "users"."id" = "contacts"."id" where "users"."email" = ?)', ['foo'])->andReturn(1);
+        $builder->getConnection()->expects('delete')->with('delete from "users" where ("tableoid", "ctid") in (select "users"."tableoid", "users"."ctid" from "users" inner join "contacts" on "users"."id" = "contacts"."id" where "users"."email" = ?)', ['foo'])->andReturn(1);
         $result = $builder->from('users')->join('contacts', 'users.id', '=', 'contacts.id')->where('users.email', '=', 'foo')->delete();
         $this->assertEquals(1, $result);
 
         $builder = $this->getPostgresBuilder();
-        $builder->getConnection()->expects('delete')->with('delete from "users" as "a" where "ctid" in (select "a"."ctid" from "users" as "a" inner join "users" as "b" on "a"."id" = "b"."user_id" where "email" = ? order by "id" asc limit 1)', ['foo'])->andReturn(1);
+        $builder->getConnection()->expects('delete')->with('delete from "users" as "a" where ("tableoid", "ctid") in (select "a"."tableoid", "a"."ctid" from "users" as "a" inner join "users" as "b" on "a"."id" = "b"."user_id" where "email" = ? order by "id" asc limit 1)', ['foo'])->andReturn(1);
         $result = $builder->from('users AS a')->join('users AS b', 'a.id', '=', 'b.user_id')->where('email', '=', 'foo')->orderBy('id')->limit(1)->delete();
         $this->assertEquals(1, $result);
 
         $builder = $this->getPostgresBuilder();
-        $builder->getConnection()->expects('delete')->with('delete from "users" where "ctid" in (select "users"."ctid" from "users" inner join "contacts" on "users"."id" = "contacts"."id" where "users"."id" = ? order by "id" asc limit 1)', [1])->andReturn(1);
+        $builder->getConnection()->expects('delete')->with('delete from "users" where ("tableoid", "ctid") in (select "users"."tableoid", "users"."ctid" from "users" inner join "contacts" on "users"."id" = "contacts"."id" where "users"."id" = ? order by "id" asc limit 1)', [1])->andReturn(1);
         $result = $builder->from('users')->join('contacts', 'users.id', '=', 'contacts.id')->orderBy('id')->limit(1)->delete(1);
         $this->assertEquals(1, $result);
 
         $builder = $this->getPostgresBuilder();
-        $builder->getConnection()->expects('delete')->with('delete from "users" where "ctid" in (select "users"."ctid" from "users" inner join "contacts" on "users"."id" = "contacts"."user_id" and "users"."id" = ? where "name" = ?)', [1, 'baz'])->andReturn(1);
+        $builder->getConnection()->expects('delete')->with('delete from "users" where ("tableoid", "ctid") in (select "users"."tableoid", "users"."ctid" from "users" inner join "contacts" on "users"."id" = "contacts"."user_id" and "users"."id" = ? where "name" = ?)', [1, 'baz'])->andReturn(1);
         $result = $builder->from('users')
             ->join('contacts', function ($join) {
                 $join->on('users.id', '=', 'contacts.user_id')
@@ -5846,7 +5846,7 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertEquals(1, $result);
 
         $builder = $this->getPostgresBuilder();
-        $builder->getConnection()->expects('delete')->with('delete from "users" where "ctid" in (select "users"."ctid" from "users" inner join "contacts" on "users"."id" = "contacts"."id")', [])->andReturn(1);
+        $builder->getConnection()->expects('delete')->with('delete from "users" where ("tableoid", "ctid") in (select "users"."tableoid", "users"."ctid" from "users" inner join "contacts" on "users"."id" = "contacts"."id")', [])->andReturn(1);
         $result = $builder->from('users')->join('contacts', 'users.id', '=', 'contacts.id')->delete();
         $this->assertEquals(1, $result);
     }

@@ -7,11 +7,13 @@ namespace Hypervel\Tests\Integration\Queue\WithoutOverlappingJobsTest;
 use Exception;
 use Hypervel\Bus\Dispatcher;
 use Hypervel\Bus\Queueable;
+use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Queue\CallQueuedHandler;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Middleware\WithoutOverlapping;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Integration\Queue\QueueTestCase;
 use Mockery as m;
 
@@ -124,6 +126,47 @@ class WithoutOverlappingJobsTest extends QueueTestCase
         ]);
 
         $this->assertFalse(OverlappingTestJobWithSharedKeyOne::$handled);
+    }
+
+    #[WithConfig('cache.stores.overlaps', ['driver' => 'array'])]
+    public function testLockIsTakenOnTheNamedStore(): void
+    {
+        $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
+        $lockKey = (new WithoutOverlapping)->getLockKey($command = new StoreOverlappingTestJob);
+
+        // A lock held on the default store does not block a job that names another store.
+        $this->app->get(Cache::class)->lock($lockKey, 10)->acquire();
+        StoreOverlappingTestJob::$handled = false;
+
+        $job = m::mock(Job::class);
+
+        $job->expects('hasFailed')->andReturn(false);
+        $job->expects('isReleased')->times(2)->andReturn(false);
+        $job->expects('isDeletedOrReleased')->andReturn(false);
+        $job->expects('delete');
+
+        $instance->call($job, [
+            'command' => serialize($command),
+        ]);
+
+        $this->assertTrue(StoreOverlappingTestJob::$handled);
+
+        // The same lock held on the named store releases the job.
+        $this->app->get(CacheFactory::class)->store('overlaps')->lock($lockKey, 10)->acquire();
+        StoreOverlappingTestJob::$handled = false;
+
+        $job = m::mock(Job::class);
+
+        $job->expects('release');
+        $job->expects('hasFailed')->andReturn(false);
+        $job->expects('isReleased')->times(2)->andReturn(true);
+        $job->expects('isDeletedOrReleased')->andReturn(true);
+
+        $instance->call($job, [
+            'command' => serialize($command),
+        ]);
+
+        $this->assertFalse(StoreOverlappingTestJob::$handled);
     }
 
     public function testGetLock(): void
@@ -313,6 +356,17 @@ class OverlappingTestJobWithSharedKeyTwo
     }
 }
 
+class StoreOverlappingTestJob extends OverlappingTestJob
+{
+    /**
+     * Get the job middleware.
+     */
+    public function middleware(): array
+    {
+        return [(new WithoutOverlapping)->store(OverlapStore::Overlaps)];
+    }
+}
+
 class OverlappingTestJobWithDisplayName extends OverlappingTestJob
 {
     /**
@@ -337,4 +391,9 @@ enum BackedCategory: string
 enum IntBackedCategory: int
 {
     case Zero = 0;
+}
+
+enum OverlapStore: string
+{
+    case Overlaps = 'overlaps';
 }

@@ -6,6 +6,7 @@ namespace Hypervel\Image;
 
 use Closure;
 use Hypervel\Coroutine\Locker;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 /**
@@ -65,6 +66,12 @@ class ImageSource
                 }
 
                 $this->contents = $contents;
+            } catch (CanceledException $exception) {
+                // The owner's cancellation belongs to the owner. Every other reader sees an
+                // ordinary failure, since the resolver cannot be repeated after a partial read.
+                $this->exception = new ImageException('Image source resolution was canceled.', previous: $exception);
+
+                throw $exception;
             } catch (Throwable $exception) {
                 $this->exception = $exception;
             } finally {

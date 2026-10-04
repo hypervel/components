@@ -108,6 +108,23 @@ class DatabaseTruncationTest extends TestCase
         $this->assertEquals(['foo', 'bar'], $truncatedTables);
     }
 
+    public function testTruncateTablesLeavesPartitionsToTheirPartitionedTable(): void
+    {
+        $this->exceptTables = ['baz'];
+
+        $connection = $this->arrangeConnection($truncatedTables, [
+            ['schema' => 'public', 'name' => 'bar', 'schema_qualified_name' => 'public.bar'],
+            ['schema' => 'public', 'name' => 'baz', 'schema_qualified_name' => 'public.baz'],
+            ['schema' => 'public', 'name' => 'baz_1', 'schema_qualified_name' => 'public.baz_1', 'partition_of' => 'public.baz'],
+            ['schema' => 'public', 'name' => 'foo', 'schema_qualified_name' => 'public.foo'],
+            ['schema' => 'public', 'name' => 'foo_1', 'schema_qualified_name' => 'public.foo_1', 'partition_of' => 'public.foo'],
+        ]);
+
+        $this->truncateTablesForConnection($connection, 'test');
+
+        $this->assertEquals(['public.bar', 'public.foo'], $truncatedTables);
+    }
+
     public function testTruncateTablesWithSchema(): void
     {
         $connection = $this->arrangeConnection($truncatedTables, [
@@ -472,8 +489,9 @@ class DatabaseTruncationTest extends TestCase
         ?RuntimeException $failure = null
     ): Connection {
         $actual = [];
+        $allTables = array_map(fn (array $table): array => $table + ['partition_of' => null], $allTables);
 
-        $schema = m::mock($builder ?? Builder::class);
+        $schema = m::mock($builder ?? Builder::class)->makePartial();
         $schema->expects('getTables')->with($schemas)->andReturn(
             empty($schemas)
                 ? $allTables
@@ -498,7 +516,7 @@ class DatabaseTruncationTest extends TestCase
         $connection->expects('getEventDispatcher')->andReturn($dispatcher);
         $connection->expects('unsetEventDispatcher');
         $connection->expects('setEventDispatcher')->with($dispatcher);
-        $connection->expects('getSchemaBuilder')->twice()->andReturn($schema);
+        $connection->shouldReceive('getSchemaBuilder')->andReturn($schema);
         $connection->expects('withoutTablePrefix')->andReturnUsing(
             function (callable $callback) use ($connection, &$withoutPrefix): void {
                 $withoutPrefix = true;

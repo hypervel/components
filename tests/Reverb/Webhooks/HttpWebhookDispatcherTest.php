@@ -5,15 +5,20 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Reverb\Webhooks;
 
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcher;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Reverb\Application;
+use Hypervel\Reverb\Webhooks\Contracts\WebhookSender;
 use Hypervel\Reverb\Webhooks\HttpWebhookDispatcher;
 use Hypervel\Reverb\Webhooks\Jobs\FlushWebhookBatchJob;
 use Hypervel\Reverb\Webhooks\Jobs\WebhookDeliveryJob;
 use Hypervel\Reverb\Webhooks\WebhookBatchBuffer;
+use Hypervel\Reverb\Webhooks\WebhookPayload;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 
 class HttpWebhookDispatcherTest extends ReverbTestCase
 {
@@ -396,12 +401,38 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
         ]));
         $dispatcher = new HttpWebhookDispatcher;
 
-        try {
-            $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'test-channel']);
-            $this->fail('Expected queue dispatch to fail.');
-        } catch (RuntimeException $exception) {
-            $this->assertSame($failure, $exception);
+        $exceptionHandler = m::mock(ExceptionHandler::class);
+        $exceptionHandler->expects('report')->with($failure);
+        $this->app->instance(ExceptionHandler::class, $exceptionHandler);
+
+        $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'test-channel']);
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testBufferFailuresAreReportedAndCancellationPropagates(bool $cancel): void
+    {
+        $failure = $cancel ? new CanceledException : new RuntimeException('Buffer unavailable.');
+        $buffer = m::mock(WebhookBatchBuffer::class);
+        $buffer->expects('appendAndCheckSchedule')->andThrow($failure);
+        $buffer->shouldNotReceive('clearFlushLock');
+        $this->app->instance(WebhookBatchBuffer::class, $buffer);
+
+        $exceptionHandler = m::mock(ExceptionHandler::class);
+        if ($cancel) {
+            $exceptionHandler->shouldNotReceive('report');
+            $this->expectExceptionObject($failure);
+        } else {
+            $exceptionHandler->expects('report')->with($failure);
         }
+        $this->app->instance(ExceptionHandler::class, $exceptionHandler);
+
+        $webhooks = $this->webhookConfig();
+        $webhooks['url'] = 'https://example.com/webhook';
+        $webhooks['events'] = ['channel_occupied'];
+        $webhooks['batching']['enabled'] = true;
+
+        (new HttpWebhookDispatcher)->dispatch($this->makeApp(webhooks: $webhooks), 'channel_occupied');
     }
 
     public function testBatchingDoesNotClearALockOwnedByAnotherDispatch(): void
@@ -446,6 +477,29 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
         $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'test-channel']);
 
         Queue::assertPushed(WebhookDeliveryJob::class);
+    }
+
+    public function testImmediateWebhooksAreHandedToTheBoundSender(): void
+    {
+        Queue::fake();
+
+        $app = $this->makeApp(webhooks: array_replace($this->webhookConfig(), [
+            'url' => 'https://example.com/webhook',
+            'events' => ['channel_occupied'],
+        ]));
+        $sender = m::mock(WebhookSender::class);
+        $sender->expects('send')->with(
+            $app,
+            $app->webhooks(),
+            m::on(static fn (WebhookPayload $payload): bool => $payload->events === [
+                ['name' => 'channel_occupied', 'channel' => 'test-channel'],
+            ]),
+        );
+        $this->app->instance(WebhookSender::class, $sender);
+
+        (new HttpWebhookDispatcher)->dispatch($app, 'channel_occupied', ['channel' => 'test-channel']);
+
+        Queue::assertNotPushed(WebhookDeliveryJob::class);
     }
 
     public function testSubscriptionCountEventIncludesCountInPayload(): void

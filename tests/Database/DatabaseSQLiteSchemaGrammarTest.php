@@ -57,6 +57,19 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('create temporary table "users" ("id" integer primary key autoincrement not null, "email" varchar not null)', $statements[0]);
     }
 
+    public function testCreateRangePartitionedTableIsUnsupported(): void
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'attempts');
+        $blueprint->create();
+        $blueprint->uuid('id')->primary();
+        $blueprint->partitionByRange('id');
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('This database driver does not support table partitioning.');
+
+        $blueprint->toSql();
+    }
+
     public function testDropTable()
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
@@ -902,6 +915,18 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
 
         $this->assertCount(1, $statements);
         $this->assertSame('alter table "users" add column "foo" blob not null', $statements[0]);
+    }
+
+    public function testAddingMediumAndLongBinary(): void
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'users');
+        $blueprint->mediumBinary('foo');
+        $blueprint->longBinary('bar');
+
+        $this->assertSame([
+            'alter table "users" add column "foo" blob not null',
+            'alter table "users" add column "bar" blob not null',
+        ], $blueprint->toSql());
     }
 
     public function testAddingUuid()

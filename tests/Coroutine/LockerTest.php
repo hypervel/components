@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Coroutine;
 
+use Hypervel\Coroutine\Exceptions\WaitTimeoutException;
 use Hypervel\Coroutine\Locker;
 use Hypervel\Engine\Channel;
+use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Tests\TestCase;
 use ReflectionProperty;
+use Swoole\Coroutine\CanceledException;
 
 use function Hypervel\Coroutine\go;
 
@@ -45,6 +48,97 @@ class LockerTest extends TestCase
         }
 
         $this->assertSame([1, 2, 3, 5, 6, 4], $ret);
+    }
+
+    public function testTimedOutWaiterThrowsAndAnUnlockStillWakesTheRemainingWaiters(): void
+    {
+        try {
+            $this->assertTrue(Locker::lock('timed'));
+
+            $results = new Channel(2);
+            go(function () use ($results): void {
+                try {
+                    Locker::lock('timed', 0.01);
+                } catch (WaitTimeoutException $exception) {
+                    $results->push($exception);
+                }
+            });
+            go(function () use ($results): void {
+                $results->push(['waiter' => Locker::lock('timed')]);
+            });
+
+            $this->assertInstanceOf(WaitTimeoutException::class, $results->pop(1));
+            $this->assertTrue($results->isEmpty());
+
+            Locker::unlock('timed');
+
+            $this->assertSame(['waiter' => false], $results->pop(1));
+        } finally {
+            Locker::flushState();
+        }
+    }
+
+    public function testCanceledWaiterThrowsWhileTheOwnerKeepsTheLock(): void
+    {
+        try {
+            $this->assertTrue(Locker::lock('canceled'));
+
+            $results = new Channel(1);
+            $waiterId = go(function () use ($results): void {
+                try {
+                    Locker::lock('canceled');
+                } catch (CanceledException $exception) {
+                    $results->push($exception);
+                }
+            });
+
+            $this->assertTrue(EngineCoroutine::cancelById($waiterId));
+            $this->assertInstanceOf(CanceledException::class, $results->pop(1));
+
+            Locker::unlock('canceled');
+
+            $this->assertTrue(Locker::lock('canceled'));
+        } finally {
+            Locker::flushState();
+        }
+    }
+
+    public function testWaitersRelockWhenTheOwnerLeftNoResultAndOneBecomesTheNextOwner(): void
+    {
+        try {
+            $this->assertTrue(Locker::lock('retry'));
+
+            $result = null;
+            $owners = 0;
+            $finished = new Channel(2);
+            $resolve = function () use (&$result, &$owners, $finished): void {
+                while ($result === null) {
+                    if (Locker::lock('retry')) {
+                        try {
+                            ++$owners;
+                            usleep(1000);
+                            $result = 'resolved';
+                        } finally {
+                            Locker::unlock('retry');
+                        }
+                    }
+                }
+
+                $finished->push(true);
+            };
+            go($resolve);
+            go($resolve);
+
+            // The first owner fails and releases the lock without leaving a result.
+            Locker::unlock('retry');
+
+            $this->assertTrue($finished->pop(1));
+            $this->assertTrue($finished->pop(1));
+            $this->assertSame(1, $owners);
+            $this->assertSame('resolved', $result);
+        } finally {
+            Locker::flushState();
+        }
     }
 
     public function testFlushStateReleasesAbandonedLock()

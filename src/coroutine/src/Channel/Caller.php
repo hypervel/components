@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Coroutine\Exceptions\ChannelClosedException;
 use Hypervel\Coroutine\Exceptions\WaitTimeoutException;
 use Hypervel\Engine\Channel;
+use Swoole\Coroutine\CanceledException;
 
 class Caller
 {
@@ -25,29 +26,28 @@ class Caller
      */
     public function call(Closure $closure): mixed
     {
-        $release = true;
         $channel = $this->channel;
-        try {
-            $instance = $channel->pop($this->waitTimeout);
-            if ($instance === false) {
-                if ($channel->isClosing()) {
-                    throw new ChannelClosedException('The channel was closed.');
-                }
+        $instance = $channel->pop($this->waitTimeout);
 
-                if ($channel->isTimeout()) {
-                    throw new WaitTimeoutException('The instance pop from channel timeout.');
-                }
+        if ($instance === false) {
+            if ($channel->isCanceled()) {
+                throw new CanceledException('Waiting for the pooled instance was canceled.');
             }
 
-            $result = $closure($instance);
-        } catch (ChannelClosedException|WaitTimeoutException $exception) {
-            $release = false;
-            throw $exception;
-        } finally {
-            $release && $channel->push($instance ?? null);
+            if ($channel->isClosing()) {
+                throw new ChannelClosedException('The channel was closed.');
+            }
+
+            if ($channel->isTimeout()) {
+                throw new WaitTimeoutException('The instance pop from channel timeout.');
+            }
         }
 
-        return $result;
+        try {
+            return $closure($instance);
+        } finally {
+            $channel->push($instance);
+        }
     }
 
     /**

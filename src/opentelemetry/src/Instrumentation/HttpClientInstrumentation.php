@@ -15,7 +15,6 @@ use Hypervel\OpenTelemetry\Support\ExceptionContextRegistry;
 use Hypervel\OpenTelemetry\Support\HttpTelemetryAttributes;
 use Hypervel\OpenTelemetry\Support\OperationOrigin;
 use Hypervel\OpenTelemetry\Support\ProcessIdentity;
-use LogicException;
 use OpenTelemetry\API\Behavior\LogsMessagesTrait;
 use OpenTelemetry\API\Common\Time\ClockInterface;
 use OpenTelemetry\API\Metrics\HistogramInterface;
@@ -63,8 +62,6 @@ class HttpClientInstrumentation extends AbstractInstrumentation
         7.5,
         10,
     ];
-
-    protected const string TRACE_OPTION = 'hypervel_otel_trace';
 
     protected const string REDIRECT_COUNT_OPTION = '__redirect_count';
 
@@ -137,32 +134,7 @@ class HttpClientInstrumentation extends AbstractInstrumentation
                 );
         }
 
-        if ($this->tracer !== null) {
-            $this->registerTraceMacros();
-        }
-
         $this->factory->globalMiddleware($this->middleware());
-    }
-
-    /**
-     * Register per-request trace controls.
-     */
-    protected function registerTraceMacros(): void
-    {
-        if (PendingRequest::hasMacro('withTrace') || PendingRequest::hasMacro('withoutTrace')) {
-            throw new LogicException(
-                'The HTTP client macros [withTrace] and [withoutTrace] are reserved by OpenTelemetry instrumentation.',
-            );
-        }
-
-        $option = self::TRACE_OPTION;
-
-        PendingRequest::macro('withTrace', function () use ($option) {
-            return $this->withOptions([$option => true]);
-        });
-        PendingRequest::macro('withoutTrace', function () use ($option) {
-            return $this->withOptions([$option => false]);
-        });
     }
 
     /**
@@ -197,7 +169,10 @@ class HttpClientInstrumentation extends AbstractInstrumentation
                             ->setAttributes($requestAttributes)
                             ->startSpan();
                         $context = $span->storeInContext($parent);
-                        $this->propagator->inject($request, $this->requestSetter, $context);
+
+                        if (($options[PendingRequest::TRACE_PROPAGATION_OPTION] ?? true) !== false) {
+                            $this->propagator->inject($request, $this->requestSetter, $context);
+                        }
 
                         if ($span->isRecording()) {
                             $span->setAttributes($this->requestTraceAttributes(
@@ -290,7 +265,7 @@ class HttpClientInstrumentation extends AbstractInstrumentation
      */
     protected function shouldTrace(array $options): bool
     {
-        return ($options[self::TRACE_OPTION] ?? ! $this->manual) === true;
+        return ($options[PendingRequest::TRACE_OPTION] ?? ! $this->manual) === true;
     }
 
     /**

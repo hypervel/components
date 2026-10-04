@@ -466,7 +466,9 @@ When models are passed in a plain PHP array, their full attributes and loaded re
 ### Unique Jobs
 
 > [!WARNING]
-> Unique jobs require a cache driver that supports [locks](/docs/{{version}}/cache#atomic-locks). Currently, the `redis`, `database`, `file`, `swoole`, and `array` cache drivers support atomic locks.
+> Unique jobs require a cache driver that supports [locks](/docs/{{version}}/cache#atomic-locks). Currently, the `redis`, `database`, `file`, `swoole`, `array`, and `worker-array` cache drivers support atomic locks.
+
+The lock is acquired where the job is dispatched and released by the worker that processes it, so the cache store must be shared by both processes. Otherwise, duplicates may be queued and the original lock may remain held after processing. The `array` store is local to one coroutine, `worker-array` to one process, and `swoole` to workers of the same server. For separate queue workers or multiple servers, use a store shared by all of them, such as Redis or a database.
 
 > [!WARNING]
 > Unique job constraints do not apply to jobs within batches.
@@ -915,7 +917,21 @@ public function middleware(): array
 ```
 
 > [!WARNING]
-> The `WithoutOverlapping` middleware requires a cache driver that supports [locks](/docs/{{version}}/cache#atomic-locks). Currently, the `redis`, `database`, `file`, `swoole`, and `array` cache drivers support atomic locks.
+> The `WithoutOverlapping` middleware requires a cache driver that supports [locks](/docs/{{version}}/cache#atomic-locks). Currently, the `redis`, `database`, `file`, `swoole`, `array`, and `worker-array` cache drivers support atomic locks.
+
+The lock is stored in your application's default cache store, so it only prevents overlaps between workers that share that store. For example, `array` locks only last for the current job, `worker-array` locks are local to one worker, and a Swoole table is shared only by the workers of one server, not by separately started `queue:work` processes. You may choose the store that should hold the lock using the `store` method:
+
+```php
+/**
+ * Get the middleware the job should pass through.
+ *
+ * @return array<int, object>
+ */
+public function middleware(): array
+{
+    return [(new WithoutOverlapping($this->order->id))->store('redis')];
+}
+```
 
 <a name="sharing-lock-keys"></a>
 #### Sharing Lock Keys Across Job Classes

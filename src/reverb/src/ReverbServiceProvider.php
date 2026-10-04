@@ -50,9 +50,11 @@ use Hypervel\Reverb\Servers\Hypervel\TerminateUserPipeMessage;
 use Hypervel\Reverb\Servers\Hypervel\WebSocketHandler;
 use Hypervel\Reverb\Servers\Hypervel\WebSocketServer;
 use Hypervel\Reverb\Webhooks\Contracts\WebhookDispatcher;
+use Hypervel\Reverb\Webhooks\Contracts\WebhookSender;
 use Hypervel\Reverb\Webhooks\DeferredWebhookManager;
 use Hypervel\Reverb\Webhooks\HttpWebhookDispatcher;
 use Hypervel\Reverb\Webhooks\Jobs\FlushWebhookBatchJob;
+use Hypervel\Reverb\Webhooks\QueuedWebhookSender;
 use Hypervel\Reverb\Webhooks\WebhookBatchBuffer;
 use Hypervel\Server\Event;
 use Hypervel\Server\ServerInterface;
@@ -60,6 +62,7 @@ use Hypervel\Server\TlsOptions;
 use Hypervel\Support\Facades\Log;
 use Hypervel\Support\ServiceProvider;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Swoole\Table;
 use Throwable;
 
@@ -113,6 +116,7 @@ class ReverbServiceProvider extends ServiceProvider
             ));
 
         $this->app->singleton(WebhookDispatcher::class, HttpWebhookDispatcher::class);
+        $this->app->singleton(WebhookSender::class, QueuedWebhookSender::class);
         $this->app->singleton(DeferredWebhookManager::class);
 
         $this->app->singleton(WebhookBatchBuffer::class, function ($app) {
@@ -270,7 +274,7 @@ class ReverbServiceProvider extends ServiceProvider
                 $bus->dispatch(new PruneStaleConnections);
                 $bus->dispatch(new PingInactiveConnections);
                 $this->checkTableCapacity();
-                $this->recoverStaleWebhookBatches();
+                $this->scheduleWebhookFlushes();
             });
         });
     }
@@ -396,7 +400,7 @@ class ReverbServiceProvider extends ServiceProvider
             }
 
             try {
-                $this->flushWebhookBuffers();
+                $this->scheduleWebhookFlushes();
             } catch (Throwable $throwable) {
                 $this->reportShutdownFailure($throwable);
             }
@@ -458,12 +462,13 @@ class ReverbServiceProvider extends ServiceProvider
     }
 
     /**
-     * Flush any buffered webhook events to the queue.
+     * Schedule flush jobs for webhook batches that need one.
      *
-     * Reduces recovery delay from 60s to immediate by scheduling
-     * flush jobs before the worker dies.
+     * Runs every minute and when a worker exits. It picks up batches whose
+     * flush job crashed and buffered events whose flush was never scheduled,
+     * while the buffer's scheduling key lets only one worker dispatch each flush.
      */
-    protected function flushWebhookBuffers(): void
+    protected function scheduleWebhookFlushes(): void
     {
         $apps = $this->app->make(ApplicationProvider::class)->all();
         $buffer = $this->app->make(WebhookBatchBuffer::class);
@@ -479,11 +484,16 @@ class ReverbServiceProvider extends ServiceProvider
                 continue;
             }
 
-            $buffer->clearFlushLock($app->id());
-
-            if ($buffer->hasRemaining($app->id())) {
-                FlushWebhookBatchJob::dispatch($app->id(), $webhooks)
-                    ->onQueue('reverb-webhook-flush');
+            try {
+                if ($buffer->shouldScheduleFlush($app->id())) {
+                    FlushWebhookBatchJob::dispatch($app->id(), $webhooks)
+                        ->onQueue('reverb-webhook-flush');
+                }
+            } catch (CanceledException $exception) {
+                throw $exception;
+            } catch (Throwable $exception) {
+                // An unavailable Redis Cluster slot must not stop other applications' flushes.
+                FailureReporter::report($exception);
             }
         }
     }
@@ -532,37 +542,6 @@ class ReverbServiceProvider extends ServiceProvider
                 $stats['num'],
                 $table->getSize(),
             ));
-        }
-    }
-
-    /**
-     * Recover stale webhook batch processing keys from crashed flush jobs.
-     *
-     * Iterates all apps with batching enabled and checks for orphaned
-     * processing hashes. If recovered, schedules an immediate flush.
-     */
-    protected function recoverStaleWebhookBatches(): void
-    {
-        $buffer = $this->app->make(WebhookBatchBuffer::class);
-        $apps = $this->app->make(ApplicationProvider::class)->all();
-
-        foreach ($apps as $app) {
-            if (! $app->hasWebhooks()) {
-                continue;
-            }
-
-            $webhooks = $app->webhooks();
-
-            if (! $webhooks['batching']['enabled']) {
-                continue;
-            }
-
-            $recovered = $buffer->recoverStaleProcessingKeys($app->id());
-
-            if ($recovered) {
-                FlushWebhookBatchJob::dispatch($app->id(), $webhooks)
-                    ->onQueue('reverb-webhook-flush');
-            }
         }
     }
 }

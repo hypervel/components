@@ -17,6 +17,7 @@ use Mockery as m;
 use Mockery\MockInterface;
 use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
+use RuntimeException;
 
 class DatabaseMySqlSchemaGrammarTest extends TestCase
 {
@@ -195,6 +196,19 @@ class DatabaseMySqlSchemaGrammarTest extends TestCase
 
         $this->assertCount(1, $statements);
         $this->assertSame('create temporary table `users` (`id` int unsigned not null auto_increment primary key, `email` varchar(255) not null)', $statements[0]);
+    }
+
+    public function testCreateRangePartitionedTableIsUnsupported(): void
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'attempts');
+        $blueprint->create();
+        $blueprint->uuid('id')->primary();
+        $blueprint->partitionByRange('id');
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('This database driver does not support table partitioning.');
+
+        $blueprint->toSql();
     }
 
     public function testDropTable()
@@ -1242,6 +1256,18 @@ SQL],
 
         $this->assertCount(1, $statements);
         $this->assertSame('alter table `users` add `foo` blob not null', $statements[0]);
+    }
+
+    public function testAddingMediumAndLongBinary(): void
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'users');
+        $blueprint->mediumBinary('foo');
+        $blueprint->longBinary('bar');
+
+        $this->assertSame([
+            'alter table `users` add `foo` mediumblob not null',
+            'alter table `users` add `bar` longblob not null',
+        ], $blueprint->toSql());
     }
 
     public function testAddingUuid()

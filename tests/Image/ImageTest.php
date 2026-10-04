@@ -39,6 +39,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionProperty;
 use RuntimeException;
 use Stringable;
+use Swoole\Coroutine\CanceledException;
 use TypeError;
 
 class ImageTest extends TestCase
@@ -448,6 +449,22 @@ class ImageTest extends TestCase
         $this->expectExceptionObject(new TypeError('broken dimensions'));
 
         (new Image('source image'))->using('fake')->blur()->dimensions();
+    }
+
+    public function testDimensionsPreservesDriverCancellationForHeic(): void
+    {
+        $contents = "\x00\x00\x00\x18ftypheic\x00\x00\x00\x00mif1heic";
+        $cancellation = new CanceledException('Inspecting the image was canceled.');
+        $driver = m::mock(Driver::class);
+        $driver->expects('dimensions')->once()->with($contents)->andThrow($cancellation);
+        $this->registerDrivers(['fake' => $driver]);
+
+        try {
+            (new Image($contents))->using('fake')->dimensions();
+            $this->fail('Expected the driver cancellation to propagate.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
     }
 
     public function testDominantColorReusesProcessedBytes(): void

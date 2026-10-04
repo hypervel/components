@@ -893,6 +893,40 @@ if (Locker::lock('warm-cache')) {
 }
 ```
 
+A waiting coroutine may limit how many seconds it will wait using the `timeout` argument. If the key is not unlocked in time, `lock` throws a `Hypervel\Coroutine\Exceptions\WaitTimeoutException`. If the waiting coroutine is canceled, `lock` throws a `Swoole\Coroutine\CanceledException`. Either way, the owner keeps its lock and the other coroutines keep waiting:
+
+```php
+use Hypervel\Coroutine\Exceptions\WaitTimeoutException;
+
+try {
+    if (Locker::lock('warm-cache', timeout: 2.0)) {
+        try {
+            rebuildCache();
+        } finally {
+            Locker::unlock('warm-cache');
+        }
+    }
+} catch (WaitTimeoutException $exception) {
+    // The cache was not rebuilt within two seconds...
+}
+```
+
+A waiting coroutine receives `false` even when the owner's work failed. When that work may fail, waiting coroutines should check for the result and call `lock` again if it is missing. One of them becomes the next owner and retries the work while the others wait. Since the previous owner may finish between a coroutine's check and its call to `lock`, a new owner should check again before doing the work:
+
+```php
+while (($report = Cache::get('report')) === null) {
+    if (Locker::lock('report')) {
+        try {
+            if (Cache::get('report') === null) {
+                Cache::put('report', buildReport());
+            }
+        } finally {
+            Locker::unlock('report');
+        }
+    }
+}
+```
+
 <a name="advanced-coroutine-apis"></a>
 ## Advanced Coroutine APIs
 

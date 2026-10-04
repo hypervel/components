@@ -63,7 +63,7 @@ Hypervel implements this with coroutine context. Child coroutines start with a f
 
 The `worker-array` store keeps values for the lifetime of the current worker process. Values are shared by all requests, jobs, tasks, and coroutines handled by that worker. They are not shared across worker processes, servers, or restarts.
 
-The same boundary applies to `worker-array` locks: they coordinate work only within one worker. When a lock must span workers, use a store shared by those workers, such as Swoole within one application node or Redis across servers.
+The same boundary applies to `worker-array` locks: they coordinate work only within one worker. When a lock must span workers, use a store shared by those workers, such as Swoole for the workers of one server, or Redis across independently started processes and servers.
 
 Expired values and locks are removed when accessed, and later mutations also reclaim expired records that are no longer accessed. Values stored forever and locks without an expiration remain until they are explicitly removed, flushed, or the worker exits.
 
@@ -190,7 +190,7 @@ The `storage` cache driver allows you to store cached values on any of your appl
 <a name="swoole-table-cache"></a>
 ### Swoole Table Cache
 
-The `swoole` cache driver stores cache values in a Swoole table. This can be useful for very hot cache values that should be served from memory without a Redis or database round trip. Swoole tables are stored in memory and are cleared when the server restarts. The table is shared by every worker on the same application node, so forgetting a key in one worker removes it for every worker on that node.
+The `swoole` cache driver stores cache values in a Swoole table. This can be useful for very hot cache values that should be served from memory without a Redis or database round trip. Swoole tables are stored in memory and are cleared when the server restarts. The table is shared by the workers forked from one server, so forgetting a key in one worker removes it for all of them. It is not shared with independently started processes, such as `queue:work`, other server instances, or other machines.
 
 Swoole tables are bounded by their configured row count and column size. Hypervel's Swoole cache store supports `lru`, `lfu`, `ttl`, and `noeviction` eviction policies, as well as a memory-limit buffer and eviction proportion:
 
@@ -825,7 +825,7 @@ You may schedule this command to run periodically based on how often tagged cach
 ## Atomic Locks
 
 > [!WARNING]
-> To utilize this feature, your application must be using the `redis`, `database`, `file`, `swoole`, `array`, or `stack` cache driver as your application's default cache driver. Stack locks are delegated to the bottom layer, so the bottom store must support locks. For distributed locks, all servers must be communicating with the same central cache server.
+> To utilize this feature, your application must be using the `redis`, `database`, `file`, `swoole`, `array`, `worker-array`, or `stack` cache driver as your application's default cache driver. Stack locks are delegated to the bottom layer, so the bottom store must support locks. For distributed locks, all servers must be communicating with the same central cache server.
 
 <a name="managing-locks"></a>
 ### Managing Locks

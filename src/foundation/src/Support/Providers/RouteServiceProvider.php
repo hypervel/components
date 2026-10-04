@@ -38,6 +38,13 @@ class RouteServiceProvider extends ServiceProvider
     protected static ?Closure $alwaysLoadCachedRoutesUsing = null;
 
     /**
+     * The callbacks that should be run before the application's routes are loaded.
+     *
+     * @var list<Closure>
+     */
+    protected static array $beforeLoadingRoutes = [];
+
+    /**
      * Register any application services.
      */
     public function register(): void
@@ -101,12 +108,20 @@ class RouteServiceProvider extends ServiceProvider
     }
 
     /**
-     * Flush all static state.
+     * Register a callback to run just before a route provider loads its routes.
+     *
+     * The routing provider registered by withRouting() boots after every other
+     * provider, so the callback's routes see the patterns those providers register
+     * and match before the application's later routes in the same domain scope,
+     * though an application route with the same method, domain and URI replaces
+     * them. Cached routes already contain them, so the callback does not run.
+     *
+     * Boot-only. The callback persists in a static property for the worker
+     * lifetime and runs during route loading at boot.
      */
-    public static function flushState(): void
+    public static function beforeLoadingRoutes(Closure $callback): void
     {
-        self::$alwaysLoadRoutesUsing = null;
-        self::$alwaysLoadCachedRoutesUsing = null;
+        self::$beforeLoadingRoutes[] = $callback;
     }
 
     /**
@@ -148,6 +163,10 @@ class RouteServiceProvider extends ServiceProvider
      */
     protected function loadRoutes(): void
     {
+        foreach (self::$beforeLoadingRoutes as $callback) {
+            $this->app->call($callback);
+        }
+
         if (! is_null(self::$alwaysLoadRoutesUsing)) {
             $this->app->call(self::$alwaysLoadRoutesUsing);
         }
@@ -157,6 +176,16 @@ class RouteServiceProvider extends ServiceProvider
         } elseif (method_exists($this, 'map')) {
             $this->app->call([$this, 'map']);
         }
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        self::$alwaysLoadRoutesUsing = null;
+        self::$alwaysLoadCachedRoutesUsing = null;
+        self::$beforeLoadingRoutes = [];
     }
 
     /**

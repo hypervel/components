@@ -581,6 +581,15 @@ trait CreatesApplication
             'app.providers' => $this->resolveApplicationProviders($app),
         ]);
 
+        // Like withRouting(), register the route provider while booting so it boots after
+        // every package and application provider and loads routes with their patterns and
+        // route-loading callbacks. Remove it from the provider list and register it here.
+        $routeProvider = $this->resolveApplicationRouteProvider($this->overrideApplicationProviders($app));
+
+        if ($routeProvider !== false) {
+            $app->booting(static fn (ApplicationContract $app) => $app->register($routeProvider));
+        }
+
         TestingFeature::run(
             testCase: $this,
             attribute: fn () => $this->parseTestMethodAttributes($app, WithConfig::class), /* @phpstan-ignore method.notFound */
@@ -612,6 +621,17 @@ trait CreatesApplication
     }
 
     /**
+     * Resolve the route provider from application provider overrides.
+     *
+     * @param array<class-string, class-string|false> $overrides
+     * @return class-string|false
+     */
+    protected function resolveApplicationRouteProvider(array $overrides): string|false
+    {
+        return $overrides[RouteServiceProvider::class] ?? RouteServiceProvider::class;
+    }
+
+    /**
      * Resolve the final application provider list.
      *
      * Merges package providers, then applies overrides (replacements/removals)
@@ -625,9 +645,7 @@ trait CreatesApplication
     {
         $providers = (new Collection(TestbenchRegisterProviders::mergeAdditionalProvidersForTestbench(
             $this->getApplicationProviders($app)
-        )))
-            ->push(RouteServiceProvider::class)
-            ->merge($this->getPackageProviders($app));
+        )))->merge($this->getPackageProviders($app));
 
         $overrides = $this->overrideApplicationProviders($app);
 
@@ -643,7 +661,9 @@ trait CreatesApplication
             })->filter()->values();
         }
 
-        return $providers->all();
+        $routeProvider = $this->resolveApplicationRouteProvider($overrides);
+
+        return $providers->reject(static fn (string $provider): bool => $provider === $routeProvider)->values()->all();
     }
 
     /**

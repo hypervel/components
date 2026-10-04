@@ -19,6 +19,7 @@
     - [Delivery and Signing](#delivery-and-signing)
     - [Batching](#batching)
     - [Failure Handling](#failure-handling)
+    - [Custom Webhook Delivery](#custom-webhook-delivery)
 - [Running Reverb in Production](#production)
     - [Open Files](#open-files)
     - [Workers](#workers)
@@ -267,7 +268,7 @@ Logging outgoing broadcasts is configured separately. Set the optional `log` set
 
 Since Reverb runs inside Hypervel's long-running Swoole server, changes to your code will not be reflected until the full server process is restarted. Use your process monitor or deployment platform to restart the server.
 
-When workers exit during a server restart, Reverb gracefully drains active WebSocket connections, disconnects its Redis scaling subscriber when scaling is enabled, and flushes pending webhook batches before the worker stops.
+When workers exit during a server restart, Reverb gracefully drains active WebSocket connections, disconnects its Redis scaling subscriber when scaling is enabled, and schedules a flush for any pending webhook batches that are waiting for one before the worker stops.
 
 <a name="monitoring"></a>
 ## Monitoring
@@ -379,6 +380,8 @@ Reverb signs each webhook body using HMAC-SHA256 and your application's Reverb s
 
 Custom headers may be configured, but `X-Pusher-Key`, `X-Pusher-Signature`, and `Content-Type` cannot be overridden.
 
+A webhook is only considered delivered when your endpoint returns a `2xx` response. Reverb does not follow redirects, so a `3xx` response is treated as a failed delivery and retried like a server error. Make sure the configured URL is the final address of your webhook endpoint.
+
 <a name="batching"></a>
 ### Batching
 
@@ -393,7 +396,9 @@ For production workloads, you may enable webhook batching to combine many events
 ],
 ```
 
-When batching is enabled, Reverb buffers events in Redis and schedules flush jobs on the `reverb-webhook-flush` queue. Reverb also checks for stale batches every minute so events claimed by a crashed flush job may be recovered.
+When batching is enabled, Reverb buffers events in Redis and schedules flush jobs on the `reverb-webhook-flush` queue. Each batch contains events in the order they were buffered.
+
+Every minute, Reverb also schedules a flush for buffered events that are still waiting for one and for batches whose flush job did not finish. A batch that is sent again keeps its original `webhook_id` and `time_ms`, so if the first attempt was also delivered, your endpoint may ignore the duplicate by its `webhook_id`.
 
 <a name="failure-handling"></a>
 ### Failure Handling
@@ -406,7 +411,55 @@ You may configure webhook delivery timeouts and retry behavior using the followi
 'retry_delay' => (int) env('REVERB_WEBHOOK_RETRY_DELAY', 1),
 ```
 
-If a webhook delivery exhausts all retry attempts, Reverb dispatches the `Hypervel\Reverb\Webhooks\Events\WebhookFailed` event.
+The `retries` option is the number of retries after the first attempt and must not be negative. A value of `0` sends each webhook once. If a webhook delivery exhausts all retry attempts, Reverb dispatches the `Hypervel\Reverb\Webhooks\Events\WebhookFailed` event.
+
+If Reverb cannot hand a webhook off, for example because Redis is unavailable, the failure is reported without interrupting the WebSocket operation that triggered it. An immediate webhook whose handoff fails is not retried; events already buffered for a batch remain available for recovery.
+
+<a name="custom-webhook-delivery"></a>
+### Custom Webhook Delivery
+
+By default, Reverb sends each prepared webhook through a queued job. If you would like to deliver webhooks another way, you may bind your own implementation of the `Hypervel\Reverb\Webhooks\Contracts\WebhookSender` interface in one of your application's service providers:
+
+```php
+use App\Webhooks\ReverbWebhookSender;
+use Hypervel\Reverb\Webhooks\Contracts\WebhookSender;
+
+/**
+ * Register any application services.
+ */
+public function register(): void
+{
+    $this->app->singleton(WebhookSender::class, ReverbWebhookSender::class);
+}
+```
+
+The sender's `send` method receives the Reverb application, the application's webhook configuration, and the `Hypervel\Reverb\Webhooks\WebhookPayload` to deliver. Events are filtered and batched before the sender is called, and `$payload->toJson()` returns the exact body to send.
+
+Immediate webhooks are sent while Reverb is handling the event that triggered them, and batches are sent from the flush job. So, your sender should hand the payload off quickly, such as by queueing a job or storing it, rather than making the HTTP request itself. The `send` method should only return once the payload has been accepted and should throw an exception if handing it off fails, so that Reverb can send the batch again. Starting background work and returning immediately is not enough. When you bind your own sender, Reverb's `timeout`, `retries`, and `retry_delay` options and the `WebhookFailed` event only apply if your sender uses them.
+
+In the following example, `DeliverReverbWebhook` is a job defined by your application:
+
+```php
+<?php
+
+namespace App\Webhooks;
+
+use App\Jobs\DeliverReverbWebhook;
+use Hypervel\Reverb\Application;
+use Hypervel\Reverb\Webhooks\Contracts\WebhookSender;
+use Hypervel\Reverb\Webhooks\WebhookPayload;
+
+class ReverbWebhookSender implements WebhookSender
+{
+    /**
+     * Send a prepared webhook payload for the application.
+     */
+    public function send(Application $application, array $config, WebhookPayload $payload): void
+    {
+        DeliverReverbWebhook::dispatch($application->id(), $config['url'], $payload->toJson());
+    }
+}
+```
 
 <a name="production"></a>
 ## Running Reverb in Production

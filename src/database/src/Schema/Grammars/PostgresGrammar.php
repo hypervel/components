@@ -83,7 +83,10 @@ class PostgresGrammar extends Grammar
     public function compileTables(string|array|null $schema): string
     {
         return 'select c.relname as name, n.nspname as schema, pg_total_relation_size(c.oid) as size, '
-            . "obj_description(c.oid, 'pg_class') as comment from pg_class c, pg_namespace n "
+            . "obj_description(c.oid, 'pg_class') as comment, "
+            . "(select pn.nspname || '.' || pc.relname from pg_inherits i join pg_class pc on pc.oid = i.inhparent "
+            . 'join pg_namespace pn on pn.oid = pc.relnamespace '
+            . 'where c.relispartition and i.inhrelid = c.oid) as partition_of from pg_class c, pg_namespace n '
             . "where c.relkind in ('r', 'p') and n.oid = c.relnamespace and "
             . $this->compileSchemaWhereClause($schema, 'n.nspname')
             . ' order by n.nspname, c.relname';
@@ -201,15 +204,91 @@ class PostgresGrammar extends Grammar
     }
 
     /**
+     * Compile the query to determine the partitions of a table.
+     */
+    public function compilePartitions(?string $schema, string $table): string
+    {
+        return sprintf(
+            'select c.relname as name, n.nspname as schema, pg_get_expr(c.relpartbound, c.oid) as bounds '
+            . 'from pg_inherits i '
+            . 'join pg_class c on c.oid = i.inhrelid '
+            . 'join pg_namespace n on n.oid = c.relnamespace '
+            . 'join pg_class pc on pc.oid = i.inhparent '
+            . 'join pg_namespace pn on pn.oid = pc.relnamespace '
+            . 'where c.relispartition and pc.relname = %s and pn.nspname = %s '
+            . 'order by n.nspname, c.relname',
+            $this->quoteString($table),
+            $schema ? $this->quoteString($schema) : 'current_schema()'
+        );
+    }
+
+    /**
+     * Compile the query to determine the parents of the given tables and of their ancestors.
+     *
+     * @param list<string> $tables
+     */
+    public function compilePartitionAncestors(array $tables): string
+    {
+        $tables = implode(', ', array_map(
+            fn (string $table): string => '(' . $this->quoteString(explode('.', $table, 2)) . ')',
+            $tables
+        ));
+
+        return 'with recursive links (child, parent) as ('
+            . 'select i.inhrelid, i.inhparent from pg_inherits i '
+            . 'join pg_class c on c.oid = i.inhrelid join pg_namespace n on n.oid = c.relnamespace '
+            . "where c.relispartition and (n.nspname, c.relname) in ({$tables}) "
+            . 'union '
+            . 'select i.inhrelid, i.inhparent from links l '
+            . 'join pg_inherits i on i.inhrelid = l.parent join pg_class c on c.oid = i.inhrelid '
+            . 'where c.relispartition) '
+            . "select cn.nspname || '.' || c.relname as name, pn.nspname || '.' || pc.relname as partition_of "
+            . 'from links l join pg_class c on c.oid = l.child join pg_namespace cn on cn.oid = c.relnamespace '
+            . 'join pg_class pc on pc.oid = l.parent join pg_namespace pn on pn.oid = pc.relnamespace';
+    }
+
+    /**
+     * Compile a create range partition command.
+     *
+     * @param list<mixed> $from
+     * @param list<mixed> $to
+     */
+    public function compileCreateRangePartition(string $table, string $partition, array $from, array $to): string
+    {
+        return sprintf(
+            'create table %s partition of %s for values from (%s) to (%s)',
+            $this->wrapTable($partition),
+            $this->wrapTable($table),
+            $this->compilePartitionBound($from),
+            $this->compilePartitionBound($to)
+        );
+    }
+
+    /**
+     * Compile the values of a partition bound.
+     *
+     * @param list<mixed> $values
+     */
+    protected function compilePartitionBound(array $values): string
+    {
+        // DDL cannot take bound parameters, so the values are embedded as escaped literals.
+        return implode(', ', array_map(
+            fn (mixed $value): string => $this->isExpression($value) ? (string) $this->getValue($value) : $this->escape($value),
+            $values
+        ));
+    }
+
+    /**
      * Compile a create table command.
      */
     public function compileCreate(Blueprint $blueprint, Fluent $command): string
     {
         return sprintf(
-            '%s table %s (%s)',
+            '%s table %s (%s)%s',
             $blueprint->temporary ? 'create temporary' : 'create',
             $this->wrapTable($blueprint),
-            implode(', ', $this->getColumns($blueprint))
+            implode(', ', $this->getColumns($blueprint)),
+            is_null($blueprint->rangePartitionColumns) ? '' : ' partition by range (' . $this->columnize($blueprint->rangePartitionColumns) . ')'
         );
     }
 
@@ -896,6 +975,22 @@ class PostgresGrammar extends Grammar
      * Create the column definition for a binary type.
      */
     protected function typeBinary(Fluent $column): string
+    {
+        return 'bytea';
+    }
+
+    /**
+     * Create the column definition for a medium binary type.
+     */
+    protected function typeMediumBinary(Fluent $column): string
+    {
+        return 'bytea';
+    }
+
+    /**
+     * Create the column definition for a long binary type.
+     */
+    protected function typeLongBinary(Fluent $column): string
     {
         return 'bytea';
     }

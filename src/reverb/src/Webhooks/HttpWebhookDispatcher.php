@@ -6,11 +6,13 @@ namespace Hypervel\Reverb\Webhooks;
 
 use Hypervel\Reverb\Application;
 use Hypervel\Reverb\Contracts\Connection;
+use Hypervel\Reverb\FailureReporter;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelManager;
 use Hypervel\Reverb\Webhooks\Contracts\WebhookDispatcher;
+use Hypervel\Reverb\Webhooks\Contracts\WebhookSender;
 use Hypervel\Reverb\Webhooks\Jobs\FlushWebhookBatchJob;
-use Hypervel\Reverb\Webhooks\Jobs\WebhookDeliveryJob;
 use Hypervel\Support\Str;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class HttpWebhookDispatcher implements WebhookDispatcher
@@ -49,45 +51,45 @@ class HttpWebhookDispatcher implements WebhookDispatcher
 
         $eventData = $this->buildEventData($application, $event, $data, $connection);
 
-        if ($webhooks['batching']['enabled']) {
-            $buffer = app(WebhookBatchBuffer::class);
-            $shouldSchedule = $buffer->appendAndCheckSchedule($application->id(), $eventData);
+        try {
+            if ($webhooks['batching']['enabled']) {
+                $buffer = app(WebhookBatchBuffer::class);
+                $shouldSchedule = $buffer->appendAndCheckSchedule($application->id(), $eventData);
 
-            if ($shouldSchedule) {
-                try {
-                    FlushWebhookBatchJob::dispatch($application->id(), $webhooks)
-                        ->onQueue('reverb-webhook-flush')
-                        ->delay(now()->addMilliseconds(
-                            $webhooks['batching']['max_delay_ms']
-                        ));
-                } catch (Throwable $exception) {
+                if ($shouldSchedule) {
                     try {
-                        // The append is durable; release only the lock acquired by this call.
-                        $buffer->clearFlushLock($application->id());
-                    } catch (Throwable) {
-                        // Preserve the queue dispatch failure.
+                        FlushWebhookBatchJob::dispatch($application->id(), $webhooks)
+                            ->onQueue('reverb-webhook-flush')
+                            ->delay(now()->addMilliseconds(
+                                $webhooks['batching']['max_delay_ms']
+                            ));
+                    } catch (Throwable $exception) {
+                        try {
+                            // The append is durable; release only the lock acquired by this call.
+                            $buffer->clearFlushLock($application->id());
+                        } catch (CanceledException $cancellation) {
+                            throw $cancellation;
+                        } catch (Throwable) {
+                            // Preserve the queue dispatch failure.
+                        }
+
+                        throw $exception;
                     }
-
-                    throw $exception;
                 }
-            }
-        } else {
-            $payload = new WebhookPayload(
-                webhookId: (string) Str::orderedUuid(),
-                timeMs: (int) (microtime(true) * 1000),
-                events: [$eventData],
-            );
+            } else {
+                $payload = new WebhookPayload(
+                    webhookId: (string) Str::orderedUuid(),
+                    timeMs: (int) (microtime(true) * 1000),
+                    events: [$eventData],
+                );
 
-            WebhookDeliveryJob::dispatch(
-                $payload,
-                $webhooks['url'],
-                $application->key(),
-                $application->secret(),
-                $webhooks['retries'],
-                $webhooks['retry_delay'],
-                $webhooks['timeout'],
-                $webhooks['headers'],
-            );
+                app(WebhookSender::class)->send($application, $webhooks, $payload);
+            }
+        } catch (CanceledException $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            // A delivery failure must not interrupt the WebSocket operation that triggered it.
+            FailureReporter::report($exception);
         }
     }
 
