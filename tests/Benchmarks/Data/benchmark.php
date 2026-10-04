@@ -493,8 +493,8 @@ class DataBenchmark
 
         $standardOperations = $this->operations;
         $nestedOperations = $this->scaledOperations(10);
-        $collectionOperations = $this->scaledOperations(100);
-        $validationOperations = $this->scaledOperations(1_000);
+        $collectionOperations = $this->scaledOperations(1_000);
+        $validationOperations = $this->scaledOperations(10_000);
         $standardWarmup = $this->warmup;
         $nestedWarmup = $this->scaledWarmup(10);
         $collectionWarmup = $this->scaledWarmup(100);
