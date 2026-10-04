@@ -91,7 +91,7 @@ class DataValidationCompiler
             rules: $accumulator->rules,
             messages: $accumulator->messages,
             attributes: $accumulator->attributes,
-            preservedPaths: $accumulator->preservedPaths,
+            preservedPaths: $this->preservedPaths($accumulator),
             additionalFields: $accumulator->additionalFields,
             allowedSubtrees: $accumulator->allowedSubtrees,
         );
@@ -130,10 +130,56 @@ class DataValidationCompiler
             rules: $accumulator->rules,
             messages: $accumulator->messages,
             attributes: $accumulator->attributes,
-            preservedPaths: $accumulator->preservedPaths,
+            preservedPaths: $this->preservedPaths($accumulator),
             additionalFields: $accumulator->additionalFields,
             allowedSubtrees: $accumulator->allowedSubtrees,
         );
+    }
+
+    /**
+     * Get the paths restored after validation.
+     *
+     * A constructor input is restored only when no compiled rule applies to it or to anything beneath it;
+     * otherwise the validated result owns it.
+     *
+     * @return list<ValidationPath>
+     */
+    protected function preservedPaths(ValidationAccumulator $accumulator): array
+    {
+        if ($accumulator->constructorInputPaths === []) {
+            return $accumulator->preservedPaths;
+        }
+
+        $rules = [];
+
+        foreach (array_keys($accumulator->rules) as $rule) {
+            $rules[] = ValidationPath::create((string) $rule)->rawSegments();
+        }
+
+        $paths = $accumulator->preservedPaths;
+
+        foreach ($accumulator->constructorInputPaths as $input) {
+            $segments = $input->rawSegments();
+
+            foreach ($rules as $rule) {
+                if (count($rule) < count($segments)) {
+                    continue;
+                }
+
+                // A null segment is a wildcard and matches any item on either side.
+                foreach ($segments as $index => $segment) {
+                    if ($segment !== null && $rule[$index] !== null && $segment !== $rule[$index]) {
+                        continue 2;
+                    }
+                }
+
+                continue 2;
+            }
+
+            $paths[] = $input;
+        }
+
+        return $paths;
     }
 
     /**
@@ -154,6 +200,15 @@ class DataValidationCompiler
     ): void {
         $dataClass = $this->dataClasses->get($class);
         $contextualProperties = $dataClass->contextualParameters;
+
+        foreach ($dataClass->constructorInputs as $input) {
+            $inputPath = $path->property($input);
+            $accumulator->constructorInputPaths[] = $inputPath;
+
+            if ($compileUnknownFields) {
+                $accumulator->allowedSubtrees[] = $inputPath->get();
+            }
+        }
 
         foreach ($dataClass->properties as $property) {
             if ($property->computed) {
@@ -205,9 +260,9 @@ class DataValidationCompiler
                 continue;
             }
 
-            $nestedDataClass = $property->type->getDataObjectClass();
-            $dataIterable = $property->type->getDataCollectableType();
-            $dataIterableClass = $dataIterable?->dataClass;
+            $dataType = $this->receivingDataType($property, $state, $hasValue, $value);
+            $nestedDataClass = $dataType !== null && $dataType->kind->isDataObject() ? $dataType->dataClass : null;
+            $dataIterableClass = $dataType !== null && $dataType->kind->isDataCollectable() ? $dataType->dataClass : null;
             $inferredRequired = false;
             $propertyRulePath = $propertyPath->get();
             $accumulator->rules[$propertyRulePath] = $this->propertyRules(
@@ -216,7 +271,7 @@ class DataValidationCompiler
                 $propertyPath,
                 $value,
                 $state,
-                $nestedDataClass !== null || $dataIterable !== null,
+                $this->inferredTypeRule($property, $hasValue, $value, $dataType),
                 $inferredRequired,
             );
 
@@ -506,6 +561,7 @@ class DataValidationCompiler
     /**
      * Infer fixed presence and type rules for one property.
      *
+     * @param null|'array'|'boolean'|'integer'|'numeric'|'string' $typeRule
      * @return list<string>
      */
     protected function propertyRules(
@@ -514,7 +570,7 @@ class DataValidationCompiler
         ValidationPath $propertyPath,
         mixed $value,
         ConstructionState $state,
-        bool $expectsArray,
+        ?string $typeRule,
         bool &$inferredRequired,
     ): array {
         $attributes = [];
@@ -550,7 +606,7 @@ class DataValidationCompiler
                 }
             }
 
-            $inferredRules = $this->inferRules($property, $expectsArray, $hasPresenceRule);
+            $inferredRules = $this->inferRules($property, $typeRule, $hasPresenceRule);
             $propertyRules = $this->applyRuleInferrers($property, $attributes, $inferredRules, $nodePath, $state);
             // An inferrer may remove the inferred requirement; class rules must not treat it as present.
             $inferredRequired = in_array('required', $inferredRules, true)
@@ -582,7 +638,7 @@ class DataValidationCompiler
                     $this->ruleDenormalizer->execute($generatedRules, $nodePath),
                 );
             } else {
-                $generatedRules = $this->inferRules($property, $expectsArray, $hasPresenceRule);
+                $generatedRules = $this->inferRules($property, $typeRule, $hasPresenceRule);
                 $inferredRequired = in_array('required', $generatedRules, true);
                 $rules = $this->mergeRules($attributeRules, $generatedRules);
             }
@@ -601,11 +657,12 @@ class DataValidationCompiler
     /**
      * Infer fixed presence and type rules for one property.
      *
+     * @param null|'array'|'boolean'|'integer'|'numeric'|'string' $typeRule
      * @return list<'array'|'boolean'|'integer'|'nullable'|'numeric'|'required'|'sometimes'|'string'>
      */
     protected function inferRules(
         DataProperty $property,
-        bool $expectsArray,
+        ?string $typeRule,
         bool $hasPresenceRule = false,
     ): array {
         $rules = match (true) {
@@ -614,8 +671,6 @@ class DataValidationCompiler
             ! $property->hasDefaultValue && ! $hasPresenceRule => ['required'],
             default => [],
         };
-
-        $typeRule = $expectsArray ? 'array' : $this->primitiveRule($property);
 
         if ($typeRule !== null) {
             $rules[] = $typeRule;
@@ -1005,9 +1060,18 @@ class DataValidationCompiler
             )];
         }
 
-        $nestedDataClass = $property->type->getDataObjectClass();
+        $dataType = $this->receivingDataType($property, $state, $hasValue, $value);
 
-        if ($nestedDataClass !== null) {
+        if ($dataType === null) {
+            return [new TranslatedValidationPath(
+                $this->appendUnmappedSegments($path, $segments, $offset + 1),
+                $this->appendUnmappedSegments($structuralPath, $segments, $offset + 1),
+            )];
+        }
+
+        if ($dataType->kind->isDataObject()) {
+            /** @var class-string<BaseData> $nestedDataClass */
+            $nestedDataClass = $dataType->dataClass;
             $state->enterProperty($property->name, $inputPath);
 
             try {
@@ -1025,17 +1089,8 @@ class DataValidationCompiler
             }
         }
 
-        $dataIterable = $property->type->getDataCollectableType();
-
-        if ($dataIterable === null) {
-            return [new TranslatedValidationPath(
-                $this->appendUnmappedSegments($path, $segments, $offset + 1),
-                $this->appendUnmappedSegments($structuralPath, $segments, $offset + 1),
-            )];
-        }
-
         /** @var class-string<BaseData> $itemDataClass */
-        $itemDataClass = $dataIterable->dataClass;
+        $itemDataClass = $dataType->dataClass;
         $itemSegment = $segments[$offset + 1];
         $values = $hasValue && is_array($value) ? $value : [];
         $state->enterProperty($property->name, $inputPath);
@@ -1328,14 +1383,7 @@ class DataValidationCompiler
         $rules = [];
 
         foreach ($property->type->getNamedTypes() as $type) {
-            $rule = match ($type->name) {
-                'array', 'iterable' => 'array',
-                'bool', 'false', 'true' => 'boolean',
-                'float' => 'numeric',
-                'int' => 'integer',
-                'string' => 'string',
-                default => null,
-            };
+            $rule = $this->typeRuleFor($type);
 
             if ($rule !== null) {
                 $rules[$rule] = true;
@@ -1343,6 +1391,55 @@ class DataValidationCompiler
         }
 
         return count($rules) === 1 ? array_key_first($rules) : null;
+    }
+
+    /**
+     * Get the type rule for one declared named type.
+     *
+     * @return null|'array'|'boolean'|'integer'|'numeric'|'string'
+     */
+    protected function typeRuleFor(NamedType $type): ?string
+    {
+        return match ($type->name) {
+            'array', 'iterable' => 'array',
+            'bool', 'false', 'true' => 'boolean',
+            'float' => 'numeric',
+            'int' => 'integer',
+            'string' => 'string',
+            default => null,
+        };
+    }
+
+    /**
+     * Get the inferred type rule for one property value.
+     *
+     * A union value uses the rule of the declared type that holds it, so numeric size rules keep
+     * their numeric meaning. Other values use the declaration's rule.
+     *
+     * @return null|'array'|'boolean'|'integer'|'numeric'|'string'
+     */
+    protected function inferredTypeRule(
+        DataProperty $property,
+        bool $hasValue,
+        mixed $value,
+        ?NamedType $dataType,
+    ): ?string {
+        if ($hasValue && $value !== null && ! $value instanceof Optional && $property->type->isUnion) {
+            // Fill replaced a data value with its normalized input, so the type it selected decides.
+            if ($dataType !== null && $property->type->recordsSelectedType) {
+                return 'array';
+            }
+
+            foreach ($property->type->getNamedTypes() as $type) {
+                if (! $type->kind->isDataRelated() && $type->acceptsValue($value)) {
+                    return $this->typeRuleFor($type);
+                }
+            }
+        }
+
+        return $property->type->getDataObjectClass() !== null || $property->type->getDataCollectableType() !== null
+            ? 'array'
+            : $this->primitiveRule($property);
     }
 
     /**
@@ -1360,6 +1457,27 @@ class DataValidationCompiler
         return $state->context->mapPropertyNames
             ? ($property->inputMappedName ?? $property->name)
             : $property->name;
+    }
+
+    /**
+     * Get the data object or data collection type that receives a property's value on the current node.
+     *
+     * A union value uses the type Fill selected from the raw value, because Fill replaced a data value
+     * with its normalized input. Without a value, the declaration's one data type applies.
+     */
+    protected function receivingDataType(
+        DataProperty $property,
+        ConstructionState $state,
+        bool $hasValue,
+        mixed $value,
+    ): ?NamedType {
+        if ($property->type->recordsSelectedType && $hasValue && $value !== null && ! $value instanceof Optional) {
+            $type = $state->selectedType($property->name);
+
+            return $type !== null && $type->kind->isDataRelated() ? $type : null;
+        }
+
+        return $property->type->getDataObjectType() ?? $property->type->getDataCollectableType();
     }
 
     /**

@@ -372,6 +372,7 @@ class DataTypeFactory
         array $annotations,
     ): ?DataIterableAnnotation {
         $fallback = null;
+        $shorthandFallback = null;
 
         foreach ($annotations as $annotation) {
             $container = $this->resolvePhpDocName(
@@ -391,10 +392,17 @@ class DataTypeFactory
                 )
             ) {
                 $fallback = $annotation;
+
+                continue;
+            }
+
+            // Item shorthands such as `Item[]` or `array<Item>` describe any container, as in upstream.
+            if ($shorthandFallback === null && ($container === 'array' || $container === 'iterable')) {
+                $shorthandFallback = $annotation;
             }
         }
 
-        return $fallback;
+        return $fallback ?? $shorthandFallback;
     }
 
     /**

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Data\Support\Creation;
 
 use Hypervel\Contracts\Support\Arrayable;
-use Hypervel\Data\Exceptions\CannotCreateData;
 use Hypervel\Data\Normalizers\Normalized\Normalized;
 use Hypervel\Data\Normalizers\Normalized\NormalizedModel;
 use Hypervel\Data\Normalizers\Normalizer;
@@ -17,16 +16,12 @@ use JsonException;
 class SourceResolver
 {
     /**
-     * Resolve a value into one source consumed by the fill walk.
+     * Resolve a value into one source consumed by the fill walk, or null when nothing can read it.
      *
-     * @param class-string $dataClass
      * @param list<Normalizer> $normalizers
      */
-    public static function resolve(
-        string $dataClass,
-        mixed $value,
-        array $normalizers,
-    ): array|Normalized {
+    public static function resolve(mixed $value, array $normalizers): array|Normalized|null
+    {
         if ($value === null) {
             return [];
         }
@@ -74,6 +69,6 @@ class SourceResolver
             }
         }
 
-        throw CannotCreateData::noNormalizerFound($dataClass, $value);
+        return null;
     }
 }

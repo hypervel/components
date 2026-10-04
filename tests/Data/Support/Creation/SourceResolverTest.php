@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Data\Support\Creation;
 
 use Hypervel\Contracts\Support\Arrayable;
-use Hypervel\Data\Exceptions\CannotCreateData;
 use Hypervel\Data\Normalizers\Normalized\Normalized;
 use Hypervel\Data\Normalizers\Normalized\NormalizedModel;
 use Hypervel\Data\Normalizers\Normalized\UnknownProperty;
@@ -36,8 +35,8 @@ class SourceResolverTest extends TestCase
             }
         };
 
-        $this->assertSame([], SourceResolver::resolve(self::class, null, [$normalizer]));
-        $this->assertSame($normalized, SourceResolver::resolve(self::class, $normalized, [$normalizer]));
+        $this->assertSame([], SourceResolver::resolve(null, [$normalizer]));
+        $this->assertSame($normalized, SourceResolver::resolve($normalized, [$normalizer]));
     }
 
     /**
@@ -60,7 +59,7 @@ class SourceResolverTest extends TestCase
 
         $this->assertSame(
             ['custom' => 'value'],
-            SourceResolver::resolve(self::class, ['original' => 'value'], [$skipped, $accepted]),
+            SourceResolver::resolve(['original' => 'value'], [$skipped, $accepted]),
         );
     }
 
@@ -88,26 +87,18 @@ class SourceResolverTest extends TestCase
         $model = new class extends Model {
         };
 
-        $this->assertSame(['array' => true], SourceResolver::resolve(self::class, ['array' => true], []));
-        $this->assertSame(['request' => true], SourceResolver::resolve(self::class, $request, []));
-        $this->assertSame(['source' => 'arrayable'], SourceResolver::resolve(self::class, $arrayable, []));
-        $this->assertSame(['initialized' => 'value'], SourceResolver::resolve(self::class, $object, []));
-        $this->assertSame(['json' => true], SourceResolver::resolve(self::class, '{"json":true}', []));
-        $this->assertInstanceOf(NormalizedModel::class, SourceResolver::resolve(self::class, $model, []));
+        $this->assertSame(['array' => true], SourceResolver::resolve(['array' => true], []));
+        $this->assertSame(['request' => true], SourceResolver::resolve($request, []));
+        $this->assertSame(['source' => 'arrayable'], SourceResolver::resolve($arrayable, []));
+        $this->assertSame(['initialized' => 'value'], SourceResolver::resolve($object, []));
+        $this->assertSame(['json' => true], SourceResolver::resolve('{"json":true}', []));
+        $this->assertInstanceOf(NormalizedModel::class, SourceResolver::resolve($model, []));
     }
 
-    /**
-     * Test unsupported and invalid JSON values fail with a creation exception.
-     */
-    public function testThrowsWhenNoFixedOrCustomNormalizerAcceptsTheValue(): void
+    public function testReturnsNullWhenNoFixedOrCustomNormalizerAcceptsTheValue(): void
     {
         foreach ([42, 'not-json', 'null'] as $value) {
-            try {
-                SourceResolver::resolve(self::class, $value, []);
-                $this->fail('Expected the source to be rejected.');
-            } catch (CannotCreateData $exception) {
-                $this->assertStringContainsString('no normalizer accepted', $exception->getMessage());
-            }
+            $this->assertNull(SourceResolver::resolve($value, []));
         }
     }
 }

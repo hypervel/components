@@ -163,7 +163,7 @@ class DataValidator
             $payload = $this->restoreSourceKeyOrder(
                 $compiled->restorePreservedValues(
                     $validator->validate(),
-                    $sourcePayload,
+                    $validator->getData(),
                 ),
                 $sourcePayload,
             );

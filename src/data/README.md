@@ -4,23 +4,29 @@ Documentation: https://hypervel.org/docs/data-objects
 
 ## Differences From Laravel
 
-`Resource` authorizes and validates request input under the default `OnlyRequests` strategy, as `Data` and `Dto` do; Spatie's `Resource` never validates. When a named factory accepts a request, Hypervel authorizes the request but does not validate it first, so a factory that returns the finished object is responsible for validation.
+`Resource` authorizes and validates request input under the default `OnlyRequests` strategy, as `Data` and `Dto` do, so request input is validated whichever base class receives it; Spatie's `Resource` never validates. When a named factory accepts a request, Hypervel authorizes the request but does not validate it first, so a factory that returns the finished object is responsible for validation.
 
-With multiple payloads, Hypervel validates the combined input once rather than a request payload on its own. Later payloads take precedence, and a later explicit `null` replaces an earlier value where Spatie keeps the earlier value. An `Optional` value never replaces an earlier value.
+With multiple payloads, Hypervel validates the combined input once rather than a request payload on its own, so the rules check the values the object will receive. Later payloads take precedence, and a later explicit `null` replaces an earlier value where Spatie keeps the earlier value, so a later payload can clear a value. An `Optional` value never replaces an earlier value.
 
-The `casts`, `transformers`, `normalizers`, and `rule_inferrers` options only hold your own extensions. Built-in source normalization, casting, transformation, and rule inference are fixed and need no configuration, so Spatie's built-in normalizer and rule inferrer classes are not included. Typed iterables are always cast and transformed, as with Spatie's `cast_and_transform_iterables` feature, which is not a configuration option.
+The `casts`, `transformers`, `normalizers`, and `rule_inferrers` options only hold your own extensions. Built-in source normalization, casting, transformation, and rule inference are fixed and need no configuration, so Spatie's built-in normalizer and rule inferrer classes are not included. Typed iterable items are always cast and transformed, and an array given to a collection property becomes that collection, as with Spatie's `cast_and_transform_iterables` feature. Spatie's published configuration turns that feature off; Hypervel has no option for it.
 
-Responses use the `200` status code for every request method, while Spatie uses `201` for `POST` requests and provides a `calculateResponseStatus()` override. Set a different status in `withResponse()`.
+Responses use the `200` status code for every request method. Spatie returns `201 Created` for every `POST` request, including searches and other requests that create nothing, and provides a `calculateResponseStatus()` override. Set `201` in `withResponse()` when the request actually created something, as Laravel's API resources do for newly created models.
 
-Hypervel rejects data classes with conflicting input or output mappings when the class is first used. Uniform nested collections use wildcard validation rules, while collections with different item shapes or rules use exact indexed rules.
+Hypervel rejects data classes with conflicting input or output mappings when the class is first used, rather than letting one value silently overwrite another. Uniform nested collections use wildcard validation rules, while collections with different item shapes or rules use exact indexed rules, so each item is checked against the rules for its own shape.
 
-Constructor injection uses Hypervel contextual attributes, including property extraction through `CurrentUser` and `RouteParameter`. Their resolved value always wins over payload input and creation hooks, including `null`. When input should take precedence, use a named factory that returns the finished object, or remove the contextual attribute and supply the value through a creation hook.
+When a union property already accepts a value, Hypervel keeps it instead of converting it to another declared type: a string given to `string|SongData` stays a string, and an array given to `array|Collection` stays an array. Spatie first tries to build the data object and keeps the original value only if that throws, which also hides genuine construction failures; it also converts an array to the collection type of a container union. Explicit casts still run first, the declared item type of the kept container is still cast, and validation uses the rules of the type that holds the value, where Spatie requires an array for any union with a data type. Declare `Collection` alone when the property should always hold a collection. In a union with more than one container type, a value that several of them accept, or that no declared type accepts, is rejected rather than guessed. See [type conversion](https://hypervel.org/docs/data-objects#type-conversion).
+
+A model attribute holding `null` is passed as `null`, so it fails for a property that does not accept `null`. Spatie treats it as missing and substitutes the property's default or `Optional`, so the object no longer matches the stored data. Columns that were not selected are treated as missing.
+
+Constructor injection uses Hypervel contextual attributes, including property extraction through `CurrentUser` and `RouteParameter`. Their resolved value always wins over payload input and creation hooks, including `null`, so client input cannot replace a server-resolved value such as the current user. When input should take precedence, use a named factory that returns the finished object, or remove the contextual attribute and supply the value through a creation hook.
 
 Spatie's configurable `pipeline()` and custom `DataPipe` classes are not included. Use [named factories](https://hypervel.org/docs/data-objects#named-factories), [`prepareForPipeline()`](https://hypervel.org/docs/data-objects#preparing-input), or [factory hooks](https://hypervel.org/docs/data-objects#creation-factories).
 
 Spatie's `ContextableData` and `getDataContext()` are not included. An object's partial selections are available from `getPartialsDefinition()` and its wrapping from `getWrap()`.
 
 A custom cast's `$properties` argument holds the object's declared property values keyed by PHP property name. Unlike Spatie's, it excludes undeclared input, raw input names, and contextual and computed values. See [casts and transformers](https://hypervel.org/docs/data-objects#casts-and-transformers).
+
+A few members of the `DataProperty`, `DataClass`, and `TransformationContext` metadata that casts, transformers, and other extensions read differ from Spatie's, such as `DataProperty` having no `defaultValue` because defaults are read from reflection when needed. See the [porting guide](https://hypervel.org/docs/porting-from-laravel#data-objects).
 
 `make:data` takes the complete namespace through Hypervel's `--target-namespace` generator option instead of Spatie's `--namespace` option.
 

@@ -7,6 +7,7 @@ namespace Hypervel\Data\Support\Creation;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Data\Contracts\BaseData;
 use Hypervel\Data\Exceptions\CannotCreateData;
+use Hypervel\Data\Optional;
 use Hypervel\Data\Support\DataClass;
 
 class DataInstantiator
@@ -85,15 +86,30 @@ class DataInstantiator
                 continue;
             }
 
-            if (! array_key_exists($property->name, $properties)) {
-                if (! $property->hasDefaultValue) {
-                    throw CannotCreateData::propertyMissing($dataClass, $property);
-                }
+            $value = $properties[$property->name] ?? null;
+
+            // A property promoted by an ancestor constructor belongs to the constructor chain, so input never replaces it.
+            if (! $property->isPromoted
+                && array_key_exists($property->name, $properties)
+                && ! $value instanceof Optional
+            ) {
+                $data->{$property->name} = $value;
 
                 continue;
             }
 
-            $data->{$property->name} = $properties[$property->name];
+            // Absent input, including Optional, keeps a value the constructor assigned.
+            if ($property->reflection->isInitialized($data)) {
+                continue;
+            }
+
+            if ($property->type->isOptional) {
+                $data->{$property->name} = Optional::create();
+            } elseif ($property->type->isNullable) {
+                $data->{$property->name} = null;
+            } else {
+                throw CannotCreateData::propertyMissing($dataClass, $property);
+            }
         }
 
         return $data;

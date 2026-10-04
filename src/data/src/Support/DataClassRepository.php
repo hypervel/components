@@ -114,8 +114,11 @@ class DataClassRepository
                 $nestedClasses[$dataObjectTypes[0]->dataClass] = true;
             }
 
-            if (count($dataCollectableTypes) === 1 && $dataCollectableTypes[0]->dataClass !== null) {
-                $nestedClasses[$dataCollectableTypes[0]->dataClass] = true;
+            // Each collection type of a container union can be selected by its input value.
+            foreach ($dataCollectableTypes as $dataCollectableType) {
+                if ($dataCollectableType->dataClass !== null) {
+                    $nestedClasses[$dataCollectableType->dataClass] = true;
+                }
             }
 
             foreach (array_keys($nestedClasses) as $nestedClass) {

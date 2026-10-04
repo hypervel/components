@@ -21,6 +21,7 @@ use Hypervel\Data\Attributes\Validation\Confirmed;
 use Hypervel\Data\Attributes\Validation\CustomValidationAttribute;
 use Hypervel\Data\Attributes\Validation\Distinct;
 use Hypervel\Data\Attributes\Validation\Max;
+use Hypervel\Data\Attributes\Validation\Min;
 use Hypervel\Data\Attributes\Validation\Required;
 use Hypervel\Data\Attributes\Validation\RequiredUnless;
 use Hypervel\Data\Attributes\Validation\Sometimes;
@@ -52,6 +53,7 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Data\Fixtures\SimpleData;
 use Hypervel\Validation\Factory as ValidationFactory;
 use Hypervel\Validation\ValidationException;
 use Hypervel\Validation\Validator;
@@ -205,6 +207,34 @@ class DataValidatorTest extends TestCase
         $this->assertSame(['nullable', 'string'], $rules['nickname']);
         $this->assertSame(['sometimes', 'string'], $rules['note']);
         $this->assertSame(['string'], $rules['label']);
+    }
+
+    public function testUnionValuesUseTheTypeRuleOfTheTypeThatHoldsThem(): void
+    {
+        $data = UnionTypeRuleDataFixture::validateAndCreate([
+            'stringOrData' => 'Hello',
+            'intOrData' => 10,
+            'container' => new Collection(['a']),
+            'collectionOrString' => 'x',
+        ]);
+
+        $this->assertSame('Hello', $data->stringOrData);
+        $this->assertSame(10, $data->intOrData);
+        $this->assertSame(['a'], $data->container->all());
+        $this->assertSame('x', $data->collectionOrString);
+
+        // The integer rule keeps the size rule numeric, and an object normalized for the data type keeps its rules.
+        foreach ([
+            'intOrData' => ['intOrData' => 3],
+            'arrayOrData.string' => ['arrayOrData' => (object) ['other' => 'value']],
+        ] as $errorKey => $payload) {
+            try {
+                UnionTypeRuleDataFixture::validateAndCreate($payload);
+                $this->fail("Expected a validation error for [{$errorKey}].");
+            } catch (ValidationException $exception) {
+                $this->assertSame([$errorKey], array_keys($exception->errors()));
+            }
+        }
     }
 
     /**
@@ -1330,7 +1360,7 @@ class DataValidatorTest extends TestCase
         try {
             DirectFinishedParentDataFixture::validateAndCreate([
                 'children' => [
-                    ['finished' => true, 'name' => 'finished'],
+                    'finished',
                     ['name' => 'invalid'],
                 ],
             ]);
@@ -1686,6 +1716,62 @@ class DataValidatorTest extends TestCase
             ]);
 
         $this->assertSame(['id' => 1], $payload);
+    }
+
+    public function testRestoresMappedUnvalidatedValuesIntoUnvalidatedContainers(): void
+    {
+        $this->assertSame(
+            ['id' => 1, 'nested' => ['value' => 'kept']],
+            HookMappedUnvalidatedDataFixture::validate(['id' => 1, 'nested' => ['value' => 'kept']]),
+        );
+    }
+
+    public function testUnvalidatedConstructorInputsArePreserved(): void
+    {
+        $data = ValidatedConstructorInputData::validateAndCreate([
+            'prefix' => 'p',
+            'options' => ['a' => 1, 'nested' => ['b' => 2]],
+            'secret' => 's',
+        ]);
+
+        $this->assertSame(
+            ['prefix' => 'p', 'options' => ['a' => 1, 'nested' => ['b' => 2]], 'secret' => 's'],
+            $data->received,
+        );
+    }
+
+    public function testRulesGovernConstructorInputs(): void
+    {
+        $data = GovernedConstructorInputData::validateAndCreate([
+            'prefix' => 'p',
+            'options' => ['a' => 1, 'b' => 2],
+            'secret' => 's',
+        ]);
+
+        $this->assertSame(['prefix' => 'p', 'options' => ['a' => 1], 'secret' => 'none'], $data->received);
+    }
+
+    public function testParentRulesGovernNestedConstructorInputsAndExclusions(): void
+    {
+        $data = ConstructorInputParentData::validateAndCreate([
+            'items' => [['prefix' => 'a', 'secret' => 'x']],
+            'skip' => true,
+            'child' => ['prefix' => 'c', 'secret' => 'y', 'note' => 'unvalidated'],
+        ]);
+
+        $this->assertSame(['prefix' => 'a', 'options' => [], 'secret' => 'none'], $data->items[0]->received);
+        $this->assertNull($data->child);
+    }
+
+    public function testValidationHooksEditConstructorInputs(): void
+    {
+        $data = ValidatedConstructorInputData::factory()
+            ->alwaysValidate()
+            ->beforeValidation(static fn (array $payload): array => [...$payload, 'prefix' => 'before'])
+            ->afterValidation(static fn (array $payload): array => [...$payload, 'secret' => 'after'])
+            ->from(['prefix' => 'original', 'secret' => 'original']);
+
+        $this->assertSame(['prefix' => 'before', 'options' => [], 'secret' => 'after'], $data->received);
     }
 
     /**
@@ -2103,6 +2189,24 @@ class ValidatedDataFixture extends Data
         public ?string $nickname,
         public string|Optional $note,
         public string $label = 'default',
+    ) {
+    }
+}
+
+class UnionTypeRuleDataFixture extends Data
+{
+    /**
+     * Create a fixture whose unions hold scalars, containers, and data objects.
+     *
+     * @param Collection<int, SimpleData>|Optional|string $collectionOrString
+     */
+    public function __construct(
+        public string|SimpleData|Optional $stringOrData,
+        #[Min(5)]
+        public int|SimpleData|Optional $intOrData,
+        public Collection|array|Optional $container,
+        public array|SimpleData|Optional $arrayOrData,
+        public Collection|string|Optional $collectionOrString,
     ) {
     }
 }
@@ -3233,13 +3337,11 @@ class DirectFinishedChildDataFixture extends Data
     }
 
     /**
-     * Finish selected payloads before validation.
+     * Finish string payloads before validation.
      */
-    public static function fromPayload(array $payload): static|array
+    public static function fromName(string $name): static
     {
-        return ($payload['finished'] ?? false) === true
-            ? new static($payload['name'])
-            : $payload;
+        return new static($name);
     }
 
     /**
@@ -3404,6 +3506,68 @@ class HookMappedScalarDataFixture extends Data
         #[MapInputName('email_address')]
         public string $email,
     ) {
+    }
+}
+
+#[FailOnUnknownFields]
+class ValidatedConstructorInputData extends Data
+{
+    #[Computed]
+    public array $received;
+
+    #[WithoutValidation]
+    public ?string $note = null;
+
+    /**
+     * Create a fixture whose constructor parameters have no public data properties.
+     *
+     * @param array<string, mixed> $options
+     */
+    public function __construct(string $prefix, array $options = [], protected string $secret = 'none')
+    {
+        $this->received = ['prefix' => $prefix, 'options' => $options, 'secret' => $secret];
+    }
+}
+
+class GovernedConstructorInputData extends ValidatedConstructorInputData
+{
+    /**
+     * Get rules that govern two of the constructor inputs.
+     */
+    public static function rules(): array
+    {
+        return [
+            'options.a' => ['integer'],
+            'options.b' => ['exclude'],
+            'secret' => ['exclude'],
+        ];
+    }
+}
+
+class ConstructorInputParentData extends Data
+{
+    /**
+     * Create a parent whose rules reach nested constructor inputs.
+     *
+     * @param array<int, ValidatedConstructorInputData> $items
+     */
+    public function __construct(
+        #[DataCollectionOf(ValidatedConstructorInputData::class)]
+        public array $items,
+        public bool $skip = false,
+        public ?ValidatedConstructorInputData $child = null,
+    ) {
+    }
+
+    /**
+     * Get rules for nested constructor inputs and the excluded child.
+     */
+    public static function rules(): array
+    {
+        return [
+            'items.*.secret' => ['exclude'],
+            'child' => ['exclude_if:skip,true'],
+        ];
     }
 }
 

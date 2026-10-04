@@ -81,8 +81,7 @@ class DataClassFactory
         $constructorParameters = $this->resolveConstructorParameters($reflectionClass, $constructor);
         $contextualParameters = $this->resolveContextualParameters($constructorParameters);
         $reflectionProperties = $this->resolveReflectionProperties($reflectionClass);
-
-        $this->validateConstructorParameters($name, $constructorParameters, $reflectionProperties);
+        $constructorInputs = $this->resolveConstructorInputs($constructorParameters, $reflectionProperties);
 
         $classInputNameMapper = $this->nameMapperResolver->resolveInput(
             $attributes,
@@ -132,6 +131,7 @@ class DataClassFactory
             constructor: $constructor,
             constructorParameters: array_values($constructorParameters),
             contextualParameters: $contextualParameters,
+            constructorInputs: $constructorInputs,
             isReadonly: $reflectionClass->isReadOnly(),
             isAbstract: $reflectionClass->isAbstract(),
             isFinal: $reflectionClass->isFinal(),
@@ -155,6 +155,7 @@ class DataClassFactory
             creationRecipe: $this->resolveCreationRecipe(
                 $reflectionClass,
                 $contextualParameters,
+                $constructorInputs,
                 $properties,
                 $lifecycleMethods,
                 $propertyMorphable,
@@ -163,6 +164,7 @@ class DataClassFactory
                 $reflectionClass,
                 $constructor,
                 $contextualParameters,
+                $constructorInputs,
                 $properties,
             ),
             attributes: $attributes,
@@ -234,28 +236,25 @@ class DataClassFactory
     }
 
     /**
-     * Validate that constructor inputs have one supported ownership form.
+     * Get the constructor parameters that receive raw input without a public data property.
      *
-     * @param class-string<BaseData> $class
+     * These are non-promoted parameters without a matching property and promoted non-public parameters.
+     *
      * @param array<string, DataParameter> $parameters
      * @param array<string, ReflectionProperty> $properties
+     * @return list<string>
      */
-    protected function validateConstructorParameters(
-        string $class,
-        array $parameters,
-        array $properties,
-    ): void {
-        foreach ($parameters as $parameter) {
-            if ($parameter->isPromoted && ! isset($properties[$parameter->name])) {
-                throw InvalidDataDeclaration::nonPublicPromotedProperty($class, $parameter);
-            }
+    protected function resolveConstructorInputs(array $parameters, array $properties): array
+    {
+        $inputs = [];
 
-            if (! $parameter->isPromoted
-                && $parameter->contextualAttribute === null
-                && ! isset($properties[$parameter->name])) {
-                throw InvalidDataDeclaration::missingDataProperty($class, $parameter);
+        foreach ($parameters as $parameter) {
+            if ($parameter->contextualAttribute === null && ! isset($properties[$parameter->name])) {
+                $inputs[] = $parameter->name;
             }
         }
+
+        return $inputs;
     }
 
     /**
@@ -334,7 +333,12 @@ class DataClassFactory
                 throw InvalidDataDeclaration::writeOnlyProperty($class, $property);
             }
 
-            if ($property->isReadonly && ! $property->isConstructorParameter && ! $property->computed) {
+            // A readonly property promoted by an ancestor constructor is assigned by that constructor chain.
+            if ($property->isReadonly
+                && ! $property->isConstructorParameter
+                && ! $property->isPromoted
+                && ! $property->computed
+            ) {
                 throw InvalidDataDeclaration::unassignableReadonlyProperty($class, $property);
             }
 
@@ -558,12 +562,14 @@ class DataClassFactory
      *
      * @param ReflectionClass<object> $reflectionClass
      * @param array<string, true> $contextualParameters
+     * @param list<string> $constructorInputs
      * @param array<string, DataProperty> $properties
      * @param array<string, true> $lifecycleMethods
      */
     protected function resolveCreationRecipe(
         ReflectionClass $reflectionClass,
         array $contextualParameters,
+        array $constructorInputs,
         array $properties,
         array $lifecycleMethods,
         bool $propertyMorphable,
@@ -576,7 +582,7 @@ class DataClassFactory
             return null;
         }
 
-        if ($contextualParameters !== []) {
+        if ($contextualParameters !== [] || $constructorInputs !== []) {
             return null;
         }
 
@@ -599,17 +605,20 @@ class DataClassFactory
      *
      * @param ReflectionClass<object> $reflectionClass
      * @param array<string, true> $contextualParameters
+     * @param list<string> $constructorInputs
      * @param array<string, DataProperty> $properties
      */
     protected function supportsDirectConstructorInstantiation(
         ReflectionClass $reflectionClass,
         ?ReflectionMethod $constructor,
         array $contextualParameters,
+        array $constructorInputs,
         array $properties,
     ): bool {
         if ($reflectionClass->isAbstract()
             || ($constructor !== null && (! $constructor->isPublic() || $constructor->isVariadic()))
-            || $contextualParameters !== []) {
+            || $contextualParameters !== []
+            || $constructorInputs !== []) {
             return false;
         }
 

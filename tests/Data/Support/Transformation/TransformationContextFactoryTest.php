@@ -8,9 +8,11 @@ use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Data\Data;
 use Hypervel\Data\DataServiceProvider;
 use Hypervel\Data\Support\Partials\PartialDefinition;
+use Hypervel\Data\Support\Transformation\TransformationContext;
 use Hypervel\Data\Support\Transformation\TransformationContextFactory;
 use Hypervel\Data\Support\Wrapping\WrapExecutionType;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Data\Fixtures\SimpleData;
 use stdClass;
 
 class TransformationContextFactoryTest extends TestCase
@@ -21,6 +23,96 @@ class TransformationContextFactoryTest extends TestCase
     protected function getPackageProviders(Application $app): array
     {
         return [DataServiceProvider::class];
+    }
+
+    public function testCanCreateATransformationContext(): void
+    {
+        $context = TransformationContextFactory::create()->get(
+            SimpleData::from('Hello World')
+        );
+
+        $this->assertInstanceOf(TransformationContext::class, $context);
+        $this->assertTrue($context->transformValues);
+        $this->assertTrue($context->mapPropertyNames);
+        $this->assertSame(WrapExecutionType::Disabled, $context->wrapExecutionType);
+        $this->assertSame([], $context->transformers);
+        $this->assertSame(0, $context->depth);
+        $this->assertNull($context->maxDepth);
+        $this->assertTrue($context->throwWhenMaxDepthReached);
+    }
+
+    public function testCanDisableValueTransformation(): void
+    {
+        $context = TransformationContextFactory::create()
+            ->withoutValueTransformation()
+            ->get(SimpleData::from('Hello World'));
+
+        $this->assertFalse($context->transformValues);
+    }
+
+    public function testCanEnableValueTransformation(): void
+    {
+        $context = TransformationContextFactory::create()
+            ->withValueTransformation()
+            ->get(SimpleData::from('Hello World'));
+
+        $this->assertTrue($context->transformValues);
+    }
+
+    public function testCanDisablePropertyNameMapping(): void
+    {
+        $context = TransformationContextFactory::create()
+            ->withoutPropertyNameMapping()
+            ->get(SimpleData::from('Hello World'));
+
+        $this->assertFalse($context->mapPropertyNames);
+    }
+
+    public function testCanEnablePropertyNameMapping(): void
+    {
+        $context = TransformationContextFactory::create()
+            ->withPropertyNameMapping()
+            ->get(SimpleData::from('Hello World'));
+
+        $this->assertTrue($context->mapPropertyNames);
+    }
+
+    public function testCanDisableWrapping(): void
+    {
+        $context = TransformationContextFactory::create()
+            ->withoutWrapping()
+            ->get(SimpleData::from('Hello World'));
+
+        $this->assertSame(WrapExecutionType::Disabled, $context->wrapExecutionType);
+    }
+
+    public function testCanEnableWrapping(): void
+    {
+        $context = TransformationContextFactory::create()
+            ->withWrapping()
+            ->get(SimpleData::from('Hello World'));
+
+        $this->assertSame(WrapExecutionType::Enabled, $context->wrapExecutionType);
+    }
+
+    public function testCanSetACustomWrapExecutionType(): void
+    {
+        $context = TransformationContextFactory::create()
+            ->withWrapExecutionType(WrapExecutionType::Enabled)
+            ->get(SimpleData::from('Hello World'));
+
+        $this->assertSame(WrapExecutionType::Enabled, $context->wrapExecutionType);
+    }
+
+    public function testCanSetAMaxTransformationDepth(): void
+    {
+        $context = TransformationContextFactory::create()
+            ->maxDepth(4)
+            ->get(SimpleData::from('Hello World'));
+
+        $this->assertSame(4, $context->maxDepth);
+        $this->assertSame(0, $context->depth);
+        $this->assertTrue($context->throwWhenMaxDepthReached);
     }
 
     /**

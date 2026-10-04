@@ -25,6 +25,13 @@ class ValidationAccumulator
     /** @var list<ValidationPath> */
     public array $preservedPaths = [];
 
+    /**
+     * Constructor inputs that are preserved unless a compiled rule governs them.
+     *
+     * @var list<ValidationPath>
+     */
+    public array $constructorInputPaths = [];
+
     /** @var list<string> */
     public array $additionalFields = [];
 
@@ -58,7 +65,16 @@ class ValidationAccumulator
             }
         }
 
+        foreach ($this->constructorInputPaths as $index => $path) {
+            if (! isset($other->constructorInputPaths[$index])
+                || $path->get() !== $other->constructorInputPaths[$index]->get()
+            ) {
+                return false;
+            }
+        }
+
         return count($this->preservedPaths) === count($other->preservedPaths)
+            && count($this->constructorInputPaths) === count($other->constructorInputPaths)
             && $this->additionalFields === $other->additionalFields
             && $this->allowedSubtrees === $other->allowedSubtrees
             && $this->finishedStructuralPaths === $other->finishedStructuralPaths
@@ -78,6 +94,7 @@ class ValidationAccumulator
         $this->messages = array_replace($this->messages, $other->messages);
         $this->attributes = array_replace($this->attributes, $other->attributes);
         array_push($this->preservedPaths, ...$other->preservedPaths);
+        array_push($this->constructorInputPaths, ...$other->constructorInputPaths);
         array_push($this->additionalFields, ...$other->additionalFields);
         array_push($this->allowedSubtrees, ...$other->allowedSubtrees);
         $this->finishedStructuralPaths += $other->finishedStructuralPaths;

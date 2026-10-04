@@ -576,7 +576,7 @@ When porting `spatie/laravel-data`, replace its namespace with `Hypervel\Data` a
 
 Replace Spatie's `From*` attributes with Hypervel contextual constructor attributes and its `withOptionalValues()` and `withoutOptionalValues()` factory switches with declared `Optional` unions. `SerializeTransformer` and `UnserializeCast` are not included; use native PHP serialization or explicit custom casts and transformers. Livewire and TypeScript integrations are also not included.
 
-In `config/data.php`, the `casts`, `transformers`, `normalizers`, and `rule_inferrers` options only hold your own extensions; remove Spatie's built-in entries, since Hypervel's built-in handling is fixed. Typed iterables are always cast and transformed.
+In `config/data.php`, the `casts`, `transformers`, `normalizers`, and `rule_inferrers` options only hold your own extensions; remove Spatie's built-in entries, since Hypervel's built-in handling is fixed. Typed iterable items are always cast and transformed, and an array given to a collection property becomes that collection.
 
 Review these behavior differences in ported code:
 
@@ -586,7 +586,10 @@ Review these behavior differences in ported code:
 - Responses use the `200` status code for `POST` requests. Set `201` in `withResponse()` instead of overriding `calculateResponseStatus()`.
 - Data classes whose properties share an input path or output key are rejected when first used.
 - Custom `pipeline()` overrides and `DataPipe` classes are not supported. Rebuild them with named factories, `prepareForPipeline()`, or factory hooks.
+- A value that a union property already accepts is kept, such as a string for `string|SongData` or an array for `array|Collection`, and validation applies the rules of the declared type that holds it. Declare `Collection` alone when the property should always hold a collection. See [type conversion](/docs/{{version}}/data-objects#type-conversion).
+- A model attribute holding `null` is passed as `null` instead of falling back to the property's default or `Optional`. Columns that were not selected still count as missing.
 - A custom cast's `$properties` contains only declared property values keyed by PHP property name, without undeclared input or raw input names.
+- Casts and transformers that read Spatie's metadata need small changes. `DataProperty` has `hasDefaultValue` but no `defaultValue`. Hypervel reads defaults from reflection when it needs them, so a default such as `new Money(0)` is never one object shared by every request in the worker; read it from the constructor parameter's or property's reflection. `DataClass` exposes `constructor` and `constructorParameters` instead of `constructorMethod`, and `TransformationContext::$transformers` is an array of factory transformers keyed by type instead of a `GlobalTransformersCollection`.
 - Replace `getDataContext()` with `getPartialsDefinition()` and `getWrap()`, and `make:data --namespace` with `--target-namespace` and a complete namespace.
 
 <a name="rate-limiting"></a>

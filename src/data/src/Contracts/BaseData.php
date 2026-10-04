@@ -48,7 +48,7 @@ interface BaseData extends RequestCastable, SelfBuilding
      * @template TCollectValue of BaseData
      * @template TModelValue of Model
      *
-     * @param AbstractCursorPaginator<TKey, TValue>|AbstractPaginator<TKey, TValue>|array<TKey, TValue>|Collection<TKey, TValue>|CursorPaginatedDataCollection<TKey, TCollectValue>|CursorPaginatorContract<TKey, TValue>|DataCollection<TKey, TCollectValue>|EloquentCollection<TKey, TModelValue>|Enumerable<TKey, TValue>|LazyCollection<TKey, TValue>|LengthAwarePaginatorContract<TKey, TValue>|PaginatedDataCollection<TKey, TCollectValue>|PaginatorContract<TKey, TValue>|Traversable<TKey, TValue> $items
+     * @param null|AbstractCursorPaginator<TKey, TValue>|AbstractPaginator<TKey, TValue>|array<TKey, TValue>|Collection<TKey, TValue>|CursorPaginatedDataCollection<TKey, TCollectValue>|CursorPaginatorContract<TKey, TValue>|DataCollection<TKey, TCollectValue>|EloquentCollection<TKey, TModelValue>|Enumerable<TKey, TValue>|LazyCollection<TKey, TValue>|LengthAwarePaginatorContract<TKey, TValue>|PaginatedDataCollection<TKey, TCollectValue>|PaginatorContract<TKey, TValue>|Traversable<TKey, TValue> $items null collects an empty `$into` target
      * @param null|'array'|class-string $into
      * @return (
      *     $into is null

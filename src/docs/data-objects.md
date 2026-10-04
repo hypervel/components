@@ -154,7 +154,7 @@ class UserData extends Data
 }
 ```
 
-Constructor-promoted `readonly` properties are supported. Public properties that are not declared by the constructor are assigned after construction and therefore cannot be `readonly`, unless the class sets the value itself as a `#[Computed]` property.
+Constructor-promoted `readonly` properties are supported, including properties promoted by a parent constructor that your constructor calls. Public properties that are not declared by a constructor are assigned after construction and therefore cannot be `readonly`, unless the class sets the value itself as a `#[Computed]` property.
 
 ```php
 <?php
@@ -176,6 +176,25 @@ class UserCommand extends Dto
 }
 ```
 
+A constructor parameter without a matching public property, such as a plain parameter or a `protected` promoted property, receives the input value with the same name, unchanged. Name mapping, casts, and inferred validation rules do not apply to it, but rules you declare for it in `rules()` do, and creation and validation hooks may change it. Eloquent models do not supply these values.
+
+```php
+use Hypervel\Data\Attributes\Computed;
+
+class SearchData extends Data
+{
+    #[Computed]
+    public string $term;
+
+    public function __construct(string $query)
+    {
+        $this->term = trim($query);
+    }
+}
+
+SearchData::from(['query' => '  laravel ']);
+```
+
 <a name="creating-instances"></a>
 ### Creating Instances
 
@@ -190,6 +209,8 @@ $user = UserData::from([
 ```
 
 `from` accepts arrays, JSON strings, `Arrayable` objects, initialized public properties from ordinary objects, Eloquent models, and requests. Existing instances of the requested data type pass through unchanged.
+
+A model attribute holding `null` is passed as `null`. Columns that were not selected, and attributes the model refuses to read, are treated as missing, so the property's default, `Optional`, or `null` applies.
 
 You may pass multiple payloads. Later payloads take precedence: for each property, the last payload containing its input key wins, including when that value is `null`. An `Optional` value never replaces a value supplied by an earlier payload:
 
@@ -251,6 +272,8 @@ class PatchUserData extends Data
 
 For this object, an omitted `name` becomes `Optional::create()`, an omitted `phone` becomes `null`, and an omitted `locale` uses `en`. Explicit `null` is a supplied value and is accepted only when the declared type allows it. Use `#[Present]` when a nullable input key must still be supplied.
 
+A public property declared outside the constructor keeps any value the constructor assigned to it when its input is missing or `Optional`; supplied input, including `null`, replaces it. Validation infers its rules from the declaration alone, so when requests may omit such a property, give it a nullable or `Optional` type or add `#[Sometimes]`.
+
 <a name="empty-representations"></a>
 ### Empty Representations
 
@@ -306,7 +329,7 @@ class UserData extends Data
 }
 ```
 
-Named methods may receive dependencies from the service container as well as a `CreationContext`. When a named method returns the requested data object, Hypervel uses it directly without validating, casting, or running creation hooks for it again. This also applies to requests, so a named method that returns the finished object from a request is responsible for validating it. The data class's authorization still runs first. If the method returns another supported input value, Hypervel creates the object from that value without calling another named factory.
+Named methods may receive dependencies from the service container as well as a `CreationContext`. A named method must return the requested data object, and Hypervel uses it directly without validating, casting, or running creation hooks for it again. This also applies to requests, so a named method that returns the finished object from a request is responsible for validating it. The data class's authorization still runs first. To convert other input into the shape Hypervel reads, use a [normalizer](#casts-and-transformers) or [`prepareForPipeline()`](#preparing-input) instead. Beneath a property with an explicit cast, a named method runs only if the cast declines the value. When the object is validated, validation checks the value against the declared rules first.
 
 During ordinary creation, Hypervel maps each input value to a public property. It cannot determine how one property should be divided among variadic constructor arguments. A private or protected constructor is also unavailable to ordinary creation. In either case, use a named factory that returns the finished object.
 
@@ -422,7 +445,34 @@ $product = ProductData::from([
 ]);
 ```
 
-Ambiguous unions of data classes or typed data containers are not guessed. Supply an existing compatible value, define an explicit cast, or return the complete data object from a typed named factory.
+A value that a union property already accepts is kept: a string given to `string|SongData` stays a string, and an array given to `array|Collection` stays an array. Declare `Collection` alone when the property should always hold a collection; an array given to it becomes one. Explicit casts still run first.
+
+When a union declares several containers, the value's own container selects the declared type, and that type's item declaration still applies:
+
+```php
+use Hypervel\Support\Collection;
+
+class PlaylistData extends Data
+{
+    /**
+     * @param array<int, int>|Collection<int, SongData> $songs
+     */
+    public function __construct(
+        public array|Collection $songs,
+    ) {
+    }
+}
+
+PlaylistData::from(['songs' => ['1', '2']])->songs;
+
+// [1, 2]
+
+PlaylistData::from(['songs' => collect([['title' => 'Never Gonna Give You Up']])])->songs;
+
+// A Collection of SongData objects
+```
+
+Validation uses the rules of the selected type, so a string given to `string|SongData` is validated as a string. Hypervel does not guess between union types. With several declared data classes, or with several declared containers when more than one of them accepts the value or no declared type does, supply an existing compatible value, define an explicit cast, or return the complete data object from a typed named factory.
 
 <a name="date-and-time-values"></a>
 ### Date and Time Values
@@ -617,7 +667,9 @@ class InvoiceData extends Data
 
 A cast implements `Hypervel\Data\Casts\Cast`; a transformer implements `Hypervel\Data\Transformers\Transformer`. Return `Uncastable::create()` from a cast when the next applicable candidate should be tried. Returning `null` means the cast produced a real null value.
 
-A cast's `cast` method receives the property, its input value, the object's declared property values keyed by property name, and the `CreationContext`. Undeclared input, contextual constructor values, and computed properties are not included. Properties that come earlier in the class have already been cast. Later properties contain their supplied input, or the default, `Optional`, or `null` value the object will receive when their input is absent:
+A cast on a nested data object or data collection property receives the input before Hypervel builds any nested objects, so it may build them itself. Without validation, the cast receives the value exactly as it was given. When the object is validated, the value is first prepared and checked against the rules of its declared types, as it would be without the cast: models, objects, and collections become the arrays they would be built from, and the cast receives the validated arrays. A value that only the cast or a named method could interpret, such as a string for a nested data object, therefore fails validation. When every cast returns `Uncastable`, Hypervel builds the nested objects from the validated input. Named methods and constructors beneath the cast run only then, and a named method still receives the value it matched.
+
+A cast's `cast` method receives the property, its input value, the object's declared property values keyed by property name, and the `CreationContext`. Undeclared input, contextual constructor values, and computed properties are not included. Properties that come earlier in the class have already been cast. Later properties contain their supplied input, or the default, `Optional`, or `null` value the object will receive when their input is absent. A value the constructor will assign to a property outside the constructor is not known yet:
 
 ```php
 use Hypervel\Data\Casts\Cast;
@@ -633,7 +685,7 @@ class MoneyCast implements Cast
 }
 ```
 
-Use `Castable` when a value class owns its input conversion, `IterableItemCast` when a cast also applies to typed iterable items, or `factory()->withCast()` for a single creation. Application-wide replacement casts and transformers belong in `config/data.php`; built-in date, enum, iterable, and `Arrayable` handling does not need to be configured.
+Use `Castable` when a value class owns its input conversion, `IterableItemCast` when a cast also applies to typed iterable items, or `factory()->withCast()` for a single creation. Application-wide replacement casts and transformers belong in `config/data.php`; built-in date, enum, iterable, and `Arrayable` handling does not need to be configured. A cast registered for a type in a factory or the configuration also casts the items of iterables declared with that item type when it implements `IterableItemCast`.
 
 Custom normalizers convert a source value into input before Hypervel reads its properties. Declare normalizers for a data class with `normalizers()` or add them to a factory with `withNormalizers()`. Prefer a typed named factory when only one source type needs special handling.
 
@@ -798,6 +850,8 @@ Factories may change the validation strategy, enable or disable name mapping and
 
 The `prepareData`, `beforeCreation`, and `afterCreation` hooks run even when validation is skipped. The other hooks run while generating rules or validating, as appropriate. The `beforeValidation` hook receives the complete input and may add fields for the rules to read, while `afterValidation` receives the validated payload. Call `alwaysValidate()` when validation hooks should also apply to an array, model, JSON value, or another non-request source.
 
+The `beforeCreation` hook receives the cast values that will be passed to the constructor or assigned after it. Properties declared outside the constructor whose input is missing are not included, so the hook may supply them; otherwise any value the constructor assigns is kept.
+
 Each call to `factory()` returns a new factory. Keep a reused factory scoped to the current operation instead of storing it across requests.
 
 <a name="transformation"></a>
@@ -848,7 +902,7 @@ return $user->include('profile')->toArray();
 
 Automatic lazy values postpone creating their nested values until they are included, unless validation needs them first.
 
-When you create a custom `AutoLazy` attribute, its `build()` method receives the original source that supplied the property. If a validation hook changes the property, the method receives the payload returned by that hook instead. When a named factory returns another value for Hypervel to process, that value becomes the source. `AutoWhenLoadedLazy` requires an Eloquent model and throws an exception when no model source is available.
+When you create a custom `AutoLazy` attribute, its `build()` method receives the original source that supplied the property. If a validation hook changes the property, the method receives the payload returned by that hook instead. `AutoWhenLoadedLazy` requires an Eloquent model and throws an exception when no model source is available.
 
 <a name="partial-trees"></a>
 ### Partial Trees
@@ -900,6 +954,8 @@ $array = UserData::collect($rows, 'array');
 ```
 
 The `$into` argument accepts `null`, `'array'`, or a class name. When the target comes from configuration, narrow it to a `class-string` before passing it so static analysis can infer the return type. When `$into` is `null`, arrays remain arrays, ordinary collections remain collections, and lazy collections remain lazy unless validation needs to read their values. Hypervel paginators are cloned with their pagination details intact. Eloquent collections become base support collections because data objects are not Eloquent models.
+
+Collecting `null` items into an `'array'` or collection target returns that target empty, which suits optional relations and missing input. Without a target, or into a paginator target, `null` is rejected.
 
 `DataCollection`, `PaginatedDataCollection`, and `CursorPaginatedDataCollection` provide typed items, transformation, and response behavior. `DataCollection` also provides keyed access when its underlying collection supports it. Use `toCollection()` for map, filter, reduce, and other collection operations. Paginated data collections cannot be stored directly by Eloquent because their pagination details cannot be recreated from a JSON array. Store their items through a `DataCollection` instead.
 

@@ -6,7 +6,11 @@ namespace Hypervel\Tests\Data\Support;
 
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Data\Attributes\AutoClosureLazy;
+use Hypervel\Data\Attributes\AutoInertiaLazy;
 use Hypervel\Data\Attributes\AutoLazy;
+use Hypervel\Data\Attributes\AutoWhenLoadedLazy;
 use Hypervel\Data\Attributes\Computed;
 use Hypervel\Data\Attributes\Hidden;
 use Hypervel\Data\Attributes\LoadRelation;
@@ -15,9 +19,14 @@ use Hypervel\Data\Attributes\MapName;
 use Hypervel\Data\Attributes\MapOutputName;
 use Hypervel\Data\Attributes\PropertyForMorph;
 use Hypervel\Data\Attributes\WithCast;
+use Hypervel\Data\Attributes\WithCastAndTransformer;
 use Hypervel\Data\Attributes\WithoutValidation;
 use Hypervel\Data\Attributes\WithTransformer;
 use Hypervel\Data\Casts\Cast;
+use Hypervel\Data\Casts\DateTimeInterfaceCast;
+use Hypervel\Data\Data;
+use Hypervel\Data\DataServiceProvider;
+use Hypervel\Data\Lazy;
 use Hypervel\Data\Mappers\KebabCaseMapper;
 use Hypervel\Data\Mappers\SnakeCaseMapper;
 use Hypervel\Data\Optional;
@@ -31,14 +40,240 @@ use Hypervel\Data\Support\Factories\DataTypeFactory;
 use Hypervel\Data\Support\NameMapperResolver;
 use Hypervel\Data\Support\Transformation\TransformationContext;
 use Hypervel\Data\Support\Types\PhpDocTypeNameResolver;
+use Hypervel\Data\Transformers\DateTimeInterfaceTransformer;
 use Hypervel\Data\Transformers\Transformer;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Tests\TestCase;
+use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Data\Fixtures\Models\DummyModel;
+use Hypervel\Tests\Data\Fixtures\SimpleData;
+use Hypervel\Tests\Data\Fixtures\SimpleDataWithPropertyHooks;
 use ReflectionAttribute;
 use ReflectionClass;
 
 class DataPropertyTest extends TestCase
 {
+    /**
+     * Get package providers for the test application.
+     */
+    protected function getPackageProviders(Application $app): array
+    {
+        return [DataServiceProvider::class];
+    }
+
+    public function testCanGetTheCastAttributeWithArguments(): void
+    {
+        $helper = $this->resolveHelper(new class {
+            #[WithCast(DateTimeInterfaceCast::class, 'd-m-y')]
+            public SimpleData $property;
+        });
+
+        $this->assertEquals(new DateTimeInterfaceCast('d-m-y'), $helper->cast?->newInstance()->get());
+    }
+
+    public function testCanGetTheTransformerAttribute(): void
+    {
+        $helper = $this->resolveHelper(new class {
+            #[WithTransformer(DateTimeInterfaceTransformer::class)]
+            public SimpleData $property;
+        });
+
+        $this->assertEquals(new DateTimeInterfaceTransformer, $helper->transformer?->newInstance()->get());
+    }
+
+    public function testCanGetTheTransformerAttributeWithArguments(): void
+    {
+        $helper = $this->resolveHelper(new class {
+            #[WithTransformer(DateTimeInterfaceTransformer::class, 'd-m-y')]
+            public SimpleData $property;
+        });
+
+        $this->assertEquals(new DateTimeInterfaceTransformer('d-m-y'), $helper->transformer?->newInstance()->get());
+    }
+
+    public function testCanGetTheCastWithTransformerAttribute(): void
+    {
+        $helper = $this->resolveHelper(new class {
+            #[WithCastAndTransformer(FakeCastTransformer::class)]
+            public SimpleData $property;
+        });
+
+        $this->assertEquals(new FakeCastTransformer, $helper->transformer?->newInstance()->get());
+        $this->assertEquals(new FakeCastTransformer, $helper->cast?->newInstance()->get());
+    }
+
+    public function testCanGetTheMappedInputName(): void
+    {
+        $helper = $this->resolveHelper(new class {
+            #[MapInputName('other')]
+            public SimpleData $property;
+        });
+
+        $this->assertEquals('other', $helper->inputMappedName);
+    }
+
+    public function testCanGetTheMappedOutputName(): void
+    {
+        $helper = $this->resolveHelper(new class {
+            #[MapOutputName('other')]
+            public SimpleData $property;
+        });
+
+        $this->assertEquals('other', $helper->outputMappedName);
+    }
+
+    public function testCanGetTheDefaultValue(): void
+    {
+        $helper = $this->resolveHelper(new class {
+            public string $property;
+        });
+
+        $this->assertFalse($helper->hasDefaultValue);
+
+        $helper = $this->resolveHelper(new class {
+            public string $property = 'hello';
+        });
+
+        // Metadata records only whether a default exists; the value itself is read when needed.
+        $this->assertTrue($helper->hasDefaultValue);
+    }
+
+    public function testWillIgnoreAnOptionalValueAsADefaultValue(): void
+    {
+        $helper = $this->resolveHelper(new class {
+            /**
+             * Create the object with an Optional default.
+             */
+            public function __construct(
+                public string|Optional $property = new Optional,
+            ) {
+            }
+        });
+
+        $this->assertFalse($helper->hasDefaultValue);
+    }
+
+    public function testCanCheckIfThePropertyIsPromoted(): void
+    {
+        $helper = $this->resolveHelper(new class('') {
+            /**
+             * Create the object with a promoted property.
+             */
+            public function __construct(
+                public string $property,
+            ) {
+            }
+        });
+
+        $this->assertTrue($helper->isPromoted);
+
+        $helper = $this->resolveHelper(new class {
+            public string $property;
+        });
+
+        $this->assertFalse($helper->isPromoted);
+    }
+
+    public function testCanCheckIfAPropertyShouldBeValidated(): void
+    {
+        $this->assertTrue($this->resolveHelper(new class {
+            public string $property;
+        })->validate);
+
+        $this->assertFalse($this->resolveHelper(new class {
+            #[WithoutValidation]
+            public string $property;
+        })->validate);
+
+        $this->assertFalse($this->resolveHelper(new class {
+            #[Computed]
+            public string $property;
+        })->validate);
+    }
+
+    public function testCanCheckIfAPropertyIsComputed(): void
+    {
+        $this->assertFalse($this->resolveHelper(new class {
+            public string $property;
+        })->computed);
+
+        $this->assertTrue($this->resolveHelper(new class {
+            #[Computed]
+            public string $property;
+        })->computed);
+    }
+
+    public function testCanCheckIfAVirtualPropertyIsComputed(): void
+    {
+        $this->assertTrue($this->resolveHelper(new SimpleDataWithPropertyHooks, propertyName: 'virtual')->computed);
+    }
+
+    public function testDoesNotMarkABackedPropertyAsComputed(): void
+    {
+        $this->assertFalse($this->resolveHelper(new SimpleDataWithPropertyHooks, propertyName: 'backed')->computed);
+    }
+
+    public function testCanCheckIfAPropertyIsHidden(): void
+    {
+        $this->assertFalse($this->resolveHelper(new class {
+            public string $property;
+        })->hidden);
+
+        $this->assertTrue($this->resolveHelper(new class {
+            #[Hidden]
+            public string $property;
+        })->hidden);
+    }
+
+    public function testCanCheckIfAPropertyIsAutoLazy(): void
+    {
+        $this->assertNull($this->resolveHelper(new class {
+            public string $property;
+        })->autoLazy);
+
+        $this->assertInstanceOf(AutoLazy::class, $this->resolveHelper(new class {
+            #[AutoLazy]
+            public string $property;
+        })->autoLazy?->newInstance());
+
+        $this->assertInstanceOf(AutoInertiaLazy::class, $this->resolveHelper(new class {
+            #[AutoInertiaLazy]
+            public string|Lazy $property;
+        })->autoLazy?->newInstance());
+
+        $this->assertInstanceOf(AutoWhenLoadedLazy::class, $this->resolveHelper(new class {
+            #[AutoWhenLoadedLazy('relation')]
+            public string|Lazy $property;
+        })->autoLazy?->newInstance());
+
+        $this->assertInstanceOf(AutoClosureLazy::class, $this->resolveHelper(new class {
+            #[AutoClosureLazy]
+            public string $property;
+        })->autoLazy?->newInstance());
+    }
+
+    public function testWillSetAPropertyAsAutoLazyWhenTheClassIsAutoLazyAndALazyTypeIsAllowed(): void
+    {
+        $classAutoLazy = (new ReflectionClass(AutoLazyPropertyClass::class))->getAttributes(AutoLazy::class)[0];
+
+        $this->assertNull($this->resolveHelper(new class {
+            public string $property;
+        }, $classAutoLazy)->autoLazy);
+
+        $this->assertInstanceOf(AutoLazy::class, $this->resolveHelper(new class {
+            public string|Lazy $property;
+        }, $classAutoLazy)->autoLazy?->newInstance());
+    }
+
+    public function testWontThrowAnErrorIfNonExistingAttributeIsUsedOnADataClassProperty(): void
+    {
+        $this->assertEquals('hello', NonExistingPropertyAttributeData::from(['property' => 'hello'])->property);
+        $this->assertEquals('hello', PhpStormAttributeData::from(['property' => 'hello'])->property);
+        $this->assertEquals('hello', PhpStormAttributeData::from('{"property": "hello"}')->property);
+        $this->assertEquals('hello', PhpStormAttributeData::from((object) ['property' => 'hello'])->property);
+        $this->assertEquals(1, ModelWithPhpStormAttributePropertyData::from((new DummyModel)->fill(['id' => 1]))->id);
+        $this->assertEquals(1, ModelWithPromotedPhpStormAttributePropertyData::from((new DummyModel)->fill(['id' => 1]))->id);
+    }
+
     /**
      * Test property flags and extension recipes.
      */
@@ -88,7 +323,6 @@ class DataPropertyTest extends TestCase
     {
         [$factory, $config, $mapperResolver] = $this->factory();
         $class = new ReflectionClass(DataPropertyFixture::class);
-        $optional = $this->buildProperty($factory, $class, 'optional', $config, $mapperResolver);
         $nonPromoted = $this->buildProperty(
             $factory,
             $class,
@@ -100,8 +334,6 @@ class DataPropertyTest extends TestCase
         $virtual = $this->buildProperty($factory, $class, 'virtual', $config, $mapperResolver);
         $backedHook = $this->buildProperty($factory, $class, 'backedHook', $config, $mapperResolver);
 
-        $this->assertFalse($optional->hasDefaultValue);
-        $this->assertTrue($optional->type->isOptional);
         $this->assertFalse($nonPromoted->isPromoted);
         $this->assertFalse($nonPromoted->isConstructorParameter);
         $this->assertTrue($nonPromoted->hasDefaultValue);
@@ -191,6 +423,36 @@ class DataPropertyTest extends TestCase
     }
 
     /**
+     * Build one property of an object's class with the default configuration.
+     *
+     * @param null|ReflectionAttribute<object> $classAutoLazy
+     */
+    protected function resolveHelper(
+        object $class,
+        ?ReflectionAttribute $classAutoLazy = null,
+        string $propertyName = 'property',
+    ): DataProperty {
+        [$factory] = $this->factory();
+        $reflectionClass = new ReflectionClass($class);
+        $constructorParameter = null;
+
+        foreach ($reflectionClass->getConstructor()?->getParameters() ?? [] as $parameter) {
+            if ($parameter->name === $propertyName) {
+                $constructorParameter = (new DataParameterFactory(
+                    new DataTypeFactory(new PhpDocTypeNameResolver),
+                ))->build($parameter, $reflectionClass);
+            }
+        }
+
+        return $factory->build(
+            reflectionProperty: $reflectionClass->getProperty($propertyName),
+            reflectionClass: $reflectionClass,
+            constructorParameter: $constructorParameter,
+            classAutoLazy: $classAutoLazy,
+        );
+    }
+
+    /**
      * Build one fixture property with its constructor default metadata.
      *
      * @param ReflectionClass<object> $class
@@ -273,7 +535,6 @@ class DataPropertyFixture
         #[WithTransformer(PropertyTransformer::class)]
         #[WithoutValidation]
         public readonly string $displayName = 'Taylor',
-        public string|Optional $optional = new Optional,
         string $constructorDefault = 'constructor-default',
     ) {
         $this->readonlyBound = $readonlyBound;
@@ -362,4 +623,98 @@ class PropertyTransformer implements Transformer
 
 class PropertyFallbackTransformer extends PropertyTransformer
 {
+}
+
+class FakeCastTransformer implements Cast, Transformer
+{
+    /**
+     * Cast a property value.
+     */
+    public function cast(DataProperty $property, mixed $value, array $properties, CreationContext $context): mixed
+    {
+        return $value;
+    }
+
+    /**
+     * Transform a property value.
+     */
+    public function transform(DataProperty $property, mixed $value, TransformationContext $context): mixed
+    {
+        return $value;
+    }
+}
+
+#[AutoLazy]
+class AutoLazyPropertyClass
+{
+}
+
+class NonExistingPropertyAttributeData extends Data
+{
+    #[\Foo\Bar]
+    public readonly string $property;
+
+    /**
+     * Create a fixture whose property uses an undefined attribute.
+     */
+    public function __construct(string $property)
+    {
+        $this->property = $property;
+    }
+}
+
+class PhpStormAttributeData extends Data
+{
+    #[\JetBrains\PhpStorm\Immutable]
+    public readonly string $property;
+
+    /**
+     * Create a fixture whose property uses an IDE attribute.
+     */
+    public function __construct(string $property)
+    {
+        $this->property = $property;
+    }
+}
+
+class ModelWithPhpStormAttributePropertyData extends Data
+{
+    #[\JetBrains\PhpStorm\Immutable]
+    public int $id;
+
+    /**
+     * Create a model fixture whose property uses an IDE attribute.
+     */
+    public function __construct(int $id)
+    {
+        $this->id = $id;
+    }
+
+    /**
+     * Create the fixture from a dummy model.
+     */
+    public static function fromDummyModel(DummyModel $model): self
+    {
+        return new self($model->id);
+    }
+}
+
+class ModelWithPromotedPhpStormAttributePropertyData extends Data
+{
+    /**
+     * Create a model fixture whose promoted property uses an IDE attribute.
+     */
+    public function __construct(
+        #[\JetBrains\PhpStorm\Immutable]
+        public int $id
+    ) {
+    }
+
+    /**
+     * Create the fixture from a dummy model.
+     */
+    public static function fromDummyModel(DummyModel $model): self
+    {
+        return new self($model->id);
+    }
 }

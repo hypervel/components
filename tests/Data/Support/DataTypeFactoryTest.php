@@ -192,6 +192,29 @@ class DataTypeFactoryTest extends TestCase
         }
     }
 
+    public function testItemShorthandsApplyToAnyContainerAfterExactMatches(): void
+    {
+        $this->assertSame(
+            DataTypeFactoryFirstItemData::class,
+            $this->property('shorthandDataCollection')->getDataCollectableType()?->dataClass,
+        );
+        $this->assertSame(
+            DataTypeFactoryFirstItemData::class,
+            $this->property('shorthandCollection')->getDataCollectableType()?->dataClass,
+        );
+
+        $types = [];
+
+        foreach ($this->property('shorthandWithExactArm')->getDataCollectableTypes() as $type) {
+            $types[$type->name] = $type->dataClass;
+        }
+
+        $this->assertEquals([
+            'array' => DataTypeFactoryFirstItemData::class,
+            Collection::class => DataTypeFactorySecondItemData::class,
+        ], $types);
+    }
+
     /**
      * Test data object declarations and float widening.
      */
@@ -410,6 +433,15 @@ class DataTypeFactoryFixture
 
     /** @var Collection<int, DataTypeFactorySecondItemData>|EloquentCollection<int, DataTypeFactoryFirstItemData> */
     public EloquentCollection|Collection $annotationExactFirst;
+
+    /** @var DataTypeFactoryFirstItemData[] */
+    public DataCollection $shorthandDataCollection;
+
+    /** @var array<DataTypeFactoryFirstItemData> */
+    public Collection $shorthandCollection;
+
+    /** @var Collection<int, DataTypeFactorySecondItemData>|DataTypeFactoryFirstItemData[] */
+    public array|Collection $shorthandWithExactArm;
 
     public float $float;
 }

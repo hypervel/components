@@ -6,6 +6,7 @@ namespace Hypervel\Data\Support;
 
 use Hypervel\Data\Contracts\BaseData;
 use Hypervel\Data\Lazy;
+use Hypervel\Data\Optional;
 use Hypervel\Data\Support\Types\NamedType;
 use Hypervel\Data\Support\Types\Type;
 
@@ -39,6 +40,36 @@ class DataPropertyType extends DataType
     protected readonly ?NamedType $nonDataIterableType;
 
     /**
+     * The declared data collection and plain iterable container types.
+     *
+     * @var list<NamedType>
+     */
+    protected readonly array $containerTypes;
+
+    /**
+     * Whether more than one declared type can hold a supplied value; null, Optional, and Lazy are not counted.
+     */
+    public readonly bool $isUnion;
+
+    /**
+     * Whether more than one declared data collection or plain iterable type can hold an iterable value.
+     */
+    public readonly bool $hasContainerUnion;
+
+    /**
+     * Whether a data object or data collection type is declared.
+     */
+    public readonly bool $isDataRelated;
+
+    /**
+     * Whether creation records the declared type a value selects.
+     *
+     * A data value is replaced by its normalized input, which another type of the union could then
+     * appear to accept, so casting and validation follow the type selected from the raw value.
+     */
+    public readonly bool $recordsSelectedType;
+
+    /**
      * Create a new data property type.
      *
      * @param null|class-string<Lazy> $lazyType
@@ -56,6 +87,8 @@ class DataPropertyType extends DataType
         $dataCollectableTypes = [];
         $iterableTypes = [];
         $nonDataIterableTypes = [];
+        $containerTypes = [];
+        $valueTypes = 0;
 
         foreach ($this->getNamedTypes() as $namedType) {
             if ($namedType->kind->isDataObject()) {
@@ -73,6 +106,18 @@ class DataPropertyType extends DataType
                     $nonDataIterableTypes[] = $namedType;
                 }
             }
+
+            if ($namedType->kind->isDataCollectable() || $namedType->kind->isNonDataIterable()) {
+                $containerTypes[] = $namedType;
+            }
+
+            $holdsValues = $namedType->builtIn
+                ? $namedType->name !== 'null'
+                : ! is_a($namedType->name, Optional::class, true) && ! is_a($namedType->name, Lazy::class, true);
+
+            if ($holdsValues) {
+                ++$valueTypes;
+            }
         }
 
         $this->dataObjectTypes = $dataObjectTypes;
@@ -81,6 +126,11 @@ class DataPropertyType extends DataType
         $this->dataCollectableType = count($dataCollectableTypes) === 1 ? $dataCollectableTypes[0] : null;
         $this->iterableTypes = $iterableTypes;
         $this->nonDataIterableType = count($nonDataIterableTypes) === 1 ? $nonDataIterableTypes[0] : null;
+        $this->containerTypes = $containerTypes;
+        $this->isUnion = $valueTypes > 1;
+        $this->hasContainerUnion = count($containerTypes) > 1;
+        $this->isDataRelated = $dataObjectTypes !== [] || $dataCollectableTypes !== [];
+        $this->recordsSelectedType = $this->hasContainerUnion || ($this->isUnion && $dataObjectTypes !== []);
     }
 
     /**
@@ -145,5 +195,39 @@ class DataPropertyType extends DataType
     public function getNonDataIterableType(): ?NamedType
     {
         return $this->nonDataIterableType;
+    }
+
+    /**
+     * Get the declared data collection and plain iterable container types.
+     *
+     * @return list<NamedType>
+     */
+    public function getContainerTypes(): array
+    {
+        return $this->containerTypes;
+    }
+
+    /**
+     * Get the one declared container type whose container accepts a value.
+     *
+     * Null means no container type accepts the value, or more than one does.
+     */
+    public function acceptingContainerType(mixed $value): ?NamedType
+    {
+        $accepting = null;
+
+        foreach ($this->containerTypes as $type) {
+            if (! $type->acceptsValue($value)) {
+                continue;
+            }
+
+            if ($accepting !== null) {
+                return null;
+            }
+
+            $accepting = $type;
+        }
+
+        return $accepting;
     }
 }

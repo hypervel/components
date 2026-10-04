@@ -404,7 +404,7 @@ class CreationContextFactory
      * @template TDataCollectionValue of BaseData
      * @template TModelValue of Model
      *
-     * @param AbstractCursorPaginator<TCollectKey, TCollectValue>|AbstractPaginator<TCollectKey, TCollectValue>|array<TCollectKey, TCollectValue>|Collection<TCollectKey, TCollectValue>|CursorPaginatedDataCollection<TCollectKey, TDataCollectionValue>|CursorPaginatorContract<TCollectKey, TCollectValue>|DataCollection<TCollectKey, TDataCollectionValue>|EloquentCollection<TCollectKey, TModelValue>|Enumerable<TCollectKey, TCollectValue>|LazyCollection<TCollectKey, TCollectValue>|LengthAwarePaginatorContract<TCollectKey, TCollectValue>|PaginatedDataCollection<TCollectKey, TDataCollectionValue>|PaginatorContract<TCollectKey, TCollectValue>|Traversable<TCollectKey, TCollectValue> $items
+     * @param null|AbstractCursorPaginator<TCollectKey, TCollectValue>|AbstractPaginator<TCollectKey, TCollectValue>|array<TCollectKey, TCollectValue>|Collection<TCollectKey, TCollectValue>|CursorPaginatedDataCollection<TCollectKey, TDataCollectionValue>|CursorPaginatorContract<TCollectKey, TCollectValue>|DataCollection<TCollectKey, TDataCollectionValue>|EloquentCollection<TCollectKey, TModelValue>|Enumerable<TCollectKey, TCollectValue>|LazyCollection<TCollectKey, TCollectValue>|LengthAwarePaginatorContract<TCollectKey, TCollectValue>|PaginatedDataCollection<TCollectKey, TDataCollectionValue>|PaginatorContract<TCollectKey, TCollectValue>|Traversable<TCollectKey, TCollectValue> $items null collects an empty `$into` target
      * @param null|'array'|class-string $into
      * @return (
      *     $into is null

@@ -11,14 +11,8 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Pagination\CursorPaginator as CursorPaginatorContract;
 use Hypervel\Contracts\Pagination\LengthAwarePaginator as LengthAwarePaginatorContract;
 use Hypervel\Contracts\Pagination\Paginator as PaginatorContract;
-use Hypervel\Data\Attributes\AutoLazy;
 use Hypervel\Data\Attributes\AutoWhenLoadedLazy;
-use Hypervel\Data\Attributes\GetsCast;
-use Hypervel\Data\Casts\BuiltinTypeCast;
 use Hypervel\Data\Casts\Cast;
-use Hypervel\Data\Casts\CastableCast;
-use Hypervel\Data\Casts\DateTimeInterfaceCast;
-use Hypervel\Data\Casts\EnumCast;
 use Hypervel\Data\Casts\IterableItemCast;
 use Hypervel\Data\Casts\Uncastable;
 use Hypervel\Data\Contracts\BaseData;
@@ -34,7 +28,6 @@ use Hypervel\Data\Exceptions\CannotSetComputedValue;
 use Hypervel\Data\Lazy;
 use Hypervel\Data\Normalizers\Normalized\Normalized;
 use Hypervel\Data\Normalizers\Normalized\UnknownProperty;
-use Hypervel\Data\Normalizers\Normalizer;
 use Hypervel\Data\Optional;
 use Hypervel\Data\PaginatedDataCollection;
 use Hypervel\Data\Support\DataClass;
@@ -60,11 +53,29 @@ use Traversable;
 use function data_set;
 use function Hypervel\Support\enum_try_from;
 
-/** @phpstan-type OperationMemo array<string, object|list<Normalizer>> */
+/**
+ * Creates data objects by filling, validating, and constructing them over one ConstructionState.
+ *
+ * Fill normalizes and prepares the input and records each decision that depends on the raw input:
+ * selected union types, wire-key mappings, morph classes, automatic lazy and paginator sources, and
+ * deferred named factories. Validation and construction read those records instead of deciding again
+ * from normalized values. When a validation hook replaces a value, reconciliation prepares it again.
+ *
+ * Beneath a property with an explicit cast, validated input is still normalized and prepared, but named
+ * factories and object construction wait until the cast declines the value.
+ */
 class DataCreator
 {
     /** @var array<class-string<BaseData>, CreationContext> */
     protected array $defaultContexts = [];
+
+    /**
+     * The empty extensions each operation clones; it is never used directly.
+     *
+     * Cloning costs a fraction of a constructor call, which the direct creation path would otherwise pay
+     * for every object.
+     */
+    protected readonly CreationExtensions $emptyExtensions;
 
     /**
      * Create a data creator.
@@ -77,6 +88,7 @@ class DataCreator
         protected readonly DataInstantiator $instantiator,
         protected readonly DataValidator $validator,
     ) {
+        $this->emptyExtensions = new CreationExtensions($container, $config);
     }
 
     /**
@@ -170,7 +182,7 @@ class DataCreator
     ): mixed {
         $class = $state->nodeClass() ?? $state->context->dataClass;
         $property = $this->dataClasses->get($class)->properties[$propertyName];
-        $extensions = [];
+        $extensions = clone $this->emptyExtensions;
 
         if ($replay !== null && ! $property->isFinishedValue($value)) {
             $wireKey = $state->originalKey($propertyName);
@@ -201,7 +213,7 @@ class DataCreator
      * @template TData of BaseData
      *
      * @param class-string<TData> $class
-     * @param AbstractCursorPaginator<TKey, TValue>|AbstractPaginator<TKey, TValue>|array<TKey, TValue>|Collection<TKey, TValue>|CursorPaginatedDataCollection<TKey, TCollectValue>|CursorPaginatorContract<TKey, TValue>|DataCollection<TKey, TCollectValue>|EloquentCollection<TKey, TModelValue>|Enumerable<TKey, TValue>|LazyCollection<TKey, TValue>|LengthAwarePaginatorContract<TKey, TValue>|PaginatedDataCollection<TKey, TCollectValue>|PaginatorContract<TKey, TValue>|Traversable<TKey, TValue> $items
+     * @param null|AbstractCursorPaginator<TKey, TValue>|AbstractPaginator<TKey, TValue>|array<TKey, TValue>|Collection<TKey, TValue>|CursorPaginatedDataCollection<TKey, TCollectValue>|CursorPaginatorContract<TKey, TValue>|DataCollection<TKey, TCollectValue>|EloquentCollection<TKey, TModelValue>|Enumerable<TKey, TValue>|LazyCollection<TKey, TValue>|LengthAwarePaginatorContract<TKey, TValue>|PaginatedDataCollection<TKey, TCollectValue>|PaginatorContract<TKey, TValue>|Traversable<TKey, TValue> $items null collects an empty `$into` target
      * @param null|'array'|class-string $into
      * @return AbstractCursorPaginator<TKey, TData>|AbstractPaginator<TKey, TData>|array<TKey, TData>|CursorPaginatedDataCollection<TKey, TData>|CursorPaginatorContract<TKey, TData>|DataCollection<TKey, TData>|Enumerable<TKey, TData>|LengthAwarePaginatorContract<TKey, TData>|PaginatedDataCollection<TKey, TData>|PaginatorContract<TKey, TData>
      */
@@ -217,7 +229,10 @@ class DataCreator
             return $this->collectLazy($class, $context, $items, $into);
         }
 
-        $values = $this->dataCollectables->items($items);
+        // A missing collection with an explicit target collects as that empty target.
+        $values = $items === null && $into !== null
+            ? []
+            : $this->dataCollectables->items($items);
 
         if ($values === null) {
             throw CannotCreateDataCollectable::create(
@@ -324,11 +339,11 @@ class DataCreator
         CreationContext $context,
         LazyCollection $source,
     ): LazyCollection {
-        $extensions = [];
+        $extensions = clone $this->emptyExtensions;
 
         // Deferred traversal remains part of this root operation, so its resolved extensions stay shared.
         return $source->map(
-            function (mixed $item) use ($class, $context, &$extensions): BaseData {
+            function (mixed $item) use ($class, $context, $extensions): BaseData {
                 return $this->createUnvalidatedNode(
                     $class,
                     $context,
@@ -346,14 +361,13 @@ class DataCreator
      *
      * @param class-string<TData> $class
      * @param array<array-key, mixed> $payloads caller keys remain meaningful until named factory matching
-     * @param OperationMemo $extensions
      * @return TData
      */
     protected function createUnvalidatedNode(
         string $class,
         CreationContext $context,
         array $payloads,
-        array &$extensions,
+        CreationExtensions $extensions,
     ): BaseData {
         if (count($payloads) === 1) {
             $key = array_key_first($payloads);
@@ -457,7 +471,7 @@ class DataCreator
             ? $this->validator->authorize($class, [$source])
             : null;
         $state = ConstructionState::create($context, $class);
-        $extensions = [];
+        $extensions = clone $this->emptyExtensions;
 
         if ($source instanceof EloquentCollection) {
             $this->loadMissingRelations($class, $source);
@@ -541,13 +555,12 @@ class DataCreator
      *
      * @param class-string<BaseData> $class
      * @param array<array-key, mixed> $values
-     * @param OperationMemo $extensions
      */
     protected function fillCollectionItems(
         string $class,
         array $values,
         ConstructionState $state,
-        array &$extensions,
+        CreationExtensions $extensions,
         bool $shouldValidate,
     ): void {
         foreach ($values as $key => $item) {
@@ -583,13 +596,12 @@ class DataCreator
      * Cast and instantiate every eager root collection item.
      *
      * @param class-string<BaseData> $class
-     * @param OperationMemo $extensions
      * @return array<array-key, BaseData>
      */
     protected function castCollectionItems(
         string $class,
         ConstructionState $state,
-        array &$extensions,
+        CreationExtensions $extensions,
     ): array {
         $items = [];
 
@@ -636,7 +648,7 @@ class DataCreator
             && $this->validator->shouldValidate($context, $payloads);
         $compilesRules = $shouldValidate || $context->mode === CreationMode::Rules;
 
-        $extensions = [];
+        $extensions = clone $this->emptyExtensions;
 
         if ($context->mode === CreationMode::Create
             && count($payloads) === 1
@@ -710,17 +722,38 @@ class DataCreator
      *
      * @param class-string<BaseData> $class
      * @param array<array-key, mixed> $payloads caller keys remain meaningful until named factory matching
-     * @param OperationMemo $extensions
      */
     protected function fillNode(
         string $class,
         array $payloads,
         ConstructionState $state,
-        array &$extensions,
+        CreationExtensions $extensions,
         bool $shouldValidate,
         bool $compilesRules,
     ): ?BaseData {
         $dataClass = $this->dataClasses->get($class);
+
+        if ($state->executionDeferred()) {
+            // Beneath a cast-owned value, the input is prepared and validated as usual, while a matching named
+            // factory waits to run with the input it matched until the cast declines. A match is no exemption
+            // from validation.
+            $match = $this->matchNamedFactory($dataClass, $state->context, $payloads);
+            $filled = $this->fillGeneralNode(
+                $dataClass,
+                array_values($payloads),
+                $state,
+                $extensions,
+                $shouldValidate,
+                $compilesRules,
+            );
+
+            if ($filled && $match !== null) {
+                $state->recordNamedFactory($dataClass, ...$match);
+            }
+
+            return null;
+        }
+
         $payloads = $this->resolveFactoryPayloads($dataClass, $state->context, $payloads);
 
         if ($payloads instanceof BaseData) {
@@ -756,24 +789,36 @@ class DataCreator
      * Fill one post-factory value through the general construction path.
      *
      * @param array<array-key, mixed> $payloads
-     * @param OperationMemo $extensions
+     * @return bool false when input beneath a cast-owned value could not be read and was kept as given
      */
     protected function fillGeneralNode(
         DataClass $dataClass,
         array $payloads,
         ConstructionState $state,
-        array &$extensions,
+        CreationExtensions $extensions,
         bool $shouldValidate,
         bool $compilesRules,
-    ): void {
+    ): bool {
         $class = $dataClass->name;
-        $normalizers = $this->resolveNormalizers($dataClass, $state->context, $extensions);
+        $normalizers = $extensions->normalizers($dataClass, $state->context);
         $payloads = $payloads === [] ? [[]] : $payloads;
         $sources = [];
         $unknownInputSources = [];
 
         foreach ($payloads as $payload) {
-            $source = SourceResolver::resolve($class, $payload, $normalizers);
+            $source = SourceResolver::resolve($payload, $normalizers);
+
+            if ($source === null) {
+                // Input only the cast or a named factory could read stays as given, so validation reports it.
+                if ($state->executionDeferred()) {
+                    $state->writeNodeValue($payload);
+
+                    return false;
+                }
+
+                throw CannotCreateData::noNormalizerFound($class, $payload);
+            }
+
             $sources[] = $source;
             $unknownInputSources[] = $payload instanceof Request
                 ? ($payload->isJson() ? $payload->json()->all() : $payload->request->all())
@@ -819,6 +864,11 @@ class DataCreator
             );
         }
 
+        // Checked here so the common path, with no constructor inputs, skips the call.
+        if ($dataClass->constructorInputs !== []) {
+            $this->fillConstructorInputs($dataClass, $propertySources, $state);
+        }
+
         $this->fillResolvedProperties(
             $dataClass,
             $resolvedProperties,
@@ -830,6 +880,8 @@ class DataCreator
             $compilesRules,
             false,
         );
+
+        return true;
     }
 
     /**
@@ -839,13 +891,12 @@ class DataCreator
      * nested factory, hook, or constructor when the caller enters general Fill.
      *
      * @param array<array-key, mixed> $payloads
-     * @param OperationMemo $extensions
      */
     protected function tryCreateDirectArrayNode(
         DataClass $dataClass,
         array $payloads,
         CreationContext $context,
-        array &$extensions,
+        CreationExtensions $extensions,
         bool $shouldValidate,
         bool $compilesRules,
     ): ?BaseData {
@@ -896,7 +947,8 @@ class DataCreator
                     continue;
                 }
 
-                if ($property->hasDefaultValue) {
+                // Absent properties outside the constructor are resolved after construction, keeping any value it assigned.
+                if ($property->hasDefaultValue || ! $property->isConstructorParameter) {
                     continue;
                 }
 
@@ -972,28 +1024,39 @@ class DataCreator
      * Fill one node introduced or changed by a validation payload hook.
      *
      * @param class-string<BaseData> $class
-     * @param OperationMemo $extensions
      */
     protected function fillHookNode(
         string $class,
         mixed $payload,
         ConstructionState $state,
-        array &$extensions,
+        CreationExtensions $extensions,
         bool $shouldValidate,
         bool $compilesRules,
     ): ?BaseData {
         $dataClass = $this->dataClasses->get($class);
+        $deferred = $state->executionDeferred();
         $match = $this->matchNamedFactory($dataClass, $state->context, [$payload]);
 
-        if ($match !== null) {
-            $payload = $this->invokeNamedFactory($dataClass, ...$match);
-
-            if ($payload instanceof $class) {
-                return $payload;
-            }
+        if ($match !== null && ! $deferred) {
+            return $this->invokeNamedObjectFactory($dataClass, ...$match);
         }
 
-        $source = SourceResolver::resolve($class, $payload, []);
+        $source = SourceResolver::resolve($payload, []);
+
+        if ($source === null) {
+            // Beneath a cast-owned value, input only the cast or a named factory could read stays as given.
+            if ($deferred) {
+                $state->writeNodeValue($payload);
+
+                return null;
+            }
+
+            throw CannotCreateData::noNormalizerFound($class, $payload);
+        }
+
+        if ($match !== null) {
+            $state->recordNamedFactory($dataClass, ...$match);
+        }
         $resolvedProperties = $this->resolveProperties($dataClass, [$source], $state->context);
         $class = $this->resolveMorphClass($dataClass, $resolvedProperties);
 
@@ -1007,6 +1070,7 @@ class DataCreator
         }
 
         $state->setNodeClass($class);
+        $this->fillConstructorInputs($dataClass, [$source], $state);
         $this->fillResolvedProperties(
             $dataClass,
             $resolvedProperties,
@@ -1023,12 +1087,30 @@ class DataCreator
     }
 
     /**
+     * Write the raw input of constructor parameters that have no public data property.
+     *
+     * @param list<array<array-key, mixed>|Normalized> $sources
+     */
+    protected function fillConstructorInputs(DataClass $dataClass, array $sources, ConstructionState $state): void
+    {
+        foreach ($dataClass->constructorInputs as $input) {
+            // Later sources win; normalized sources such as models provide only declared properties.
+            for ($index = count($sources) - 1; $index >= 0; --$index) {
+                if (is_array($sources[$index]) && array_key_exists($input, $sources[$index])) {
+                    $state->writePropertyValue([$input], $sources[$index][$input]);
+
+                    break;
+                }
+            }
+        }
+    }
+
+    /**
      * Write one resolved data node and recursively fill its declared children.
      *
      * @param array<string, array{array-key, mixed}> $resolvedProperties
      * @param list<array|Normalized> $sources
      * @param list<mixed> $payloads
-     * @param OperationMemo $extensions
      */
     protected function fillResolvedProperties(
         DataClass $dataClass,
@@ -1036,7 +1118,7 @@ class DataCreator
         array $sources,
         array $payloads,
         ConstructionState $state,
-        array &$extensions,
+        CreationExtensions $extensions,
         bool $shouldValidate,
         bool $compilesRules,
         bool $fromValidationHook,
@@ -1066,7 +1148,7 @@ class DataCreator
 
             if ($value instanceof UnknownProperty) {
                 if ($property->autoLazy !== null
-                    && $this->requiresAutoLazyReplay($property)
+                    && $this->requiresAutoLazyReplay($property, $state->context, $extensions)
                     && ($property->hasDefaultValue || $this->isAutoWhenLoaded($property))
                 ) {
                     $state->recordAutoLazy(
@@ -1097,7 +1179,7 @@ class DataCreator
 
             if ($property->autoLazy !== null
                 && (! $compilesRules || ! $property->validate)
-                && $this->requiresAutoLazyReplay($property)
+                && $this->requiresAutoLazyReplay($property, $state->context, $extensions)
                 && $value !== null
                 && ! $value instanceof Optional
                 && ! $value instanceof Lazy
@@ -1130,7 +1212,6 @@ class DataCreator
     /**
      * Write one resolved property and recursively fill its declared children.
      *
-     * @param OperationMemo $extensions
      * @param non-empty-list<array-key> $inputPath
      */
     protected function fillResolvedProperty(
@@ -1138,15 +1219,47 @@ class DataCreator
         array $inputPath,
         mixed $value,
         ConstructionState $state,
-        array &$extensions,
+        CreationExtensions $extensions,
         bool $shouldValidate,
         bool $compilesRules,
         bool $fromValidationHook,
     ): void {
-        $dataIterable = $property->type->getDataCollectableType();
-        $typedIterable = $dataIterable === null
-            ? $property->type->getNonDataIterableType()
-            : null;
+        if ($compilesRules
+            && $property->type->isDataRelated
+            && ! $state->executionDeferred()
+            && $this->isCastOwned($property, $state->context, $extensions)
+        ) {
+            // Rules beneath a cast check the value's prepared input, so the value is filled as usual,
+            // but named factories and constructors wait until the cast declines.
+            $state->setExecutionDeferred(true);
+
+            try {
+                $this->fillResolvedProperty(
+                    $property,
+                    $inputPath,
+                    $value,
+                    $state,
+                    $extensions,
+                    $shouldValidate,
+                    $compilesRules,
+                    $fromValidationHook,
+                );
+            } finally {
+                $state->setExecutionDeferred(false);
+            }
+
+            return;
+        }
+
+        // Every property passes through here, so the common cases avoid the selection and cast lookups.
+        if ($property->type->recordsSelectedType) {
+            $selectedType = $this->selectType($property, $value, $state);
+            $dataIterable = $selectedType?->kind->isDataCollectable() ? $selectedType : null;
+            $typedIterable = $dataIterable === null && $selectedType?->iterableItemType !== null ? $selectedType : null;
+        } else {
+            $dataIterable = $property->type->getDataCollectableType();
+            $typedIterable = $dataIterable === null ? $property->type->getNonDataIterableType() : null;
+        }
 
         if ($dataIterable !== null || $typedIterable !== null) {
             $this->retainPaginatorSource(
@@ -1156,6 +1269,16 @@ class DataCreator
                 $inputPath,
                 $state,
             );
+        }
+
+        if (! $compilesRules
+            && $property->type->isDataRelated
+            && $this->isCastOwned($property, $state->context, $extensions)
+        ) {
+            // Without validation, the cast receives the value exactly as given.
+            $state->writePropertyValue($inputPath, $value);
+
+            return;
         }
 
         if ($dataIterable !== null && $value instanceof LazyCollection) {
@@ -1273,13 +1396,12 @@ class DataCreator
      *
      * @param class-string<BaseData> $class
      * @param list<callable> $hooks
-     * @param OperationMemo $extensions
      */
     protected function applyPayloadHooks(
         string $class,
         array $hooks,
         ConstructionState $state,
-        array &$extensions,
+        CreationExtensions $extensions,
         bool $shouldValidate,
         bool $compilesRules,
         bool $reconcile = true,
@@ -1329,14 +1451,13 @@ class DataCreator
      * @param class-string<BaseData> $class
      * @param array<array-key, mixed> $previousPayload
      * @param array<array-key, mixed> $payload
-     * @param OperationMemo $extensions
      */
     protected function reconcileCollection(
         string $class,
         array $previousPayload,
         array $payload,
         ConstructionState $state,
-        array &$extensions,
+        CreationExtensions $extensions,
         bool $shouldValidate,
         bool $compilesRules,
     ): void {
@@ -1412,14 +1533,13 @@ class DataCreator
      * @param class-string<BaseData> $declaredClass
      * @param array<array-key, mixed> $previousPayload
      * @param array<array-key, mixed> $payload
-     * @param OperationMemo $extensions
      */
     protected function reconcileNode(
         string $declaredClass,
         array $previousPayload,
         array $payload,
         ConstructionState $state,
-        array &$extensions,
+        CreationExtensions $extensions,
         bool $shouldValidate,
         bool $compilesRules,
     ): void {
@@ -1439,6 +1559,7 @@ class DataCreator
                 : $this->resolveProperties($dataClass, [$payload], $state->context);
             $state->resetNodeStructure();
             $state->setNodeClass($class);
+            $this->rematchDeferredFactory($declaredDataClass, $payload, $state);
             $this->fillResolvedProperties(
                 $dataClass,
                 $resolvedProperties,
@@ -1454,6 +1575,7 @@ class DataCreator
             return;
         }
 
+        $this->rematchDeferredFactory($declaredDataClass, $payload, $state);
         $dataClass = $this->dataClasses->get($class);
         $resolvedProperties = $class === $declaredClass
             ? $declaredProperties
@@ -1500,9 +1622,28 @@ class DataCreator
     }
 
     /**
-     * Reconcile one changed property selection.
+     * Match the named factory again for a node beneath a cast whose input a validation hook replaced.
      *
-     * @param OperationMemo $extensions
+     * A recorded match holds the earlier input, so it no longer describes the node.
+     *
+     * @param array<array-key, mixed> $payload
+     */
+    protected function rematchDeferredFactory(DataClass $dataClass, array $payload, ConstructionState $state): void
+    {
+        if (! $state->executionDeferred()) {
+            return;
+        }
+
+        $state->forgetNamedFactory();
+        $match = $this->matchNamedFactory($dataClass, $state->context, [$payload]);
+
+        if ($match !== null) {
+            $state->recordNamedFactory($dataClass, ...$match);
+        }
+    }
+
+    /**
+     * Reconcile one changed property selection.
      */
     protected function reconcileProperty(
         DataProperty $property,
@@ -1511,10 +1652,37 @@ class DataCreator
         string|int $wireKey,
         array $payload,
         ConstructionState $state,
-        array &$extensions,
+        CreationExtensions $extensions,
         bool $shouldValidate,
         bool $compilesRules,
     ): void {
+        if ($compilesRules
+            && $property->type->isDataRelated
+            && ! $state->executionDeferred()
+            && $this->isCastOwned($property, $state->context, $extensions)
+        ) {
+            // As in Fill, a replaced value beneath a cast is prepared for its rules, but nothing runs until the cast declines.
+            $state->setExecutionDeferred(true);
+
+            try {
+                $this->reconcileProperty(
+                    $property,
+                    $previousValue,
+                    $value,
+                    $wireKey,
+                    $payload,
+                    $state,
+                    $extensions,
+                    $shouldValidate,
+                    $compilesRules,
+                );
+            } finally {
+                $state->setExecutionDeferred(false);
+            }
+
+            return;
+        }
+
         $inputPath = $property->inputPath($wireKey);
         $autoLazySource = null;
 
@@ -1528,14 +1696,22 @@ class DataCreator
             $state->recordAutoLazy($property->name, $autoLazySource);
         }
 
-        $dataIterable = $property->type->getDataCollectableType();
-        $typedIterable = $dataIterable === null
-            ? $property->type->getNonDataIterableType()
-            : null;
+        if ($property->type->recordsSelectedType) {
+            $selectedType = $this->selectType($property, $value, $state);
+            $dataIterable = $selectedType?->kind->isDataCollectable() ? $selectedType : null;
+            $typedIterable = $dataIterable === null && $selectedType?->iterableItemType !== null ? $selectedType : null;
+
+            // A changed union value may select another type, so its children are rebuilt.
+            $state->clearChildStructure($property->name);
+            $previousValue = UnknownProperty::create();
+        } else {
+            $dataIterable = $property->type->getDataCollectableType();
+            $typedIterable = $dataIterable === null ? $property->type->getNonDataIterableType() : null;
+        }
 
         if ($property->autoLazy !== null
             && (! $compilesRules || ! $property->validate)
-            && $this->requiresAutoLazyReplay($property)
+            && $this->requiresAutoLazyReplay($property, $state->context, $extensions)
             && (
                 ($value instanceof UnknownProperty
                     && ($property->hasDefaultValue || $this->isAutoWhenLoaded($property)))
@@ -1564,6 +1740,17 @@ class DataCreator
                 $inputPath,
                 $state,
             );
+        }
+
+        if (! $compilesRules && $this->isCastOwned($property, $state->context, $extensions)) {
+            // Without validation, the cast receives the hook's value exactly as given.
+            $state->clearChildStructure($property->name);
+
+            if ($property->isFinishedValue($value)) {
+                $state->writeFinishedPropertyValue($inputPath, $value);
+            }
+
+            return;
         }
 
         if ($dataIterable !== null) {
@@ -1650,7 +1837,6 @@ class DataCreator
     /**
      * Reconcile one changed typed data iterable.
      *
-     * @param OperationMemo $extensions
      * @param non-empty-list<array-key> $inputPath
      */
     protected function reconcileDataIterable(
@@ -1660,7 +1846,7 @@ class DataCreator
         mixed $value,
         array $inputPath,
         ConstructionState $state,
-        array &$extensions,
+        CreationExtensions $extensions,
         bool $shouldValidate,
         bool $compilesRules,
     ): void {
@@ -1767,13 +1953,18 @@ class DataCreator
 
     /**
      * Cast and instantiate the node at the current construction path.
-     *
-     * @param OperationMemo $extensions
      */
     protected function castAndInstantiateNode(
         ConstructionState $state,
-        array &$extensions,
+        CreationExtensions $extensions,
     ): BaseData {
+        // A named factory that matched beneath a cast runs only now, after that cast declined.
+        $namedFactory = $state->namedFactory();
+
+        if ($namedFactory !== null) {
+            return $this->invokeNamedObjectFactory(...$namedFactory);
+        }
+
         $class = $state->nodeClass() ?? $state->context->dataClass;
         $dataClass = $this->dataClasses->get($class);
         $properties = [];
@@ -1829,7 +2020,8 @@ class DataCreator
                     continue;
                 }
 
-                if ($property->hasDefaultValue) {
+                // Absent properties outside the constructor are resolved after construction, keeping any value it assigned.
+                if ($property->hasDefaultValue || ! $property->isConstructorParameter) {
                     continue;
                 }
 
@@ -1863,6 +2055,14 @@ class DataCreator
             }
         }
 
+        foreach ($dataClass->constructorInputs as $input) {
+            $value = $state->read([$input]);
+
+            if (! $value instanceof UnknownProperty) {
+                $properties[$input] = $value;
+            }
+        }
+
         foreach ($state->context->beforeCreationHooks as $hook) {
             $properties = $hook($properties);
         }
@@ -1882,14 +2082,12 @@ class DataCreator
 
     /**
      * Build one automatic lazy property around the ordinary cast path.
-     *
-     * @param OperationMemo $extensions
      */
     protected function buildAutoLazy(
         DataProperty $property,
         mixed $value,
         ConstructionState $state,
-        array &$extensions,
+        CreationExtensions $extensions,
         array $properties = [],
         ?array &$castInputs = null,
     ): mixed {
@@ -1927,7 +2125,7 @@ class DataCreator
             );
         };
 
-        return $this->resolveAutoLazy($property, $extensions)->build(
+        return $extensions->autoLazy($property)->build(
             $castValue,
             $recipe['source'],
             $property,
@@ -1937,14 +2135,12 @@ class DataCreator
 
     /**
      * Cast one supplied property value.
-     *
-     * @param OperationMemo $extensions
      */
     protected function castProperty(
         DataProperty $property,
         mixed $value,
         ConstructionState $state,
-        array &$extensions,
+        CreationExtensions $extensions,
         array $properties = [],
         ?array &$castInputs = null,
     ): mixed {
@@ -1956,13 +2152,21 @@ class DataCreator
             return $value;
         }
 
-        $dataCollectableTypes = $property->type->getDataCollectableTypes();
-        $dataIterable = $property->type->getDataCollectableType();
+        if ($property->type->recordsSelectedType) {
+            $selectedType = $state->selectedType($property->name);
+            $dataIterable = $selectedType?->kind->isDataCollectable() ? $selectedType : null;
+            $iterable = $dataIterable === null && $selectedType?->iterableItemType !== null ? $selectedType : null;
+        } else {
+            $selectedType = null;
+            $dataIterable = $property->type->getDataCollectableType();
+            $iterable = $property->type->getNonDataIterableType();
+        }
+
         $shouldCast = ! is_object($value)
-            || $dataCollectableTypes !== []
+            || $property->type->getDataCollectableTypes() !== []
             || ! $property->type->acceptsValue($value);
         $casts = $shouldCast
-            ? $this->propertyCasts($property, $state->context, $extensions)
+            ? $extensions->propertyCasts($property, $state->context)
             : [];
 
         if ($casts !== []) {
@@ -1981,8 +2185,6 @@ class DataCreator
             return $this->castDataIterable($property, $dataIterable, $value, $state, $extensions);
         }
 
-        $iterable = $property->type->getNonDataIterableType();
-
         if ($iterable !== null) {
             return $this->castTypedIterable(
                 $property,
@@ -1996,36 +2198,63 @@ class DataCreator
             );
         }
 
-        if (count($dataCollectableTypes) > 1) {
-            foreach ($property->type->getNamedTypes() as $type) {
-                if (! $type->kind->isDataRelated() && $type->acceptsValue($value)) {
-                    return $value;
+        if ($property->type->recordsSelectedType) {
+            if ($selectedType === null) {
+                foreach ($property->type->getNamedTypes() as $type) {
+                    if (! $type->kind->isDataRelated()
+                        && ! $type->kind->isNonDataIterable()
+                        && $type->acceptsValue($value)
+                    ) {
+                        return $value;
+                    }
                 }
+
+                if ($property->type->hasContainerUnion) {
+                    $candidates = [];
+
+                    foreach ($property->type->getContainerTypes() as $type) {
+                        $candidates[] = $type->dataClass === null ? $type->name : "{$type->name}<{$type->dataClass}>";
+                    }
+
+                    throw CannotCreateData::ambiguousContainerUnion($property, $candidates);
+                }
+            } elseif (! $selectedType->kind->isDataObject()) {
+                // A selected container type without item metadata keeps the value it accepted.
+                return $value;
             }
-
-            $candidates = [];
-
-            foreach ($dataCollectableTypes as $type) {
-                $candidates[] = "{$type->name}<{$type->dataClass}>";
-            }
-
-            throw CannotCreateData::ambiguousDataCollectableUnion($property, $candidates);
-        }
-
-        // The lean recipe relies on accepted values passing before the fallback conversions below.
-        if ($property->type->acceptsValue($value)) {
+        } elseif ($property->type->acceptsValue($value)) {
+            // The lean recipe relies on accepted values passing before the fallback conversions below.
             return $value;
         }
 
-        $wireKey = $state->originalKey($property->name);
-        $state->enterProperty($property->name, $property->inputPath($wireKey));
+        $dataObjectClass = $property->type->recordsSelectedType
+            ? $selectedType?->dataClass
+            : $property->type->getDataObjectClass();
 
-        try {
-            if ($state->nodeClass() !== null) {
-                return $this->castAndInstantiateNode($state, $extensions);
+        if ($dataObjectClass !== null) {
+            $wireKey = $state->originalKey($property->name);
+            $state->enterProperty($property->name, $property->inputPath($wireKey));
+
+            try {
+                if ($state->nodeClass() !== null) {
+                    return $this->castAndInstantiateNode($state, $extensions);
+                }
+            } finally {
+                $state->leave();
             }
-        } finally {
-            $state->leave();
+
+            // Without validation, a value its casts declined was stored as given, so it is created in full.
+            if ($casts !== []) {
+                return $this->createUnvalidatedNode($dataObjectClass, $state->context, [$value], $extensions);
+            }
+        }
+
+        // The only container type left here has no item metadata, but it still converts between
+        // collection shapes, such as an array into a Collection.
+        $containerTypes = $property->type->getContainerTypes();
+
+        if ($containerTypes !== [] && ($values = $this->iterableValues($value)) !== null) {
+            return $this->dataCollectables->forProperty($containerTypes[0], $values, $state);
         }
 
         $dataObjectTypes = $property->type->getDataObjectTypes();
@@ -2047,9 +2276,7 @@ class DataCreator
                 continue;
             }
 
-            $key = 'castable:' . $type->name;
-            /** @var CastableCast $cast */
-            $cast = $extensions[$key] ??= new CastableCast($type->name);
+            $cast = $extensions->castableCast($type->name);
             $castInputs ??= $this->castInputs($state, $properties);
             $casted = $cast->cast($property, $value, $castInputs, $state->context);
 
@@ -2061,12 +2288,8 @@ class DataCreator
         $dateType = $property->type->findAcceptedTypeForBaseType(DateTimeInterface::class);
 
         if ($dateType !== null) {
-            $key = 'date:' . $dateType;
-            /** @var DateTimeInterfaceCast $cast */
-            $cast = $extensions[$key] ??= new DateTimeInterfaceCast(type: $dateType);
-
             // The fixed built-in casts ignore sibling values, so none are built for them.
-            return $cast->cast(
+            return $extensions->dateCast($dateType)->cast(
                 $property,
                 $value,
                 [],
@@ -2077,11 +2300,7 @@ class DataCreator
         $enumType = $property->type->findAcceptedTypeForBaseType(BackedEnum::class);
 
         if ($enumType !== null) {
-            $key = 'enum:' . $enumType;
-            /** @var EnumCast $cast */
-            $cast = $extensions[$key] ??= new EnumCast($enumType);
-
-            return $cast->cast(
+            return $extensions->enumCast($enumType)->cast(
                 $property,
                 $value,
                 [],
@@ -2092,11 +2311,7 @@ class DataCreator
         $builtin = $property->type->type->getSingleBuiltinType();
 
         if ($builtin !== null) {
-            $key = 'builtin:' . $builtin;
-            /** @var BuiltinTypeCast $cast */
-            $cast = $extensions[$key] ??= new BuiltinTypeCast($builtin);
-
-            return $cast->cast(
+            return $extensions->builtinCast($builtin)->cast(
                 $property,
                 $value,
                 [],
@@ -2109,15 +2324,13 @@ class DataCreator
 
     /**
      * Cast every item in one declared data iterable.
-     *
-     * @param OperationMemo $extensions
      */
     protected function castDataIterable(
         DataProperty $property,
         NamedType $type,
         mixed $value,
         ConstructionState $state,
-        array &$extensions,
+        CreationExtensions $extensions,
     ): mixed {
         /** @var class-string<BaseData> $dataClass */
         $dataClass = $type->dataClass;
@@ -2127,7 +2340,7 @@ class DataCreator
             && ! $type->kind->isCursorPaginator()
         ) {
             return $value->map(
-                function (mixed $item) use ($dataClass, $state, &$extensions): BaseData {
+                function (mixed $item) use ($dataClass, $state, $extensions): BaseData {
                     return $this->createUnvalidatedNode(
                         $dataClass,
                         $state->context,
@@ -2185,7 +2398,6 @@ class DataCreator
     /**
      * Cast every item in one declared non-data iterable.
      *
-     * @param OperationMemo $extensions
      * @param list<Cast> $casts
      * @param array<string, mixed> $properties
      * @param null|array<string, mixed> $castInputs
@@ -2195,11 +2407,14 @@ class DataCreator
         NamedType $type,
         mixed $value,
         ConstructionState $state,
-        array &$extensions,
+        CreationExtensions $extensions,
         array $casts,
         array $properties,
         ?array &$castInputs,
     ): mixed {
+        // Property casts run first, followed by the factory and configured casts for the item type.
+        $casts = [...$casts, ...$extensions->itemCasts($property, $type, $state->context)];
+
         // Built before entering the property, so every item's cast sees the owning object's values.
         if ($castInputs === null
             && ($casts !== [] || $this->hasCastableType($type->iterableItemType))
@@ -2213,7 +2428,7 @@ class DataCreator
             && ! $type->kind->isPaginator()
             && ! $type->kind->isCursorPaginator()
         ) {
-            return $value->map(function (mixed $item) use ($property, $type, $state, &$extensions, $casts, $itemInputs): mixed {
+            return $value->map(function (mixed $item) use ($property, $type, $state, $extensions, $casts, $itemInputs): mixed {
                 return $this->castIterableItem(
                     $property,
                     $type->iterableItemType,
@@ -2258,7 +2473,6 @@ class DataCreator
     /**
      * Cast one declared iterable item.
      *
-     * @param OperationMemo $extensions
      * @param list<Cast> $casts
      * @param array<string, mixed> $castInputs
      */
@@ -2267,7 +2481,7 @@ class DataCreator
         Type $type,
         mixed $value,
         ConstructionState $state,
-        array &$extensions,
+        CreationExtensions $extensions,
         array $casts,
         array $castInputs,
     ): mixed {
@@ -2288,7 +2502,8 @@ class DataCreator
         }
 
         if ($type->acceptsValue($value)) {
-            return $value;
+            // A float property widens an assigned int itself; a float item needs the same widening here.
+            return is_int($value) && $type->getSingleBuiltinType() === 'float' ? (float) $value : $value;
         }
 
         foreach ($type->getNamedTypes() as $namedType) {
@@ -2296,10 +2511,7 @@ class DataCreator
                 continue;
             }
 
-            $key = 'iterable-castable:' . $namedType->name;
-            /** @var CastableCast $cast */
-            $cast = $extensions[$key] ??= new CastableCast($namedType->name);
-            $casted = $cast->cast($property, $value, $castInputs, $state->context);
+            $casted = $extensions->castableCast($namedType->name)->cast($property, $value, $castInputs, $state->context);
 
             if (! $casted instanceof Uncastable) {
                 return $casted;
@@ -2309,11 +2521,7 @@ class DataCreator
         $dateType = $type->findAcceptedTypeForBaseType(DateTimeInterface::class);
 
         if ($dateType !== null) {
-            $key = 'date:' . $dateType;
-            /** @var DateTimeInterfaceCast $cast */
-            $cast = $extensions[$key] ??= new DateTimeInterfaceCast(type: $dateType);
-
-            return $cast->castIterableItem(
+            return $extensions->dateCast($dateType)->castIterableItem(
                 $property,
                 $value,
                 [],
@@ -2324,11 +2532,7 @@ class DataCreator
         $enumType = $type->findAcceptedTypeForBaseType(BackedEnum::class);
 
         if ($enumType !== null) {
-            $key = 'enum:' . $enumType;
-            /** @var EnumCast $cast */
-            $cast = $extensions[$key] ??= new EnumCast($enumType);
-
-            return $cast->castIterableItem(
+            return $extensions->enumCast($enumType)->castIterableItem(
                 $property,
                 $value,
                 [],
@@ -2339,11 +2543,7 @@ class DataCreator
         $builtin = $type->getSingleBuiltinType();
 
         if ($builtin !== null) {
-            $key = 'builtin:' . $builtin;
-            /** @var BuiltinTypeCast $cast */
-            $cast = $extensions[$key] ??= new BuiltinTypeCast($builtin);
-
-            return $cast->castIterableItem(
+            return $extensions->builtinCast($builtin)->castIterableItem(
                 $property,
                 $value,
                 [],
@@ -2352,26 +2552,6 @@ class DataCreator
         }
 
         return $value;
-    }
-
-    /**
-     * Resolve one automatic lazy attribute for the current root operation.
-     *
-     * @param OperationMemo $extensions
-     */
-    protected function resolveAutoLazy(DataProperty $property, array &$extensions): AutoLazy
-    {
-        $attribute = $property->autoLazy;
-        $key = 'auto-lazy:' . spl_object_id($attribute);
-
-        if (! isset($extensions[$key])) {
-            $extensions[$key] = $attribute->newInstance();
-        }
-
-        /** @var AutoLazy $autoLazy */
-        $autoLazy = $extensions[$key];
-
-        return $autoLazy;
     }
 
     /**
@@ -2420,16 +2600,20 @@ class DataCreator
 
     /**
      * Determine if casting a property can reach a user cast that receives the declared values.
-     *
-     * @param OperationMemo $extensions
      */
     protected function requiresCastInputs(
         DataProperty $property,
         CreationContext $context,
-        array &$extensions,
+        CreationExtensions $extensions,
     ): bool {
-        if ($this->propertyCasts($property, $context, $extensions) !== []) {
+        if ($extensions->propertyCasts($property, $context) !== []) {
             return true;
+        }
+
+        foreach ($property->type->getIterableTypes() as $type) {
+            if (! $type->kind->isDataCollectable() && $extensions->itemCasts($property, $type, $context) !== []) {
+                return true;
+            }
         }
 
         foreach ($property->type->getNamedTypes() as $type) {
@@ -2458,118 +2642,16 @@ class DataCreator
     }
 
     /**
-     * Get the ordered custom casts applicable to a property.
+     * Determine if casts own the construction of a data object or collection property.
      *
-     * @param OperationMemo $extensions
-     * @return list<Cast>
+     * Casts receive such a value before any of its objects are built. Under validation it is prepared
+     * and validated first, while its named factories and constructors wait until the casts decline it.
      */
-    protected function propertyCasts(
-        DataProperty $property,
-        CreationContext $context,
-        array &$extensions,
-    ): array {
-        $casts = [];
-
-        if ($property->cast !== null) {
-            $key = 'attribute-cast:' . spl_object_id($property->cast);
-
-            if (! isset($extensions[$key])) {
-                /** @var GetsCast $attribute */
-                $attribute = $property->cast->newInstance();
-                $extensions[$key] = $attribute->get();
-            }
-
-            $casts[] = $extensions[$key];
-        }
-
-        foreach ($context->casts as $baseType => $cast) {
-            if ($property->type->findAcceptedTypeForBaseType($baseType) !== null) {
-                $casts[] = $this->resolveCast($cast, $extensions);
-            }
-        }
-
-        foreach ($property->configuredCasts as $cast) {
-            $casts[] = $this->resolveCast($cast, $extensions);
-        }
-
-        return $casts;
-    }
-
-    /**
-     * Resolve one cast once for the current root operation.
-     *
-     * @param Cast|class-string<Cast> $cast
-     * @param OperationMemo $extensions
-     */
-    protected function resolveCast(Cast|string $cast, array &$extensions): Cast
+    protected function isCastOwned(DataProperty $property, CreationContext $context, CreationExtensions $extensions): bool
     {
-        if ($cast instanceof Cast) {
-            return $cast;
-        }
-
-        $key = 'cast:' . $cast;
-
-        /** @var Cast */
-        return $extensions[$key] ??= $this->container->make($cast);
-    }
-
-    /**
-     * Resolve the custom normalizers for one data class.
-     *
-     * @param OperationMemo $extensions
-     * @return list<Normalizer>
-     */
-    protected function resolveNormalizers(
-        DataClass $dataClass,
-        CreationContext $context,
-        array &$extensions,
-    ): array {
-        // Avoid building a memo key on the common path with no custom normalizers.
-        if ($context->normalizers === []
-            && $this->config->normalizers === []
-            && ! $dataClass->hasLifecycleMethod('normalizers')
-        ) {
-            return [];
-        }
-
-        $key = 'normalizers:' . $dataClass->name;
-
-        if (isset($extensions[$key])) {
-            /** @var list<Normalizer> $normalizers */
-            $normalizers = $extensions[$key];
-
-            return $normalizers;
-        }
-
-        $normalizers = [];
-
-        if ($dataClass->hasLifecycleMethod('normalizers')) {
-            $class = $dataClass->name;
-            /** @var list<class-string<Normalizer>|Normalizer> $normalizers */
-            $normalizers = $this->container->call($class::normalizers(...));
-        }
-
-        array_push($normalizers, ...$context->normalizers, ...$this->config->normalizers);
-
-        foreach ($normalizers as $index => $normalizer) {
-            if ($normalizer instanceof Normalizer) {
-                continue;
-            }
-
-            $normalizerKey = 'normalizer:' . $normalizer;
-
-            if (! isset($extensions[$normalizerKey])) {
-                /** @var Normalizer $resolvedNormalizer */
-                $resolvedNormalizer = $this->container->make($normalizer);
-                $extensions[$normalizerKey] = $resolvedNormalizer;
-            }
-
-            /** @var Normalizer $resolvedNormalizer */
-            $resolvedNormalizer = $extensions[$normalizerKey];
-            $normalizers[$index] = $resolvedNormalizer;
-        }
-
-        return $extensions[$key] = array_values($normalizers);
+        return $property->type->isDataRelated
+            && ($property->cast !== null || $property->configuredCasts !== [] || $context->casts !== [])
+            && $extensions->propertyCasts($property, $context) !== [];
     }
 
     /**
@@ -2901,7 +2983,7 @@ class DataCreator
     }
 
     /**
-     * Resolve a named factory and normalize its remaining payloads.
+     * Create the object with a matching named factory, or list the payloads for ordinary creation.
      *
      * Caller keys remain meaningful through factory matching and are discarded afterwards.
      *
@@ -2913,17 +2995,10 @@ class DataCreator
         CreationContext $context,
         array $payloads,
     ): BaseData|array {
-        $class = $dataClass->name;
         $match = $this->matchNamedFactory($dataClass, $context, $payloads);
 
         if ($match !== null) {
-            $result = $this->invokeNamedFactory($dataClass, ...$match);
-
-            if ($result instanceof $class) {
-                return $result;
-            }
-
-            $payloads = [$result];
+            return $this->invokeNamedObjectFactory($dataClass, ...$match);
         }
 
         return array_is_list($payloads) ? $payloads : array_values($payloads);
@@ -2974,6 +3049,23 @@ class DataCreator
         return $match->requiresContainerCall
             ? $this->container->call($class::$methodName(...), $match->arguments)
             : $class::$methodName(...$match->arguments);
+    }
+
+    /**
+     * Invoke one matched named object factory, which must return the requested object.
+     */
+    protected function invokeNamedObjectFactory(
+        DataClass $dataClass,
+        DataMethod $method,
+        DataMethodMatch $match,
+    ): BaseData {
+        $data = $this->invokeNamedFactory($dataClass, $method, $match);
+
+        if (! $data instanceof $dataClass->name) {
+            throw CannotCreateData::invalidNamedFactoryResult($dataClass, $method, $data);
+        }
+
+        return $data;
     }
 
     /**
@@ -3062,18 +3154,30 @@ class DataCreator
     /**
      * Determine if an automatic lazy property needs deferred Fill replay.
      */
-    protected function requiresAutoLazyReplay(DataProperty $property): bool
-    {
+    protected function requiresAutoLazyReplay(
+        DataProperty $property,
+        CreationContext $context,
+        CreationExtensions $extensions,
+    ): bool {
+        // A cast-owned value is filled now or kept as given, and its deferred cast reads what was stored.
+        if ($this->isCastOwned($property, $context, $extensions)) {
+            return false;
+        }
+
         if ($property->type->getDataObjectClass() !== null
-            || $property->type->getDataCollectableType() !== null
+            || $property->type->getDataCollectableTypes() !== []
         ) {
             return true;
         }
 
-        $type = $property->type->getNonDataIterableType();
+        // Without a value, any typed paginator a union can select may need its source replayed.
+        foreach ($property->type->getIterableTypes() as $type) {
+            if ($type->kind->isPaginator() || $type->kind->isCursorPaginator()) {
+                return true;
+            }
+        }
 
-        return $type !== null
-            && ($type->kind->isPaginator() || $type->kind->isCursorPaginator());
+        return false;
     }
 
     /**
@@ -3083,6 +3187,25 @@ class DataCreator
     {
         return $property->autoLazy !== null
             && is_a($property->autoLazy->getName(), AutoWhenLoadedLazy::class, true);
+    }
+
+    /**
+     * Select and record the declared type that receives a union value.
+     *
+     * The one container type accepting the value receives it. Otherwise a value no declared type
+     * accepts selects the data object type, and any other value is kept.
+     */
+    protected function selectType(DataProperty $property, mixed $value, ConstructionState $state): ?NamedType
+    {
+        $type = $property->type->acceptingContainerType($value);
+
+        if ($type === null && ! $property->type->acceptsValue($value)) {
+            $type = $property->type->getDataObjectType();
+        }
+
+        $state->recordSelectedType($property->name, $type);
+
+        return $type;
     }
 
     /**

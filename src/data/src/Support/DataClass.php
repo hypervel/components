@@ -28,6 +28,7 @@ final readonly class DataClass
      * @param array<string, DataMethod> $methods
      * @param list<DataParameter> $constructorParameters
      * @param array<string, true> $contextualParameters
+     * @param list<string> $constructorInputs constructor parameters without a public data property, which receive raw input
      * @param array<string, true> $lifecycleMethods
      * @param array<string, non-empty-list<DataIterableAnnotation>> $dataIterablePropertyAnnotations
      * @param array<array-key, string> $outputMappedProperties
@@ -39,6 +40,7 @@ final readonly class DataClass
         public ?ReflectionMethod $constructor,
         public array $constructorParameters,
         public array $contextualParameters,
+        public array $constructorInputs,
         public bool $isReadonly,
         public bool $isAbstract,
         public bool $isFinal,

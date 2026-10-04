@@ -156,7 +156,7 @@ spatie/laravel-data:
   checked_through: ce296f22861dc1237ce468754cc7f46d3ac34ad5
   last_reviewed_pr: null
   sync_date: '2026-10-03'
-  notes: Hypervel replaces upstream's data pipes and resolvers with a fixed engine. The pipes and DataFromSomethingResolver map to Support/Creation/DataCreator and its per-operation ConstructionState; the validation resolvers and built-in rule inferrers map to Support/Validation/DataValidationCompiler and DataValidator; TransformedDataResolver and VisibleDataFieldsResolver map to Support/Transformation/DataTransformer and PartialTree. DataCreator's direct construction from DataClass creation recipes and DataTransformer's bulk copy are deliberate fast paths, so apply upstream behavior changes to them as well as to the general paths, and compare tests/Benchmarks/Data/benchmark.php results before and after.
+  notes: Hypervel replaces upstream's data pipes and resolvers with a fixed engine. The pipes and DataFromSomethingResolver map to Support/Creation/DataCreator and its per-operation ConstructionState; the validation resolvers and built-in rule inferrers map to Support/Validation/DataValidationCompiler and DataValidator; TransformedDataResolver and VisibleDataFieldsResolver map to Support/Transformation/DataTransformer and PartialTree. DataCreator's direct construction from DataClass creation recipes and DataTransformer's bulk copy are deliberate fast paths, so apply upstream behavior changes to them as well as to the general paths, and compare tests/Benchmarks/Data/benchmark.php results before and after. Upstream tests for those replaced classes live in the matching upstream feature tests or in the owning engine's tests under tests/Data/Support.
 
 spatie/laravel-permission:
   branch: main

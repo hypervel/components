@@ -15,6 +15,7 @@ use Hypervel\Data\Support\Factories\DataPropertyFactory;
 use Hypervel\Data\Support\Factories\DataTypeFactory;
 use Hypervel\Data\Support\NameMapperResolver;
 use Hypervel\Data\Support\Types\PhpDocTypeNameResolver;
+use Hypervel\Database\Eloquent\Casts\Attribute;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Tests\TestCase;
 use ReflectionClass;
@@ -23,7 +24,7 @@ use stdClass;
 class NormalizedModelTest extends TestCase
 {
     /**
-     * Test only declared model attributes are read and null remains present.
+     * Test only declared model attributes are read, and null is present only when loaded or returned by a getter.
      */
     public function testReadsDeclaredSnakeCaseAttributesWithoutSerializingTheModel(): void
     {
@@ -37,6 +38,15 @@ class NormalizedModelTest extends TestCase
 
         $this->assertSame('Taylor', $source->getProperty('firstName', $this->property('firstName')));
         $this->assertNull($source->getProperty('nullableName', $this->property('nullableName')));
+        $this->assertNull($source->getProperty('nullGetter', $this->property('nullGetter')));
+        $this->assertSame(
+            UnknownProperty::create(),
+            $source->getProperty('castColumn', $this->property('castColumn')),
+        );
+        $this->assertSame(
+            UnknownProperty::create(),
+            $source->getProperty('setterOnly', $this->property('setterOnly')),
+        );
         $this->assertSame(
             UnknownProperty::create(),
             $source->getProperty('missing', $this->property('missing')),
@@ -79,6 +89,25 @@ class NormalizedModelTest extends TestCase
         $this->assertSame(1, $model->loadMissingCount);
     }
 
+    public function testReadsNamesSuppliedByAnOverriddenGetAttribute(): void
+    {
+        $model = new NormalizedModelFixture;
+        $model->exists = true;
+        NormalizedModelFixture::preventAccessingMissingAttributes();
+        $source = new NormalizedModel($model);
+
+        $this->assertSame('translated_string', $source->getProperty('translated', $this->property('translated')));
+        $this->assertSame(
+            UnknownProperty::create(),
+            $source->getProperty('missing', $this->property('missing')),
+        );
+        $this->assertSame(
+            UnknownProperty::create(),
+            $source->getProperty('profile', $this->property('profile')),
+        );
+        $this->assertSame(0, $model->loadMissingCount);
+    }
+
     /**
      * Build property metadata for the model projection fixture.
      */
@@ -106,7 +135,15 @@ class NormalizedModelDataFixture
 
     public ?string $nullableName;
 
+    public ?string $castColumn;
+
+    public ?string $nullGetter;
+
+    public ?string $setterOnly;
+
     public string $missing;
+
+    public string $translated;
 
     public ?object $profile;
 
@@ -116,6 +153,10 @@ class NormalizedModelDataFixture
 
 class NormalizedModelFixture extends Model
 {
+    protected array $casts = [
+        'cast_column' => 'string',
+    ];
+
     public int $serializationCount = 0;
 
     public int $loadMissingCount = 0;
@@ -126,6 +167,30 @@ class NormalizedModelFixture extends Model
     public function isRelation(string $key): bool
     {
         return in_array($key, ['profile', 'loadedProfile'], true);
+    }
+
+    /**
+     * Supply a translated value that is not a model attribute.
+     */
+    public function getAttribute(string $key): mixed
+    {
+        return $key === 'translated' ? 'translated_string' : parent::getAttribute($key);
+    }
+
+    /**
+     * Get an accessor that returns null.
+     */
+    protected function nullGetter(): Attribute
+    {
+        return Attribute::get(static fn (): ?string => null);
+    }
+
+    /**
+     * Get an attribute that only has a setter.
+     */
+    protected function setterOnly(): Attribute
+    {
+        return Attribute::set(static fn (string $value): string => $value);
     }
 
     /**
