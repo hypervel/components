@@ -581,6 +581,15 @@ trait CreatesApplication
             'app.providers' => $this->resolveApplicationProviders($app),
         ]);
 
+        // Like withRouting(), register the route provider while booting so it boots after
+        // every package and application provider and loads routes with their patterns and
+        // route-loading callbacks. A provider list entry would boot before package providers.
+        $routeProvider = $this->overrideApplicationProviders($app)[RouteServiceProvider::class] ?? RouteServiceProvider::class;
+
+        if ($routeProvider !== false) {
+            $app->booting(static fn (ApplicationContract $app) => $app->register($routeProvider));
+        }
+
         TestingFeature::run(
             testCase: $this,
             attribute: fn () => $this->parseTestMethodAttributes($app, WithConfig::class), /* @phpstan-ignore method.notFound */
@@ -625,9 +634,7 @@ trait CreatesApplication
     {
         $providers = (new Collection(TestbenchRegisterProviders::mergeAdditionalProvidersForTestbench(
             $this->getApplicationProviders($app)
-        )))
-            ->push(RouteServiceProvider::class)
-            ->merge($this->getPackageProviders($app));
+        )))->merge($this->getPackageProviders($app));
 
         $overrides = $this->overrideApplicationProviders($app);
 

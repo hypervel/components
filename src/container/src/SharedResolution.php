@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Container;
 
 use Hypervel\Contracts\Container\BindingResolutionException;
+use Swoole\Coroutine\CanceledException;
 use Swoole\Coroutine\Channel;
 use Throwable;
 
@@ -44,7 +45,11 @@ class SharedResolution
      */
     public function fail(Throwable $failure): void
     {
-        $this->failure = $failure;
+        // The owner's cancellation belongs to the owner. Waiters see an ordinary
+        // failure, so their own requests and jobs do not stop as if canceled.
+        $this->failure = $failure instanceof CanceledException
+            ? new BindingResolutionException('Shared container resolution was canceled before completion.', previous: $failure)
+            : $failure;
         $this->settled = true;
         $this->signal->close();
     }
@@ -53,6 +58,7 @@ class SharedResolution
      * Wait for and return the completed resolution.
      *
      * @throws BindingResolutionException
+     * @throws CanceledException
      * @throws Throwable
      */
     public function await(): mixed
@@ -61,8 +67,9 @@ class SharedResolution
             $this->signal->pop();
         }
 
+        // The owner always settles before waking waiters, so an unsettled wake is this waiter's cancellation.
         if (! $this->settled) {
-            throw new BindingResolutionException('Shared container resolution was interrupted before completion.');
+            throw new CanceledException('Waiting for a shared container resolution was canceled.');
         }
 
         if ($this->failure !== null) {

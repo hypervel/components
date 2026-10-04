@@ -40,6 +40,18 @@ abstract class TestCase extends BaseTestCase
     }
 
     /**
+     * Boot without the shared Testbench skeleton's application routes.
+     *
+     * Its stub dashboard route would replace the package's own, as application routes
+     * do. The upstream package tests its routes against a bootstrap without routes too.
+     */
+    #[Override]
+    protected function getApplicationBootstrapFile(string $filename): string|false
+    {
+        return $filename === 'app.php' ? false : parent::getApplicationBootstrapFile($filename);
+    }
+
+    /**
      * Render pages without the built Vite assets.
      */
     #[Override]
