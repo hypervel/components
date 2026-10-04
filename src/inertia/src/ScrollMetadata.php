@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Inertia;
 
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Data\CursorPaginatedDataCollection;
+use Hypervel\Data\PaginatedDataCollection;
 use Hypervel\Http\Resources\Json\JsonResource;
 use Hypervel\Pagination\CursorPaginator;
 use Hypervel\Pagination\LengthAwarePaginator;
@@ -32,7 +34,12 @@ class ScrollMetadata implements Arrayable, ProvidesScrollMetadata
      */
     public static function fromPaginator(mixed $value): self
     {
-        $paginator = $value instanceof JsonResource ? $value->resource : $value;
+        $paginator = match (true) {
+            $value instanceof JsonResource => $value->resource,
+            // The Data package is optional; its paginated collections own their paginator.
+            $value instanceof PaginatedDataCollection, $value instanceof CursorPaginatedDataCollection => $value->items(),
+            default => $value,
+        };
 
         if ($paginator instanceof CursorPaginator) {
             return new self(

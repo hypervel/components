@@ -48,6 +48,7 @@ final class ConstructionState
      *     autoLazy?: array<string, array{source: mixed, replay?: AutoLazyReplayMode}>,
      *     paginatorSource?: AbstractCursorPaginator|AbstractPaginator,
      *     namedFactory?: array{DataClass, DataMethod, DataMethodMatch},
+     *     contextualPrepared?: true,
      *     uniform?: false,
      *     items?: array<array-key, array>
      * }
@@ -189,6 +190,28 @@ final class ConstructionState
             $value,
             true,
         );
+    }
+
+    /**
+     * Remove a mapped property value beneath the current path.
+     *
+     * @param non-empty-list<array-key> $path
+     */
+    public function forgetPropertyValue(array $path): void
+    {
+        $path = [...$this->path(), ...$path];
+        $lastKey = array_pop($path);
+        $slot = &$this->payload;
+
+        foreach ($path as $pathKey) {
+            if (! array_key_exists($pathKey, $slot) || ! is_array($slot[$pathKey])) {
+                return;
+            }
+
+            $slot = &$slot[$pathKey];
+        }
+
+        unset($slot[$lastKey]);
     }
 
     /**
@@ -409,7 +432,7 @@ final class ConstructionState
         $node['class'] = null;
         $node['mappings'] = [];
         $node['children'] = [];
-        unset($node['selectedTypes'], $node['autoLazy'], $node['paginatorSource'], $node['namedFactory']);
+        unset($node['selectedTypes'], $node['autoLazy'], $node['paginatorSource'], $node['namedFactory'], $node['contextualPrepared']);
 
         if ($this->pathContainsItem()) {
             $this->markEnclosingCollectionsNonUniform();
@@ -565,6 +588,32 @@ final class ConstructionState
             : $this->structureNodeAtCurrentPath();
 
         return $node['namedFactory'] ?? null;
+    }
+
+    /**
+     * Record that the current node's contextual property values were resolved and filled for validation.
+     */
+    public function markContextualValuesPrepared(): void
+    {
+        if ($this->pathContainsItem()) {
+            $node = &$this->ensureOverrideNodeAtCurrentPath();
+        } else {
+            $node = &$this->ensureStructureNodeAtCurrentPath();
+        }
+
+        $node['contextualPrepared'] = true;
+    }
+
+    /**
+     * Determine if the current node's contextual property values were resolved and filled for validation.
+     */
+    public function contextualValuesPrepared(): bool
+    {
+        $node = $this->pathContainsItem()
+            ? $this->overrideNodeAtCurrentPath()
+            : $this->structureNodeAtCurrentPath();
+
+        return $node['contextualPrepared'] ?? false;
     }
 
     /**
@@ -1080,6 +1129,7 @@ final class ConstructionState
      *     autoLazy?: array<string, array{source: mixed, replay?: AutoLazyReplayMode}>,
      *     paginatorSource?: AbstractCursorPaginator|AbstractPaginator,
      *     namedFactory?: array{DataClass, DataMethod, DataMethodMatch},
+     *     contextualPrepared?: true,
      *     uniform?: false,
      *     items?: array<array-key, array>
      * }

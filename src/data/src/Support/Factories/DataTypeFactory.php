@@ -11,7 +11,6 @@ use Hypervel\Data\Contracts\BaseData;
 use Hypervel\Data\CursorPaginatedDataCollection;
 use Hypervel\Data\DataCollection;
 use Hypervel\Data\Enums\DataTypeKind;
-use Hypervel\Data\Exceptions\CannotFindDataClass;
 use Hypervel\Data\Lazy;
 use Hypervel\Data\Optional;
 use Hypervel\Data\PaginatedDataCollection;
@@ -81,7 +80,6 @@ class DataTypeFactory
             $reflectionType,
             $class,
             $declaringClass,
-            $typeable,
             $iterableAnnotations,
             $collectionOf instanceof DataCollectionOf ? $collectionOf->class : null,
             true,
@@ -112,7 +110,6 @@ class DataTypeFactory
             $reflectionType,
             $class,
             $this->declaringClass($typeable, $class),
-            $typeable,
         );
 
         return new DataType(
@@ -157,7 +154,6 @@ class DataTypeFactory
         ?ReflectionType $reflectionType,
         ReflectionClass $targetClass,
         ReflectionClass $declaringClass,
-        ReflectionMethod|ReflectionProperty|ReflectionParameter|string $typeable,
         array $iterableAnnotations = [],
         ?string $collectionOf = null,
         bool $forProperty = false,
@@ -201,8 +197,9 @@ class DataTypeFactory
                 $itemType,
             );
 
+            // Without an item class, the property holds a finished collection that is transformed by value, as in Spatie.
             if ($forProperty && $this->requiresDataItemType($type->kind) && $type->dataClass === null) {
-                throw CannotFindDataClass::forTypeable($typeable);
+                return new NamedType($name, false, DataTypeKind::Default);
             }
 
             return $type;
@@ -216,7 +213,6 @@ class DataTypeFactory
                     $subType,
                     $targetClass,
                     $declaringClass,
-                    $typeable,
                     $iterableAnnotations,
                     $collectionOf,
                     $forProperty,

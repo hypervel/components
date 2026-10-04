@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Data\Support\Validation;
 
 use Attribute;
+use Closure;
 use Hypervel\Auth\Access\AuthorizationException;
 use Hypervel\Auth\Access\Response as AuthorizationResponse;
 use Hypervel\Container\Attributes\Config;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Contracts\Routing\Registrar;
+use Hypervel\Contracts\Validation\ValidationRule as ValidationRuleContract;
 use Hypervel\Data\Attributes\Computed;
 use Hypervel\Data\Attributes\DataCollectionOf;
 use Hypervel\Data\Attributes\MapInputName;
@@ -21,6 +23,7 @@ use Hypervel\Data\Attributes\Validation\Confirmed;
 use Hypervel\Data\Attributes\Validation\CustomValidationAttribute;
 use Hypervel\Data\Attributes\Validation\Distinct;
 use Hypervel\Data\Attributes\Validation\Enum as EnumAttribute;
+use Hypervel\Data\Attributes\Validation\ExcludeIf;
 use Hypervel\Data\Attributes\Validation\Max;
 use Hypervel\Data\Attributes\Validation\Min;
 use Hypervel\Data\Attributes\Validation\Required;
@@ -1547,6 +1550,144 @@ class DataValidatorTest extends TestCase
         ]);
 
         $this->assertSame($child, $parent->child);
+    }
+
+    /**
+     * Test a finished value's own property still applies its declared and class exclusions.
+     *
+     * @param class-string<FinishedExcludedAttributeDataFixture|FinishedExcludedClassRuleDataFixture|FinishedExcludedRuleDataFixture> $class
+     */
+    #[DataProvider('finishedValueExclusionCases')]
+    public function testFinishedValuesApplyTheirPropertysExclusions(string $class): void
+    {
+        $child = new FinishedValidatedChildDataFixture('x');
+
+        $this->assertNull($class::validateAndCreate(['skip' => true, 'child' => $child])->child);
+        $this->assertSame($child, $class::validateAndCreate(['skip' => false, 'child' => $child])->child);
+    }
+
+    /**
+     * Get the forms that declare an exclusion for a finished value's property.
+     *
+     * @return array<string, array{class-string<Data>}>
+     */
+    public static function finishedValueExclusionCases(): array
+    {
+        return [
+            'attribute' => [FinishedExcludedAttributeDataFixture::class],
+            'rule attribute' => [FinishedExcludedRuleDataFixture::class],
+            'class rule' => [FinishedExcludedClassRuleDataFixture::class],
+        ];
+    }
+
+    /**
+     * Test a custom rule declared on a finished value's property receives the object.
+     */
+    public function testFinishedValuesApplyTheirPropertysCustomRules(): void
+    {
+        $child = new FinishedValidatedChildDataFixture('allowed');
+
+        $this->assertSame($child, FinishedCustomRuleDataFixture::validateAndCreate(['child' => $child])->child);
+
+        try {
+            FinishedCustomRuleDataFixture::validateAndCreate(['child' => new FinishedValidatedChildDataFixture('blocked')]);
+            $this->fail('Expected the custom rule to reject the finished value.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(['child' => ['The child is blocked.']], $exception->errors());
+        }
+    }
+
+    /**
+     * Test a rule rejecting a finished value or item uses the class's custom message for it.
+     *
+     * @param class-string<Data> $class
+     * @param array<string, mixed> $payload
+     * @param array<string, list<string>> $errors
+     */
+    #[DataProvider('finishedValueMessageCases')]
+    public function testFinishedValuesUseTheirCustomMessages(string $class, array $payload, array $errors): void
+    {
+        try {
+            $class::validateAndCreate($payload);
+            $this->fail('Expected the finished value to be prohibited.');
+        } catch (ValidationException $exception) {
+            $this->assertSame($errors, $exception->errors());
+        }
+    }
+
+    /**
+     * Get the finished values whose own rule has a custom message.
+     *
+     * @return array<string, array{class-string<Data>, array<string, mixed>, array<string, list<string>>}>
+     */
+    public static function finishedValueMessageCases(): array
+    {
+        $finished = new FinishedValidatedChildDataFixture('finished');
+        $children = [$finished, ['name' => 'raw']];
+
+        return [
+            'property' => [
+                FinishedProhibitedMessageDataFixture::class,
+                ['child' => $finished],
+                ['child' => ['A child cannot be given.']],
+            ],
+            'exact item' => [
+                FinishedProhibitedItemMessageDataFixture::class,
+                ['children' => $children],
+                ['children.0' => ['The first child cannot be given.']],
+            ],
+            'wildcard items' => [
+                FinishedProhibitedItemsMessageDataFixture::class,
+                ['children' => $children],
+                ['children.0' => ['No child can be given.'], 'children.1' => ['No child can be given.']],
+            ],
+        ];
+    }
+
+    /**
+     * Test a field-only message for a mapped nested field follows the field's input name.
+     */
+    public function testFieldOnlyMessagesFollowMappedNestedNames(): void
+    {
+        try {
+            MappedFieldMessageParentDataFixture::validateAndCreate(['child' => ['age' => 1]]);
+            $this->fail('Expected the mapped nested field to be required.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(['child.full_name' => ['Supply a name.']], $exception->errors());
+        }
+    }
+
+    /**
+     * Test finished items apply parent rules targeting the items themselves beside raw siblings.
+     *
+     * @param class-string<FinishedExcludedItemDataFixture|FinishedExcludedItemsDataFixture> $class
+     * @param list<int> $remainingKeys
+     */
+    #[DataProvider('finishedItemExclusionCases')]
+    public function testFinishedItemsApplyRulesTargetingThemselves(string $class, array $remainingKeys): void
+    {
+        $finished = new FinishedValidatedChildDataFixture('finished');
+        $children = [$finished, ['name' => 'raw']];
+
+        $excluded = $class::validateAndCreate(['skip' => true, 'children' => $children]);
+        $retained = $class::validateAndCreate(['skip' => false, 'children' => $children]);
+
+        $this->assertSame($remainingKeys, array_keys($excluded->children));
+        $this->assertSame($finished, $retained->children[0]);
+        $this->assertSame('raw', $retained->children[1]->name);
+    }
+
+    /**
+     * Get the parent rules targeting finished items, with the item keys their exclusion leaves.
+     *
+     * @return array<string, array{class-string<Data>, list<int>}>
+     */
+    public static function finishedItemExclusionCases(): array
+    {
+        return [
+            'exact item' => [FinishedExcludedItemDataFixture::class, [1]],
+            'wildcard items' => [FinishedExcludedItemsDataFixture::class, []],
+        ];
     }
 
     /**
@@ -3870,6 +4011,242 @@ class FinishedValidatedParentDataFixture extends Data
     public static function rules(ValidationContext $context): array
     {
         return ['child.name' => ['required']];
+    }
+}
+
+class FinishedExcludedAttributeDataFixture extends Data
+{
+    /**
+     * Create a fixture excluding its child through a validation attribute.
+     */
+    public function __construct(
+        public bool $skip,
+        #[ExcludeIf('skip', true)]
+        public ?FinishedValidatedChildDataFixture $child = null,
+    ) {
+    }
+}
+
+class FinishedExcludedRuleDataFixture extends Data
+{
+    /**
+     * Create a fixture excluding its child through a rule attribute.
+     */
+    public function __construct(
+        public bool $skip,
+        #[Rule('exclude_if:skip,true')]
+        public ?FinishedValidatedChildDataFixture $child = null,
+    ) {
+    }
+}
+
+class FinishedExcludedClassRuleDataFixture extends Data
+{
+    /**
+     * Create a fixture excluding its child through a class rule.
+     */
+    public function __construct(
+        public bool $skip,
+        public ?FinishedValidatedChildDataFixture $child = null,
+    ) {
+    }
+
+    /**
+     * Get class-owned validation rules.
+     */
+    public static function rules(ValidationContext $context): array
+    {
+        return ['child' => ['exclude_if:skip,true']];
+    }
+}
+
+class FinishedCustomRuleDataFixture extends Data
+{
+    /**
+     * Create a fixture checking its child with a custom rule.
+     */
+    public function __construct(
+        #[Rule(new RejectsBlockedChildRule)]
+        public FinishedValidatedChildDataFixture $child,
+    ) {
+    }
+}
+
+class FinishedProhibitedMessageDataFixture extends Data
+{
+    /**
+     * Create a fixture prohibiting its child with a custom message.
+     */
+    public function __construct(
+        public ?FinishedValidatedChildDataFixture $child = null,
+    ) {
+    }
+
+    /**
+     * Get class-owned validation rules.
+     */
+    public static function rules(ValidationContext $context): array
+    {
+        return ['child' => ['prohibited']];
+    }
+
+    /**
+     * Get class-owned validation messages.
+     */
+    public static function messages(): array
+    {
+        return ['child.prohibited' => 'A child cannot be given.'];
+    }
+}
+
+class FinishedProhibitedItemMessageDataFixture extends Data
+{
+    /**
+     * Create a fixture prohibiting its first item with a custom message.
+     *
+     * @param array<array-key, FinishedValidatedChildDataFixture> $children
+     */
+    public function __construct(
+        #[DataCollectionOf(FinishedValidatedChildDataFixture::class)]
+        public array $children,
+    ) {
+    }
+
+    /**
+     * Get class-owned validation rules.
+     */
+    public static function rules(ValidationContext $context): array
+    {
+        return ['children.0' => ['prohibited']];
+    }
+
+    /**
+     * Get class-owned validation messages.
+     */
+    public static function messages(): array
+    {
+        return ['children.0.prohibited' => 'The first child cannot be given.'];
+    }
+}
+
+class FinishedProhibitedItemsMessageDataFixture extends Data
+{
+    /**
+     * Create a fixture prohibiting every item with a custom message.
+     *
+     * @param array<array-key, FinishedValidatedChildDataFixture> $children
+     */
+    public function __construct(
+        #[DataCollectionOf(FinishedValidatedChildDataFixture::class)]
+        public array $children,
+    ) {
+    }
+
+    /**
+     * Get class-owned validation rules.
+     */
+    public static function rules(ValidationContext $context): array
+    {
+        return ['children.*' => ['prohibited']];
+    }
+
+    /**
+     * Get class-owned validation messages.
+     */
+    public static function messages(): array
+    {
+        return ['children.*.prohibited' => 'No child can be given.'];
+    }
+}
+
+class MappedFieldMessageChildDataFixture extends Data
+{
+    /**
+     * Create a child fixture whose name has a different input name.
+     */
+    public function __construct(
+        #[MapInputName('full_name')]
+        public string $name,
+        public int $age,
+    ) {
+    }
+}
+
+class MappedFieldMessageParentDataFixture extends Data
+{
+    /**
+     * Create a parent fixture with a mapped nested field.
+     */
+    public function __construct(
+        public MappedFieldMessageChildDataFixture $child,
+    ) {
+    }
+
+    /**
+     * Get class-owned validation messages.
+     */
+    public static function messages(): array
+    {
+        return ['child.name' => 'Supply a name.'];
+    }
+}
+
+class FinishedExcludedItemDataFixture extends Data
+{
+    /**
+     * Create a fixture excluding one finished item.
+     *
+     * @param array<array-key, FinishedValidatedChildDataFixture> $children
+     */
+    public function __construct(
+        public bool $skip,
+        #[DataCollectionOf(FinishedValidatedChildDataFixture::class)]
+        public array $children,
+    ) {
+    }
+
+    /**
+     * Get class-owned validation rules.
+     */
+    public static function rules(ValidationContext $context): array
+    {
+        return ['children.0' => ['exclude_if:skip,true']];
+    }
+}
+
+class FinishedExcludedItemsDataFixture extends Data
+{
+    /**
+     * Create a fixture excluding every item.
+     *
+     * @param array<array-key, FinishedValidatedChildDataFixture> $children
+     */
+    public function __construct(
+        public bool $skip,
+        #[DataCollectionOf(FinishedValidatedChildDataFixture::class)]
+        public array $children,
+    ) {
+    }
+
+    /**
+     * Get class-owned validation rules.
+     */
+    public static function rules(ValidationContext $context): array
+    {
+        return ['children.*' => ['exclude_if:skip,true']];
+    }
+}
+
+class RejectsBlockedChildRule implements ValidationRuleContract
+{
+    /**
+     * Reject a child named "blocked".
+     */
+    public function validate(string $attribute, mixed $value, Closure $fail): void
+    {
+        if ($value instanceof FinishedValidatedChildDataFixture && $value->name === 'blocked') {
+            $fail('The child is blocked.');
+        }
     }
 }
 

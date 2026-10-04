@@ -108,6 +108,7 @@ class DataCreator
                 ->validationStrategy($creationContext->validationStrategy)
                 ->withPropertyNameMapping($creationContext->mapPropertyNames)
                 ->withoutMagicalCreation($creationContext->disableMagicalCreation)
+                ->withOptionalValues($creationContext->useOptionalValues)
                 ->ignoreMagicalMethod(...$creationContext->ignoredMagicalMethods)
                 ->withCastCollection($creationContext->casts)
                 ->withNormalizers(...$creationContext->normalizers);
@@ -975,7 +976,7 @@ class DataCreator
                     continue;
                 }
 
-                if ($property->type->isOptional) {
+                if ($property->type->isOptional && ($context->useOptionalValues || ! $property->type->isNullable)) {
                     $properties[$property->name] = Optional::create();
 
                     continue;
@@ -1040,7 +1041,7 @@ class DataCreator
 
         return $dataClass->directConstructorInstantiation && ! $requiresOrdinaryInstantiation
             ? $this->instantiator->instantiateDirect($dataClass, $properties)
-            : $this->instantiator->instantiate($dataClass, $properties);
+            : $this->instantiator->instantiate($dataClass, $properties, $context->useOptionalValues);
     }
 
     /**
@@ -1148,13 +1149,29 @@ class DataCreator
         bool $fromValidationHook,
     ): void {
         $contextualParameters = $dataClass->contextualParameters;
+        $contextualValues = null;
+
+        if ($compilesRules && $contextualParameters !== []) {
+            // Promoted contextual values are validated with the object, so they are resolved once here and replace
+            // any input. Constructor-only parameters are not validated and stay with construction.
+            $promoted = array_keys(array_intersect_key($contextualParameters, $dataClass->properties));
+
+            if ($promoted !== []) {
+                $contextualValues = $this->instantiator->resolveContextualParameters($dataClass, $promoted);
+                $state->markContextualValuesPrepared();
+            }
+        }
 
         foreach ($dataClass->properties as $property) {
             [$wireKey, $value] = $resolvedProperties[$property->name];
             $state->recordMapping($property->name, $wireKey);
 
             if (isset($contextualParameters[$property->name])) {
-                continue;
+                if ($contextualValues === null) {
+                    continue;
+                }
+
+                $value = $contextualValues[$property->name];
             }
 
             $inputPath = $property->inputPath($wireKey);
@@ -1607,21 +1624,34 @@ class DataCreator
             ? $declaredProperties
             : $this->resolveProperties($dataClass, [$payload], $state->context, $compilesRules);
         $contextualParameters = $dataClass->contextualParameters;
+        $contextualPrepared = $contextualParameters !== [] && $state->contextualValuesPrepared();
 
         foreach ($dataClass->properties as $property) {
             $previousWireKey = $state->originalKey($property->name);
-            $previousValue = SourceReader::read(
-                $previousPayload,
-                $property->inputPath($previousWireKey),
-                $property,
-            );
+            $previousInputPath = $property->inputPath($previousWireKey);
+            $previousValue = SourceReader::read($previousPayload, $previousInputPath, $property);
+
+            if (isset($contextualParameters[$property->name])) {
+                // A prepared contextual value keeps its pre-hook value, including its absence after validation
+                // excluded it, so a hook can neither replace nor restore it.
+                if ($contextualPrepared
+                    && SourceReader::read($payload, $previousInputPath, $property) !== $previousValue
+                ) {
+                    $previousValue instanceof UnknownProperty
+                        ? $state->forgetPropertyValue($previousInputPath)
+                        : $state->writePropertyValue($previousInputPath, $previousValue);
+                }
+
+                continue;
+            }
+
             [$wireKey, $value] = $resolvedProperties[$property->name];
 
             if ($wireKey !== $previousWireKey) {
                 $state->replaceMapping($property->name, $wireKey);
             }
 
-            if ($value === $previousValue || isset($contextualParameters[$property->name])) {
+            if ($value === $previousValue) {
                 continue;
             }
 
@@ -2004,9 +2034,13 @@ class DataCreator
         // The declared values given to user casts, built on the first one that needs them.
         $castInputs = null;
         $contextualParameters = $dataClass->contextualParameters;
+        // Prepared contextual values were filled and validated with the node, so they are cast from its state.
+        $contextualPrepared = $contextualParameters !== [] && $state->contextualValuesPrepared();
 
         foreach ($dataClass->properties as $property) {
-            if ($property->computed || isset($contextualParameters[$property->name])) {
+            $contextual = isset($contextualParameters[$property->name]);
+
+            if ($property->computed || ($contextual && ! $contextualPrepared)) {
                 continue;
             }
 
@@ -2015,6 +2049,20 @@ class DataCreator
             $value = $state->read($inputPath);
 
             if ($value instanceof UnknownProperty) {
+                if ($contextual) {
+                    // Validation excluded the value. The container would resolve an absent contextual parameter
+                    // again, so the ordinary missing value is passed explicitly.
+                    $properties[$property->name] = match (true) {
+                        $property->hasDefaultValue => $this->propertyDefaultValue($dataClass, $property),
+                        $property->type->isOptional
+                            && ($state->context->useOptionalValues || ! $property->type->isNullable) => Optional::create(),
+                        $property->type->isNullable => null,
+                        default => throw CannotCreateData::propertyMissing($dataClass, $property),
+                    };
+
+                    continue;
+                }
+
                 if ($property->autoLazy !== null && $property->hasDefaultValue) {
                     $value = $castInputs !== null && array_key_exists($property->name, $castInputs)
                         ? $castInputs[$property->name]
@@ -2058,7 +2106,9 @@ class DataCreator
                     continue;
                 }
 
-                if ($property->type->isOptional) {
+                if ($property->type->isOptional
+                    && ($state->context->useOptionalValues || ! $property->type->isNullable)
+                ) {
                     $properties[$property->name] = Optional::create();
                 } elseif ($property->type->isNullable) {
                     $properties[$property->name] = null;
@@ -2071,7 +2121,7 @@ class DataCreator
                 ? $this->castProperty($property, $value, $state, $extensions, $properties, $castInputs)
                 : $this->buildAutoLazy($property, $value, $state, $extensions, $properties, $castInputs);
 
-            if ($castInputs !== null) {
+            if ($castInputs !== null && ! $contextual) {
                 $castInputs[$property->name] = $properties[$property->name];
             }
         }
@@ -2096,13 +2146,27 @@ class DataCreator
             }
         }
 
+        $preparedContextualValues = $contextualPrepared
+            ? array_intersect_key($properties, $contextualParameters)
+            : [];
+
         foreach ($state->context->beforeCreationHooks as $hook) {
             $properties = $hook($properties);
         }
 
-        // Contextual values are resolved after the hooks so they always win, and a promoted property's value
-        // is prepared and cast like unvalidated input. Null stays null.
-        if ($contextualParameters !== []) {
+        if ($contextualPrepared) {
+            // Hooks cannot replace validated contextual values. Constructor-only parameters are resolved now.
+            $properties = [...$properties, ...$preparedContextualValues];
+            $constructorOnly = array_keys(array_diff_key($contextualParameters, $dataClass->properties));
+
+            if ($constructorOnly !== []) {
+                foreach ($this->instantiator->resolveContextualParameters($dataClass, $constructorOnly) as $name => $value) {
+                    $properties[$name] = $value;
+                }
+            }
+        } elseif ($contextualParameters !== []) {
+            // A node not prepared for validation resolves its contextual values after the hooks so they always win,
+            // and a promoted property's value is prepared and cast like unvalidated input. Null stays null.
             foreach ($this->instantiator->resolveContextualParameters($dataClass) as $name => $value) {
                 $property = $dataClass->properties[$name] ?? null;
 
@@ -2116,7 +2180,7 @@ class DataCreator
             }
         }
 
-        $data = $this->instantiator->instantiate($dataClass, $properties);
+        $data = $this->instantiator->instantiate($dataClass, $properties, $state->context->useOptionalValues);
 
         foreach ($state->context->afterCreationHooks as $hook) {
             $data = $hook($data);
@@ -2608,7 +2672,7 @@ class DataCreator
      *
      * Values already cast for this node are used as they are, other supplied input stays raw,
      * and absent properties resolve as construction would resolve them. Contextual constructor
-     * values are excluded because they are resolved when the object is constructed.
+     * values are excluded.
      *
      * @param array<string, mixed> $properties values already cast for this node
      * @return array<string, mixed>
@@ -2637,7 +2701,9 @@ class DataCreator
                 $inputs[$name] = $value;
             } elseif ($property->hasDefaultValue) {
                 $inputs[$name] = $this->propertyDefaultValue($dataClass, $property);
-            } elseif ($property->type->isOptional) {
+            } elseif ($property->type->isOptional
+                && ($state->context->useOptionalValues || ! $property->type->isNullable)
+            ) {
                 $inputs[$name] = Optional::create();
             } elseif ($property->type->isNullable) {
                 $inputs[$name] = null;

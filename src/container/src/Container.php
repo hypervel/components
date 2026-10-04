@@ -1764,11 +1764,12 @@ class Container implements ContainerContract
      * so they are not resolved again.
      *
      * @param class-string $concrete
+     * @param null|list<string> $names the parameters to resolve, or null for every contextual parameter
      * @return array<string, mixed>
      *
      * @throws BindingResolutionException
      */
-    public function resolveContextualParameters(string $concrete): array
+    public function resolveContextualParameters(string $concrete, ?array $names = null): array
     {
         $recipe = $this->getBuildRecipe($concrete);
         $resolutionState = $this->getOrCreateResolutionState();
@@ -1778,7 +1779,9 @@ class Container implements ContainerContract
             $values = [];
 
             foreach ($recipe->parameters as $paramRecipe) {
-                if ($paramRecipe->contextualAttribute === null) {
+                if ($paramRecipe->contextualAttribute === null
+                    || ($names !== null && ! in_array($paramRecipe->name, $names, true))
+                ) {
                     continue;
                 }
 

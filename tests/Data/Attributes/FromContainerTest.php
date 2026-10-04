@@ -15,7 +15,6 @@ use Hypervel\Testbench\TestCase;
 class FromContainerTest extends TestCase
 {
     // Spatie's FromContainer is not included; Hypervel's Give contextual attribute resolves a container entry.
-    // REMOVED: FromContainerPropertyTest; Give has no property path, so read a property in a custom contextual attribute.
 
     /**
      * Get package providers for the test application.

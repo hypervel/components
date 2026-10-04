@@ -39,6 +39,8 @@ class CreationContextFactory
 
     protected bool $disableMagicalCreation = false;
 
+    protected bool $useOptionalValues = true;
+
     /** @var list<string> */
     protected array $ignoredMagicalMethods = [];
 
@@ -147,8 +149,6 @@ class CreationContextFactory
         return $this;
     }
 
-    // REMOVED: withOptionalValues()/withoutOptionalValues(); Optional declarations always preserve absence.
-
     /**
      * Disable or enable named creation methods.
      */
@@ -166,6 +166,31 @@ class CreationContextFactory
     public function withMagicalCreation(bool $withMagicalCreation = true): static
     {
         $this->disableMagicalCreation = ! $withMagicalCreation;
+        $this->invalidateCreateContext();
+
+        return $this;
+    }
+
+    /**
+     * Enable or disable Optional values for missing properties.
+     *
+     * When disabled, a missing Optional property that also accepts null receives null. One that does not
+     * accept null still receives Optional.
+     */
+    public function withOptionalValues(bool $withOptionalValues = true): static
+    {
+        $this->useOptionalValues = $withOptionalValues;
+        $this->invalidateCreateContext();
+
+        return $this;
+    }
+
+    /**
+     * Disable or enable Optional values for missing properties.
+     */
+    public function withoutOptionalValues(bool $withoutOptionalValues = true): static
+    {
+        $this->useOptionalValues = ! $withoutOptionalValues;
         $this->invalidateCreateContext();
 
         return $this;
@@ -330,6 +355,7 @@ class CreationContextFactory
             disableMagicalCreation: $mode === CreationMode::Create
                 ? $this->disableMagicalCreation
                 : true,
+            useOptionalValues: $this->useOptionalValues,
             ignoredMagicalMethods: $this->ignoredMagicalMethods,
             casts: $this->casts,
             normalizers: $this->normalizers,

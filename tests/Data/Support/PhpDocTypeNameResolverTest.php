@@ -20,6 +20,8 @@ use function Hypervel\Tests\Data\Fixtures\Second\multiNamespaceAnonymous;
 
 class PhpDocTypeNameResolverTest extends TestCase
 {
+    // REMOVED: Spatie's ContextResolverTest; PHPDoc names resolve through this resolver instead of phpDocumentor contexts. Class resolution and the per-file cache are covered here, and property, parameter and method types resolve through their declaring class (DataTypeFactoryTest).
+
     /**
      * Test built-in, fully qualified, and declaration-relative names.
      */

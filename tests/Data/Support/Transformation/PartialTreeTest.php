@@ -11,6 +11,31 @@ use PHPUnit\Framework\Attributes\DataProvider;
 
 class PartialTreeTest extends TestCase
 {
+    #[DataProvider('partialsProvider')]
+    public function testCanParsePartials(string $partial, array $expected): void
+    {
+        $this->assertSame($expected, self::paths(PartialTree::compile([$partial])));
+    }
+
+    /**
+     * Provide partial paths and the selections they compile to.
+     *
+     * Spatie's empty and invalid rows are rejected instead; see invalidPathProvider().
+     */
+    public static function partialsProvider(): array
+    {
+        return [
+            'root property' => ['name', ['name']],
+            'root multi-property' => ['{name, age}', ['name', 'age']],
+            'root star' => ['*', ['*']],
+            'nested property' => ['struct.name', ['struct.name']],
+            'nested multi-property' => ['struct.{name, age}', ['struct.name', 'struct.age']],
+            'nested star' => ['struct.*', ['struct.*']],
+        ];
+    }
+
+    // REMOVED: Spatie's pointer system tests. Paths compile into an immutable tree navigated with child(), so there is no pointer to advance or roll back.
+
     /**
      * Test paths compile into one reusable nested selection.
      */
@@ -38,6 +63,7 @@ class PartialTreeTest extends TestCase
         $this->assertTrue($artist->selects('role'));
         $this->assertFalse($artist->selects('id'));
         $this->assertSame([], $artist->nestedProperties);
+        $this->assertNull($artist->child('name')->child('first'));
 
         $songs = $tree->child('songs');
 
@@ -164,12 +190,32 @@ class PartialTreeTest extends TestCase
     {
         return [
             'empty' => [''],
+            'nested property on all' => ['*.name'],
+            'nested property on multi-property' => ['{name, age}.name'],
             'empty segment' => ['artist..name'],
-            'wildcard suffix' => ['artist.*.name'],
             'partial wildcard' => ['artist.na*'],
             'unclosed group' => ['artist.{name,email'],
             'empty group field' => ['artist.{name,}'],
-            'nested group' => ['artist.{name,email}.value'],
         ];
+    }
+
+    /**
+     * Get the selected paths of a compiled tree.
+     *
+     * @return list<string>
+     */
+    private static function paths(PartialTree $tree, string $prefix = ''): array
+    {
+        $paths = $tree->all ? [$prefix . '*'] : [];
+
+        foreach ($tree->children as $property => $child) {
+            if ($child->selected) {
+                $paths[] = $prefix . $property;
+            }
+
+            array_push($paths, ...self::paths($child, $prefix . $property . '.'));
+        }
+
+        return $paths;
     }
 }

@@ -90,19 +90,8 @@ class DataClassRepository
             return $this->dynamicRuleGraphs[$class] = true;
         }
 
-        $contextualProperties = [];
-
-        foreach ($dataClass->constructorParameters as $parameter) {
-            if ($parameter->isPromoted && $parameter->contextualAttribute !== null) {
-                $contextualProperties[$parameter->name] = true;
-            }
-        }
-
         foreach ($dataClass->properties as $property) {
-            if ($property->computed
-                || ! $property->validate
-                || isset($contextualProperties[$property->name])
-            ) {
+            if ($property->computed || ! $property->validate) {
                 continue;
             }
 

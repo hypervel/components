@@ -272,6 +272,14 @@ class PatchUserData extends Data
 
 For this object, an omitted `name` becomes `Optional::create()`, an omitted `phone` becomes `null`, and an omitted `locale` uses `en`. Explicit `null` is a supplied value and is accepted only when the declared type allows it. Use `#[Present]` when a nullable input key must still be supplied.
 
+When a class should receive `null` instead of `Optional` for some creations, call `withoutOptionalValues()` on its factory. A missing `string|null|Optional` property then receives `null`, while a missing `string|Optional` property still receives `Optional` because it cannot hold `null`:
+
+```php
+$user = UserData::factory()
+    ->withoutOptionalValues()
+    ->from($payload);
+```
+
 A public property declared outside the constructor keeps any value the constructor assigned to it when its input is missing or `Optional`; supplied input, including `null`, replaces it. Validation infers its rules from the declaration alone, so when requests may omit such a property, give it a nullable or `Optional` type or add `#[Sometimes]`.
 
 <a name="empty-representations"></a>
@@ -595,6 +603,10 @@ class TeamData extends Data
 
 The same typed item conversion works for arrays, ordinary collections, lazy collections, and supported paginator types. A paginator property must receive a Hypervel paginator or paginated data collection, since an array has no pagination details to keep. `DataCollectionOf` is preferred for generated classes because it declares the item type explicitly.
 
+An item type may mix a data class with other types, such as `list<LabelData|string>`, when you construct the object yourself. Its items transform by value, so strings stay strings and data objects become arrays. Creating such an object from input with `from` is not supported: every item that is not already a data object is created as the data class, so a string item fails.
+
+Without an item type, a data collection property can still hold a collection you created yourself, and its items transform by value. Since the item class is unknown, `from` cannot create that property from an array.
+
 <a name="backed-enums"></a>
 ### Backed Enums
 
@@ -845,7 +857,7 @@ $users = array_map(
 
 Use `collect()` instead when the payloads form one collection. In addition to preserving supported collection shapes and keys, `collect()` allows collection validation rules and hooks to inspect the complete payload.
 
-Factories may change the validation strategy, enable or disable name mapping and named factories, ignore selected named methods, and add casts or normalizers. They also provide the following hooks, which run in this order:
+Factories may change the validation strategy, enable or disable name mapping, named factories, and [Optional values](#defaults-null-and-optional-values), ignore selected named methods, and add casts or normalizers. They also provide the following hooks, which run in this order:
 
 1. `prepareData`
 2. `beforeValidation`
@@ -937,7 +949,7 @@ The ordinary methods apply to the next transformation. Their `Permanently` varia
 
 A malformed path, such as one with an empty segment, always throws an exception. A name that matches no property selects nothing, while a nested path through a property the object does not have throws an exception. Set the `data.ignore_invalid_partials` configuration option to `true` to skip those nested paths instead.
 
-Selections owned by nested objects and collection items are composed with selections from their parent. Temporary selections are consumed only when that object is actually reached; collection reads and iteration do not consume them.
+Selections owned by nested objects and collection items are composed with selections from their parent. An item read from a collection by key or in a loop also carries the collection's selections, so `$songs->include('artist')` applies to `$songs[0]->toArray()`. Temporary selections are consumed only when that object is actually reached; collection reads and iteration do not consume them.
 
 <a name="hidden-computed-and-appended-values"></a>
 ### Hidden, Computed, and Appended Values
@@ -994,7 +1006,33 @@ return UserData::from($user);
 return UserData::collect($users, DataCollection::class);
 ```
 
-Responses use Hypervel's JSON resources and paginator support, including their links and pagination details. Use `wrap()` or `withoutWrapping()` on an object or collection. You may also define the default wrapper using the `data.wrap` configuration option.
+Responses use Hypervel's JSON resources. Use `wrap()` or `withoutWrapping()` on an object or collection, or define a `defaultWrap()` method returning the key on the class. You may also define the default wrapper using the `data.wrap` configuration option.
+
+Wrapping applies to responses; `toArray()` and `toJson()` don't wrap, apart from paginated output, described below. Within a wrapped response, a nested data object is never wrapped. A data collection keeps its own wrapper when it is a property of the returned data object, but not when it sits inside a nested data object or a collection item. A nested array or collection of data objects uses the `data.wrap` key.
+
+A paginated collection, or a paginator property, is always wrapped, using `data` when no wrapper is set. Its `links` and `meta` keys describe the current page, and responses, `toArray()`, and `toJson()` all produce the same shape:
+
+```json
+{
+    "data": [{"name": "Taylor"}],
+    "links": [...],
+    "meta": {
+        "current_page": 1,
+        "first_page_url": "https://example.com/users?page=1",
+        "from": 1,
+        "last_page": 10,
+        "last_page_url": "https://example.com/users?page=10",
+        "next_page_url": "https://example.com/users?page=2",
+        "path": "https://example.com/users",
+        "per_page": 15,
+        "prev_page_url": null,
+        "to": 15,
+        "total": 150
+    }
+}
+```
+
+A length-aware paginator's `links` holds its page links. A cursor paginator has no page links, and its `meta` holds `path`, `per_page`, `next_cursor`, `next_page_url`, `prev_cursor`, and `prev_page_url`. A simple paginator's `meta` holds the values from its `toArray()` other than its items.
 
 Override static `jsonOptions()` or `withResponse(Request $request, JsonResponse $response)` for Laravel-style response customization. A custom data collection class may also override `withResponse()`, while its JSON options come from its data class. Responses use the `200` status code for every request method, so set a `201` status for a newly created object yourself:
 
@@ -1135,9 +1173,9 @@ class UpdatePostData extends Data
 }
 ```
 
-Contextual values are resolved only after validation succeeds. They always take precedence over input and creation hooks, including when the resolved value is `null`. A promoted property's value is converted to its declared type like other input, without validation, so a `'123'` route parameter becomes an `int` and an array becomes a nested data object. Input supplied for a promoted contextual property is allowed by strict unknown-field validation but is ignored. A non-promoted contextual parameter with its own name is passed only to the constructor. Use a named factory or creation hook without the contextual attribute when input should take precedence.
+When the object is validated, a promoted property's contextual value is resolved before validation and checked by the property's rules like any other value, so other rules that reference it see the resolved value. Without validation, it is resolved when the object is constructed. Either way, it takes precedence over input and creation and validation hooks, including when the resolved value is `null`, and is converted to its declared type like other input, so a `'123'` route parameter becomes an `int` and an array becomes a nested data object. Input supplied for a promoted contextual property is allowed by strict unknown-field validation but is ignored. When a rule such as `exclude_if` excludes the value, the property is treated as missing. A non-promoted contextual parameter with its own name is passed only to the constructor. Use a named factory or creation hook without the contextual attribute when input should take precedence.
 
-`CurrentUser` and `RouteParameter` accept an optional `property` path and use `data_get()` semantics. Accessors and Eloquent relations may run while traversing that path. `RequestAttribute` selects an exact request attribute key. The `Config`, `Context`, and `Give` attributes are also supported, as are custom contextual attributes.
+`CurrentUser`, `RouteParameter`, and `Give` accept an optional `property` path and use `data_get()` semantics. Accessors and Eloquent relations may run while traversing that path. `RequestAttribute` selects an exact request attribute key. The `Config`, `Context`, and `Give` attributes are also supported, as are custom contextual attributes.
 
 <a name="inertia"></a>
 ## Inertia

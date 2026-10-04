@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Data\Support\Transformation;
+namespace Hypervel\Tests\Data\Support\Partials;
 
 use Hypervel\Data\Support\Partials\PartialDefinition;
 use Hypervel\Data\Support\Partials\PartialsDefinition;
@@ -124,6 +124,44 @@ class PartialsDefinitionTest extends TestCase
     }
 
     /**
+     * Test repeated resolved copies are added once, without merging conditions or lifetimes.
+     */
+    public function testSkipsResolvedDefinitionsAlreadyHeld(): void
+    {
+        $definitions = new PartialsDefinition;
+        $definitions->add('include', 'conditional', permanent: true, condition: static fn (): bool => true);
+        $resolved = [
+            'include' => [
+                new PartialDefinition('temporary'),
+                new PartialDefinition('temporary', permanent: true),
+                new PartialDefinition('conditional', permanent: true),
+            ],
+            'exclude' => [],
+            'only' => [new PartialDefinition('temporary')],
+            'except' => [],
+        ];
+        $data = new stdClass;
+
+        $definitions->addResolved($resolved);
+        $definitions->addResolved($resolved);
+
+        $this->assertSame(
+            ['conditional', 'temporary', 'temporary', 'conditional'],
+            self::paths($definitions->resolve($data)['include']),
+        );
+        $this->assertSame(['temporary'], self::paths($definitions->resolve($data)['only']));
+
+        $definitions->resolve($data, consumeTemporary: true);
+        $definitions->addResolved($resolved);
+
+        $this->assertSame(
+            ['conditional', 'temporary', 'conditional', 'temporary'],
+            self::paths($definitions->resolve($data)['include']),
+        );
+        $this->assertSame(['temporary'], self::paths($definitions->resolve($data)['only']));
+    }
+
+    /**
      * Test conditional definitions survive PHP serialization.
      */
     public function testSerializesConditionalDefinitions(): void
@@ -179,13 +217,18 @@ class PartialsDefinitionTest extends TestCase
 
     /**
      * Provide nested definition paths.
+     *
+     * Spatie's DecoupledPartialResolverTest cases are the first five rows; nested() replaces the resolver,
+     * and its "undefined" case is the first row, since a path has no pointer to advance past its end.
      */
     public static function nestedDefinitionProvider(): array
     {
         return [
-            'terminal selection' => ['nested', 'nested', null],
-            'nested wildcard' => ['nested.*', 'nested', '*'],
-            'root wildcard' => ['*', 'nested', '*'],
+            'no further fields' => ['nested', 'nested', null],
+            'single field' => ['nested.name', 'nested', 'name'],
+            'nested field' => ['nested.child.name', 'nested', 'child.name'],
+            'all field' => ['nested.*', 'nested', '*'],
+            'all field a few levels deep' => ['*', 'nested', '*'],
             'nested group' => ['nested.{a,b}', 'nested', '{a,b}'],
             'root group' => ['{nested,other}', 'nested', null],
             'different property' => ['other.value', 'nested', null],

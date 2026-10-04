@@ -13,6 +13,7 @@ use Hypervel\Data\Support\Transformation\TransformationContextFactory;
 use Hypervel\Data\Support\Wrapping\WrapExecutionType;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Data\Fixtures\SimpleData;
+use Hypervel\Tests\Data\Fixtures\Transformers\StringToUpperTransformer;
 use stdClass;
 
 class TransformationContextFactoryTest extends TestCase
@@ -102,6 +103,17 @@ class TransformationContextFactoryTest extends TestCase
             ->get(SimpleData::from('Hello World'));
 
         $this->assertSame(WrapExecutionType::Enabled, $context->wrapExecutionType);
+    }
+
+    public function testCanAddACustomTransformers(): void
+    {
+        $factory = TransformationContextFactory::create()
+            ->withTransformer('string', StringToUpperTransformer::class);
+        $context = $factory->get(SimpleData::from('Hello World'));
+
+        // Transformers are keyed by the declared type they handle, so the string transformer is found for a string value.
+        $this->assertSame(['string' => StringToUpperTransformer::class], $context->transformers);
+        $this->assertSame(['string' => 'HELLO WORLD'], SimpleData::from('Hello World')->transform($factory));
     }
 
     public function testCanSetAMaxTransformationDepth(): void

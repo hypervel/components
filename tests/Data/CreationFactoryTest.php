@@ -222,6 +222,7 @@ class CreationFactoryTest extends TestCase
             ->withoutValidation()
             ->withoutPropertyNameMapping()
             ->withoutMagicalCreation()
+            ->withoutOptionalValues()
             ->ignoreMagicalMethod('fromString')
             ->withCast('string', StringToUpperCast::class)
             ->withNormalizers($normalizer)
@@ -235,6 +236,7 @@ class CreationFactoryTest extends TestCase
         $this->assertSame(ValidationStrategy::Disabled, $context->validationStrategy);
         $this->assertFalse($context->mapPropertyNames);
         $this->assertTrue($context->disableMagicalCreation);
+        $this->assertFalse($context->useOptionalValues);
         $this->assertSame(['fromString'], $context->ignoredMagicalMethods);
         $this->assertSame(['string' => StringToUpperCast::class], $context->casts);
         $this->assertSame([$normalizer], $context->normalizers);

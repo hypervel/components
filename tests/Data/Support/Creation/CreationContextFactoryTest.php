@@ -36,11 +36,10 @@ class CreationContextFactoryTest extends TestCase
         $this->assertSame(ValidationStrategy::Always, $context->validationStrategy);
         $this->assertTrue($context->mapPropertyNames);
         $this->assertFalse($context->disableMagicalCreation);
+        $this->assertTrue($context->useOptionalValues);
         $this->assertSame([], $context->ignoredMagicalMethods);
         $this->assertSame([], $context->casts);
     }
-
-    // REMOVED: 'is possible to disable optional values' and 'is possible to enable optional values'; withoutOptionalValues() and withOptionalValues() are not included.
 
     #[DataProvider('factoryOptions')]
     public function testFactoryOptionsRebuildTheCreateContext(Closure $configure, string $option, mixed $expected): void
@@ -119,6 +118,18 @@ class CreationContextFactoryTest extends TestCase
             static fn (CreationContextFactory $factory): CreationContextFactory => $factory->withoutMagicalCreation()->withMagicalCreation(),
             'disableMagicalCreation',
             false,
+        ];
+
+        yield 'is possible to disable optional values' => [
+            static fn (CreationContextFactory $factory): CreationContextFactory => $factory->withoutOptionalValues(),
+            'useOptionalValues',
+            false,
+        ];
+
+        yield 'is possible to enable optional values' => [
+            static fn (CreationContextFactory $factory): CreationContextFactory => $factory->withoutOptionalValues()->withOptionalValues(),
+            'useOptionalValues',
+            true,
         ];
 
         yield 'is possible to set ignored magical methods' => [

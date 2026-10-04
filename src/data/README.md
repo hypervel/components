@@ -26,17 +26,25 @@ Spatie's configurable `pipeline()` and custom `DataPipe` classes are not include
 
 Spatie's `ContextableData` and `getDataContext()` are not included. An object's partial selections are available from `getPartialsDefinition()` and its wrapping from `getWrap()`.
 
+Looping over a data collection copies its partial selections onto the items, as in Spatie, but doesn't consume the collection's temporary selections; only the collection's own transformation does. Spatie's loop consumes them from the collection, leaving only the copies on its items. See [partial trees](https://hypervel.org/docs/data-objects#partial-trees).
+
+A malformed partial path given in code, such as `''`, `*.name` or `{name, age}.name`, throws when the object is transformed. Spatie ignores an empty path and anything after a `*` or a group, so `*.name` includes every lazy property at every depth. Malformed paths in the request query string are skipped.
+
 A custom cast's `$properties` argument holds the object's declared property values keyed by PHP property name. Unlike Spatie's, it excludes undeclared input, raw input names, and contextual and computed values. See [casts and transformers](https://hypervel.org/docs/data-objects#casts-and-transformers).
 
 Casts and named methods receive one `CreationContext` for the whole creation, and it does not change while nested objects are created. Its `dataClass` is the class the creation started with, where Spatie updates it to the nested class being created. It has no `from()`, `collect()`, or `currentPath`; pass it to the target class's `factory()` to create another object with the same options.
 
-A few members of the `DataProperty`, `DataClass`, and `TransformationContext` metadata that casts, transformers, and other extensions read differ from Spatie's, such as `DataProperty` having no `defaultValue` because defaults are read from reflection when needed. See the [porting guide](https://hypervel.org/docs/porting-from-laravel#data-objects).
+A few members of the `DataProperty`, `DataClass`, and `TransformationContext` metadata that casts, transformers, and other extensions read differ from Spatie's, such as `DataProperty` having no `defaultValue` because defaults are read from reflection when needed. `TransformationContext` is a final immutable class, so it can't be subclassed to carry extra state into a transformation; give a transformer instance its own inputs and pass it to `withTransformer()` instead. See the [porting guide](https://hypervel.org/docs/porting-from-laravel#data-objects).
 
 `make:data` takes the complete namespace through Hypervel's `--target-namespace` generator option instead of Spatie's `--namespace` option.
 
 Spatie's `data:cache-structures` command is not included; Hypervel does not require a structure cache step during deployment.
 
-Spatie's data-specific `From*` attributes, `withOptionalValues()`, `withoutOptionalValues()`, `SerializeTransformer`, and `UnserializeCast` are not included. Use Hypervel's contextual attributes, declared `Optional` unions, native PHP serialization, or an explicit custom cast or transformer.
+Spatie's data-specific `From*` attributes are not included. Use Hypervel's contextual attributes.
+
+With `withoutOptionalValues()`, a missing `Optional` property that cannot hold `null` keeps `Optional`, where Spatie leaves it uninitialized. A missing nullable `Optional` property receives `null`, as in Spatie.
+
+Spatie's `UnserializeCast` is not included because it unserializes property input, which may come from a request, without restricting the classes it creates. Write a custom cast that passes `allowed_classes` to `unserialize()` when a property holds trusted serialized values.
 
 Named `collect*` methods receive the source's own array, collection, or paginator shape after its values have been converted to data objects, rather than the original source values. An Eloquent collection source is provided as a base `Hypervel\Support\Collection`. When you pass an explicit `$into` target, the method's declared return type must also match that target.
 

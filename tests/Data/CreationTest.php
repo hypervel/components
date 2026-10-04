@@ -1375,7 +1375,64 @@ class CreationTest extends TestCase
         $this->assertInstanceOf(Optional::class, $dataClass::from([])->property);
     }
 
-    // REMOVED: withoutOptionalValues(); Optional declarations always preserve absence.
+    // REMOVED: 'is possible to create a union type data collectable'; unfinished upstream (->todo()), and creating items whose type mixes a Data class with other types is not supported. Transforming them is (DataTransformerTest).
+
+    public function testCanBeCreatedWithoutOptionalValues(): void
+    {
+        $dataClass = new class extends Data {
+            public string $name;
+
+            public string|Optional|null $description;
+
+            public int|Optional $year = 2025;
+
+            public string|Optional $slug;
+        };
+
+        $data = $dataClass::factory()
+            ->withoutOptionalValues()
+            ->from([
+                'name' => 'Ruben',
+            ]);
+
+        $this->assertSame('Ruben', $data->name);
+        $this->assertNull($data->description);
+        $this->assertSame(2025, $data->year);
+        // Upstream leaves a property that cannot hold null uninitialized; Hypervel keeps it Optional.
+        $this->assertInstanceOf(Optional::class, $data->slug);
+
+        $this->assertSame([
+            'name' => 'Ruben',
+            'description' => null,
+            'year' => 2025,
+        ], $data->toArray());
+    }
+
+    public function testWithoutOptionalValuesAppliesToConstructorNestedAndCastInputs(): void
+    {
+        OptionalValuesCast::$received = null;
+
+        $direct = OptionalValuesData::factory()
+            ->withoutOptionalValues()
+            ->from(['name' => 'Ruben', 'child' => []]);
+        $general = OptionalValuesData::factory()
+            ->withoutOptionalValues()
+            ->beforeCreation(static fn (array $properties): array => $properties)
+            ->from(['name' => 'Ruben', 'child' => []]);
+        $cast = OptionalValuesCastData::factory()
+            ->withoutOptionalValues()
+            ->from(['name' => 'Ruben']);
+
+        foreach ([$direct, $general] as $data) {
+            $this->assertNull($data->description);
+            $this->assertInstanceOf(Optional::class, $data->slug);
+            $this->assertNull($data->child->note);
+        }
+
+        $this->assertSame('RUBEN', $cast->name);
+        $this->assertNull(OptionalValuesCast::$received['description']);
+        $this->assertInstanceOf(Optional::class, OptionalValuesData::from(['name' => 'Ruben', 'child' => []])->description);
+    }
 
     public function testCanCreateADataObjectWithAutoLazyProperties(): void
     {
@@ -2135,5 +2192,59 @@ class TestPropertyMorphableDefaultDataA extends TestAbstractPropertyMorphableDef
     public function __construct(public string $a, public DummyBackedEnum $enum)
     {
         parent::__construct(PropertyMorphableEnum::A);
+    }
+}
+
+class OptionalValuesData extends Data
+{
+    /**
+     * Create a fixture with missing Optional constructor properties.
+     */
+    public function __construct(
+        public string $name,
+        public string|Optional|null $description,
+        public string|Optional $slug,
+        public OptionalValuesChildData $child,
+    ) {
+    }
+}
+
+class OptionalValuesChildData extends Data
+{
+    /**
+     * Create a nested fixture with a missing nullable Optional property.
+     */
+    public function __construct(
+        public string|Optional|null $note,
+    ) {
+    }
+}
+
+class OptionalValuesCastData extends Data
+{
+    /**
+     * Create a fixture whose cast receives the declared property values.
+     */
+    public function __construct(
+        #[WithCast(OptionalValuesCast::class)]
+        public string $name,
+        public string|Optional|null $description,
+    ) {
+    }
+}
+
+class OptionalValuesCast implements Cast
+{
+    /** @var null|array<string, mixed> */
+    public static ?array $received = null;
+
+    /**
+     * Record the declared values and uppercase the value.
+     */
+    public function cast(DataProperty $property, mixed $value, array $properties, CreationContext $context): string
+    {
+        static::$received = $properties;
+
+        return strtoupper($value);
     }
 }

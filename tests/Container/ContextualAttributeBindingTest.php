@@ -98,6 +98,28 @@ class ContextualAttributeBindingTest extends TestCase
         $this->assertTrue($resolution->dependency->param);
     }
 
+    public function testGiveAttributeCanExtractAPropertyPath(): void
+    {
+        $container = new Container;
+
+        $resolution = $container->make(GivePropertyTest::class);
+
+        $this->assertTrue($resolution->param);
+        $this->assertNull($resolution->missing);
+        $this->assertFalse($container->isScoped(GivePropertyTest::class));
+    }
+
+    public function testGivePropertyRejectsScalarValues(): void
+    {
+        $container = new Container;
+        $container->bind(GiveScalarSource::class, fn (): int => 123);
+
+        $this->expectException(BindingResolutionException::class);
+        $this->expectExceptionMessageIs('Cannot extract property path [id] from scalar [int] resolved by [Hypervel\Container\Attributes\Give].');
+
+        $container->make(ScalarGivePropertyTest::class);
+    }
+
     public function testScalarDependencyCanBeResolvedFromAttributeBinding(): void
     {
         $container = new Container;
@@ -165,6 +187,11 @@ class ContextualAttributeBindingTest extends TestCase
 
         // The class's build context ends with the call.
         $this->assertInstanceOf(ContainerTestImplB::class, $container->make(ContainerTestContract::class));
+
+        $selected = $container->resolveContextualParameters(ContainerTestHasContextualDependencies::class, ['person']);
+
+        $this->assertSame(['person'], array_keys($selected));
+        $this->assertSame(1, $callbacks);
     }
 
     public function testAuthedAttribute(): void
@@ -1209,6 +1236,36 @@ final readonly class GiveTestComplex
     public function __construct(
         #[Give(ComplexDependency::class, ['param' => true])]
         public ContainerTestContract $dependency
+    ) {
+    }
+}
+
+final readonly class GivePropertyTest
+{
+    /**
+     * Create a new test fixture.
+     */
+    public function __construct(
+        #[Give(ComplexDependency::class, ['param' => true], property: 'param')]
+        public bool $param,
+        #[Give(ComplexDependency::class, ['param' => true], property: 'missing')]
+        public ?string $missing,
+    ) {
+    }
+}
+
+interface GiveScalarSource
+{
+}
+
+final readonly class ScalarGivePropertyTest
+{
+    /**
+     * Create a new test fixture.
+     */
+    public function __construct(
+        #[Give(GiveScalarSource::class, property: 'id')]
+        public ?int $id,
     ) {
     }
 }

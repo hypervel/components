@@ -23,7 +23,10 @@ use Hypervel\Data\Attributes\DataCollectionOf;
 use Hypervel\Data\Attributes\MapInputName;
 use Hypervel\Data\Attributes\PropertyForMorph;
 use Hypervel\Data\Attributes\Validation\Exclude;
+use Hypervel\Data\Attributes\Validation\ExcludeIf;
+use Hypervel\Data\Attributes\Validation\Max;
 use Hypervel\Data\Attributes\Validation\Min;
+use Hypervel\Data\Attributes\Validation\RequiredIf;
 use Hypervel\Data\Attributes\WithCast;
 use Hypervel\Data\Casts\Cast;
 use Hypervel\Data\Casts\Castable;
@@ -78,7 +81,6 @@ class DataCreatorTest extends TestCase
     use BindsRouteParameters;
 
     // REMOVED: Configurable pipeline tests; use the fixed engine and factory hooks.
-    // REMOVED: withOptionalValues()/withoutOptionalValues() tests; Optional declarations always preserve absence.
     // REMOVED: Data-specific From* injection tests; Hypervel contextual attributes cover the same outcomes directly.
     // REMOVED: UnserializeCast tests; serialized request input is not accepted by a built-in cast.
 
@@ -1104,6 +1106,151 @@ class DataCreatorTest extends TestCase
         $this->assertSame('Server', $data->label);
         $this->assertSame(1, $parameterCallbacks);
         $this->assertSame(1, $classCallbacks);
+    }
+
+    public function testValidatedContextualValuesUseTheObjectsRules(): void
+    {
+        ValidatedContextualValue::$values = ['id' => 500, 'owner' => null, 'child' => 50];
+
+        try {
+            ValidatedContextualData::validate([
+                'id' => 1,
+                'owner_id' => 2,
+                'child' => ['value' => 1, 'name' => 'Child'],
+            ]);
+            $this->fail('Expected the contextual values to be validated.');
+        } catch (ValidationException $exception) {
+            $this->assertEqualsCanonicalizing(['id', 'owner_id', 'child.value'], array_keys($exception->errors()));
+        }
+
+        ValidatedContextualValue::$values = ['id' => 5, 'owner' => 3, 'child' => 1];
+
+        try {
+            // The rule referencing the contextual property sees the server value, not the client's.
+            ValidatedContextualData::validate(['id' => 7]);
+            $this->fail('Expected the dependent rule to read the contextual value.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(['note'], array_keys($exception->errors()));
+        }
+
+        $data = ValidatedContextualData::validateAndCreate([
+            'id' => 7,
+            'note' => 'Checked',
+            'child' => ['value' => 9, 'name' => 'Child'],
+        ]);
+
+        $this->assertSame(5, $data->id);
+        $this->assertSame(3, $data->ownerId);
+        $this->assertSame(1, $data->child?->value);
+    }
+
+    public function testHooksCannotReplaceValidatedContextualValues(): void
+    {
+        ValidatedContextualValue::$resolutions = [];
+        ValidatedContextualValue::$values = ['id' => 5, 'owner' => 3];
+        $validated = null;
+
+        $data = ValidatedContextualData::factory()
+            ->alwaysValidate()
+            ->beforeValidation(static function (array $payload): array {
+                unset($payload['owner_id']);
+
+                return [...$payload, 'id' => 1];
+            })
+            ->afterValidation(static function (array $payload) use (&$validated): array {
+                $validated = $payload;
+
+                return [...$payload, 'id' => 2];
+            })
+            ->beforeCreation(static fn (array $properties): array => [...$properties, 'id' => 3, 'ownerId' => 4])
+            ->from(['note' => 'Checked']);
+
+        $this->assertSame(5, $validated['id']);
+        $this->assertSame(3, $validated['owner_id']);
+        $this->assertSame(5, $data->id);
+        $this->assertSame(3, $data->ownerId);
+        // The missing child is never prepared, so its contextual value is not resolved.
+        $this->assertSame(['id' => 1, 'owner' => 1], ValidatedContextualValue::$resolutions);
+    }
+
+    public function testExcludedContextualValuesAreNotRestored(): void
+    {
+        ValidatedContextualValue::$resolutions = [];
+        ValidatedContextualValue::$values = ['defaulted' => 'server', 'nullable' => 'server', 'service' => 'service'];
+
+        $data = ExcludedContextualData::validateAndCreate([
+            'skip' => true,
+            'defaulted' => 'client',
+            'nullable' => 'client',
+        ]);
+
+        $this->assertSame('default', $data->defaulted);
+        $this->assertNull($data->nullable);
+        $this->assertSame('service', $data->serviceLabel);
+        $this->assertSame(['nullable' => 1, 'defaulted' => 1, 'service' => 1], ValidatedContextualValue::$resolutions);
+        // A constructor-only contextual parameter is not a validation field.
+        $this->assertArrayNotHasKey('service', ExcludedContextualData::validate(['skip' => false]));
+
+        ValidatedContextualValue::$values['required'] = 'server';
+
+        $this->expectException(CannotCreateData::class);
+
+        RequiredExcludedContextualData::validateAndCreate(['skip' => true]);
+    }
+
+    public function testHookMorphingAPreparedNodeResolvesTheNewClassesContextualValues(): void
+    {
+        ValidatedContextualValue::$values = ['first' => 1, 'second' => 50];
+        $factory = ContextualMorphData::factory()
+            ->alwaysValidate()
+            ->beforeValidation(static fn (array $payload): array => [...$payload, 'type' => 'second']);
+
+        try {
+            $factory->from(['type' => 'first']);
+            $this->fail('Expected the new class to validate its own contextual value.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(['value'], array_keys($exception->errors()));
+        }
+
+        ValidatedContextualValue::$resolutions = [];
+        ValidatedContextualValue::$values['second'] = 2;
+
+        $data = $factory->from(['type' => 'first']);
+
+        $this->assertInstanceOf(SecondContextualMorphData::class, $data);
+        $this->assertSame(2, $data->value);
+        $this->assertSame(['first' => 1, 'second' => 1], ValidatedContextualValue::$resolutions);
+    }
+
+    public function testHookMorphingAPreparedItemResolvesTheNewClassesContextualValues(): void
+    {
+        ValidatedContextualValue::$values = ['first' => 1, 'second' => 50];
+        $factory = ContextualMorphListData::factory()
+            ->alwaysValidate()
+            ->beforeValidation(static function (array $payload): array {
+                $payload['items'][1]['type'] = 'second';
+
+                return $payload;
+            });
+        $input = ['items' => [['type' => 'first'], ['type' => 'first']]];
+
+        try {
+            $factory->from($input);
+            $this->fail('Expected the new item class to validate its own contextual value.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(['items.1.value'], array_keys($exception->errors()));
+        }
+
+        ValidatedContextualValue::$resolutions = [];
+        ValidatedContextualValue::$values['second'] = 2;
+
+        $data = $factory->from($input);
+
+        $this->assertInstanceOf(FirstContextualMorphData::class, $data->items[0]);
+        $this->assertSame(1, $data->items[0]->value);
+        $this->assertInstanceOf(SecondContextualMorphData::class, $data->items[1]);
+        $this->assertSame(2, $data->items[1]->value);
+        $this->assertSame(['first' => 2, 'second' => 1], ValidatedContextualValue::$resolutions);
     }
 
     public function testResolvesIntegerBackedMorphFromNumericString(): void
@@ -2737,6 +2884,162 @@ class ContextualCreationDependency implements ContextualAttribute
 #[Attribute(Attribute::TARGET_CLASS)]
 class ContextualCreationMarker
 {
+}
+
+#[Attribute(Attribute::TARGET_PARAMETER)]
+class ValidatedContextualValue implements ContextualAttribute
+{
+    /** @var array<string, int> */
+    public static array $resolutions = [];
+
+    /** @var array<string, mixed> */
+    public static array $values = [];
+
+    /**
+     * Create the attribute for one named server value.
+     */
+    public function __construct(public string $name)
+    {
+    }
+
+    /**
+     * Count the resolution and return the configured value.
+     */
+    public static function resolve(self $attribute, Container $container): mixed
+    {
+        static::$resolutions[$attribute->name] = (static::$resolutions[$attribute->name] ?? 0) + 1;
+
+        return static::$values[$attribute->name] ?? null;
+    }
+}
+
+class ValidatedContextualData extends Data
+{
+    /**
+     * Create a fixture whose contextual values carry and satisfy rules.
+     */
+    public function __construct(
+        #[ValidatedContextualValue('id'), Max(10)]
+        public int $id,
+        #[RequiredIf('id', 5)]
+        public ?string $note,
+        #[MapInputName('owner_id'), ValidatedContextualValue('owner')]
+        public int $ownerId,
+        public ?ValidatedContextualChildData $child = null,
+    ) {
+    }
+}
+
+class ValidatedContextualChildData extends Data
+{
+    /**
+     * Create a nested fixture with a validated contextual value.
+     */
+    public function __construct(
+        #[ValidatedContextualValue('child'), Max(10)]
+        public int $value,
+        public string $name,
+    ) {
+    }
+}
+
+class ExcludedContextualData extends Data
+{
+    #[Computed]
+    public string $serviceLabel;
+
+    /**
+     * Create a fixture whose contextual values validation may exclude.
+     */
+    public function __construct(
+        public bool $skip,
+        #[ValidatedContextualValue('nullable'), ExcludeIf('skip', true)]
+        public ?string $nullable,
+        #[ValidatedContextualValue('service')]
+        string $service,
+        #[ValidatedContextualValue('defaulted'), ExcludeIf('skip', true)]
+        public string $defaulted = 'default',
+    ) {
+        $this->serviceLabel = $service;
+    }
+}
+
+class RequiredExcludedContextualData extends Data
+{
+    /**
+     * Create a fixture whose excluded contextual value has no missing value.
+     */
+    public function __construct(
+        public bool $skip,
+        #[ValidatedContextualValue('required'), ExcludeIf('skip', true)]
+        public string $required,
+    ) {
+    }
+}
+
+abstract class ContextualMorphData extends Data implements PropertyMorphableData
+{
+    /**
+     * Create a morphable fixture whose subclasses resolve different contextual values.
+     */
+    public function __construct(
+        #[PropertyForMorph]
+        public string $type,
+    ) {
+    }
+
+    /**
+     * Get the subclass for the given type.
+     */
+    public static function morph(array $properties): ?string
+    {
+        return match ($properties['type']) {
+            'first' => FirstContextualMorphData::class,
+            'second' => SecondContextualMorphData::class,
+        };
+    }
+}
+
+class FirstContextualMorphData extends ContextualMorphData
+{
+    /**
+     * Create the first morph with its contextual value.
+     */
+    public function __construct(
+        string $type,
+        #[ValidatedContextualValue('first')]
+        public int $value,
+    ) {
+        parent::__construct($type);
+    }
+}
+
+class SecondContextualMorphData extends ContextualMorphData
+{
+    /**
+     * Create the second morph with a validated contextual value.
+     */
+    public function __construct(
+        string $type,
+        #[ValidatedContextualValue('second'), Max(10)]
+        public int $value,
+    ) {
+        parent::__construct($type);
+    }
+}
+
+class ContextualMorphListData extends Data
+{
+    /**
+     * Create a list of contextual morph items.
+     *
+     * @param array<array-key, ContextualMorphData> $items
+     */
+    public function __construct(
+        #[DataCollectionOf(ContextualMorphData::class)]
+        public array $items,
+    ) {
+    }
 }
 
 #[ContextualCreationMarker]

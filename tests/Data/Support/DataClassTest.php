@@ -311,7 +311,8 @@ class DataClassTest extends TestCase
         );
 
         $this->assertTrue($promoted->properties['userId']->isConstructorParameter);
-        $this->assertFalse($promoted->properties['userId']->validate);
+        // A promoted contextual value is validated with the object once Fill resolves it.
+        $this->assertTrue($promoted->properties['userId']->validate);
         $this->assertSame(ContextualValue::class, $promoted->constructorParameters[0]->contextualAttribute?->getName());
         $this->assertSame(['userId' => true], $promoted->contextualParameters);
         $this->assertNull($promoted->creationRecipe);

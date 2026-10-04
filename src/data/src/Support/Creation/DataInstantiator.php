@@ -41,19 +41,21 @@ class DataInstantiator
     /**
      * Resolve the contextual constructor values of a data class in its container build context.
      *
+     * @param null|list<string> $names the parameters to resolve, or null for every contextual parameter
      * @return array<string, mixed>
      */
-    public function resolveContextualParameters(DataClass $dataClass): array
+    public function resolveContextualParameters(DataClass $dataClass, ?array $names = null): array
     {
-        return $this->container->resolveContextualParameters($dataClass->name);
+        return $this->container->resolveContextualParameters($dataClass->name, $names);
     }
 
     /**
      * Instantiate and assign one fully cast data node.
      *
      * @param array<string, mixed> $properties
+     * @param bool $useOptionalValues whether a missing nullable Optional property outside the constructor receives Optional rather than null
      */
-    public function instantiate(DataClass $dataClass, array $properties): BaseData
+    public function instantiate(DataClass $dataClass, array $properties, bool $useOptionalValues = true): BaseData
     {
         if ($dataClass->constructor !== null && ! $dataClass->constructor->isPublic()) {
             throw CannotCreateData::nonPublicConstructor($dataClass);
@@ -118,7 +120,7 @@ class DataInstantiator
                 continue;
             }
 
-            if ($property->type->isOptional) {
+            if ($property->type->isOptional && ($useOptionalValues || ! $property->type->isNullable)) {
                 $data->{$property->name} = Optional::create();
             } elseif ($property->type->isNullable) {
                 $data->{$property->name} = null;

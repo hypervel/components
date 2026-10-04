@@ -510,7 +510,7 @@ class PhotoController extends Controller
 
 The `RequestAttribute` attribute resolves a value from the current request's attributes bag. The `RouteParameter` attribute resolves the route parameter matching the variable name. If needed, you may specify the route parameter name explicitly: `#[RouteParameter('photo')]`.
 
-`RouteParameter` and the user attributes may also extract a dot-notated property path from the resolved object. For example, `#[RouteParameter('photo', 'id')] int $photoId` resolves the route model's ID, while `#[CurrentUser(property: 'id')] int $userId` resolves the current user's ID. Property access uses `data_get`, so object accessors and Eloquent relationships may execute while the path is traversed.
+`Give`, `RouteParameter`, and the user attributes may also extract a dot-notated property path from the resolved value. For example, `#[RouteParameter('photo', 'id')] int $photoId` resolves the route model's ID, `#[CurrentUser(property: 'id')] int $userId` resolves the current user's ID, and `#[Give(Settings::class, property: 'currency')] string $currency` resolves a property of the given service. Property access uses `data_get`, so object accessors and Eloquent relationships may execute while the path is traversed.
 
 Pass `memo: true` to `Cache` to inject a request-scoped memoized repository. The optional `name` argument on `Log` creates a named logger and is supported by Monolog-backed channels. Driver identifiers accepted by `Auth`, `Authenticated`, `Cache`, `Log`, and `Storage` may also be unit or backed enum cases; Hypervel uses the unit case name or backed value as the identifier.
 
@@ -818,6 +818,12 @@ $parameters = $this->app->resolveContextualParameters(ReportFilter::class);
 $parameters['status'] = ReportStatus::from($parameters['status']);
 
 $filter = $this->app->buildWith(ReportFilter::class, $parameters);
+```
+
+Pass a list of parameter names as the second argument to resolve only those parameters. The container resolves any others when the class is built:
+
+```php
+$parameters = $this->app->resolveContextualParameters(ReportFilter::class, ['status']);
 ```
 
 <a name="transient-classes"></a>

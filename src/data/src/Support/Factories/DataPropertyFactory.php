@@ -127,7 +127,6 @@ class DataPropertyFactory
             constructionTarget: $constructionTarget,
             transformationOperation: $this->resolveTransformationOperation($type),
             validate: ! $computed
-                && $constructorParameter?->contextualAttribute === null
                 && ! $attributes->has(AutoWhenLoadedLazy::class)
                 && ! $attributes->has(WithoutValidation::class),
             computed: $computed,

@@ -222,6 +222,7 @@ class DataValidationCompiler
     ): void {
         $dataClass = $this->dataClasses->get($class);
         $contextualProperties = $dataClass->contextualParameters;
+        $contextualPrepared = $observed && $contextualProperties !== [] && $state->contextualValuesPrepared();
         // Class rules and configured inferrers see the node's actual input and path, while rules compile at $path.
         // An unobserved node has no input, as Fill never entered it.
         $context = $dataClass->hasLifecycleMethod('rules') || $this->config->ruleInferrers !== []
@@ -251,7 +252,8 @@ class DataValidationCompiler
             $propertyPath = $path->property($wireKey);
             $structuralPropertyPath = $structuralPath->property($wireKey);
 
-            if (isset($contextualProperties[$property->name])) {
+            // Fill prepares contextual values only for nodes it reaches, so a missing child's template has none to check.
+            if (isset($contextualProperties[$property->name]) && ! $contextualPrepared) {
                 if ($compileUnknownFields) {
                     $this->recordAuxiliaryPath(
                         $property,
@@ -283,6 +285,18 @@ class DataValidationCompiler
             if ($property->isFinishedValue($value)) {
                 $accumulator->preservedPaths[] = $propertyPath;
                 $accumulator->finishedStructuralPaths[$structuralPropertyPath->get()] = true;
+
+                // A finished object is not checked against inferred input rules or validated internally, but the
+                // property's declared rules, such as an exclusion, still apply to it.
+                $declaredRules = [];
+
+                foreach ($this->declaredRuleAttributes($property) as $attribute) {
+                    array_push($declaredRules, ...$this->ruleDenormalizer->execute($attribute, $path));
+                }
+
+                if ($declaredRules !== []) {
+                    $accumulator->rules[$propertyPath->get()] = $declaredRules;
+                }
 
                 if ($compileUnknownFields) {
                     $accumulator->allowedSubtrees[] = $propertyPath->get();
@@ -654,19 +668,7 @@ class DataValidationCompiler
         bool $receivesDataCollection,
         bool &$inferredRequired,
     ): array {
-        $attributes = [];
-
-        foreach ($property->attributes->all(ValidationRule::class) as $recipe) {
-            $attribute = $recipe->newInstance();
-
-            // A Rule attribute's rules become typed attributes where possible, so they replace inferred rules of their type.
-            if ($attribute instanceof Rule) {
-                array_push($attributes, ...$this->ruleNormalizer->execute($attribute));
-            } else {
-                $attributes[] = $attribute;
-            }
-        }
-
+        $attributes = $this->declaredRuleAttributes($property);
         $generatedRules = null;
 
         foreach ($state->context->beforeRulesHooks as $hook) {
@@ -770,6 +772,30 @@ class DataValidationCompiler
         }
 
         return $rules;
+    }
+
+    /**
+     * Get the fresh validation attributes declared on a property.
+     *
+     * A Rule attribute's rules become typed attributes where possible, so they replace inferred rules of their type.
+     *
+     * @return list<ValidationRule>
+     */
+    protected function declaredRuleAttributes(DataProperty $property): array
+    {
+        $attributes = [];
+
+        foreach ($property->attributes->all(ValidationRule::class) as $recipe) {
+            $attribute = $recipe->newInstance();
+
+            if ($attribute instanceof Rule) {
+                array_push($attributes, ...$this->ruleNormalizer->execute($attribute));
+            } else {
+                $attributes[] = $attribute;
+            }
+        }
+
+        return $attributes;
     }
 
     /**
@@ -1017,6 +1043,7 @@ class DataValidationCompiler
                     $messagePath = $path->wildcard()->property($key);
                     $paths = [new TranslatedValidationPath($messagePath, $messagePath)];
                 } else {
+                    // A string message's key names a field, optionally followed by a rule.
                     $paths = $this->translateRulePaths(
                         $key,
                         $dataClass,
@@ -1024,6 +1051,7 @@ class DataValidationCompiler
                         $path,
                         $structuralPath,
                         $observed,
+                        allowsRuleSuffix: is_string($message),
                     );
                 }
 
@@ -1097,6 +1125,7 @@ class DataValidationCompiler
     /**
      * Translate a class rule key to its observed wire paths.
      *
+     * @param bool $allowsRuleSuffix whether the key may end with a rule, as a string message key may
      * @return list<TranslatedValidationPath>
      */
     protected function translateRulePaths(
@@ -1106,6 +1135,7 @@ class DataValidationCompiler
         ValidationPath $path,
         ValidationPath $structuralPath,
         bool $observed,
+        bool $allowsRuleSuffix = false,
     ): array {
         return $this->translateRuleSegments(
             ValidationPath::create($key)->rawSegments(),
@@ -1115,6 +1145,7 @@ class DataValidationCompiler
             $path,
             $structuralPath,
             $observed,
+            $allowsRuleSuffix,
         );
     }
 
@@ -1132,6 +1163,7 @@ class DataValidationCompiler
         ValidationPath $path,
         ValidationPath $structuralPath,
         bool $observed,
+        bool $allowsRuleSuffix = false,
     ): array {
         if (! array_key_exists($offset, $segments)) {
             return [new TranslatedValidationPath(
@@ -1154,7 +1186,8 @@ class DataValidationCompiler
 
         if ($property->computed
             || ! $property->validate
-            || isset($dataClass->contextualParameters[$property->name])
+            || (isset($dataClass->contextualParameters[$property->name])
+                && ! ($observed && $state->contextualValuesPrepared()))
         ) {
             return [];
         }
@@ -1166,15 +1199,15 @@ class DataValidationCompiler
         $hasValue = $observed && $state->hasValue($inputPath);
         $value = $hasValue ? $state->getValue($inputPath) : null;
 
-        if ($property->isFinishedValue($value)) {
-            return [];
-        }
-
         if (! array_key_exists($offset + 1, $segments)) {
             return [new TranslatedValidationPath(
                 $path,
                 $structuralPath,
             )];
+        }
+
+        if ($property->isFinishedValue($value)) {
+            return $this->finishedValuePaths($path, $structuralPath, $segments, $offset + 1, $allowsRuleSuffix);
         }
 
         $dataType = $this->receivingDataType($property, $state, $hasValue, $value);
@@ -1200,6 +1233,7 @@ class DataValidationCompiler
                     $path,
                     $structuralPath,
                     $hasValue && is_array($value),
+                    $allowsRuleSuffix,
                 );
             } finally {
                 $state->leave();
@@ -1217,7 +1251,13 @@ class DataValidationCompiler
                 $itemValue = $values[$itemSegment] ?? null;
 
                 if ($itemValue instanceof $itemDataClass) {
-                    return [];
+                    return $this->finishedValuePaths(
+                        $path->item($itemSegment),
+                        $structuralPath->item($itemSegment),
+                        $segments,
+                        $offset + 2,
+                        $allowsRuleSuffix,
+                    );
                 }
 
                 $state->enterItem($itemSegment);
@@ -1231,6 +1271,7 @@ class DataValidationCompiler
                         $path->item($itemSegment),
                         $structuralPath->item($itemSegment),
                         array_key_exists($itemSegment, $values) && is_array($itemValue),
+                        $allowsRuleSuffix,
                     );
                 } finally {
                     $state->leave();
@@ -1246,6 +1287,7 @@ class DataValidationCompiler
                     $path->wildcard(),
                     $structuralPath->wildcard(),
                     false,
+                    $allowsRuleSuffix,
                 );
             }
 
@@ -1276,6 +1318,7 @@ class DataValidationCompiler
                             $path->wildcard(),
                             $structuralPath->wildcard(),
                             is_array($values[$firstKey]),
+                            $allowsRuleSuffix,
                         );
                     }
                 } finally {
@@ -1287,6 +1330,14 @@ class DataValidationCompiler
 
             foreach ($values as $itemKey => $itemValue) {
                 if ($itemValue instanceof $itemDataClass) {
+                    array_push($paths, ...$this->finishedValuePaths(
+                        $path->item($itemKey),
+                        $structuralPath->wildcard(),
+                        $segments,
+                        $offset + 2,
+                        $allowsRuleSuffix,
+                    ));
+
                     continue;
                 }
 
@@ -1301,6 +1352,7 @@ class DataValidationCompiler
                         $path->item($itemKey),
                         $structuralPath->wildcard(),
                         is_array($itemValue),
+                        $allowsRuleSuffix,
                     ));
                 } finally {
                     $state->leave();
@@ -1311,6 +1363,34 @@ class DataValidationCompiler
         } finally {
             $state->leave();
         }
+    }
+
+    /**
+     * Translate the rest of a key that reaches a finished value.
+     *
+     * A finished value is not validated internally, so only a key ending at the value applies, or a message key
+     * ending with one rule for it.
+     *
+     * @param list<null|array-key> $segments
+     * @return list<TranslatedValidationPath>
+     */
+    protected function finishedValuePaths(
+        ValidationPath $path,
+        ValidationPath $structuralPath,
+        array $segments,
+        int $offset,
+        bool $allowsRuleSuffix,
+    ): array {
+        if (array_key_exists($offset + 1, $segments)
+            || (array_key_exists($offset, $segments) && ! $allowsRuleSuffix)
+        ) {
+            return [];
+        }
+
+        return [new TranslatedValidationPath(
+            $this->appendUnmappedSegments($path, $segments, $offset),
+            $this->appendUnmappedSegments($structuralPath, $segments, $offset),
+        )];
     }
 
     /**
