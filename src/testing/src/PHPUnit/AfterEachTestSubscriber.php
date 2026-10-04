@@ -207,6 +207,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Foundation\Support\Providers\RouteServiceProvider::flushState();
         \Hypervel\Foundation\Vite::flush();
         \Hypervel\Foundation\WorkerCachedMaintenanceMode::flushCache();
+        \Hypervel\Http\Client\Destinations\CurlCapabilities::flushState();
         \Hypervel\Http\Client\Factory::flushState();
         \Hypervel\Http\Client\PendingRequest::flushState();
         \Hypervel\Http\Client\Request::flushState();

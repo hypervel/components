@@ -10,7 +10,6 @@ use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\Psr7\Response as PsrResponse;
 use Hypervel\Http\Client\Factory;
-use Hypervel\Http\Client\PendingRequest;
 use Hypervel\Http\Client\Request;
 use Hypervel\OpenTelemetry\Context\CoroutineContextStorage;
 use Hypervel\OpenTelemetry\Context\PsrRequestHeadersSetter;
@@ -21,7 +20,6 @@ use Hypervel\OpenTelemetry\Support\ExceptionContextRegistry;
 use Hypervel\OpenTelemetry\Support\OperationOrigin;
 use Hypervel\OpenTelemetry\Support\ProcessIdentity;
 use Hypervel\Tests\TestCase;
-use LogicException;
 use Mockery as m;
 use Nyholm\Psr7\Request as NyholmRequest;
 use OpenTelemetry\API\Common\Time\ClockInterface;
@@ -360,8 +358,6 @@ class HttpClientInstrumentationTest extends TestCase
         $this->factory->get('https://example.test/untraced');
         $this->factory->withTrace()->get('https://example.test/traced');
 
-        $this->assertTrue(PendingRequest::hasMacro('withTrace'));
-        $this->assertTrue(PendingRequest::hasMacro('withoutTrace'));
         $this->assertCount(1, $this->spanExporter->getSpans());
         $this->metricReader->collect();
         $points = $this->metric(HttpMetrics::HTTP_CLIENT_REQUEST_DURATION)->data->dataPoints;
@@ -385,37 +381,41 @@ class HttpClientInstrumentationTest extends TestCase
         $this->assertSame([], $this->metricExporter->collect());
     }
 
-    public function testMetricsOnlyModeRegistersNoTraceMacrosOrResolverWork(): void
+    public function testMetricsOnlyModeIgnoresTraceControlsAndSkipsResolverWork(): void
     {
         $this->factory->fake();
         $this->urlTemplateResolver = static fn (): string => '/unused';
         $this->instrumentation()->register($this->options(['traces' => false]));
 
-        $this->factory->withOptions(['hypervel_otel_trace' => true])->get('https://example.test');
+        $this->factory->withTrace()->get('https://example.test');
+        $this->factory->withoutTrace()->get('https://example.test');
+        $this->factory->withoutTracePropagation()->get('https://example.test');
 
-        $this->assertFalse(PendingRequest::hasMacro('withTrace'));
-        $this->assertFalse(PendingRequest::hasMacro('withoutTrace'));
         $this->assertSame(0, $this->urlTemplateResolverCalls);
         $this->assertSame([], $this->spanExporter->getSpans());
         $this->metricReader->collect();
-        $this->assertCount(1, $this->metric(HttpMetrics::HTTP_CLIENT_REQUEST_DURATION)->data->dataPoints);
+        $points = $this->metric(HttpMetrics::HTTP_CLIENT_REQUEST_DURATION)->data->dataPoints;
+        $this->assertIsArray($points);
+        $this->assertCount(1, $points);
+        $this->assertSame(3, $points[0]->count);
     }
 
-    public function testMacroCollisionFailsBeforeEitherPackageMacroOrMiddlewareIsRegistered(): void
+    public function testWithoutTracePropagationRecordsTheSpanWithoutSendingTraceContext(): void
     {
-        PendingRequest::macro('withTrace', static fn (): string => 'application');
+        $headers = [];
+        $this->factory->fake(function (Request $request) use (&$headers): PromiseInterface {
+            $headers[] = $request->headers();
 
-        try {
-            $this->instrumentation()->register($this->options([
-                'metrics' => [HttpMetrics::HTTP_CLIENT_REQUEST_DURATION => false],
-            ]));
-            $this->fail('The macro collision was not rejected.');
-        } catch (LogicException $exception) {
-            $this->assertStringContainsString('withTrace', $exception->getMessage());
-        }
+            return Factory::response();
+        });
+        $this->instrumentation()->register($this->options());
 
-        $this->assertFalse(PendingRequest::hasMacro('withoutTrace'));
-        $this->assertSame([], $this->factory->getGlobalMiddleware());
+        $this->factory->withoutTracePropagation()->get('https://example.test/private');
+        $this->factory->get('https://example.test/propagated');
+
+        $this->assertCount(2, $this->spanExporter->getSpans());
+        $this->assertArrayNotHasKey('traceparent', array_change_key_case($headers[0]));
+        $this->assertArrayHasKey('traceparent', array_change_key_case($headers[1]));
     }
 
     public function testNonRecordingSpansSkipTraceOnlyUrlTemplateResolution(): void

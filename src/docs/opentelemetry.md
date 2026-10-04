@@ -233,7 +233,13 @@ When the HTTP client instrumentation's `manual` option is `true`, requests are t
 Http::withTrace()->get('https://example.com/orders');
 ```
 
-These controls affect tracing and propagation only. An enabled duration metric still observes each outgoing request.
+A traced request sends its trace context to the server it calls. To keep the client span but send no trace headers, use the `withoutTracePropagation` method. We recommend it for third-party and customer-supplied URLs, which should not receive your internal trace identifiers or baggage:
+
+```php
+Http::withoutTracePropagation()->post($webhookUrl, $payload);
+```
+
+These controls affect tracing and propagation only. An enabled duration metric still observes each outgoing request. They are ordinary HTTP client methods, so they are safe to call when tracing is disabled or OpenTelemetry is not installed.
 
 Outgoing HTTP clients do not know an application's route template. You may provide one during application boot:
 

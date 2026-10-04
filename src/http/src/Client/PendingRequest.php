@@ -10,6 +10,7 @@ use GuzzleHttp\Client;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Cookie\CookieJar;
 use GuzzleHttp\Cookie\SetCookie;
+use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\Exception\ResponseException;
 use GuzzleHttp\Exception\TransferException;
@@ -21,6 +22,12 @@ use GuzzleHttp\TransferStats;
 use GuzzleHttp\UriTemplate\UriTemplate;
 use Hypervel\Contracts\Container\Transient;
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Http\Client\Destinations\CurlCapabilities;
+use Hypervel\Http\Client\Destinations\DestinationPolicy;
+use Hypervel\Http\Client\Destinations\DestinationPolicyException;
+use Hypervel\Http\Client\Destinations\DestinationResolutionException;
+use Hypervel\Http\Client\Destinations\DisallowedDestinationException;
+use Hypervel\Http\Client\Destinations\ProxyConnectionException;
 use Hypervel\Http\Client\Events\ConnectionFailed;
 use Hypervel\Http\Client\Events\RequestSending;
 use Hypervel\Http\Client\Events\ResponseReceived;
@@ -54,6 +61,14 @@ class PendingRequest implements Transient
     public const string DATA_OPTION = 'hypervel_data';
 
     public const string PRIOR_SENDS_OPTION = 'hypervel_prior_sends';
+
+    public const string DESTINATION_POLICY_OPTION = 'hypervel_destination_policy';
+
+    public const string TRACE_OPTION = 'hypervel_trace';
+
+    public const string TRACE_PROPAGATION_OPTION = 'hypervel_trace_propagation';
+
+    public const float DEFAULT_DESTINATION_RESOLUTION_TIMEOUT = 10.0;
 
     protected const string PREPARED_BODY_OPTION = 'hypervel_prepared_body';
 
@@ -561,6 +576,18 @@ class PendingRequest implements Transient
     }
 
     /**
+     * Restrict the request's destinations to those the given policy allows.
+     *
+     * The policy checks and pins every physical request, including each redirect,
+     * to the addresses it vetted. Faked requests and clients supplied through
+     * setClient() never reach it.
+     */
+    public function withDestinationPolicy(DestinationPolicy $policy): static
+    {
+        return $this->withOptions([self::DESTINATION_POLICY_OPTION => $policy]);
+    }
+
+    /**
      * Specify the path where the body of the response should be stored.
      *
      * @param resource|StreamInterface|string $to
@@ -697,6 +724,32 @@ class PendingRequest implements Transient
     public function withTelescopeTags(array $tags): static
     {
         return $this->withOptions(['telescope_tags' => $tags]);
+    }
+
+    /**
+     * Indicate that OpenTelemetry should trace this request.
+     */
+    public function withTrace(): static
+    {
+        return $this->withOptions([self::TRACE_OPTION => true]);
+    }
+
+    /**
+     * Indicate that OpenTelemetry should not trace this request.
+     */
+    public function withoutTrace(): static
+    {
+        return $this->withOptions([self::TRACE_OPTION => false]);
+    }
+
+    /**
+     * Indicate that trace context should not be sent with this request.
+     *
+     * The request may still be traced locally.
+     */
+    public function withoutTracePropagation(): static
+    {
+        return $this->withOptions([self::TRACE_PROPAGATION_OPTION => false]);
     }
 
     /**
@@ -1007,12 +1060,13 @@ class PendingRequest implements Transient
                 throw $e;
             }
         }, $this->retryDelay, function ($exception) use (&$shouldRetry) {
-            $result = $shouldRetry ?? ($this->retryWhenCallback ? call_user_func( // @phpstan-ignore nullCoalesce.variable ($shouldRetry is set by the retry callback closure via shared &$ref)
+            // A disallowed destination is rejected the same way on every attempt.
+            $result = $shouldRetry ?? (! $exception instanceof DisallowedDestinationException && ($this->retryWhenCallback ? call_user_func( // @phpstan-ignore nullCoalesce.variable ($shouldRetry is set by the retry callback closure via shared &$ref)
                 $this->retryWhenCallback,
                 $exception,
                 $this,
                 $this->request?->toPsrRequest()->getMethod()
-            ) : true);
+            ) : true));
 
             $shouldRetry = null;
 
@@ -1177,12 +1231,13 @@ class PendingRequest implements Transient
         try {
             $exception = $response instanceof Response ? $response->toException() : $response;
 
-            $shouldRetry = $this->retryWhenCallback ? call_user_func(
+            // A disallowed destination is rejected the same way on every attempt.
+            $shouldRetry = ! $exception instanceof DisallowedDestinationException && ($this->retryWhenCallback ? call_user_func(
                 $this->retryWhenCallback,
                 $exception,
                 $this,
                 $this->request?->toPsrRequest()->getMethod()
-            ) : true;
+            ) : true);
         } catch (CanceledException $exception) {
             throw $exception;
         } catch (Exception $exception) {
@@ -1697,6 +1752,8 @@ class PendingRequest implements Transient
             $stack->push(Middleware::prepareBody(), 'prepare_body');
             $stack->push($this->buildRecorderHandler());
             $stack->push($this->buildStubHandler());
+            // Innermost, so it vets every physical request (each redirect included) and never sees faked ones.
+            $stack->push($this->buildDestinationPolicyHandler());
         });
     }
 
@@ -1869,6 +1926,133 @@ class PendingRequest implements Transient
 
             return $psrResponse;
         };
+    }
+
+    /**
+     * Build the destination policy handler.
+     */
+    protected function buildDestinationPolicyHandler(): Closure
+    {
+        return function (callable $handler): Closure {
+            return function (RequestInterface $request, array $options) use ($handler): PromiseInterface {
+                if (! isset($options[self::DESTINATION_POLICY_OPTION])) {
+                    return $handler($request, $options);
+                }
+
+                return $this->sendToPolicyDestination(
+                    $handler,
+                    $options[self::DESTINATION_POLICY_OPTION],
+                    $request,
+                    $options,
+                );
+            };
+        };
+    }
+
+    /**
+     * Send one physical request to the addresses the destination policy vetted.
+     *
+     * @throws ConnectionException
+     * @throws DestinationPolicyException
+     * @throws DisallowedDestinationException
+     */
+    protected function sendToPolicyDestination(
+        callable $handler,
+        DestinationPolicy $policy,
+        RequestInterface $request,
+        array $options,
+    ): PromiseInterface {
+        // The pins only bind the cURL handler, and raw cURL or proxy options could route around them.
+        $unsupported = match (true) {
+            ! empty($options['stream']) => 'cannot stream responses; use [sink] instead',
+            $this->handler !== null => 'cannot use a custom handler',
+            ($options['proxy'] ?? '') !== '' => 'cannot set the [proxy] option; select proxies in the destination policy',
+            ! empty($options['curl']) => 'cannot set raw [curl] options',
+            default => null,
+        };
+
+        if ($unsupported !== null) {
+            throw new DisallowedDestinationException("Destination-restricted requests {$unsupported}.");
+        }
+
+        CurlCapabilities::ensurePinningSupported();
+
+        // Guzzle treats a zero limit as unlimited, so only positive limits bound resolution.
+        $limits = [];
+
+        foreach (['connect_timeout', 'timeout'] as $option) {
+            if (is_numeric($options[$option] ?? null) && $options[$option] > 0) {
+                $limits[$option] = (float) $options[$option];
+            }
+        }
+
+        try {
+            $startedAt = hrtime(true);
+            $destination = $policy->resolve(
+                (string) $request->getUri(),
+                $limits === [] ? self::DEFAULT_DESTINATION_RESOLUTION_TIMEOUT : min($limits),
+            );
+            $elapsed = (hrtime(true) - $startedAt) / 1_000_000_000;
+
+            foreach ($limits as $option => $seconds) {
+                $options[$option] = $seconds - $elapsed;
+
+                // cURL counts limits in whole milliseconds, and zero would remove the limit.
+                if ($options[$option] < 0.001) {
+                    throw new DestinationResolutionException(
+                        'The request timeout ran out while resolving the destination.',
+                    );
+                }
+            }
+        } catch (ConnectionException $exception) {
+            $this->dispatchConnectionFailedEvent(
+                (new Request($request))->setRequestAttributes($this->attributes),
+                $exception,
+            );
+
+            throw $exception;
+        }
+
+        if ($destination->usesHttpsProxy()) {
+            CurlCapabilities::ensureHttpsProxySupported($destination->resolvedHost, $destination->resolvedPort);
+        }
+
+        $options['curl'] = $destination->curlOptions();
+        $options['proxy'] = $destination->proxy ?? '';
+
+        // cURL applies the pins only to an exactly matching host ("example.com." resolves
+        // through DNS instead), so send the URL in the normalized form the policy vetted.
+        $request = $request->withUri($destination->uri, true);
+
+        if ($destination->proxy === null) {
+            return $handler($request, $options);
+        }
+
+        // Guzzle 8 connection exceptions carry no cURL error number, so read it from the transfer statistics.
+        $errorNumber = null;
+        $onStats = $options['on_stats'] ?? null;
+
+        $options['on_stats'] = static function (TransferStats $stats) use ($onStats, &$errorNumber): void {
+            $errorNumber = $stats->getHandlerErrorData();
+
+            if ($onStats !== null) {
+                $onStats($stats);
+            }
+        };
+
+        return $handler($request, $options)->otherwise(function (mixed $reason) use ($request, &$errorNumber): PromiseInterface {
+            if ($reason instanceof ConnectException
+                && in_array($errorNumber, [CURLE_COULDNT_RESOLVE_PROXY, CURLE_COULDNT_CONNECT], true)) {
+                $reason = new ProxyConnectionException($reason->getMessage(), 0, $reason);
+
+                $this->dispatchConnectionFailedEvent(
+                    (new Request($request))->setRequestAttributes($this->attributes),
+                    $reason,
+                );
+            }
+
+            return Create::rejectionFor($reason);
+        });
     }
 
     /**
@@ -2149,6 +2333,8 @@ class PendingRequest implements Transient
 
     /**
      * Set the client instance.
+     *
+     * The client owns its whole handler stack, so destination policies do not apply to it.
      */
     public function setClient(ClientInterface $client): static
     {
@@ -2159,6 +2345,8 @@ class PendingRequest implements Transient
 
     /**
      * Create a new client instance using the given handler.
+     *
+     * Destination-restricted requests reject custom handlers, since their pins only bind the cURL handler.
      */
     public function setHandler(callable $handler): static
     {

@@ -15,6 +15,7 @@
     - [Request Callbacks](#request-callbacks)
     - [Guzzle Options](#guzzle-options)
     - [Telescope Recording](#telescope-recording)
+    - [OpenTelemetry Tracing](#opentelemetry-tracing)
 - [Concurrent Requests](#concurrent-requests)
     - [Dispatching Concurrent Requests](#dispatching-concurrent-requests)
     - [Limiting Concurrency](#limiting-concurrency)
@@ -22,6 +23,10 @@
     - [Per-Request Callbacks](#per-request-callbacks)
     - [Running Concurrent Requests After the Response](#running-concurrent-requests-after-the-response)
 - [Connections](#connections)
+- [Restricting Destinations](#restricting-destinations)
+    - [Allowing Internal Networks](#allowing-internal-networks)
+    - [Egress Proxies](#egress-proxies)
+    - [Limitations](#destination-policy-limitations)
 - [Macros](#macros)
 - [Testing](#testing)
     - [Faking Responses](#faking-responses)
@@ -739,6 +744,17 @@ Enum cases are normalized to strings before storage — backed enums use their `
 
 These methods are safe to call regardless of Telescope's state. They simply set Guzzle option keys that the Telescope watcher reads when present; if Telescope is disabled or not installed, the keys are ignored and the request runs as normal with no overhead.
 
+<a name="opentelemetry-tracing"></a>
+### OpenTelemetry Tracing
+
+When [OpenTelemetry](/docs/{{version}}/opentelemetry#http) tracing is enabled, outgoing requests are traced automatically and send the current trace context to the server they call. You may skip tracing a request using the `withoutTrace` method, or keep the trace but send no trace context using the `withoutTracePropagation` method. Use `withoutTracePropagation` for third-party and customer-supplied URLs, which should not receive your internal trace identifiers:
+
+```php
+$response = Http::withoutTracePropagation()->post($webhookUrl, $payload);
+```
+
+Like the Telescope methods, these methods are safe to call whether or not OpenTelemetry is installed or enabled.
+
 <a name="concurrent-requests"></a>
 ## Concurrent Requests
 
@@ -993,6 +1009,63 @@ Http::connection('github', [])->get('https://example.com');
 Each pending request constructs one cookie jar and reuses it only across that request's redirects and retry attempts. Concurrent requests never share cookies. Requests made without `connection()` use their own default low-level handler and the same per-request cookie behavior.
 
 Calling `registerConnection()` or `setConnectionConfig()` again invalidates the connection's cached low-level handler. Subsequent requests lazily create a handler from the new configuration, while in-flight requests safely finish on their existing handler reference.
+
+<a name="restricting-destinations"></a>
+## Restricting Destinations
+
+When your application sends requests to URLs supplied by its users, such as webhook endpoints, link previews, or file imports, a malicious URL could point the request at your internal network, a cloud metadata service, or another private address. To prevent this, pass a destination policy to the `withDestinationPolicy` method. The `PublicDestinationPolicy` only allows public addresses:
+
+```php
+use Hypervel\Http\Client\Destinations\PublicDestinationPolicy;
+use Hypervel\Support\Facades\Http;
+
+$response = Http::withDestinationPolicy(new PublicDestinationPolicy)
+    ->post($webhookUrl, $payload);
+```
+
+The policy resolves the destination's hostname, rejects the request if any of its addresses are private or reserved, and then connects only to the addresses it checked. Since the connection is pinned to those addresses, a hostname whose DNS answer changes after the check cannot send the request somewhere else. Each redirect is checked the same way before it is followed.
+
+If a destination is not allowed, a `Hypervel\Http\Client\Destinations\DisallowedDestinationException` is thrown, and the request is never retried. If the destination's hostname cannot be resolved, a `Hypervel\Http\Client\Destinations\DestinationResolutionException` is thrown instead. It extends `ConnectionException`, so it is retried and reported like any other connection failure. The time spent resolving the hostname counts against the request's timeout and connect timeout.
+
+<a name="allowing-internal-networks"></a>
+### Allowing Internal Networks
+
+During local development, or when some known internal services should be reachable, you may allow specific addresses or CIDR ranges:
+
+```php
+$policy = new PublicDestinationPolicy(allowedNetworks: ['10.20.0.0/16']);
+```
+
+For more specific rules, you may extend `PublicDestinationPolicy` and override its `allowsAddress` method, which receives the destination URI and each address it resolved to. You may also write a policy of your own by implementing the `Hypervel\Http\Client\Destinations\DestinationPolicy` interface.
+
+<a name="egress-proxies"></a>
+### Egress Proxies
+
+To send restricted requests through an egress proxy, extend the policy and return the proxy's URL from its `proxyFor` method:
+
+```php
+use Hypervel\Http\Client\Destinations\PublicDestinationPolicy;
+use Psr\Http\Message\UriInterface;
+
+class EgressProxyPolicy extends PublicDestinationPolicy
+{
+    protected function proxyFor(UriInterface $uri): ?string
+    {
+        return 'http://egress-proxy.internal:4750';
+    }
+}
+```
+
+A proxy URL without a port uses its scheme's default port: 80 for `http` and 443 for `https`. The policy then checks and pins the proxy's address instead of the destination's. Since proxies usually run on private addresses, allow the proxy's address using `allowedNetworks` or `allowsAddress`. Destinations written as IP addresses are still checked, but hostnames are resolved by the proxy, so the proxy itself must refuse private destinations. A filtering egress proxy such as [Smokescreen](https://github.com/stripe/smokescreen) does this.
+
+If the proxy cannot be resolved or refuses the connection, a `Hypervel\Http\Client\Destinations\ProxyConnectionException` is thrown. It extends `ConnectionException`, and lets you tell a failure of your own egress path apart from a failure of the destination.
+
+<a name="destination-policy-limitations"></a>
+### Limitations
+
+Pinning relies on Guzzle's cURL handler and libcurl 7.75 or newer. For this reason, restricted requests may not use the `stream` option, set their own `proxy` or raw `curl` options, or use a custom handler from the `setHandler` method; such requests throw a `DisallowedDestinationException`. To write a large response to a file, use the `sink` method instead of streaming it.
+
+A client supplied using the `setClient` method owns its whole handler stack, so the policy does not apply to its requests. Faked requests never reach the policy either, so `Http::fake()` works as usual in your tests.
 
 <a name="macros"></a>
 ## Macros
