@@ -15,6 +15,7 @@ use Hypervel\Reverb\Servers\Hypervel\Contracts\PubSubProvider;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
 use Hypervel\Reverb\Servers\Hypervel\MetricsRequestPipeMessage;
 use Hypervel\Reverb\Servers\Hypervel\MetricsResponsePipeMessage;
+use Hypervel\Reverb\Webhooks\Contracts\WebhookSender;
 use Hypervel\Reverb\Webhooks\Jobs\WebhookDeliveryJob;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Tests\Reverb\Fixtures\FakeConnection;
@@ -68,6 +69,35 @@ class EventHandlerTest extends ReverbTestCase
             'data' => '{}',
             'channel' => 'test-channel',
         ]);
+    }
+
+    public function testSubscriptionSucceedsWhenWebhookHandoffFails(): void
+    {
+        $webhooks = $this->webhookConfig();
+        $webhooks['url'] = 'https://example.com/webhook';
+        $webhooks['events'] = ['channel_occupied'];
+        $webhooks['batching']['enabled'] = false;
+        config()->set('reverb.apps.apps.0.webhooks', $webhooks);
+
+        $failure = new RuntimeException('The delivery queue is unavailable.');
+        $sender = m::mock(WebhookSender::class);
+        $sender->expects('send')->andThrow($failure);
+        $this->app->instance(WebhookSender::class, $sender);
+        $exceptionHandler = m::mock(ExceptionHandler::class);
+        $exceptionHandler->expects('report')->with($failure);
+        $this->app->instance(ExceptionHandler::class, $exceptionHandler);
+
+        $this->pusher->subscribe($this->connection, 'test-channel');
+
+        $this->connection->assertReceived([
+            'event' => 'pusher_internal:subscription_succeeded',
+            'data' => '{}',
+            'channel' => 'test-channel',
+        ]);
+        $this->assertSame(1, $this->app->make(SharedState::class)->getSubscriptionCount(
+            $this->connection->app()->id(),
+            'test-channel',
+        ));
     }
 
     public function testPresenceSubscriptionSurvivesSiblingPublicationFailure(): void

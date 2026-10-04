@@ -11,6 +11,7 @@ use Hypervel\Reverb\Webhooks\WebhookPayload;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Reverb\ReverbTestCase;
+use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 
@@ -229,5 +230,13 @@ class WebhookDeliveryJobTest extends ReverbTestCase
 
         $this->assertSame(4, (new WebhookDeliveryJob($payload, 'https://example.com/webhook', 'app-key', 'app-secret'))->tries);
         $this->assertSame(1, (new WebhookDeliveryJob($payload, 'https://example.com/webhook', 'app-key', 'app-secret', retries: 0))->tries);
+    }
+
+    public function testNegativeRetriesCannotEnableUnlimitedAttempts(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The retry count must not be negative.');
+
+        new WebhookDeliveryJob(new WebhookPayload('test-id', 1, []), 'https://example.com', 'key', 'secret', retries: -1);
     }
 }

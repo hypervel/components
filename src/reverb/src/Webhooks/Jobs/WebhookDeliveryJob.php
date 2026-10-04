@@ -12,6 +12,7 @@ use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Reverb\Webhooks\Events\WebhookFailed;
 use Hypervel\Reverb\Webhooks\WebhookPayload;
 use Hypervel\Support\Facades\Http;
+use InvalidArgumentException;
 use Throwable;
 
 class WebhookDeliveryJob implements ShouldQueue
@@ -48,6 +49,10 @@ class WebhookDeliveryJob implements ShouldQueue
         int $timeout = 5,
         public array $headers = [],
     ) {
+        if ($retries < 0) {
+            throw new InvalidArgumentException('The retry count must not be negative.');
+        }
+
         $this->connection = 'redis';
         $this->queue = 'reverb-webhooks';
         // The queue treats zero tries as unlimited, and the first attempt is not a retry.

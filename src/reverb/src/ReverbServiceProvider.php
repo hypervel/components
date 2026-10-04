@@ -62,6 +62,7 @@ use Hypervel\Server\TlsOptions;
 use Hypervel\Support\Facades\Log;
 use Hypervel\Support\ServiceProvider;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Swoole\Table;
 use Throwable;
 
@@ -483,9 +484,16 @@ class ReverbServiceProvider extends ServiceProvider
                 continue;
             }
 
-            if ($buffer->shouldScheduleFlush($app->id())) {
-                FlushWebhookBatchJob::dispatch($app->id(), $webhooks)
-                    ->onQueue('reverb-webhook-flush');
+            try {
+                if ($buffer->shouldScheduleFlush($app->id())) {
+                    FlushWebhookBatchJob::dispatch($app->id(), $webhooks)
+                        ->onQueue('reverb-webhook-flush');
+                }
+            } catch (CanceledException $exception) {
+                throw $exception;
+            } catch (Throwable $exception) {
+                // An unavailable Redis Cluster slot must not stop other applications' flushes.
+                FailureReporter::report($exception);
             }
         }
     }

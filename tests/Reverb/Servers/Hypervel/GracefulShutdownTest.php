@@ -222,6 +222,35 @@ class GracefulShutdownTest extends ReverbTestCase
         Queue::assertPushed(FlushWebhookBatchJob::class);
     }
 
+    public function testScheduleWebhookFlushesContinuesAfterOneApplicationsBufferFails(): void
+    {
+        Queue::fake([FlushWebhookBatchJob::class]);
+
+        $configuration = config()->array('reverb.apps.apps.0');
+        $configuration['webhooks']['url'] = 'https://example.com/webhook';
+        $configuration['webhooks']['batching']['enabled'] = true;
+        config()->set('reverb.apps.apps', [
+            array_replace($configuration, ['app_id' => 'unavailable']),
+            array_replace($configuration, ['app_id' => 'healthy']),
+        ]);
+
+        $failure = new RuntimeException('Redis Cluster slot unavailable.');
+        $buffer = m::mock(WebhookBatchBuffer::class);
+        $buffer->expects('shouldScheduleFlush')->with('unavailable')->andThrow($failure);
+        $buffer->expects('shouldScheduleFlush')->with('healthy')->andReturnTrue();
+        $buffer->shouldNotReceive('clearFlushLock');
+        $this->app->instance(WebhookBatchBuffer::class, $buffer);
+        $exceptionHandler = m::mock(ExceptionHandler::class);
+        $exceptionHandler->expects('report')->with($failure);
+        $this->app->instance(ExceptionHandler::class, $exceptionHandler);
+
+        $provider = $this->app->getProvider(ReverbServiceProvider::class);
+        (new ReflectionMethod($provider, 'scheduleWebhookFlushes'))->invoke($provider);
+
+        Queue::assertPushed(FlushWebhookBatchJob::class, fn (FlushWebhookBatchJob $job): bool => $job->appId === 'healthy');
+        Queue::assertPushed(FlushWebhookBatchJob::class, 1);
+    }
+
     public function testScheduleWebhookFlushesSkipsWhenNoBatching(): void
     {
         Queue::fake([FlushWebhookBatchJob::class]);

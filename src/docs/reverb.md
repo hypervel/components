@@ -411,7 +411,9 @@ You may configure webhook delivery timeouts and retry behavior using the followi
 'retry_delay' => (int) env('REVERB_WEBHOOK_RETRY_DELAY', 1),
 ```
 
-The `retries` option is the number of retries after the first attempt, so a value of `0` sends each webhook once. If a webhook delivery exhausts all retry attempts, Reverb dispatches the `Hypervel\Reverb\Webhooks\Events\WebhookFailed` event.
+The `retries` option is the number of retries after the first attempt and must not be negative. A value of `0` sends each webhook once. If a webhook delivery exhausts all retry attempts, Reverb dispatches the `Hypervel\Reverb\Webhooks\Events\WebhookFailed` event.
+
+If Reverb cannot hand a webhook off, for example because Redis is unavailable, the failure is reported without interrupting the WebSocket operation that triggered it. An immediate webhook whose handoff fails is not retried; events already buffered for a batch remain available for recovery.
 
 <a name="custom-webhook-delivery"></a>
 ### Custom Webhook Delivery
@@ -435,11 +437,14 @@ The sender's `send` method receives the Reverb application, the application's we
 
 Immediate webhooks are sent while Reverb is handling the event that triggered them, and batches are sent from the flush job. So, your sender should hand the payload off quickly, such as by queueing a job or storing it, rather than making the HTTP request itself. The `send` method should only return once the payload has been accepted and should throw an exception if handing it off fails, so that Reverb can send the batch again. Starting background work and returning immediately is not enough. When you bind your own sender, Reverb's `timeout`, `retries`, and `retry_delay` options and the `WebhookFailed` event only apply if your sender uses them.
 
+In the following example, `DeliverReverbWebhook` is a job defined by your application:
+
 ```php
 <?php
 
 namespace App\Webhooks;
 
+use App\Jobs\DeliverReverbWebhook;
 use Hypervel\Reverb\Application;
 use Hypervel\Reverb\Webhooks\Contracts\WebhookSender;
 use Hypervel\Reverb\Webhooks\WebhookPayload;
