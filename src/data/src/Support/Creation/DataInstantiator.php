@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Data\Support\Creation;
 
-use Hypervel\Container\Container;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Data\Contracts\BaseData;
 use Hypervel\Data\Exceptions\CannotCreateData;
 use Hypervel\Data\Optional;

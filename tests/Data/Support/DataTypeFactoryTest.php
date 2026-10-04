@@ -233,6 +233,11 @@ class DataTypeFactoryTest extends TestCase
         ], $types);
         $this->assertNull($this->property('boxAnnotationOnArray')->getNamedTypes()[0]->iterableItemType);
         $this->assertNull($this->property('competingCollectionAnnotationsOnArray')->getNamedTypes()[0]->iterableItemType);
+        // An imported and a qualified name for the same item do not compete.
+        $this->assertSame(
+            DataTypeFactoryFirstItemData::class,
+            $this->property('sameItemCollectionAnnotationsOnArray')->getNamedTypes()[0]->dataClass,
+        );
     }
 
     public function testCollectionClassItemTypesApplyAfterDeclaredItemTypes(): void
@@ -553,6 +558,9 @@ class DataTypeFactoryFixture
 
     /** @var Collection<int, DataTypeFactoryFirstItemData>|EloquentCollection<int, DataTypeFactorySecondItemData> */
     public array $competingCollectionAnnotationsOnArray;
+
+    /** @var Collection<int, DataTypeFactoryFirstItemData>|EloquentCollection<int, \Hypervel\Tests\Data\Support\DataTypeFactoryFirstItemData> */
+    public array $sameItemCollectionAnnotationsOnArray;
 
     public SimpleDataCollection $classAnnotatedCollection;
 

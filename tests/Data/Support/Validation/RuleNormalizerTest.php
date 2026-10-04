@@ -15,6 +15,7 @@ use Hypervel\Data\Attributes\Validation\Dimensions;
 use Hypervel\Data\Attributes\Validation\ExcludeIf;
 use Hypervel\Data\Attributes\Validation\Exists;
 use Hypervel\Data\Attributes\Validation\Min;
+use Hypervel\Data\Attributes\Validation\NotRegex;
 use Hypervel\Data\Attributes\Validation\Regex;
 use Hypervel\Data\Attributes\Validation\Required;
 use Hypervel\Data\Attributes\Validation\Rule;
@@ -61,6 +62,13 @@ class RuleNormalizerTest extends TestCase
     public function testCanMapStringRulesWithRegex(): void
     {
         $this->assertEquals([new Regex('/test|ok/')], $this->mapper->execute(['regex:/test|ok/']));
+    }
+
+    public function testSplitsRulesBeforeARegex(): void
+    {
+        $this->assertEquals([new NotRegex('/test|ok/')], $this->mapper->execute(['not_regex:/test|ok/']));
+        $this->assertEquals([new Required, new Regex('/^a/')], $this->mapper->execute(['required|regex:/^a/']));
+        $this->assertEquals([new Required, new NotRegex('/^a/')], $this->mapper->execute(['required|not_regex:/^a/']));
     }
 
     public function testCanMapMultipleRules(): void

@@ -115,6 +115,7 @@ class PartialTreeTest extends TestCase
 
         // An inherited * ends the selection at the child; only the child's own * continues it.
         $this->assertSame([], PartialTree::compile(['*', 'artist'])->nestedProperties);
+        $this->assertSame(['artist'], PartialTree::compile(['*', 'artist.*'])->nestedProperties);
 
         $unlisted = $all->child('unlisted');
 
@@ -161,6 +162,14 @@ class PartialTreeTest extends TestCase
             $this->assertTrue($merged->child('artist')->all);
             $this->assertSame(['name'], array_keys($merged->child('artist')->children));
             $this->assertTrue($merged->child('unlisted')->all);
+        }
+
+        $ownWildcard = PartialTree::compile(['artist.*']);
+
+        $this->assertNotNull($ownWildcard);
+
+        foreach ([$all->merge($ownWildcard), $ownWildcard->merge($all)] as $merged) {
+            $this->assertSame(['artist'], $merged->nestedProperties);
         }
     }
 

@@ -1761,7 +1761,8 @@ class Container implements ContainerContract
      *
      * Contextual bindings for the class apply to dependencies the attributes resolve, and each
      * parameter's attribute callbacks fire here. Pass the values to buildWith() as overrides
-     * so they are not resolved again.
+     * so they are not resolved again. Variadic parameters are skipped, because an override
+     * is passed as one argument; the container resolves them when the class is built.
      *
      * @param class-string $concrete
      * @param null|list<string> $names the parameters to resolve, or null for every contextual parameter
@@ -1780,6 +1781,7 @@ class Container implements ContainerContract
 
             foreach ($recipe->parameters as $paramRecipe) {
                 if ($paramRecipe->contextualAttribute === null
+                    || $paramRecipe->isVariadic
                     || ($names !== null && ! in_array($paramRecipe->name, $names, true))
                 ) {
                     continue;

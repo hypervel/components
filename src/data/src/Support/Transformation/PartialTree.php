@@ -88,8 +88,6 @@ final readonly class PartialTree
         }
 
         $children = [];
-        $all = $this->all || $other->all;
-        $nestedProperties = [];
 
         foreach ($this->children as $property => $child) {
             $children[$property] = $child->merge($other->child($property));
@@ -99,17 +97,11 @@ final readonly class PartialTree
             $children[$property] ??= $child->merge($this->child($property));
         }
 
-        foreach ($children as $property => $child) {
-            if (self::continuesBeneath($child, $all)) {
-                $nestedProperties[] = $property;
-            }
-        }
-
         return new self(
             $this->selected || $other->selected,
-            $all,
+            $this->all || $other->all,
             $children,
-            $nestedProperties,
+            array_values(array_unique([...$this->nestedProperties, ...$other->nestedProperties])),
         );
     }
 
@@ -232,21 +224,12 @@ final readonly class PartialTree
         foreach ($tree['children'] as $property => $child) {
             $children[$property] = self::hydrate($child, $all);
 
-            if (self::continuesBeneath($children[$property], $all)) {
+            // A child's own terminal * continues the selection; one inherited from its parent does not.
+            if ($child['children'] !== [] || $child['all']) {
                 $nestedProperties[] = $property;
             }
         }
 
         return new self($tree['selected'], $all, $children, $nestedProperties);
-    }
-
-    /**
-     * Determine if a child's selection continues into the child's own value.
-     *
-     * A child's own terminal * continues the selection; one inherited from its parent does not.
-     */
-    private static function continuesBeneath(self $child, bool $parentAll): bool
-    {
-        return $child->children !== [] || ($child->all && ! $parentAll);
     }
 }

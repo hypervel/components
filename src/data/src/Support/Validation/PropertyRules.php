@@ -53,7 +53,9 @@ class PropertyRules
     }
 
     /**
-     * Remove rules of the given types. Any requiring rule removes every requiring rule.
+     * Remove rules of the given types.
+     *
+     * A requiring rule instance removes every requiring rule; a class name removes only rules of that class.
      *
      * @param class-string<ValidationRule>|ValidationRule ...$classes
      * @return $this

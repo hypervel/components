@@ -385,13 +385,26 @@ class DataTypeFactory
             $containerKind = $this->kindFor($container);
 
             if ($containerKind->isNonDataIterable() || $containerKind->isDataCollectable()) {
-                $itemFallbacks[(string) $annotation->itemType] ??= $annotation;
+                $itemType = $this->buildPhpDocType(
+                    $annotation->itemType,
+                    $targetClass,
+                    ClassMetadataCache::reflectClass($annotation->declaringClass),
+                );
+
+                // Resolved types compare by value, so an imported and a qualified name for one item agree.
+                foreach ($itemFallbacks as [$fallbackType]) {
+                    if ($fallbackType == $itemType) {
+                        continue 2;
+                    }
+                }
+
+                $itemFallbacks[] = [$itemType, $annotation];
             }
         }
 
         return $fallback
             ?? $shorthandFallback
-            ?? (count($itemFallbacks) === 1 ? array_values($itemFallbacks)[0] : null);
+            ?? (count($itemFallbacks) === 1 ? $itemFallbacks[0][1] : null);
     }
 
     /**

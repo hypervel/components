@@ -170,6 +170,21 @@ interface Container extends ContainerInterface
     public function buildWith(Closure|string $concrete, array $parameters = []): mixed;
 
     /**
+     * Resolve the contextual constructor parameters of a class within its build context.
+     *
+     * Pass the values to buildWith() as overrides so they are not resolved again. Variadic
+     * parameters are skipped, because an override is passed as one argument; the container
+     * resolves them when the class is built.
+     *
+     * @param class-string $concrete
+     * @param null|list<string> $names the parameters to resolve, or null for every contextual parameter
+     * @return array<string, mixed>
+     *
+     * @throws BindingResolutionException
+     */
+    public function resolveContextualParameters(string $concrete, ?array $names = null): array;
+
+    /**
      * Call the given Closure / class@method and inject its dependencies.
      */
     public function call(callable|string $callback, array $parameters = [], ?string $defaultMethod = null): mixed;

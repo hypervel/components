@@ -194,6 +194,17 @@ class ContextualAttributeBindingTest extends TestCase
         $this->assertSame(1, $callbacks);
     }
 
+    public function testContextualParametersLeaveVariadicParametersToTheBuild(): void
+    {
+        $container = new Container;
+        $container->singleton('config', fn (): Repository => new Repository(['names' => ['a', 'b']]));
+
+        $values = $container->resolveContextualParameters(ContainerTestHasVariadicContextualDependency::class);
+
+        $this->assertSame([], $values);
+        $this->assertSame(['a', 'b'], $container->buildWith(ContainerTestHasVariadicContextualDependency::class, $values)->names);
+    }
+
     public function testAuthedAttribute(): void
     {
         $container = new Container;
@@ -867,6 +878,19 @@ final class ContainerTestHasContextualDependencies
         #[ContainerTestConfigValueWithResolveAndAfter]
         public object $person,
     ) {
+    }
+}
+
+class ContainerTestHasVariadicContextualDependency
+{
+    public array $names;
+
+    /**
+     * Create a new test fixture.
+     */
+    public function __construct(#[Config('names')] string ...$names)
+    {
+        $this->names = $names;
     }
 }
 

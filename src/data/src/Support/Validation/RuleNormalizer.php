@@ -22,7 +22,6 @@ use Hypervel\Data\Attributes\Validation\Unique;
 use Hypervel\Data\Exceptions\CannotBuildValidationRule;
 use Hypervel\Data\Exceptions\CouldNotCreateValidationRule;
 use Hypervel\Support\Arr;
-use Hypervel\Support\Str;
 use Hypervel\Validation\ConditionalRules;
 use Hypervel\Validation\Rules\Dimensions as DimensionsRule;
 use Hypervel\Validation\Rules\Enum as EnumRule;
@@ -117,7 +116,10 @@ class RuleNormalizer
     {
         $rules = [];
 
-        $subRules = Str::contains($rule, 'regex:') ? [$rule] : explode('|', $rule);
+        // A regex may contain |, so a string starting with one is a single rule; other strings split like Laravel's.
+        $subRules = str_starts_with($rule, 'regex:') || str_starts_with($rule, 'not_regex:')
+            ? [$rule]
+            : explode('|', $rule);
         foreach ($subRules as $subRule) {
             try {
                 $rules[] = $this->ruleFactory->create($subRule);

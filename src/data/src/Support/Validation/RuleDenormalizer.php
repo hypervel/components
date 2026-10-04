@@ -26,7 +26,10 @@ class RuleDenormalizer
     public function execute(mixed $rule, ValidationPath $path, ?Closure $resolveField = null): array
     {
         if (is_string($rule)) {
-            return str_contains($rule, 'regex:') ? [$rule] : explode('|', $rule);
+            // A regex may contain |, so a string starting with one is a single rule; other strings split like Laravel's.
+            return str_starts_with($rule, 'regex:') || str_starts_with($rule, 'not_regex:')
+                ? [$rule]
+                : explode('|', $rule);
         }
 
         if (is_array($rule)) {

@@ -596,7 +596,7 @@ The available hooks run in the following order. Each receives the arguments show
 
 The `prepareData`, `beforeCreation`, and `afterCreation` hooks run even when validation is skipped. The other hooks run while generating rules or validating, as appropriate. Call `alwaysValidate()` when validation hooks should also apply to non-request input.
 
-`beforeValidation` receives the complete input and may add fields for rules to read; `afterValidation` receives the validated payload. `beforeCreation` receives the cast values that will be passed to the constructor or assigned after it. Properties declared outside the constructor whose input is missing are not included, so the hook may supply them; otherwise any value the constructor assigns is kept.
+`beforeValidation` receives the complete input and may add fields for rules to read; `afterValidation` receives the validated payload. The values these hooks return are treated as prepared input, so normalizers, `prepareForPipeline()`, and `prepareData` hooks do not run on them again. `beforeCreation` receives the cast values that will be passed to the constructor or assigned after it. Properties declared outside the constructor whose input is missing are not included, so the hook may supply them; otherwise any value the constructor assigns is kept.
 
 Each call to `factory()` returns a new factory. Keep a reused factory scoped to the current operation instead of storing it across requests.
 

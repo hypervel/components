@@ -25,7 +25,7 @@ class ContainerReference implements ExternalReference
      */
     public function getValue(): mixed
     {
-        // An unresolvable binding must fail; a null rule parameter would make database constraints check the wrong rows.
+        // An unresolvable binding is a configuration error, so it fails instead of becoming a null rule parameter.
         $dependency = Container::getInstance()->make($this->dependency, $this->parameters);
 
         if ($this->property !== null) {
