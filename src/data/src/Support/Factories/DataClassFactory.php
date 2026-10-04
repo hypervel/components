@@ -163,6 +163,7 @@ class DataClassFactory
             directConstructorInstantiation: $this->supportsDirectConstructorInstantiation(
                 $reflectionClass,
                 $constructor,
+                $constructorParameters,
                 $contextualParameters,
                 $constructorInputs,
                 $properties,
@@ -238,7 +239,8 @@ class DataClassFactory
     /**
      * Get the constructor parameters that receive raw input without a public data property.
      *
-     * These are non-promoted parameters without a matching property and promoted non-public parameters.
+     * These are non-promoted parameters without a matching property. A non-public promoted parameter is the
+     * object's own state, so input never reaches it, as in Spatie.
      *
      * @param array<string, DataParameter> $parameters
      * @param array<string, ReflectionProperty> $properties
@@ -249,7 +251,10 @@ class DataClassFactory
         $inputs = [];
 
         foreach ($parameters as $parameter) {
-            if ($parameter->contextualAttribute === null && ! isset($properties[$parameter->name])) {
+            if ($parameter->contextualAttribute === null
+                && ! $parameter->isPromoted
+                && ! isset($properties[$parameter->name])
+            ) {
                 $inputs[] = $parameter->name;
             }
         }
@@ -604,6 +609,7 @@ class DataClassFactory
      * Determine if resolved recipe values can be spread directly into the constructor.
      *
      * @param ReflectionClass<object> $reflectionClass
+     * @param array<string, DataParameter> $constructorParameters
      * @param array<string, true> $contextualParameters
      * @param list<string> $constructorInputs
      * @param array<string, DataProperty> $properties
@@ -611,6 +617,7 @@ class DataClassFactory
     protected function supportsDirectConstructorInstantiation(
         ReflectionClass $reflectionClass,
         ?ReflectionMethod $constructor,
+        array $constructorParameters,
         array $contextualParameters,
         array $constructorInputs,
         array $properties,
@@ -620,6 +627,14 @@ class DataClassFactory
             || $contextualParameters !== []
             || $constructorInputs !== []) {
             return false;
+        }
+
+        // A required parameter without a public data property, such as a non-public promoted one, receives no value,
+        // so construction must report it as missing.
+        foreach ($constructorParameters as $name => $parameter) {
+            if (! $parameter->hasDefaultValue && ! isset($properties[$name])) {
+                return false;
+            }
         }
 
         foreach ($properties as $property) {

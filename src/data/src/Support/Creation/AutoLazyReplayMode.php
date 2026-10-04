@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Data\Support\Creation;
 
-enum AutoLazyReplayMode
+enum AutoLazyReplayMode: string
 {
-    case Normal;
-    case Hook;
+    case Normal = 'Normal';
+    case Hook = 'Hook';
 }

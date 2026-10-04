@@ -5,16 +5,91 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Data\Support;
 
 use Hypervel\Container\Attributes\Config;
+use Hypervel\Data\Data;
 use Hypervel\Data\Support\Annotations\DataIterableAnnotationReader;
+use Hypervel\Data\Support\Creation\CreationContext;
+use Hypervel\Data\Support\DataParameter;
 use Hypervel\Data\Support\Factories\DataParameterFactory;
 use Hypervel\Data\Support\Factories\DataTypeFactory;
 use Hypervel\Data\Support\Types\PhpDocTypeNameResolver;
+use Hypervel\Tests\Data\Fixtures\SimpleData;
 use Hypervel\Tests\TestCase;
 use ReflectionClass;
 use ReflectionParameter;
 
 class DataParameterTest extends TestCase
 {
+    public function testCanCreateADataParameter(): void
+    {
+        $class = new class('', '', '', new CreationContext(SimpleData::class)) extends Data {
+            /**
+             * Create a data object with plain, untyped, promoted, creation context and defaulted parameters.
+             * @param mixed $withoutType
+             */
+            public function __construct(
+                string $nonPromoted,
+                public $withoutType,
+                public string $property,
+                CreationContext $creationContext,
+                public string $propertyWithDefault = 'hello',
+            ) {
+            }
+        };
+        $factory = new DataParameterFactory(new DataTypeFactory(new PhpDocTypeNameResolver, new DataIterableAnnotationReader));
+        $parameter = fn (string $name): DataParameter => $factory->build(
+            new ReflectionParameter([$class::class, '__construct'], $name),
+            new ReflectionClass($class),
+        );
+
+        // A creation context is recognized by its class name rather than Spatie's isCreationContext().
+        $nonPromoted = $parameter('nonPromoted');
+
+        $this->assertSame('nonPromoted', $nonPromoted->name);
+        $this->assertFalse($nonPromoted->isPromoted);
+        $this->assertFalse($nonPromoted->hasDefaultValue);
+        $this->assertSame('string', $nonPromoted->type->getNamedTypes()[0]->name);
+        $this->assertFalse($nonPromoted->type->isNullable);
+        $this->assertNull($nonPromoted->className);
+
+        $withoutType = $parameter('withoutType');
+
+        $this->assertSame('withoutType', $withoutType->name);
+        $this->assertTrue($withoutType->isPromoted);
+        $this->assertFalse($withoutType->hasDefaultValue);
+        $this->assertTrue($withoutType->type->isMixed);
+        $this->assertTrue($withoutType->type->isNullable);
+        $this->assertNull($withoutType->className);
+
+        $property = $parameter('property');
+
+        $this->assertSame('property', $property->name);
+        $this->assertTrue($property->isPromoted);
+        $this->assertFalse($property->hasDefaultValue);
+        $this->assertSame('string', $property->type->getNamedTypes()[0]->name);
+        $this->assertFalse($property->type->isNullable);
+        $this->assertNull($property->className);
+
+        $creationContext = $parameter('creationContext');
+
+        $this->assertSame('creationContext', $creationContext->name);
+        $this->assertFalse($creationContext->isPromoted);
+        $this->assertFalse($creationContext->hasDefaultValue);
+        $this->assertSame(CreationContext::class, $creationContext->type->getNamedTypes()[0]->name);
+        $this->assertFalse($creationContext->type->isNullable);
+        $this->assertSame(CreationContext::class, $creationContext->className);
+
+        $propertyWithDefault = $parameter('propertyWithDefault');
+
+        // Defaults are read from reflection when needed, so the metadata keeps none (README).
+        $this->assertSame('propertyWithDefault', $propertyWithDefault->name);
+        $this->assertTrue($propertyWithDefault->isPromoted);
+        $this->assertTrue($propertyWithDefault->hasDefaultValue);
+        $this->assertSame('hello', $propertyWithDefault->reflection->getDefaultValue());
+        $this->assertSame('string', $propertyWithDefault->type->getNamedTypes()[0]->name);
+        $this->assertFalse($propertyWithDefault->type->isNullable);
+        $this->assertNull($propertyWithDefault->className);
+    }
+
     /**
      * Test immutable parameter metadata without retaining default values.
      */

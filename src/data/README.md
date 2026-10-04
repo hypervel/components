@@ -18,6 +18,8 @@ When a union property already accepts a value, Hypervel keeps it instead of conv
 
 A model attribute holding `null` is passed as `null`, so it fails for a property that does not accept `null`. Spatie treats it as missing and substitutes the property's default or `Optional`, so the object no longer matches the stored data. Columns that were not selected are treated as missing.
 
+An Eloquent cast to an abstract data class only reads a stored alias or class name that resolves to a concrete subtype of that class; Spatie creates whatever class the stored value names. Data casts encode stored values with Eloquent's JSON codec, so a collection class's own `toJson()`, such as one that pretty-prints, doesn't change what is stored as it does in Spatie.
+
 A required property declared outside the constructor that receives no input, and no value from its default or the constructor, fails creation with `CannotCreateData`. Spatie leaves it uninitialized, so the error only appears when the property is read. Nullable and `Optional` properties still receive `null` or `Optional`.
 
 Constructor injection uses Hypervel contextual attributes, including property extraction through `CurrentUser` and `RouteParameter`. Their resolved value always wins over payload input and creation hooks, including `null`, so client input cannot replace a server-resolved value such as the current user. When input should take precedence, use a named factory that returns the finished object, or remove the contextual attribute and supply the value through a creation hook.

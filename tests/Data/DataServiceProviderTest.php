@@ -17,7 +17,7 @@ use Mockery as m;
 
 class DataServiceProviderTest extends TestCase
 {
-    // REMOVED: Structure-cache command tests; worker memory is the metadata cache boundary.
+    // REMOVED: Structure-cache tests (the cache command and CachedDataConfig); worker memory is the metadata cache boundary.
     // REMOVED: Livewire/Wireable and TypeScript integration tests; Hypervel has no matching Data integration.
 
     protected function getPackageProviders(Application $app): array

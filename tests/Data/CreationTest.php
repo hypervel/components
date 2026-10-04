@@ -110,6 +110,9 @@ class CreationTest extends TestCase
 
     public function testCanUseDefaultTypesToCreateDataObjects(): void
     {
+        // The 'd-m-Y' cast fills the time from the clock, so the cast and the expected date must read the same time.
+        $this->freezeTime();
+
         $data = ComplicatedData::from([
             'withoutType' => 42,
             'int' => 42,
@@ -171,6 +174,8 @@ class CreationTest extends TestCase
 
     public function testWontCastAPropertyThatIsAlreadyInTheCorrectType(): void
     {
+        $explicitCast = DateTime::createFromFormat('d-m-Y', '16-06-1994');
+
         $data = ComplicatedData::from([
             'withoutType' => 42,
             'int' => 42,
@@ -180,7 +185,7 @@ class CreationTest extends TestCase
             'array' => [1, 1, 2, 3, 5, 8],
             'nullable' => null,
             'mixed' => 42,
-            'explicitCast' => DateTime::createFromFormat('d-m-Y', '16-06-1994'),
+            'explicitCast' => $explicitCast,
             'defaultCast' => DateTime::createFromFormat(DATE_ATOM, '1994-05-16T12:00:00+02:00'),
             'nestedData' => SimpleData::from('hello'),
             'nestedCollection' => SimpleData::collect([
@@ -201,7 +206,7 @@ class CreationTest extends TestCase
         $this->assertNull($data->nullable);
         $this->assertSame(42, $data->mixed);
         $this->assertEquals(DateTime::createFromFormat(DATE_ATOM, '1994-05-16T12:00:00+02:00'), $data->defaultCast);
-        $this->assertEquals(DateTime::createFromFormat('d-m-Y', '16-06-1994'), $data->explicitCast);
+        $this->assertSame($explicitCast, $data->explicitCast);
         $this->assertEquals(SimpleData::from('hello'), $data->nestedData);
         $this->assertEquals(SimpleData::collect([
             SimpleData::from('never'),

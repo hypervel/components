@@ -56,6 +56,7 @@ use Hypervel\Data\Support\Creation\ValidationStrategy;
 use Hypervel\Data\Support\DataClassRepository;
 use Hypervel\Data\Support\DataProperty;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Foundation\Http\Attributes\FailOnUnknownFields;
 use Hypervel\Http\Request;
 use Hypervel\Pagination\Paginator;
 use Hypervel\Support\Arr;
@@ -1866,20 +1867,73 @@ class DataCreatorTest extends TestCase
     public function testConstructorInputsReceiveRawInputByName(): void
     {
         $this->assertSame(
-            ['prefix' => 'later', 'options' => ['a' => '1'], 'secret' => 'none'],
+            ['prefix' => 'later', 'options' => ['a' => '1']],
             ConstructorInputCreationData::from(['prefix' => 'first', 'options' => ['a' => '1']], ['prefix' => 'later'])->received,
         );
 
         $hooked = ConstructorInputCreationData::factory()
             ->beforeCreation(static fn (array $properties): array => [...$properties, 'prefix' => 'hooked'])
-            ->from(['secret' => 'kept']);
+            ->from([]);
 
-        $this->assertSame(['prefix' => 'hooked', 'options' => [], 'secret' => 'kept'], $hooked->received);
+        $this->assertSame(['prefix' => 'hooked', 'options' => []], $hooked->received);
 
         $this->expectException(CannotCreateData::class);
         $this->expectExceptionMessageIsOrContains('Parameters missing: prefix');
 
         ConstructorInputCreationData::from([]);
+    }
+
+    public function testNonPublicPromotedParametersNeverReceiveInput(): void
+    {
+        $input = ['name' => 'Taylor', 'role' => 'admin', 'trusted' => true];
+
+        $this->assertSame(
+            ['role' => 'member', 'trusted' => false],
+            NonPublicPromotedCreationData::from($input)->state(),
+        );
+        $this->assertSame(
+            ['role' => 'member', 'trusted' => false],
+            NonPublicPromotedCreationData::from(Request::create('/', 'POST', $input))->state(),
+        );
+
+        // A hook supplies a value deliberately.
+        $hooked = NonPublicPromotedCreationData::factory()
+            ->beforeCreation(static fn (array $properties): array => [...$properties, 'role' => 'editor'])
+            ->from($input);
+
+        $this->assertSame(['role' => 'editor', 'trusted' => false], $hooked->state());
+
+        try {
+            StrictNonPublicPromotedCreationData::validateAndCreate(['name' => 'Taylor', 'role' => 'admin']);
+            $this->fail('Expected the non-public promoted key to be rejected as unknown.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(['role'], array_keys($exception->errors()));
+        }
+    }
+
+    /**
+     * @param class-string<Data> $class
+     */
+    #[DataProvider('requiredNonPublicPromotedClasses')]
+    public function testRequiredNonPublicPromotedParametersFailCreation(string $class): void
+    {
+        $this->expectException(CannotCreateData::class);
+        $this->expectExceptionMessageIsOrContains('Parameters missing: secret');
+
+        $class::from(['name' => 'Taylor', 'prefix' => 'p', 'secret' => 'input']);
+    }
+
+    /**
+     * Get classes with a required non-public promoted parameter, with and without direct construction otherwise.
+     *
+     * @return array<string, array{class-string<Data>}>
+     */
+    public static function requiredNonPublicPromotedClasses(): array
+    {
+        return [
+            'public promoted fields only' => [RequiredNonPublicPromotedCreationData::class],
+            'with a constructor input' => [RequiredNonPublicPromotedWithInputCreationData::class],
+        ];
     }
 
     public function testBeforeCreationHooksReceiveOnlySuppliedUnboundProperties(): void
@@ -4059,9 +4113,70 @@ class ConstructorInputCreationData extends Data
      *
      * @param array<string, mixed> $options
      */
-    public function __construct(string $prefix, array $options = [], protected string $secret = 'none')
+    public function __construct(string $prefix, array $options = [])
     {
-        $this->received = ['prefix' => $prefix, 'options' => $options, 'secret' => $secret];
+        $this->received = ['prefix' => $prefix, 'options' => $options];
+    }
+}
+
+class NonPublicPromotedCreationData extends Data
+{
+    /**
+     * Create a fixture with protected and private promoted state.
+     */
+    public function __construct(
+        public string $name,
+        protected string $role = 'member',
+        private bool $trusted = false,
+    ) {
+    }
+
+    /**
+     * Get the non-public promoted state.
+     *
+     * @return array{role: string, trusted: bool}
+     */
+    public function state(): array
+    {
+        return ['role' => $this->role, 'trusted' => $this->trusted];
+    }
+}
+
+#[FailOnUnknownFields]
+class StrictNonPublicPromotedCreationData extends Data
+{
+    /**
+     * Create a strict fixture with protected promoted state.
+     */
+    public function __construct(
+        public string $name,
+        protected string $role = 'member',
+    ) {
+    }
+}
+
+class RequiredNonPublicPromotedCreationData extends Data
+{
+    /**
+     * Create a fixture whose only non-public promoted parameter is required.
+     */
+    public function __construct(
+        public string $name,
+        private string $secret,
+    ) {
+    }
+}
+
+class RequiredNonPublicPromotedWithInputCreationData extends Data
+{
+    /**
+     * Create a fixture with a constructor input and a required non-public promoted parameter.
+     */
+    public function __construct(
+        public string $name,
+        string $prefix,
+        protected string $secret,
+    ) {
     }
 }
 

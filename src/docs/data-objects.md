@@ -176,7 +176,7 @@ class UserCommand extends Dto
 }
 ```
 
-A constructor parameter without a matching public property, such as a plain parameter or a `protected` promoted property, receives the input value with the same name, unchanged. Name mapping, casts, and inferred validation rules do not apply to it, but rules you declare for it in `rules()` do, and creation and validation hooks may change it. Eloquent models do not supply these values.
+A plain constructor parameter without a matching public property receives the input value with the same name, unchanged. Name mapping, casts, and inferred validation rules do not apply to it, but rules you declare for it in `rules()` do, and creation and validation hooks may change it. Eloquent models do not supply these values. A `protected` or `private` promoted property is the object's own state, so input never sets it: it keeps its default value, and creation fails when it has none, unless a `beforeCreation` hook or a named factory supplies it.
 
 ```php
 use Hypervel\Data\Attributes\Computed;
@@ -1129,11 +1129,13 @@ class User extends Model
 }
 ```
 
+A data collection attribute may be assigned a data collection, or an array, collection, or other `Arrayable` value containing data objects or input arrays.
+
 Eloquent stores all values needed to recreate the data object using its PHP property names. Hidden properties are stored, while computed, virtual, appended, and response-only values are omitted. Partial selections do not change the stored value and are not consumed. Output transformers still run, so a one-way transformer needs a matching input cast or `WithCastAndTransformer` to recreate the original value.
 
 Conditional and relation lazy values must already be included when the model is saved, and saving never loads a relation. Closure and Inertia lazy values cannot be stored because they do not resolve to ordinary data values.
 
-Both casts support `encrypted` and `default` arguments. Abstract data classes use an enforced alias map unless they select a concrete subtype through `PropertyMorphableData::morph()`:
+Both casts support `encrypted` and `default` arguments. A value cast to an abstract data class is stored with the class name of its concrete subtype, unless the abstract class selects its subtype through `PropertyMorphableData::morph()`. Registering aliases stores short names instead, which stay valid when classes are renamed:
 
 ```php
 use Hypervel\Data\Support\DataConfig;
@@ -1147,7 +1149,7 @@ public function boot(DataConfig $data): void
 }
 ```
 
-Morph maps are boot-time configuration. Unknown aliases and payload-provided class names are rejected.
+Morph maps are boot-time configuration. A stored alias or class name must resolve to a concrete subtype of the cast's abstract class; anything else is rejected when the value is read.
 
 For more information on Eloquent casts, see the [Eloquent mutators and casts documentation](/docs/{{version}}/eloquent-mutators#data-object-casting).
 

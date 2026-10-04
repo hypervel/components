@@ -25,6 +25,7 @@ use Hypervel\Tests\Data\Fixtures\SimpleData;
 use Hypervel\Tests\Data\Fixtures\Types\ImportedData as GroupedImportedData;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
 use ReflectionMethod;
 use ReflectionProperty;
@@ -218,6 +219,22 @@ class DataTypeFactoryTest extends TestCase
         ], $types);
     }
 
+    public function testAnotherCollectionsAnnotationGivesTheItemsOnlyWhenUnambiguous(): void
+    {
+        $types = [];
+
+        foreach ($this->property('collectionAnnotationOnUnion')->getDataCollectableTypes() as $type) {
+            $types[$type->name] = $type->dataClass;
+        }
+
+        $this->assertEquals([
+            'array' => DataTypeFactoryFirstItemData::class,
+            Collection::class => DataTypeFactoryFirstItemData::class,
+        ], $types);
+        $this->assertNull($this->property('boxAnnotationOnArray')->getNamedTypes()[0]->iterableItemType);
+        $this->assertNull($this->property('competingCollectionAnnotationsOnArray')->getNamedTypes()[0]->iterableItemType);
+    }
+
     public function testCollectionClassItemTypesApplyAfterDeclaredItemTypes(): void
     {
         // The collection class imports SimpleData by its short name, so it resolves in the collection's own file.
@@ -341,6 +358,66 @@ class DataTypeFactoryTest extends TestCase
             $resolved,
         );
     }
+
+    // Spatie's DataReturnTypeTest: return types are built by this factory. Spatie's buildFromNamedType() and
+    // buildFromValue() only resolved collect() targets, which Hypervel resolves without type metadata.
+
+    #[DataProvider('returnTypes')]
+    public function testCanDetermineTheReturnTypeFromReflection(
+        string $methodName,
+        string $name,
+        bool $builtIn,
+        DataTypeKind $kind,
+    ): void {
+        $method = new ReflectionMethod(TestReturnTypeSubject::class, $methodName);
+        $type = (new DataTypeFactory(new PhpDocTypeNameResolver, new DataIterableAnnotationReader))
+            ->build($method->getReturnType(), TestReturnTypeSubject::class, $method);
+
+        $this->assertFalse($type->isNullable);
+        $this->assertFalse($type->isMixed);
+        $this->assertInstanceOf(NamedType::class, $type->type);
+        $this->assertSame($name, $type->type->name);
+        $this->assertSame($builtIn, $type->type->builtIn);
+        $this->assertSame($kind, $type->type->kind);
+        // Every iterable kind records its container, as Spatie does for property types.
+        $this->assertSame($name, $type->type->iterableClass);
+    }
+
+    /**
+     * Get the return types of the subject's methods.
+     *
+     * @return array<string, array{string, string, bool, DataTypeKind}>
+     */
+    public static function returnTypes(): array
+    {
+        return [
+            'array' => ['array', 'array', true, DataTypeKind::Array],
+            'collection' => ['collection', Collection::class, false, DataTypeKind::Enumerable],
+            'data collection' => ['dataCollection', DataCollection::class, false, DataTypeKind::DataCollection],
+        ];
+    }
+
+    public function testCanHandleUnionTypes(): void
+    {
+        $method = new ReflectionMethod(TestReturnTypeSubject::class, 'union');
+        $type = (new DataTypeFactory(new PhpDocTypeNameResolver, new DataIterableAnnotationReader))
+            ->build($method->getReturnType(), TestReturnTypeSubject::class, $method);
+
+        $this->assertFalse($type->isNullable);
+        $this->assertFalse($type->isMixed);
+        $this->assertInstanceOf(UnionType::class, $type->type);
+        $this->assertSame(
+            [Collection::class => DataTypeKind::Enumerable, 'array' => DataTypeKind::Array],
+            array_column(
+                array_map(fn (NamedType $namedType): array => [$namedType->name, $namedType->kind], $type->getNamedTypes()),
+                1,
+                0,
+            ),
+        );
+    }
+
+    // REMOVED: 'will store return types in the factory as a caching mechanism' and 'will cache nullable and non
+    // nullable return types separately'; metadata is built once per worker, so the factory keeps no cache.
 
     /**
      * Build metadata for one fixture property.
@@ -468,6 +545,15 @@ class DataTypeFactoryFixture
     /** @var Collection<int, DataTypeFactorySecondItemData>|DataTypeFactoryFirstItemData[] */
     public array|Collection $shorthandWithExactArm;
 
+    /** @var Collection<int, DataTypeFactoryFirstItemData> */
+    public array|Collection $collectionAnnotationOnUnion;
+
+    /** @var DataTypeFactoryBox<DataTypeFactoryFirstItemData> */
+    public array $boxAnnotationOnArray;
+
+    /** @var Collection<int, DataTypeFactoryFirstItemData>|EloquentCollection<int, DataTypeFactorySecondItemData> */
+    public array $competingCollectionAnnotationsOnArray;
+
     public SimpleDataCollection $classAnnotatedCollection;
 
     #[DataCollectionOf(DataTypeFactoryFirstItemData::class)]
@@ -482,6 +568,13 @@ class DataTypeFactoryFixture
 }
 
 abstract class DataTypeFactoryFirstItemData implements BaseData
+{
+}
+
+/**
+ * @template TValue
+ */
+class DataTypeFactoryBox
 {
 }
 
@@ -542,4 +635,39 @@ class DataTypeFactoryPhpDocParent extends DataTypeFactoryPhpDocGrandparent
 
 class DataTypeFactoryPhpDocChild extends DataTypeFactoryPhpDocParent
 {
+}
+
+class TestReturnTypeSubject
+{
+    /**
+     * Return an array.
+     */
+    public function array(): array
+    {
+        return [];
+    }
+
+    /**
+     * Return a collection.
+     */
+    public function collection(): Collection
+    {
+        return new Collection;
+    }
+
+    /**
+     * Return a data collection.
+     */
+    public function dataCollection(): DataCollection
+    {
+        return new DataCollection(SimpleData::class, []);
+    }
+
+    /**
+     * Return an array or a collection.
+     */
+    public function union(): array|Collection
+    {
+        return [];
+    }
 }

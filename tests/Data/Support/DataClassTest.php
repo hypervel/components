@@ -431,17 +431,25 @@ class DataClassTest extends TestCase
 
     public function testConstructorInputsWithoutPublicPropertiesAreRecorded(): void
     {
-        foreach ([
-            NonPublicPromotedDataFixture::class => ['secret'],
-            MissingPropertyDataFixture::class => ['source'],
-        ] as $class => $inputs) {
-            $metadata = $this->factory()->build(new ReflectionClass($class));
+        $metadata = $this->factory()->build(new ReflectionClass(MissingPropertyDataFixture::class));
 
-            $this->assertSame($inputs, $metadata->constructorInputs);
-            $this->assertSame([], $metadata->properties);
-            $this->assertNull($metadata->creationRecipe);
-            $this->assertFalse($metadata->directConstructorInstantiation);
-        }
+        $this->assertSame(['source'], $metadata->constructorInputs);
+        $this->assertSame([], $metadata->properties);
+        $this->assertNull($metadata->creationRecipe);
+        $this->assertFalse($metadata->directConstructorInstantiation);
+    }
+
+    public function testNonPublicPromotedParametersAreNotConstructorInputs(): void
+    {
+        $required = $this->factory()->build(new ReflectionClass(NonPublicPromotedDataFixture::class));
+        $defaulted = $this->factory()->build(new ReflectionClass(DefaultedNonPublicPromotedDataFixture::class));
+
+        $this->assertSame([], $required->constructorInputs);
+        $this->assertSame(['name'], array_keys($required->properties));
+        // Nothing would supply the required parameter, so creation takes the path that reports it missing.
+        $this->assertFalse($required->directConstructorInstantiation);
+        $this->assertSame([], $defaulted->constructorInputs);
+        $this->assertTrue($defaulted->directConstructorInstantiation);
     }
 
     /**
@@ -934,10 +942,23 @@ class ContextualCollisionDataFixture
 class NonPublicPromotedDataFixture
 {
     /**
-     * Create a new non-public promoted fixture.
+     * Create a new fixture with a required non-public promoted parameter.
      */
     public function __construct(
+        public string $name,
         protected string $secret,
+    ) {
+    }
+}
+
+class DefaultedNonPublicPromotedDataFixture
+{
+    /**
+     * Create a new fixture with a defaulted non-public promoted parameter.
+     */
+    public function __construct(
+        public string $name,
+        private string $secret = 'none',
     ) {
     }
 }

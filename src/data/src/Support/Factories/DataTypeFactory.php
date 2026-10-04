@@ -120,30 +120,6 @@ class DataTypeFactory
     }
 
     /**
-     * Build a data type from a declared type name.
-     *
-     * @param class-string|ReflectionClass<object> $class
-     */
-    public function buildFromString(
-        string $type,
-        ReflectionClass|string $class,
-        bool $isBuiltIn,
-        bool $isNullable = false,
-    ): DataType {
-        $class = $this->reflectionClass($class);
-        $namedType = $this->buildNamedType(
-            $this->resolveNativeName($type, $class, $class),
-            $isBuiltIn,
-        );
-
-        return new DataType(
-            type: $namedType,
-            isNullable: $isNullable,
-            isMixed: $namedType->name === 'mixed',
-        );
-    }
-
-    /**
      * Build a reflected type graph.
      *
      * @param ReflectionClass<object> $targetClass
@@ -373,6 +349,7 @@ class DataTypeFactory
     ): ?DataIterableAnnotation {
         $fallback = null;
         $shorthandFallback = null;
+        $itemFallbacks = [];
 
         foreach ($annotations as $annotation) {
             $container = $this->resolvePhpDocName(
@@ -397,12 +374,24 @@ class DataTypeFactory
             }
 
             // Item shorthands such as `Item[]` or `array<Item>` describe any container, as in upstream.
-            if ($shorthandFallback === null && ($container === 'array' || $container === 'iterable')) {
-                $shorthandFallback = $annotation;
+            if ($container === 'array' || $container === 'iterable') {
+                $shorthandFallback ??= $annotation;
+
+                continue;
+            }
+
+            // Another collection's annotation, such as `DataCollection<Item>` on an array, also gives the items, as in
+            // upstream, but only when no other collection annotation gives a different item type.
+            $containerKind = $this->kindFor($container);
+
+            if ($containerKind->isNonDataIterable() || $containerKind->isDataCollectable()) {
+                $itemFallbacks[(string) $annotation->itemType] ??= $annotation;
             }
         }
 
-        return $fallback ?? $shorthandFallback;
+        return $fallback
+            ?? $shorthandFallback
+            ?? (count($itemFallbacks) === 1 ? array_values($itemFallbacks)[0] : null);
     }
 
     /**

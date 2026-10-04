@@ -7,55 +7,322 @@ namespace Hypervel\Tests\Data\Support;
 use Attribute;
 use Hypervel\Container\Attributes\Config;
 use Hypervel\Container\Container;
+use Hypervel\Data\Data;
 use Hypervel\Data\Enums\CustomCreationMethodType;
 use Hypervel\Data\Exceptions\InvalidDataDeclaration;
 use Hypervel\Data\Support\Annotations\DataIterableAnnotationReader;
 use Hypervel\Data\Support\Creation\CreationContext;
 use Hypervel\Data\Support\DataMethod;
 use Hypervel\Data\Support\DataMethodMatch;
+use Hypervel\Data\Support\DataParameter;
 use Hypervel\Data\Support\Factories\DataMethodFactory;
 use Hypervel\Data\Support\Factories\DataParameterFactory;
 use Hypervel\Data\Support\Factories\DataTypeFactory;
+use Hypervel\Data\Support\Types\NamedType;
 use Hypervel\Data\Support\Types\PhpDocTypeNameResolver;
+use Hypervel\Database\Eloquent\Collection as EloquentCollection;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Enumerable;
+use Hypervel\Tests\Data\Fixtures\DataWithMultipleArgumentCreationMethod;
+use Hypervel\Tests\Data\Fixtures\SimpleData;
 use Hypervel\Tests\TestCase;
 use ReflectionClass;
 use ReflectionMethod;
 
 class DataMethodTest extends TestCase
 {
-    /**
-     * Test constructor and named creation metadata.
-     */
-    public function testMethodMetadataPreservesDeclarationDetails(): void
+    // Spatie's accepts() is matchPayloads() returning a match, and its constructor method keeps only data properties
+    // and plain parameters, while Hypervel's keeps every parameter and the class's constructor inputs decide which
+    // receive input (DataClassTest).
+
+    public function testCanCreateADataMethodFromAConstructor(): void
     {
-        $constructor = $this->method('__construct');
+        $class = new class extends Data {
+            /**
+             * Create a data object with public promoted, protected promoted and plain parameters.
+             */
+            public function __construct(
+                public string $promotedProperty = 'hello',
+                protected string $protectedPromotedProperty = 'hello',
+                string $property = 'hello',
+            ) {
+            }
+        };
 
-        $this->assertSame('__construct', $constructor->name);
-        $this->assertCount(2, $constructor->parameters);
-        $this->assertTrue($constructor->isPublic);
-        $this->assertFalse($constructor->isStatic);
-        $this->assertSame(CustomCreationMethodType::None, $constructor->customCreationMethodType);
-        $this->assertNull($constructor->returnType);
-        $this->assertTrue($constructor->parameters[0]->isPromoted);
-        $this->assertFalse($constructor->parameters[1]->isPromoted);
+        $method = $this->method('__construct', $class::class);
 
-        $from = $this->method('fromValues');
-
-        $this->assertSame(CustomCreationMethodType::Object, $from->customCreationMethodType);
-        $this->assertTrue($from->isStatic);
-        $this->assertTrue($from->returns(DataMethodFixture::class));
-        $this->assertSame('fromValues', $from->reflection->name);
-
-        $collect = $this->method('collectValues');
-
-        $this->assertSame(CustomCreationMethodType::Collection, $collect->customCreationMethodType);
-        $this->assertTrue($collect->returnType?->isNullable);
-        $this->assertTrue($collect->returns('array'));
-
+        $this->assertSame('__construct', $method->name);
         $this->assertSame(
-            CustomCreationMethodType::None,
-            $this->method('collectUntyped')->customCreationMethodType,
+            ['promotedProperty' => true, 'protectedPromotedProperty' => true, 'property' => false],
+            array_column($method->parameters, 'isPromoted', 'name'),
         );
+        $this->assertTrue($method->isPublic);
+        $this->assertFalse($method->isStatic);
+        $this->assertSame(CustomCreationMethodType::None, $method->customCreationMethodType);
+        $this->assertNull($method->returnType);
+    }
+
+    public function testCanCreateADataMethodFromAMagicMethod(): void
+    {
+        $class = new class extends Data {
+            /**
+             * Create the data object from a string.
+             */
+            public static function fromString(
+                string $property,
+            ): self {
+            }
+        };
+
+        $method = $this->method('fromString', $class::class);
+
+        $this->assertSame('fromString', $method->name);
+        $this->assertSame('fromString', $method->reflection->name);
+        $this->assertCount(1, $method->parameters);
+        $this->assertTrue($method->isPublic);
+        $this->assertTrue($method->isStatic);
+        $this->assertSame(CustomCreationMethodType::Object, $method->customCreationMethodType);
+        $this->assertInstanceOf(DataParameter::class, $method->parameters[0]);
+        $this->assertTrue($method->returns($class::class));
+    }
+
+    public function testCanCreateADataMethodFromAMagicCollectMethod(): void
+    {
+        $class = new class extends Data {
+            /**
+             * Collect items into an array.
+             */
+            public static function collectArray(
+                array $items,
+            ): array {
+            }
+        };
+
+        $method = $this->method('collectArray', $class::class);
+
+        $this->assertSame('collectArray', $method->name);
+        $this->assertCount(1, $method->parameters);
+        $this->assertTrue($method->isPublic);
+        $this->assertTrue($method->isStatic);
+        $this->assertSame(CustomCreationMethodType::Collection, $method->customCreationMethodType);
+        $this->assertInstanceOf(DataParameter::class, $method->parameters[0]);
+        $this->assertSame(['array'], $this->returnTypeNames($method));
+    }
+
+    public function testCanCreateADataMethodFromAMagicCollectMethodWithNullableReturnType(): void
+    {
+        $class = new class extends Data {
+            /**
+             * Collect items into an optional array.
+             */
+            public static function collectArray(
+                array $items,
+            ): ?array {
+            }
+        };
+
+        $method = $this->method('collectArray', $class::class);
+
+        $this->assertSame(CustomCreationMethodType::Collection, $method->customCreationMethodType);
+        $this->assertSame(['array'], $this->returnTypeNames($method));
+        $this->assertTrue($method->returnType?->isNullable);
+    }
+
+    public function testWillNotCreateAMagicalCollectionMethodWhenNoReturnTypeSpecified(): void
+    {
+        $class = new class extends Data {
+            /**
+             * Collect items without a declared return type.
+             */
+            public static function collectArray(
+                array $items,
+            ) {
+            }
+        };
+
+        $method = $this->method('collectArray', $class::class);
+
+        $this->assertSame(CustomCreationMethodType::None, $method->customCreationMethodType);
+        $this->assertNull($method->returnType);
+    }
+
+    public function testWillReturnNullWhenAMethodDoesNotHaveAReturnType(): void
+    {
+        // From Spatie's DataReturnTypeTest; the method factory leaves the return type out when none is declared.
+        $class = new class {
+            /**
+             * Return a value without a declared type.
+             */
+            public function none()
+            {
+            }
+        };
+
+        $this->assertNull($this->method('none', $class::class)->returnType);
+    }
+
+    public function testCorrectlyAcceptsSingleValuesAsMagicCreationMethod(): void
+    {
+        $class = new class extends Data {
+            /**
+             * Create the data object from a string.
+             */
+            public static function fromString(
+                string $property,
+            ) {
+            }
+        };
+
+        $method = $this->method('fromString', $class::class);
+
+        $this->assertTrue($this->accepts($method, 'Hello'));
+        $this->assertFalse($this->accepts($method, 3.14));
+    }
+
+    public function testCorrectlyAcceptsSingleInheritedValuesAsMagicCreationMethod(): void
+    {
+        $class = new class extends Data {
+            /**
+             * Create the data object from another data object.
+             */
+            public static function fromString(
+                Data $property,
+            ) {
+            }
+        };
+
+        $method = $this->method('fromString', $class::class);
+
+        $this->assertTrue($this->accepts($method, new SimpleData('Hello')));
+    }
+
+    public function testCorrectlyAcceptsMultipleValuesAsMagicCreationMethod(): void
+    {
+        $method = $this->method('fromMultiple', DataWithMultipleArgumentCreationMethod::class);
+
+        $this->assertTrue($this->accepts($method, 'Hello', 42));
+        $this->assertTrue($this->accepts($method, ...[
+            'number' => 42,
+            'string' => 'hello',
+        ]));
+        $this->assertFalse($this->accepts($method, 42, 'Hello'));
+    }
+
+    public function testCorrectlyAcceptsMixedValuesAsMagicCreationMethod(): void
+    {
+        $class = new class extends Data {
+            /**
+             * Create the data object from any value.
+             */
+            public static function fromString(
+                mixed $property,
+            ) {
+            }
+        };
+
+        $method = $this->method('fromString', $class::class);
+
+        $this->assertTrue($this->accepts($method, new SimpleData('Hello')));
+        $this->assertTrue($this->accepts($method, null));
+    }
+
+    public function testCorrectlyAcceptsValuesWithDefaultsAsMagicCreationMethod(): void
+    {
+        $class = new class extends Data {
+            /**
+             * Create the data object from an optional string.
+             */
+            public static function fromString(
+                string $property = 'Hello',
+            ) {
+            }
+        };
+
+        $method = $this->method('fromString', $class::class);
+
+        $this->assertTrue($this->accepts($method, 'Hello'));
+        $this->assertTrue($this->accepts($method));
+    }
+
+    public function testNeedsACorrectAmountOfParametersAsMagicCreationMethod(): void
+    {
+        $class = new class extends Data {
+            /**
+             * Create the data object from a required and an optional string.
+             */
+            public static function fromString(
+                string $property,
+                string $propertyWithDefault = 'Hello',
+            ) {
+            }
+        };
+
+        $method = $this->method('fromString', $class::class);
+
+        $this->assertTrue($this->accepts($method, 'Hello'));
+        $this->assertTrue($this->accepts($method, 'Hello', 'World'));
+        $this->assertFalse($this->accepts($method));
+        $this->assertFalse($this->accepts($method, 'Hello', 'World', 'Nope'));
+    }
+
+    public function testCanCheckIfAMagicalMethodCanReturnTheExactType(): void
+    {
+        $class = new class extends Data {
+            /**
+             * Collect a collection.
+             */
+            public static function collectCollection(
+                Collection $property,
+            ): Collection {
+            }
+        };
+
+        $this->assertTrue($this->method('collectCollection', $class::class)->returns(Collection::class));
+    }
+
+    public function testCanCheckIfAMagicalMethodCanReturnTheSubType(): void
+    {
+        $class = new class extends Data {
+            /**
+             * Collect a collection.
+             */
+            public static function collectCollection(
+                Collection $property,
+            ): Collection {
+            }
+        };
+
+        $this->assertTrue($this->method('collectCollection', $class::class)->returns(EloquentCollection::class));
+    }
+
+    public function testCanCheckIfAMagicalMethodCanReturnABuiltInType(): void
+    {
+        $class = new class extends Data {
+            /**
+             * Collect a collection into an array.
+             */
+            public static function collectCollectionToArray(
+                Collection $property,
+            ): array {
+            }
+        };
+
+        $this->assertTrue($this->method('collectCollectionToArray', $class::class)->returns('array'));
+    }
+
+    public function testCanCheckIfAMagicalMethodCannotReturnAParentType(): void
+    {
+        $class = new class extends Data {
+            /**
+             * Collect a collection.
+             */
+            public static function collectCollection(
+                Collection $property,
+            ): Collection {
+            }
+        };
+
+        $this->assertFalse($this->method('collectCollection', $class::class)->returns(Enumerable::class));
     }
 
     /**
@@ -354,6 +621,27 @@ class DataMethodTest extends TestCase
     }
 
     /**
+     * Determine if a method can be called with the given payloads.
+     */
+    protected function accepts(DataMethod $method, mixed ...$payloads): bool
+    {
+        return $method->matchPayloads($this->context(), ...$payloads) !== null;
+    }
+
+    /**
+     * Get the type names a method's return type declares.
+     *
+     * @return list<string>
+     */
+    protected function returnTypeNames(DataMethod $method): array
+    {
+        return array_map(
+            fn (NamedType $type): string => $type->name,
+            $method->returnType?->getNamedTypes() ?? [],
+        );
+    }
+
+    /**
      * Invoke a matched fixture method through its selected path.
      */
     protected function invoke(
@@ -520,24 +808,6 @@ class DataMethodFixture
     public static function fromVariadic(string ...$values): self
     {
         return new self($values[0] ?? 'default');
-    }
-
-    /**
-     * Collect fixture values.
-     *
-     * @return null|array<int, string>
-     */
-    public static function collectValues(array $values): ?array
-    {
-        return $values;
-    }
-
-    /**
-     * Collect fixture values without a declared return type.
-     */
-    public static function collectUntyped(array $values)
-    {
-        return $values;
     }
 }
 

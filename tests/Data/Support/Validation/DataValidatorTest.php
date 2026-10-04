@@ -4579,7 +4579,7 @@ class ValidatedConstructorInputData extends Data
      *
      * @param array<string, mixed> $options
      */
-    public function __construct(string $prefix, array $options = [], protected string $secret = 'none')
+    public function __construct(string $prefix, array $options = [], string $secret = 'none')
     {
         $this->received = ['prefix' => $prefix, 'options' => $options, 'secret' => $secret];
     }

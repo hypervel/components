@@ -147,7 +147,7 @@ class DataConfig
     }
 
     /**
-     * Register the enforced data morph map.
+     * Register aliases that abstract data casts store instead of class names.
      *
      * Boot-only. The aliases persist on the worker-lifetime configuration and
      * affect every subsequent data cast in the worker.

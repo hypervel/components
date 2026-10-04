@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Data\Eloquent\DataEloquentCastTest;
 
+use Hypervel\Contracts\Encryption\DecryptException;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Data\Attributes\Computed;
 use Hypervel\Data\Attributes\DataCollectionOf;
 use Hypervel\Data\Attributes\Hidden;
 use Hypervel\Data\Attributes\MapOutputName;
 use Hypervel\Data\Attributes\PropertyForMorph;
+use Hypervel\Data\Contracts\BaseData;
 use Hypervel\Data\Contracts\PropertyMorphableData;
 use Hypervel\Data\Data;
 use Hypervel\Data\DataCollection;
@@ -24,13 +26,29 @@ use Hypervel\Data\Support\Transformation\TransformationContextFactory;
 use Hypervel\Database\Eloquent\Casts\Json;
 use Hypervel\Database\Eloquent\JsonEncodingException;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Support\Facades\Crypt;
+use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Data\Fixtures\AbstractData\AbstractDataA;
+use Hypervel\Tests\Data\Fixtures\AbstractData\AbstractDataB;
+use Hypervel\Tests\Data\Fixtures\Enums\DummyBackedEnum;
+use Hypervel\Tests\Data\Fixtures\LazyData;
+use Hypervel\Tests\Data\Fixtures\Models\DummyModelWithCasts;
+use Hypervel\Tests\Data\Fixtures\Models\DummyModelWithDefaultCasts;
+use Hypervel\Tests\Data\Fixtures\Models\DummyModelWithEncryptedCasts;
+use Hypervel\Tests\Data\Fixtures\Models\DummyModelWithJson;
+use Hypervel\Tests\Data\Fixtures\SimpleData;
+use Hypervel\Tests\Data\Fixtures\SimpleDataWithDefaultValue;
 use JsonException;
 use stdClass;
 
 class DataEloquentCastTest extends TestCase
 {
+    use RefreshDatabase;
+
+    protected bool $migrateRefresh = true;
+
     /**
      * Get package providers for the data cast test application.
      */
@@ -52,39 +70,323 @@ class DataEloquentCastTest extends TestCase
         $config->set('app.previous_keys', []);
     }
 
-    public function testDataCastRoundTripsObjectsArraysNullAndDefaults(): void
+    /**
+     * Get the migration options.
+     */
+    protected function migrateFreshUsing(): array
     {
-        $model = new DataCastModel;
-        $model->data = new StoredSimpleData('Taylor');
+        return [
+            '--database' => $this->getRefreshConnection(),
+            '--realpath' => true,
+            '--path' => __DIR__ . '/../Fixtures/Migrations',
+        ];
+    }
 
-        $this->assertSame(['name' => 'Taylor'], Json::decode($model->getAttributes()['data']));
-
-        $model = new DataCastModel;
-        $model->data = ['name' => 'Abigail'];
-
-        $this->assertSame(['name' => 'Abigail'], Json::decode($model->getAttributes()['data']));
-
-        $model = new DataCastModel;
-        $model->setRawAttributes(['data' => '{"name":"Dayle"}']);
-
-        $this->assertEquals(new StoredSimpleData('Dayle'), $model->data);
-
-        $model = new DataCastModel;
-        $model->data = null;
-
-        $this->assertNull($model->getAttributes()['data']);
-        $this->assertNull($model->data);
-
-        $model = new DataCastModel;
-        $model->setRawAttributes([
-            'default_data' => null,
-            'empty_default_data' => null,
+    public function testCanSaveADataObject(): void
+    {
+        DummyModelWithCasts::create([
+            'data' => new SimpleData('Test'),
         ]);
 
-        $this->assertEquals(new StoredDefaultData, $model->default_data);
-        $this->assertEquals(new StoredEmptyData, $model->empty_default_data);
+        $this->assertDatabaseHas(DummyModelWithCasts::class, [
+            'data' => json_encode(['string' => 'Test']),
+        ]);
+    }
 
-        foreach (['{}', '[]'] as $stored) {
+    public function testCanSaveADataObjectAsAnArray(): void
+    {
+        DummyModelWithCasts::create([
+            'data' => ['string' => 'Test'],
+        ]);
+
+        $this->assertDatabaseHas(DummyModelWithCasts::class, [
+            'data' => json_encode(['string' => 'Test']),
+        ]);
+    }
+
+    public function testCanLoadADataObject(): void
+    {
+        DB::table('dummy_model_with_casts')->insert([
+            'data' => json_encode(['string' => 'Test']),
+        ]);
+
+        $this->assertEquals(new SimpleData('Test'), DummyModelWithCasts::first()->data);
+    }
+
+    public function testCanSaveANullAsAValue(): void
+    {
+        DummyModelWithCasts::create([
+            'data' => null,
+        ]);
+
+        $this->assertDatabaseHas(DummyModelWithCasts::class, [
+            'data' => null,
+        ]);
+    }
+
+    public function testCanLoadNullAsAValue(): void
+    {
+        DB::table('dummy_model_with_casts')->insert([
+            'data' => null,
+        ]);
+
+        $this->assertNull(DummyModelWithCasts::first()->data);
+    }
+
+    public function testLoadsACastObjectWhenNullableArgumentUsedAndValueIsNullInDatabase(): void
+    {
+        DB::table('dummy_model_with_casts')->insert([
+            'data' => null,
+        ]);
+
+        $data = DummyModelWithDefaultCasts::first()->data;
+
+        $this->assertInstanceOf(SimpleDataWithDefaultValue::class, $data);
+        $this->assertSame('default', $data->string);
+    }
+
+    public function testCanUseAnAbstractDataClassWithMultipleChildren(): void
+    {
+        $abstractA = new AbstractDataA('A\A');
+        $abstractB = new AbstractDataB('B\B');
+
+        $modelId = DummyModelWithCasts::create([
+            'abstract_data' => $abstractA,
+        ])->id;
+
+        $model = DummyModelWithCasts::find($modelId);
+
+        $this->assertInstanceOf(AbstractDataA::class, $model->abstract_data);
+        $this->assertSame('A\A', $model->abstract_data->a);
+
+        $model->abstract_data = $abstractB;
+        $model->save();
+
+        $model = DummyModelWithCasts::find($modelId);
+
+        $this->assertInstanceOf(AbstractDataB::class, $model->abstract_data);
+        $this->assertSame('B\B', $model->abstract_data->b);
+    }
+
+    public function testCanUseAnAbstractDataClassWithMorphMap(): void
+    {
+        $this->app->make(DataConfig::class)->enforceMorphMap([
+            'a' => AbstractDataA::class,
+        ]);
+
+        $abstractA = new AbstractDataA('A\A');
+        $abstractB = new AbstractDataB('B\B');
+
+        $modelA = DummyModelWithCasts::create([
+            'abstract_data' => $abstractA,
+        ]);
+
+        $modelB = DummyModelWithCasts::create([
+            'abstract_data' => $abstractB,
+        ]);
+
+        $this->assertSame(['type' => 'a', 'data' => ['a' => 'A\A']], Json::decode($modelA->getRawOriginal('abstract_data')));
+        $this->assertSame(
+            ['type' => AbstractDataB::class, 'data' => ['b' => 'B\B']],
+            Json::decode($modelB->getRawOriginal('abstract_data')),
+        );
+
+        $loadedMorphedModel = DummyModelWithCasts::find($modelA->id);
+
+        $this->assertInstanceOf(AbstractDataA::class, $loadedMorphedModel->abstract_data);
+        $this->assertSame('A\A', $loadedMorphedModel->abstract_data->a);
+    }
+
+    public function testCanSaveAnEncryptedDataObject(): void
+    {
+        $model = DummyModelWithEncryptedCasts::create([
+            'data' => new SimpleData('Test'),
+        ]);
+
+        try {
+            $decrypted = Crypt::decryptString($model->getRawOriginal('data'));
+        } catch (DecryptException) {
+            $this->fail('Expected the stored value to be encrypted.');
+        }
+
+        $this->assertSame(['string' => 'Test'], Json::decode($decrypted));
+    }
+
+    public function testCanLoadAnEncryptedDataObject(): void
+    {
+        DummyModelWithEncryptedCasts::create([
+            'data' => new SimpleData('Test'),
+        ]);
+
+        $this->assertEquals(new SimpleData('Test'), DummyModelWithEncryptedCasts::first()->data);
+    }
+
+    public function testCanLoadAndSaveAnAbstractDefinedDataObject(): void
+    {
+        $abstractA = new AbstractDataA('A\A');
+
+        $modelId = DummyModelWithEncryptedCasts::create([
+            'abstract_data' => $abstractA,
+        ])->id;
+
+        $model = DummyModelWithEncryptedCasts::find($modelId);
+
+        $this->assertInstanceOf(AbstractDataA::class, $model->abstract_data);
+        $this->assertSame('A\A', $model->abstract_data->a);
+
+        try {
+            $decrypted = Crypt::decryptString($model->getRawOriginal('abstract_data'));
+        } catch (DecryptException) {
+            $this->fail('Expected the stored value to be encrypted.');
+        }
+
+        $this->assertSame(['type' => AbstractDataA::class, 'data' => ['a' => 'A\A']], Json::decode($decrypted));
+    }
+
+    public function testCanLoadAndSaveAnAbstractPropertyMorphableDataObject(): void
+    {
+        $modelClass = new class extends Model {
+            protected array $guarded = [];
+
+            protected array $casts = [
+                'data' => TestCastAbstractPropertyMorphableData::class,
+            ];
+
+            protected ?string $table = 'dummy_model_with_casts';
+
+            public bool $timestamps = false;
+        };
+
+        $abstractA = new TestCastPropertyMorphableDataFoo('foo');
+
+        $modelId = $modelClass::create([
+            'data' => $abstractA,
+        ])->id;
+
+        $this->assertDatabaseHas($modelClass::class, [
+            'data' => json_encode(['a' => 'foo', 'variant' => 'foo']),
+        ]);
+
+        $model = $modelClass::find($modelId);
+
+        $this->assertInstanceOf(TestCastPropertyMorphableDataFoo::class, $model->data);
+        $this->assertSame('foo', $model->data->a);
+        $this->assertSame(DummyBackedEnum::FOO, $model->data->variant);
+    }
+
+    public function testCanCorrectlyDetectIfTheAttributeIsDirty(): void
+    {
+        $model = new DummyModelWithJson;
+        // Set raw because we want to inverse the order of the keys
+        $model->setRawAttributes(['data' => json_encode(['second' => 'Second', 'first' => 'First'])]);
+        $model->save();
+
+        $model->setRawAttributes(['data' => json_encode(['first' => 'First', 'second' => 'Second'])]);
+
+        $this->assertSame('{"second":"Second","first":"First"}', $model->getRawOriginal('data'));
+        $this->assertSame('{"first":"First","second":"Second"}', $model->getAttributes()['data']);
+        $this->assertFalse($model->isDirty('data'));
+
+        $model->data->first = 'First2';
+
+        $this->assertTrue($model->isDirty('data'));
+    }
+
+    public function testCanCorrectlyDetectIfTheAttributeIsDirtyWithNullValues(): void
+    {
+        $model = new DummyModelWithJson;
+        $model->save();
+
+        $model->setRawAttributes(['data' => json_encode(['first' => 'First', 'second' => 'Second'])]);
+
+        $this->assertNull($model->getRawOriginal('data'));
+        $this->assertSame('{"first":"First","second":"Second"}', $model->getAttributes()['data']);
+        $this->assertTrue($model->isDirty('data'));
+    }
+
+    public function testFlagsTheAttributeAsDirtyWhenItIsEncryptedAndThereArePreviousEncryptionKeys(): void
+    {
+        // The encrypter reads app.previous_keys when it is created, so the key is added to it directly.
+        try {
+            Crypt::previousKeys([random_bytes(32)]);
+
+            $model = new DummyModelWithEncryptedCasts;
+            $model->data = new SimpleData('First');
+            $model->save();
+
+            $model->data = $model->data;
+
+            $this->assertNotSame($model->getAttributes()['data'], $model->getRawOriginal('data'));
+            $this->assertTrue($model->isDirty('data'));
+        } finally {
+            Crypt::previousKeys([]);
+        }
+    }
+
+    public function testDoesNotFlagTheAttributeAsDirtyWhenItIsEncryptedAndThereAreNoPreviousEncryptionKeys(): void
+    {
+        $model = new DummyModelWithEncryptedCasts;
+        $model->data = new SimpleData('First');
+        $model->save();
+
+        $model->data = $model->data;
+
+        $this->assertNotSame($model->getAttributes()['data'], $model->getRawOriginal('data'));
+        $this->assertFalse($model->isDirty('data'));
+    }
+
+    public function testCanUpdateAModelWhereTheCastIsInitiallyNull(): void
+    {
+        $model = DummyModelWithCasts::create([
+            'data' => null,
+        ]);
+
+        $this->assertDatabaseHas(DummyModelWithCasts::class, [
+            'data' => null,
+        ]);
+
+        $model->update([
+            'data' => new SimpleData('Test'),
+        ]);
+
+        $this->assertDatabaseHas(DummyModelWithCasts::class, [
+            'data' => json_encode(['string' => 'Test']),
+        ]);
+    }
+
+    public function testCanSaveADataObjectWithLazyPropertiesWhichGetResolved(): void
+    {
+        DummyModelWithCasts::create([
+            'lazy_data' => LazyData::fromString('Test'),
+        ]);
+
+        $this->assertDatabaseHas(DummyModelWithCasts::class, [
+            'lazy_data' => json_encode(['name' => 'Test']),
+        ]);
+    }
+
+    public function testCanUpdateAModelWhereTheCastIsInitiallyNotNull(): void
+    {
+        $model = DummyModelWithCasts::create([
+            'data' => new SimpleData('Test'),
+        ]);
+
+        $this->assertDatabaseHas(DummyModelWithCasts::class, [
+            'data' => json_encode(['string' => 'Test']),
+        ]);
+
+        $model->update([
+            'data' => null,
+        ]);
+
+        $this->assertDatabaseHas(DummyModelWithCasts::class, [
+            'data' => null,
+        ]);
+    }
+
+    public function testDefaultDataReadsEmptyStoredObjectsAndLists(): void
+    {
+        foreach ([null, '{}', '[]'] as $stored) {
             $model = new DataCastModel;
             $model->setRawAttributes(['empty_default_data' => $stored]);
 
@@ -182,118 +484,49 @@ class DataEloquentCastTest extends TestCase
         }
     }
 
-    public function testPropertyMorphableAbstractDataUsesItsOrdinaryPayload(): void
-    {
-        $caster = new DataEloquentCast(StoredPropertyMorphData::class);
-        $model = new DataCastModel;
-        $encoded = $caster->set($model, 'property_morph_data', new StoredPropertyMorphFoo('value'), []);
-
-        $this->assertEquals([
-            'variant' => 'foo',
-            'name' => 'value',
-        ], Json::decode($encoded));
-
-        $decoded = $caster->get($model, 'property_morph_data', $encoded, []);
-
-        $this->assertInstanceOf(StoredPropertyMorphFoo::class, $decoded);
-        $this->assertSame('value', $decoded->name);
-    }
-
-    public function testAbstractDataRequiresAndRoundTripsAnEnforcedAlias(): void
+    public function testAbstractDataRejectsStoredTypesOutsideTheDeclaredClass(): void
     {
         $this->app->make(DataConfig::class)->enforceMorphMap([
-            'first' => StoredAbstractFirst::class,
-        ]);
-
-        $caster = new DataEloquentCast(StoredAbstractData::class);
-        $model = new DataCastModel;
-        $encoded = $caster->set($model, 'abstract_data', new StoredAbstractFirst('value'), []);
-
-        $this->assertSame([
-            'type' => 'first',
-            'data' => ['name' => 'value'],
-        ], Json::decode($encoded));
-        $this->assertEquals(
-            new StoredAbstractFirst('value'),
-            $caster->get($model, 'abstract_data', $encoded, []),
-        );
-    }
-
-    public function testEncryptedConcreteAndAbstractDataRoundTrip(): void
-    {
-        $this->app->make(DataConfig::class)->enforceMorphMap([
-            'first' => StoredAbstractFirst::class,
-        ]);
-
-        $model = new DataCastModel;
-        $model->encrypted_data = new StoredSimpleData('concrete');
-        $model->encrypted_abstract_data = new StoredAbstractFirst('abstract');
-
-        $encryptedConcrete = $model->getAttributes()['encrypted_data'];
-        $encryptedAbstract = $model->getAttributes()['encrypted_abstract_data'];
-
-        $this->assertSame(
-            ['name' => 'concrete'],
-            Json::decode(Crypt::decryptString($encryptedConcrete)),
-        );
-        $this->assertSame([
-            'type' => 'first',
-            'data' => ['name' => 'abstract'],
-        ], Json::decode(Crypt::decryptString($encryptedAbstract)));
-
-        $model = new DataCastModel;
-        $model->setRawAttributes([
-            'encrypted_data' => $encryptedConcrete,
-            'encrypted_abstract_data' => $encryptedAbstract,
-        ]);
-
-        $this->assertEquals(new StoredSimpleData('concrete'), $model->encrypted_data);
-        $this->assertEquals(new StoredAbstractFirst('abstract'), $model->encrypted_abstract_data);
-    }
-
-    public function testAbstractDataRejectsValuesWithoutAnEnforcedAlias(): void
-    {
-        $caster = new DataEloquentCast(StoredAbstractData::class);
-
-        $this->assertThrows(
-            fn () => $caster->set(
-                new DataCastModel,
-                'abstract_data',
-                new StoredAbstractFirst('value'),
-                [],
-            ),
-            CannotCastData::class,
-            'should have an enforced morph alias',
-        );
-    }
-
-    public function testAbstractDataRejectsUnknownFqcnAndInvalidMorphClasses(): void
-    {
-        $config = $this->app->make(DataConfig::class);
-        $config->enforceMorphMap([
             'unrelated' => StoredUnrelatedData::class,
             'dto' => StoredDto::class,
         ]);
+        StoredUnrelatedFactory::$created = false;
 
         $caster = new DataEloquentCast(StoredAbstractData::class);
         $model = new DataCastModel;
 
         foreach ([
-            ['missing', CannotCastData::class],
-            [StoredAbstractFirst::class, CannotCastData::class],
-            ['unrelated', CannotCastData::class],
-            ['dto', CannotCastData::class],
-        ] as [$alias, $exception]) {
+            'missing',
+            'Missing\Data\Class',
+            'unrelated',
+            StoredUnrelatedData::class,
+            'dto',
+            StoredAbstractData::class,
+            StoredUnrelatedFactory::class,
+        ] as $type) {
             $this->assertThrows(
-                fn () => $caster->get(
+                fn (): ?BaseData => $caster->get(
                     $model,
                     'abstract_data',
-                    json_encode(['type' => $alias, 'data' => ['name' => 'value']], JSON_THROW_ON_ERROR),
+                    json_encode(['type' => $type, 'data' => ['name' => 'value']], JSON_THROW_ON_ERROR),
                     [],
                 ),
-                $exception,
+                CannotCastData::class,
+                'should be a registered alias or a concrete transformable subtype',
             );
         }
+
+        // A stored class outside the declared type is rejected before anything is created from it.
+        $this->assertFalse(StoredUnrelatedFactory::$created);
+        $this->assertEquals(
+            new StoredAbstractFirst('value'),
+            $caster->get(
+                $model,
+                'abstract_data',
+                json_encode(['type' => StoredAbstractFirst::class, 'data' => ['name' => 'value']], JSON_THROW_ON_ERROR),
+                [],
+            ),
+        );
     }
 
     public function testDataCastRejectsInvalidAssignedValues(): void
@@ -374,25 +607,6 @@ class DataEloquentCastTest extends TestCase
         $this->assertFalse($model->isDirty('empty_default_data'));
     }
 
-    public function testEncryptedDirtyComparisonHonorsPreviousKeys(): void
-    {
-        $first = Crypt::encryptString('{"name":"Taylor"}');
-        $second = Crypt::encryptString('{"name":"Taylor"}');
-        $model = new DataCastModel;
-        $model->setRawAttributes(['encrypted_data' => $first], true);
-        $model->setRawAttributes(['encrypted_data' => $second]);
-
-        $this->assertFalse($model->isDirty('encrypted_data'));
-
-        try {
-            Crypt::previousKeys([random_bytes(32)]);
-
-            $this->assertTrue($model->isDirty('encrypted_data'));
-        } finally {
-            Crypt::previousKeys([]);
-        }
-    }
-
     /**
      * Assert dirty comparison through Eloquent's real class-cast caller.
      */
@@ -419,15 +633,10 @@ class DataCastModel extends Model
     {
         return [
             'data' => StoredSimpleData::class,
-            'default_data' => StoredDefaultData::class . ':default',
             'empty_default_data' => StoredEmptyData::class . ':default',
             'graph_data' => StoredGraphData::class,
             'pair_data' => StoredPairData::class,
             'override_data' => StoredOverrideData::class,
-            'abstract_data' => StoredAbstractData::class,
-            'encrypted_data' => StoredSimpleData::class . ':encrypted',
-            'encrypted_abstract_data' => StoredAbstractData::class . ':encrypted',
-            'property_morph_data' => StoredPropertyMorphData::class,
         ];
     }
 }
@@ -458,13 +667,6 @@ class StoredOverrideData extends Data
             : null;
 
         return parent::transform($transformationContext);
-    }
-}
-
-class StoredDefaultData extends Data
-{
-    public function __construct(public string $name = 'default')
-    {
     }
 }
 
@@ -542,27 +744,51 @@ class StoredDto extends Dto
     }
 }
 
-abstract class StoredPropertyMorphData extends Data implements PropertyMorphableData
+class StoredUnrelatedFactory
 {
+    public static bool $created = false;
+
+    /**
+     * Record that a value was created.
+     */
+    public static function from(mixed ...$payloads): self
+    {
+        self::$created = true;
+
+        return new self;
+    }
+}
+
+abstract class TestCastAbstractPropertyMorphableData extends Data implements PropertyMorphableData
+{
+    /**
+     * Create a property-morphable fixture.
+     */
     public function __construct(
         #[PropertyForMorph]
-        public string $variant,
+        public DummyBackedEnum $variant
     ) {
     }
 
+    /**
+     * Get the subclass for the variant.
+     */
     public static function morph(array $properties): ?string
     {
         return match ($properties['variant'] ?? null) {
-            'foo' => StoredPropertyMorphFoo::class,
+            DummyBackedEnum::FOO => TestCastPropertyMorphableDataFoo::class,
             default => null,
         };
     }
 }
 
-class StoredPropertyMorphFoo extends StoredPropertyMorphData
+class TestCastPropertyMorphableDataFoo extends TestCastAbstractPropertyMorphableData
 {
-    public function __construct(public string $name)
+    /**
+     * Create the foo variant.
+     */
+    public function __construct(public string $a)
     {
-        parent::__construct('foo');
+        parent::__construct(DummyBackedEnum::FOO);
     }
 }
