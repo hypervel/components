@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Data\Support\Validation;
 
 use BackedEnum;
+use Closure;
 use DateTimeInterface;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Data\Attributes\Validation\ArrayType;
@@ -31,6 +32,7 @@ use Hypervel\Data\Support\DataClassRepository;
 use Hypervel\Data\Support\DataConfig;
 use Hypervel\Data\Support\DataProperty;
 use Hypervel\Data\Support\Types\NamedType;
+use Hypervel\Data\Support\Validation\References\FieldReference;
 use Hypervel\Validation\Rules\RequiredIf as NativeRequiredIf;
 use Hypervel\Validation\Rules\RequiredUnless as NativeRequiredUnless;
 use TypeError;
@@ -90,6 +92,7 @@ class DataValidationCompiler
      */
     public function compile(ConstructionState $state): CompiledValidation
     {
+        $rootDataClass = $this->dataClasses->get($state->nodeClass() ?? $state->context->dataClass);
         $state->setRuleInferrers($this->resolveRuleInferrers());
         $accumulator = new ValidationAccumulator;
         $compileUnknownFields = $state->unknownInput() !== null;
@@ -99,13 +102,14 @@ class DataValidationCompiler
         ];
 
         $this->compileNode(
-            $state->nodeClass() ?? $state->context->dataClass,
+            $rootDataClass->name,
             $state,
             ValidationPath::create(),
             ValidationPath::create(),
             $accumulator,
             $lifecycleDeclarations,
             $compileUnknownFields,
+            $rootDataClass,
         );
         $this->appendStructuralMarkers($accumulator, $state->payload());
 
@@ -145,6 +149,7 @@ class DataValidationCompiler
             $accumulator,
             $lifecycleDeclarations,
             $compileUnknownFields,
+            null,
         );
         $this->appendStructuralMarkers($accumulator, $state->payload());
 
@@ -218,9 +223,17 @@ class DataValidationCompiler
         ValidationAccumulator $accumulator,
         array &$lifecycleDeclarations,
         bool $compileUnknownFields,
+        ?DataClass $rootDataClass,
         bool $observed = true,
     ): void {
         $dataClass = $this->dataClasses->get($class);
+        $resolveField = fn (FieldReference $reference, ValidationPath $referencePath): string => $this->resolveFieldReference(
+            $reference,
+            $referencePath,
+            $dataClass,
+            $rootDataClass,
+            $state->context->mapPropertyNames,
+        );
         $contextualProperties = $dataClass->contextualParameters;
         $contextualPrepared = $observed && $contextualProperties !== [] && $state->contextualValuesPrepared();
         // Class rules and configured inferrers see the node's actual input and path, while rules compile at $path.
@@ -291,7 +304,7 @@ class DataValidationCompiler
                 $declaredRules = [];
 
                 foreach ($this->declaredRuleAttributes($property) as $attribute) {
-                    array_push($declaredRules, ...$this->ruleDenormalizer->execute($attribute, $path));
+                    array_push($declaredRules, ...$this->ruleDenormalizer->execute($attribute, $path, $resolveField));
                 }
 
                 if ($declaredRules !== []) {
@@ -321,6 +334,7 @@ class DataValidationCompiler
                 $this->inferredTypeRule($property, $hasValue, $value, $dataType),
                 $dataIterableClass !== null,
                 $inferredRequired,
+                $resolveField,
             );
 
             // An abstract node remains only when Fill could not resolve its morph, so its discriminator is invalid.
@@ -359,6 +373,7 @@ class DataValidationCompiler
                         $accumulator,
                         $lifecycleDeclarations,
                         $compileUnknownFields,
+                        $rootDataClass,
                         observed: false,
                     );
                 }
@@ -378,6 +393,7 @@ class DataValidationCompiler
                         $accumulator,
                         $lifecycleDeclarations,
                         $compileUnknownFields,
+                        $rootDataClass,
                     );
                 } finally {
                     $state->leave();
@@ -397,6 +413,7 @@ class DataValidationCompiler
                     $accumulator,
                     $lifecycleDeclarations,
                     $compileUnknownFields,
+                    $rootDataClass,
                 );
 
                 continue;
@@ -419,6 +436,7 @@ class DataValidationCompiler
             $structuralPath,
             $accumulator,
             $observed,
+            $resolveField,
         );
 
         if ($state->context->mode !== CreationMode::Rules) {
@@ -451,6 +469,7 @@ class DataValidationCompiler
         ValidationAccumulator $accumulator,
         array &$lifecycleDeclarations,
         bool $compileUnknownFields,
+        ?DataClass $rootDataClass,
     ): void {
         $wireKey = $state->originalKey($property->name);
         $state->enterProperty($property->name, $property->inputPath($wireKey));
@@ -465,6 +484,7 @@ class DataValidationCompiler
                 $accumulator,
                 $lifecycleDeclarations,
                 $compileUnknownFields,
+                $rootDataClass,
             );
         } finally {
             $state->leave();
@@ -487,6 +507,7 @@ class DataValidationCompiler
         ValidationAccumulator $accumulator,
         array &$lifecycleDeclarations,
         bool $compileUnknownFields,
+        ?DataClass $rootDataClass,
     ): void {
         // A finished object, or input Fill could not read, is checked at its own item path.
         $hasNonArrayValues = false;
@@ -508,6 +529,7 @@ class DataValidationCompiler
                 $accumulator,
                 $lifecycleDeclarations,
                 $compileUnknownFields,
+                $rootDataClass,
                 observed: false,
             );
 
@@ -532,6 +554,7 @@ class DataValidationCompiler
                         $accumulator,
                         $lifecycleDeclarations,
                         $compileUnknownFields,
+                        $rootDataClass,
                     );
 
                     return;
@@ -548,6 +571,7 @@ class DataValidationCompiler
                 $structuralPath,
                 $lifecycleDeclarations,
                 $compileUnknownFields,
+                $rootDataClass,
             );
 
             if ($speculative !== null) {
@@ -590,6 +614,7 @@ class DataValidationCompiler
                     $itemAccumulator,
                     $lifecycleDeclarations,
                     $compileUnknownFields,
+                    $rootDataClass,
                 );
             } finally {
                 $state->leave();
@@ -614,6 +639,7 @@ class DataValidationCompiler
         ValidationPath $structuralPath,
         array &$lifecycleDeclarations,
         bool $compileUnknownFields,
+        ?DataClass $rootDataClass,
     ): ?ValidationAccumulator {
         $compiled = null;
 
@@ -630,6 +656,7 @@ class DataValidationCompiler
                     $itemAccumulator,
                     $lifecycleDeclarations,
                     $compileUnknownFields,
+                    $rootDataClass,
                 );
             } finally {
                 $state->leave();
@@ -654,6 +681,7 @@ class DataValidationCompiler
      *
      * @param null|ValidationContext $context the node's context, present when class rules or configured inferrers use it
      * @param null|'array'|'boolean'|'integer'|'numeric'|'string'|Enum $typeRule
+     * @param Closure(FieldReference, ValidationPath): string $resolveField
      * @return list<array|object|string>
      */
     protected function propertyRules(
@@ -667,6 +695,7 @@ class DataValidationCompiler
         string|Enum|null $typeRule,
         bool $receivesDataCollection,
         bool &$inferredRequired,
+        Closure $resolveField,
     ): array {
         $attributes = $this->declaredRuleAttributes($property);
         $generatedRules = null;
@@ -691,7 +720,7 @@ class DataValidationCompiler
                     $hasPresenceRule = $hasPresenceRule
                         || in_array($attribute::keyword(), self::PRESENCE_RULES, true);
                 } else {
-                    $evaluatedRules[spl_object_id($attribute)] = $denormalizedRules = $this->ruleDenormalizer->execute($attribute, $nodePath);
+                    $evaluatedRules[spl_object_id($attribute)] = $denormalizedRules = $this->ruleDenormalizer->execute($attribute, $nodePath, $resolveField);
                     $hasPresenceRule = $hasPresenceRule || $this->hasPresenceRule($denormalizedRules);
                 }
             }
@@ -707,7 +736,7 @@ class DataValidationCompiler
             foreach ($propertyRules->all() as $rule) {
                 array_push(
                     $rules,
-                    ...($evaluatedRules[spl_object_id($rule)] ?? $this->ruleDenormalizer->execute($rule, $nodePath)),
+                    ...($evaluatedRules[spl_object_id($rule)] ?? $this->ruleDenormalizer->execute($rule, $nodePath, $resolveField)),
                 );
             }
         } else {
@@ -716,7 +745,7 @@ class DataValidationCompiler
             $hasEnumAttribute = false;
 
             foreach ($attributes as $attribute) {
-                $denormalizedRules = $this->ruleDenormalizer->execute($attribute, $nodePath);
+                $denormalizedRules = $this->ruleDenormalizer->execute($attribute, $nodePath, $resolveField);
                 $hasPresenceRule = $hasPresenceRule
                     || $attribute instanceof RequiringRule
                     || $this->hasPresenceRule($denormalizedRules);
@@ -727,7 +756,7 @@ class DataValidationCompiler
             if ($generatedRules !== null) {
                 // Hook rules replace inference, so they come before the declared attributes as inferred rules do.
                 $rules = $this->mergeRules(
-                    $this->ruleDenormalizer->execute($generatedRules, $nodePath),
+                    $this->ruleDenormalizer->execute($generatedRules, $nodePath, $resolveField),
                     $attributeRules,
                 );
             } else {
@@ -768,6 +797,7 @@ class DataValidationCompiler
             $rules = $this->ruleDenormalizer->execute(
                 $hook($rules, $property, $propertyPath, $value),
                 $nodePath,
+                $resolveField,
             );
         }
 
@@ -897,6 +927,8 @@ class DataValidationCompiler
 
     /**
      * Apply class-owned rule replacements in PHP property-name space.
+     *
+     * @param Closure(FieldReference, ValidationPath): string $resolveField
      */
     protected function applyClassRules(
         DataClass $dataClass,
@@ -906,6 +938,7 @@ class DataValidationCompiler
         ValidationPath $structuralPath,
         ValidationAccumulator $accumulator,
         bool $observed,
+        Closure $resolveField,
     ): void {
         if (! $dataClass->hasLifecycleMethod('rules')) {
             return;
@@ -930,7 +963,7 @@ class DataValidationCompiler
                 ),
                 $accumulator,
             );
-            $classRule = $this->ruleDenormalizer->execute($declaration, $path);
+            $classRule = $this->ruleDenormalizer->execute($declaration, $path, $resolveField);
 
             foreach ($rulePaths as $translatedPath) {
                 $rulePath = $translatedPath->path->get();
@@ -1120,6 +1153,64 @@ class DataValidationCompiler
         }
 
         return $result;
+    }
+
+    /**
+     * Resolve a field reference's property names to input names.
+     *
+     * Unlike rule keys, references are not filtered, since a condition may read input that has no rules.
+     */
+    protected function resolveFieldReference(
+        FieldReference $reference,
+        ValidationPath $path,
+        DataClass $dataClass,
+        ?DataClass $rootDataClass,
+        bool $mapPropertyNames,
+    ): string {
+        if ($reference->fromRoot) {
+            if ($rootDataClass === null) {
+                return $reference->name;
+            }
+
+            $dataClass = $rootDataClass;
+            $path = ValidationPath::create();
+        }
+
+        $segments = ValidationPath::create($reference->name)->rawSegments();
+        $count = count($segments);
+
+        for ($index = 0; $index < $count; ++$index) {
+            $segment = $segments[$index];
+            $property = is_string($segment) ? ($dataClass->properties[$segment] ?? null) : null;
+
+            // Undeclared names already describe input, including confirmation fields and explicit input paths.
+            if ($property === null) {
+                return $this->appendUnmappedSegments($path, $segments, $index)->get();
+            }
+
+            $path = $path->property($mapPropertyNames ? ($property->inputMappedName ?? $property->name) : $property->name);
+
+            if ($index + 1 === $count) {
+                return $path->get();
+            }
+
+            $types = [...$property->type->getDataObjectTypes(), ...$property->type->getDataCollectableTypes()];
+
+            if (count($types) !== 1) {
+                return $this->appendUnmappedSegments($path, $segments, $index + 1)->get();
+            }
+
+            $type = $types[0];
+
+            if ($type->kind->isDataCollectable()) {
+                $item = $segments[++$index];
+                $path = $item === null ? $path->wildcard() : $path->item($item);
+            }
+
+            $dataClass = $this->dataClasses->get($type->dataClass);
+        }
+
+        return $path->get();
     }
 
     /**

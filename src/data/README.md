@@ -28,11 +28,11 @@ Spatie's configurable `pipeline()` and custom `DataPipe` classes are not include
 
 Spatie's `ContextableData` and `getDataContext()` are not included. An object's partial selections are available from `getPartialsDefinition()` and its wrapping from `getWrap()`.
 
-Looping over a data collection copies its partial selections onto the items, as in Spatie, but doesn't consume the collection's temporary selections; only the collection's own transformation does. Spatie's loop consumes them from the collection, leaving only the copies on its items. See [partial trees](https://hypervel.org/docs/data-objects#partial-trees).
+Looping over a data collection copies its partial selections onto the items, as in Spatie, but doesn't consume the collection's temporary selections; only the collection's own transformation does. Spatie's loop consumes them from the collection, leaving only the copies on its items. See [including and excluding properties](https://hypervel.org/docs/data-objects#including-and-excluding-properties).
 
 A malformed partial path given in code, such as `''`, `*.name` or `{name, age}.name`, throws when the object is transformed. Spatie ignores an empty path and anything after a `*` or a group, so `*.name` includes every lazy property at every depth. Malformed paths in the request query string are skipped.
 
-A custom cast's `$properties` argument holds the object's declared property values keyed by PHP property name. Unlike Spatie's, it excludes undeclared input, raw input names, and contextual and computed values. See [casts and transformers](https://hypervel.org/docs/data-objects#casts-and-transformers).
+A custom cast's `$properties` argument holds the object's declared property values keyed by PHP property name. Unlike Spatie's, it excludes undeclared input, raw input names, and contextual and computed values. See [custom casts](https://hypervel.org/docs/data-objects#custom-casts).
 
 Casts and named methods receive one `CreationContext` for the whole creation, and it does not change while nested objects are created. Its `dataClass` is the class the creation started with, where Spatie updates it to the nested class being created. It has no `from()`, `collect()`, or `currentPath`; pass it to the target class's `factory()` to create another object with the same options.
 
