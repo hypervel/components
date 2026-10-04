@@ -24,7 +24,7 @@ A required property declared outside the constructor that receives no input, and
 
 Constructor injection uses Hypervel contextual attributes, including property extraction through `CurrentUser` and `RouteParameter`. Their resolved value always wins over payload input and creation hooks, including `null`, so client input cannot replace a server-resolved value such as the current user. When input should take precedence, use a named factory that returns the finished object, or remove the contextual attribute and supply the value through a creation hook.
 
-Spatie's configurable `pipeline()` and custom `DataPipe` classes are not included. Use [named factories](https://hypervel.org/docs/data-objects#named-factories), [`prepareForPipeline()`](https://hypervel.org/docs/data-objects#preparing-input), or [factory hooks](https://hypervel.org/docs/data-objects#creation-factories).
+Spatie's configurable `pipeline()` and custom `DataPipe` classes are not included. Hypervel uses fixed creation phases over shared per-operation state, with metadata cached for the worker lifetime. Validation and construction use the same prepared values and recorded type decisions, preserving consistency while supporting optimized execution. Configurable pipeline ordering would undermine those guarantees. Use [named factories](https://hypervel.org/docs/data-objects#named-factories), [`prepareForPipeline()`](https://hypervel.org/docs/data-objects#preparing-input), or [factory hooks](https://hypervel.org/docs/data-objects#creation-factories).
 
 Spatie's `ContextableData` and `getDataContext()` are not included. An object's partial selections are available from `getPartialsDefinition()` and its wrapping from `getWrap()`.
 
