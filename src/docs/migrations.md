@@ -490,7 +490,7 @@ Before renaming a table, you should verify that any foreign key constraints on t
 <a name="partitioning-tables"></a>
 ### Partitioning Tables
 
-PostgreSQL can split a large table into partitions, each holding a range of its rows. Your queries still use the table itself, but old data can be removed by dropping a whole partition instead of deleting rows one at a time, which is much faster and leaves no bloat behind. This makes partitioning a good fit for large, append-heavy tables such as logs and event histories. Table partitioning requires PostgreSQL 11 or later.
+PostgreSQL can split a large table into partitions, each holding a range of its rows. Your queries still use the table itself, but old data can be removed by dropping a whole partition instead of deleting rows one at a time, which is much faster and leaves no bloat behind. This makes partitioning a good fit for large, append-heavy tables such as logs and event histories. Range partitioning requires PostgreSQL 10 or later; primary keys and unique indexes on the partitioned table, as in the example below, require PostgreSQL 11 or later.
 
 To partition a table, call the `partitionByRange` method with the columns that decide which partition each row belongs to. The table's primary key and unique indexes must include all of these columns:
 

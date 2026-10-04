@@ -468,6 +468,8 @@ When models are passed in a plain PHP array, their full attributes and loaded re
 > [!WARNING]
 > Unique jobs require a cache driver that supports [locks](/docs/{{version}}/cache#atomic-locks). Currently, the `redis`, `database`, `file`, `swoole`, `array`, and `worker-array` cache drivers support atomic locks.
 
+The lock is acquired where the job is dispatched and released by the worker that processes it, so the cache store must be shared by both processes. Otherwise, duplicates may be queued and the original lock may remain held after processing. The `array` store is local to one coroutine, `worker-array` to one process, and `swoole` to workers of the same server. For separate queue workers or multiple servers, use a store shared by all of them, such as Redis or a database.
+
 > [!WARNING]
 > Unique job constraints do not apply to jobs within batches.
 
