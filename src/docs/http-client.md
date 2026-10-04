@@ -747,7 +747,7 @@ These methods are safe to call regardless of Telescope's state. They simply set 
 <a name="opentelemetry-tracing"></a>
 ### OpenTelemetry Tracing
 
-When [OpenTelemetry](/docs/{{version}}/opentelemetry#http) tracing is enabled, outgoing requests are traced automatically and send the current trace context to the server they call. You may skip tracing a request using the `withoutTrace` method, or keep the trace but send no trace context using the `withoutTracePropagation` method. Use `withoutTracePropagation` for third-party and customer-supplied URLs, which should not receive your internal trace identifiers:
+When [OpenTelemetry](/docs/{{version}}/opentelemetry#http) tracing is enabled, outgoing requests are traced automatically and send the current trace context to the server they call. You may skip tracing a request using the `withoutTrace` method, or keep the trace without automatically adding trace headers using the `withoutTracePropagation` method. This method leaves any headers you supplied yourself unchanged. Use `withoutTracePropagation` for third-party and customer-supplied URLs, which should not receive your internal trace identifiers:
 
 ```php
 $response = Http::withoutTracePropagation()->post($webhookUrl, $payload);
@@ -1025,7 +1025,7 @@ $response = Http::withDestinationPolicy(new PublicDestinationPolicy)
 
 The policy resolves the destination's hostname, rejects the request if any of its addresses are private or reserved, and then connects only to the addresses it checked. Since the connection is pinned to those addresses, a hostname whose DNS answer changes after the check cannot send the request somewhere else. Each redirect is checked the same way before it is followed.
 
-If a destination is not allowed, a `Hypervel\Http\Client\Destinations\DisallowedDestinationException` is thrown, and the request is never retried. If the destination's hostname cannot be resolved, a `Hypervel\Http\Client\Destinations\DestinationResolutionException` is thrown instead. It extends `ConnectionException`, so it is retried and reported like any other connection failure. The time spent resolving the hostname counts against the request's timeout and connect timeout.
+If a destination is not allowed, a `Hypervel\Http\Client\Destinations\DisallowedDestinationException` is thrown, and the request is never retried. If the destination's hostname cannot be resolved, a `Hypervel\Http\Client\Destinations\DestinationResolutionException` is thrown instead. It extends `ConnectionException`, so it is reported like any other connection failure and retried when you configure retries using `retry()`. The time spent resolving the hostname counts against the request's timeout and connect timeout.
 
 <a name="allowing-internal-networks"></a>
 ### Allowing Internal Networks
@@ -1066,6 +1066,8 @@ If the proxy cannot be resolved or refuses the connection, a `Hypervel\Http\Clie
 Pinning relies on Guzzle's cURL handler and libcurl 7.75 or newer. For this reason, restricted requests may not use the `stream` option, set their own `proxy` or raw `curl` options, or use a custom handler from the `setHandler` method; such requests throw a `DisallowedDestinationException`. To write a large response to a file, use the `sink` method instead of streaming it.
 
 A client supplied using the `setClient` method owns its whole handler stack, so the policy does not apply to its requests. Faked requests never reach the policy either, so `Http::fake()` works as usual in your tests.
+
+If you extend the HTTP client factory to replace its connection handler, your transport must honor the policy's cURL pinning options. A transport that ignores those options bypasses destination enforcement.
 
 <a name="macros"></a>
 ## Macros

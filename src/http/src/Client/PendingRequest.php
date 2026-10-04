@@ -743,7 +743,7 @@ class PendingRequest implements Transient
     }
 
     /**
-     * Indicate that trace context should not be sent with this request.
+     * Indicate that trace context should not be automatically added to this request.
      *
      * The request may still be traced locally.
      */

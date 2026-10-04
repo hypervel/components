@@ -233,7 +233,7 @@ When the HTTP client instrumentation's `manual` option is `true`, requests are t
 Http::withTrace()->get('https://example.com/orders');
 ```
 
-A traced request sends its trace context to the server it calls. To keep the client span but send no trace headers, use the `withoutTracePropagation` method. We recommend it for third-party and customer-supplied URLs, which should not receive your internal trace identifiers or baggage:
+A traced request sends its trace context to the server it calls. To keep the client span without automatically adding trace headers, use the `withoutTracePropagation` method. Headers you supplied yourself remain unchanged. We recommend this method for third-party and customer-supplied URLs, which should not receive your internal trace identifiers or baggage:
 
 ```php
 Http::withoutTracePropagation()->post($webhookUrl, $payload);

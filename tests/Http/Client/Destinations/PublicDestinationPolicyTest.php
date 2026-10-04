@@ -64,6 +64,12 @@ class PublicDestinationPolicyTest extends TestCase
         yield 'benchmark IPv4' => ['198.18.0.1'];
         yield 'multicast IPv4' => ['224.0.0.1'];
         yield 'loopback IPv6' => ['::1'];
+        yield 'IPv4-compatible loopback' => ['::127.0.0.1'];
+        yield 'IPv4-translated loopback' => ['::ffff:0:7f00:1'];
+        yield 'site-local IPv6' => ['fec0::1'];
+        yield 'dummy IPv6 prefix' => ['100:0:0:1::1'];
+        yield 'reserved IPv6 allocation' => ['4000::1'];
+        yield 'returned 6bone space' => ['3ffe::1'];
         yield 'private IPv6' => ['fc00::1'];
         yield 'link-local IPv6' => ['fe80::1'];
         yield 'documentation IPv6' => ['2001:db8::1'];

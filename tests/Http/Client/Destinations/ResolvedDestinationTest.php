@@ -89,23 +89,62 @@ class ResolvedDestinationTest extends TestCase
             '2001:db8::2',
             '203.0.114.7',
         );
-        $proxy = ResolvedDestination::proxy(
-            new Uri('https://target.example/path'),
-            new Uri('https://[2001:db8::3]'),
-            '2001:db8::4',
-            '203.0.114.8',
-        );
-
         $this->assertDirectCurlOptions(
             $direct,
             '[2001:db8::1]',
             443,
             ['[2001:db8::2]', '203.0.114.7'],
         );
-        $this->assertSame('https://[2001:db8::3]:443', $proxy->proxy);
+    }
+
+    public function testPinsAllApprovedAddressesForAHostnameProxy(): void
+    {
+        $proxy = ResolvedDestination::proxy(
+            new Uri('https://target.example/path'),
+            new Uri('https://proxy.example'),
+            '2001:db8::4',
+            '203.0.114.8',
+        );
+
         $this->assertSame([
-            CURLOPT_RESOLVE => ['[2001:db8::3]:443:[2001:db8::4],203.0.114.8'],
+            CURLOPT_RESOLVE => ['proxy.example:443:[2001:db8::4],203.0.114.8'],
         ], $proxy->curlOptions());
+    }
+
+    #[DataProvider('literalProxies')]
+    public function testLiteralProxiesNeedNoDnsPinning(string $uri, string $address): void
+    {
+        $proxy = ResolvedDestination::proxy(new Uri('https://target.example'), new Uri($uri), $address);
+
+        $this->assertSame([], $proxy->curlOptions());
+    }
+
+    /**
+     * Provide literal proxies with equivalent approved addresses.
+     */
+    public static function literalProxies(): iterable
+    {
+        yield 'IPv4' => ['http://127.0.0.1', '127.0.0.1'];
+        yield 'IPv6' => ['http://[::1]', '::1'];
+        yield 'equivalent IPv6 spelling' => ['https://[2001:db8::1]', '2001:db8:0:0:0:0:0:1'];
+    }
+
+    #[DataProvider('contradictoryLiteralProxyAddresses')]
+    public function testRejectsContradictoryLiteralProxyAddresses(array $addresses): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('exactly one approved address matching its host');
+
+        ResolvedDestination::proxy(new Uri('https://target.example'), new Uri('http://[::1]'), ...$addresses);
+    }
+
+    /**
+     * Provide proxy address sets that cannot describe the literal host.
+     */
+    public static function contradictoryLiteralProxyAddresses(): iterable
+    {
+        yield 'different address' => [['::2']];
+        yield 'fallback address' => [['::1', '::2']];
     }
 
     public function testRejectsAnUnsupportedTargetScheme(): void

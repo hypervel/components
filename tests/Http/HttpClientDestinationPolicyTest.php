@@ -237,15 +237,15 @@ class HttpClientDestinationPolicyTest extends TestCase
         $this->assertSame([], $statistics);
     }
 
-    #[DataProvider('sendModes')]
-    public function testAProxyRefusingConnectionsIsARetriedProxyConnectionFailure(bool $async): void
+    #[DataProvider('refusingProxies')]
+    public function testAProxyRefusingConnectionsIsARetriedProxyConnectionFailure(bool $async, bool $ipv6): void
     {
-        [$refusing, $port] = $this->refusingPort();
+        [$refusing, $port] = $this->refusingPort($ipv6);
         $errors = [];
         $policy = new FakeDestinationPolicy(
             ['proxy.invalid' => ['127.0.0.1']],
-            allowedNetworks: ['127.0.0.0/8'],
-            proxy: "http://proxy.invalid:{$port}",
+            allowedNetworks: ['127.0.0.0/8', '::1'],
+            proxy: $ipv6 ? "http://[::1]:{$port}" : "http://proxy.invalid:{$port}",
         );
         $request = $this->factory()
             ->withDestinationPolicy($policy)
@@ -266,6 +266,17 @@ class HttpClientDestinationPolicyTest extends TestCase
         $this->assertCount(2, $this->connectionFailures);
         $this->assertSame($exception, $this->connectionFailures[1]->exception);
         $this->assertSame([CURLE_COULDNT_CONNECT, CURLE_COULDNT_CONNECT], $errors);
+    }
+
+    /**
+     * Provide send modes for hostname and literal proxies.
+     */
+    public static function refusingProxies(): iterable
+    {
+        yield 'synchronous hostname' => [false, false];
+        yield 'asynchronous hostname' => [true, false];
+        yield 'synchronous IPv6 literal' => [false, true];
+        yield 'asynchronous IPv6 literal' => [true, true];
     }
 
     public function testARefusedDirectConnectionStaysAPlainConnectionException(): void
@@ -380,10 +391,10 @@ class HttpClientDestinationPolicyTest extends TestCase
      *
      * @return array{Socket, int}
      */
-    private function refusingPort(): array
+    private function refusingPort(bool $ipv6 = false): array
     {
-        $socket = new Socket(AF_INET, SOCK_STREAM, 0);
-        $socket->bind('127.0.0.1', 0);
+        $socket = new Socket($ipv6 ? AF_INET6 : AF_INET, SOCK_STREAM, 0);
+        $socket->bind($ipv6 ? '::1' : '127.0.0.1', 0);
 
         return [$socket, $socket->getsockname()['port']];
     }

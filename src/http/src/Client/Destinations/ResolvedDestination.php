@@ -46,6 +46,15 @@ final readonly class ResolvedDestination
             }
         }
 
+        $host = trim($resolvedHost, '[]');
+
+        if ($proxy !== null && filter_var($host, FILTER_VALIDATE_IP) !== false
+            && (count($addresses) !== 1 || inet_pton($host) !== inet_pton($address))) {
+            throw new InvalidArgumentException(
+                'A literal proxy requires exactly one approved address matching its host.',
+            );
+        }
+
         $this->addresses = $addresses;
     }
 
@@ -76,6 +85,7 @@ final readonly class ResolvedDestination
      * A proxy without a port uses its scheme's default port (80 or 443), as any
      * HTTP URI does, rather than cURL's 1080: PSR-7 URIs drop an explicit
      * default port, so ":80" and no port cannot be told apart.
+     * A literal proxy requires one approved address equal to its host.
      */
     public static function proxy(
         UriInterface $uri,
@@ -141,6 +151,12 @@ final readonly class ResolvedDestination
                     $this->resolvedPort,
                 ])],
             ];
+        }
+
+        // Literal proxies connect to their already vetted address without DNS.
+        // Omitting RESOLVE also avoids its pre-8.13 restriction on IPv6 hosts.
+        if (filter_var(trim($this->resolvedHost, '[]'), FILTER_VALIDATE_IP) !== false) {
+            return [];
         }
 
         return [CURLOPT_RESOLVE => [implode(':', [
