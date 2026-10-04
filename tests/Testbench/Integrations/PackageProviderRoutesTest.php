@@ -14,6 +14,15 @@ use PHPUnit\Framework\Attributes\Test;
 class PackageProviderRoutesTest extends TestCase
 {
     /**
+     * Get application providers.
+     */
+    protected function getApplicationProviders(ApplicationContract $app): array
+    {
+        // An explicit entry must not move the route provider ahead of package providers.
+        return [...parent::getApplicationProviders($app), RouteServiceProvider::class];
+    }
+
+    /**
      * Get package providers.
      */
     protected function getPackageProviders(ApplicationContract $app): array
