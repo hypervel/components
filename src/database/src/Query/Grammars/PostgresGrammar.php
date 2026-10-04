@@ -533,9 +533,7 @@ class PostgresGrammar extends Grammar
 
         $columns = $this->compileUpdateColumns($query, $values);
 
-        $selectSql = $this->compileSelectQuery($query->select($this->qualifyRowIdentifier($query, 'ctid')));
-
-        return "update {$table} set {$columns} where {$this->wrap('ctid')} in ({$selectSql})";
+        return "update {$table} set {$columns} {$this->compileRowIdentifierWhere($query)}";
     }
 
     /**
@@ -570,9 +568,22 @@ class PostgresGrammar extends Grammar
     {
         $table = $this->wrapTable($query->from);
 
-        $selectSql = $this->compileSelectQuery($query->select($this->qualifyRowIdentifier($query, 'ctid')));
+        return "delete from {$table} {$this->compileRowIdentifierWhere($query)}";
+    }
 
-        return "delete from {$table} where {$this->wrap('ctid')} in ({$selectSql})";
+    /**
+     * Compile the where clause matching the rows selected by a limited or joined write.
+     */
+    protected function compileRowIdentifierWhere(Builder $query): string
+    {
+        // A ctid is unique only within one physical table, and the partitions of a
+        // partitioned table reuse them, so rows are matched by table and ctid.
+        $selectSql = $this->compileSelectQuery($query->select([
+            $this->qualifyRowIdentifier($query, 'tableoid'),
+            $this->qualifyRowIdentifier($query, 'ctid'),
+        ]));
+
+        return "where ({$this->wrap('tableoid')}, {$this->wrap('ctid')}) in ({$selectSql})";
     }
 
     /**

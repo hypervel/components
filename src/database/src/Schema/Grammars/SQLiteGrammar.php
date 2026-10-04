@@ -209,6 +209,10 @@ class SQLiteGrammar extends Grammar
      */
     public function compileCreate(Blueprint $blueprint, Fluent $command): string
     {
+        if (! is_null($blueprint->rangePartitionColumns)) {
+            throw new RuntimeException('This database driver does not support table partitioning.');
+        }
+
         return sprintf(
             '%s table %s (%s%s%s)',
             $blueprint->temporary ? 'create temporary' : 'create',
@@ -1068,6 +1072,22 @@ class SQLiteGrammar extends Grammar
      * Create the column definition for a binary type.
      */
     protected function typeBinary(Fluent $column): string
+    {
+        return 'blob';
+    }
+
+    /**
+     * Create the column definition for a medium binary type.
+     */
+    protected function typeMediumBinary(Fluent $column): string
+    {
+        return 'blob';
+    }
+
+    /**
+     * Create the column definition for a long binary type.
+     */
+    protected function typeLongBinary(Fluent $column): string
     {
         return 'blob';
     }

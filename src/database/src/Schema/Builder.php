@@ -6,6 +6,7 @@ namespace Hypervel\Database\Schema;
 
 use Closure;
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Database\Connection;
 use Hypervel\Database\MultipleColumnsSelectedException;
 use Hypervel\Database\PostgresConnection;
@@ -207,7 +208,7 @@ class Builder
      * Get the tables that belong to the connection.
      *
      * @param null|string|string[] $schema
-     * @return list<array{name: string, schema: null|string, schema_qualified_name: string, size: null|int, comment: null|string, collation: null|string, engine: null|string}>
+     * @return list<array{name: string, schema: null|string, schema_qualified_name: string, size: null|int, comment: null|string, collation: null|string, engine: null|string, partition_of: null|string}>
      */
     public function getTables(array|string|null $schema = null): array
     {
@@ -469,6 +470,24 @@ class Builder
     }
 
     /**
+     * Get the partitions of a given table.
+     *
+     * @return list<array{name: string, schema: string, schema_qualified_name: string, bounds: string}>
+     */
+    public function getPartitions(string $table): array
+    {
+        [$schema, $table] = $this->parseSchemaAndTable($table);
+
+        $table = $this->connection->getTablePrefix() . $table;
+
+        return $this->connection->getPostProcessor()->processPartitions(
+            $this->selectMetadata(
+                $this->grammar->compilePartitions($schema, $table)
+            )
+        );
+    }
+
+    /**
      * Modify a table on the schema.
      */
     public function table(string $table, Closure $callback): void
@@ -486,6 +505,21 @@ class Builder
 
             $callback($blueprint);
         }));
+    }
+
+    /**
+     * Create a partition of a range-partitioned table for the given bounds.
+     *
+     * Each bound lists one value per partition column, from inclusive and to exclusive.
+     *
+     * @param list<Expression|float|int|string> $from
+     * @param list<Expression|float|int|string> $to
+     */
+    public function createRangePartition(string $table, string $partition, array $from, array $to): void
+    {
+        $this->executeStatements([
+            $this->grammar->compileCreateRangePartition($table, $partition, $from, $to),
+        ]);
     }
 
     /**
@@ -580,6 +614,43 @@ class Builder
                 $query->truncate();
             }
         }
+    }
+
+    /**
+     * Remove the partitions whose ancestors are among the given tables or excepted.
+     *
+     * An operation on a partitioned table covers its partitions, and an excepted one
+     * keeps them, so only partitions of other tables remain, as tables of their own.
+     *
+     * @template TTable of array{schema_qualified_name: string, partition_of: null|string}
+     *
+     * @param list<TTable> $tables
+     * @param list<string> $except
+     * @return list<TTable>
+     */
+    public function withoutCoveredPartitions(array $tables, array $except = []): array
+    {
+        $given = array_column($tables, 'partition_of', 'schema_qualified_name');
+        $parents = $given;
+
+        // Ancestors outside the given tables (such as in other schemas) are fetched in one query.
+        if (($missing = array_diff(array_filter($given), array_keys($given))) !== []) {
+            $parents += array_column(
+                $this->selectMetadata($this->grammar->compilePartitionAncestors(array_values(array_unique($missing)))),
+                'partition_of',
+                'name'
+            );
+        }
+
+        return array_values(array_filter($tables, function (array $table) use ($given, $parents, $except): bool {
+            for ($ancestor = $table['partition_of']; $ancestor !== null; $ancestor = $parents[$ancestor] ?? null) {
+                if (array_key_exists($ancestor, $given) || ! empty(array_intersect([explode('.', $ancestor, 2)[1], $ancestor], $except))) {
+                    return false;
+                }
+            }
+
+            return true;
+        }));
     }
 
     /**

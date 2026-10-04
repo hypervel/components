@@ -151,6 +151,36 @@ abstract class Grammar extends BaseGrammar
     }
 
     /**
+     * Compile the query to determine the partitions of a table.
+     *
+     * @throws RuntimeException
+     */
+    public function compilePartitions(?string $schema, string $table): string
+    {
+        throw new RuntimeException('This database driver does not support table partitioning.');
+    }
+
+    /**
+     * Compile the query to determine the parents of the given tables and of their ancestors.
+     *
+     * @throws RuntimeException
+     */
+    public function compilePartitionAncestors(array $tables): string
+    {
+        throw new RuntimeException('This database driver does not support table partitioning.');
+    }
+
+    /**
+     * Compile a create range partition command.
+     *
+     * @throws RuntimeException
+     */
+    public function compileCreateRangePartition(string $table, string $partition, array $from, array $to): string
+    {
+        throw new RuntimeException('This database driver does not support table partitioning.');
+    }
+
+    /**
      * Compile the command to enable foreign key constraints.
      */
     public function compileEnableForeignKeyConstraints(): string

@@ -80,6 +80,13 @@ class Blueprint
     public bool $temporary = false;
 
     /**
+     * The columns that should range-partition the table (PostgreSQL only).
+     *
+     * @var null|list<string>
+     */
+    public ?array $rangePartitionColumns = null;
+
+    /**
      * The column to add new columns after.
      */
     public ?string $after = null;
@@ -434,6 +441,16 @@ class Blueprint
     public function temporary(): void
     {
         $this->temporary = true;
+    }
+
+    /**
+     * Indicate that the table should be partitioned by ranges of the given columns (PostgreSQL only).
+     *
+     * @param list<string>|string $columns
+     */
+    public function partitionByRange(array|string $columns): void
+    {
+        $this->rangePartitionColumns = (array) $columns;
     }
 
     /**
@@ -1297,6 +1314,26 @@ class Blueprint
     public function binary(string $column, ?int $length = null, bool $fixed = false): ColumnDefinition
     {
         return $this->addColumn('binary', $column, ['length' => $length, 'fixed' => $fixed]);
+    }
+
+    /**
+     * Create a new medium binary column on the table (up to 16,777,215 bytes on MySQL/MariaDB).
+     *
+     * @return TColumnDefinition
+     */
+    public function mediumBinary(string $column): ColumnDefinition
+    {
+        return $this->addColumn('mediumBinary', $column);
+    }
+
+    /**
+     * Create a new long binary column on the table (up to 4,294,967,295 bytes on MySQL/MariaDB).
+     *
+     * @return TColumnDefinition
+     */
+    public function longBinary(string $column): ColumnDefinition
+    {
+        return $this->addColumn('longBinary', $column);
     }
 
     /**

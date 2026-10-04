@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Database;
 
 use Generator;
+use Hypervel\Database\BinaryParameter;
 use Hypervel\Database\Query\Expression;
 use Hypervel\Database\QueryException;
 use Hypervel\Database\Schema\Blueprint;
@@ -310,12 +311,42 @@ class SchemaBuilderTest extends DatabaseTestCase
         $tables = Schema::getTables();
 
         $this->assertEmpty(array_diff(['foo', 'bar', 'baz'], array_column($tables, 'name')));
+        $this->assertSame(array_fill(0, count($tables), null), array_column($tables, 'partition_of'));
 
         if (in_array($this->driver, ['mysql', 'mariadb', 'pgsql'])) {
             $this->assertNotEmpty(array_filter($tables, function ($table) {
                 return $table['name'] === 'foo' && $table['comment'] === 'This is a comment';
             }));
         }
+    }
+
+    public function testMediumAndLongBinaryColumnsStoreValuesLargerThanABlob(): void
+    {
+        Schema::create('files', function (Blueprint $table): void {
+            $table->mediumBinary('medium');
+            $table->longBinary('long');
+        });
+
+        $this->assertSame(
+            match ($this->driver) {
+                'mysql', 'mariadb' => ['mediumblob', 'longblob'],
+                'pgsql' => ['bytea', 'bytea'],
+                default => ['blob', 'blob'],
+            },
+            [Schema::getColumnType('files', 'medium'), Schema::getColumnType('files', 'long')]
+        );
+
+        $bytes = random_bytes(1024 * 1024);
+
+        DB::table('files')->insert(['medium' => new BinaryParameter($bytes), 'long' => new BinaryParameter($bytes)]);
+
+        // PostgreSQL returns bytea values as streams.
+        $values = array_map(
+            fn (mixed $value): string => is_resource($value) ? stream_get_contents($value) : $value,
+            (array) DB::table('files')->first()
+        );
+
+        $this->assertSame(['medium' => $bytes, 'long' => $bytes], $values);
     }
 
     public function testHasView()

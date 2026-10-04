@@ -232,7 +232,8 @@ trait DatabaseTruncation
                     function (Collection $tables) use ($connection, $name) {
                         $exceptTables = $this->exceptTables($connection, $name);
 
-                        return $tables->reject(fn (array $table) => $this->tableExistsIn($table, $exceptTables));
+                        return (new Collection($connection->getSchemaBuilder()->withoutCoveredPartitions($tables->all(), $exceptTables)))
+                            ->reject(fn (array $table) => $this->tableExistsIn($table, $exceptTables));
                     }
                 )
                 ->pluck('schema_qualified_name')

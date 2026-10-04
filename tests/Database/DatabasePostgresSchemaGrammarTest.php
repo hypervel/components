@@ -155,6 +155,55 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
         $this->assertSame('create temporary table "users" ("id" serial not null primary key, "email" varchar(255) not null)', $statements[0]);
     }
 
+    public function testCreateRangePartitionedTable(): void
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'attempts');
+        $blueprint->create();
+        $blueprint->uuid('id')->primary();
+        $blueprint->uuid('tenant_id');
+        $blueprint->partitionByRange('id');
+
+        $this->assertSame([
+            'create table "attempts" ("id" uuid not null, "tenant_id" uuid not null) partition by range ("id")',
+            'alter table "attempts" add primary key ("id")',
+        ], $blueprint->toSql());
+
+        $blueprint = new Blueprint($this->getConnection(), 'attempts');
+        $blueprint->create();
+        $blueprint->uuid('tenant_id');
+        $blueprint->uuid('id');
+        $blueprint->partitionByRange(['tenant_id', 'id']);
+
+        $this->assertSame(
+            ['create table "attempts" ("tenant_id" uuid not null, "id" uuid not null) partition by range ("tenant_id", "id")'],
+            $blueprint->toSql()
+        );
+    }
+
+    public function testCreateRangePartition(): void
+    {
+        $connection = $this->getConnection(prefix: 'prefix_');
+        $connection->expects('escape')->with(1, false)->twice()->andReturn('1');
+        $connection->expects('escape')->with("0190'a", false)->andReturn("'0190''a'");
+
+        $this->assertSame(
+            'create table "prefix_attempts_1" partition of "prefix_attempts" for values from (1, \'0190\'\'a\') to (1, maxvalue)',
+            $connection->getSchemaGrammar()->compileCreateRangePartition(
+                'attempts',
+                'attempts_1',
+                [1, "0190'a"],
+                [1, new Expression('maxvalue')]
+            )
+        );
+    }
+
+    public function testCompilePartitionAncestorsSeedsTheGivenQualifiedTables(): void
+    {
+        $statement = $this->getGrammar()->compilePartitionAncestors(['cold.events_2026', "archive.o'clock"]);
+
+        $this->assertStringContainsString("(n.nspname, c.relname) in (('cold', 'events_2026'), ('archive', 'o''clock'))", $statement);
+    }
+
     public function testDropTable()
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
@@ -1072,6 +1121,18 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
 
         $this->assertCount(1, $statements);
         $this->assertSame('alter table "users" add column "foo" bytea not null', $statements[0]);
+    }
+
+    public function testAddingMediumAndLongBinary(): void
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'users');
+        $blueprint->mediumBinary('foo');
+        $blueprint->longBinary('bar');
+
+        $this->assertSame([
+            'alter table "users" add column "foo" bytea not null',
+            'alter table "users" add column "bar" bytea not null',
+        ], $blueprint->toSql());
     }
 
     public function testAddingUuid()

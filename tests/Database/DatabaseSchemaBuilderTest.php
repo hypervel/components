@@ -50,6 +50,7 @@ class DatabaseSchemaBuilderTest extends TestCase
             'columns' => ['getColumns', ['public.users'], 'compileColumns', ['public', 'prefix_users'], 'processColumns'],
             'indexes' => ['getIndexes', ['public.users'], 'compileIndexes', ['public', 'prefix_users'], 'processIndexes'],
             'foreign keys' => ['getForeignKeys', ['public.users'], 'compileForeignKeys', ['public', 'prefix_users'], 'processForeignKeys'],
+            'partitions' => ['getPartitions', ['public.users'], 'compilePartitions', ['public', 'prefix_users'], 'processPartitions'],
             'derived column check' => ['hasColumn', ['public.users', 'ID'], 'compileColumns', ['public', 'prefix_users'], 'processColumns'],
         ];
     }
@@ -132,6 +133,55 @@ class DatabaseSchemaBuilderTest extends TestCase
         }
 
         (new Builder($connection))->truncateTables(['public.populated', 'public.empty']);
+    }
+
+    #[DataProvider('partitionSelections')]
+    public function testWithoutCoveredPartitionsKeepsOnlyPartitionsOfTablesOutsideTheSelection(array $tables, array $except, ?array $missingParents, array $links, array $expected): void
+    {
+        $connection = m::mock(Connection::class);
+        $grammar = m::mock(Grammar::class);
+        $connection->shouldReceive('getSchemaGrammar')->andReturn($grammar);
+
+        if ($missingParents === null) {
+            $grammar->shouldNotReceive('compilePartitionAncestors');
+        } else {
+            $grammar->expects('compilePartitionAncestors')->with($missingParents)->andReturn('ancestors sql');
+            $connection->expects('selectFromWriteConnection')->with('ancestors sql')->andReturn($links);
+        }
+
+        $tables = array_map(fn (array $table): array => ['schema_qualified_name' => $table[0], 'partition_of' => $table[1]], $tables);
+
+        $this->assertSame($expected, array_column((new Builder($connection))->withoutCoveredPartitions($tables, $except), 'schema_qualified_name'));
+    }
+
+    public static function partitionSelections(): array
+    {
+        return [
+            'given parents cover their partitions, excepted or not' => [
+                [['public.events', null], ['public.events_1', 'public.events'], ['archive.events', null], ['archive.events_1', 'archive.events']],
+                ['public.events'],
+                null,
+                [],
+                ['public.events', 'archive.events'],
+            ],
+            'an excepted parent outside the selection keeps its partition' => [
+                [['archive.events_oct', 'public.events'], ['archive.cold_oct', 'cold.events']],
+                ['public.events'],
+                ['public.events', 'cold.events'],
+                [],
+                ['archive.cold_oct'],
+            ],
+            'an excepted root above an intermediate outside the selection keeps the leaf' => [
+                [['archive.events_oct', 'cold.events_2026'], ['archive.other_oct', 'cold.other_2026']],
+                ['events'],
+                ['cold.events_2026', 'cold.other_2026'],
+                [
+                    (object) ['name' => 'cold.events_2026', 'partition_of' => 'public.events'],
+                    (object) ['name' => 'cold.other_2026', 'partition_of' => 'public.other'],
+                ],
+                ['archive.other_oct'],
+            ],
+        ];
     }
 
     public function testExecuteBlueprintCompilesOnceAndExecutesStatementsInOrder(): void

@@ -389,7 +389,12 @@ class DatabasePostgresBuilderTest extends TestCase
         $connection->expects('getSchemaGrammar')->andReturn($grammar);
         $connection->expects('getPostProcessor')->andReturn($processor);
         $grammar->expects('compileTables')->andReturn('sql');
-        $processor->expects('processTables')->andReturn([['name' => 'users', 'schema' => 'public', 'schema_qualified_name' => 'public.users']]);
+        $processor->expects('processTables')->andReturn([
+            ['name' => 'foo', 'schema' => 'public', 'schema_qualified_name' => 'public.foo', 'partition_of' => null],
+            ['name' => 'foo_1', 'schema' => 'public', 'schema_qualified_name' => 'public.foo_1', 'partition_of' => 'public.foo'],
+            ['name' => 'users', 'schema' => 'public', 'schema_qualified_name' => 'public.users', 'partition_of' => null],
+            ['name' => 'users_1', 'schema' => 'public', 'schema_qualified_name' => 'public.users_1', 'partition_of' => 'public.users'],
+        ]);
         $connection->expects('selectFromWriteConnection')->with('sql')->andReturn([['name' => 'users', 'schema' => 'public', 'schema_qualified_name' => 'public.users']]);
         $grammar->expects('compileDropAllTables')->with(['public.users'])->andReturn('drop table "public"."users" cascade');
         $connection->expects('statement')->with('drop table "public"."users" cascade')->andReturnTrue();
@@ -408,7 +413,7 @@ class DatabasePostgresBuilderTest extends TestCase
         $processor = m::mock(PostgresProcessor::class);
         $connection->expects('getSchemaGrammar')->andReturn($grammar);
         $connection->expects('getPostProcessor')->andReturn($processor);
-        $processor->expects('processTables')->andReturn([['name' => 'users', 'schema' => 'foouser', 'schema_qualified_name' => 'foouser.users']]);
+        $processor->expects('processTables')->andReturn([['name' => 'users', 'schema' => 'foouser', 'schema_qualified_name' => 'foouser.users', 'partition_of' => null]]);
         $grammar->expects('compileTables')->andReturn('sql');
         $connection->expects('selectFromWriteConnection')->with('sql')->andReturn([['name' => 'users', 'schema' => 'foouser', 'schema_qualified_name' => 'foouser.users']]);
         $grammar->expects('compileDropAllTables')->with(['foouser.users'])->andReturn('drop table "foouser"."users" cascade');
@@ -433,7 +438,7 @@ class DatabasePostgresBuilderTest extends TestCase
         $processor = m::mock(PostgresProcessor::class);
         $connection->expects('getSchemaGrammar')->andReturn($grammar);
         $connection->expects('getPostProcessor')->andReturn($processor);
-        $processor->expects('processTables')->andReturn([['name' => 'users', 'schema' => 'foouser', 'schema_qualified_name' => 'foouser.users']]);
+        $processor->expects('processTables')->andReturn([['name' => 'users', 'schema' => 'foouser', 'schema_qualified_name' => 'foouser.users', 'partition_of' => null]]);
         $grammar->expects('compileTables')->andReturn('sql');
         $connection->expects('selectFromWriteConnection')->with('sql')->andReturn([['name' => 'users', 'schema' => 'foouser', 'schema_qualified_name' => 'foouser.users']]);
         $grammar->expects('compileDropAllTables')->with(['foouser.users'])->andReturn('drop table "foouser"."users" cascade');
@@ -453,7 +458,7 @@ class DatabasePostgresBuilderTest extends TestCase
         $builder = m::mock(PostgresBuilder::class, [$connection])->makePartial();
         $builder->shouldReceive('getCurrentSchemaListing')->once()->andReturn(['public']);
         $builder->shouldReceive('getTables')->once()->with(['public'])->andReturn([
-            ['name' => 'users', 'schema_qualified_name' => 'public.users'],
+            ['name' => 'users', 'schema_qualified_name' => 'public.users', 'partition_of' => null],
         ]);
         $statement = $grammar->compileDropAllTables(['public.users']);
         $connection->shouldReceive('statement')->once()->with($statement)->andReturnFalse();

@@ -12,6 +12,7 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Fluent;
 use Hypervel\Support\Stringable;
 use Override;
+use RuntimeException;
 
 /**
  * @property MySqlConnection $connection
@@ -177,6 +178,10 @@ class MySqlGrammar extends Grammar
      */
     public function compileCreate(Blueprint $blueprint, Fluent $command): string
     {
+        if (! is_null($blueprint->rangePartitionColumns)) {
+            throw new RuntimeException('This database driver does not support table partitioning.');
+        }
+
         $sql = $this->compileCreateTable(
             $blueprint,
             $command
@@ -892,6 +897,22 @@ class MySqlGrammar extends Grammar
         }
 
         return 'blob';
+    }
+
+    /**
+     * Create the column definition for a medium binary type.
+     */
+    protected function typeMediumBinary(Fluent $column): string
+    {
+        return 'mediumblob';
+    }
+
+    /**
+     * Create the column definition for a long binary type.
+     */
+    protected function typeLongBinary(Fluent $column): string
+    {
+        return 'longblob';
     }
 
     /**
