@@ -936,6 +936,9 @@ class DataBenchmark
     private function environment(): array
     {
         $commit = trim((string) shell_exec('git rev-parse HEAD 2>/dev/null'));
+        // The ini settings can differ from what is running, so the status reports OPcache and JIT as they are.
+        $opcache = function_exists('opcache_get_status') ? opcache_get_status(false) : false;
+        $jitActive = is_array($opcache) && ($opcache['jit']['on'] ?? false);
 
         return [
             'timestamp' => gmdate(DATE_ATOM),
@@ -943,8 +946,8 @@ class DataBenchmark
             'php' => PHP_VERSION,
             'os' => php_uname(),
             'extensions' => get_loaded_extensions(),
-            'opcache_enabled' => ini_get('opcache.enable_cli') ?: '0',
-            'jit' => ini_get('opcache.jit') ?: 'disabled',
+            'opcache_enabled' => is_array($opcache) && $opcache['opcache_enabled'] ? '1' : '0',
+            'jit' => $jitActive ? (string) ini_get('opcache.jit') : 'disabled',
             'operations_per_sample' => $this->operations,
             'samples' => $this->samples,
             'warmup_operations' => $this->warmup,
