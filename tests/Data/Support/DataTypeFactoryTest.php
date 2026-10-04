@@ -18,7 +18,10 @@ use Hypervel\Data\Support\Types\NamedType;
 use Hypervel\Data\Support\Types\PhpDocTypeNameResolver;
 use Hypervel\Data\Support\Types\UnionType;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Collection;
+use Hypervel\Tests\Data\Fixtures\Collections\SimpleDataCollection;
+use Hypervel\Tests\Data\Fixtures\SimpleData;
 use Hypervel\Tests\Data\Fixtures\Types\ImportedData as GroupedImportedData;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -215,6 +218,28 @@ class DataTypeFactoryTest extends TestCase
         ], $types);
     }
 
+    public function testCollectionClassItemTypesApplyAfterDeclaredItemTypes(): void
+    {
+        // The collection class imports SimpleData by its short name, so it resolves in the collection's own file.
+        $this->assertSame(
+            SimpleData::class,
+            $this->property('classAnnotatedCollection')->getDataCollectableType()?->dataClass,
+        );
+        $this->assertSame(
+            DataTypeFactoryFirstItemData::class,
+            $this->property('attributeOverCollectionClass')->getDataCollectableType()?->dataClass,
+        );
+        $this->assertSame(
+            DataTypeFactorySecondItemData::class,
+            $this->property('annotationOverCollectionClass')->getDataCollectableType()?->dataClass,
+        );
+
+        $eloquent = $this->property('eloquentCollection')->getNamedTypes()[0];
+
+        $this->assertSame(DataTypeKind::Enumerable, $eloquent->kind);
+        $this->assertSame(Model::class, $eloquent->iterableItemType?->getNamedTypes()[0]->name);
+    }
+
     /**
      * Test data object declarations and float widening.
      */
@@ -244,7 +269,7 @@ class DataTypeFactoryTest extends TestCase
      */
     public function testInheritedNativeTypesUseTheirPhpScopes(): void
     {
-        $factory = new DataTypeFactory(new PhpDocTypeNameResolver);
+        $factory = new DataTypeFactory(new PhpDocTypeNameResolver, new DataIterableAnnotationReader);
         $target = new ReflectionClass(DataTypeFactoryNativeChild::class);
         $selfProperty = new ReflectionProperty(DataTypeFactoryNativeChild::class, 'selfValue');
         $parentProperty = new ReflectionProperty(DataTypeFactoryNativeChild::class, 'parentValue');
@@ -340,7 +365,7 @@ class DataTypeFactoryTest extends TestCase
         $property = new ReflectionProperty($className, $name);
         $attributes = DataAttributesCollectionFactory::buildFromReflectionProperty($property);
 
-        return (new DataTypeFactory(new PhpDocTypeNameResolver))->buildProperty(
+        return (new DataTypeFactory(new PhpDocTypeNameResolver, new DataIterableAnnotationReader))->buildProperty(
             $property->getType(),
             $class,
             $property,
@@ -442,6 +467,16 @@ class DataTypeFactoryFixture
 
     /** @var Collection<int, DataTypeFactorySecondItemData>|DataTypeFactoryFirstItemData[] */
     public array|Collection $shorthandWithExactArm;
+
+    public SimpleDataCollection $classAnnotatedCollection;
+
+    #[DataCollectionOf(DataTypeFactoryFirstItemData::class)]
+    public SimpleDataCollection $attributeOverCollectionClass;
+
+    /** @var SimpleDataCollection<int, DataTypeFactorySecondItemData> */
+    public SimpleDataCollection $annotationOverCollectionClass;
+
+    public EloquentCollection $eloquentCollection;
 
     public float $float;
 }

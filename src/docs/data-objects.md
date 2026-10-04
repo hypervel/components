@@ -249,7 +249,7 @@ $data = $user->getData();
 
 You may instead return the class from a `dataClass()` method. The `$dataClass` property takes precedence when both are declared.
 
-When a FormRequest uses `WithData`, `getData()` runs the associated data class's authorization and validation rules. It does not reuse the FormRequest's rules. Pass `$request->validated()` directly to `UserData::from()` when you want to construct from the FormRequest's validated result instead.
+When a FormRequest uses `WithData`, `getData()` runs the associated data class's authorization and validation rules. It does not reuse the FormRequest's rules. To construct from the FormRequest's validated result instead, pass `$request->validated()` directly to `UserData::from()` or enable the [`FormRequestNormalizer`](#casts-and-transformers).
 
 <a name="defaults-null-and-optional-values"></a>
 ### Defaults, Null, and Optional Values
@@ -425,7 +425,7 @@ Mapped input paths may use dot notation. When both the mapped input path and PHP
 <a name="type-conversion"></a>
 ## Type Conversion
 
-`from` casts supported scalar values, backed enums, dates, nested data objects, and typed iterables to their declared PHP types. Values that already have the declared type are kept as-is.
+`from` casts supported scalar values, backed enums, dates, nested data objects, and typed iterables to their declared PHP types. Values that already have the declared type are kept as-is. Scalars, including typed iterable items, follow PHP's own weak typing: `'42'` becomes `42`, while a value PHP cannot convert, such as `'abc'` for an `int` or an array for a `string`, fails with PHP's `TypeError`. The strings `'true'` and `'false'` become booleans, and a scalar becomes a one-item array.
 
 ```php
 class ProductData extends Data
@@ -593,7 +593,7 @@ class TeamData extends Data
 }
 ```
 
-The same typed item conversion works for arrays, ordinary collections, lazy collections, and supported paginator types. `DataCollectionOf` is preferred for generated classes because it declares the item type explicitly.
+The same typed item conversion works for arrays, ordinary collections, lazy collections, and supported paginator types. A paginator property must receive a Hypervel paginator or paginated data collection, since an array has no pagination details to keep. `DataCollectionOf` is preferred for generated classes because it declares the item type explicitly.
 
 <a name="backed-enums"></a>
 ### Backed Enums
@@ -669,7 +669,7 @@ A cast implements `Hypervel\Data\Casts\Cast`; a transformer implements `Hypervel
 
 A cast on a nested data object or data collection property receives the input before Hypervel builds any nested objects, so it may build them itself. Without validation, the cast receives the value exactly as it was given. When the object is validated, the value is first prepared and checked against the rules of its declared types, as it would be without the cast: models, objects, and collections become the arrays they would be built from, and the cast receives the validated arrays. A value that only the cast or a named method could interpret, such as a string for a nested data object, therefore fails validation. When every cast returns `Uncastable`, Hypervel builds the nested objects from the validated input. Named methods and constructors beneath the cast run only then, and a named method still receives the value it matched.
 
-A cast's `cast` method receives the property, its input value, the object's declared property values keyed by property name, and the `CreationContext`. Undeclared input, contextual constructor values, and computed properties are not included. Properties that come earlier in the class have already been cast. Later properties contain their supplied input, or the default, `Optional`, or `null` value the object will receive when their input is absent. A value the constructor will assign to a property outside the constructor is not known yet:
+A cast's `cast` method receives the property, its input value, the object's declared property values keyed by property name, and the `CreationContext`. The context holds the options for the whole creation, so its `dataClass` is the class the creation started with. Undeclared input, contextual constructor values, and computed properties are not included. Properties that come earlier in the class have already been cast. Later properties contain their supplied input, or the default, `Optional`, or `null` value the object will receive when their input is absent. A value the constructor will assign to a property outside the constructor is not known yet:
 
 ```php
 use Hypervel\Data\Casts\Cast;
@@ -689,6 +689,14 @@ Use `Castable` when a value class owns its input conversion, `IterableItemCast` 
 
 Custom normalizers convert a source value into input before Hypervel reads its properties. Declare normalizers for a data class with `normalizers()` or add them to a factory with `withNormalizers()`. Prefer a typed named factory when only one source type needs special handling.
 
+By default, a form request is read like any other request, and the data object validates the input with its own rules. To create data objects only from the input a form request has validated, add the optional `FormRequestNormalizer` to the `normalizers` option in `config/data.php`, or to a single class's `normalizers()`:
+
+```php
+'normalizers' => [
+    Hypervel\Data\Normalizers\FormRequestNormalizer::class,
+],
+```
+
 During a single creation or transformation, Hypervel may reuse the same cast, transformer, or normalizer instance for every matching value. Do not store per-value state on the extension object itself.
 
 <a name="validation"></a>
@@ -707,7 +715,7 @@ $validated = UserData::validate($payload);
 $rules = UserData::getValidationRules($payload);
 ```
 
-Hypervel infers presence, nullable, scalar, enum, date, nested data, and typed collection rules from your PHP declarations. These rules cover the entire nested object, including items within typed collections. Uniform collections use wildcard rules, while collections with different item shapes or rules use exact indexed rules.
+Hypervel infers presence, nullable, scalar, enum, date, nested data, and typed collection rules from your PHP declarations. These rules cover the entire nested object, including items within typed collections. A required collection of data objects must be present but may be empty. Uniform collections use wildcard rules, while collections with different item shapes or rules use exact indexed rules.
 
 To adjust the rules of every data property, add your own rule inferrers to the `data.rule_inferrers` configuration option. An inferrer implements `Hypervel\Data\RuleInferrers\RuleInferrer`. After Hypervel's own inference, it receives the property, its rules, and a `ValidationContext`:
 
@@ -854,6 +862,14 @@ The `beforeCreation` hook receives the cast values that will be passed to the co
 
 Each call to `factory()` returns a new factory. Keep a reused factory scoped to the current operation instead of storing it across requests.
 
+A cast or named method that creates another data object may pass its `CreationContext` to `factory()` so the new object uses the same options:
+
+```php
+return AddressData::factory($context)->from($value);
+```
+
+The validation strategy, name mapping, named-method settings, casts, and normalizers are copied. Hooks are not, because they belong to the original creation.
+
 <a name="transformation"></a>
 ## Transformation
 
@@ -953,7 +969,7 @@ $collection = UserData::collect($rows, Collection::class);
 $array = UserData::collect($rows, 'array');
 ```
 
-The `$into` argument accepts `null`, `'array'`, or a class name. When the target comes from configuration, narrow it to a `class-string` before passing it so static analysis can infer the return type. When `$into` is `null`, arrays remain arrays, ordinary collections remain collections, and lazy collections remain lazy unless validation needs to read their values. Hypervel paginators are cloned with their pagination details intact. Eloquent collections become base support collections because data objects are not Eloquent models.
+The `$into` argument accepts `null`, `'array'`, or a class name. When the target comes from configuration, narrow it to a `class-string` before passing it so static analysis can infer the return type. When `$into` is `null`, arrays remain arrays, ordinary collections remain collections, and lazy collections remain lazy unless validation needs to read their values. Hypervel paginators are cloned with their pagination details intact. A paginator target requires a Hypervel paginator source because arrays and collections have no pagination details to keep. Eloquent collections become base support collections because data objects are not Eloquent models.
 
 Collecting `null` items into an `'array'` or collection target returns that target empty, which suits optional relations and missing input. Without a target, or into a paginator target, `null` is rejected.
 
@@ -1119,7 +1135,7 @@ class UpdatePostData extends Data
 }
 ```
 
-Contextual values are resolved only after validation succeeds. They always take precedence over input and creation hooks, including when the resolved value is `null`. Input supplied for a promoted contextual property is allowed by strict unknown-field validation but is ignored. A non-promoted contextual parameter with its own name is passed only to the constructor. Use a named factory or creation hook without the contextual attribute when input should take precedence.
+Contextual values are resolved only after validation succeeds. They always take precedence over input and creation hooks, including when the resolved value is `null`. A promoted property's value is converted to its declared type like other input, without validation, so a `'123'` route parameter becomes an `int` and an array becomes a nested data object. Input supplied for a promoted contextual property is allowed by strict unknown-field validation but is ignored. A non-promoted contextual parameter with its own name is passed only to the constructor. Use a named factory or creation hook without the contextual attribute when input should take precedence.
 
 `CurrentUser` and `RouteParameter` accept an optional `property` path and use `data_get()` semantics. Accessors and Eloquent relations may run while traversing that path. `RequestAttribute` selects an exact request attribute key. The `Config`, `Context`, and `Give` attributes are also supported, as are custom contextual attributes.
 

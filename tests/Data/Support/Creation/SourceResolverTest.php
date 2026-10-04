@@ -35,15 +35,26 @@ class SourceResolverTest extends TestCase
             }
         };
 
-        $this->assertSame([], SourceResolver::resolve(null, [$normalizer]));
-        $this->assertSame($normalized, SourceResolver::resolve($normalized, [$normalizer]));
+        $this->assertNull(SourceResolver::normalize(null, [$normalizer]));
+        $this->assertNull(SourceResolver::normalize($normalized, [$normalizer]));
+        $this->assertSame([], SourceResolver::resolve(null));
+        $this->assertSame($normalized, SourceResolver::resolve($normalized));
     }
 
     /**
-     * Test class and configured normalizers run before fixed source handling.
+     * Test the first non-null custom normalizer result wins, including an empty array.
      */
-    public function testFirstCustomNormalizerWinsBeforeFixedArrayHandling(): void
+    public function testFirstCustomNormalizerResultWins(): void
     {
+        $empty = new class implements Normalizer {
+            /**
+             * Read every value as empty input.
+             */
+            public function normalize(mixed $value): array|Normalized|null
+            {
+                return [];
+            }
+        };
         $skipped = new class implements Normalizer {
             public function normalize(mixed $value): array|Normalized|null
             {
@@ -59,8 +70,10 @@ class SourceResolverTest extends TestCase
 
         $this->assertSame(
             ['custom' => 'value'],
-            SourceResolver::resolve(['original' => 'value'], [$skipped, $accepted]),
+            SourceResolver::normalize(['original' => 'value'], [$skipped, $accepted, $empty]),
         );
+        $this->assertSame([], SourceResolver::normalize(['original' => 'value'], [$skipped, $empty, $accepted]));
+        $this->assertNull(SourceResolver::normalize(['original' => 'value'], [$skipped]));
     }
 
     /**
@@ -87,18 +100,18 @@ class SourceResolverTest extends TestCase
         $model = new class extends Model {
         };
 
-        $this->assertSame(['array' => true], SourceResolver::resolve(['array' => true], []));
-        $this->assertSame(['request' => true], SourceResolver::resolve($request, []));
-        $this->assertSame(['source' => 'arrayable'], SourceResolver::resolve($arrayable, []));
-        $this->assertSame(['initialized' => 'value'], SourceResolver::resolve($object, []));
-        $this->assertSame(['json' => true], SourceResolver::resolve('{"json":true}', []));
-        $this->assertInstanceOf(NormalizedModel::class, SourceResolver::resolve($model, []));
+        $this->assertSame(['array' => true], SourceResolver::resolve(['array' => true]));
+        $this->assertSame(['request' => true], SourceResolver::resolve($request));
+        $this->assertSame(['source' => 'arrayable'], SourceResolver::resolve($arrayable));
+        $this->assertSame(['initialized' => 'value'], SourceResolver::resolve($object));
+        $this->assertSame(['json' => true], SourceResolver::resolve('{"json":true}'));
+        $this->assertInstanceOf(NormalizedModel::class, SourceResolver::resolve($model));
     }
 
-    public function testReturnsNullWhenNoFixedOrCustomNormalizerAcceptsTheValue(): void
+    public function testReturnsNullWhenFixedHandlingCannotReadTheValue(): void
     {
         foreach ([42, 'not-json', 'null'] as $value) {
-            $this->assertNull(SourceResolver::resolve($value, []));
+            $this->assertNull(SourceResolver::resolve($value));
         }
     }
 }

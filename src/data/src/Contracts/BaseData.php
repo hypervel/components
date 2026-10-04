@@ -13,6 +13,7 @@ use Hypervel\Data\CursorPaginatedDataCollection;
 use Hypervel\Data\DataCollection;
 use Hypervel\Data\Normalizers\Normalizer;
 use Hypervel\Data\PaginatedDataCollection;
+use Hypervel\Data\Support\Creation\CreationContext;
 use Hypervel\Data\Support\Creation\CreationContextFactory;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
@@ -113,11 +114,11 @@ interface BaseData extends RequestCastable, SelfBuilding
     public static function collect(mixed $items, ?string $into = null): array|DataCollection|PaginatedDataCollection|CursorPaginatedDataCollection|Enumerable|AbstractPaginator|PaginatorContract|AbstractCursorPaginator|CursorPaginatorContract|LazyCollection|Collection;
 
     /**
-     * Create a data construction factory.
+     * Create a data construction factory, optionally with another creation's options.
      *
      * @return CreationContextFactory<static>
      */
-    public static function factory(): CreationContextFactory;
+    public static function factory(?CreationContext $creationContext = null): CreationContextFactory;
 
     /**
      * Get the data normalizers.

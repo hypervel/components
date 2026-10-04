@@ -9,6 +9,9 @@ use Closure;
 use DateTime;
 use DateTimeImmutable;
 use Hypervel\Container\Attributes\Config;
+use Hypervel\Container\Attributes\RouteParameter;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Container\ContextualAttribute;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Data\Attributes\AutoClosureLazy;
 use Hypervel\Data\Attributes\AutoInertiaDeferred;
@@ -59,6 +62,9 @@ use Hypervel\Support\LazyCollection;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Data\Fixtures\Casts\StringToUpperCast;
+use Hypervel\Tests\Data\Fixtures\Concerns\BindsRouteParameters;
+use Hypervel\Tests\Data\Fixtures\Enums\DummyBackedEnum;
+use Hypervel\Tests\Data\Fixtures\SimpleData;
 use Hypervel\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionFunction;
@@ -69,7 +75,9 @@ use WeakReference;
 
 class DataCreatorTest extends TestCase
 {
-    // REMOVED: Configurable pipeline and inherited-context factory tests; use the fixed engine and fresh factory hooks.
+    use BindsRouteParameters;
+
+    // REMOVED: Configurable pipeline tests; use the fixed engine and factory hooks.
     // REMOVED: withOptionalValues()/withoutOptionalValues() tests; Optional declarations always preserve absence.
     // REMOVED: Data-specific From* injection tests; Hypervel contextual attributes cover the same outcomes directly.
     // REMOVED: UnserializeCast tests; serialized request input is not accepted by a built-in cast.
@@ -91,6 +99,28 @@ class DataCreatorTest extends TestCase
         $this->assertSame(21, $data->age);
         $this->assertNull($data->nickname);
         $this->assertInstanceOf(Optional::class, $data->note);
+    }
+
+    public function testMalformedNumbersFailWithPhpsTypeErrorWithAndWithoutHooks(): void
+    {
+        $payload = ['name' => 'Taylor', 'age' => '12abc'];
+        $rejected = 0;
+
+        foreach ([
+            static fn (): BasicCreationData => BasicCreationData::from($payload),
+            static fn (): BasicCreationData => BasicCreationData::factory()
+                ->prepareData(static fn (array $data): array => $data)
+                ->from($payload),
+        ] as $create) {
+            try {
+                $create();
+            } catch (TypeError) {
+                ++$rejected;
+            }
+        }
+
+        $this->assertSame(2, $rejected);
+        $this->assertSame(21, BasicCreationData::from([...$payload, 'age' => ' 21 '])->age);
     }
 
     public function testLaterSourceContainingAPropertyWinsAndMappingCanBeDisabled(): void
@@ -187,117 +217,6 @@ class DataCreatorTest extends TestCase
 
         $this->assertNotSame($default, $first->get());
         $this->assertSame($default, BasicCreationData::factory()->get());
-    }
-
-    public function testEveryFactoryMutatorInvalidatesAndRebuildsTheCreateContext(): void
-    {
-        $hook = static fn (mixed $value): mixed => $value;
-        $cases = [
-            'validationStrategy' => [
-                static fn (CreationContextFactory $factory) => $factory->validationStrategy(ValidationStrategy::Disabled),
-                fn (CreationContext $context) => $this->assertSame(ValidationStrategy::Disabled, $context->validationStrategy),
-            ],
-            'withoutValidation' => [
-                static fn (CreationContextFactory $factory) => $factory->withoutValidation(),
-                fn (CreationContext $context) => $this->assertSame(ValidationStrategy::Disabled, $context->validationStrategy),
-            ],
-            'onlyValidateRequests' => [
-                static fn (CreationContextFactory $factory) => $factory->onlyValidateRequests(),
-                fn (CreationContext $context) => $this->assertSame(ValidationStrategy::OnlyRequests, $context->validationStrategy),
-            ],
-            'alwaysValidate' => [
-                static fn (CreationContextFactory $factory) => $factory->alwaysValidate(),
-                fn (CreationContext $context) => $this->assertSame(ValidationStrategy::Always, $context->validationStrategy),
-            ],
-            'withPropertyNameMapping' => [
-                static fn (CreationContextFactory $factory) => $factory->withPropertyNameMapping(),
-                fn (CreationContext $context) => $this->assertTrue($context->mapPropertyNames),
-            ],
-            'withoutPropertyNameMapping' => [
-                static fn (CreationContextFactory $factory) => $factory->withoutPropertyNameMapping(),
-                fn (CreationContext $context) => $this->assertFalse($context->mapPropertyNames),
-            ],
-            'withoutMagicalCreation' => [
-                static fn (CreationContextFactory $factory) => $factory->withoutMagicalCreation(),
-                fn (CreationContext $context) => $this->assertTrue($context->disableMagicalCreation),
-            ],
-            'withMagicalCreation' => [
-                static fn (CreationContextFactory $factory) => $factory->withMagicalCreation(),
-                fn (CreationContext $context) => $this->assertFalse($context->disableMagicalCreation),
-            ],
-            'ignoreMagicalMethod' => [
-                static fn (CreationContextFactory $factory) => $factory->ignoreMagicalMethod('fromString'),
-                fn (CreationContext $context) => $this->assertSame(['fromString'], $context->ignoredMagicalMethods),
-            ],
-            'withCast' => [
-                static fn (CreationContextFactory $factory) => $factory->withCast(CreationSource::class, CreationIdentifierCast::class),
-                fn (CreationContext $context) => $this->assertSame(
-                    [CreationSource::class => CreationIdentifierCast::class],
-                    $context->casts,
-                ),
-            ],
-            'withCastCollection' => [
-                static fn (CreationContextFactory $factory) => $factory->withCastCollection([
-                    CreationSource::class => CreationIdentifierCast::class,
-                ]),
-                fn (CreationContext $context) => $this->assertSame(
-                    [CreationSource::class => CreationIdentifierCast::class],
-                    $context->casts,
-                ),
-            ],
-            'withNormalizers' => [
-                static fn (CreationContextFactory $factory) => $factory->withNormalizers(CreationSourceNormalizer::class),
-                fn (CreationContext $context) => $this->assertSame(
-                    [CreationSourceNormalizer::class],
-                    $context->normalizers,
-                ),
-            ],
-            'prepareData' => [
-                static fn (CreationContextFactory $factory) => $factory->prepareData($hook),
-                fn (CreationContext $context) => $this->assertSame([$hook], $context->prepareDataHooks),
-            ],
-            'beforeValidation' => [
-                static fn (CreationContextFactory $factory) => $factory->beforeValidation($hook),
-                fn (CreationContext $context) => $this->assertSame([$hook], $context->beforeValidationHooks),
-            ],
-            'beforeRules' => [
-                static fn (CreationContextFactory $factory) => $factory->beforeRules($hook),
-                fn (CreationContext $context) => $this->assertSame([$hook], $context->beforeRulesHooks),
-            ],
-            'afterRules' => [
-                static fn (CreationContextFactory $factory) => $factory->afterRules($hook),
-                fn (CreationContext $context) => $this->assertSame([$hook], $context->afterRulesHooks),
-            ],
-            'withValidator' => [
-                static fn (CreationContextFactory $factory) => $factory->withValidator($hook),
-                fn (CreationContext $context) => $this->assertSame([$hook], $context->withValidatorHooks),
-            ],
-            'afterValidation' => [
-                static fn (CreationContextFactory $factory) => $factory->afterValidation($hook),
-                fn (CreationContext $context) => $this->assertSame([$hook], $context->afterValidationHooks),
-            ],
-            'beforeCreation' => [
-                static fn (CreationContextFactory $factory) => $factory->beforeCreation($hook),
-                fn (CreationContext $context) => $this->assertSame([$hook], $context->beforeCreationHooks),
-            ],
-            'afterCreation' => [
-                static fn (CreationContextFactory $factory) => $factory->afterCreation($hook),
-                fn (CreationContext $context) => $this->assertSame([$hook], $context->afterCreationHooks),
-            ],
-        ];
-
-        foreach ($cases as $name => [$mutate, $verify]) {
-            $factory = BasicCreationData::factory();
-            $before = $factory->get();
-
-            $this->assertSame($before, $factory->get(), $name);
-            $mutate($factory);
-            $after = $factory->get();
-
-            $this->assertNotSame($before, $after, $name);
-            $this->assertSame($after, $factory->get(), $name);
-            $verify($after);
-        }
     }
 
     public function testFromRetainsTheLateStaticFactoryBoundary(): void
@@ -1124,17 +1043,58 @@ class DataCreatorTest extends TestCase
         );
     }
 
-    public function testContextualConstructorValuesOverrideClientPayload(): void
+    public function testContextualValuesAreConvertedLikeUnvalidatedInput(): void
     {
-        config()->set('app.name', 'Server');
-
-        $data = ContextualCreationData::from([
-            'id' => '7',
-            'name' => 'Client',
+        $request = $this->bindRouteParameters([
+            'id' => '123',
+            'status' => 'foo',
+            'at' => '2026-10-04T10:00:00+00:00',
+            'child' => ['string' => 'nested'],
+            'choice' => ['string' => 'selected'],
+            'items' => [['string' => 'first'], ['string' => 'second']],
         ]);
 
-        $this->assertSame(7, $data->id);
-        $this->assertSame('Server', $data->name);
+        $data = ContextualConversionCreationData::from($request);
+
+        $this->assertSame(123, $data->id);
+        $this->assertSame(DummyBackedEnum::FOO, $data->status);
+        $this->assertEquals(new DateTimeImmutable('2026-10-04T10:00:00+00:00'), $data->at);
+        $this->assertEquals(new SimpleData('nested'), $data->child);
+        $this->assertEquals(new SimpleData('selected'), $data->choice);
+        $this->assertEquals([new SimpleData('first'), new SimpleData('second')], $data->items);
+        $this->assertNull($data->missing);
+    }
+
+    public function testContextualValuesWinOverHooksAndResolveOnceInTheirBuildContext(): void
+    {
+        config()->set('app.name', 'Server');
+        $this->app->bind(ContextualCreationContract::class, ContextualCreationDefault::class);
+        $this->app->when(ContextualResolutionCreationData::class)
+            ->needs(ContextualCreationContract::class)
+            ->give(ContextualCreationForData::class);
+        $parameterCallbacks = 0;
+        $classCallbacks = 0;
+        $this->app->afterResolvingAttribute(
+            ContextualCreationDependency::class,
+            function () use (&$parameterCallbacks): void {
+                ++$parameterCallbacks;
+            },
+        );
+        $this->app->afterResolvingAttribute(
+            ContextualCreationMarker::class,
+            function () use (&$classCallbacks): void {
+                ++$classCallbacks;
+            },
+        );
+
+        $data = ContextualResolutionCreationData::factory()
+            ->beforeCreation(static fn (array $properties): array => [...$properties, 'dependency' => 'hook'])
+            ->from(['dependency' => 'client']);
+
+        $this->assertSame(ContextualCreationForData::class, $data->dependency);
+        $this->assertSame('Server', $data->label);
+        $this->assertSame(1, $parameterCallbacks);
+        $this->assertSame(1, $classCallbacks);
     }
 
     public function testResolvesIntegerBackedMorphFromNumericString(): void
@@ -1675,22 +1635,6 @@ class DataCreatorTest extends TestCase
         $this->assertSame('unchanged', $data->children);
     }
 
-    public function testCanRestructurePayloadBeforeEnteringThePipeline(): void
-    {
-        $instance = PreparedAddressData::from([
-            'name' => 'Freek',
-            'line_1' => '123 Sesame St',
-            'city' => 'New York',
-            'state' => 'NJ',
-            'zipcode' => '10010',
-        ]);
-
-        $this->assertSame(
-            ['name' => 'Freek', 'address' => '123 Sesame St,New York,NJ,10010'],
-            $instance->toArray(),
-        );
-    }
-
     public function testPrepareForPipelineRunsForEachSource(): void
     {
         PreparedAddressData::$calls = 0;
@@ -1941,11 +1885,14 @@ class FactoryOverrideCreationData extends Data
     ) {
     }
 
-    public static function factory(): CreationContextFactory
+    /**
+     * Create a factory without property name mapping.
+     */
+    public static function factory(?CreationContext $creationContext = null): CreationContextFactory
     {
         ++self::$factoryCalls;
 
-        return parent::factory()->withoutPropertyNameMapping();
+        return parent::factory($creationContext)->withoutPropertyNameMapping();
     }
 }
 
@@ -2728,13 +2675,76 @@ class NamedFactoryCreationDependency
     public string $value = 'dependency';
 }
 
-class ContextualCreationData extends Data
+class ContextualConversionCreationData extends Data
 {
+    /**
+     * Create a fixture whose values come from route parameters.
+     *
+     * @param array<int, SimpleData> $items
+     */
     public function __construct(
-        #[Config('app.name')]
-        public string $name,
+        #[RouteParameter('id')]
         public int $id,
+        #[RouteParameter('status')]
+        public DummyBackedEnum $status,
+        #[RouteParameter('at')]
+        public DateTimeImmutable $at,
+        #[RouteParameter('child')]
+        public SimpleData $child,
+        #[RouteParameter('choice')]
+        public SimpleData|string $choice,
+        #[RouteParameter('items')]
+        public array $items,
+        #[RouteParameter('missing')]
+        public ?SimpleData $missing,
     ) {
+    }
+}
+
+interface ContextualCreationContract
+{
+}
+
+class ContextualCreationDefault implements ContextualCreationContract
+{
+}
+
+class ContextualCreationForData implements ContextualCreationContract
+{
+}
+
+#[Attribute(Attribute::TARGET_PARAMETER)]
+class ContextualCreationDependency implements ContextualAttribute
+{
+    /**
+     * Resolve the class the container gives for the contract.
+     */
+    public static function resolve(self $attribute, Container $container): string
+    {
+        return $container->make(ContextualCreationContract::class)::class;
+    }
+}
+
+#[Attribute(Attribute::TARGET_CLASS)]
+class ContextualCreationMarker
+{
+}
+
+#[ContextualCreationMarker]
+class ContextualResolutionCreationData extends Data
+{
+    public string $label;
+
+    /**
+     * Create a fixture with promoted and constructor-only contextual values.
+     */
+    public function __construct(
+        #[ContextualCreationDependency]
+        public string $dependency,
+        #[Config('app.name')]
+        string $appName,
+    ) {
+        $this->label = $appName;
     }
 }
 

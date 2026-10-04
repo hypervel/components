@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Data\Support\Validation\References;
 
-use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Data\Attributes\Validation\Unique;
 use Hypervel\Data\Data;
@@ -13,12 +12,13 @@ use Hypervel\Data\Exceptions\CannotResolveRouteParameterReference;
 use Hypervel\Data\Support\Validation\Constraints\WhereConstraint;
 use Hypervel\Data\Support\Validation\References\RouteParameterReference;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Http\Request;
-use Hypervel\Routing\Route;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Data\Fixtures\Concerns\BindsRouteParameters;
 
 class RouteParameterReferenceTest extends TestCase
 {
+    use BindsRouteParameters;
+
     /**
      * Get package providers for the route parameter reference tests.
      */
@@ -100,24 +100,6 @@ class RouteParameterReferenceTest extends TestCase
 
         $this->assertSame('unique:posts,NULL,"1",id', (string) $first['property'][0]);
         $this->assertSame('unique:posts,NULL,"2",id', (string) $second['property'][0]);
-    }
-
-    /**
-     * Seed the current request with a route carrying the given parameters.
-     *
-     * @param array<string, mixed> $parameters
-     */
-    private function bindRouteParameters(array $parameters): void
-    {
-        $request = Request::create('/posts');
-        $route = (new Route('GET', '/posts', static fn (): null => null))->bind($request);
-
-        foreach ($parameters as $name => $value) {
-            $route->setParameter($name, $value);
-        }
-
-        $request->setRouteResolver(static fn (): Route => $route);
-        RequestContext::set($request);
     }
 }
 

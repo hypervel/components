@@ -1238,19 +1238,56 @@ class CreationTest extends TestCase
             public array $arrays;
         };
 
-        $data = $dataClass::from([
-            'strings' => ['Hello', 42, 3.14, true, '0', 'false'],
-            'bools' => ['Hello', 42, 3.14, true, ['nested'], '0', 'false'],
-            'ints' => ['Hello', 42, 3.14, true, ['nested'], '0', 'false'],
-            'floats' => ['Hello', 42, 3.14, true, ['nested'], '0', 'false'],
-            'arrays' => ['Hello', 42, 3.14, true, ['nested'], '0', 'false'],
-        ]);
+        // Upstream's explicit casts turn every item into some value; Hypervel converts with PHP's weak typing,
+        // so items it cannot represent, such as 'Hello' for an int or an array for a bool, fail instead.
+        $deprecations = [];
+
+        set_error_handler(static function (int $severity, string $message) use (&$deprecations): bool {
+            $deprecations[] = $message;
+
+            return true;
+        }, E_DEPRECATED);
+
+        try {
+            $data = $dataClass::from([
+                'strings' => ['Hello', 42, 3.14, true, '0', 'false'],
+                'bools' => ['Hello', 42, 3.14, true, '0', 'false'],
+                'ints' => [42, '7', 3.14, true, '0'],
+                'floats' => [42, 3.14, true, '0'],
+                'arrays' => ['Hello', 42, 3.14, true, ['nested'], '0', 'false'],
+            ]);
+        } finally {
+            restore_error_handler();
+        }
 
         $this->assertSame(['Hello', '42', '3.14', '1', '0', 'false'], $data->strings);
-        $this->assertSame([true, true, true, true, true, false, false], $data->bools);
-        $this->assertSame([0, 42, 3, 1, 1, 0, 0], $data->ints);
-        $this->assertSame([0.0, 42.0, 3.14, 1.0, 1.0, 0.0, 0.0], $data->floats);
+        $this->assertSame([true, true, true, true, false, false], $data->bools);
+        $this->assertSame([42, 7, 3, 1, 0], $data->ints);
+        $this->assertSame([42.0, 3.14, 1.0, 0.0], $data->floats);
         $this->assertEquals([['Hello'], [42], [3.14], [true], ['nested'], ['0'], ['false']], $data->arrays);
+        $this->assertSame(['Implicit conversion from float 3.14 to int loses precision'], $deprecations);
+
+        $empty = ['strings' => [], 'bools' => [], 'ints' => [], 'floats' => [], 'arrays' => []];
+        $rejections = [
+            ['ints' => ['Hello']],
+            ['ints' => [['nested']]],
+            ['ints' => ['false']],
+            ['floats' => ['Hello']],
+            ['floats' => [['nested']]],
+            ['floats' => ['false']],
+            ['bools' => [['nested']]],
+        ];
+        $rejected = 0;
+
+        foreach ($rejections as $items) {
+            try {
+                $dataClass::from([...$empty, ...$items]);
+            } catch (TypeError) {
+                ++$rejected;
+            }
+        }
+
+        $this->assertSame(count($rejections), $rejected);
     }
 
     // REMOVED: EnumerableCast; the fixed engine converts iterable properties, so its cases below run without registering a cast.

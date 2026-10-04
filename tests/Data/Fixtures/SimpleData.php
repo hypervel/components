@@ -19,8 +19,8 @@ class SimpleData extends Data
     /**
      * Create the fixture from a string.
      */
-    public static function fromString(string $string): self
+    public static function fromString(string $string): static
     {
-        return new self($string);
+        return new static($string);
     }
 }

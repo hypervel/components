@@ -10,6 +10,7 @@ use Hypervel\Data\Support\Creation\CreationContext;
 use Hypervel\Data\Support\DataProperty;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use TypeError;
 
 class BuiltinTypeCastTest extends TestCase
 {
@@ -46,7 +47,59 @@ class BuiltinTypeCastTest extends TestCase
             'string types' => ['string', 42, '42'],
             'array types' => ['array', (object) ['key' => 'value'], ['key' => 'value']],
             'scalar to array' => ['array', 'value', ['value']],
+            'numeric string with whitespace and exponent to int' => ['int', ' 1e3 ', 1000],
+            'boolean to int' => ['int', true, 1],
+            'stringable to string' => ['string', new BuiltinTypeCastStringable, 'stringable'],
         ];
+    }
+
+    #[DataProvider('invalidValueProvider')]
+    public function testRejectsValuesPhpWouldNotConvert(string $type, mixed $value): void
+    {
+        $context = new CreationContext(BuiltinTypeCastDataFixture::class);
+        $property = $this->createStub(DataProperty::class);
+        $cast = new BuiltinTypeCast($type);
+
+        $rejected = 0;
+
+        foreach ([$cast->cast(...), $cast->castIterableItem(...)] as $convert) {
+            try {
+                $convert($property, $value, [], $context);
+            } catch (TypeError) {
+                ++$rejected;
+            }
+        }
+
+        $this->assertSame(2, $rejected);
+    }
+
+    /**
+     * Provide values PHP's weak typing rejects for the target type.
+     */
+    public static function invalidValueProvider(): array
+    {
+        return [
+            'non-numeric string to int' => ['int', 'abc'],
+            'leading-numeric string to int' => ['int', '12abc'],
+            'empty string to int' => ['int', ''],
+            'not-a-number to int' => ['int', NAN],
+            'non-numeric string to float' => ['float', 'x'],
+            'array to int' => ['int', []],
+            'array to string' => ['string', ['value']],
+            'array to bool' => ['bool', []],
+            'object to bool' => ['bool', new BuiltinTypeCastStringable],
+        ];
+    }
+}
+
+class BuiltinTypeCastStringable
+{
+    /**
+     * Get the string form.
+     */
+    public function __toString(): string
+    {
+        return 'stringable';
     }
 }
 

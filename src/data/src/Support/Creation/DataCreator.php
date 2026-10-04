@@ -94,13 +94,25 @@ class DataCreator
     /**
      * Create a fresh construction factory for a data class.
      *
+     * A given creation context supplies its options, but not its hooks, which belong to its own operation.
+     *
      * @template TData of BaseData
      *
      * @param class-string<TData> $class
      * @return CreationContextFactory<TData>
      */
-    public function factory(string $class): CreationContextFactory
+    public function factory(string $class, ?CreationContext $creationContext = null): CreationContextFactory
     {
+        if ($creationContext !== null) {
+            return (new CreationContextFactory($this, $this->config, $class))
+                ->validationStrategy($creationContext->validationStrategy)
+                ->withPropertyNameMapping($creationContext->mapPropertyNames)
+                ->withoutMagicalCreation($creationContext->disableMagicalCreation)
+                ->ignoreMagicalMethod(...$creationContext->ignoredMagicalMethods)
+                ->withCastCollection($creationContext->casts)
+                ->withNormalizers(...$creationContext->normalizers);
+        }
+
         $factory = new CreationContextFactory(
             $this,
             $this->config,
@@ -803,10 +815,17 @@ class DataCreator
         $normalizers = $extensions->normalizers($dataClass, $state->context);
         $payloads = $payloads === [] ? [[]] : $payloads;
         $sources = [];
-        $unknownInputSources = [];
+        // Requests read by fixed handling, keyed by source position, check unknown fields against their body.
+        $fixedRequests = [];
 
         foreach ($payloads as $payload) {
-            $source = SourceResolver::resolve($payload, $normalizers);
+            $source = SourceResolver::normalize($payload, $normalizers);
+
+            if ($source === null && $payload instanceof Request) {
+                $fixedRequests[count($sources)] = $payload;
+            }
+
+            $source ??= SourceResolver::resolve($payload);
 
             if ($source === null) {
                 // Input only the cast or a named factory could read stays as given, so validation reports it.
@@ -820,9 +839,6 @@ class DataCreator
             }
 
             $sources[] = $source;
-            $unknownInputSources[] = $payload instanceof Request
-                ? ($payload->isJson() ? $payload->json()->all() : $payload->request->all())
-                : $source;
         }
 
         $propertySources = $sources;
@@ -859,6 +875,12 @@ class DataCreator
         $state->setNodeClass($class);
 
         if ($shouldValidate && $dataClass->failOnUnknownFields) {
+            $unknownInputSources = $sources;
+
+            foreach ($fixedRequests as $index => $request) {
+                $unknownInputSources[$index] = $request->isJson() ? $request->json()->all() : $request->request->all();
+            }
+
             $state->recordUnknownInput(
                 $this->mergeSources($dataClass, $unknownInputSources, $state->context),
             );
@@ -1041,7 +1063,7 @@ class DataCreator
             return $this->invokeNamedObjectFactory($dataClass, ...$match);
         }
 
-        $source = SourceResolver::resolve($payload, []);
+        $source = SourceResolver::resolve($payload);
 
         if ($source === null) {
             // Beneath a cast-owned value, input only the cast or a named factory could read stays as given.
@@ -2065,6 +2087,22 @@ class DataCreator
 
         foreach ($state->context->beforeCreationHooks as $hook) {
             $properties = $hook($properties);
+        }
+
+        // Contextual values are resolved after the hooks so they always win, and a promoted property's value
+        // is prepared and cast like unvalidated input. Null stays null.
+        if ($contextualParameters !== []) {
+            foreach ($this->instantiator->resolveContextualParameters($dataClass) as $name => $value) {
+                $property = $dataClass->properties[$name] ?? null;
+
+                if ($property !== null && $value !== null) {
+                    $inputPath = $property->inputPath($state->originalKey($name));
+                    $this->fillResolvedProperty($property, $inputPath, $value, $state, $extensions, false, false, false);
+                    $value = $this->castProperty($property, $state->getValue($inputPath), $state, $extensions, $properties, $castInputs);
+                }
+
+                $properties[$name] = $value;
+            }
         }
 
         $data = $this->instantiator->instantiate($dataClass, $properties);

@@ -9,6 +9,7 @@ use Hypervel\Container\Container;
 use Hypervel\Data\Attributes\LoadRelation;
 use Hypervel\Data\Normalizers\Normalized\NormalizedModel;
 use Hypervel\Data\Normalizers\Normalized\UnknownProperty;
+use Hypervel\Data\Support\Annotations\DataIterableAnnotationReader;
 use Hypervel\Data\Support\DataConfig;
 use Hypervel\Data\Support\DataProperty;
 use Hypervel\Data\Support\Factories\DataPropertyFactory;
@@ -115,7 +116,7 @@ class NormalizedModelTest extends TestCase
     {
         $defaults = require __DIR__ . '/../../../../src/data/config/data.php';
         $config = new DataConfig(new Repository(['data' => $defaults]));
-        $typeFactory = new DataTypeFactory(new PhpDocTypeNameResolver);
+        $typeFactory = new DataTypeFactory(new PhpDocTypeNameResolver, new DataIterableAnnotationReader);
         $reflectionClass = new ReflectionClass(NormalizedModelDataFixture::class);
 
         return (new DataPropertyFactory(

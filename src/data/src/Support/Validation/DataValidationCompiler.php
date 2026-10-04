@@ -11,6 +11,7 @@ use Hypervel\Data\Attributes\Validation\BooleanType;
 use Hypervel\Data\Attributes\Validation\IntegerType;
 use Hypervel\Data\Attributes\Validation\Nullable;
 use Hypervel\Data\Attributes\Validation\Numeric;
+use Hypervel\Data\Attributes\Validation\Present;
 use Hypervel\Data\Attributes\Validation\Required;
 use Hypervel\Data\Attributes\Validation\Sometimes;
 use Hypervel\Data\Attributes\Validation\StringType;
@@ -272,6 +273,7 @@ class DataValidationCompiler
                 $value,
                 $state,
                 $this->inferredTypeRule($property, $hasValue, $value, $dataType),
+                $dataIterableClass !== null,
                 $inferredRequired,
             );
 
@@ -571,6 +573,7 @@ class DataValidationCompiler
         mixed $value,
         ConstructionState $state,
         ?string $typeRule,
+        bool $receivesDataCollection,
         bool &$inferredRequired,
     ): array {
         $attributes = [];
@@ -606,7 +609,7 @@ class DataValidationCompiler
                 }
             }
 
-            $inferredRules = $this->inferRules($property, $typeRule, $hasPresenceRule);
+            $inferredRules = $this->inferRules($property, $typeRule, $hasPresenceRule, $receivesDataCollection);
             $propertyRules = $this->applyRuleInferrers($property, $attributes, $inferredRules, $nodePath, $state);
             // An inferrer may remove the inferred requirement; class rules must not treat it as present.
             $inferredRequired = in_array('required', $inferredRules, true)
@@ -638,7 +641,7 @@ class DataValidationCompiler
                     $this->ruleDenormalizer->execute($generatedRules, $nodePath),
                 );
             } else {
-                $generatedRules = $this->inferRules($property, $typeRule, $hasPresenceRule);
+                $generatedRules = $this->inferRules($property, $typeRule, $hasPresenceRule, $receivesDataCollection);
                 $inferredRequired = in_array('required', $generatedRules, true);
                 $rules = $this->mergeRules($attributeRules, $generatedRules);
             }
@@ -658,17 +661,19 @@ class DataValidationCompiler
      * Infer fixed presence and type rules for one property.
      *
      * @param null|'array'|'boolean'|'integer'|'numeric'|'string' $typeRule
-     * @return list<'array'|'boolean'|'integer'|'nullable'|'numeric'|'required'|'sometimes'|'string'>
+     * @return list<'array'|'boolean'|'integer'|'nullable'|'numeric'|'present'|'required'|'sometimes'|'string'>
      */
     protected function inferRules(
         DataProperty $property,
         ?string $typeRule,
-        bool $hasPresenceRule = false,
+        bool $hasPresenceRule,
+        bool $receivesDataCollection,
     ): array {
         $rules = match (true) {
             $property->type->isOptional => ['sometimes'],
             $property->type->isNullable => ['nullable'],
-            ! $property->hasDefaultValue && ! $hasPresenceRule => ['required'],
+            // A list of data objects may be empty, which `required` would reject.
+            ! $property->hasDefaultValue && ! $hasPresenceRule => [$receivesDataCollection ? 'present' : 'required'],
             default => [],
         };
 
@@ -689,7 +694,7 @@ class DataValidationCompiler
      * Explicit attributes take precedence over inferred rules of the same type.
      *
      * @param list<ValidationRule> $attributes
-     * @param list<'array'|'boolean'|'integer'|'nullable'|'numeric'|'required'|'sometimes'|'string'> $inferredRules
+     * @param list<'array'|'boolean'|'integer'|'nullable'|'numeric'|'present'|'required'|'sometimes'|'string'> $inferredRules
      */
     protected function applyRuleInferrers(
         DataProperty $property,
@@ -704,6 +709,7 @@ class DataValidationCompiler
             $rule = match ($inferredRule) {
                 'sometimes' => new Sometimes,
                 'nullable' => new Nullable,
+                'present' => new Present,
                 'required' => new Required,
                 'array' => new ArrayType,
                 'boolean' => new BooleanType,

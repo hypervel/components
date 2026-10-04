@@ -141,6 +141,32 @@ class ContextualAttributeBindingTest extends TestCase
         $this->assertSame('Developer', $class->person->role);
     }
 
+    public function testContextualParametersResolveInTheClassBuildContext(): void
+    {
+        $container = new Container;
+        $container->bind(ContainerTestContract::class, ContainerTestImplB::class);
+        $container->when(ContainerTestHasContextualDependencies::class)
+            ->needs(ContainerTestContract::class)
+            ->give(ContainerTestImplA::class);
+        $callbacks = 0;
+        $container->afterResolvingAttribute(
+            ContainerTestResolvesContractThroughContainer::class,
+            function () use (&$callbacks): void {
+                ++$callbacks;
+            },
+        );
+
+        $values = $container->resolveContextualParameters(ContainerTestHasContextualDependencies::class);
+
+        $this->assertSame(['dependency', 'person'], array_keys($values));
+        $this->assertInstanceOf(ContainerTestImplA::class, $values['dependency']);
+        $this->assertSame('Developer', $values['person']->role);
+        $this->assertSame(1, $callbacks);
+
+        // The class's build context ends with the call.
+        $this->assertInstanceOf(ContainerTestImplB::class, $container->make(ContainerTestContract::class));
+    }
+
     public function testAuthedAttribute(): void
     {
         $container = new Container;
@@ -787,6 +813,33 @@ final class ContainerTestParameterAwareAttribute implements ContextualAttribute
     public function resolve(self $attribute, Container $container, ReflectionParameter $parameter): string
     {
         return $parameter->getName();
+    }
+}
+
+#[Attribute(Attribute::TARGET_PARAMETER)]
+final class ContainerTestResolvesContractThroughContainer implements ContextualAttribute
+{
+    /**
+     * Resolve the contract through the container.
+     */
+    public static function resolve(self $attribute, Container $container): ContainerTestContract
+    {
+        return $container->make(ContainerTestContract::class);
+    }
+}
+
+final class ContainerTestHasContextualDependencies
+{
+    /**
+     * Create a new test fixture.
+     */
+    public function __construct(
+        #[ContainerTestResolvesContractThroughContainer]
+        public ContainerTestContract $dependency,
+        public string $plain,
+        #[ContainerTestConfigValueWithResolveAndAfter]
+        public object $person,
+    ) {
     }
 }
 

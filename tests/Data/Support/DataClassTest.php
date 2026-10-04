@@ -545,7 +545,7 @@ class DataClassTest extends TestCase
             'data' => array_replace($defaults, $overrides),
         ]));
         $nameMapperResolver = new NameMapperResolver(new Container);
-        $typeFactory = new DataTypeFactory(new PhpDocTypeNameResolver);
+        $typeFactory = new DataTypeFactory(new PhpDocTypeNameResolver, new DataIterableAnnotationReader);
         $parameterFactory = new DataParameterFactory($typeFactory);
 
         return new DataClassFactory(

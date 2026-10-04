@@ -318,7 +318,7 @@ class DateTimeInterfaceCastTest extends TestCase
     {
         $defaults = require __DIR__ . '/../../../src/data/config/data.php';
         $config = new DataConfig(new Repository(['data' => $defaults]));
-        $typeFactory = new DataTypeFactory(new PhpDocTypeNameResolver);
+        $typeFactory = new DataTypeFactory(new PhpDocTypeNameResolver, new DataIterableAnnotationReader);
         $reflectionClass = new ReflectionClass(DateCastDataFixture::class);
         $reflectionProperty = $reflectionClass->getProperty($name);
 

@@ -9,6 +9,7 @@ use Hypervel\Container\Attributes\Config;
 use Hypervel\Container\Container;
 use Hypervel\Data\Enums\CustomCreationMethodType;
 use Hypervel\Data\Exceptions\InvalidDataDeclaration;
+use Hypervel\Data\Support\Annotations\DataIterableAnnotationReader;
 use Hypervel\Data\Support\Creation\CreationContext;
 use Hypervel\Data\Support\DataMethod;
 use Hypervel\Data\Support\DataMethodMatch;
@@ -335,7 +336,7 @@ class DataMethodTest extends TestCase
     protected function method(string $name, string $className = DataMethodFixture::class): DataMethod
     {
         $class = new ReflectionClass($className);
-        $typeFactory = new DataTypeFactory(new PhpDocTypeNameResolver);
+        $typeFactory = new DataTypeFactory(new PhpDocTypeNameResolver, new DataIterableAnnotationReader);
         $factory = new DataMethodFactory(
             new DataParameterFactory($typeFactory),
             $typeFactory,

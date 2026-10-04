@@ -56,7 +56,11 @@ class BoundMethod
         }
 
         return static::callBoundMethod($container, $callback, function () use ($container, $callback, $parameters, $reflection) {
-            return $callback(...array_values(static::getMethodDependencies($container, $callback, $parameters, $reflection)));
+            // A function name is resolved before its dependencies, so a missing one fails as a direct call would.
+            return NativeInvoker::call(
+                is_string($callback) ? $callback(...) : $callback,
+                array_values(static::getMethodDependencies($container, $callback, $parameters, $reflection)),
+            );
         });
     }
 

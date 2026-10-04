@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Data\Support;
 
 use Hypervel\Container\Attributes\Config;
+use Hypervel\Data\Support\Annotations\DataIterableAnnotationReader;
 use Hypervel\Data\Support\Factories\DataParameterFactory;
 use Hypervel\Data\Support\Factories\DataTypeFactory;
 use Hypervel\Data\Support\Types\PhpDocTypeNameResolver;
@@ -20,7 +21,7 @@ class DataParameterTest extends TestCase
     public function testParameterMetadataPreservesConstructionRecipes(): void
     {
         $class = new ReflectionClass(DataParameterFixture::class);
-        $factory = new DataParameterFactory(new DataTypeFactory(new PhpDocTypeNameResolver));
+        $factory = new DataParameterFactory(new DataTypeFactory(new PhpDocTypeNameResolver, new DataIterableAnnotationReader));
 
         $plainReflection = new ReflectionParameter([DataParameterFixture::class, '__construct'], 'plain');
         $plain = $factory->build($plainReflection, $class);

@@ -2,8 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Data\Support;
+namespace Hypervel\Tests\Data\Support\Annotations;
 
+use ArrayIterator;
 use Countable;
 use DateTimeImmutable;
 use Hypervel\Config\Repository;
@@ -22,18 +23,26 @@ use Hypervel\Data\Support\Factories\DataPropertyFactory;
 use Hypervel\Data\Support\Factories\DataTypeFactory;
 use Hypervel\Data\Support\NameMapperResolver;
 use Hypervel\Data\Support\Types\PhpDocTypeNameResolver;
+use Hypervel\Pagination\LengthAwarePaginator;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Enumerable;
 use Hypervel\Tests\Data\Fixtures\DataClassAnnotations\ChildScope\ChildAnnotations;
 use Hypervel\Tests\Data\Fixtures\DataClassAnnotations\Items\ChildClassItem;
 use Hypervel\Tests\Data\Fixtures\DataClassAnnotations\Items\ConstructorItem;
 use Hypervel\Tests\Data\Fixtures\DataClassAnnotations\Items\InlineItem;
 use Hypervel\Tests\Data\Fixtures\DataClassAnnotations\Items\ParentClassItem;
+use Hypervel\Tests\Data\Fixtures\Enums\DummyBackedEnum;
+use Hypervel\Tests\Data\Fixtures\SimpleData;
 use Hypervel\Tests\TestCase;
+use Iterator;
 use IteratorAggregate;
 use PHPStan\PhpDocParser\Lexer\Lexer;
 use PHPStan\PhpDocParser\Parser\PhpDocParser;
+use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
 use ReflectionMethod;
 use ReflectionProperty;
+use Traversable;
 
 class DataIterableAnnotationReaderTest extends TestCase
 {
@@ -157,6 +166,58 @@ class DataIterableAnnotationReaderTest extends TestCase
         $this->assertSame($parser, $this->readerProperty($reader, 'parser'));
     }
 
+    // REMOVED: 'can caches the result'; metadata is built once per worker, so the reader keeps no per-class cache.
+
+    /**
+     * @param class-string $className
+     */
+    #[DataProvider('collectionClasses')]
+    public function testVerifiesTheCorrectCollectionAnnotationIsReturnedForAGivenClass(string $className, ?string $itemType): void
+    {
+        $annotation = (new DataIterableAnnotationReader)->getForCollectionClass(new ReflectionClass($className));
+
+        if ($itemType === null) {
+            $this->assertNull($annotation);
+
+            return;
+        }
+
+        $this->assertNotNull($annotation);
+        $this->assertSame($itemType, (string) $annotation->itemType);
+        $this->assertSame($className, $annotation->declaringClass);
+    }
+
+    /**
+     * Get collection classes with the item type each declares.
+     *
+     * Upstream also asserts a data flag and key type; this reader returns only the item type, and the type factory decides whether it is data.
+     */
+    public static function collectionClasses(): iterable
+    {
+        $simpleData = '\\' . SimpleData::class;
+        $enum = '\\' . DummyBackedEnum::class;
+
+        yield 'DataCollectionWithTemplate' => [DataCollectionWithTemplate::class, $simpleData];
+        yield 'DataCollectionWithoutTemplate' => [DataCollectionWithoutTemplate::class, $simpleData];
+        yield 'DataCollectionWithCombinationType' => [DataCollectionWithCombinationType::class, "({$enum} | {$simpleData})"];
+        yield 'DataCollectionWithIntegerKey' => [DataCollectionWithIntegerKey::class, $simpleData];
+        yield 'DataCollectionWithCombinationKey' => [DataCollectionWithCombinationKey::class, $simpleData];
+        yield 'DataCollectionWithoutKey' => [DataCollectionWithoutKey::class, $simpleData];
+        yield 'NonDataCollectionWithTemplate' => [NonDataCollectionWithTemplate::class, $enum];
+        yield 'NonDataCollectionWithoutTemplate' => [NonDataCollectionWithoutTemplate::class, $enum];
+        yield 'NonDataCollectionWithCombinationType' => [NonDataCollectionWithCombinationType::class, "({$enum} | {$simpleData})"];
+        yield 'NonDataCollectionWithIntegerKey' => [NonDataCollectionWithIntegerKey::class, $enum];
+        yield 'NonDataCollectionWithCombinationKey' => [NonDataCollectionWithCombinationKey::class, $enum];
+        yield 'NonDataCollectionWithoutKey' => [NonDataCollectionWithoutKey::class, $enum];
+        yield 'CollectionWhoImplementsIterator' => [CollectionWhoImplementsIterator::class, $enum];
+        yield 'CollectionWhoImplementsIteratorAggregate' => [CollectionWhoImplementsIteratorAggregate::class, $enum];
+        yield 'CollectionWhoImplementsNothing' => [CollectionWhoImplementsNothing::class, null];
+        yield 'CollectionWithoutDocBlock' => [CollectionWithoutDocBlock::class, null];
+        yield 'CollectionWithoutType' => [CollectionWithoutType::class, null];
+        yield 'interface' => [Enumerable::class, null];
+        yield 'unbounded template' => [LengthAwarePaginator::class, null];
+    }
+
     /**
      * Assert one parsed iterable annotation.
      */
@@ -174,10 +235,10 @@ class DataIterableAnnotationReaderTest extends TestCase
      */
     protected function factory(DataIterableAnnotationReader $reader): DataClassFactory
     {
-        $defaults = require __DIR__ . '/../../../src/data/config/data.php';
+        $defaults = require __DIR__ . '/../../../../src/data/config/data.php';
         $config = new DataConfig(new Repository(['data' => $defaults]));
         $nameMapperResolver = new NameMapperResolver(new Container);
-        $typeFactory = new DataTypeFactory(new PhpDocTypeNameResolver);
+        $typeFactory = new DataTypeFactory(new PhpDocTypeNameResolver, $reader);
         $parameterFactory = new DataParameterFactory($typeFactory);
 
         return new DataClassFactory(
@@ -323,4 +384,170 @@ class DataIterableScalarOnlyData extends Data
     ) {
         $this->name = $name;
     }
+}
+
+/**
+ * @template TKey of array-key
+ * @template TData of \Hypervel\Tests\Data\Fixtures\SimpleData
+ *
+ * @extends \Hypervel\Support\Collection<TKey, TData>
+ */
+class DataCollectionWithTemplate extends Collection
+{
+}
+
+/**
+ * @extends \Hypervel\Support\Collection<array-key, \Hypervel\Tests\Data\Fixtures\SimpleData>
+ */
+class DataCollectionWithoutTemplate extends Collection
+{
+}
+
+/**
+ * @extends \Hypervel\Support\Collection<array-key, \Hypervel\Tests\Data\Fixtures\Enums\DummyBackedEnum|\Hypervel\Tests\Data\Fixtures\SimpleData>
+ */
+class DataCollectionWithCombinationType extends Collection
+{
+}
+
+/**
+ * @extends \Hypervel\Support\Collection<int, \Hypervel\Tests\Data\Fixtures\SimpleData>
+ */
+class DataCollectionWithIntegerKey extends Collection
+{
+}
+
+/**
+ * @extends \Hypervel\Support\Collection<int|string, \Hypervel\Tests\Data\Fixtures\SimpleData>
+ */
+class DataCollectionWithCombinationKey extends Collection
+{
+}
+
+/**
+ * @extends \Hypervel\Support\Collection<\Hypervel\Tests\Data\Fixtures\SimpleData>
+ */
+class DataCollectionWithoutKey extends Collection
+{
+}
+
+/**
+ * @template TKey of array-key
+ * @template TValue of \Hypervel\Tests\Data\Fixtures\Enums\DummyBackedEnum
+ *
+ * @extends \Hypervel\Support\Collection<TKey, TValue>
+ */
+class NonDataCollectionWithTemplate extends Collection
+{
+}
+
+/**
+ * @extends \Hypervel\Support\Collection<array-key, \Hypervel\Tests\Data\Fixtures\Enums\DummyBackedEnum>
+ */
+class NonDataCollectionWithoutTemplate extends Collection
+{
+}
+
+/**
+ * @extends \Hypervel\Support\Collection<array-key, \Hypervel\Tests\Data\Fixtures\Enums\DummyBackedEnum|\Hypervel\Tests\Data\Fixtures\SimpleData>
+ */
+class NonDataCollectionWithCombinationType extends Collection
+{
+}
+
+/**
+ * @extends \Hypervel\Support\Collection<int, \Hypervel\Tests\Data\Fixtures\Enums\DummyBackedEnum>
+ */
+class NonDataCollectionWithIntegerKey extends Collection
+{
+}
+
+/**
+ * @extends \Hypervel\Support\Collection<int|string, \Hypervel\Tests\Data\Fixtures\Enums\DummyBackedEnum>
+ */
+class NonDataCollectionWithCombinationKey extends Collection
+{
+}
+
+/**
+ * @extends \Hypervel\Support\Collection<\Hypervel\Tests\Data\Fixtures\Enums\DummyBackedEnum>
+ */
+class NonDataCollectionWithoutKey extends Collection
+{
+}
+
+/**
+ * @extends \Hypervel\Support\Collection<array-key, \Hypervel\Tests\Data\Fixtures\Enums\DummyBackedEnum>
+ */
+class CollectionWhoImplementsIterator implements Iterator
+{
+    /**
+     * Get the current item.
+     */
+    public function current(): mixed
+    {
+        return null;
+    }
+
+    /**
+     * Move to the next item.
+     */
+    public function next(): void
+    {
+    }
+
+    /**
+     * Get the current key.
+     */
+    public function key(): mixed
+    {
+        return null;
+    }
+
+    /**
+     * Determine whether the current position is valid.
+     */
+    public function valid(): bool
+    {
+        return false;
+    }
+
+    /**
+     * Move to the first item.
+     */
+    public function rewind(): void
+    {
+    }
+}
+
+/**
+ * @extends \Hypervel\Support\Collection<array-key, \Hypervel\Tests\Data\Fixtures\Enums\DummyBackedEnum>
+ */
+class CollectionWhoImplementsIteratorAggregate implements IteratorAggregate
+{
+    /**
+     * Get an iterator for the items.
+     */
+    public function getIterator(): Traversable
+    {
+        return new ArrayIterator([]);
+    }
+}
+
+/**
+ * @extends \Hypervel\Support\Collection<array-key, \Hypervel\Tests\Data\Fixtures\Enums\DummyBackedEnum>
+ */
+class CollectionWhoImplementsNothing
+{
+}
+
+class CollectionWithoutDocBlock extends Collection
+{
+}
+
+/**
+ * @extends \Hypervel\Support\Collection
+ */
+class CollectionWithoutType extends Collection
+{
 }

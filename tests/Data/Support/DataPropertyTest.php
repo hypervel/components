@@ -30,6 +30,7 @@ use Hypervel\Data\Lazy;
 use Hypervel\Data\Mappers\KebabCaseMapper;
 use Hypervel\Data\Mappers\SnakeCaseMapper;
 use Hypervel\Data\Optional;
+use Hypervel\Data\Support\Annotations\DataIterableAnnotationReader;
 use Hypervel\Data\Support\Creation\CreationContext;
 use Hypervel\Data\Support\DataConfig;
 use Hypervel\Data\Support\DataProperty;
@@ -439,7 +440,7 @@ class DataPropertyTest extends TestCase
         foreach ($reflectionClass->getConstructor()?->getParameters() ?? [] as $parameter) {
             if ($parameter->name === $propertyName) {
                 $constructorParameter = (new DataParameterFactory(
-                    new DataTypeFactory(new PhpDocTypeNameResolver),
+                    new DataTypeFactory(new PhpDocTypeNameResolver, new DataIterableAnnotationReader),
                 ))->build($parameter, $reflectionClass);
             }
         }
@@ -470,7 +471,7 @@ class DataPropertyTest extends TestCase
         foreach ($class->getConstructor()?->getParameters() ?? [] as $parameter) {
             if ($parameter->name === $name) {
                 $constructorParameter = (new DataParameterFactory(
-                    new DataTypeFactory(new PhpDocTypeNameResolver),
+                    new DataTypeFactory(new PhpDocTypeNameResolver, new DataIterableAnnotationReader),
                 ))->build($parameter, $class);
 
                 break;
@@ -502,7 +503,7 @@ class DataPropertyTest extends TestCase
             'data' => array_replace($defaults, $overrides),
         ]));
         $mapperResolver = new NameMapperResolver(new Container);
-        $typeFactory = new DataTypeFactory(new PhpDocTypeNameResolver);
+        $typeFactory = new DataTypeFactory(new PhpDocTypeNameResolver, new DataIterableAnnotationReader);
 
         return [
             new DataPropertyFactory($typeFactory, $config, $mapperResolver),

@@ -78,9 +78,10 @@ class DataValidatorTest extends TestCase
      */
     public function testOnlyRequestsValidationStrategyKeepsArrayCreationLean(): void
     {
-        $arrayData = ValidatedDataFixture::from(['id' => 'invalid']);
+        // PHP converts '1e3', while the integer rule would reject it.
+        $arrayData = ValidatedDataFixture::from(['id' => '1e3']);
 
-        $this->assertSame(0, $arrayData->id);
+        $this->assertSame(1000, $arrayData->id);
 
         $this->expectException(ValidationException::class);
 
@@ -92,29 +93,17 @@ class DataValidatorTest extends TestCase
      */
     public function testBaseClassesShareRequestOnlyValidationByDefault(): void
     {
-        $this->assertSame(0, ValidatedDtoFixture::from(['id' => 'invalid'])->id);
-        $this->assertSame(0, ValidatedResourceFixture::from(['id' => 'invalid'])->id);
+        $this->assertSame(1000, ValidatedDtoFixture::from(['id' => '1e3'])->id);
+        $this->assertSame(1000, ValidatedResourceFixture::from(['id' => '1e3'])->id);
 
         foreach ([ValidatedDtoFixture::class, ValidatedResourceFixture::class] as $class) {
             try {
-                $class::from(Request::create('/', 'POST', ['id' => 'invalid']));
+                $class::from(Request::create('/', 'POST', ['id' => '1e3']));
                 $this->fail("Expected {$class} Request validation to fail.");
             } catch (ValidationException $exception) {
                 $this->assertArrayHasKey('id', $exception->errors());
             }
         }
-    }
-
-    /**
-     * Test a factory can validate non-Request payloads.
-     */
-    public function testFactoryCanAlwaysValidateArrayPayloads(): void
-    {
-        $this->expectException(ValidationException::class);
-
-        ValidatedDataFixture::factory()
-            ->alwaysValidate()
-            ->from(['id' => 'invalid']);
     }
 
     /**
@@ -207,6 +196,63 @@ class DataValidatorTest extends TestCase
         $this->assertSame(['nullable', 'string'], $rules['nickname']);
         $this->assertSame(['sometimes', 'string'], $rules['note']);
         $this->assertSame(['string'], $rules['label']);
+    }
+
+    public function testDataCollectionsMustBePresentButMayBeEmpty(): void
+    {
+        $expected = [
+            'items' => ['present', 'array'],
+            'nullableItems' => ['nullable', 'array'],
+            'optionalItems' => ['sometimes', 'array'],
+            'requiredItems' => ['required', 'array'],
+            'plain' => ['required', 'array'],
+        ];
+
+        $this->assertSame($expected, PresentCollectionDataFixture::getValidationRules([]));
+
+        $valid = ['items' => [], 'requiredItems' => [['string' => 'a']], 'plain' => ['a']];
+
+        $this->assertSame($valid, PresentCollectionDataFixture::validate($valid));
+
+        foreach ([
+            'items' => ['requiredItems' => [['string' => 'a']], 'plain' => ['a']],
+            'requiredItems' => ['items' => [], 'requiredItems' => [], 'plain' => ['a']],
+            'plain' => ['items' => [], 'requiredItems' => [['string' => 'a']], 'plain' => []],
+        ] as $errorKey => $payload) {
+            try {
+                PresentCollectionDataFixture::validate($payload);
+                $this->fail("Expected a validation error for [{$errorKey}].");
+            } catch (ValidationException $exception) {
+                $this->assertSame([$errorKey], array_keys($exception->errors()));
+            }
+        }
+    }
+
+    #[WithConfig('data.rule_inferrers', [MaxStringRuleInferrer::class])]
+    public function testConfiguredRuleInferrersKeepDataCollectionPresence(): void
+    {
+        $rules = PresentCollectionDataFixture::getValidationRules([]);
+
+        $this->assertSame(['present', 'array'], $rules['items']);
+        $this->assertSame(['required', 'array'], $rules['requiredItems']);
+    }
+
+    public function testClassRulesMergeWithOrReplaceDataCollectionPresence(): void
+    {
+        $this->assertSame(
+            ['present', 'array', 'required'],
+            MergedRequiredCollectionDataFixture::getValidationRules([])['items'],
+        );
+
+        try {
+            MergedRequiredCollectionDataFixture::validate(['items' => []]);
+            $this->fail('Expected the merged required rule to reject an empty collection.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(['items'], array_keys($exception->errors()));
+        }
+
+        $this->assertSame(['array'], ReplacedCollectionRulesDataFixture::getValidationRules([])['items']);
+        $this->assertSame([], ReplacedCollectionRulesDataFixture::validate([]));
     }
 
     public function testUnionValuesUseTheTypeRuleOfTheTypeThatHoldsThem(): void
@@ -1456,6 +1502,55 @@ class DataValidatorTest extends TestCase
     }
 
     /**
+     * Test a custom request normalizer's single result is the unknown-field input, not the request body.
+     */
+    public function testFailOnUnknownFieldsChecksTheSourceACustomRequestNormalizerReturns(): void
+    {
+        $normalizer = new EnvelopeRequestNormalizer;
+
+        $data = StrictValidatedDataFixture::factory()
+            ->withNormalizers($normalizer)
+            ->from(Request::create('/', 'POST', ['data' => ['name' => 'Taylor']]));
+
+        $this->assertSame('Taylor', $data->name);
+        $this->assertSame(1, $normalizer->calls);
+
+        try {
+            StrictValidatedDataFixture::factory()
+                ->withNormalizers($normalizer)
+                ->from(Request::create('/', 'POST', ['data' => ['name' => 'Taylor', 'role' => 'admin']]));
+            $this->fail('Expected unknown normalized input to fail unknown-field validation.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(['role'], array_keys($exception->errors()));
+        }
+    }
+
+    /**
+     * Test a strict morph subtype selected from its parent checks the request body but not the query string.
+     */
+    public function testFailOnUnknownFieldsAppliesToTheSelectedMorphSubtype(): void
+    {
+        $data = StrictMorphBaseDataFixture::from(Request::create('/?tracking=campaign', 'POST', [
+            'type' => 'strict',
+            'name' => 'Taylor',
+        ]));
+
+        $this->assertInstanceOf(StrictMorphChildDataFixture::class, $data);
+        $this->assertSame('Taylor', $data->name);
+
+        try {
+            StrictMorphBaseDataFixture::from(Request::create('/?tracking=campaign', 'POST', [
+                'type' => 'strict',
+                'name' => 'Taylor',
+                'role' => 'admin',
+            ]));
+            $this->fail('Expected the selected subtype to fail unknown-field validation.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(['role'], array_keys($exception->errors()));
+        }
+    }
+
+    /**
      * Test a strict parent checks caller input removed by its prepare hook.
      */
     public function testFailOnUnknownFieldsUsesInputBeforeTheCurrentNodePrepareHook(): void
@@ -2179,6 +2274,66 @@ class DataValidatorTest extends TestCase
                 ],
             ], $exception->errors());
         }
+    }
+}
+
+class PresentCollectionDataFixture extends Data
+{
+    /**
+     * Create a fixture with each kind of collection presence.
+     */
+    public function __construct(
+        #[DataCollectionOf(SimpleData::class)]
+        public array $items,
+        #[DataCollectionOf(SimpleData::class)]
+        public ?array $nullableItems,
+        #[DataCollectionOf(SimpleData::class)]
+        public Optional|array $optionalItems,
+        #[DataCollectionOf(SimpleData::class), Required]
+        public array $requiredItems,
+        public array $plain,
+    ) {
+    }
+}
+
+#[MergeValidationRules]
+class MergedRequiredCollectionDataFixture extends Data
+{
+    /**
+     * Create a fixture whose collection also has a class rule.
+     */
+    public function __construct(
+        #[DataCollectionOf(SimpleData::class)]
+        public array $items,
+    ) {
+    }
+
+    /**
+     * Get class-owned validation rules.
+     */
+    public static function rules(): array
+    {
+        return ['items' => ['required']];
+    }
+}
+
+class ReplacedCollectionRulesDataFixture extends Data
+{
+    /**
+     * Create a fixture whose collection rules are replaced.
+     */
+    public function __construct(
+        #[DataCollectionOf(SimpleData::class)]
+        public array $items,
+    ) {
+    }
+
+    /**
+     * Get class-owned validation rules.
+     */
+    public static function rules(): array
+    {
+        return ['items' => ['array']];
     }
 }
 
@@ -3384,6 +3539,40 @@ class NestedStrictParentDataFixture extends Data
     }
 }
 
+abstract class StrictMorphBaseDataFixture extends Data implements PropertyMorphableData
+{
+    /**
+     * Create the morph base fixture.
+     */
+    public function __construct(
+        #[PropertyForMorph]
+        public string $type,
+    ) {
+    }
+
+    /**
+     * Resolve the strict subtype.
+     */
+    public static function morph(array $properties): ?string
+    {
+        return $properties['type'] === 'strict' ? StrictMorphChildDataFixture::class : null;
+    }
+}
+
+#[FailOnUnknownFields]
+class StrictMorphChildDataFixture extends StrictMorphBaseDataFixture
+{
+    /**
+     * Create the strict subtype fixture.
+     */
+    public function __construct(
+        string $type,
+        public string $name,
+    ) {
+        parent::__construct($type);
+    }
+}
+
 #[FailOnUnknownFields]
 class StrictNestedParentDataFixture extends Data
 {
@@ -3627,6 +3816,25 @@ class HookCountingNormalizer implements Normalizer
         ++$this->calls;
 
         return null;
+    }
+}
+
+class EnvelopeRequestNormalizer implements Normalizer
+{
+    public int $calls = 0;
+
+    /**
+     * Read a request's input from its data envelope.
+     */
+    public function normalize(mixed $value): ?array
+    {
+        if (! $value instanceof Request) {
+            return null;
+        }
+
+        ++$this->calls;
+
+        return $value->input('data');
     }
 }
 

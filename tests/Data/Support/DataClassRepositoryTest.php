@@ -110,7 +110,7 @@ class DataClassRepositoryTest extends TestCase
         $defaults = require __DIR__ . '/../../../src/data/config/data.php';
         $config = new DataConfig(new Repository(['data' => $defaults]));
         $nameMapperResolver = new NameMapperResolver(new Container);
-        $typeFactory = new DataTypeFactory(new PhpDocTypeNameResolver);
+        $typeFactory = new DataTypeFactory(new PhpDocTypeNameResolver, new DataIterableAnnotationReader);
         $parameterFactory = new DataParameterFactory($typeFactory);
 
         return new DataClassRepository(new DataClassFactory(

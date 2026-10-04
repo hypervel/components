@@ -12,6 +12,7 @@ use Hypervel\Data\Contracts\BaseData as BaseDataContract;
 use Hypervel\Data\CursorPaginatedDataCollection;
 use Hypervel\Data\DataCollection;
 use Hypervel\Data\PaginatedDataCollection;
+use Hypervel\Data\Support\Creation\CreationContext;
 use Hypervel\Data\Support\Creation\CreationContextFactory;
 use Hypervel\Data\Support\Creation\DataCreator;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
@@ -135,19 +136,17 @@ trait BaseData
     }
 
     // REMOVED: Deprecated collection() and Enumerable forwarding; use collect() and toCollection().
-    // REMOVED: Factories cannot inherit mutable in-flight creation contexts; every call starts fresh.
-
     /**
-     * Create a fresh data construction factory.
+     * Create a fresh data construction factory, optionally with another creation's options.
      *
      * @return CreationContextFactory<static>
      */
-    public static function factory(): CreationContextFactory
+    public static function factory(?CreationContext $creationContext = null): CreationContextFactory
     {
         /** @var CreationContextFactory<static> $factory */
         $factory = Container::getInstance()
             ->make(DataCreator::class)
-            ->factory(static::class);
+            ->factory(static::class, $creationContext);
 
         return $factory;
     }

@@ -48,9 +48,12 @@ return [
 
     /*
      * Custom global normalizers run after normalizers declared by the data class
-     * and before the package's fixed source normalization.
+     * and before the package's fixed source normalization. The optional form
+     * request normalizer reads only a form request's validated input.
      */
-    'normalizers' => [],
+    'normalizers' => [
+        // Hypervel\Data\Normalizers\FormRequestNormalizer::class,
+    ],
 
     /*
      * Data objects can be wrapped into a key like 'data' when used as a resource,

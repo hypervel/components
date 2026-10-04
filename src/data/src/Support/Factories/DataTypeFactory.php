@@ -16,6 +16,7 @@ use Hypervel\Data\Lazy;
 use Hypervel\Data\Optional;
 use Hypervel\Data\PaginatedDataCollection;
 use Hypervel\Data\Support\Annotations\DataIterableAnnotation;
+use Hypervel\Data\Support\Annotations\DataIterableAnnotationReader;
 use Hypervel\Data\Support\DataAttributesCollection;
 use Hypervel\Data\Support\DataPropertyType;
 use Hypervel\Data\Support\DataType;
@@ -55,6 +56,7 @@ class DataTypeFactory
      */
     public function __construct(
         protected readonly PhpDocTypeNameResolver $typeNameResolver,
+        protected readonly DataIterableAnnotationReader $annotationReader,
     ) {
     }
 
@@ -182,7 +184,9 @@ class DataTypeFactory
                     $kind,
                     $targetClass,
                     $iterableAnnotations,
-                )) {
+                ) ?? ($forProperty && ! $reflectionType->isBuiltin()
+                    ? $this->annotationReader->getForCollectionClass(ClassMetadataCache::reflectClass($name))
+                    : null)) {
                 $annotationClass = ClassMetadataCache::reflectClass($annotation->declaringClass);
                 $itemType = $this->buildPhpDocType(
                     $annotation->itemType,

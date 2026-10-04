@@ -215,7 +215,7 @@ class DataInstantiatorTest extends TestCase
         $config = new DataConfig(new Repository(['data' => $defaults]));
         $container = new Container;
         $nameMapperResolver = new NameMapperResolver($container);
-        $typeFactory = new DataTypeFactory(new PhpDocTypeNameResolver);
+        $typeFactory = new DataTypeFactory(new PhpDocTypeNameResolver, new DataIterableAnnotationReader);
         $parameterFactory = new DataParameterFactory($typeFactory);
 
         return (new DataClassFactory(

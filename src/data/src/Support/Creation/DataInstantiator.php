@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Data\Support\Creation;
 
-use Hypervel\Contracts\Container\Container;
+use Hypervel\Container\Container;
 use Hypervel\Data\Contracts\BaseData;
 use Hypervel\Data\Exceptions\CannotCreateData;
 use Hypervel\Data\Optional;
@@ -39,6 +39,16 @@ class DataInstantiator
     }
 
     /**
+     * Resolve the contextual constructor values of a data class in its container build context.
+     *
+     * @return array<string, mixed>
+     */
+    public function resolveContextualParameters(DataClass $dataClass): array
+    {
+        return $this->container->resolveContextualParameters($dataClass->name);
+    }
+
+    /**
      * Instantiate and assign one fully cast data node.
      *
      * @param array<string, mixed> $properties
@@ -58,6 +68,11 @@ class DataInstantiator
 
         foreach ($dataClass->constructorParameters as $parameter) {
             if ($parameter->contextualAttribute !== null) {
+                // Resolved values are passed as overrides; the container resolves any that were not.
+                if (array_key_exists($parameter->name, $properties)) {
+                    $parameters[$parameter->name] = $properties[$parameter->name];
+                }
+
                 $requiresContainer = true;
 
                 continue;

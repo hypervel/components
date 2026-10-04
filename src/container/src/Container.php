@@ -1757,6 +1757,50 @@ class Container implements ContainerContract
     }
 
     /**
+     * Resolve the contextual constructor parameters of a class within its build context.
+     *
+     * Contextual bindings for the class apply to dependencies the attributes resolve, and each
+     * parameter's attribute callbacks fire here. Pass the values to buildWith() as overrides
+     * so they are not resolved again.
+     *
+     * @param class-string $concrete
+     * @return array<string, mixed>
+     *
+     * @throws BindingResolutionException
+     */
+    public function resolveContextualParameters(string $concrete): array
+    {
+        $recipe = $this->getBuildRecipe($concrete);
+        $resolutionState = $this->getOrCreateResolutionState();
+        $resolutionState->buildStack[] = $concrete;
+
+        try {
+            $values = [];
+
+            foreach ($recipe->parameters as $paramRecipe) {
+                if ($paramRecipe->contextualAttribute === null) {
+                    continue;
+                }
+
+                $value = $this->resolveFromAttribute(
+                    $paramRecipe->contextualAttribute,
+                    $paramRecipe->getReflectionParameter(),
+                );
+
+                if ($paramRecipe->attributes !== []) {
+                    $this->fireAfterResolvingAttributeCallbacks($paramRecipe->attributes, $value);
+                }
+
+                $values[$paramRecipe->name] = $value;
+            }
+
+            return $values;
+        } finally {
+            array_pop($resolutionState->buildStack);
+        }
+    }
+
+    /**
      * Instantiate a concrete instance of the given type.
      *
      * @template TClass of object
@@ -1824,7 +1868,10 @@ class Container implements ContainerContract
             array_pop($resolutionState->buildStack);
         }
 
-        $instance = new $concrete(...$instances);
+        // Arguments go through the native invoker so scalars convert as they do in Laravel.
+        $instance = $instances === []
+            ? new $concrete
+            : NativeInvoker::construct($concrete, $instances);
 
         if ($recipe->classAttributes !== []) {
             $this->fireAfterResolvingAttributeCallbacks(

@@ -16,18 +16,16 @@ use JsonException;
 class SourceResolver
 {
     /**
-     * Resolve a value into one source consumed by the fill walk, or null when nothing can read it.
+     * Normalize a value with the first custom normalizer that reads it, or return null.
+     *
+     * Null and already-normalized values never reach custom normalizers.
      *
      * @param list<Normalizer> $normalizers
      */
-    public static function resolve(mixed $value, array $normalizers): array|Normalized|null
+    public static function normalize(mixed $value, array $normalizers): array|Normalized|null
     {
-        if ($value === null) {
-            return [];
-        }
-
-        if ($value instanceof Normalized) {
-            return $value;
+        if ($value === null || $value instanceof Normalized) {
+            return null;
         }
 
         foreach ($normalizers as $normalizer) {
@@ -36,6 +34,22 @@ class SourceResolver
             if ($normalized !== null) {
                 return $normalized;
             }
+        }
+
+        return null;
+    }
+
+    /**
+     * Resolve a value through the fixed source handling, or return null when nothing can read it.
+     */
+    public static function resolve(mixed $value): array|Normalized|null
+    {
+        if ($value === null) {
+            return [];
+        }
+
+        if ($value instanceof Normalized) {
+            return $value;
         }
 
         if (is_array($value)) {

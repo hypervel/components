@@ -6,6 +6,7 @@ namespace Hypervel\Routing;
 
 use Closure;
 use Hypervel\Container\Container;
+use Hypervel\Container\NativeInvoker;
 use Hypervel\Context\RequestContext;
 use Hypervel\Foundation\Routing\PrecognitionCallableDispatcher;
 use Hypervel\Routing\Contracts\CallableDispatcher as CallableDispatcherContract;
@@ -63,7 +64,7 @@ class CallableDispatcher implements CallableDispatcherContract
 
         return $parameters === []
             ? $callable()
-            : $callable(...array_values($parameters));
+            : NativeInvoker::call($callable, array_values($parameters));
     }
 
     /**
