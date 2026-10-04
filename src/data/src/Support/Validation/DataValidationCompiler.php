@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Data\Support\Validation;
 
+use BackedEnum;
 use DateTimeInterface;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Data\Attributes\Validation\ArrayType;
 use Hypervel\Data\Attributes\Validation\BooleanType;
+use Hypervel\Data\Attributes\Validation\Enum;
 use Hypervel\Data\Attributes\Validation\IntegerType;
 use Hypervel\Data\Attributes\Validation\Nullable;
 use Hypervel\Data\Attributes\Validation\Numeric;
@@ -51,6 +53,23 @@ class DataValidationCompiler
         'required_with_all',
         'required_without',
         'required_without_all',
+    ];
+
+    /**
+     * The attribute type of each inferred rule, which a declared attribute of that type replaces.
+     *
+     * @var array<string, class-string<ValidationRule>>
+     */
+    protected const array INFERRED_RULE_TYPES = [
+        'sometimes' => Sometimes::class,
+        'nullable' => Nullable::class,
+        'present' => Present::class,
+        'required' => Required::class,
+        'array' => ArrayType::class,
+        'boolean' => BooleanType::class,
+        'numeric' => Numeric::class,
+        'integer' => IntegerType::class,
+        'string' => StringType::class,
     ];
 
     /**
@@ -201,6 +220,15 @@ class DataValidationCompiler
     ): void {
         $dataClass = $this->dataClasses->get($class);
         $contextualProperties = $dataClass->contextualParameters;
+        // Class rules and configured inferrers see the node's actual input and path, while rules compile at $path.
+        // An unobserved node has no input, as Fill never entered it.
+        $context = $dataClass->hasLifecycleMethod('rules') || $this->config->ruleInferrers !== []
+            ? new ValidationContext(
+                payload: $observed ? $state->currentPayload() : [],
+                fullPayload: $state->payload(),
+                path: $observed ? new ValidationPath($state->path()) : $path,
+            )
+            : null;
 
         foreach ($dataClass->constructorInputs as $input) {
             $inputPath = $path->property($input);
@@ -269,13 +297,20 @@ class DataValidationCompiler
             $accumulator->rules[$propertyRulePath] = $this->propertyRules(
                 $property,
                 $path,
+                $context,
                 $propertyPath,
+                $hasValue,
                 $value,
                 $state,
                 $this->inferredTypeRule($property, $hasValue, $value, $dataType),
                 $dataIterableClass !== null,
                 $inferredRequired,
             );
+
+            // An abstract node remains only when Fill could not resolve its morph, so its discriminator is invalid.
+            if ($property->morphable && $dataClass->isAbstract) {
+                $accumulator->rules[$propertyRulePath][] = new EnsurePropertyMorphable;
+            }
 
             if (! $propertyPath->equals($structuralPropertyPath)) {
                 $accumulator->addMarkerCandidate(
@@ -293,6 +328,25 @@ class DataValidationCompiler
             }
 
             if (! $hasValue || $value === null || $value instanceof Optional) {
+                // A missing or null object that does not accept null still reports its own required fields,
+                // as flat Laravel rules would. An omitted Optional or defaulted object is not required.
+                if ($nestedDataClass !== null
+                    && $value === null
+                    && ! $property->type->isNullable
+                    && ($hasValue || (! $property->type->isOptional && ! $property->hasDefaultValue))
+                ) {
+                    $this->compileNode(
+                        $nestedDataClass,
+                        $state,
+                        $propertyPath,
+                        $structuralPropertyPath,
+                        $accumulator,
+                        $lifecycleDeclarations,
+                        $compileUnknownFields,
+                        observed: false,
+                    );
+                }
+
                 continue;
             }
 
@@ -328,6 +382,16 @@ class DataValidationCompiler
                     $lifecycleDeclarations,
                     $compileUnknownFields,
                 );
+
+                continue;
+            }
+
+            if ($nestedDataClass !== null || $dataIterableClass !== null) {
+                // Input Fill could not read must fail here, and a blank string skips every non-implicit rule.
+                $accumulator->rules[$propertyRulePath] = $this->mergeRules(
+                    ['required'],
+                    $accumulator->rules[$propertyRulePath],
+                );
             }
         }
 
@@ -335,6 +399,7 @@ class DataValidationCompiler
             $dataClass,
             $state,
             $path,
+            $context,
             $structuralPath,
             $accumulator,
             $observed,
@@ -407,11 +472,12 @@ class DataValidationCompiler
         array &$lifecycleDeclarations,
         bool $compileUnknownFields,
     ): void {
-        $hasFinishedValues = false;
+        // A finished object, or input Fill could not read, is checked at its own item path.
+        $hasNonArrayValues = false;
 
         foreach ($values as $value) {
-            if ($value instanceof $dataClass) {
-                $hasFinishedValues = true;
+            if (! is_array($value)) {
+                $hasNonArrayValues = true;
 
                 break;
             }
@@ -433,7 +499,7 @@ class DataValidationCompiler
         }
 
         if ($state->isCurrentCollectionUniform()
-            && ! $hasFinishedValues
+            && ! $hasNonArrayValues
         ) {
             $firstKey = array_key_first($values);
             $state->enterItem($firstKey);
@@ -485,6 +551,13 @@ class DataValidationCompiler
                 if ($compileUnknownFields) {
                     $accumulator->allowedSubtrees[] = $itemPath->get();
                 }
+
+                continue;
+            }
+
+            if (! is_array($value)) {
+                // A blank string skips every non-implicit rule, so `required` rejects it.
+                $accumulator->rules[$itemPath->get()] = ['required', 'array'];
 
                 continue;
             }
@@ -561,18 +634,21 @@ class DataValidationCompiler
     }
 
     /**
-     * Infer fixed presence and type rules for one property.
+     * Build the rules for one property: inferred presence and type rules, then declared attributes.
      *
-     * @param null|'array'|'boolean'|'integer'|'numeric'|'string' $typeRule
-     * @return list<string>
+     * @param null|ValidationContext $context the node's context, present when class rules or configured inferrers use it
+     * @param null|'array'|'boolean'|'integer'|'numeric'|'string'|Enum $typeRule
+     * @return list<array|object|string>
      */
     protected function propertyRules(
         DataProperty $property,
         ValidationPath $nodePath,
+        ?ValidationContext $context,
         ValidationPath $propertyPath,
+        bool $hasValue,
         mixed $value,
         ConstructionState $state,
-        ?string $typeRule,
+        string|Enum|null $typeRule,
         bool $receivesDataCollection,
         bool &$inferredRequired,
     ): array {
@@ -609,8 +685,8 @@ class DataValidationCompiler
                 }
             }
 
-            $inferredRules = $this->inferRules($property, $typeRule, $hasPresenceRule, $receivesDataCollection);
-            $propertyRules = $this->applyRuleInferrers($property, $attributes, $inferredRules, $nodePath, $state);
+            $inferredRules = $this->inferRules($property, $typeRule, $hasPresenceRule, $receivesDataCollection, $hasValue);
+            $propertyRules = $this->applyRuleInferrers($property, $attributes, $inferredRules, $context, $state);
             // An inferrer may remove the inferred requirement; class rules must not treat it as present.
             $inferredRequired = in_array('required', $inferredRules, true)
                 && $propertyRules->hasType(Required::class);
@@ -626,24 +702,54 @@ class DataValidationCompiler
         } else {
             $attributeRules = [];
             $hasPresenceRule = false;
+            $hasEnumAttribute = false;
 
             foreach ($attributes as $attribute) {
                 $denormalizedRules = $this->ruleDenormalizer->execute($attribute, $nodePath);
                 $hasPresenceRule = $hasPresenceRule
                     || $attribute instanceof RequiringRule
                     || $this->hasPresenceRule($denormalizedRules);
+                $hasEnumAttribute = $hasEnumAttribute || $attribute instanceof Enum;
                 array_push($attributeRules, ...$denormalizedRules);
             }
 
             if ($generatedRules !== null) {
+                // Hook rules replace inference, so they come before the declared attributes as inferred rules do.
                 $rules = $this->mergeRules(
-                    $attributeRules,
                     $this->ruleDenormalizer->execute($generatedRules, $nodePath),
+                    $attributeRules,
                 );
             } else {
-                $generatedRules = $this->inferRules($property, $typeRule, $hasPresenceRule, $receivesDataCollection);
+                $generatedRules = $this->inferRules(
+                    $property,
+                    match (true) {
+                        ! $typeRule instanceof Enum => $typeRule,
+                        // A declared enum rule, with its own case restrictions, replaces the inferred one.
+                        $hasEnumAttribute => null,
+                        default => $typeRule->getRule($nodePath),
+                    },
+                    $hasPresenceRule,
+                    $receivesDataCollection,
+                    $hasValue,
+                );
+
+                // A declared attribute replaces the inferred rule of its type, as PropertyRules does for inferrers.
+                foreach ($generatedRules as $index => $generatedRule) {
+                    if (! is_string($generatedRule)) {
+                        continue;
+                    }
+
+                    foreach ($attributes as $attribute) {
+                        if ($attribute instanceof (self::INFERRED_RULE_TYPES[$generatedRule])) {
+                            unset($generatedRules[$index]);
+
+                            break;
+                        }
+                    }
+                }
+
                 $inferredRequired = in_array('required', $generatedRules, true);
-                $rules = $this->mergeRules($attributeRules, $generatedRules);
+                $rules = [...$generatedRules, ...$attributeRules];
             }
         }
 
@@ -660,28 +766,42 @@ class DataValidationCompiler
     /**
      * Infer fixed presence and type rules for one property.
      *
-     * @param null|'array'|'boolean'|'integer'|'numeric'|'string' $typeRule
-     * @return list<'array'|'boolean'|'integer'|'nullable'|'numeric'|'present'|'required'|'sometimes'|'string'>
+     * @param null|'array'|'boolean'|'integer'|'numeric'|'string'|object $typeRule a rule name, or a rule object used as given
+     * @return list<'array'|'boolean'|'integer'|'nullable'|'numeric'|'present'|'required'|'sometimes'|'string'|object>
      */
     protected function inferRules(
         DataProperty $property,
-        ?string $typeRule,
+        string|object|null $typeRule,
         bool $hasPresenceRule,
         bool $receivesDataCollection,
+        bool $hasValue,
     ): array {
-        $rules = match (true) {
-            $property->type->isOptional => ['sometimes'],
-            $property->type->isNullable => ['nullable'],
+        $rules = [];
+
+        if ($property->type->isNullable) {
+            $rules[] = 'nullable';
+        }
+
+        // A declared presence rule must still apply when the key is missing.
+        if ($property->type->isOptional && ! $hasPresenceRule) {
+            $rules[] = 'sometimes';
+        }
+
+        if (! $property->type->isNullable
+            && ! $property->type->isOptional
+            && ! $hasPresenceRule
+            // A default fills an omitted value, but supplied input must still be present.
+            && (! $property->hasDefaultValue || $hasValue)
+        ) {
             // A list of data objects may be empty, which `required` would reject.
-            ! $property->hasDefaultValue && ! $hasPresenceRule => [$receivesDataCollection ? 'present' : 'required'],
-            default => [],
-        };
+            $rules[] = $receivesDataCollection ? 'present' : 'required';
+        }
 
         if ($typeRule !== null) {
             $rules[] = $typeRule;
         }
 
-        if ($rules === []) {
+        if ($rules === [] && ! $hasPresenceRule) {
             $rules[] = 'sometimes';
         }
 
@@ -689,45 +809,30 @@ class DataValidationCompiler
     }
 
     /**
-     * Run the configured rule inferrers over one property's attribute and inferred rules.
+     * Run the configured rule inferrers over one property's inferred and attribute rules.
      *
-     * Explicit attributes take precedence over inferred rules of the same type.
+     * Declared attributes follow the inferred rules and replace inferred rules of the same type.
      *
      * @param list<ValidationRule> $attributes
-     * @param list<'array'|'boolean'|'integer'|'nullable'|'numeric'|'present'|'required'|'sometimes'|'string'> $inferredRules
+     * @param list<'array'|'boolean'|'integer'|'nullable'|'numeric'|'present'|'required'|'sometimes'|'string'|Enum> $inferredRules
      */
     protected function applyRuleInferrers(
         DataProperty $property,
         array $attributes,
         array $inferredRules,
-        ValidationPath $nodePath,
+        ValidationContext $context,
         ConstructionState $state,
     ): PropertyRules {
-        $rules = new PropertyRules($attributes);
+        $rules = new PropertyRules;
 
         foreach ($inferredRules as $inferredRule) {
-            $rule = match ($inferredRule) {
-                'sometimes' => new Sometimes,
-                'nullable' => new Nullable,
-                'present' => new Present,
-                'required' => new Required,
-                'array' => new ArrayType,
-                'boolean' => new BooleanType,
-                'numeric' => new Numeric,
-                'integer' => new IntegerType,
-                'string' => new StringType,
-            };
-
-            if (! $rules->hasType($rule::class)) {
-                $rules->add($rule);
-            }
+            $rules->add(is_string($inferredRule) ? new (self::INFERRED_RULE_TYPES[$inferredRule]) : $inferredRule);
         }
 
-        $context = new ValidationContext(
-            payload: $state->currentPayload(),
-            fullPayload: $state->payload(),
-            path: $nodePath,
-        );
+        if ($attributes !== []) {
+            // Added together, so several declared requiring rules all remain.
+            $rules->add(...$attributes);
+        }
 
         foreach ($state->ruleInferrers() as $inferrer) {
             $rules = $inferrer->handle($property, $rules, $context);
@@ -762,6 +867,7 @@ class DataValidationCompiler
         DataClass $dataClass,
         ConstructionState $state,
         ValidationPath $path,
+        ?ValidationContext $context,
         ValidationPath $structuralPath,
         ValidationAccumulator $accumulator,
         bool $observed,
@@ -770,11 +876,6 @@ class DataValidationCompiler
             return;
         }
 
-        $context = new ValidationContext(
-            payload: $observed ? $state->currentPayload() : [],
-            fullPayload: $state->payload(),
-            path: $path,
-        );
         $classRules = $this->callArrayLifecycleMethod(
             $dataClass,
             'rules',
@@ -840,6 +941,7 @@ class DataValidationCompiler
                 unset($accumulator->inferredRequiredPaths[$rulePath]);
             }
 
+            // Class rules follow their declaration order, which decides how overlapping exact and wildcard keys merge.
             unset($accumulator->rules[$rulePath]);
             $accumulator->rules[$rulePath] = $rules;
         }
@@ -967,7 +1069,7 @@ class DataValidationCompiler
         array $parameters = [],
     ): array {
         $result = $this->container->call(
-            "{$dataClass->name}::{$method}",
+            [$dataClass->name, $method],
             $parameters,
         );
 
@@ -1138,17 +1240,18 @@ class DataValidationCompiler
                 );
             }
 
-            $hasFinishedValues = false;
+            // As in compilation, a finished object or input Fill could not read has its own item path.
+            $hasNonArrayValues = false;
 
             foreach ($values as $itemValue) {
-                if ($itemValue instanceof $itemDataClass) {
-                    $hasFinishedValues = true;
+                if (! is_array($itemValue)) {
+                    $hasNonArrayValues = true;
 
                     break;
                 }
             }
 
-            if ($state->isCurrentCollectionUniform() && ! $hasFinishedValues) {
+            if ($state->isCurrentCollectionUniform() && ! $hasNonArrayValues) {
                 $firstKey = array_key_first($values);
                 $state->enterItem($firstKey);
 
@@ -1380,11 +1483,11 @@ class DataValidationCompiler
     }
 
     /**
-     * Get one unambiguous primitive validation rule.
+     * Get one unambiguous type validation rule.
      *
-     * @return null|'array'|'boolean'|'integer'|'numeric'|'string'
+     * @return null|'array'|'boolean'|'integer'|'numeric'|'string'|Enum
      */
-    protected function primitiveRule(DataProperty $property): ?string
+    protected function primitiveRule(DataProperty $property): string|Enum|null
     {
         $rules = [];
 
@@ -1392,19 +1495,19 @@ class DataValidationCompiler
             $rule = $this->typeRuleFor($type);
 
             if ($rule !== null) {
-                $rules[$rule] = true;
+                $rules[$rule instanceof Enum ? $type->name : $rule] = $rule;
             }
         }
 
-        return count($rules) === 1 ? array_key_first($rules) : null;
+        return count($rules) === 1 ? reset($rules) : null;
     }
 
     /**
      * Get the type rule for one declared named type.
      *
-     * @return null|'array'|'boolean'|'integer'|'numeric'|'string'
+     * @return null|'array'|'boolean'|'integer'|'numeric'|'string'|Enum
      */
-    protected function typeRuleFor(NamedType $type): ?string
+    protected function typeRuleFor(NamedType $type): string|Enum|null
     {
         return match ($type->name) {
             'array', 'iterable' => 'array',
@@ -1412,7 +1515,9 @@ class DataValidationCompiler
             'float' => 'numeric',
             'int' => 'integer',
             'string' => 'string',
-            default => null,
+            default => ! $type->builtIn && is_a($type->name, BackedEnum::class, true)
+                ? new Enum($type->name)
+                : null,
         };
     }
 
@@ -1422,14 +1527,14 @@ class DataValidationCompiler
      * A union value uses the rule of the declared type that holds it, so numeric size rules keep
      * their numeric meaning. Other values use the declaration's rule.
      *
-     * @return null|'array'|'boolean'|'integer'|'numeric'|'string'
+     * @return null|'array'|'boolean'|'integer'|'numeric'|'string'|Enum
      */
     protected function inferredTypeRule(
         DataProperty $property,
         bool $hasValue,
         mixed $value,
         ?NamedType $dataType,
-    ): ?string {
+    ): string|Enum|null {
         if ($hasValue && $value !== null && ! $value instanceof Optional && $property->type->isUnion) {
             // Fill replaced a data value with its normalized input, so the type it selected decides.
             if ($dataType !== null && $property->type->recordsSelectedType) {

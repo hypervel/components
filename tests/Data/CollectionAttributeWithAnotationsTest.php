@@ -47,7 +47,6 @@ class CollectionAttributeWithAnotationsTest extends TestCase
 
     public function testCanValidateADataObjectWithACollectionAttribute(): void
     {
-        // A uniform collection uses one wildcard rule instead of upstream's rule per item.
         DataValidationAsserter::for(DataWithSimpleDataCollectionWithAnotations::class)
             ->assertOk($this->payload)
             ->assertErrors(['collection' => [
@@ -56,7 +55,9 @@ class CollectionAttributeWithAnotationsTest extends TestCase
             ->assertRules(
                 rules: [
                     'collection' => ['present', 'array'],
-                    'collection.*.string' => ['required', 'string'],
+                    'collection.0.string' => ['required', 'string'],
+                    'collection.1.string' => ['required', 'string'],
+                    'collection.2.string' => ['required', 'string'],
                 ],
                 payload: $this->payload
             );

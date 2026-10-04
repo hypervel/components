@@ -633,18 +633,27 @@ class DataCreatorTest extends TestCase
         $payload = [
             'items' => [
                 'tenant.eu' => ['profile' => ['name' => 'Europe']],
-                'tenant' => ['name' => 'Global'],
+                'tenant' => ['profile' => ['name' => 'Global']],
             ],
         ];
 
         $rules = MappedItemListCreationData::getValidationRules($payload);
         $data = MappedItemListCreationData::validateAndCreate($payload);
 
-        $this->assertArrayHasKey('items.tenant\.eu.profile.name', $rules);
-        $this->assertArrayHasKey('items.tenant.name', $rules);
+        $this->assertArrayHasKey('items.*.profile.name', $rules);
         $this->assertSame(['tenant.eu', 'tenant'], array_keys($data->items));
         $this->assertSame('Europe', $data->items['tenant.eu']->name);
         $this->assertSame('Global', $data->items['tenant']->name);
+
+        // The wildcard rule reaches the dotted key as one item.
+        try {
+            MappedItemListCreationData::validateAndCreate([
+                'items' => ['tenant.eu' => ['profile' => ['name' => 123]]],
+            ]);
+            $this->fail('Expected the dotted item to fail validation.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(['items.tenant.eu.profile.name'], array_keys($exception->errors()));
+        }
     }
 
     public function testPreservesLazyCollectionTraversalWhenValidationIsNotRunning(): void
@@ -1463,10 +1472,10 @@ class DataCreatorTest extends TestCase
         CastOwnedChildCast::$received = null;
 
         $data = CastOwnedParentData::validateAndCreate([
-            'child' => ['name' => 'Taylor', 'undeclared' => 'dropped'],
+            'child' => ['external_name' => 'Taylor', 'undeclared' => 'dropped'],
         ]);
 
-        $this->assertSame(['name' => 'Taylor'], CastOwnedChildCast::$received);
+        $this->assertSame(['external_name' => 'Taylor'], CastOwnedChildCast::$received);
         $this->assertSame('Taylor', $data->child->name);
 
         $shapes = CastOwnedShapesData::validateAndCreate([

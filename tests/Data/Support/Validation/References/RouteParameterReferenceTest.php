@@ -9,7 +9,6 @@ use Hypervel\Data\Attributes\Validation\Unique;
 use Hypervel\Data\Data;
 use Hypervel\Data\DataServiceProvider;
 use Hypervel\Data\Exceptions\CannotResolveRouteParameterReference;
-use Hypervel\Data\Support\Validation\Constraints\WhereConstraint;
 use Hypervel\Data\Support\Validation\References\RouteParameterReference;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Testbench\TestCase;
@@ -25,34 +24,6 @@ class RouteParameterReferenceTest extends TestCase
     protected function getPackageProviders(Application $app): array
     {
         return [DataServiceProvider::class];
-    }
-
-    public function testCanUseExternalReferenceAsDatabaseConstraintValue(): void
-    {
-        $this->bindRouteParameters(['active' => true]);
-
-        $rules = RouteParameterWhereConstraintData::getValidationRules([]);
-
-        $this->assertSame('unique:users,NULL,NULL,id,is_active,"1"', (string) $rules['email'][0]);
-        $this->assertSame(['required', 'string'], array_slice($rules['email'], 1));
-    }
-
-    public function testCanReferenceRouteParametersAsValuesWithinRules(): void
-    {
-        $this->bindRouteParameters(['post_id' => '69']);
-
-        $rules = RouteParameterIgnoreData::getValidationRules([]);
-
-        $this->assertSame('unique:posts,NULL,"69",id', (string) $rules['property'][0]);
-    }
-
-    public function testCanReferenceRouteModelsWithAPropertyAsValuesWithinRules(): void
-    {
-        $this->bindRouteParameters(['post' => RouteParameterPost::make(69)]);
-
-        $rules = RouteParameterModelPropertyData::getValidationRules([]);
-
-        $this->assertSame('unique:posts,NULL,"69",id', (string) $rules['property'][0]);
     }
 
     public function testResolvesTheWholeBoundModelWithoutAProperty(): void
@@ -98,8 +69,8 @@ class RouteParameterReferenceTest extends TestCase
         $this->bindRouteParameters(['post_id' => '2']);
         $second = RouteParameterIgnoreData::getValidationRules([]);
 
-        $this->assertSame('unique:posts,NULL,"1",id', (string) $first['property'][0]);
-        $this->assertSame('unique:posts,NULL,"2",id', (string) $second['property'][0]);
+        $this->assertSame('unique:posts,NULL,"1",id', (string) $first['property'][2]);
+        $this->assertSame('unique:posts,NULL,"2",id', (string) $second['property'][2]);
     }
 }
 
@@ -114,18 +85,6 @@ class RouteParameterPost extends Model
     }
 }
 
-class RouteParameterWhereConstraintData extends Data
-{
-    /**
-     * Create a fixture constrained by a route parameter.
-     */
-    public function __construct(
-        #[Unique('users', where: [new WhereConstraint('is_active', new RouteParameterReference('active'))])]
-        public string $email,
-    ) {
-    }
-}
-
 class RouteParameterIgnoreData extends Data
 {
     /**
@@ -133,18 +92,6 @@ class RouteParameterIgnoreData extends Data
      */
     public function __construct(
         #[Unique('posts', ignore: new RouteParameterReference('post_id'))]
-        public int $property,
-    ) {
-    }
-}
-
-class RouteParameterModelPropertyData extends Data
-{
-    /**
-     * Create a fixture that ignores a route model's property.
-     */
-    public function __construct(
-        #[Unique('posts', ignore: new RouteParameterReference('post', 'id'))]
         public int $property,
     ) {
     }

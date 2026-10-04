@@ -20,10 +20,12 @@ use Hypervel\Data\Attributes\Validation\ArrayType;
 use Hypervel\Data\Attributes\Validation\Confirmed;
 use Hypervel\Data\Attributes\Validation\CustomValidationAttribute;
 use Hypervel\Data\Attributes\Validation\Distinct;
+use Hypervel\Data\Attributes\Validation\Enum as EnumAttribute;
 use Hypervel\Data\Attributes\Validation\Max;
 use Hypervel\Data\Attributes\Validation\Min;
 use Hypervel\Data\Attributes\Validation\Required;
 use Hypervel\Data\Attributes\Validation\RequiredUnless;
+use Hypervel\Data\Attributes\Validation\RequiredWith;
 use Hypervel\Data\Attributes\Validation\Sometimes;
 use Hypervel\Data\Attributes\Validation\StringType;
 use Hypervel\Data\Attributes\WithoutValidation;
@@ -33,6 +35,8 @@ use Hypervel\Data\DataCollection;
 use Hypervel\Data\DataServiceProvider;
 use Hypervel\Data\Dto;
 use Hypervel\Data\Exceptions\CannotBuildValidationRule;
+use Hypervel\Data\Exceptions\CannotCreateAbstractClass;
+use Hypervel\Data\Exceptions\CannotCreateData;
 use Hypervel\Data\Normalizers\Normalizer;
 use Hypervel\Data\Optional;
 use Hypervel\Data\Resource;
@@ -55,6 +59,7 @@ use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Data\Fixtures\SimpleData;
 use Hypervel\Validation\Factory as ValidationFactory;
+use Hypervel\Validation\Rules\Enum as EnumRule;
 use Hypervel\Validation\ValidationException;
 use Hypervel\Validation\Validator;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -204,7 +209,7 @@ class DataValidatorTest extends TestCase
             'items' => ['present', 'array'],
             'nullableItems' => ['nullable', 'array'],
             'optionalItems' => ['sometimes', 'array'],
-            'requiredItems' => ['required', 'array'],
+            'requiredItems' => ['array', 'required'],
             'plain' => ['required', 'array'],
         ];
 
@@ -234,7 +239,7 @@ class DataValidatorTest extends TestCase
         $rules = PresentCollectionDataFixture::getValidationRules([]);
 
         $this->assertSame(['present', 'array'], $rules['items']);
-        $this->assertSame(['required', 'array'], $rules['requiredItems']);
+        $this->assertSame(['array', 'required'], $rules['requiredItems']);
     }
 
     public function testClassRulesMergeWithOrReplaceDataCollectionPresence(): void
@@ -284,6 +289,74 @@ class DataValidatorTest extends TestCase
     }
 
     /**
+     * Test a backed-enum property infers the enum rule, so invalid request input fails validation instead of the cast.
+     */
+    public function testBackedEnumPropertiesInferTheEnumRule(): void
+    {
+        $this->assertEquals(
+            ['required', new EnumRule(ValidationStatusEnumFixture::class)],
+            EnumValidatedDataFixture::getValidationRules([])['status'],
+        );
+
+        try {
+            EnumValidatedDataFixture::from(Request::create('/', 'POST', ['status' => 'invalid', 'priority' => '1']));
+            $this->fail('Expected the invalid enum value to fail validation.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(['status'], array_keys($exception->errors()));
+        }
+
+        // Integral numeric strings select an integer-backed case, as the enum cast accepts them.
+        foreach (['1', '1.0'] as $priority) {
+            $data = EnumValidatedDataFixture::from(
+                Request::create('/', 'POST', ['status' => 'active', 'priority' => $priority]),
+            );
+
+            $this->assertSame(ValidationStatusEnumFixture::Active, $data->status);
+            $this->assertSame(ValidationPriorityEnumFixture::High, $data->priority);
+        }
+    }
+
+    /**
+     * Test a declared enum rule, with its case restrictions, replaces the inferred one.
+     */
+    public function testDeclaredEnumRulesReplaceTheInferredEnumRule(): void
+    {
+        $rules = RestrictedEnumDataFixture::getValidationRules([])['status'];
+
+        $this->assertCount(1, array_filter($rules, static fn (mixed $rule): bool => $rule instanceof EnumRule));
+
+        try {
+            RestrictedEnumDataFixture::validate(['status' => 'inactive']);
+            $this->fail('Expected the excluded case to fail validation.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(['status'], array_keys($exception->errors()));
+        }
+    }
+
+    /**
+     * Test identical dynamic items keep one wildcard enum rule, while different explicit restrictions stay per item.
+     */
+    public function testEnumRulesKeepUniformCollectionsWildcard(): void
+    {
+        $rules = EnumItemsParentDataFixture::getValidationRules([
+            'items' => [['status' => 'active'], ['status' => 'inactive']],
+        ]);
+
+        $this->assertArrayHasKey('items.*.status', $rules);
+        $this->assertArrayNotHasKey('items.0.status', $rules);
+
+        $rules = EnumItemsParentDataFixture::getValidationRules([
+            'items' => [
+                ['status' => 'active', 'only' => 'active'],
+                ['status' => 'inactive', 'only' => 'inactive'],
+            ],
+        ]);
+
+        $this->assertArrayHasKey('items.0.status', $rules);
+        $this->assertArrayHasKey('items.1.status', $rules);
+    }
+
+    /**
      * Test configured rule inferrers adjust attribute and inferred rules.
      */
     #[WithConfig('data.rule_inferrers', [MaxStringRuleInferrer::class, OptionalNicknameRuleInferrer::class])]
@@ -293,9 +366,20 @@ class DataValidatorTest extends TestCase
 
         $this->assertSame(['required', 'string', 'max:255'], $rules['name']);
         $this->assertSame(['string', 'max:255', 'sometimes'], $rules['nickname']);
-        $this->assertSame(['max:20', 'required', 'string'], $rules['code']);
-        $this->assertSame(['array:id', 'required'], $rules['meta']);
+        $this->assertSame(['required', 'string', 'max:20'], $rules['code']);
+        $this->assertSame(['required', 'array:id'], $rules['meta']);
         $this->assertSame(['required', 'integer'], $rules['age']);
+    }
+
+    /**
+     * Test declared attributes replace the inferred rule of their type without configured inferrers too.
+     */
+    public function testDeclaredRulesReplaceTheInferredRuleOfTheirType(): void
+    {
+        $rules = RuleInferrerDataFixture::getValidationRules([]);
+
+        $this->assertSame(['required', 'string', 'max:20'], $rules['code']);
+        $this->assertSame(['required', 'array:id'], $rules['meta']);
     }
 
     /**
@@ -322,6 +406,62 @@ class DataValidatorTest extends TestCase
         $this->assertSame(['required', 'string', 'max:5'], $rules['items.0.name']);
         $this->assertSame(['required', 'string', 'max:100'], $rules['items.1.name']);
         $this->assertSame([], $rules['items.*.name']);
+    }
+
+    /**
+     * Test rule inferrers see each collection item's own input path, while uniform items keep one wildcard rule.
+     */
+    #[WithConfig('data.rule_inferrers', [RecordingContextRuleInferrer::class])]
+    public function testRuleInferrersReceiveEachCollectionItemPath(): void
+    {
+        RecordingContextRuleInferrer::$contexts = [];
+
+        $rules = RuleInferrerParentDataFixture::getValidationRules([
+            'items' => [['name' => 'Taylor'], ['name' => 'Swift']],
+        ]);
+
+        $this->assertSame(
+            [
+                'items' => [''],
+                'name' => ['items.0', 'items.1'],
+                'long' => ['items.0', 'items.1'],
+            ],
+            array_map(
+                static fn (array $contexts): array => array_map(
+                    static fn (ValidationContext $context): string => $context->path->get(),
+                    $contexts,
+                ),
+                RecordingContextRuleInferrer::$contexts,
+            ),
+        );
+        $this->assertArrayHasKey('items.*.name', $rules);
+        $this->assertArrayNotHasKey('items.0.name', $rules);
+    }
+
+    /**
+     * Test rule inferrers for a missing or null child and an empty collection's item template receive no input.
+     */
+    #[WithConfig('data.rule_inferrers', [RecordingContextRuleInferrer::class])]
+    public function testRuleInferrersReceiveNoInputForUnobservedNodes(): void
+    {
+        foreach ([[], ['child' => null]] as $child) {
+            RecordingContextRuleInferrer::$contexts = [];
+            $payload = [...$child, 'children' => []];
+
+            UnreadableParentDataFixture::getValidationRules($payload);
+
+            $this->assertSame(
+                [['child', [], $payload], ['children.*', [], $payload]],
+                array_map(
+                    static fn (ValidationContext $context): array => [
+                        $context->path->get(),
+                        $context->payload,
+                        $context->fullPayload,
+                    ],
+                    RecordingContextRuleInferrer::$contexts['name'],
+                ),
+            );
+        }
     }
 
     /**
@@ -380,7 +520,7 @@ class DataValidatorTest extends TestCase
 
         $rules = CountedReferenceDataFixture::getValidationRules([]);
 
-        $this->assertSame(['max:10', 'alpha', 'required', 'string'], $rules['name']);
+        $this->assertSame(['required', 'string', 'max:10', 'alpha'], $rules['name']);
         $this->assertSame(1, $resolutions);
         $this->assertSame(1, CountingRuleAttribute::$evaluations);
     }
@@ -399,11 +539,12 @@ class DataValidatorTest extends TestCase
 
         $this->assertSame([$payload, $payload], ContextParentDataFixture::$contexts['parent']);
         $this->assertSame([$payload['child'], $payload], ContextParentDataFixture::$contexts['child']);
-        $this->assertSame([$payload['child'], $payload], RecordingContextRuleInferrer::$contexts['value']);
+        [$valueContext] = RecordingContextRuleInferrer::$contexts['value'];
+        $this->assertSame([$payload['child'], $payload], [$valueContext->payload, $valueContext->fullPayload]);
     }
 
     /**
-     * Test mixed collection wire choices produce exact mapped error paths.
+     * Test validated collection items read only the mapped wire key and report errors at its path.
      */
     public function testValidatesNestedDataCollectionsWithMappedWireKeys(): void
     {
@@ -413,13 +554,52 @@ class DataValidatorTest extends TestCase
                 ->from([
                     'children' => [
                         ['profile' => ['name' => 123]],
-                        ['name' => 456],
+                        // Under the PHP property name, the short value is neither read nor validated.
+                        ['name' => 'Tay'],
                     ],
                 ]);
             $this->fail('Expected nested validation to fail.');
         } catch (ValidationException $exception) {
-            $this->assertArrayHasKey('children.0.profile.name', $exception->errors());
-            $this->assertArrayHasKey('children.1.name', $exception->errors());
+            $this->assertSame(['children.0.profile.name'], array_keys($exception->errors()));
+        }
+    }
+
+    /**
+     * Test validated sources read only the mapped name, so a later source's PHP property name is not read.
+     */
+    public function testValidatedSourcesReadOnlyTheMappedName(): void
+    {
+        $data = MappedValueDataFixture::factory()
+            ->alwaysValidate()
+            ->from(['wire' => 'first'], ['value' => 'second']);
+
+        $this->assertSame('first', $data->value);
+
+        // Without validation, the PHP property name remains a fallback, as in Spatie.
+        $this->assertSame('second', MappedValueDataFixture::from(['value' => 'second'])->value);
+    }
+
+    /**
+     * Test an Optional mapped property ignores validated input under its PHP property name.
+     */
+    public function testValidatedOptionalMappedPropertiesIgnoreThePropertyName(): void
+    {
+        $data = OptionalMappedValueDataFixture::validateAndCreate(['value' => 'ignored']);
+
+        $this->assertInstanceOf(Optional::class, $data->value);
+        $this->assertSame([], $data->toArray());
+    }
+
+    /**
+     * Test strict validation reports a PHP property name sent in place of the mapped name.
+     */
+    public function testFailOnUnknownFieldsRejectsThePropertyNameOfAMappedProperty(): void
+    {
+        try {
+            StrictMappedValueDataFixture::validateAndCreate(['value' => 'first']);
+            $this->fail('Expected the PHP property name to fail validation.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(['wire', 'value'], array_keys($exception->errors()));
         }
     }
 
@@ -430,7 +610,7 @@ class DataValidatorTest extends TestCase
     {
         $data = ValidatedParentDataFixture::validateAndCreate([
             'children' => LazyCollection::make([
-                ['name' => 'Taylor'],
+                ['profile' => ['name' => 'Taylor']],
             ]),
         ]);
 
@@ -445,7 +625,7 @@ class DataValidatorTest extends TestCase
     {
         $data = ValidatedLazyParentDataFixture::validateAndCreate([
             'children' => LazyCollection::make([
-                ['name' => 'Taylor'],
+                ['profile' => ['name' => 'Taylor']],
             ]),
         ]);
 
@@ -462,8 +642,8 @@ class DataValidatorTest extends TestCase
     public function testRuleIntrospectionMaterializesLazyCollections(): void
     {
         $children = [
-            ['name' => 'Taylor'],
-            ['name' => 'Abigail'],
+            ['profile' => ['name' => 'Taylor']],
+            ['profile' => ['name' => 'Abigail']],
         ];
         $arrayRules = ValidatedLazyParentDataFixture::getValidationRules([
             'children' => $children,
@@ -473,25 +653,27 @@ class DataValidatorTest extends TestCase
         ]);
 
         $this->assertSame($arrayRules, $lazyRules);
-        $this->assertArrayHasKey('children.*.name', $lazyRules);
+        $this->assertArrayHasKey('children.*.profile.name', $lazyRules);
     }
 
     /**
-     * Test class wildcard rules follow each observed collection wire path.
+     * Test a class wildcard rule keyed by PHP property names applies at each item's mapped wire path.
      */
-    public function testTranslatesClassWildcardRulesAcrossMixedWireKeys(): void
+    public function testTranslatesClassWildcardRulesToMappedWirePaths(): void
     {
         try {
             ValidatedParentDataFixture::validateAndCreate([
                 'children' => [
                     ['profile' => ['name' => 'one']],
-                    ['name' => 'two'],
+                    ['profile' => ['name' => 'two']],
                 ],
             ]);
             $this->fail('Expected nested class rules to fail.');
         } catch (ValidationException $exception) {
-            $this->assertArrayHasKey('children.0.profile.name', $exception->errors());
-            $this->assertArrayHasKey('children.1.name', $exception->errors());
+            $this->assertSame(
+                ['children.0.profile.name', 'children.1.profile.name'],
+                array_keys($exception->errors()),
+            );
         }
     }
 
@@ -502,14 +684,14 @@ class DataValidatorTest extends TestCase
     {
         $rules = ValidatedParentDataFixture::getValidationRules([
             'children' => [
-                ['name' => 'Taylor'],
-                ['name' => 'Swift'],
+                ['profile' => ['name' => 'Taylor']],
+                ['profile' => ['name' => 'Swift']],
             ],
         ]);
 
-        $this->assertArrayHasKey('children.*.name', $rules);
-        $this->assertArrayNotHasKey('children.0.name', $rules);
-        $this->assertArrayNotHasKey('children.1.name', $rules);
+        $this->assertArrayHasKey('children.*.profile.name', $rules);
+        $this->assertArrayNotHasKey('children.0.profile.name', $rules);
+        $this->assertArrayNotHasKey('children.1.profile.name', $rules);
     }
 
     /**
@@ -1139,6 +1321,17 @@ class DataValidatorTest extends TestCase
     }
 
     /**
+     * Test a declared requiring rule drops only the sometimes rule inferred for an Optional property.
+     */
+    public function testDeclaredSometimesSurvivesARequiringRule(): void
+    {
+        $rules = SometimesRequiredWithDataFixture::getValidationRules([]);
+
+        $this->assertSame(['string', 'required_with:other'], $rules['inferred']);
+        $this->assertSame(['string', 'sometimes', 'required_with:other'], $rules['declared']);
+    }
+
+    /**
      * Test class-owned rules replace generated rules by default.
      */
     public function testClassRulesReplaceGeneratedRules(): void
@@ -1234,6 +1427,92 @@ class DataValidatorTest extends TestCase
         $data = DirectFactoryValidatedDataFixture::validateAndCreate(['id' => 'invalid']);
 
         $this->assertSame(99, $data->id);
+    }
+
+    /**
+     * Test nested input Fill cannot read fails validation at its own path instead of creation.
+     */
+    public function testUnreadableNestedInputFailsValidationAtItsPath(): void
+    {
+        $valid = ['child' => ['name' => null], 'children' => []];
+
+        foreach ([
+            ['child', [...$valid, 'child' => 'text']],
+            ['child', [...$valid, 'child' => '']],
+            // Blank strings skip non-implicit rules, so the nullable and Optional objects need their own rejection.
+            ['nullableChild', [...$valid, 'nullableChild' => '']],
+            ['optionalChild', [...$valid, 'optionalChild' => ' ']],
+            ['children', [...$valid, 'children' => '']],
+            // The item class has no required property, so only the item's own shape rules reject it.
+            ['children.0', [...$valid, 'children' => ['text']]],
+            ['children.0', [...$valid, 'children' => ['']]],
+            ['children.0', [...$valid, 'children' => [' ']]],
+        ] as [$errorKey, $payload]) {
+            try {
+                UnreadableParentDataFixture::validate($payload);
+                $this->fail("Expected [{$errorKey}] to fail validation.");
+            } catch (ValidationException $exception) {
+                $this->assertSame([$errorKey], array_keys($exception->errors()));
+            }
+        }
+
+        $this->assertSame(
+            ['required', 'array'],
+            UnreadableParentDataFixture::getValidationRules([...$valid, 'children' => ['text']])['children.0'],
+        );
+        $this->assertSame(
+            ['required', 'nullable', 'array'],
+            UnreadableParentDataFixture::getValidationRules([...$valid, 'nullableChild' => ''])['nullableChild'],
+        );
+        $this->assertSame(
+            ['nullable', 'array'],
+            UnreadableParentDataFixture::getValidationRules([...$valid, 'nullableChild' => null])['nullableChild'],
+        );
+    }
+
+    /**
+     * Test unreadable root collection items and nested input supplied by a hook fail validation too.
+     */
+    public function testUnreadableCollectionItemsAndHookInputFailValidation(): void
+    {
+        foreach (['text', '', ' '] as $item) {
+            try {
+                OptionalNameDataFixture::factory()->alwaysValidate()->collect([$item]);
+                $this->fail("Expected the unreadable item [{$item}] to fail validation.");
+            } catch (ValidationException $exception) {
+                $this->assertSame([0], array_keys($exception->errors()));
+            }
+        }
+
+        try {
+            UnreadableParentDataFixture::factory()
+                ->alwaysValidate()
+                ->beforeValidation(static fn (array $payload): array => [...$payload, 'child' => 'text'])
+                ->from(['child' => ['name' => 'Taylor'], 'children' => []]);
+            $this->fail('Expected the hook-supplied input to fail validation.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(['child'], array_keys($exception->errors()));
+        }
+    }
+
+    /**
+     * Test root input nothing can read still fails creation.
+     */
+    public function testUnreadableRootInputStillFailsCreation(): void
+    {
+        $this->expectException(CannotCreateData::class);
+
+        UnreadableParentDataFixture::factory()->alwaysValidate()->from(42);
+    }
+
+    /**
+     * Test a morph that valid input leaves unresolved still cannot be created.
+     */
+    public function testUnresolvedMorphThatPassesValidationIsNotCreated(): void
+    {
+        $this->expectException(CannotCreateAbstractClass::class);
+
+        NullableMorphBaseDataFixture::validateAndCreate([]);
     }
 
     /**
@@ -2070,7 +2349,7 @@ class DataValidatorTest extends TestCase
     }
 
     /**
-     * Test nested messages and labels follow each selected wire path.
+     * Test nested messages and labels keyed by PHP property names follow each item's mapped wire path.
      */
     public function testTranslatesNestedMessagesAndAttributesToObservedWirePaths(): void
     {
@@ -2086,7 +2365,7 @@ class DataValidatorTest extends TestCase
             LifecycleMessagesParentDataFixture::validateAndCreate([
                 'children' => [
                     ['profile' => ['name' => 123]],
-                    ['name' => 456],
+                    ['profile' => ['name' => 456]],
                 ],
             ]);
             $this->fail('Expected nested validation to fail.');
@@ -2097,7 +2376,50 @@ class DataValidatorTest extends TestCase
             );
             $this->assertSame(
                 ['Invalid display name.'],
-                $exception->errors()['children.1.name'],
+                $exception->errors()['children.1.profile.name'],
+            );
+        }
+    }
+
+    /**
+     * Test collection items get the same attribute names whether their rules compile to one wildcard or per item.
+     */
+    public function testCollectionAttributeNamesMatchForUniformAndDivergentItems(): void
+    {
+        $messages = [];
+
+        foreach ([
+            'uniform' => [['first_name' => 1], ['first_name' => 2]],
+            'divergent' => [['first_name' => 1], ['first_name' => 2, 'strict' => true]],
+        ] as $case => $items) {
+            try {
+                NamedItemsDataFixture::validate(['items' => $items]);
+                $this->fail("Expected the {$case} items to fail validation.");
+            } catch (ValidationException $exception) {
+                $messages[$case] = $exception->errors()['items.0.first_name'];
+            }
+        }
+
+        $this->assertSame(['The items.0.first name field must be a string.'], $messages['uniform']);
+        $this->assertSame($messages['uniform'], $messages['divergent']);
+    }
+
+    /**
+     * Test a formatter set in a validator hook replaces the collection attribute formatter.
+     */
+    public function testValidatorHooksCanReplaceTheCollectionAttributeFormatter(): void
+    {
+        try {
+            NamedItemsDataFixture::factory()
+                ->withValidator(static function (Validator $validator): void {
+                    $validator->setImplicitAttributesFormatter(static fn (string $attribute): string => strtoupper($attribute));
+                })
+                ->validate(['items' => [['first_name' => 1]]]);
+            $this->fail('Expected the item to fail validation.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(
+                ['The ITEMS.0.FIRST_NAME field must be a string.'],
+                $exception->errors()['items.0.first_name'],
             );
         }
     }
@@ -2270,7 +2592,7 @@ class DataValidatorTest extends TestCase
         } catch (ValidationException $exception) {
             $this->assertSame([
                 'items.1.item_code' => [
-                    'The items.1.item_code field has a duplicate value.',
+                    'The items.1.item code field has a duplicate value.',
                 ],
             ], $exception->errors());
         }
@@ -2521,22 +2843,6 @@ class CountedReferenceDataFixture extends Data
     }
 }
 
-class RecordingContextRuleInferrer implements RuleInferrer
-{
-    /** @var array<string, array{mixed, mixed}> */
-    public static array $contexts = [];
-
-    /**
-     * Record the property's validation context.
-     */
-    public function handle(DataProperty $property, PropertyRules $rules, ValidationContext $context): PropertyRules
-    {
-        static::$contexts[$property->name] = [$context->payload, $context->fullPayload];
-
-        return $rules;
-    }
-}
-
 class ContextChildDataFixture extends Data
 {
     /**
@@ -2592,6 +2898,22 @@ class PayloadLengthRuleInferrer implements RuleInferrer
         if ($property->name === 'name') {
             $rules->add(new Max(($context->payload['long'] ?? false) ? 100 : 5));
         }
+
+        return $rules;
+    }
+}
+
+class RecordingContextRuleInferrer implements RuleInferrer
+{
+    /** @var array<string, list<ValidationContext>> */
+    public static array $contexts = [];
+
+    /**
+     * Record the validation context each property is inferred with.
+     */
+    public function handle(DataProperty $property, PropertyRules $rules, ValidationContext $context): PropertyRules
+    {
+        static::$contexts[$property->name][] = $context;
 
         return $rules;
     }
@@ -2684,6 +3006,116 @@ class ValidatedChildDataFixture extends Data
     public function __construct(
         #[MapInputName('profile.name')]
         public string $name,
+    ) {
+    }
+}
+
+class MappedValueDataFixture extends Data
+{
+    /**
+     * Create a fixture with a mapped input name.
+     */
+    public function __construct(
+        #[MapInputName('wire')]
+        public string $value,
+    ) {
+    }
+}
+
+class OptionalMappedValueDataFixture extends Data
+{
+    /**
+     * Create a fixture with an Optional mapped input name.
+     */
+    public function __construct(
+        #[MapInputName('wire')]
+        public string|Optional $value,
+    ) {
+    }
+}
+
+#[FailOnUnknownFields]
+class StrictMappedValueDataFixture extends Data
+{
+    /**
+     * Create a strict fixture with a mapped input name.
+     */
+    public function __construct(
+        #[MapInputName('wire')]
+        public string $value,
+    ) {
+    }
+}
+
+enum ValidationStatusEnumFixture: string
+{
+    case Active = 'active';
+    case Inactive = 'inactive';
+}
+
+enum ValidationPriorityEnumFixture: int
+{
+    case High = 1;
+    case Low = 2;
+}
+
+class EnumValidatedDataFixture extends Data
+{
+    /**
+     * Create a fixture with string- and integer-backed enum properties.
+     */
+    public function __construct(
+        public ValidationStatusEnumFixture $status,
+        public ValidationPriorityEnumFixture $priority,
+    ) {
+    }
+}
+
+class RestrictedEnumDataFixture extends Data
+{
+    /**
+     * Create a fixture whose declared enum rule allows one case.
+     */
+    public function __construct(
+        #[EnumAttribute(ValidationStatusEnumFixture::class, only: [ValidationStatusEnumFixture::Active])]
+        public ValidationStatusEnumFixture $status,
+    ) {
+    }
+}
+
+class EnumItemDataFixture extends Data
+{
+    /**
+     * Create an enum collection item fixture.
+     */
+    public function __construct(
+        public ValidationStatusEnumFixture $status,
+    ) {
+    }
+
+    /**
+     * Restrict the status to the case named in the item's input.
+     */
+    public static function rules(ValidationContext $context): array
+    {
+        $only = $context->payload['only'] ?? null;
+
+        return $only === null
+            ? []
+            : ['status' => [(new EnumRule(ValidationStatusEnumFixture::class))->only(ValidationStatusEnumFixture::from($only))]];
+    }
+}
+
+class EnumItemsParentDataFixture extends Data
+{
+    /**
+     * Create a fixture holding enum items.
+     *
+     * @param array<array-key, EnumItemDataFixture> $items
+     */
+    public function __construct(
+        #[DataCollectionOf(EnumItemDataFixture::class)]
+        public array $items,
     ) {
     }
 }
@@ -3125,6 +3557,71 @@ class AttributeValidatedDataFixture extends Data
         public string $name = 'default',
     ) {
     }
+}
+
+class SometimesRequiredWithDataFixture extends Data
+{
+    #[RequiredWith('other')]
+    public string|Optional $inferred;
+
+    #[Sometimes, RequiredWith('other')]
+    public string|Optional $declared;
+
+    public ?string $other;
+}
+
+class OptionalNameDataFixture extends Data
+{
+    public ?string $name;
+}
+
+class UnreadableParentDataFixture extends Data
+{
+    public OptionalNameDataFixture $child;
+
+    public ?OptionalNameDataFixture $nullableChild;
+
+    public OptionalNameDataFixture|Optional $optionalChild;
+
+    /** @var array<array-key, OptionalNameDataFixture> */
+    public array $children;
+}
+
+abstract class NullableMorphBaseDataFixture extends Data implements PropertyMorphableData
+{
+    #[PropertyForMorph]
+    public ?string $type;
+
+    /**
+     * Resolve the concrete class only for the concrete type.
+     */
+    public static function morph(array $properties): ?string
+    {
+        return $properties['type'] === 'concrete' ? NullableMorphConcreteDataFixture::class : null;
+    }
+}
+
+class NullableMorphConcreteDataFixture extends NullableMorphBaseDataFixture
+{
+}
+
+class NamedItemDataFixture extends Data
+{
+    public string $first_name;
+
+    /**
+     * Require a longer name for a strict item.
+     */
+    public static function rules(ValidationContext $context): array
+    {
+        return ($context->payload['strict'] ?? false) ? ['first_name' => ['string', 'min:3']] : [];
+    }
+}
+
+class NamedItemsDataFixture extends Data
+{
+    /** @var array<array-key, NamedItemDataFixture> */
+    public array $items;
 }
 
 class UnvalidatedArrayKeysDataFixture extends Data

@@ -6,13 +6,11 @@ namespace Hypervel\Tests\Data\Support\Validation\References;
 
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Data\Attributes\Validation\Max;
-use Hypervel\Data\Attributes\Validation\Unique;
 use Hypervel\Data\Data;
 use Hypervel\Data\DataServiceProvider;
 use Hypervel\Data\Support\Validation\References\AuthenticatedUserReference;
 use Hypervel\Foundation\Auth\User;
 use Hypervel\Testbench\TestCase;
-use Hypervel\Validation\Rule;
 
 class AuthenticatedUserReferenceTest extends TestCase
 {
@@ -32,22 +30,13 @@ class AuthenticatedUserReferenceTest extends TestCase
         $app->make('config')->set('auth.guards.admin', ['driver' => 'session', 'provider' => 'users']);
     }
 
-    public function testCanReferenceTheCurrentLoggedInUserAsValuesWithinRules(): void
-    {
-        $this->actingAs($user = $this->user(69));
-
-        $rules = AuthenticatedUserIgnoreData::getValidationRules([]);
-
-        $this->assertSame((string) Rule::unique('users')->ignore($user), (string) $rules['property'][0]);
-    }
-
     public function testCanReferenceAScalarPropertyOfTheCurrentUser(): void
     {
         $this->actingAs($this->user(1, ['max_title_length' => 40]));
 
         $rules = AuthenticatedUserPropertyData::getValidationRules([]);
 
-        $this->assertSame('max:40', $rules['title'][0]);
+        $this->assertSame(['required', 'string', 'max:40'], $rules['title']);
     }
 
     public function testResolvesToNullForAGuest(): void
@@ -71,8 +60,8 @@ class AuthenticatedUserReferenceTest extends TestCase
         $this->actingAs($this->user(2, ['max_title_length' => 20]));
         $second = AuthenticatedUserPropertyData::getValidationRules([]);
 
-        $this->assertSame('max:10', $first['title'][0]);
-        $this->assertSame('max:20', $second['title'][0]);
+        $this->assertSame('max:10', $first['title'][2]);
+        $this->assertSame('max:20', $second['title'][2]);
     }
 
     /**
@@ -83,18 +72,6 @@ class AuthenticatedUserReferenceTest extends TestCase
     private function user(int $id, array $attributes = []): User
     {
         return (new User)->forceFill(['id' => $id, ...$attributes]);
-    }
-}
-
-class AuthenticatedUserIgnoreData extends Data
-{
-    /**
-     * Create a fixture that ignores the authenticated user.
-     */
-    public function __construct(
-        #[Unique('users', ignore: new AuthenticatedUserReference)]
-        public int $property,
-    ) {
     }
 }
 

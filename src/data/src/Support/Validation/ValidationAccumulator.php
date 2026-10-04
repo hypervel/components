@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Data\Support\Validation;
 
+use Hypervel\Validation\Rules\Enum;
 use Hypervel\Validation\Rules\Exists;
 use Hypervel\Validation\Rules\Unique;
 use Hypervel\Validation\ValidationRuleParser;
@@ -144,6 +145,11 @@ class ValidationAccumulator
             return is_array($rule)
                 && is_array($otherRule)
                 && $this->rulesEqual($rule, $otherRule);
+        }
+
+        // Each item compiles its own inferred enum rule, so equal rules compare by their type and case restrictions.
+        if ($rule instanceof Enum) {
+            return $otherRule instanceof Enum && $rule == $otherRule;
         }
 
         if (($rule instanceof Exists || $rule instanceof Unique)

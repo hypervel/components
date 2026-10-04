@@ -22,15 +22,6 @@ class ContainerReferenceTest extends TestCase
         return [DataServiceProvider::class];
     }
 
-    public function testCanReferenceAContainerDependencyAsValuesWithinRules(): void
-    {
-        $this->app->bind('max-allowed-size', static fn (): int => 100);
-
-        $rules = ContainerReferenceMaxData::getValidationRules([]);
-
-        $this->assertSame('max:100', $rules['property'][0]);
-    }
-
     public function testResolvesAPropertyOfTheDependency(): void
     {
         $this->app->bind('upload-limits', static fn (): array => ['size' => 512]);

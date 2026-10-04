@@ -801,7 +801,7 @@ class DataCreator
      * Fill one post-factory value through the general construction path.
      *
      * @param array<array-key, mixed> $payloads
-     * @return bool false when input beneath a cast-owned value could not be read and was kept as given
+     * @return bool false when nested input could not be read and was kept as given
      */
     protected function fillGeneralNode(
         DataClass $dataClass,
@@ -828,8 +828,9 @@ class DataCreator
             $source ??= SourceResolver::resolve($payload);
 
             if ($source === null) {
-                // Input only the cast or a named factory could read stays as given, so validation reports it.
-                if ($state->executionDeferred()) {
+                // Nested input Fill cannot read stays as given, so validation reports it. Beneath a cast,
+                // the cast or a named factory may still read it.
+                if ($state->executionDeferred() || ($compilesRules && $state->depth() > 0)) {
                     $state->writeNodeValue($payload);
 
                     return false;
@@ -842,29 +843,29 @@ class DataCreator
         }
 
         $propertySources = $sources;
-        $resolvedProperties = $this->resolveProperties($dataClass, $propertySources, $state->context);
+        $resolvedProperties = $this->resolveProperties($dataClass, $propertySources, $state->context, $compilesRules);
 
         if ($state->context->prepareDataHooks !== []) {
-            $input = $this->prepareDataInput($dataClass, $propertySources, $resolvedProperties, $state->context);
+            $input = $this->prepareDataInput($dataClass, $propertySources, $resolvedProperties, $state->context, $compilesRules);
 
             foreach ($state->context->prepareDataHooks as $hook) {
                 $input = $hook($input);
             }
 
             $propertySources = [$input];
-            $resolvedProperties = $this->resolveProperties($dataClass, $propertySources, $state->context);
+            $resolvedProperties = $this->resolveProperties($dataClass, $propertySources, $state->context, $compilesRules);
         }
 
-        $class = $this->resolveMorphClass($dataClass, $resolvedProperties);
+        $class = $this->resolveMorphClass($dataClass, $resolvedProperties, $compilesRules);
 
         if ($class !== $dataClass->name) {
             $dataClass = $this->dataClasses->get($class);
-            $resolvedProperties = $this->resolveProperties($dataClass, $propertySources, $state->context);
+            $resolvedProperties = $this->resolveProperties($dataClass, $propertySources, $state->context, $compilesRules);
         }
 
         if ($dataClass->hasLifecycleMethod('prepareForPipeline')) {
-            $propertySources = $this->prepareSourcesForPipeline($dataClass, $propertySources, $state->context);
-            $resolvedProperties = $this->resolveProperties($dataClass, $propertySources, $state->context);
+            $propertySources = $this->prepareSourcesForPipeline($dataClass, $propertySources, $state->context, $compilesRules);
+            $resolvedProperties = $this->resolveProperties($dataClass, $propertySources, $state->context, $compilesRules);
         }
 
         if ($compilesRules) {
@@ -882,7 +883,7 @@ class DataCreator
             }
 
             $state->recordUnknownInput(
-                $this->mergeSources($dataClass, $unknownInputSources, $state->context),
+                $this->mergeSources($dataClass, $unknownInputSources, $state->context, $compilesRules),
             );
         }
 
@@ -1066,8 +1067,9 @@ class DataCreator
         $source = SourceResolver::resolve($payload);
 
         if ($source === null) {
-            // Beneath a cast-owned value, input only the cast or a named factory could read stays as given.
-            if ($deferred) {
+            // Nested input Fill cannot read stays as given, so validation reports it. Beneath a cast,
+            // the cast or a named factory may still read it.
+            if ($deferred || ($compilesRules && $state->depth() > 0)) {
                 $state->writeNodeValue($payload);
 
                 return null;
@@ -1079,12 +1081,12 @@ class DataCreator
         if ($match !== null) {
             $state->recordNamedFactory($dataClass, ...$match);
         }
-        $resolvedProperties = $this->resolveProperties($dataClass, [$source], $state->context);
-        $class = $this->resolveMorphClass($dataClass, $resolvedProperties);
+        $resolvedProperties = $this->resolveProperties($dataClass, [$source], $state->context, $compilesRules);
+        $class = $this->resolveMorphClass($dataClass, $resolvedProperties, $compilesRules);
 
         if ($class !== $dataClass->name) {
             $dataClass = $this->dataClasses->get($class);
-            $resolvedProperties = $this->resolveProperties($dataClass, [$source], $state->context);
+            $resolvedProperties = $this->resolveProperties($dataClass, [$source], $state->context, $compilesRules);
         }
 
         if ($compilesRules && is_array($source)) {
@@ -1164,6 +1166,7 @@ class DataCreator
                     $sources,
                     $payloads,
                     $state->context,
+                    $compilesRules,
                 );
                 $state->recordAutoLazy($property->name, $autoLazySource);
             }
@@ -1570,15 +1573,16 @@ class DataCreator
             $declaredDataClass,
             [$payload],
             $state->context,
+            $compilesRules,
         );
-        $class = $this->resolveMorphClass($declaredDataClass, $declaredProperties);
+        $class = $this->resolveMorphClass($declaredDataClass, $declaredProperties, $compilesRules);
         $previousClass = $state->nodeClass() ?? $declaredClass;
 
         if ($class !== $previousClass) {
             $dataClass = $this->dataClasses->get($class);
             $resolvedProperties = $class === $declaredClass
                 ? $declaredProperties
-                : $this->resolveProperties($dataClass, [$payload], $state->context);
+                : $this->resolveProperties($dataClass, [$payload], $state->context, $compilesRules);
             $state->resetNodeStructure();
             $state->setNodeClass($class);
             $this->rematchDeferredFactory($declaredDataClass, $payload, $state);
@@ -1601,7 +1605,7 @@ class DataCreator
         $dataClass = $this->dataClasses->get($class);
         $resolvedProperties = $class === $declaredClass
             ? $declaredProperties
-            : $this->resolveProperties($dataClass, [$payload], $state->context);
+            : $this->resolveProperties($dataClass, [$payload], $state->context, $compilesRules);
         $contextualParameters = $dataClass->contextualParameters;
 
         foreach ($dataClass->properties as $property) {
@@ -1714,6 +1718,7 @@ class DataCreator
                 [$payload],
                 [$payload],
                 $state->context,
+                $compilesRules,
             );
             $state->recordAutoLazy($property->name, $autoLazySource);
         }
@@ -1989,6 +1994,12 @@ class DataCreator
 
         $class = $state->nodeClass() ?? $state->context->dataClass;
         $dataClass = $this->dataClasses->get($class);
+
+        // Validation keeps an unresolved morph for its rules; one that passed still cannot be created.
+        if ($dataClass->isAbstract) {
+            throw CannotCreateAbstractClass::morphClassWasNotResolved($class);
+        }
+
         $properties = [];
         // The declared values given to user casts, built on the first one that needs them.
         $castInputs = null;
@@ -2702,11 +2713,12 @@ class DataCreator
         DataClass $dataClass,
         array $sources,
         CreationContext $context,
+        bool $compilesRules,
     ): array {
         $properties = [];
 
         foreach ($dataClass->properties as $property) {
-            $properties[$property->name] = $this->resolveProperty($sources, $property, $context);
+            $properties[$property->name] = $this->resolveProperty($sources, $property, $context, $compilesRules);
         }
 
         return $properties;
@@ -2722,12 +2734,13 @@ class DataCreator
         array $sources,
         DataProperty $property,
         CreationContext $context,
+        bool $compilesRules,
     ): array {
         $mappedKey = $this->propertyInputKey($property, $context);
         $optional = null;
 
         for ($index = count($sources) - 1; $index >= 0; --$index) {
-            $match = $this->matchPropertySource($sources[$index], $property, $mappedKey);
+            $match = $this->matchPropertySource($sources[$index], $property, $mappedKey, $compilesRules);
 
             if ($match === null) {
                 continue;
@@ -2757,6 +2770,7 @@ class DataCreator
         array $sources,
         array $payloads,
         CreationContext $context,
+        bool $compilesRules,
     ): mixed {
         if ($this->isAutoWhenLoaded($property)) {
             foreach ($payloads as $payload) {
@@ -2771,7 +2785,7 @@ class DataCreator
         $mappedKey = $this->propertyInputKey($property, $context);
 
         for ($index = count($sources) - 1; $index >= 0; --$index) {
-            $match = $this->matchPropertySource($sources[$index], $property, $mappedKey);
+            $match = $this->matchPropertySource($sources[$index], $property, $mappedKey, $compilesRules);
 
             if ($match !== null && ! $match[1] instanceof Optional) {
                 return $payloads[$index];
@@ -2784,12 +2798,16 @@ class DataCreator
     /**
      * Match one property against one normalized source.
      *
+     * Validated input must use the mapped name, as its rules do. Otherwise, as upstream, the PHP
+     * property name is read when the mapped name is missing.
+     *
      * @return null|array{array-key, mixed}
      */
     protected function matchPropertySource(
         array|Normalized $source,
         DataProperty $property,
         string|int $mappedKey,
+        bool $compilesRules,
     ): ?array {
         $value = SourceReader::read($source, $property->inputPath($mappedKey), $property);
 
@@ -2797,7 +2815,7 @@ class DataCreator
             return [$mappedKey, $value];
         }
 
-        if ($mappedKey === $property->name) {
+        if ($compilesRules || $mappedKey === $property->name) {
             return null;
         }
 
@@ -2832,13 +2850,14 @@ class DataCreator
         DataClass $dataClass,
         array $sources,
         CreationContext $context,
+        bool $compilesRules,
     ): array {
         $class = $dataClass->name;
         $prepared = [];
 
         foreach ($sources as $source) {
             $prepared[] = $class::prepareForPipeline(
-                is_array($source) ? $source : $this->projectNormalizedSource($dataClass, $source, $context),
+                is_array($source) ? $source : $this->projectNormalizedSource($dataClass, $source, $context, $compilesRules),
             );
         }
 
@@ -2860,11 +2879,12 @@ class DataCreator
         array $sources,
         array $resolvedProperties,
         CreationContext $context,
+        bool $compilesRules,
     ): array {
         if (count($sources) === 1) {
             return is_array($sources[0])
                 ? $sources[0]
-                : $this->projectNormalizedSource($dataClass, $sources[0], $context);
+                : $this->projectNormalizedSource($dataClass, $sources[0], $context, $compilesRules);
         }
 
         $input = $this->mergeArraySources($sources);
@@ -2922,13 +2942,14 @@ class DataCreator
         DataClass $dataClass,
         array $sources,
         CreationContext $context,
+        bool $compilesRules,
     ): array {
         $merged = [];
 
         foreach ($sources as $source) {
             $values = is_array($source)
                 ? $source
-                : $this->projectNormalizedSource($dataClass, $source, $context);
+                : $this->projectNormalizedSource($dataClass, $source, $context, $compilesRules);
             $merged = $this->mergeMissingValues($merged, $values);
         }
 
@@ -2944,11 +2965,12 @@ class DataCreator
         DataClass $dataClass,
         Normalized $source,
         CreationContext $context,
+        bool $compilesRules,
     ): array {
         $values = [];
 
         foreach ($dataClass->properties as $property) {
-            [$key, $value] = $this->resolveProperty([$source], $property, $context);
+            [$key, $value] = $this->resolveProperty([$source], $property, $context, $compilesRules);
 
             if ($value instanceof UnknownProperty) {
                 continue;
@@ -3109,10 +3131,13 @@ class DataCreator
     /**
      * Resolve the concrete class selected by an abstract property's discriminator.
      *
+     * When rules compile, a missing discriminator or a null morph() result keeps the abstract class,
+     * so validation reports the discriminator instead of creation failing.
+     *
      * @param array<string, array{array-key, mixed}> $resolvedProperties
      * @return class-string<BaseData>
      */
-    protected function resolveMorphClass(DataClass $dataClass, array $resolvedProperties): string
+    protected function resolveMorphClass(DataClass $dataClass, array $resolvedProperties, bool $compilesRules): string
     {
         if (! $dataClass->isAbstract) {
             return $dataClass->name;
@@ -3136,6 +3161,10 @@ class DataCreator
             }
 
             if ($value instanceof UnknownProperty) {
+                if ($compilesRules) {
+                    return $dataClass->name;
+                }
+
                 throw CannotCreateAbstractClass::morphClassWasNotResolved($dataClass->name);
             }
 
@@ -3153,6 +3182,10 @@ class DataCreator
         $resolvedClass = $class::morph($properties);
 
         if ($resolvedClass === null) {
+            if ($compilesRules) {
+                return $class;
+            }
+
             throw CannotCreateAbstractClass::morphClassWasNotResolved($class);
         }
 

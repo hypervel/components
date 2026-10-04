@@ -420,7 +420,7 @@ $product->productName;
 
 `MapName` applies the same name in both directions. `MapInputName` and `MapOutputName` keep the directions independent. Class-level mappers such as `SnakeCaseMapper`, `CamelCaseMapper`, and `KebabCaseMapper` provide a convention for every property, while a property attribute overrides the class mapper.
 
-Mapped input paths may use dot notation. When both the mapped input path and PHP property name are present, the mapped input wins. Hypervel rejects a data class when two properties use the same input path or output key instead of silently overwriting a value.
+Mapped input paths may use dot notation. Validated input must use the mapped input path, which is where its rules apply. Without validation, the PHP property name is read when the mapped input is missing. Hypervel rejects a data class when two properties use the same input path or output key instead of silently overwriting a value.
 
 <a name="type-conversion"></a>
 ## Type Conversion
@@ -812,7 +812,7 @@ public static function rules(ValidationContext $context): array
 }
 ```
 
-The `ValidationContext` provides the current object's input as `payload`, the complete input as `fullPayload`, and the object's input `path`. A class rule replaces inferred rules for that property. Add `#[MergeValidationRules]` to merge instead. Property keys use PHP property names; Hypervel translates them to the input paths selected for the current payload.
+The `ValidationContext` provides the current object's input as `payload`, the complete input as `fullPayload`, and the object's input `path`. A class rule replaces inferred rules for that property. Add `#[MergeValidationRules]` to merge instead. Property keys use PHP property names; Hypervel translates them to the mapped input paths.
 
 Use `withValidator(Validator $validator)` and `after(): array` like a FormRequest. Authorization, messages, translated attribute names, error bags, redirects, stop-on-first-failure, Precognition, and `#[FailOnUnknownFields]` use the corresponding Hypervel request-validation behavior. A declared class method overrides the matching Foundation attribute when both are present.
 

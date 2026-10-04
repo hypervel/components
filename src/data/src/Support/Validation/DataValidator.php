@@ -18,8 +18,10 @@ use Hypervel\Data\Support\DataClass;
 use Hypervel\Data\Support\DataClassRepository;
 use Hypervel\Foundation\Precognition;
 use Hypervel\Http\Request;
+use Hypervel\Support\Str;
 use Hypervel\Validation\UnknownFields;
 use Hypervel\Validation\ValidationException;
+use Hypervel\Validation\Validator as ValidationValidator;
 use TypeError;
 
 class DataValidator
@@ -66,7 +68,7 @@ class DataValidator
             return $request;
         }
 
-        $result = $this->container->call("{$class}::authorize");
+        $result = $this->container->call([$class, 'authorize']);
 
         if (! is_bool($result) && ! $result instanceof Response) {
             throw new TypeError(sprintf(
@@ -127,6 +129,16 @@ class DataValidator
             $compiled->messages,
             $compiled->attributes,
         );
+
+        // Uniform collections compile to wildcard rules, whose expanded attributes the validator would
+        // otherwise name unformatted. Formatting them as explicit rules keeps messages the same either way;
+        // user hooks run later and may replace it.
+        if ($validator instanceof ValidationValidator) {
+            $validator->setImplicitAttributesFormatter(
+                static fn (string $attribute): string => str_replace('_', ' ', Str::snake($attribute)),
+            );
+        }
+
         $unfilteredRules = null;
 
         if ($request?->isPrecognitive()) {
@@ -222,7 +234,7 @@ class DataValidator
 
         if ($dataClass->hasLifecycleMethod('withValidator')) {
             $this->container->call(
-                "{$class}::withValidator",
+                [$class, 'withValidator'],
                 ['validator' => $validator],
             );
         }
@@ -236,7 +248,7 @@ class DataValidator
         }
 
         $callbacks = $this->container->call(
-            "{$class}::after",
+            [$class, 'after'],
             ['validator' => $validator],
         );
 
@@ -310,9 +322,7 @@ class DataValidator
             return $dataClass->stopOnFirstFailure;
         }
 
-        $result = $this->container->call(
-            "{$dataClass->name}::stopOnFirstFailure",
-        );
+        $result = $this->container->call([$dataClass->name, 'stopOnFirstFailure']);
 
         if (! is_bool($result)) {
             throw new TypeError(sprintf(
@@ -337,9 +347,7 @@ class DataValidator
             return $attributeValue;
         }
 
-        $result = $this->container->call(
-            "{$dataClass->name}::{$method}",
-        );
+        $result = $this->container->call([$dataClass->name, $method]);
 
         if (! is_string($result)) {
             throw new TypeError(sprintf(
