@@ -8,6 +8,7 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Permission\PermissionRegistrar;
 use Hypervel\Permission\PermissionServiceProvider;
 use Hypervel\Testbench\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 
 class PermissionServiceProviderTest extends TestCase
@@ -33,15 +34,28 @@ class PermissionServiceProviderTest extends TestCase
         $this->assertArrayNotHasKey('wildcard_permission', $config);
     }
 
-    public function testMigrationReportsWhenPermissionConfigurationIsNotLoaded(): void
+    #[DataProvider('migrations')]
+    public function testMigrationReportsWhenPermissionConfigurationIsNotLoaded(string $file): void
     {
         config(['permission.table_names' => null]);
-        $migration = require dirname(__DIR__, 2)
-            . '/src/permission/database/migrations/2025_07_02_000000_create_permission_tables.php';
+        $migration = require dirname(__DIR__, 2) . '/src/permission/database/migrations/' . $file;
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIsOrContains('Error: config/permission.php not loaded.');
 
         $migration->up();
+    }
+
+    /**
+     * Get the package migration files.
+     *
+     * @return array<string, array{string}>
+     */
+    public static function migrations(): array
+    {
+        return [
+            'create permission tables' => ['2025_07_02_000000_create_permission_tables.php'],
+            'add teams fields' => ['add_teams_fields.php.stub'],
+        ];
     }
 }
