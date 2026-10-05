@@ -18,6 +18,8 @@ trait EnforcesPermissionPartition
 
     protected PermissionRelationContext $permissionRelationContext;
 
+    protected ?ConnectionInterface $permissionPivotConnection = null;
+
     /**
      * Initialize the permission partition relation state.
      */
@@ -42,7 +44,8 @@ trait EnforcesPermissionPartition
      */
     protected function getPivotConnection(): ConnectionInterface
     {
-        return $this->permissionPartitionRegistrar->getPermissionConnection();
+        // newPivot() asks for this once per hydrated pivot, and resolving it constructs a permission model.
+        return $this->permissionPivotConnection ??= $this->permissionPartitionRegistrar->getPermissionConnection();
     }
 
     /**

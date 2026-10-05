@@ -7,9 +7,11 @@ namespace Hypervel\Tests\Permission;
 use Hypervel\Auth\EloquentUserProvider;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\DatabaseStore;
+use Hypervel\Cache\RedisStore;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
@@ -37,6 +39,12 @@ use function Hypervel\Testbench\default_migration_path;
 
 abstract class TestCase extends TestbenchTestCase
 {
+    use InteractsWithRedis {
+        // Hypervel runs these hooks for every test after the database traits, so the aliases let
+        // setUpDatabaseTraits() isolate a Redis permission cache before the migrations clear it.
+        setUpInteractsWithRedis as setUpRedis;
+        tearDownInteractsWithRedis as tearDownRedis;
+    }
     use RefreshDatabase;
 
     protected bool $migrateRefresh = true;
@@ -131,6 +139,35 @@ abstract class TestCase extends TestbenchTestCase
             // Pruning expired database cache locks would add a random query to counted queries.
             'cache.stores.database.lock_lottery' => [0, 100],
         ]);
+    }
+
+    /**
+     * Isolate a Redis permission cache before the migrations clear the cache through it.
+     */
+    protected function setUpDatabaseTraits(array $uses): void
+    {
+        if ($this->usesRedisCacheStore()) {
+            $this->setUpRedis();
+            $this->beforeApplicationDestroyed(function (): void {
+                $this->tearDownRedis();
+            });
+        }
+
+        parent::setUpDatabaseTraits($uses);
+    }
+
+    /**
+     * Leave Redis setup to setUpDatabaseTraits().
+     */
+    protected function setUpInteractsWithRedis(): void
+    {
+    }
+
+    /**
+     * Leave Redis teardown to the callback setUpDatabaseTraits() registers.
+     */
+    protected function tearDownInteractsWithRedis(): void
+    {
     }
 
     /**
@@ -326,6 +363,14 @@ abstract class TestCase extends TestbenchTestCase
     protected function usesDatabaseCacheStore(): bool
     {
         return $this->app->make(PermissionRegistrar::class)->getCacheStore() instanceof DatabaseStore;
+    }
+
+    /**
+     * Determine whether the permission cache uses a Redis store.
+     */
+    protected function usesRedisCacheStore(): bool
+    {
+        return $this->app->make(PermissionRegistrar::class)->getCacheStore() instanceof RedisStore;
     }
 
     /**

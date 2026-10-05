@@ -1896,7 +1896,6 @@ trait HasPermissions
 
         $roleIds = array_flip($roles->map(fn (Model $role): string => (string) $role->getKey())->all());
         $registrar = $this->permissionRegistrar();
-        $partition = $registrar->resolvePartition();
 
         return $registrar
             ->getPermissions([], false, $this->getPermissionClass())
@@ -1907,7 +1906,6 @@ trait HasPermissions
                         $permission,
                         $role,
                         $registrar,
-                        $partition,
                     ))
             );
     }
@@ -1977,25 +1975,16 @@ trait HasPermissions
         Model $permission,
         Model $role,
         PermissionRegistrar $registrar,
-        ?PermissionPartition $partition,
     ): Model {
         $permission = clone $permission;
-        /** @var Pivot $cachedPivot */
-        $cachedPivot = $role->getRelation('pivot');
-        $pivot = Pivot::fromRawAttributes(
-            $role,
-            $cachedPivot->getAttributes(),
-            Config::roleHasPermissionsTable(),
-            true,
-        );
-        $pivot->setPivotKeys($registrar->pivotRole, $registrar->pivotPermission)
-            ->setRelatedModel($permission);
+        /** @var Pivot $pivot */
+        $pivot = clone $role->getRelation('pivot');
 
-        if ($partition) {
-            $pivot->setPivotConstraints([
-                ['where', [$partition->column, '=', $partition->value]],
-            ]);
-        }
+        // The cached pivot already has this assignment's attributes, table and partition constraint. Its related
+        // model is not pointed at this permission, so the two don't reference each other and leave no cycle for the
+        // garbage collector.
+        $pivot->pivotParent = $role;
+        $pivot->setPivotKeys($registrar->pivotRole, $registrar->pivotPermission);
 
         $permission->setRelation('pivot', $pivot);
 

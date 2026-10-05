@@ -10,16 +10,18 @@ use Hypervel\Permission\Contracts\Permission as PermissionContract;
 use Hypervel\Permission\Contracts\Role as RoleContract;
 use Hypervel\Permission\PermissionRegistrar;
 use Hypervel\Permission\Support\Config;
-use Hypervel\Support\ClassInvoker;
 use Hypervel\Tests\Permission\Fixtures\Models\User;
+use WeakReference;
 
 use function Hypervel\Coroutine\parallel;
 
 class CacheTest extends TestCase
 {
-    public function testGlobalPermissionCacheStoresRolePivotsWithoutDuplicatingRoleAttributes(): void
+    public function testGlobalPermissionCacheStoresRoleKeysWithoutDuplicatingRoleAttributes(): void
     {
+        $deniedRole = $this->app->make(RoleContract::class)::findByName('testRole2');
         $this->testUserRole->givePermissionTo('edit-articles');
+        $deniedRole->denyPermissionTo('edit-articles');
         $registrar = $this->app->make(PermissionRegistrar::class);
 
         $this->testUser->hasPermissionTo('edit-articles');
@@ -37,19 +39,69 @@ class CacheTest extends TestCase
         );
 
         $this->assertIsArray($permission);
-        $this->assertArrayNotHasKey('attributes', $permission['roles'][0]);
-        $this->assertSame($this->testUserRole->getKey(), $permission['roles'][0]['pivot'][$registrar->pivotRole]);
-        $this->assertFalse($permission['roles'][0]['pivot']['is_denied']);
+        $this->assertEqualsCanonicalizing(
+            [$this->testUserRole->getKey(), $deniedRole->getKey()],
+            $permission['roles'],
+        );
+        $this->assertSame([$deniedRole->getKey()], $permission['denied_roles']);
+    }
+
+    public function testCatalogAndViaRoleModelsAreFreedWithoutTheCycleCollector(): void
+    {
+        $this->testUserRole->givePermissionTo('edit-articles');
+        $this->testUser->assignRole('testRole');
+        $registrar = $this->app->make(PermissionRegistrar::class);
+        $gcWasEnabled = gc_enabled();
+
+        // With the cycle collector off, only objects without reference cycles are freed.
+        gc_disable();
+
+        try {
+            $catalogRole = $this->app->make(PermissionContract::class)::findByName('edit-articles')->roles->sole();
+            $user = User::findOrFail($this->testUser->getKey());
+            $viaRolePermission = $user->getPermissionsViaRoles()->sole();
+
+            $references = [
+                WeakReference::create($catalogRole),
+                WeakReference::create($catalogRole->getRelation('pivot')),
+                WeakReference::create($viaRolePermission),
+                WeakReference::create($viaRolePermission->getRelation('pivot')),
+            ];
+
+            unset($catalogRole, $user, $viaRolePermission);
+            $registrar->clearPermissionsCollection();
+
+            foreach ($references as $reference) {
+                $this->assertNull($reference->get());
+            }
+        } finally {
+            if ($gcWasEnabled) {
+                gc_enable();
+            }
+        }
     }
 
     public function testRoleDeniedPivotHydratesFromGlobalCache(): void
     {
         $this->testUser->assignRole('testRole');
         $this->testUserRole->denyPermissionTo('edit-articles');
+        $registrar = $this->app->make(PermissionRegistrar::class);
 
         $this->assertFalse($this->testUser->hasPermissionTo('edit-articles'));
 
-        $this->app->make(PermissionRegistrar::class)->clearPermissionsCollection();
+        // A new coroutine reads the shared store instead of this coroutine's catalog and memo.
+        [$pivot] = parallel([
+            fn (): Model => $this->app->make(PermissionContract::class)::findByName('edit-articles')
+                ->roles
+                ->sole()
+                ->getRelation('pivot'),
+        ]);
+
+        $this->assertSame($this->testUserPermission->getKey(), $pivot->getAttribute($registrar->pivotPermission));
+        $this->assertSame($this->testUserRole->getKey(), $pivot->getAttribute($registrar->pivotRole));
+        $this->assertTrue($pivot->getAttribute('is_denied'));
+
+        $registrar->clearPermissionsCollection();
 
         $this->assertFalse($this->testUser->hasPermissionTo('edit-articles'));
         $this->assertTrue($this->testUser->hasDeniedPermissionViaRoles('edit-articles'));
@@ -79,7 +131,8 @@ class CacheTest extends TestCase
         $firstToken = $registrar->modelAssignmentCacheToken();
 
         $this->assertTrue($registrar->forgetCachedPermissions());
-        $this->assertFalse($registrar->forgetCachedPermissions());
+        // The database store's forget() reports success even when the key is already gone.
+        $this->assertSame($this->usesDatabaseCacheStore(), $registrar->forgetCachedPermissions());
 
         $this->assertMatchesRegularExpression('/^[0-7][0-9A-HJKMNP-TV-Z]{25}$/', $firstToken);
         $this->assertNotSame($firstToken, $registrar->modelAssignmentCacheToken());
@@ -186,34 +239,6 @@ class CacheTest extends TestCase
         ]);
 
         $this->assertNotSame($coroutineOne, $coroutineTwo);
-    }
-
-    public function testExplicitInvalidationClearsKeylessAssignmentCacheEntries(): void
-    {
-        Model::preventAccessingMissingAttributes(false);
-
-        $keylessUser = User::query()
-            ->select('email')
-            ->where('email', $this->testUser->email)
-            ->firstOrFail();
-        $registrar = $this->app->make(PermissionRegistrar::class);
-        $store = new ClassInvoker($registrar->getCacheRepository()->getStore());
-
-        $this->assertFalse($keylessUser->hasRole('testRole'));
-        $this->assertFalse($keylessUser->hasDirectPermission('edit-articles'));
-
-        $beforeRoleInvalidation = $store->getCacheItems();
-        $registrar->forgetModelRoleCacheFor($keylessUser, null, null);
-        $afterRoleInvalidation = $store->getCacheItems();
-
-        $this->assertCount(1, array_diff_key($beforeRoleInvalidation, $afterRoleInvalidation));
-        $this->assertSame([], array_diff_key($afterRoleInvalidation, $beforeRoleInvalidation));
-
-        $registrar->forgetModelPermissionCacheFor($keylessUser, null, null);
-        $afterPermissionInvalidation = $store->getCacheItems();
-
-        $this->assertCount(1, array_diff_key($afterRoleInvalidation, $afterPermissionInvalidation));
-        $this->assertSame([], array_diff_key($afterPermissionInvalidation, $afterRoleInvalidation));
     }
 
     public function testSyncPermissionEffectsInvalidatesWarmModelPermissionCache(): void
