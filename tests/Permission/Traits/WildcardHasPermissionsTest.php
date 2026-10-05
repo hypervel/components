@@ -10,6 +10,7 @@ use Hypervel\Permission\Exceptions\WildcardPermissionInvalidArgument;
 use Hypervel\Permission\Exceptions\WildcardPermissionNotImplementsContract;
 use Hypervel\Permission\Exceptions\WildcardPermissionNotProperlyFormatted;
 use Hypervel\Permission\Models\Permission;
+use Hypervel\Permission\WildcardPermission as BaseWildcardPermission;
 use Hypervel\Tests\Permission\Fixtures\Models\TestRolePermissionsEnum;
 use Hypervel\Tests\Permission\Fixtures\Models\User;
 use Hypervel\Tests\Permission\Fixtures\Models\WildcardPermission;
@@ -350,5 +351,134 @@ class WildcardHasPermissionsTest extends TestCase
         $this->expectException(PermissionDoesNotExist::class);
 
         $user->hasPermissionTo(6);
+    }
+
+    public function testDeniedWildcardPermissionBlocksMatchingPermissions(): void
+    {
+        $user = User::create(['email' => 'user@test.com']);
+        $user->assignRole('testRole');
+
+        Permission::create(['name' => 'posts.*']);
+        Permission::create(['name' => 'posts.create']);
+        Permission::create(['name' => 'posts.edit']);
+        Permission::create(['name' => 'articles.view']);
+
+        $user->givePermissionTo('posts.create', 'articles.view');
+        $this->testUserRole->givePermissionTo('posts.edit');
+        $user->denyPermissionTo('posts.*');
+
+        $this->assertFalse($user->hasPermissionTo('posts.create'));
+        $this->assertFalse($user->hasPermissionTo('posts.edit'));
+        $this->assertTrue($user->hasPermissionTo('articles.view'));
+    }
+
+    public function testRoleDeniedWildcardPermissionBlocksMatchingDirectPermissions(): void
+    {
+        $user = User::create(['email' => 'user@test.com']);
+        $user->assignRole('testRole');
+
+        Permission::create(['name' => 'posts.*']);
+        Permission::create(['name' => 'posts.create']);
+
+        $user->givePermissionTo('posts.create');
+        $this->testUserRole->denyPermissionTo('posts.*');
+
+        $this->assertFalse($user->hasPermissionTo('posts.create'));
+    }
+
+    public function testDeniedPermissionBlocksNamesMatchedByAllowedWildcardPermission(): void
+    {
+        $user = User::create(['email' => 'user@test.com']);
+
+        Permission::create(['name' => 'articles.*']);
+        Permission::create(['name' => 'articles.edit']);
+
+        $user->givePermissionTo('articles.*');
+        $user->denyPermissionTo('articles.edit');
+
+        $this->assertFalse($user->hasPermissionTo('articles.edit'));
+        $this->assertFalse($user->hasPermissionTo('articles.edit.123'));
+        $this->assertTrue($user->hasPermissionTo('articles.view'));
+    }
+
+    public function testWildcardDeniesApplyToWarmChecks(): void
+    {
+        $user = User::create(['email' => 'user@test.com']);
+        $user->assignRole('testRole');
+
+        Permission::create(['name' => 'posts.*']);
+        Permission::create(['name' => 'posts.create']);
+
+        $user->givePermissionTo('posts.*');
+        $this->assertTrue($user->hasPermissionTo('posts.create'));
+
+        $user->denyPermissionTo('posts.create');
+        $this->assertFalse($user->hasPermissionTo('posts.create'));
+
+        $user->revokePermissionTo('posts.create');
+        $this->assertTrue($user->hasPermissionTo('posts.create'));
+
+        $this->testUserRole->denyPermissionTo('posts.create');
+        $this->assertFalse($user->hasPermissionTo('posts.create'));
+    }
+
+    public function testWildcardDeniesOnlyApplyToTheirGuard(): void
+    {
+        $user = User::create(['email' => 'user@test.com']);
+
+        $webWildcard = Permission::create(['name' => 'posts.*']);
+        $apiWildcard = Permission::create(['name' => 'posts.*', 'guard_name' => 'api']);
+        $apiPermission = Permission::create(['name' => 'posts.create', 'guard_name' => 'api']);
+
+        $user->givePermissionTo($webWildcard);
+        $user->givePermissionTo($apiPermission);
+        $user->denyPermissionTo($apiWildcard);
+
+        $this->assertTrue($user->hasPermissionTo('posts.create'));
+        $this->assertFalse($user->hasPermissionTo('posts.create', 'api'));
+    }
+
+    public function testCustomWildcardDeniesBlockMatchingPermissions(): void
+    {
+        config()->set('permission.wildcard_permission', WildcardPermission::class);
+
+        $user = User::create(['email' => 'user@test.com']);
+
+        Permission::create(['name' => 'posts:@']);
+        Permission::create(['name' => 'posts:delete']);
+
+        $user->givePermissionTo('posts:@');
+        $user->denyPermissionTo('posts:delete');
+
+        $this->assertTrue($user->hasPermissionTo('posts:create'));
+        $this->assertFalse($user->hasPermissionTo('posts:delete:123'));
+    }
+
+    public function testWildcardIndexBuildsEachPermissionSegmentOnce(): void
+    {
+        $user = User::create(['email' => 'user@test.com']);
+
+        $user->givePermissionTo(Permission::create(['name' => 'posts.edit.own.drafts']));
+
+        $wildcard = new CountingWildcardPermission($user);
+        $wildcard->getIndex();
+
+        // One call per segment, plus one that marks the end of the name.
+        $this->assertSame(5, $wildcard->buildIndexCalls);
+    }
+}
+
+class CountingWildcardPermission extends BaseWildcardPermission
+{
+    public int $buildIndexCalls = 0;
+
+    /**
+     * Build the wildcard permission index, counting each call.
+     */
+    protected function buildIndex(array $index, array $parts, string $permission): array
+    {
+        ++$this->buildIndexCalls;
+
+        return parent::buildIndex($index, $parts, $permission);
     }
 }

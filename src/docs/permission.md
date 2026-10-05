@@ -565,6 +565,12 @@ if ($user->hasDeniedPermissionViaRoles('delete articles')) {
 }
 ```
 
+To retrieve every permission the model is denied, directly or through its roles, use `getDeniedPermissions`:
+
+```php
+$deniedPermissions = $user->getDeniedPermissions();
+```
+
 Use `syncPermissionEffects` to replace allowed and denied direct permissions together. If a permission is present in both arrays, the denied permission wins:
 
 ```php
@@ -606,7 +612,7 @@ To retrieve only permissions inherited through roles, use `getPermissionsViaRole
 $rolePermissions = $user->getPermissionsViaRoles();
 ```
 
-`getDirectPermissions`, `getPermissionsViaRoles`, `getAllPermissions`, and `getPermissionNames` return allowed permissions. Explicitly denied permissions are checked through `hasDeniedPermission` and `hasDeniedPermissionViaRoles`.
+`getDirectPermissions`, `getPermissionsViaRoles`, `getAllPermissions`, and `getPermissionNames` return allowed permissions. Use `getDeniedPermissions` to retrieve [denied permissions](#denied-permissions).
 
 <a name="using-enums"></a>
 ## Using Enums
@@ -1208,7 +1214,22 @@ $user->givePermissionTo('posts,users.create,update,view');
 
 Like any permission, a wildcard permission must exist as a permission record before it can be assigned. The names you check do not need records of their own, so `hasPermissionTo('posts.create')` matches `posts.*` even when no `posts.create` permission exists.
 
-To customize wildcard parsing, configure `wildcard_permission` with a class that implements `Hypervel\Permission\Contracts\Wildcard`.
+[Denied permissions](#denied-permissions) use the same matching. A denied wildcard permission blocks every name it matches, and a denied permission blocks the names an allowed wildcard permission would otherwise grant:
+
+```php
+$user->givePermissionTo('posts.*');
+$user->denyPermissionTo('posts.delete');
+
+$user->hasPermissionTo('posts.edit');
+// true
+
+$user->hasPermissionTo('posts.delete.123');
+// false
+```
+
+`hasDeniedPermission` and `hasDeniedPermissionViaRoles` still match only the exact permission.
+
+To customize wildcard parsing, configure `wildcard_permission` with a class that implements `Hypervel\Permission\Contracts\Wildcard`. The class receives the model as its `record` constructor argument. Its `getIndex` and `getDeniedIndex` methods index the model's allowed and denied permissions, and `implies` checks a permission against an index. Extending `Hypervel\Permission\WildcardPermission` lets you change its `WILDCARD_TOKEN`, `PART_DELIMITER`, and `SUBPART_DELIMITER` constants while keeping its indexing.
 
 <a name="polymorphic-models"></a>
 ## Polymorphic Models

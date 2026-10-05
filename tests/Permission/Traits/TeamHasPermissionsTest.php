@@ -12,6 +12,7 @@ use Hypervel\Database\Eloquent\Relations\MorphPivot;
 use Hypervel\Permission\Events\PermissionAttachedEvent;
 use Hypervel\Permission\Events\PermissionDetachedEvent;
 use Hypervel\Permission\Exceptions\TeamNotSelected;
+use Hypervel\Permission\Models\Permission;
 use Hypervel\Permission\PermissionRegistrar;
 use Hypervel\Permission\Support\Config;
 use Hypervel\Permission\Traits\HasRoles;
@@ -152,6 +153,30 @@ class TeamHasPermissionsTest extends HasPermissionsTest
 
         setPermissionsTeamId(1);
         $this->assertSame($teamOne, $this->testUser->getDirectPermissions()->sole());
+    }
+
+    public function testWildcardDeniesAreSeparatedByTeam(): void
+    {
+        config()->set('permission.enable_wildcard_permission', true);
+
+        Permission::create(['name' => 'posts.*']);
+        Permission::create(['name' => 'posts.create']);
+
+        setPermissionsTeamId(1);
+        $this->testUser->givePermissionTo('posts.*');
+
+        setPermissionsTeamId(2);
+        $this->testUser->givePermissionTo('posts.*');
+        $this->testUser->denyPermissionTo('posts.create');
+
+        $this->assertFalse($this->testUser->hasPermissionTo('posts.create'));
+        $this->assertTrue($this->testUser->hasPermissionTo('posts.edit'));
+
+        setPermissionsTeamId(1);
+        $this->assertTrue($this->testUser->hasPermissionTo('posts.create'));
+
+        setPermissionsTeamId(2);
+        $this->assertFalse($this->testUser->hasPermissionTo('posts.create'));
     }
 
     public function testItCanSyncOrRemovePermissionWithoutDetachOnDifferentTeams(): void

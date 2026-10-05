@@ -745,14 +745,6 @@ trait HasPermissions
     public function hasPermissionTo($permission, ?string $guardName = null): bool
     {
         if ($this->getWildcardClass()) {
-            if ($this->hasDeniedPermission($permission, $guardName)) {
-                return false;
-            }
-
-            if ($this->hasDeniedPermissionViaRoles($permission, $guardName)) {
-                return false;
-            }
-
             return $this->hasWildcardPermission($permission, $guardName);
         }
 
@@ -784,7 +776,10 @@ trait HasPermissions
             $permission = $this->getPermissionClass()::findById($permission, $guardName);
         }
 
+        $registrar = $this->permissionRegistrar();
+
         if ($permission instanceof Permission) {
+            $this->ensurePermissionMatchesPartition($permission, $registrar->resolvePartition());
             $guardName = $permission->guard_name ?? $guardName;
             $permission = $permission->name;
         }
@@ -793,11 +788,14 @@ trait HasPermissions
             throw WildcardPermissionInvalidArgument::create();
         }
 
-        return Container::getInstance()->make($this->getWildcardClass(), ['record' => $this])->implies(
-            $permission,
-            $guardName,
-            $this->permissionRegistrar()->getWildcardPermissionIndex($this),
-        );
+        $wildcard = Container::getInstance()->make($this->getWildcardClass(), ['record' => $this]);
+
+        // A deny wins over every allow, so a denied pattern blocks the names it matches.
+        if ($wildcard->implies($permission, $guardName, $registrar->getDeniedWildcardPermissionIndex($this))) {
+            return false;
+        }
+
+        return $wildcard->implies($permission, $guardName, $registrar->getWildcardPermissionIndex($this));
     }
 
     /**
@@ -918,6 +916,19 @@ trait HasPermissions
             ->reject(fn (Model $permission): bool => isset($deniedPermissionKeys[$this->permissionComparisonKey($permission)]))
             ->unique(fn (Model $permission): string => $this->permissionComparisonKey($permission))
             ->sort()
+            ->values();
+    }
+
+    /**
+     * Return all the permissions the model is denied, both directly and via roles.
+     */
+    public function getDeniedPermissions(): Collection
+    {
+        // concat() keeps every assignment; Eloquent's merge() would replace a direct deny with a role allow of the same key.
+        return $this->directPermissionsForModelResult()
+            ->concat($this->getPermissionsViaRolesWithPivots())
+            ->filter(fn (Model $permission): bool => $this->pivotIsDenied($permission))
+            ->unique(fn (Model $permission): string => $this->permissionComparisonKey($permission))
             ->values();
     }
 

@@ -289,10 +289,6 @@ class Role extends Model implements RoleContract
     public function hasPermissionTo(UnitEnum|int|string|PermissionContract $permission, ?string $guardName = null): bool
     {
         if ($this->getWildcardClass()) {
-            if ($this->hasDeniedPermission($permission, $guardName)) {
-                return false;
-            }
-
             return $this->hasWildcardPermission($permission, $guardName);
         }
 

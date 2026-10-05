@@ -441,6 +441,29 @@ class DeniedPermissionTest extends TestCase
 
         $this->assertSame(['edit-articles'], $permissionNames);
         $this->assertTrue($role->hasDeniedPermission('edit-news'));
+        $this->assertSame(['edit-news'], $role->getDeniedPermissions()->pluck('name')->all());
+    }
+
+    public function testGetDeniedPermissionsReturnsDirectAndRoleDeniesOnce(): void
+    {
+        $this->testUserRole->givePermissionTo('edit-articles');
+        $this->testUserRole->denyPermissionTo('edit-news');
+        $this->testUser->assignRole('testRole');
+        $this->testUser->denyPermissionTo('edit-articles', 'edit-news');
+        $this->testUser->givePermissionTo('edit-blog');
+
+        $this->assertSame(
+            ['edit-articles', 'edit-news'],
+            $this->testUser->getDeniedPermissions()->pluck('name')->sort()->values()->all(),
+        );
+
+        // A loaded relation supplies the direct permissions as an Eloquent collection.
+        $this->testUser->load('permissions');
+
+        $this->assertSame(
+            ['edit-articles', 'edit-news'],
+            $this->testUser->getDeniedPermissions()->pluck('name')->sort()->values()->all(),
+        );
     }
 
     public function testDirectPermissionChecksDenyWhenRelationContainsDuplicateEffects(): void

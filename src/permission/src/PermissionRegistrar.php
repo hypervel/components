@@ -24,6 +24,7 @@ use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Permission\Contracts\Permission as PermissionContract;
 use Hypervel\Permission\Contracts\PermissionsTeamResolver;
 use Hypervel\Permission\Contracts\Role as RoleContract;
+use Hypervel\Permission\Contracts\Wildcard;
 use Hypervel\Permission\Exceptions\PermissionConnectionMismatch;
 use Hypervel\Permission\Exceptions\PermissionPartitionAlreadyConfigured;
 use Hypervel\Permission\Exceptions\PermissionPartitionModelNotSupported;
@@ -1252,6 +1253,28 @@ class PermissionRegistrar
      */
     public function getWildcardPermissionIndex(Model $record): array
     {
+        return $this->wildcardPermissionIndexes($record)['allowed'];
+    }
+
+    /**
+     * Get the wildcard index of a model's denied permissions.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    public function getDeniedWildcardPermissionIndex(Model $record): array
+    {
+        return $this->wildcardPermissionIndexes($record)['denied'];
+    }
+
+    /**
+     * Get a model's allowed and denied wildcard indexes.
+     *
+     * Both live in one entry, so every wildcard index invalidation clears them together.
+     *
+     * @return array{allowed: array<string, array<string, mixed>>, denied: array<string, array<string, mixed>>}
+     */
+    private function wildcardPermissionIndexes(Model $record): array
+    {
         $key = $this->wildcardPermissionIndexKey($record);
         $indexes = CoroutineContext::get(self::WILDCARD_PERMISSION_INDEX_CONTEXT_KEY, []);
 
@@ -1259,13 +1282,16 @@ class PermissionRegistrar
             return $indexes[$key];
         }
 
-        /** @var array<string, array<string, mixed>> $index */
-        $index = $this->app->make($record->getWildcardClass(), ['record' => $record])->getIndex(); // @phpstan-ignore method.notFound (the record uses HasPermissions)
+        /** @var Wildcard $wildcard */
+        $wildcard = $this->app->make($record->getWildcardClass(), ['record' => $record]); // @phpstan-ignore method.notFound (the record uses HasPermissions)
 
-        $indexes[$key] = $index;
+        $indexes[$key] = [
+            'allowed' => $wildcard->getIndex(),
+            'denied' => $wildcard->getDeniedIndex(),
+        ];
         CoroutineContext::set(self::WILDCARD_PERMISSION_INDEX_CONTEXT_KEY, $indexes);
 
-        return $index;
+        return $indexes[$key];
     }
 
     /**

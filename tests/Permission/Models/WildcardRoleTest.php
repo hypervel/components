@@ -95,4 +95,19 @@ class WildcardRoleTest extends TestCase
 
         $this->assertFalse($this->testUserRole->hasPermissionTo($permission));
     }
+
+    public function testDeniedPermissionsWinOverWildcardMatches(): void
+    {
+        Permission::create(['name' => 'posts.*']);
+        Permission::create(['name' => 'posts.delete']);
+        Permission::create(['name' => 'news.*']);
+        Permission::create(['name' => 'news.create']);
+
+        $this->testUserRole->givePermissionTo('posts.*', 'news.create');
+        $this->testUserRole->denyPermissionTo('posts.delete', 'news.*');
+
+        $this->assertTrue($this->testUserRole->hasPermissionTo('posts.create'));
+        $this->assertFalse($this->testUserRole->hasPermissionTo('posts.delete.123'));
+        $this->assertFalse($this->testUserRole->hasPermissionTo('news.create'));
+    }
 }
