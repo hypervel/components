@@ -61,4 +61,5 @@ return [
     '9c1f2b6e-4d3a-4f7c-8b21-5e6a7d8c9f01' => 'Idira',
     '9f8a3b2c-1d4e-4f6a-8b0c-2e1d3c4b5a69' => 'U2 Secured',
     '69840def-9dcf-4632-bf87-6ac2e451b4f5' => 'Keyholm',
+    '35d5ea15-ab24-4416-bdd1-f204c9bce1b6' => 'CyberFOX Password Manager',
 ];
