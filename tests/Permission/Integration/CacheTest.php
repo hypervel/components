@@ -37,9 +37,10 @@ class CacheTest extends TestCase
         DB::connection()->enableQueryLog();
 
         if ($this->registrar->getCacheStore() instanceof DatabaseStore) {
-            // A cold entry is read once, then filled under a cache lock: acquire, refresh, write and release.
+            // A cold entry is read once, then filled under a cache lock: acquire, read again,
+            // refresh, write and release.
             $this->cacheInitCount = 1;
-            $this->cacheLoadCount = 4;
+            $this->cacheLoadCount = 5;
         }
     }
 
@@ -242,11 +243,11 @@ class CacheTest extends TestCase
         $this->assertTrue($this->testUser->hasPermissionTo('edit-articles'));
 
         // The catalog, the user's direct permissions and the user's roles are each filled once.
-        // A database store also reads the assignment token and reads the filled roles again.
+        // A database store also reads the assignment token.
         $this->assertQueryCount(
             $this->cacheRunCount + 2
             + 3 * ($this->cacheInitCount + $this->cacheLoadCount)
-            + 2 * $this->cacheInitCount
+            + $this->cacheInitCount
         );
     }
 
