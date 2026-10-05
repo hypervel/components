@@ -78,6 +78,17 @@ abstract class Connector
     }
 
     /**
+     * Clear the cached response for a request without sending it.
+     */
+    public function clearCache(Request $counterpart): void
+    {
+        /** @var SaloonManager $manager */
+        $manager = Container::getInstance()->make('saloon');
+
+        $manager->clearCache($this, $counterpart);
+    }
+
+    /**
      * Create a bounded request pool.
      *
      * @param callable(Connector): iterable<array-key, Request>|iterable<array-key, Request> $requests

@@ -196,7 +196,7 @@ saloonphp/cache-plugin:
   checked_through: null
   last_reviewed_pr: null
   sync_date: null
-  notes: Part of the unified src/saloon package. Upstream caching maps to Cache and SaloonManager using Hypervel's cache services; assess behavior against that integration instead of duplicating upstream drivers. Tests map to tests/Saloon/Cache.
+  notes: Part of the unified src/saloon package. Upstream's CacheMiddleware and CacheRecorderMiddleware map to SaloonManager::send(), which reads the cache before matching the mock client and writes after the response, and clearCache() maps to SaloonManager::clearCache(); keys come from Cache/CacheKey. Drivers map to framework cache stores selected by Cacheable::cacheStore(); assess driver changes against that integration instead of duplicating them. Connectors implement Cacheable and override cacheKey() and cacheableMethods() rather than using HasCaching. SaloonServiceProvider allows CachedResponse through the cache's serializable-class policy. Tests map to tests/Saloon/Cache/{Feature,Fixtures}, with the real-request case in tests/Integration/Saloon/Cache.
 
 saloonphp/pagination-plugin:
   branch: v2

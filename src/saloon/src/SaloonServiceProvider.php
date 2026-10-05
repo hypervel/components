@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Saloon;
 
+use Hypervel\Cache\CacheManager;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Http\Client\Factory as HttpFactory;
 use Hypervel\RateLimiter\RateLimiter;
+use Hypervel\Saloon\Cache\Data\CachedResponse;
 use Hypervel\Saloon\Console\Commands\ListCommand;
 use Hypervel\Saloon\Console\Commands\MakeAuthenticator;
 use Hypervel\Saloon\Console\Commands\MakeConnector;
@@ -50,8 +52,11 @@ class SaloonServiceProvider extends ServiceProvider
     /**
      * Bootstrap the package services.
      */
-    public function boot(HttpFactory $httpFactory, ConfigRepository $config): void
+    public function boot(HttpFactory $httpFactory, ConfigRepository $config, CacheManager $cache): void
     {
+        // Cached responses are stored as CachedResponse objects, which serializing stores must be allowed to restore.
+        $cache->allowSerializableClassesUsing(static fn (): array => [CachedResponse::class]);
+
         $connection = $config->string('saloon.connection.name');
         $options = $config->array('saloon.connection.options');
 

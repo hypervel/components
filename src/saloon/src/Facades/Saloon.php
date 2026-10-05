@@ -15,6 +15,7 @@ use Hypervel\Support\Facades\Facade;
  * @method static void assertSentCount(int $count, null|string $requestClass = null)
  * @method static void assertSentInOrder(array<int, callable|string> $callbacks)
  * @method static \Hypervel\Contracts\Cache\Factory cache()
+ * @method static void clearCache(\Hypervel\Saloon\Http\Connector $connector, \Hypervel\Saloon\Http\Request $request)
  * @method static \Hypervel\Saloon\SaloonManager clearFake()
  * @method static \Hypervel\Saloon\Http\PendingRequest<mixed> createPendingRequest(\Hypervel\Saloon\Http\Connector $connector, \Hypervel\Saloon\Http\Request<mixed> $request)
  * @method static \Hypervel\Saloon\Http\Faking\MockClient fake(array<array-key, callable|\Hypervel\Saloon\Http\Faking\Fixture|\Hypervel\Saloon\Http\Faking\MockResponse>|\Hypervel\Saloon\Http\Faking\MockClient $responses = [])

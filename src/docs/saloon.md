@@ -1646,7 +1646,7 @@ A null store uses `saloon.cache.store`, which itself falls back to Hypervel's de
 
 An integer cache duration is measured in seconds. You may also return a `DateInterval` or `DateTimeInterface` instance.
 
-GET, HEAD, OPTIONS, and QUERY requests are cacheable by default. Only successful network responses are written. Saloon fakes do not read or populate the response cache.
+GET, HEAD, OPTIONS, and QUERY requests are cacheable by default. A response is written unless it failed, including failures defined by a request or connector's [failure check](#error-handling). Mock responses and fixtures are cached like network responses, so a cached response is returned before the mock client is consulted. See [Fixtures](#fixtures) for keeping tests out of the cache.
 
 The default cache key includes the connector and request classes, method, final URI, headers, cookies, authentication and certificate state, prepared body, and response-affecting transport options. This means a QUERY request's body is part of its identity. Responses cached from streaming bodies are buffered because the cache must retain their bytes.
 
@@ -1676,7 +1676,17 @@ $request->disableCaching();
 $request->invalidateCache();
 ```
 
-The request or its connector must implement `Cacheable` before these controls are used. `invalidateCache` removes the matching value and refreshes it from the network.
+The request or its connector must implement `Cacheable` before these controls are used. `invalidateCache` removes the matching value and caches the new response.
+
+To remove a cached response without sending the request, pass the connector to the request's `clearCache` method. A connector's `clearCache` method accepts any request, including one without the `HasCaching` trait:
+
+```php
+$request->clearCache($connector);
+
+$connector->clearCache($request);
+```
+
+Clearing ignores `disableCaching` and the cacheable methods. It prepares the request as sending does, running its plugins, boot methods, and middleware, so it removes the value the request would read. `SendingSaloonRequest` listeners do not run, so any change a listener makes to the request's identity must also be made by a hook or middleware, or derived by a [custom cache key](#custom-cache-keys).
 
 To always keep a request type out of connector caching, override `cachingEnabled` on a request without the `HasCaching` trait. This is useful for live streams that must not be buffered:
 
@@ -1734,7 +1744,7 @@ public function boot(): void
 
 The callback runs when a cacheable operation resolves its key. It must resolve the current tenant at invocation time; do not capture one tenant while the worker boots. Returning null deliberately allows sharing for connectors where a separate scope is not needed.
 
-Authentication state already separates tenant-owned credentials, and the final URI separates tenant-specific endpoints. A cache scope expresses an additional application policy, such as preventing tenants with shared platform credentials from sharing provider responses. It is applied to reads, writes, invalidation, and custom keys.
+Authentication state already separates tenant-owned credentials, and the final URI separates tenant-specific endpoints. A cache scope expresses an additional application policy, such as preventing tenants with shared platform credentials from sharing provider responses. It is applied to reads, writes, invalidation, clearing, and custom keys.
 
 <a name="api-pagination"></a>
 ## API Pagination
@@ -2185,7 +2195,7 @@ Macros remain registered for the worker lifetime. Hypervel automatically clears 
 <a name="testing"></a>
 ## Testing
 
-Saloon provides a strict mock client, response sequences, fixtures, request recording, and PHPUnit assertions. Saloon fakes operate at the integration layer, before caching, admission policies, and Hypervel HTTP transport.
+Saloon provides a strict mock client, response sequences, fixtures, request recording, and PHPUnit assertions. Saloon fakes operate at the integration layer, after the response cache is checked and before admission policies and Hypervel HTTP transport.
 
 <a name="faking-responses"></a>
 ### Faking Responses
@@ -2269,7 +2279,7 @@ When no class or URL response matches, Saloon consumes the next sequence respons
 <a name="assertions"></a>
 ### Assertions
 
-The facade provides assertions for recorded Saloon requests:
+The facade provides assertions for recorded Saloon requests. Responses served from the [response cache](#caching) are not recorded, because nothing was sent:
 
 ```php
 Saloon::assertSent(GetUser::class);
@@ -2329,7 +2339,7 @@ class GitHubFixture extends Fixture
 
 Header rules apply to each value of a matching header, so a closure receives one value and returns its replacement. Invalid or failed regular expressions prevent the fixture from being written. You may use `merge` or `through` to adjust a recorded JSON object or array during replay, and `withContext` to store additional fixture metadata.
 
-Mock responses and existing fixtures never use the response cache, but a request that reaches the network through a mock client, such as a missing fixture being recorded or an allowed stray request, still does. Call `withoutCache` on the mock client to keep those requests out of the cache, so a recorded fixture always comes from the network:
+Mock responses and fixtures are cached like network responses. Once a cacheable request has been cached, later sends return the cached response instead of the next mock response or an updated fixture file, and a missing fixture is not recorded. Call `withoutCache` on the mock client to keep its requests from reading, writing, or invalidating the cache:
 
 ```php
 Saloon::fake([

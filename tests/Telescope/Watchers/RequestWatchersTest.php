@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Telescope\Watchers;
 
 use Closure;
+use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
+use Hypervel\Http\Response as HttpResponse;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Routing\Controllers\HasMiddleware;
@@ -20,6 +22,7 @@ use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\Watchers\RequestWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 
 #[WithConfig('telescope.watchers', [
@@ -296,6 +299,51 @@ class RequestWatchersTest extends FeatureTestCase
         $this->assertSame('GET', $entry->content['method']);
         $this->assertSame(200, $entry->content['response_status']);
         $this->assertSame('plain telescope response', $entry->content['response']);
+    }
+
+    #[DataProvider('scalarResponseProvider')]
+    public function testRequestWatcherRecordsScalarResponseAsSentUnderAJsonMediaType(string $contentType, string $body, string $recorded): void
+    {
+        Route::get('/scalar', fn (): HttpResponse => Response::make($body, 200, ['Content-Type' => $contentType]));
+
+        $this->get('/scalar')->assertSuccessful();
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame($recorded, $entry->content['response']);
+    }
+
+    /**
+     * Provide scalar response bodies and their recorded values.
+     */
+    public static function scalarResponseProvider(): array
+    {
+        return [
+            'zero' => ['application/json', '0', '0'],
+            'false' => ['application/json', 'false', 'false'],
+            'null' => ['application/json', 'null', 'null'],
+            'string' => ['application/json', '"ok"', '"ok"'],
+            '+json with charset' => ['application/problem+json; charset=utf-8', '42', '42'],
+            'malformed json' => ['application/json', '{"id":', 'HTML Response'],
+            'html' => ['text/html', '0', 'HTML Response'],
+        ];
+    }
+
+    #[WithConfig('telescope.watchers', [
+        RequestWatcher::class => [
+            'enabled' => true,
+            'size_limit' => 1,
+        ],
+    ])]
+    public function testRequestWatcherPurgesOversizedScalarJsonResponse(): void
+    {
+        Route::get('/scalar', fn (): JsonResponse => response()->json(str_repeat('x', 2000)));
+
+        $this->get('/scalar')->assertSuccessful();
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame(Telescope::PURGED_VALUE, $entry->content['response']);
     }
 
     public function testRequestWatcherRecordsPlainTextPayload()

@@ -377,7 +377,12 @@ class ClientRequestWatcher extends Watcher
                 return Telescope::PURGED_VALUE;
             }
 
-            if (Str::startsWith(strtolower($response->getHeaderLine('content-type') ?: ''), 'text/plain')) {
+            $contentType = strtolower($response->getHeaderLine('content-type'));
+
+            // Scalar JSON such as 0, false or null is shown as sent instead of being labeled empty or HTML.
+            if (Str::startsWith($contentType, 'text/plain')
+                || ($jsonError === JSON_ERROR_NONE && Str::contains($contentType, ['/json', '+json']))
+            ) {
                 if (strlen($content) >= $sizeLimit) {
                     return $truncate
                         ? substr($content, 0, $sizeLimit) . ' (truncated...)'
@@ -387,7 +392,7 @@ class ClientRequestWatcher extends Watcher
                 return $content;
             }
 
-            if (empty($content)) {
+            if ($content === '') {
                 return 'Empty Response';
             }
         } catch (Throwable $e) {

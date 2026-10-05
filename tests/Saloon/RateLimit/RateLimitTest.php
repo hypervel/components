@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Saloon\RateLimit;
 
+use Carbon\CarbonInterval;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Cache\ArrayStore;
@@ -89,7 +90,7 @@ class RateLimitTest extends TestCase
         $policy = Limit::perMinute(2)->by('cache');
         $request = new CachedRateLimitedRequestStub($policy);
 
-        $manager->fake([MockResponse::make(['fake' => true])]);
+        $manager->fake((new MockClient([MockResponse::make(['fake' => true])]))->withoutCache());
         $connector->send($request);
         $manager->clearFake();
 
@@ -132,6 +133,9 @@ class RateLimitTest extends TestCase
         $http->fake(['*' => Factory::response(['unexpected' => true])]);
         $connector = new RateLimitedConnectorStub($manager);
         $request = new class extends MultipleRateLimitRequestStub {
+            /**
+             * Resolve both policies in one request group.
+             */
             protected function resolveRateLimits(PendingRequest $pendingRequest): array
             {
                 return ['first' => $this->firstPolicy(), 'second' => $this->secondPolicy()];
@@ -389,7 +393,7 @@ class RateLimitTest extends TestCase
         $response = $connector->send($request);
 
         $this->assertTrue($response->successful());
-        Sleep::assertSlept(static fn ($duration): bool => (float) $duration->totalSeconds === 2.0);
+        Sleep::assertSlept(static fn (CarbonInterval $duration): bool => (float) $duration->totalSeconds === 2.0);
         $http->assertSentCount(2);
     }
 
@@ -469,15 +473,24 @@ class RateLimitTest extends TestCase
 
 class PlainRateLimitConnectorStub extends Connector
 {
+    /**
+     * Create a connector that sends through the given manager.
+     */
     public function __construct(protected SaloonManager $manager)
     {
     }
 
+    /**
+     * Resolve the integration base URL.
+     */
     public function resolveBaseUrl(): string
     {
         return 'https://api.example.com';
     }
 
+    /**
+     * Send a request through the given manager.
+     */
     public function send(Request $request, ?MockClient $mockClient = null): Response
     {
         return $this->manager->send($this, $request, $mockClient);
@@ -488,6 +501,9 @@ class RateLimitedConnectorStub extends PlainRateLimitConnectorStub
 {
     use HasRateLimits;
 
+    /**
+     * Create a connector with the given attempt limit.
+     */
     public function __construct(
         SaloonManager $manager,
         protected int $maximumAttempts = 2,
@@ -495,11 +511,17 @@ class RateLimitedConnectorStub extends PlainRateLimitConnectorStub
         parent::__construct($manager);
     }
 
+    /**
+     * Get the connector policy.
+     */
     public function policy(): AdmissionPolicy
     {
         return Limit::perMinute($this->maximumAttempts)->by('connector');
     }
 
+    /**
+     * Resolve the connector rate limits.
+     */
     protected function resolveRateLimits(PendingRequest $pendingRequest): array
     {
         return [$this->policy()];
@@ -510,6 +532,9 @@ class PlainRateLimitRequestStub extends Request
 {
     protected Method $method = Method::GET;
 
+    /**
+     * Resolve the request endpoint.
+     */
     public function resolveEndpoint(): string
     {
         return '/resource';
@@ -520,11 +545,17 @@ class RateLimitedRequestStub extends PlainRateLimitRequestStub
 {
     use HasRateLimits;
 
+    /**
+     * Get the request policy.
+     */
     public function policy(): AdmissionPolicy
     {
         return Limit::perMinute(2)->by('request');
     }
 
+    /**
+     * Resolve the request rate limits.
+     */
     protected function resolveRateLimits(PendingRequest $pendingRequest): array
     {
         return [$this->policy()];
@@ -536,15 +567,24 @@ class CachedRateLimitedRequestStub extends PlainRateLimitRequestStub implements 
     use HasCaching;
     use HasRateLimits;
 
+    /**
+     * Create a cached request with the given policy.
+     */
     public function __construct(protected AdmissionPolicy $policy)
     {
     }
 
+    /**
+     * Get the cache duration.
+     */
     public function cacheFor(): DateInterval|DateTimeInterface|int
     {
         return 60;
     }
 
+    /**
+     * Resolve the request rate limits.
+     */
     protected function resolveRateLimits(PendingRequest $pendingRequest): array
     {
         return [$this->policy];
@@ -555,6 +595,9 @@ class ThrowingCooldownRequestStub extends PlainRateLimitRequestStub
 {
     use HasRateLimits;
 
+    /**
+     * Register response middleware that throws.
+     */
     public function boot(PendingRequest $pendingRequest): void
     {
         $pendingRequest->middleware()->onResponse(
@@ -562,6 +605,9 @@ class ThrowingCooldownRequestStub extends PlainRateLimitRequestStub
         );
     }
 
+    /**
+     * Resolve no rate limits.
+     */
     protected function resolveRateLimits(PendingRequest $pendingRequest): array
     {
         return [];
@@ -572,6 +618,9 @@ class DateCooldownRequestStub extends PlainRateLimitRequestStub
 {
     use HasRateLimits;
 
+    /**
+     * Resolve no rate limits.
+     */
     protected function resolveRateLimits(PendingRequest $pendingRequest): array
     {
         return [];
@@ -640,6 +689,9 @@ class OversizedCooldownRequestStub extends DateCooldownRequestStub
 
 class WaitingCooldownRequestStub extends DateCooldownRequestStub
 {
+    /**
+     * Wait for rate limits instead of throwing.
+     */
     protected function waitForRateLimits(): bool
     {
         return true;
@@ -650,6 +702,9 @@ class CallbackRateLimitRequestStub extends PlainRateLimitRequestStub
 {
     use HasRateLimits;
 
+    /**
+     * Resolve a policy with an after callback.
+     */
     protected function resolveRateLimits(PendingRequest $pendingRequest): array
     {
         return [Limit::perMinute(1)->after(static fn (): bool => true)];
@@ -660,11 +715,17 @@ class OperationRateLimitRequestStub extends PlainRateLimitRequestStub
 {
     use HasRateLimits;
 
+    /**
+     * Resolve a policy keyed by the operation's tenant header.
+     */
     protected function resolveRateLimits(PendingRequest $pendingRequest): array
     {
         return [Limit::perMinute(2)->by((string) $pendingRequest->headers()['X-Tenant'])];
     }
 
+    /**
+     * Resolve the rate-limiter store name.
+     */
     protected function resolveRateLimitStore(): string
     {
         return 'secondary';
@@ -675,16 +736,25 @@ class MultipleRateLimitRequestStub extends PlainRateLimitRequestStub
 {
     use HasRateLimits;
 
+    /**
+     * Get the first policy.
+     */
     public function firstPolicy(): AdmissionPolicy
     {
         return Limit::perMinute(10)->by('first');
     }
 
+    /**
+     * Get the second policy.
+     */
     public function secondPolicy(): AdmissionPolicy
     {
         return Limit::perMinute(1)->by('second');
     }
 
+    /**
+     * Resolve both policies.
+     */
     protected function resolveRateLimits(PendingRequest $pendingRequest): array
     {
         return [$this->firstPolicy(), $this->secondPolicy()];
@@ -693,6 +763,9 @@ class MultipleRateLimitRequestStub extends PlainRateLimitRequestStub
 
 class WaitingMultipleRateLimitRequestStub extends MultipleRateLimitRequestStub
 {
+    /**
+     * Wait for rate limits instead of throwing.
+     */
     protected function waitForRateLimits(): bool
     {
         return true;

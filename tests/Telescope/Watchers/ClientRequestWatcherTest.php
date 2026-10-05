@@ -371,6 +371,34 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $this->assertSame('plain telescope response', $entry->content['response']);
     }
 
+    #[DataProvider('scalarResponseProvider')]
+    public function testScalarResponseIsRecordedAsSentUnderAJsonMediaType(string $contentType, string $body, string $recorded): void
+    {
+        $client = $this->makeClient([new Response(200, ['Content-Type' => $contentType], $body)]);
+
+        $this->executeTransfer($client, new Request('GET', 'https://hypervel.org/scalar'));
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame($recorded, $entry->content['response']);
+    }
+
+    /**
+     * Provide scalar response bodies and their recorded values.
+     */
+    public static function scalarResponseProvider(): array
+    {
+        return [
+            'zero' => ['application/json', '0', '0'],
+            'false' => ['application/json', 'false', 'false'],
+            'null' => ['application/json', 'null', 'null'],
+            'string' => ['application/json', '"ok"', '"ok"'],
+            '+json with charset' => ['application/problem+json; charset=utf-8', '42', '42'],
+            'malformed json' => ['application/json', '{"id":', 'HTML Response'],
+            'html' => ['text/html', '0', 'HTML Response'],
+        ];
+    }
+
     public function testHalJsonResponseIsDecodedAndMasked(): void
     {
         Telescope::hideResponseParameters(['access_token']);
@@ -876,6 +904,43 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $entry = $this->loadTelescopeEntries()->first();
 
         $this->assertSame('Purged By Telescope', $entry->content['response']);
+    }
+
+    #[WithConfig('telescope.watchers', [
+        ClientRequestWatcher::class => [
+            'enabled' => true,
+            'response_size_limit' => 1,
+        ],
+    ])]
+    public function testOversizedScalarJsonResponseIsPurgedByDefault(): void
+    {
+        $body = '"' . str_repeat('x', 2000) . '"';
+        $client = $this->makeClient([new Response(200, ['Content-Type' => 'application/json'], $body)]);
+
+        $this->executeTransfer($client, new Request('GET', 'https://hypervel.org/raw'));
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame('Purged By Telescope', $entry->content['response']);
+    }
+
+    #[WithConfig('telescope.watchers', [
+        ClientRequestWatcher::class => [
+            'enabled' => true,
+            'response_size_limit' => 1,
+            'truncate_oversized' => true,
+        ],
+    ])]
+    public function testOversizedPlainTextResponseIsTruncated(): void
+    {
+        $body = str_repeat('x', 2000);
+        $client = $this->makeClient([new Response(200, ['Content-Type' => 'text/plain'], $body)]);
+
+        $this->executeTransfer($client, new Request('GET', 'https://hypervel.org/raw'));
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame(substr($body, 0, 1024) . ' (truncated...)', $entry->content['response']);
     }
 
     #[WithConfig('telescope.watchers', [

@@ -112,24 +112,14 @@ class SaloonManager
             // its URI, headers, cookies, and prepared body directly.
             $transport = $this->sender->resolveTransport($pendingRequest);
 
-            $fixture = null;
-
-            if ($pendingRequest->fakeResponse() === null && $mockClient !== null) {
-                $matchedResponse = $mockClient->match($pendingRequest);
-
-                if ($matchedResponse instanceof Fixture) {
-                    $fixture = $matchedResponse;
-                    $matchedResponse = $matchedResponse->getMockResponse();
-                }
-
-                $pendingRequest->setFakeResponse($matchedResponse);
-            }
-
             $response = null;
             $responseFromSender = false;
             $cacheRepository = null;
             $cacheKey = null;
+            $fixture = null;
 
+            // The cache is read before the mock client is matched, so a hit consumes no mock response or fixture. A
+            // fake supplied by request middleware bypasses the cache.
             if ($pendingRequest->fakeResponse() === null
                 && $mockClient?->shouldBypassResponseCache() !== true
                 && $pendingRequest->isCacheable()) {
@@ -147,6 +137,17 @@ class SaloonManager
                             ->setCached(true);
                     }
                 }
+            }
+
+            if ($response === null && $pendingRequest->fakeResponse() === null && $mockClient !== null) {
+                $matchedResponse = $mockClient->match($pendingRequest);
+
+                if ($matchedResponse instanceof Fixture) {
+                    $fixture = $matchedResponse;
+                    $matchedResponse = $matchedResponse->getMockResponse();
+                }
+
+                $pendingRequest->setFakeResponse($matchedResponse);
             }
 
             if ($response === null && $pendingRequest->fakeResponse() === null) {
@@ -184,10 +185,10 @@ class SaloonManager
                     $this->recordRateLimitCooldowns($pendingRequest, $response);
                 }
 
-                if ($responseFromSender
-                    && $cacheRepository !== null
+                if ($cacheRepository !== null
                     && $cacheKey !== null
-                    && $response->successful()) {
+                    && ! $response->isCached()
+                    && ! $response->failed()) {
                     $cacheRepository->put(
                         $cacheKey,
                         CachedResponse::fromResponse($response),
@@ -195,7 +196,10 @@ class SaloonManager
                     );
                 }
 
-                $mockClient?->recordResponse($response);
+                // A cache hit sends nothing, so mock client assertions do not count it.
+                if (! $response->isCached()) {
+                    $mockClient?->recordResponse($response);
+                }
 
                 if ($this->events->hasListeners(SentSaloonRequest::class)) {
                     $this->events->dispatch(new SentSaloonRequest($pendingRequest, $response));
@@ -433,6 +437,24 @@ class SaloonManager
         return $this->cacheScopeResolver !== null
             ? ($this->cacheScopeResolver)($pendingRequest)
             : null;
+    }
+
+    /**
+     * Clear the cached response for a request without sending it.
+     *
+     * The request is prepared as it is for sending, through its plugins, boot methods and middleware, so the same
+     * store, key and scope are resolved. Sending listeners do not run.
+     */
+    public function clearCache(Connector $connector, Request $request): void
+    {
+        $pendingRequest = $this->createPendingRequest($connector, $request)
+            ->finalizeUri()
+            ->prepareBody()
+            ->validateCachingConfiguration();
+
+        [$repository, $key] = $this->resolveCache($pendingRequest, $this->sender->resolveTransport($pendingRequest));
+
+        $repository->forget($key);
     }
 
     /**
