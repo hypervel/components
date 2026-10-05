@@ -174,6 +174,20 @@ class PartialTreeTest extends TestCase
     }
 
     /**
+     * Test numeric segments, which select array items, compile and merge.
+     */
+    public function testCompilesAndMergesNumericSegments(): void
+    {
+        $tree = PartialTree::compile(['tags.0', 'songs.0.name']);
+        $other = PartialTree::compile(['tags.1']);
+
+        $this->assertNotNull($tree);
+        $this->assertNotNull($other);
+        $this->assertSame(['0'], $tree->child('songs')->nestedProperties);
+        $this->assertSame([0, 1], array_keys($tree->merge($other)->child('tags')->children));
+    }
+
+    /**
      * Test an empty definition avoids allocating a tree.
      */
     public function testEmptyDefinitionsReturnNull(): void

@@ -27,7 +27,8 @@ class RuleDenormalizer
     {
         if (is_string($rule)) {
             // A regex may contain |, so a string starting with one is a single rule; other strings split like Laravel's.
-            return str_starts_with($rule, 'regex:') || str_starts_with($rule, 'not_regex:')
+            // The names match Laravel's ValidationRuleParser::ruleIsRegex().
+            return in_array(strtolower(explode(':', $rule, 2)[0]), ['regex', 'not_regex', 'notregex'], true)
                 ? [$rule]
                 : explode('|', $rule);
         }

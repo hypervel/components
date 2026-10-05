@@ -49,6 +49,8 @@ class RuleDenormalizerTest extends TestCase
         yield 'array rule' => [['string|min:3', 'required'], ['string', 'min:3', 'required']];
         yield 'regex rule with a pipe' => ['regex:/test|ok/', ['regex:/test|ok/']];
         yield 'not regex rule with a pipe' => ['not_regex:/test|ok/', ['not_regex:/test|ok/']];
+        yield 'notregex rule with a pipe' => ['notregex:/test|ok/', ['notregex:/test|ok/']];
+        yield 'capitalized regex rule with a pipe' => ['Regex:/test|ok/', ['Regex:/test|ok/']];
         yield 'rules before a regex' => ['required|regex:/^a/', ['required', 'regex:/^a/']];
         yield 'rules before a not regex' => ['required|not_regex:/^a/', ['required', 'not_regex:/^a/']];
         yield 'string validation attribute rule' => [new Required, ['required']];

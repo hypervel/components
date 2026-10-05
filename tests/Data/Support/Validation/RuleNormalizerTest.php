@@ -71,6 +71,12 @@ class RuleNormalizerTest extends TestCase
         $this->assertEquals([new Required, new NotRegex('/^a/')], $this->mapper->execute(['required|not_regex:/^a/']));
     }
 
+    public function testKeepsRegexRuleAliasesWhole(): void
+    {
+        $this->assertEquals([new Regex('/test|ok/')], $this->mapper->execute(['Regex:/test|ok/']));
+        $this->assertEquals([new Rule('notregex:/test|ok/')], $this->mapper->execute(['notregex:/test|ok/']));
+    }
+
     public function testCanMapMultipleRules(): void
     {
         $this->assertEquals([new Required, new Min(0)], $this->mapper->execute(['required', 'min:0']));
