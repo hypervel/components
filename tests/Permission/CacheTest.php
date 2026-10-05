@@ -46,10 +46,11 @@ class CacheTest extends TestCase
         $this->assertSame([$deniedRole->getKey()], $permission['denied_roles']);
     }
 
-    public function testCatalogAndViaRoleModelsAreFreedWithoutTheCycleCollector(): void
+    public function testCatalogAndUserPermissionModelsAreFreedWithoutTheCycleCollector(): void
     {
         $this->testUserRole->givePermissionTo('edit-articles');
         $this->testUser->assignRole('testRole');
+        $this->testUser->givePermissionTo('edit-news');
         $registrar = $this->app->make(PermissionRegistrar::class);
         $gcWasEnabled = gc_enabled();
 
@@ -60,15 +61,18 @@ class CacheTest extends TestCase
             $catalogRole = $this->app->make(PermissionContract::class)::findByName('edit-articles')->roles->sole();
             $user = User::findOrFail($this->testUser->getKey());
             $viaRolePermission = $user->getPermissionsViaRoles()->sole();
+            $directPermission = $user->getDirectPermissions()->sole();
 
             $references = [
                 WeakReference::create($catalogRole),
                 WeakReference::create($catalogRole->getRelation('pivot')),
                 WeakReference::create($viaRolePermission),
                 WeakReference::create($viaRolePermission->getRelation('pivot')),
+                WeakReference::create($directPermission),
+                WeakReference::create($directPermission->getRelation('pivot')),
             ];
 
-            unset($catalogRole, $user, $viaRolePermission);
+            unset($catalogRole, $user, $viaRolePermission, $directPermission);
             $registrar->clearPermissionsCollection();
 
             foreach ($references as $reference) {

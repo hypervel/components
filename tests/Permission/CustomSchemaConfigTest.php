@@ -57,7 +57,7 @@ class CustomSchemaConfigTest extends TestCase
         $this->assertTrue($this->app->make(Permission::class)::where('name', 'edit-articles')->exists());
     }
 
-    public function testDeniedPermissionUpdatesExistingCustomTableAssignmentEdge(): void
+    public function testDeniedPermissionUpdatesExistingCustomTableAssignment(): void
     {
         $this->testUser->givePermissionTo('edit-articles');
         $this->testUser->denyPermissionTo('edit-articles');

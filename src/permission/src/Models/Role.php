@@ -296,10 +296,6 @@ class Role extends Model implements RoleContract
 
         $permission = $this->filterPermission($permission, $guardName);
 
-        if ($this->hasDeniedPermission($permission, $guardName)) {
-            return false;
-        }
-
         if (! $this->getGuardNames()->contains($permission->guard_name)) {
             throw GuardDoesNotMatch::create(
                 $permission->guard_name,
@@ -307,10 +303,9 @@ class Role extends Model implements RoleContract
             );
         }
 
-        $matches = $this->relationCollection($this, 'permissions')
-            ->filter(fn (Model $rolePermission): bool => $rolePermission->getKey() === $permission->getKey());
+        $rolePermission = $this->relationCollection($this, 'permissions')
+            ->first(fn (Model $rolePermission): bool => $rolePermission->getKey() === $permission->getKey());
 
-        return $matches->isNotEmpty()
-            && ! $matches->contains(fn (Model $rolePermission): bool => $this->pivotIsDenied($rolePermission));
+        return $rolePermission !== null && ! $this->pivotIsDenied($rolePermission);
     }
 }

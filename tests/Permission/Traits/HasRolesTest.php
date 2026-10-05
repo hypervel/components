@@ -46,6 +46,16 @@ class HasRolesCustomPivotUser extends UserWithoutHasRoles
     }
 }
 
+enum HasRolesIntegerRoleName: int
+{
+    case Seven = 7;
+}
+
+enum HasRolesUuidRoleName: string
+{
+    case Auditor = '0b5c3f3e-9d7a-4c1e-8f2a-6b1d2e3f4a5b';
+}
+
 class HasRolesTest extends TestCase
 {
     public function testItCanDetermineThatTheUserDoesNotHaveARole(): void
@@ -118,6 +128,28 @@ class HasRolesTest extends TestCase
         $this->testUser->removeRole($enum1);
 
         $this->assertFalse($this->testUser->hasRole($enum1));
+    }
+
+    public function testRoleChecksMatchBackedEnumValuesAgainstRoleNames(): void
+    {
+        $role = app(Role::class);
+        $roleWithKeySeven = $role->forceCreate([$role->getKeyName() => 7, 'name' => 'key-seven', 'guard_name' => 'web']);
+        $roleNamedSeven = $role->findOrCreate('7', 'web');
+        $roleNamedUuid = $role->findOrCreate(HasRolesUuidRoleName::Auditor->value, 'web');
+
+        $this->testUser->assignRole($roleWithKeySeven);
+
+        $this->assertFalse($this->testUser->hasRole(HasRolesIntegerRoleName::Seven));
+
+        $this->testUser->assignRole($roleNamedSeven, $roleNamedUuid);
+
+        $this->assertTrue($this->testUser->hasRole(HasRolesIntegerRoleName::Seven));
+        $this->assertTrue($this->testUser->hasRole(HasRolesUuidRoleName::Auditor, 'web'));
+        $this->assertFalse($this->testUser->hasRole(HasRolesUuidRoleName::Auditor, 'admin'));
+        $this->assertTrue($this->testUser->hasAnyRole('missing', HasRolesUuidRoleName::Auditor));
+        $this->assertTrue($this->testUser->hasAllRoles(HasRolesUuidRoleName::Auditor));
+        $this->assertTrue($this->testUser->hasAllRoles([HasRolesIntegerRoleName::Seven, HasRolesUuidRoleName::Auditor]));
+        $this->assertTrue($this->testUser->hasExactRoles(['key-seven', HasRolesIntegerRoleName::Seven, HasRolesUuidRoleName::Auditor]));
     }
 
     public function testItCanScopeARoleUsingEnums(): void

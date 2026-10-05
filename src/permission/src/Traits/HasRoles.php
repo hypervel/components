@@ -20,7 +20,6 @@ use Hypervel\Permission\Support\PermissionPartition;
 use Hypervel\Permission\Support\PermissionRelationContext;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
-use TypeError;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -32,7 +31,7 @@ trait HasRoles
     private ?string $roleClass = null;
 
     /**
-     * @var array<string, array{roles: array<int, int|string>, pivot: array<string, mixed>, context: PermissionRelationContext, pivotClass: class-string<Pivot>}>
+     * @var array<string, array{roles: array<int, int|string>, context: PermissionRelationContext, pivotClass: class-string<Pivot>}>
      */
     private array $queuedRoleAssignments = [];
 
@@ -47,7 +46,7 @@ trait HasRoles
             }
 
             $registrar = Container::getInstance()->make(PermissionRegistrar::class);
-            $modelKey = static::requireDeletionModelKey($model);
+            $modelKey = $model->getKey();
 
             if ($model instanceof Permission) {
                 $partition = static::permissionRecordDeletionPartition($model, $registrar);
@@ -172,7 +171,7 @@ trait HasRoles
     {
         $model = $this;
         $registrar = $this->permissionRegistrar();
-        $context = $this->roleAssignmentContext($registrar);
+        $context = $this->assignmentContext($registrar);
 
         $this->forgetStalePermissionRelation($registrar, 'roles');
 
@@ -199,11 +198,14 @@ trait HasRoles
      * Scope the model query to certain roles only.
      *
      * @param Builder<static> $query
-     * @param array|Collection|int|Role|string|UnitEnum $roles
      * @return Builder<static>
      */
-    public function scopeRole(Builder $query, $roles, ?string $guard = null, bool $without = false): Builder
-    {
+    public function scopeRole(
+        Builder $query,
+        array|Collection|int|Role|string|UnitEnum $roles,
+        ?string $guard = null,
+        bool $without = false,
+    ): Builder {
         if ($roles instanceof Collection) {
             $roles = $roles->all();
         }
@@ -247,10 +249,9 @@ trait HasRoles
      * Scope the model query to only those without certain roles.
      *
      * @param Builder<static> $query
-     * @param array|Collection|int|Role|string|UnitEnum $roles
      * @return Builder<static>
      */
-    public function scopeWithoutRole(Builder $query, $roles, ?string $guard = null): Builder
+    public function scopeWithoutRole(Builder $query, array|Collection|int|Role|string|UnitEnum $roles, ?string $guard = null): Builder
     {
         return $this->scopeRole($query, $roles, $guard, true);
     }
@@ -295,10 +296,9 @@ trait HasRoles
      * Scope the model query to certain teams only.
      *
      * @param Builder<static> $query
-     * @param array|Collection|int|Model|string $teams
      * @return Builder<static>
      */
-    public function scopeTeam(Builder $query, $teams, bool $without = false): Builder
+    public function scopeTeam(Builder $query, array|Collection|int|Model|string $teams, bool $without = false): Builder
     {
         $teamModel = Config::teamModel();
 
@@ -336,10 +336,9 @@ trait HasRoles
      * Scope the model query to those without certain teams.
      *
      * @param Builder<static> $query
-     * @param array|Collection|int|Model|string $teams
      * @return Builder<static>
      */
-    public function scopeWithoutTeam(Builder $query, $teams): Builder
+    public function scopeWithoutTeam(Builder $query, array|Collection|int|Model|string $teams): Builder
     {
         return $this->scopeTeam($query, $teams, true);
     }
@@ -375,13 +374,12 @@ trait HasRoles
     /**
      * Assign the given role to the model.
      *
-     * @param array|Collection|int|Role|string|UnitEnum ...$roles
      * @return $this
      */
-    public function assignRole(...$roles): static
+    public function assignRole(array|Collection|int|Role|string|UnitEnum|null ...$roles): static
     {
         $registrar = $this->permissionRegistrar();
-        $context = $this->roleAssignmentContext($registrar);
+        $context = $this->assignmentContext($registrar);
         $registrar->ensureTeamIsSelectedForMutation($context);
         $roles = $this->collectRoles($roles, $context->partition);
 
@@ -392,12 +390,7 @@ trait HasRoles
         }
 
         if (! $this->exists) {
-            $this->queueRoleAssignments(
-                $roles,
-                $this->roleAssignmentPivot($context),
-                $context,
-                $registrar->getAssignmentPivotClass($this, 'roles'),
-            );
+            $this->queueRoleAssignments($roles, $context, $registrar->getAssignmentPivotClass($this, 'roles'));
             $this->dispatchRoleAttachedEvent($roles);
 
             return $this;
@@ -428,17 +421,7 @@ trait HasRoles
 
         $relation->attach($attachedRoles, $this->roleAssignmentPivot($context));
         $this->unsetRelation('roles');
-
-        if ($this instanceof Permission) {
-            $registrar->invalidatePermissionCatalogAfterMutation($context->partition);
-        } else {
-            $registrar->invalidateModelRoleCacheAfterMutation(
-                $this,
-                $context->partition,
-                $context->team,
-            );
-        }
-
+        $this->invalidateRoleAssignmentCaches($registrar, $context);
         $this->dispatchRoleAttachedEvent($roles);
 
         return $this;
@@ -448,16 +431,14 @@ trait HasRoles
      * Queue role assignments until the model is saved.
      *
      * @param array<int, int|string> $roles
-     * @param array<string, mixed> $pivot
      * @param class-string<Pivot> $pivotClass
      */
     protected function queueRoleAssignments(
         array $roles,
-        array $pivot,
         PermissionRelationContext $context,
         string $pivotClass,
     ): void {
-        $identity = $context->identity() . ':' . PermissionPartition::encodeCacheSegment($pivotClass);
+        $identity = $context->identity();
         $queuedRoles = $this->queuedRoleAssignments[$identity]['roles'] ?? [];
 
         foreach ($roles as $role) {
@@ -468,7 +449,6 @@ trait HasRoles
 
         $this->queuedRoleAssignments[$identity] = [
             'roles' => $queuedRoles,
-            'pivot' => $pivot,
             'context' => $context,
             'pivotClass' => $pivotClass,
         ];
@@ -478,57 +458,39 @@ trait HasRoles
      * Replace role assignments queued for a captured context.
      *
      * @param array<int, int|string> $roles
-     * @param array<string, mixed> $pivot
      * @param class-string<Pivot> $pivotClass
      */
     protected function replaceQueuedRoleAssignments(
         array $roles,
-        array $pivot,
         PermissionRelationContext $context,
         string $pivotClass,
     ): void {
-        $identity = $context->identity() . ':' . PermissionPartition::encodeCacheSegment($pivotClass);
+        unset($this->queuedRoleAssignments[$context->identity()]);
 
-        if ($roles === []) {
-            unset($this->queuedRoleAssignments[$identity]);
-
-            return;
+        if ($roles !== []) {
+            $this->queueRoleAssignments($roles, $context, $pivotClass);
         }
-
-        $this->queuedRoleAssignments[$identity] = [
-            'roles' => $roles,
-            'pivot' => $pivot,
-            'context' => $context,
-            'pivotClass' => $pivotClass,
-        ];
     }
 
     /**
      * Remove role assignments queued for a captured context.
      *
      * @param array<int, int|string> $roles
-     * @param class-string<Pivot> $pivotClass
      */
     protected function removeQueuedRoleAssignments(
         array $roles,
         PermissionRelationContext $context,
-        string $pivotClass,
     ): void {
-        $identity = $context->identity() . ':' . PermissionPartition::encodeCacheSegment($pivotClass);
-        $assignment = $this->queuedRoleAssignments[$identity] ?? null;
+        $identity = $context->identity();
 
-        if ($assignment === null) {
+        if (! isset($this->queuedRoleAssignments[$identity])) {
             return;
         }
 
         $remainingRoles = array_values(array_filter(
-            $assignment['roles'],
+            $this->queuedRoleAssignments[$identity]['roles'],
             fn (int|string $role): bool => ! in_array($role, $roles, true),
         ));
-
-        if ($remainingRoles === $assignment['roles']) {
-            return;
-        }
 
         if ($remainingRoles === []) {
             unset($this->queuedRoleAssignments[$identity]);
@@ -536,8 +498,7 @@ trait HasRoles
             return;
         }
 
-        $assignment['roles'] = $remainingRoles;
-        $this->queuedRoleAssignments[$identity] = $assignment;
+        $this->queuedRoleAssignments[$identity]['roles'] = $remainingRoles;
     }
 
     /**
@@ -545,20 +506,14 @@ trait HasRoles
      */
     protected function flushQueuedPermissionAssignments(): void
     {
-        $roleAssignments = array_values($this->queuedRoleAssignments);
-        $permissionAssignments = $this->collapseQueuedPermissionAssignments();
+        $roleAssignments = $this->queuedRoleAssignments;
+        $permissionAssignments = $this->queuedPermissionAssignments;
 
         if ($roleAssignments === [] && $permissionAssignments === []) {
             return;
         }
 
         $registrar = $this->permissionRegistrar();
-
-        foreach ($roleAssignments as $assignment) {
-            $registrar->ensureTeamIsSelectedForMutation($assignment['context']);
-        }
-
-        $this->ensureQueuedPermissionAssignmentTeamsSelected($permissionAssignments, $registrar);
 
         $registrar->getPermissionConnection()->transaction(function () use ($roleAssignments, $permissionAssignments): void {
             foreach ($roleAssignments as $assignment) {
@@ -568,14 +523,14 @@ trait HasRoles
                     $relation->using($assignment['pivotClass']);
                 }
 
-                $relation->attach($assignment['roles'], $assignment['pivot']);
+                $relation->attach($assignment['roles'], $this->roleAssignmentPivot($assignment['context']));
             }
 
-            $this->attachQueuedPermissionAssignmentBatches($permissionAssignments);
+            $this->attachQueuedPermissionAssignments($permissionAssignments);
         });
 
         $this->queuedRoleAssignments = [];
-        $this->clearQueuedPermissionAssignments();
+        $this->queuedPermissionAssignments = [];
 
         if ($roleAssignments !== []) {
             $this->unsetRelation('roles');
@@ -585,35 +540,29 @@ trait HasRoles
             $this->unsetRelation('permissions');
         }
 
+        foreach ($roleAssignments as $assignment) {
+            $this->invalidateRoleAssignmentCaches($registrar, $assignment['context']);
+        }
+
+        foreach ($permissionAssignments as $assignment) {
+            $this->invalidatePermissionAssignmentCaches($registrar, $assignment['context']);
+        }
+    }
+
+    /**
+     * Invalidate the caches a role assignment change affects.
+     */
+    private function invalidateRoleAssignmentCaches(
+        PermissionRegistrar $registrar,
+        PermissionRelationContext $context,
+    ): void {
         if ($this instanceof Permission) {
-            $contexts = [];
-
-            foreach ([...$roleAssignments, ...$permissionAssignments] as $assignment) {
-                $contexts[$assignment['context']->identity()] = $assignment['context'];
-            }
-
-            foreach ($contexts as $context) {
-                $registrar->invalidatePermissionCatalogAfterMutation($context->partition);
-            }
+            $registrar->invalidatePermissionCatalogAfterMutation($context->partition);
 
             return;
         }
 
-        $roleContexts = [];
-
-        foreach ($roleAssignments as $assignment) {
-            $roleContexts[$assignment['context']->identity()] = $assignment['context'];
-        }
-
-        foreach ($roleContexts as $context) {
-            $registrar->invalidateModelRoleCacheAfterMutation(
-                $this,
-                $context->partition,
-                $context->team,
-            );
-        }
-
-        $this->invalidateQueuedPermissionAssignmentContexts($permissionAssignments);
+        $registrar->invalidateModelRoleCacheAfterMutation($this, $context->partition, $context->team);
     }
 
     /**
@@ -642,13 +591,12 @@ trait HasRoles
     /**
      * Revoke the given role from the model.
      *
-     * @param array|Collection|int|Role|string|UnitEnum ...$role
      * @return $this
      */
-    public function removeRole(...$role): static
+    public function removeRole(array|Collection|int|Role|string|UnitEnum|null ...$role): static
     {
         $registrar = $this->permissionRegistrar();
-        $context = $this->roleAssignmentContext($registrar);
+        $context = $this->assignmentContext($registrar);
         $registrar->ensureTeamIsSelectedForMutation($context);
         $roles = $this->collectRoles($role, $context->partition);
 
@@ -659,11 +607,7 @@ trait HasRoles
         }
 
         if (! $this->exists) {
-            $this->removeQueuedRoleAssignments(
-                $roles,
-                $context,
-                $registrar->getAssignmentPivotClass($this, 'roles'),
-            );
+            $this->removeQueuedRoleAssignments($roles, $context);
             $this->dispatchRoleDetachedEvent($roles);
 
             return $this;
@@ -672,21 +616,10 @@ trait HasRoles
         $this->requireModelKey($this);
 
         $relation = $this->roles();
-        $context = $this->permissionRelationContext($relation);
-        $detached = $relation->detach($roles);
 
-        if ($detached > 0) {
+        if ($relation->detach($roles) > 0) {
             $this->unsetRelation('roles');
-
-            if ($this instanceof Permission) {
-                $registrar->invalidatePermissionCatalogAfterMutation($context->partition);
-            } else {
-                $registrar->invalidateModelRoleCacheAfterMutation(
-                    $this,
-                    $context->partition,
-                    $context->team,
-                );
-            }
+            $this->invalidateRoleAssignmentCaches($registrar, $this->permissionRelationContext($relation));
         }
 
         $this->dispatchRoleDetachedEvent($roles);
@@ -720,25 +653,17 @@ trait HasRoles
     /**
      * Remove all current roles and set the given ones.
      *
-     * @param array|Collection|int|Role|string|UnitEnum ...$roles
      * @return $this
      */
-    public function syncRoles(...$roles): static
+    public function syncRoles(array|Collection|int|Role|string|UnitEnum|null ...$roles): static
     {
         $registrar = $this->permissionRegistrar();
-        $context = $this->roleAssignmentContext($registrar);
+        $context = $this->assignmentContext($registrar);
         $registrar->ensureTeamIsSelectedForMutation($context);
         $roles = $this->collectRoles($roles, $context->partition);
 
         if (! $this->exists) {
-            $pivotClass = $registrar->getAssignmentPivotClass($this, 'roles');
-
-            $this->replaceQueuedRoleAssignments(
-                $roles,
-                $this->roleAssignmentPivot($context),
-                $context,
-                $pivotClass,
-            );
+            $this->replaceQueuedRoleAssignments($roles, $context, $registrar->getAssignmentPivotClass($this, 'roles'));
             $this->dispatchRoleAttachedEvent($roles);
 
             return $this;
@@ -775,16 +700,7 @@ trait HasRoles
             });
 
             $this->unsetRelation('roles');
-
-            if ($this instanceof Permission) {
-                $registrar->invalidatePermissionCatalogAfterMutation($context->partition);
-            } else {
-                $registrar->invalidateModelRoleCacheAfterMutation(
-                    $this,
-                    $context->partition,
-                    $context->team,
-                );
-            }
+            $this->invalidateRoleAssignmentCaches($registrar, $context);
         }
 
         if ($detachedEventRoles !== []) {
@@ -798,10 +714,8 @@ trait HasRoles
 
     /**
      * Determine if the model has (one of) the given role(s).
-     *
-     * @param array|Collection|int|Role|string|UnitEnum $roles
      */
-    public function hasRole($roles, ?string $guard = null): bool
+    public function hasRole(array|Collection|int|Role|string|UnitEnum $roles, ?string $guard = null): bool
     {
         $roleCollection = $this->getCachedRoles();
 
@@ -809,11 +723,10 @@ trait HasRoles
             $roles = $this->convertPipeToArray($roles);
         }
 
+        // An enum names a role, even when its value is an integer or a UUID.
         if ($roles instanceof UnitEnum) {
-            $roles = enum_value($roles);
-        }
-
-        if (is_int($roles) || PermissionRegistrar::isUid($roles)) {
+            $roles = (string) enum_value($roles);
+        } elseif (is_int($roles) || PermissionRegistrar::isUid($roles)) {
             $key = Guard::getModelKeyName($this->getRoleClass());
 
             return $guard !== null && $guard !== ''
@@ -826,7 +739,7 @@ trait HasRoles
                 ? $roleCollection->where('guard_name', $guard)->pluck('name')
                 : $roleCollection->pluck('name');
 
-            return $roleNames->contains(fn ($name): bool => enum_value($name) === $roles);
+            return $roleNames->contains(fn ($name): bool => (string) enum_value($name) === $roles);
         }
 
         if ($roles instanceof Role) {
@@ -848,44 +761,36 @@ trait HasRoles
             return false;
         }
 
-        if ($roles instanceof Collection) {
-            $this->ensureRoleCollectionMatchesPartition($roles);
+        $this->ensureRoleCollectionMatchesPartition($roles);
 
-            return $roles->intersect(
-                $guard !== null && $guard !== '' ? $roleCollection->where('guard_name', $guard) : $roleCollection
-            )->isNotEmpty();
-        }
-
-        throw new TypeError('Unsupported type for $roles parameter to hasRole().');
+        return $roles->intersect(
+            $guard !== null && $guard !== '' ? $roleCollection->where('guard_name', $guard) : $roleCollection
+        )->isNotEmpty();
     }
 
     /**
      * Determine if the model has any of the given role(s).
      *
      * Alias to hasRole() but without Guard controls
-     *
-     * @param array|Collection|int|Role|string|UnitEnum $roles
      */
-    public function hasAnyRole(...$roles): bool
+    public function hasAnyRole(array|Collection|int|Role|string|UnitEnum ...$roles): bool
     {
         return $this->hasRole($roles);
     }
 
     /**
      * Determine if the model has all of the given role(s).
-     *
-     * @param array|Collection|Role|string|UnitEnum $roles
      */
-    public function hasAllRoles($roles, ?string $guard = null): bool
+    public function hasAllRoles(array|Collection|Role|string|UnitEnum $roles, ?string $guard = null): bool
     {
         $roleCollection = $this->getCachedRoles();
-
-        $roles = enum_value($roles);
 
         if (is_string($roles) && str_contains($roles, '|')) {
             $roles = $this->convertPipeToArray($roles);
         }
 
+        // Enums reach the name comparison below unconverted. Converting one here would
+        // send a UUID value to hasRole() as a string, which it looks up as a role key.
         if (is_string($roles)) {
             return $this->hasRole($roles, $guard);
         }
@@ -914,10 +819,8 @@ trait HasRoles
 
     /**
      * Determine if the model has exactly all of the given role(s).
-     *
-     * @param array|Collection|Role|string|UnitEnum $roles
      */
-    public function hasExactRoles($roles, ?string $guard = null): bool
+    public function hasExactRoles(array|Collection|Role|string|UnitEnum $roles, ?string $guard = null): bool
     {
         $roleCollection = $this->getCachedRoles();
 
@@ -968,11 +871,10 @@ trait HasRoles
     /**
      * Get a stored role instance.
      *
-     * @param int|Role|string|UnitEnum $role
      * @return Model&Role
      */
     protected function getStoredRole(
-        $role,
+        int|Role|string|UnitEnum $role,
         ?PermissionPartition $partition = null,
     ): Role {
         $partition ??= $this->permissionRegistrar()->resolvePartition();
@@ -995,32 +897,6 @@ trait HasRoles
         $this->ensureRoleMatchesPartition($role, $partition);
 
         return $role;
-    }
-
-    /**
-     * Capture the partition and team for a role assignment operation.
-     */
-    private function roleAssignmentContext(PermissionRegistrar $registrar): PermissionRelationContext
-    {
-        $partition = $registrar->resolvePartition();
-
-        if ($partition) {
-            $attributes = $this->getAttributes();
-
-            if ($this instanceof Permission
-                || (array_key_exists($partition->column, $attributes)
-                    && $attributes[$partition->column] !== null)) {
-                $registrar->ensureModelMatchesPartition($this, $partition);
-            }
-        }
-
-        $teamScoped = $registrar->teams && ! $this instanceof Permission;
-
-        return new PermissionRelationContext(
-            $partition,
-            $teamScoped,
-            $teamScoped ? $registrar->getPermissionsTeamId() : null,
-        );
     }
 
     /**
@@ -1048,7 +924,8 @@ trait HasRoles
      */
     private function ensureRoleMatchesPartition(Role $role, ?PermissionPartition $partition): void
     {
-        if ($partition && $role instanceof Model) {
+        if ($partition) {
+            /** @var Model&Role $role */
             $this->permissionRegistrar()->ensureModelMatchesPartition($role, $partition);
         }
     }

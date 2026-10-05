@@ -1881,10 +1881,10 @@ class PermissionRegistrar
                     $roleKeys = [];
                     $deniedRoleKeys = [];
 
-                    foreach ($this->relationCollection($permission, 'roles') as $role) {
+                    foreach ($permission->getRelation('roles') as $role) {
                         $roleKeys[] = $role->getKey();
 
-                        if ($this->pivotIsDenied($role)) {
+                        if ($role->getRelation('pivot')->is_denied) {
                             $deniedRoleKeys[] = $role->getKey();
                         }
                     }
@@ -1911,35 +1911,11 @@ class PermissionRegistrar
     }
 
     /**
-     * Determine if any cached role-permission edge is denied.
+     * Determine if any role in the catalog is denied a permission.
      */
     public function hasDeniedRolePermissions(): bool
     {
         return (bool) $this->permissionCatalog()['hasDeniedRolePermissions'];
-    }
-
-    /**
-     * Determine if a hydrated pivot marks the permission as denied.
-     */
-    protected function pivotIsDenied(Model $model): bool
-    {
-        if (! $model->relationLoaded('pivot')) {
-            return false;
-        }
-
-        $pivot = $model->getRelation('pivot');
-
-        return $pivot instanceof Pivot && (bool) $pivot->getAttribute('is_denied');
-    }
-
-    /**
-     * Get a hydrated relation collection.
-     */
-    protected function relationCollection(Model $model, string $relation): Collection
-    {
-        $value = $model->getRelation($relation);
-
-        return $value instanceof Collection ? $value : new Collection;
     }
 
     /**

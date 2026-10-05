@@ -383,7 +383,7 @@ class TeamHasPermissionsTest extends HasPermissionsTest
         $this->assertFalse($this->testUser->hasPermissionTo('edit-articles'));
     }
 
-    public function testQueuedPermissionAssignmentsKeepSeparateTeamEdges(): void
+    public function testQueuedPermissionAssignmentsStaySeparatePerTeam(): void
     {
         $user = new User(['email' => 'queued-teams@example.com']);
 

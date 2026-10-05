@@ -619,6 +619,23 @@ class PermissionCacheTransactionTest extends TestCase
         $this->assertSame(0, $subjectConnection->table('model_has_roles')->count());
     }
 
+    public function testCachedDirectPermissionPivotUsesPermissionStorageConnection(): void
+    {
+        [, $permissionConnection] = $this->setUpAliasedPermissionStorage();
+        $user = AliasedPermissionUser::create(['email' => 'subject@example.com']);
+        $user->givePermissionTo(AliasedPermission::create(['name' => 'edit-articles']));
+
+        $cachedPivot = $user->getDirectPermissions()->sole()->pivot;
+
+        $permissionConnection->beginTransaction();
+        $cachedPivot->delete();
+        $this->assertSame(0, $permissionConnection->table('model_has_permissions')->count());
+        $permissionConnection->rollBack();
+
+        $this->assertSame(1, $permissionConnection->table('model_has_permissions')->count());
+        $this->assertSame($user->permissions()->first()->pivot->getConnectionName(), $cachedPivot->getConnectionName());
+    }
+
     public function testCustomPermissionPivotUsesPermissionStorageConnection(): void
     {
         $this->setUpAliasedPermissionStorage();
