@@ -56,6 +56,8 @@ class Config
     }
 
     /**
+     * Get the team model class.
+     *
      * @return class-string<Model>
      */
     public static function teamModel(): string
@@ -146,6 +148,8 @@ class Config
     }
 
     /**
+     * Get the role model class.
+     *
      * @return class-string<Model>
      */
     public static function roleModel(): string
@@ -154,6 +158,8 @@ class Config
     }
 
     /**
+     * Get the permission model class.
+     *
      * @return class-string<Model>
      */
     public static function permissionModel(): string
@@ -202,6 +208,8 @@ class Config
     }
 
     /**
+     * Get the wildcard permission class.
+     *
      * @return class-string<Wildcard>
      */
     public static function wildcardPermissionClass(): string

@@ -422,7 +422,6 @@ class AfterEachTestSubscriber implements FinishedSubscriber
      */
     protected function flushPermissionState(): void
     {
-        $this->callIfExists(\Hypervel\Permission\DefaultTeamResolver::class, 'flushState');
         $this->callIfExists(\Hypervel\Permission\Guard::class, 'flushState');
         $this->callIfExists(\Hypervel\Permission\PermissionRegistrar::class, 'flushState');
     }

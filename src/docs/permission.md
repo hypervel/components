@@ -875,6 +875,8 @@ You may view the permission matrix using the `permission:show` command:
 php artisan permission:show
 ```
 
+Each cell shows `✔` when the role is allowed the permission, `✘` when the role is denied it, and `·` when the role has no assignment for it.
+
 You may limit the output to a specific guard:
 
 ```shell
@@ -1565,7 +1567,7 @@ Configuration and context failures use focused exceptions:
 ## Differences From Spatie Laravel Permission
 
 - Hypervel adds denied permissions. A denied assignment explicitly rejects an ability and wins over direct or role-granted allows. The `is_denied` flag is stored as the effect on the assignment row, so assigning allow or deny for the same model or role and permission updates the existing edge.
-- `getDirectPermissions()`, `getPermissionsViaRoles()`, `getAllPermissions()`, and `getPermissionNames()` return effective allowed permissions. Explicit denied edges are exposed through `hasDeniedPermission()` and `hasDeniedPermissionViaRoles()`.
+- `getDirectPermissions()`, `getPermissionsViaRoles()`, `getAllPermissions()`, and `getPermissionNames()` return effective allowed permissions. `getDeniedPermissions()` returns the denied ones, and `hasDeniedPermission()` and `hasDeniedPermissionViaRoles()` check them.
 - Hypervel accepts pure unit enums anywhere enum names are valid role or permission inputs. Backed enums use their values; unit enums use their case names.
 - Hypervel adds opt-in generic row partitioning through `PermissionRegistrar::resolvePartitionUsing(...)`. It scopes model lifecycle operations, every package relation and pivot, queries, commands, cache identities, and invalidation without depending on any partition domain.
 - Hypervel's cache config uses `expiration_seconds` and separate named cache keys so role, model-role, model-permission, and assignment-token caches can be invalidated independently.

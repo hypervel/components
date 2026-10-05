@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Permission\Commands;
 
 use Hypervel\Console\Command;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Permission\PermissionRegistrar;
 use Hypervel\Permission\Support\Config;
 use Hypervel\Support\Collection;
@@ -52,7 +53,9 @@ class ShowCommand extends Command
                 ->when($teamsEnabled, fn ($q) => $q->orderBy($teamKey))
                 ->orderBy('name')->get()->mapWithKeys(fn ($role) => [
                     $role->name . '_' . ($teamsEnabled ? (string) ($role->{$teamKey} ?? '') : '') => [
-                        'permissions' => $role->permissions->pluck($permissionKey),
+                        'permissions' => $role->permissions->mapWithKeys(fn (Model $permission): array => [
+                            $permission->{$permissionKey} => (bool) $permission->getRelation('pivot')->is_denied,
+                        ]),
                         $teamKey => $teamsEnabled ? $role->{$teamKey} : null,
                     ],
                 ]);
@@ -64,7 +67,11 @@ class ShowCommand extends Command
 
             $body = $permissions->map(
                 fn ($permission, $id) => $roles->map(
-                    fn (array $role_data) => $role_data['permissions']->contains($id) ? ' ✔' : ' ·'
+                    fn (array $role_data): string => match ($role_data['permissions']->get($id)) {
+                        false => ' ✔',
+                        true => ' ✘',
+                        default => ' ·',
+                    }
                 )->prepend($permission)
             );
 

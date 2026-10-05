@@ -79,6 +79,8 @@ class Role extends Model implements RoleContract
     }
 
     /**
+     * Create a new role.
+     *
      * @return Role|RoleContract
      *
      * @throws RoleAlreadyExists

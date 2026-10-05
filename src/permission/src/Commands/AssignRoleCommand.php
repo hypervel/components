@@ -39,6 +39,7 @@ class AssignRoleCommand extends Command
             return self::SUCCESS;
         }
 
+        // Validate that the model class exists and is an Eloquent model
         if (! is_string($userModelClass) || ! class_exists($userModelClass)) {
             $this->error("User model class [{$userModelClass}] does not exist.");
 

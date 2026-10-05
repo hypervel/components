@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Permission\Integration;
 use Hypervel\Permission\Contracts\Role;
 use Hypervel\Support\Facades\Artisan;
 use Hypervel\Support\Facades\Auth;
+use Hypervel\Support\Facades\Blade;
 use Hypervel\Tests\Permission\Fixtures\Models\Admin;
 use Hypervel\Tests\Permission\Fixtures\Models\User;
 use Hypervel\Tests\Permission\TestCase;
@@ -298,6 +299,14 @@ class BladeTest extends TestCase
         Auth::setUser($user);
 
         $this->assertSame('does not have all of the given roles', $this->renderView('guardHasAllRolesArray', compact('guard')));
+    }
+
+    public function testItEvaluatesTheHasexactrolesDirectiveAgainstTheLoggedInUsersRoles(): void
+    {
+        Auth::setUser($this->writer());
+
+        $this->assertTrue(Blade::check('hasexactroles', 'writer'));
+        $this->assertFalse(Blade::check('hasexactroles', ['writer', 'member']));
     }
 
     protected function renderView(string $view, array $parameters): string

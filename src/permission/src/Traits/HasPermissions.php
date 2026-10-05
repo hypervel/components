@@ -668,6 +668,8 @@ trait HasPermissions
     }
 
     /**
+     * Convert the given permissions to permission models.
+     *
      * @param array|Collection|int|Permission|string|UnitEnum $permissions
      *
      * @throws PermissionDoesNotExist
@@ -2104,6 +2106,8 @@ trait HasPermissions
     }
 
     /**
+     * Get the stored permission models for the given permissions.
+     *
      * @param array|Collection|int|Permission|string|UnitEnum $permissions
      * @return Collection|(Model&Permission)
      */
@@ -2191,6 +2195,8 @@ trait HasPermissions
     }
 
     /**
+     * Ensure the given role or permission uses one of the model's guards.
+     *
      * @param Permission|Role $roleOrPermission
      *
      * @throws GuardDoesNotMatch

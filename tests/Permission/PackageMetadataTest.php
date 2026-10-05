@@ -30,10 +30,13 @@ class PackageMetadataTest extends TestCase
             JSON_THROW_ON_ERROR,
         );
 
-        foreach (['composer-runtime-api', 'nesbot/carbon', 'symfony/http-kernel'] as $dependency) {
-            $this->assertArrayHasKey($dependency, $rootComposer['require']);
-            $this->assertArrayHasKey($dependency, $composer['require']);
-            $this->assertSame($rootComposer['require'][$dependency], $composer['require'][$dependency]);
+        foreach ($composer['require'] as $dependency => $constraint) {
+            // The root package replaces the Hypervel packages instead of requiring them.
+            if (str_starts_with($dependency, 'hypervel/')) {
+                continue;
+            }
+
+            $this->assertSame($rootComposer['require'][$dependency] ?? null, $constraint, $dependency);
         }
 
         $this->assertSame(

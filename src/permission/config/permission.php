@@ -91,7 +91,9 @@ return [
     |--------------------------------------------------------------------------
     |
     | Teams scope roles and assignments by the configured team foreign key.
-    | A custom resolver must implement the PermissionsTeamResolver contract.
+    | Enable teams before running the migration, or run "permission:setup-teams"
+    | to add the team columns later. A custom resolver must implement the
+    | PermissionsTeamResolver contract.
     |
     */
 

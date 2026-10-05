@@ -130,6 +130,14 @@ class CommandTest extends TestCase
         $output = Artisan::output();
 
         $this->assertMatchesRegularExpression('/\|\s+edit-articles\s+\|\s+✔\s+\|\s+·\s+\|/', $output);
+
+        Role::findByName('testRole')->denyPermissionTo('edit-articles');
+
+        Artisan::call('permission:show');
+
+        $output = Artisan::output();
+
+        $this->assertMatchesRegularExpression('/\|\s+edit-articles\s+\|\s+✘\s+\|\s+·\s+\|/', $output);
     }
 
     public function testItCanShowPermissionsForGuard(): void
@@ -254,13 +262,14 @@ class CommandTest extends TestCase
     {
         Role::where('name', 'testRole2')->delete();
         Role::create(['name' => 'testRole_2']);
-        Role::create(['name' => 'testRole_Team', 'team_test_id' => 1]);
-        Role::create(['name' => 'testRole_Team', 'team_test_id' => 2]); // same name different team
+        // Non-sequential team ids, so the headers must show the ids rather than group positions.
+        Role::create(['name' => 'testRole_Team', 'team_test_id' => 7]);
+        Role::create(['name' => 'testRole_Team', 'team_test_id' => 42]); // same name different team
         Artisan::call('permission:show');
 
         $output = Artisan::output();
 
-        $this->assertMatchesRegularExpression('/\|\s+\|\s+Team ID: NULL\s+\|\s+Team ID: 1\s+\|\s+Team ID: 2\s+\|/', $output);
+        $this->assertMatchesRegularExpression('/\|\s+\|\s+Team ID: NULL\s+\|\s+Team ID: 7\s+\|\s+Team ID: 42\s+\|/', $output);
         $this->assertMatchesRegularExpression('/\|\s+\|\s+testRole\s+\|\s+testRole_2\s+\|\s+testRole_Team\s+\|\s+testRole_Team\s+\|/', $output);
     }
 
