@@ -160,6 +160,10 @@ abstract class TestCase extends TestbenchTestCase
     {
         $this->createFixtureTables();
         $this->flushPermissionState();
+
+        $this->testUser = User::create(['email' => 'test@user.com']);
+        $this->testAdmin = Admin::create(['email' => 'admin@user.com']);
+
         $this->setUpBaseTestPermissions();
         $this->setUpRoutes();
     }
@@ -203,9 +207,6 @@ abstract class TestCase extends TestbenchTestCase
      */
     protected function setUpBaseTestPermissions(): void
     {
-        $this->testUser = User::create(['email' => 'test@user.com']);
-        $this->testAdmin = Admin::create(['email' => 'admin@user.com']);
-
         $this->testUserRole = $this->app->make(RoleContract::class)->create(['name' => 'testRole']);
         $this->app->make(RoleContract::class)->create(['name' => 'testRole2']);
         $this->testAdminRole = $this->app->make(RoleContract::class)->create(['name' => 'testAdminRole', 'guard_name' => 'admin']);

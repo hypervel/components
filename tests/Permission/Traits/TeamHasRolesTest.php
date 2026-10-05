@@ -32,19 +32,6 @@ class TeamHasRolesTest extends HasRolesTest
         $this->setUpTeams();
     }
 
-    public function testItDoesNotRunUnnecessarySqlWhenAssigningNewRoles(): void
-    {
-        $role2 = app(Role::class)->where('name', 'testRole2')->first();
-
-        DB::enableQueryLog();
-        $this->testUser->syncRoles($this->testUserRole, $role2);
-        DB::disableQueryLog();
-
-        // Hypervel's team-aware sync path writes the current team pivot directly,
-        // so it avoids the extra relation reload that Spatie needs under Laravel.
-        $this->assertCount(2, DB::getQueryLog());
-    }
-
     public function testItDeletesPivotTableEntriesWhenDeletingModelsAcrossTeams(): void
     {
         $user1 = User::create(['email' => 'user1@test.com']);
