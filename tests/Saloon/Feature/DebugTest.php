@@ -6,9 +6,7 @@ namespace Hypervel\Tests\Saloon\Feature;
 
 use Closure;
 use GuzzleHttp\Psr7\Utils;
-use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
-use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\Saloon\Enums\Method;
 use Hypervel\Saloon\Exceptions\Request\RequestException;
 use Hypervel\Saloon\Http\Connector;
@@ -25,7 +23,6 @@ use Hypervel\Tests\Saloon\Fixtures\Connectors\TestConnector;
 use Hypervel\Tests\Saloon\Fixtures\Mocking\UnseekableBodyMockResponse;
 use Hypervel\Tests\Saloon\Fixtures\Requests\AlwaysThrowRequest;
 use Hypervel\Tests\Saloon\Fixtures\Requests\UserRequest;
-use Mockery as m;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamInterface;
@@ -113,11 +110,8 @@ class DebugTest extends TestCase
 
         $connector->send($request, $mockClient);
 
-        // Even though the user has registered response middleware, the debugger should always come first. Upstream
-        // also expects connector entries before request entries ([C, D, A, B]); only the debugger priority is
-        // asserted here.
-        $this->assertEqualsCanonicalizing(['C', 'D'], array_slice($middlewareOrder, 0, 2));
-        $this->assertEqualsCanonicalizing(['A', 'B'], array_slice($middlewareOrder, 2));
+        // Even though the user has registered response middleware, the debugger should always come first.
+        $this->assertSame(['C', 'D', 'A', 'B'], $middlewareOrder);
     }
 
     public function testTheResponseDebuggerIsAlwaysExecutedBeforeTheAlwaysThrowOnErrorsTrait(): void
@@ -264,8 +258,7 @@ class DebugTest extends TestCase
             ->debugRequest(function (PendingRequest $pendingRequest, RequestInterface $psrRequest) use (&$capturedRequest): void {
                 $capturedRequest = $psrRequest;
             });
-        $pendingRequest = $this->pendingRequest($request)
-            ->executeRequestPipeline()
+        $pendingRequest = (new DebugConnectorStub)->createPendingRequest($request)
             ->finalizeUri()
             ->prepareBody();
 
@@ -296,19 +289,6 @@ class DebugTest extends TestCase
         parent::setUp();
 
         DebugRequestStub::$psrHookCalls = 0;
-    }
-
-    /**
-     * Create a pending request with isolated framework dependencies.
-     */
-    protected function pendingRequest(Request $request): PendingRequest
-    {
-        return new PendingRequest(
-            new DebugConnectorStub,
-            $request,
-            m::mock(CacheFactory::class),
-            m::mock(RateLimiter::class),
-        );
     }
 
     /**

@@ -149,7 +149,6 @@ class PendingRequest
             $request->options(),
         ));
         $this->delay = $request->delayMilliseconds() ?? $connector->delayMilliseconds();
-        $this->middlewarePipeline = clone $request->middleware();
 
         $connectorBody = $connector->copyDefaultBodyRepository();
         $requestBody = $request->copyBodyRepository();
@@ -165,7 +164,7 @@ class PendingRequest
         }
 
         $this->cookies = $request->cookies();
-        $this->retryPolicy = $request->retryPolicy();
+        $this->retryPolicy = $request->retryPolicy() ?? $connector->retryPolicy();
         $this->authenticator = $request->authenticator() ?? $connector->authenticator();
     }
 
@@ -365,7 +364,7 @@ class PendingRequest
     }
 
     /**
-     * Merge worker-global middleware into this operation.
+     * Merge global or request middleware into this operation's own pipeline.
      */
     public function mergeMiddleware(MiddlewarePipeline $middleware): static
     {

@@ -19,6 +19,7 @@ use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\Saloon\Cache\CacheKey;
 use Hypervel\Saloon\Cache\Data\CachedResponse;
 use Hypervel\Saloon\Data\RecordedResponse;
+use Hypervel\Saloon\Data\RetryPolicy;
 use Hypervel\Saloon\Events\SendingSaloonRequest;
 use Hypervel\Saloon\Events\SentSaloonRequest;
 use Hypervel\Saloon\Exceptions\BodyException;
@@ -154,6 +155,9 @@ class SaloonManager
 
             try {
                 if ($response === null) {
+                    // Fake responses stand in for a send, so they wait for the delay too. Cache hits send nothing.
+                    $this->sleepMilliseconds($pendingRequest->delayMilliseconds() ?? 0);
+
                     if (($fakeResponse = $pendingRequest->fakeResponse()) !== null) {
                         if (($exception = $fakeResponse->getException($pendingRequest)) !== null) {
                             throw $exception;
@@ -165,7 +169,6 @@ class SaloonManager
                             ->setMocked($fakeResponse instanceof MockResponse)
                             ->setFakeResponse($fakeResponse);
                     } else {
-                        $this->sleepMilliseconds($pendingRequest->delayMilliseconds() ?? 0);
                         $response = $this->sender->send($pendingRequest, $transport);
                         $responseFromSender = true;
                     }
@@ -202,15 +205,19 @@ class SaloonManager
                 if ($exception === null) {
                     return $response;
                 }
-            } catch (ConnectionException $exception) {
-                $exception = new FatalRequestException($exception, $pendingRequest);
+            } catch (ConnectionException|FatalRequestException $exception) {
+                // A fake response may throw the fatal exception itself to simulate a failed connection.
+                if ($exception instanceof ConnectionException) {
+                    $exception = new FatalRequestException($exception, $pendingRequest);
+                }
+
                 $pendingRequest->executeFatalPipeline($exception);
             } catch (RequestException $exception) {
                 $response = $exception->response();
                 $exceptionWasThrown = true;
             }
 
-            $retryPolicy = $pendingRequest->retryPolicy();
+            $retryPolicy = $pendingRequest->retryPolicy() ?? new RetryPolicy;
             $maximumAttempts = $retryPolicy->maximumAttempts();
             $shouldRetry = $attempt < $maximumAttempts
                 && ($retryPolicy->when === null || ($retryPolicy->when)($exception, $pendingRequest));
@@ -239,8 +246,13 @@ class SaloonManager
     /**
      * Prepare a request for sending through a connector.
      *
-     * The pending request has run its plugins, authenticator, boot hooks, and global and request middleware, in that
-     * order. It has not been finalized, matched against mock responses or sent.
+     * The pending request has run its plugins, authenticator, boot hooks and request middleware, in that order. It
+     * has not been finalized, matched against mock responses or sent.
+     *
+     * Middleware is registered on the operation's own pipeline in this order: global middleware, plugin middleware,
+     * middleware added by the connector's boot method, the request's middleware, then middleware added by the
+     * request's boot method. Connectors are read-only, so connector middleware is registered from the boot method and
+     * still runs before the request's.
      *
      * @template TDto
      * @param Request<TDto> $request
@@ -250,14 +262,14 @@ class SaloonManager
     {
         $pendingRequest = new PendingRequest($connector, $request, $this->cache, $this->rateLimiter);
         $pendingRequest
+            ->mergeMiddleware($this->middleware)
             ->bootPlugins()
             ->applyAuthentication();
         $connector->boot($pendingRequest);
+        $pendingRequest->mergeMiddleware($request->middleware());
         $request->boot($pendingRequest);
 
-        return $pendingRequest
-            ->mergeMiddleware($this->middleware)
-            ->executeRequestPipeline();
+        return $pendingRequest->executeRequestPipeline();
     }
 
     /**

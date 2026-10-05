@@ -211,9 +211,9 @@ class PendingRequestTest extends TestCase
                 ->withQueryParameters(['page' => 3])
                 ->withData(['middleware' => true]);
         });
-        $pendingRequest = $this->pendingRequest(new PendingRequestConnectorStub, $request);
-
-        $pendingRequest->executeRequestPipeline()->finalizeUri()->prepareBody();
+        $pendingRequest = (new PendingRequestConnectorStub)->createPendingRequest($request)
+            ->finalizeUri()
+            ->prepareBody();
 
         $this->assertSame('https://api.example.com/v1/users?version=1&page=3', (string) $pendingRequest->uri());
         $this->assertSame(

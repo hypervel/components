@@ -2,8 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Saloon\Http;
+namespace Hypervel\Tests\Saloon\Unit;
 
+use Hypervel\Saloon\Data\Pipe;
 use Hypervel\Saloon\Enums\PipeOrder;
 use Hypervel\Saloon\Exceptions\DuplicatePipeNameException;
 use Hypervel\Saloon\Http\Pipeline;
@@ -11,7 +12,7 @@ use Hypervel\Tests\TestCase;
 
 class PipelineTest extends TestCase
 {
-    public function testPipelineCanBeExecuted(): void
+    public function testAPipelineCanBeExecuted(): void
     {
         $pipeline = (new Pipeline)
             ->pipe(fn (int $number): int => $number + 5)
@@ -36,7 +37,7 @@ class PipelineTest extends TestCase
         );
         $this->assertSame(
             ['first', 'default-one', 'default-two', 'last'],
-            array_map(static fn ($pipe): ?string => $pipe->name, $pipeline->pipes()),
+            array_map(static fn (Pipe $pipe): ?string => $pipe->name, $pipeline->pipes()),
         );
     }
 

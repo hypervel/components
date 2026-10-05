@@ -8,6 +8,7 @@ use Hypervel\Container\Container;
 use Hypervel\RateLimiter\AdmissionPolicy;
 use Hypervel\Saloon\Contracts\Authenticator;
 use Hypervel\Saloon\Contracts\Body\BodyRepository;
+use Hypervel\Saloon\Data\RetryPolicy;
 use Hypervel\Saloon\Enums\Method;
 use Hypervel\Saloon\Http\Faking\MockClient;
 use Hypervel\Saloon\SaloonManager;
@@ -152,6 +153,14 @@ abstract class Connector
     }
 
     /**
+     * Get the default retry policy for requests without their own.
+     */
+    final public function retryPolicy(): ?RetryPolicy
+    {
+        return $this->defaultRetryPolicy();
+    }
+
+    /**
      * Copy the default body repository for a pending request.
      *
      * @internal
@@ -205,6 +214,14 @@ abstract class Connector
      * Resolve the default request delay in milliseconds.
      */
     protected function defaultDelay(): ?int
+    {
+        return null;
+    }
+
+    /**
+     * Resolve the default retry policy.
+     */
+    protected function defaultRetryPolicy(): ?RetryPolicy
     {
         return null;
     }

@@ -205,7 +205,7 @@ Do not change a reused connector while handling a request. If a credential or en
 <a name="connector-defaults"></a>
 ### Connector Defaults
 
-You may define default headers, query parameters, Guzzle options, authentication, delays, and request bodies using protected connector methods:
+You may define default headers, query parameters, Guzzle options, authentication, delays, [retry policies](#retries), and request bodies using protected connector methods:
 
 ```php
 use Hypervel\Saloon\Contracts\Authenticator;
@@ -864,7 +864,7 @@ $request
     ->withOptions(['proxy' => $proxy]);
 ```
 
-The `timeout` and `connectTimeout` methods accept seconds, while `delay` accepts milliseconds.
+The `timeout` and `connectTimeout` methods accept seconds, while `delay` accepts milliseconds. Saloon waits for the delay before every attempt, including attempts answered by a mock or fake response, so `Sleep::fake()` can assert it in your tests. Responses served from the cache are not delayed.
 
 The `withoutOptions` method removes options from the request, so the connector's value or the HTTP connection's configured value applies again. To remove a connector default, call `withoutOptions` on the pending request:
 
@@ -933,7 +933,7 @@ public function boot(PendingRequest $pendingRequest): void
 }
 ```
 
-Request middleware may return a `MockResponse` or another implementation of `FakeResponse` to short-circuit the network request.
+Request middleware may return a `MockResponse` or another implementation of `FakeResponse` to short-circuit the network request. Other return values are ignored, so change the pending request it receives rather than returning a new one.
 
 For reusable middleware, create an invokable class that implements `RequestMiddleware`:
 
@@ -956,7 +956,7 @@ class AddRequestId implements RequestMiddleware
 
 Register the class in the same way as a closure: `$pendingRequest->middleware()->onRequest(new AddRequestId)`.
 
-Middleware runs in registration order. You may pass `PipeOrder::First` or `PipeOrder::Last` using the `order` argument when a middleware must run before or after the normal group. Named middleware must have a unique name within its pipeline.
+Middleware runs in registration order. Saloon registers [global middleware](#global-middleware) first, followed by plugin middleware, middleware added by the connector's `boot` method, the request's own middleware, and middleware added by the request's `boot` method. You may pass `PipeOrder::First` or `PipeOrder::Last` using the `order` argument when a middleware must run before or after the normal group. Named middleware must have a unique name within its pipeline.
 
 <a name="response-middleware"></a>
 ### Response Middleware
@@ -997,7 +997,7 @@ class RecordResponse implements ResponseMiddleware
 <a name="fatal-exception-middleware"></a>
 ### Fatal Exception Middleware
 
-Fatal exception middleware receives connection and transport failures after they have been wrapped in a `FatalRequestException`:
+Fatal exception middleware receives connection and transport failures after they have been wrapped in a `FatalRequestException`, as well as a `FatalRequestException` thrown by a fake response to simulate one:
 
 ```php
 use Hypervel\Saloon\Exceptions\Request\FatalRequestException;
@@ -1296,6 +1296,36 @@ $request->retry(
 ```
 
 Each attempt receives a fresh pending request, so middleware and authentication run again. Seekable request bodies are restored before another attempt. Saloon throws a `BodyException` rather than retrying a consumed non-seekable body.
+
+The `when` callback receives the exception and the failed attempt's pending request. Changes made to the original request through `$pendingRequest->request()` apply to the next attempt, such as replacing an expired token:
+
+```php
+use Hypervel\Saloon\Exceptions\Request\RequestException;
+use Hypervel\Saloon\Http\PendingRequest;
+
+$request->retry(2, when: function ($exception, PendingRequest $pendingRequest) {
+    if (! $exception instanceof RequestException || $exception->status() !== 401) {
+        return false;
+    }
+
+    $pendingRequest->request()->withToken($this->refreshToken());
+
+    return true;
+});
+```
+
+To retry every request sent through a connector, return a policy from the connector's `defaultRetryPolicy` method. A request may define the same method to set its own default:
+
+```php
+use Hypervel\Saloon\Data\RetryPolicy;
+
+protected function defaultRetryPolicy(): ?RetryPolicy
+{
+    return new RetryPolicy(3, 100);
+}
+```
+
+Saloon uses the policy passed to the request's `retry` method, then the request's default, then the connector's default. A request's policy replaces the connector's entirely, including its `when` condition, so `$request->retry(1)` turns off the connector's retries. Middleware and `boot` methods may also call `retry` on the pending request to change the policy for a single operation.
 
 <a name="debugging"></a>
 ### Debugging

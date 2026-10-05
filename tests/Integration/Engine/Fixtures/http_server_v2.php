@@ -70,6 +70,18 @@ $callback = function () {
                 $response->setHeader('Content-Type', 'application/json');
                 $response->end(json_encode(['message' => 'Server Error']));
             })(),
+            '/header-error' => (function () use ($request, $response): void {
+                // Fail until Saloon's retry tests send the X-Yee-Haw header with the value 3
+                if (($request->header['x-yee-haw'] ?? null) === '3') {
+                    $response->end('Success!');
+
+                    return;
+                }
+
+                $response->status(500);
+                $response->setHeader('Content-Type', 'application/json');
+                $response->end(json_encode(['message' => 'Server Error']));
+            })(),
             default => (function () use ($request, $response) {
                 $body = $request->rawContent();
                 $ret = 'Hello World.';

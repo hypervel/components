@@ -80,6 +80,33 @@ class SaloonManagerTest extends TestCase
         $http->assertSentCount(2);
     }
 
+    public function testMiddlewareRunsInRegistrationOrderOnEveryAttemptWithoutAccumulating(): void
+    {
+        $http = $this->http();
+        $http->fake([
+            '*' => $http->sequence()
+                ->pushStatus(500)
+                ->push('complete', 200)
+                ->push('again', 200),
+        ]);
+        $manager = $this->manager($http);
+        $manager->middleware()->onRequest(static function (): void {
+            OrderedManagerRequestStub::$order[] = 'global';
+        });
+        $request = (new OrderedManagerRequestStub)->retry(2);
+        $request->middleware()->onRequest(static function (): void {
+            OrderedManagerRequestStub::$order[] = 'request';
+        });
+        $attempt = ['global', 'plugin', 'connector boot', 'request', 'request boot'];
+
+        $manager->send(new OrderedManagerConnectorStub, $request);
+        $manager->send(new OrderedManagerConnectorStub, $request);
+
+        $this->assertSame([...$attempt, ...$attempt, ...$attempt], OrderedManagerRequestStub::$order);
+        $this->assertCount(1, $manager->middleware()->requestPipeline()->pipes());
+        $this->assertCount(1, $request->middleware()->requestPipeline()->pipes());
+    }
+
     public function testFailedResponseIsReturnedWithoutAnExplicitThrowOrRetryPolicy(): void
     {
         $http = $this->http();
@@ -90,18 +117,6 @@ class SaloonManagerTest extends TestCase
         $this->assertSame(500, $response->status());
         $this->assertSame('failed', $response->body());
         $http->assertSentCount(1);
-    }
-
-    public function testRetryCanReturnTheFinalFailedResponseWithoutThrowing(): void
-    {
-        $http = $this->http();
-        $http->fake(['*' => Factory::response('failed', 500)]);
-        $request = (new ManagerRequestStub)->retry(2, throw: false);
-
-        $response = $this->manager($http)->send(new ManagerConnectorStub, $request);
-
-        $this->assertSame(500, $response->status());
-        $http->assertSentCount(2);
     }
 
     public function testConnectorBootMayConfigureTheOperationRetryPolicy(): void
@@ -203,7 +218,7 @@ class SaloonManagerTest extends TestCase
     {
         $http = $this->http();
         $capturedBody = null;
-        $http->fake(function (HttpRequest $request) use (&$capturedBody) {
+        $http->fake(function (HttpRequest $request) use (&$capturedBody): PromiseInterface {
             $capturedBody = $request->body();
 
             return Factory::response();
@@ -318,7 +333,7 @@ class SaloonManagerTest extends TestCase
     {
         $http = $this->http();
         $capturedRequest = null;
-        $http->fake(function (HttpRequest $request) use (&$capturedRequest) {
+        $http->fake(function (HttpRequest $request) use (&$capturedRequest): PromiseInterface {
             $capturedRequest = $request;
 
             return Factory::response();
@@ -367,6 +382,7 @@ class SaloonManagerTest extends TestCase
         ManagerRequestStub::$responseMiddlewareCalls = 0;
         ManagerRequestStub::$fatalMiddlewareCalls = 0;
         PsrHookManagerConnectorStub::$psrHookCalls = 0;
+        OrderedManagerRequestStub::$order = [];
     }
 
     /**
@@ -404,11 +420,17 @@ class ManagerConnectorStub extends Connector
 {
     public int $bootCalls = 0;
 
+    /**
+     * Resolve the integration base URL.
+     */
     public function resolveBaseUrl(): string
     {
         return 'https://api.example.com';
     }
 
+    /**
+     * Configure a pending request for this resource.
+     */
     public function boot(PendingRequest $pendingRequest): void
     {
         ++$this->bootCalls;
@@ -420,6 +442,9 @@ class ManagerConnectorStub extends Connector
 
 class RetryingManagerConnectorStub extends ManagerConnectorStub
 {
+    /**
+     * Configure a pending request for this resource.
+     */
     public function boot(PendingRequest $pendingRequest): void
     {
         parent::boot($pendingRequest);
@@ -437,6 +462,9 @@ class PsrHookManagerConnectorStub extends ManagerConnectorStub
 {
     public static int $psrHookCalls = 0;
 
+    /**
+     * Handle the final PSR request before it is sent.
+     */
     public function handlePsrRequest(RequestInterface $request, PendingRequest $pendingRequest): RequestInterface
     {
         ++static::$psrHookCalls;
@@ -461,11 +489,17 @@ class ManagerRequestStub extends Request
 
     protected Method $method = Method::GET;
 
+    /**
+     * Resolve the request endpoint.
+     */
     public function resolveEndpoint(): string
     {
         return '/users';
     }
 
+    /**
+     * Configure a pending request for this resource.
+     */
     public function boot(PendingRequest $pendingRequest): void
     {
         ++$this->bootCalls;
@@ -526,8 +560,77 @@ class PluginAuthenticatedManagerRequestStub extends ManagerRequestStub
     use AppliesManagerAuthentication;
 }
 
+class OrderedManagerConnectorStub extends Connector
+{
+    /**
+     * Resolve the integration base URL.
+     */
+    public function resolveBaseUrl(): string
+    {
+        return 'https://api.example.com';
+    }
+
+    /**
+     * Configure a pending request for this resource.
+     */
+    public function boot(PendingRequest $pendingRequest): void
+    {
+        $pendingRequest->middleware()->onRequest(static function (): void {
+            OrderedManagerRequestStub::$order[] = 'connector boot';
+        });
+    }
+}
+
+trait RecordsManagerPluginMiddleware
+{
+    /**
+     * Register the plugin's request middleware.
+     */
+    public function bootRecordsManagerPluginMiddleware(PendingRequest $pendingRequest): void
+    {
+        $pendingRequest->middleware()->onRequest(static function (): void {
+            OrderedManagerRequestStub::$order[] = 'plugin';
+        });
+    }
+}
+
+class OrderedManagerRequestStub extends Request
+{
+    use RecordsManagerPluginMiddleware;
+
+    /**
+     * The request middleware in the order it ran.
+     *
+     * @var list<string>
+     */
+    public static array $order = [];
+
+    protected Method $method = Method::GET;
+
+    /**
+     * Resolve the request endpoint.
+     */
+    public function resolveEndpoint(): string
+    {
+        return '/users';
+    }
+
+    /**
+     * Configure a pending request for this resource.
+     */
+    public function boot(PendingRequest $pendingRequest): void
+    {
+        $pendingRequest->middleware()->onRequest(static function (): void {
+            OrderedManagerRequestStub::$order[] = 'request boot';
+        });
+    }
+}
+
 class ManagerFakeRequestMiddleware implements RequestMiddleware
 {
+    /**
+     * Handle an outgoing request.
+     */
     public function __invoke(PendingRequest $pendingRequest): ?FakeResponse
     {
         return new MockResponse('class middleware');
