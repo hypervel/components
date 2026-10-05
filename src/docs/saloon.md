@@ -1841,6 +1841,15 @@ protected string $perPageName = 'pageSize';
 
 During sequential pagination, Saloon throws a `PaginationException` if five consecutive pages return the same response body. Check that your paginator correctly identifies the last page. Retrying the current page does not count as another page. If your API legitimately returns identical pages, you may disable this check by declaring `protected bool $detectInfiniteLoop = false;` on your paginator.
 
+The check compares each page's body after all response middleware has run. If your API adds a value that changes on every request, such as a request ID, override `getBodyChecksum` to compare only the page contents:
+
+```php
+protected function getBodyChecksum(Response $response): string
+{
+    return hash('xxh128', json_encode($response->json('data')));
+}
+```
+
 If a request implements `MapPaginatedResponseItems`, its `mapPaginatedResponseItems` method takes precedence over the paginator's item mapping. Declare `@implements MapPaginatedResponseItems<UserData>` with the same item type as its paginator. Mapping runs once per fetched page, after all response middleware, and `totalResults` counts these final items.
 
 <a name="offset-and-cursor-pagination"></a>

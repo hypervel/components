@@ -203,7 +203,7 @@ saloonphp/pagination-plugin:
   checked_through: null
   last_reviewed_pr: null
   sync_date: null
-  notes: Part of the unified src/saloon package, under Pagination. Request-owned pagination and link paginators are also used by SDK generators; check affected consumers when adapting upstream changes. Tests map to tests/Saloon/Pagination.
+  notes: Part of the unified src/saloon package, under Pagination. Request-owned pagination, link paginators and the protected paginator state ($pageNumber, $startPage, $perPageLimit, $currentResponse, $currentPageLoaded, $pooling) are used by SDK generators; check affected consumers when adapting upstream changes. Upstream's async iteration maps to Paginator::pool(), so async test cases traverse through pool(). The infinite-loop check runs in Paginator::current(), not request middleware, because a middleware closure would keep the paginator alive through its own request. Upstream tests map to tests/Saloon/Pagination/Feature, with the public superhero API faked by Fixtures/SuperheroApi; Hypervel-only cases are in tests/Saloon/Pagination/PaginatorTest.
 
 saloonphp/rate-limit-plugin:
   branch: v2

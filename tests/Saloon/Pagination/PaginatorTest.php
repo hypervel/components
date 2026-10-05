@@ -6,11 +6,13 @@ namespace Hypervel\Tests\Saloon\Pagination;
 
 use Closure;
 use GuzzleHttp\Psr7\Query;
+use GuzzleHttp\Psr7\Response as PsrResponse;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Http\Client\Factory;
+use Hypervel\Http\Client\Response as HttpResponse;
 use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\Saloon\Enums\Method;
 use Hypervel\Saloon\Exceptions\PoolException;
@@ -32,7 +34,6 @@ use Hypervel\Saloon\Pagination\OffsetPaginator;
 use Hypervel\Saloon\Pagination\PagedPaginator;
 use Hypervel\Saloon\SaloonManager;
 use Hypervel\Tests\TestCase;
-use InvalidArgumentException;
 use LogicException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -364,29 +365,6 @@ class PaginatorTest extends TestCase
         yield 'boolean false' => [false, '0'];
     }
 
-    public function testRequestCanMapPaginatedItems(): void
-    {
-        $manager = $this->manager();
-        $manager->fake([
-            MappedPagedRequestStub::class => static function (PendingRequest $pendingRequest): MockResponse {
-                $page = (int) $pendingRequest->request()->queryParameters()['page'];
-
-                return MockResponse::make([
-                    'data' => [['name' => 'item-' . $page]],
-                    'page' => $page,
-                    'pages' => 1,
-                ]);
-            },
-        ]);
-        $paginator = new PagedPaginatorStub(
-            new PaginationConnectorStub($manager),
-            new MappedPagedRequestStub,
-        );
-
-        $this->assertSame(['item-1'], iterator_to_array($paginator->items(), false));
-        $this->assertSame(1, $paginator->request()->mapping->calls);
-    }
-
     #[DataProvider('responseChanges')]
     public function testItemsAreMappedOnceAfterTheCompleteResponsePipeline(bool $replace): void
     {
@@ -442,6 +420,22 @@ class PaginatorTest extends TestCase
         $paginator->rewind();
         $this->assertNull($references[1]->get());
         $this->assertSame(0, $paginator->totalResults());
+    }
+
+    public function testADroppedPaginatorIsFreedWhileItsResponseIsKept(): void
+    {
+        $manager = $this->manager();
+        $manager->fake([PagedRequestStub::class => MockResponse::make([
+            'data' => [1], 'page' => 1, 'pages' => 2,
+        ])]);
+        $paginator = new PagedPaginatorStub(new PaginationConnectorStub($manager), new PagedRequestStub);
+        $reference = WeakReference::create($paginator);
+
+        $response = $paginator->current();
+        unset($paginator);
+
+        $this->assertNull($reference->get());
+        $this->assertSame([1], $response->json('data'));
     }
 
     public function testPooledMappingReleasesItemsBeforePageCountsAndCallbacks(): void
@@ -1000,18 +994,48 @@ class PaginatorTest extends TestCase
         $this->assertCount(2, $paginator->pool());
     }
 
-    public function testRepeatedBodiesStopASequentialPaginationLoop(): void
+    public function testBodyChecksumsCanIgnoreFieldsThatChangeOnEveryRequest(): void
     {
         $manager = $this->manager();
-        $manager->fake([PagedRequestStub::class => MockResponse::make(['data' => [1]])]);
+        $requested = 0;
+        $manager->fake([PagedRequestStub::class => static function () use (&$requested): MockResponse {
+            return MockResponse::make(['data' => [1], 'request_id' => ++$requested]);
+        }]);
+        $paginator = (new DataChecksumPaginatorStub(new PaginationConnectorStub($manager), new PagedRequestStub))
+            ->maxPages(6);
+        $caught = null;
+
+        try {
+            iterator_to_array($paginator);
+        } catch (PaginationException $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertInstanceOf(PaginationException::class, $caught);
+        $this->assertSame(5, $requested);
+    }
+
+    public function testLoopDetectionChecksTheResponseReturnedByRequestMiddleware(): void
+    {
+        $manager = $this->manager();
+        $requested = 0;
+        $manager->fake([NormalizedPagedRequestStub::class => static function () use (&$requested): MockResponse {
+            return MockResponse::make(['data' => [1], 'request_id' => ++$requested]);
+        }]);
         $paginator = (new NeverEndingPagedPaginatorStub(
             new PaginationConnectorStub($manager),
-            new PagedRequestStub,
+            new NormalizedPagedRequestStub,
         ))->maxPages(6);
+        $caught = null;
 
-        $this->expectException(PaginationException::class);
+        try {
+            iterator_to_array($paginator);
+        } catch (PaginationException $exception) {
+            $caught = $exception;
+        }
 
-        iterator_to_array($paginator);
+        $this->assertInstanceOf(PaginationException::class, $caught);
+        $this->assertSame(5, $requested);
     }
 
     public function testPooledPaginationFetchesTheFirstPageThenBoundsRemainingWork(): void
@@ -1066,13 +1090,6 @@ class PaginatorTest extends TestCase
         (new OffsetPaginatorStub($connector, new OffsetRequestStub))->current();
     }
 
-    public function testPaginatorRequiresAPaginatableRequest(): void
-    {
-        $this->expectException(InvalidArgumentException::class);
-
-        new PagedPaginatorStub(new PaginationConnectorStub($this->manager()), new NonPaginatableRequestStub);
-    }
-
     /**
      * Create a Saloon manager.
      */
@@ -1095,15 +1112,24 @@ class PaginatorTest extends TestCase
 
 class PaginationConnectorStub extends Connector
 {
+    /**
+     * Create a connector that sends through the given manager.
+     */
     public function __construct(protected SaloonManager $manager)
     {
     }
 
+    /**
+     * Resolve the base URL.
+     */
     public function resolveBaseUrl(): string
     {
         return 'https://api.example.com';
     }
 
+    /**
+     * Send the request through the test manager.
+     */
     public function send(Request $request, ?MockClient $mockClient = null): Response
     {
         return $this->manager->send($this, $request, $mockClient);
@@ -1114,29 +1140,27 @@ class PagedRequestStub extends Request implements Paginatable
 {
     protected Method $method = Method::GET;
 
+    /**
+     * Resolve the endpoint.
+     */
     public function resolveEndpoint(): string
     {
         return '/paged';
     }
 }
 
-class MappedPagedRequestStub extends PagedRequestStub implements MapPaginatedResponseItems
+class NormalizedPagedRequestStub extends PagedRequestStub
 {
-    public object $mapping;
-
     /**
-     * Share mapping observations across request clones.
+     * Remove the per-request identifier from each response body.
      */
-    public function __construct()
+    public function boot(PendingRequest $pendingRequest): void
     {
-        $this->mapping = (object) ['calls' => 0];
-    }
-
-    public function mapPaginatedResponseItems(Response $response): array
-    {
-        ++$this->mapping->calls;
-
-        return array_column($response->json('data'), 'name');
+        $pendingRequest->middleware()->onResponse(static fn (Response $response): Response => Response::fromResponse(
+            new HttpResponse(new PsrResponse($response->status(), [], json_encode(['data' => $response->json('data')]))),
+            $response->pendingRequest(),
+            $response->toPsrRequest(),
+        ));
     }
 }
 
@@ -1144,6 +1168,9 @@ class OffsetRequestStub extends Request implements Paginatable
 {
     protected Method $method = Method::GET;
 
+    /**
+     * Resolve the endpoint.
+     */
     public function resolveEndpoint(): string
     {
         return '/offset';
@@ -1154,34 +1181,36 @@ class CursorRequestStub extends Request implements Paginatable
 {
     protected Method $method = Method::GET;
 
+    /**
+     * Resolve the endpoint.
+     */
     public function resolveEndpoint(): string
     {
         return '/cursor';
     }
 }
 
-class NonPaginatableRequestStub extends Request
-{
-    protected Method $method = Method::GET;
-
-    public function resolveEndpoint(): string
-    {
-        return '/invalid';
-    }
-}
-
 class PagedPaginatorStub extends PagedPaginator
 {
+    /**
+     * Determine if the response is the last page.
+     */
     protected function isLastPage(Response $response): bool
     {
         return $response->json('page') >= $response->json('pages');
     }
 
+    /**
+     * Get the items from one page.
+     */
     protected function getPageItems(Response $response, Request $request): array
     {
         return $response->json('data');
     }
 
+    /**
+     * Get the total number of pages.
+     */
     protected function getTotalPages(Response $response): int
     {
         return (int) $response->json('pages');
@@ -1190,14 +1219,31 @@ class PagedPaginatorStub extends PagedPaginator
 
 class NeverEndingPagedPaginatorStub extends PagedPaginator
 {
+    /**
+     * Keep requesting pages.
+     */
     protected function isLastPage(Response $response): bool
     {
         return false;
     }
 
+    /**
+     * Get the items from one page.
+     */
     protected function getPageItems(Response $response, Request $request): array
     {
         return $response->json('data');
+    }
+}
+
+class DataChecksumPaginatorStub extends NeverEndingPagedPaginatorStub
+{
+    /**
+     * Compare pages by their items only.
+     */
+    protected function getBodyChecksum(Response $response): string
+    {
+        return hash('xxh128', json_encode($response->json('data')));
     }
 }
 
@@ -1237,16 +1283,25 @@ class RenamedPagedPaginatorStub extends NeverEndingPagedPaginatorStub
 
 class OffsetPaginatorStub extends OffsetPaginator
 {
+    /**
+     * Determine if the response is the last page.
+     */
     protected function isLastPage(Response $response): bool
     {
         return $response->json('offset') + count($response->json('data')) >= $response->json('total');
     }
 
+    /**
+     * Get the items from one page.
+     */
     protected function getPageItems(Response $response, Request $request): array
     {
         return $response->json('data');
     }
 
+    /**
+     * Get the total number of pages.
+     */
     protected function getTotalPages(Response $response): int
     {
         return (int) ceil($response->json('total') / $this->perPageLimit);
@@ -1255,16 +1310,25 @@ class OffsetPaginatorStub extends OffsetPaginator
 
 class CursorPaginatorStub extends CursorPaginator
 {
+    /**
+     * Get the next cursor.
+     */
     protected function getNextCursor(Response $response): int|string
     {
         return $response->json('next');
     }
 
+    /**
+     * Determine if the response is the last page.
+     */
     protected function isLastPage(Response $response): bool
     {
         return $response->json('next') === null;
     }
 
+    /**
+     * Get the items from one page.
+     */
     protected function getPageItems(Response $response, Request $request): array
     {
         return $response->json('data');
