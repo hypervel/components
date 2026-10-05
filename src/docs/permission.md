@@ -32,6 +32,8 @@
     - [Permission Middleware](#permission-middleware)
     - [Role Middleware](#role-middleware)
     - [Role Or Permission Middleware](#role-or-permission-middleware)
+    - [Middleware Aliases](#middleware-aliases)
+    - [Controller Middleware](#controller-middleware)
     - [Passport Client Credentials](#passport-client-credentials)
 - [Blade Directives](#blade-directives)
 - [Route Macros](#route-macros)
@@ -46,25 +48,44 @@
     - [Partition Cache and Performance](#partition-cache-and-performance)
     - [Raw and Bulk Writes](#raw-and-bulk-writes)
 - [Teams](#teams)
+    - [Setting the Current Team](#setting-the-current-team)
+    - [Team Roles](#team-roles)
+    - [Switching Teams](#switching-teams)
 - [Wildcard Permissions](#wildcard-permissions)
 - [Polymorphic Models](#polymorphic-models)
 - [Custom Models](#custom-models)
+    - [Adding Columns](#adding-columns)
     - [Permission Database Connection](#permission-database-connection)
     - [Custom Pivot Models](#custom-pivot-models)
     - [Deleting Models](#deleting-models)
 - [UUID and ULID Keys](#uuid-and-ulid-keys)
 - [Caching](#caching)
 - [Testing and Seeding](#testing-and-seeding)
+    - [Seeding](#seeding)
+    - [Testing](#testing)
 - [Best Practices](#best-practices)
 - [Performance](#performance)
 - [Exceptions](#exceptions)
-- [Differences From Spatie Laravel Permission](#differences-from-spatie-laravel-permission)
 - [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
 
-Hypervel's permission package provides role-based access control for Eloquent models. A permission represents one ability, such as `edit articles`. A role is a named group of permissions, such as `editor`. You may assign roles and permissions to users or other models, then check access by role, direct permission, or permission inherited through a role.
+Hypervel's permission package provides role-based access control for Eloquent models. A permission represents one ability, such as `edit articles`. A role is a named group of permissions, such as `editor`. You may assign roles and permissions to users or other models, then check access by role, direct permission, or permission inherited through a role:
+
+```php
+$user->givePermissionTo('edit articles');
+
+$role->givePermissionTo('edit articles');
+
+$user->assignRole('writer');
+```
+
+Permissions are registered with Hypervel's [authorization gate](/docs/{{version}}/authorization), so you may check them using `can`, `@can`, policies, and authorization middleware as usual:
+
+```php
+$user->can('edit articles');
+```
 
 The package also supports denied permissions, which explicitly reject an ability even when the model receives the same permission directly or through a role.
 
@@ -113,12 +134,16 @@ The published migration creates the following tables:
 - `model_has_permissions`
 - `model_has_roles`
 
-The `role_has_permissions` and `model_has_permissions` tables include an `is_denied` column used by denied permissions.
+The `role_has_permissions` and `model_has_permissions` tables include an `is_denied` column used by [denied permissions](#denied-permissions).
 
-> [!WARNING]
-> If you customize the table or column names in the permission configuration file, update the published migration before running it.
+The migration reads its table and column names from the permission configuration file, so make these decisions before running it:
 
-The default migration uses `['name', 'guard_name']` uniqueness, so the same name may be used by different guards. Applications using row partitioning include the partition column first in that unique key.
+- Customize the [table and column names](#table-and-column-names) in the configuration file.
+- Enable [teams](#teams) if you plan to use them, so the migration adds the team columns.
+- Change the key column types in the published migration if your models use [UUID or ULID keys](#uuid-and-ulid-keys).
+- Replace the migration with a [partitioned schema](#partitioned-schema) if you will use row partitioning.
+
+The default migration makes `name` and `guard_name` unique together, so the same name may be used by different guards.
 
 <a name="configuration"></a>
 ## Configuration
@@ -130,14 +155,16 @@ You may customize the models used for roles and permissions:
 
 ```php
 'models' => [
-    'role' => App\Models\Role::class,
     'permission' => App\Models\Permission::class,
+    'role' => App\Models\Role::class,
+    'team' => App\Models\Team::class,
+    'default_model' => null,
 ],
 ```
 
-Custom role models must implement the `Hypervel\Permission\Contracts\Role` contract. Custom permission models must implement the `Hypervel\Permission\Contracts\Permission` contract. The easiest way to satisfy these contracts is to extend the package's base models.
+Custom role models must implement the `Hypervel\Permission\Contracts\Role` contract. Custom permission models must implement the `Hypervel\Permission\Contracts\Permission` contract. The easiest way to satisfy these contracts is to [extend the package's base models](#custom-models).
 
-When row partitioning is enabled, custom Role and Permission models must extend the package's base models. This preserves the partition global scope and the protections for Eloquent instance writes, deletes, refreshes, restoration, and quiet operations.
+The `team` model is used by the [teams](#teams) feature and may be `null` when teams are disabled. The `default_model` is used when you pass raw IDs to a role's [`assignToModels`](#assigning-models-to-a-role) method and similar methods; when it is `null`, the user model of the role's guard is used.
 
 <a name="table-and-column-names"></a>
 ### Table and Column Names
@@ -188,7 +215,7 @@ return [
 ];
 ```
 
-When `store` is omitted or set to `default`, the application's default cache store is used. A store that isn't defined in your cache configuration throws an exception. The expiration defaults to 24 hours when omitted. Separate keys isolate the permission catalog, model-role assignments, direct model permissions, and the assignment namespace token so mutations can invalidate only the affected data. Omitted key members use the package names shown in the example. The `column_names_except` list removes unneeded model attributes from the cached catalog; required identity, guard, team, and partition columns cannot be excluded.
+When `store` is omitted or set to `default`, the application's default cache store is used. A store that isn't defined in your cache configuration throws an exception. The expiration defaults to 24 hours when omitted. The separate keys hold the role and permission catalog, each model's roles, each model's direct permissions, and a token that versions the assignment caches, so a change only clears the data it affects. Omitted keys use the names shown in the example. The `column_names_except` list removes columns you do not need from the cached roles and permissions; their key, name, guard, team, and partition columns cannot be excluded.
 
 You may include required role or permission names in authorization exception messages:
 
@@ -211,21 +238,25 @@ declare(strict_types=1);
 
 namespace App\Models;
 
-use Hypervel\Database\Eloquent\Model;
+use Hypervel\Foundation\Auth\User as Authenticatable;
 use Hypervel\Permission\Traits\HasRoles;
 
-class User extends Model
+class User extends Authenticatable
 {
     use HasRoles;
+
+    // ...
 }
 ```
 
-The `HasRoles` trait includes the permission methods, so a model using `HasRoles` may receive roles and direct permissions.
+The `HasRoles` trait includes the permission methods, so a model using `HasRoles` may receive roles and direct permissions. Checks such as `can` and `@can` also require the model to implement the `Hypervel\Contracts\Auth\Access\Authorizable` contract, which the base `Authenticatable` user class already does.
+
+The trait defines `roles` and `permissions` relationships on your model. Your model should not have its own `role`, `roles`, `permission`, or `permissions` attributes, columns, methods, or relationships, since they would conflict with the trait.
 
 <a name="multiple-guards"></a>
 ## Multiple Guards
 
-Roles and permissions are scoped by guard name. If your app uses multiple guards, create the role or permission for the guard that will authorize it:
+Roles and permissions belong to a guard, so each guard has its own set of roles and permissions. When you create a role or permission without a `guard_name`, your application's default authentication guard is used. If your app uses multiple guards, create the role or permission for the guard that will authorize it:
 
 ```php
 use Hypervel\Permission\Models\Permission;
@@ -234,6 +265,8 @@ use Hypervel\Permission\Models\Role;
 Role::create(['name' => 'manager', 'guard_name' => 'admin']);
 
 Permission::create(['name' => 'publish articles', 'guard_name' => 'admin']);
+
+Permission::create(['name' => 'publish articles', 'guard_name' => 'web']);
 ```
 
 You may pass the guard name when checking a permission or role:
@@ -244,7 +277,9 @@ $user->hasPermissionTo('publish articles', 'admin');
 $user->hasRole('manager', 'admin');
 ```
 
-When a model can use more than one guard, define a `guardName` method or `$guard_name` property:
+A model may only receive roles and permissions for its own guards. The package determines a model's guards from its `guardName` method, then its `$guard_name` property, then the configured guards whose user provider uses the model's class. Names are looked up for the model's default guard, and assigning a role or permission model that belongs to another guard throws a `GuardDoesNotMatch` exception.
+
+When a model can use more than one guard, return each guard from the `guardName` method or `$guard_name` property:
 
 ```php
 public function guardName(): array
@@ -253,7 +288,7 @@ public function guardName(): array
 }
 ```
 
-If your app uses a single guard for all roles and permissions, return that guard from the model so you do not need duplicate role and permission records:
+If your app uses one set of roles and permissions for every guard, return a single guard from the model so you do not need duplicate role and permission records:
 
 ```php
 protected string $guard_name = 'web';
@@ -326,7 +361,31 @@ $role->givePermissionTo('edit articles');
 
 $role->givePermissionTo('delete articles', 'publish articles');
 
+$role->revokePermissionTo('delete articles');
+
 $role->syncPermissions(['edit articles', 'publish articles']);
+
+if ($role->hasPermissionTo('edit articles')) {
+    // ...
+}
+```
+
+You may also work from the permission side using the `assignRole`, `removeRole`, and `syncRoles` methods:
+
+```php
+$permission->assignRole($role);
+
+$permission->removeRole($role);
+
+$permission->syncRoles(['writer', 'editor']);
+```
+
+Models with a role receive its permissions automatically. The role's `permissions` relationship returns every permission assigned to the role, including [denied permissions](#denied-permissions); each related model's `pivot->is_denied` attribute tells you which effect it has:
+
+```php
+$names = $role->permissions->pluck('name');
+
+$count = $role->permissions->count();
 ```
 
 To replace a role's allowed and denied permissions at the same time, use `syncPermissionEffects`:
@@ -344,7 +403,7 @@ $role->syncPermissionEffects(
 <a name="assigning-roles"></a>
 ### Assigning Roles
 
-You may assign roles by name, ID, enum, array, or variadic arguments:
+You may assign roles by name, ID, enum, or `Role` model, and pass several roles as separate arguments, an array, or a collection:
 
 ```php
 $user->assignRole('writer');
@@ -354,7 +413,11 @@ $user->assignRole('writer', 'editor');
 $user->assignRole(['writer', 'editor']);
 
 $user->assignRole($writer->id);
+
+$user->assignRole($writer);
 ```
+
+Integers and UUID or ULID strings are looked up by key; other strings are role names.
 
 To replace all of a model's roles, use `syncRoles`:
 
@@ -365,21 +428,24 @@ $user->syncRoles('writer', 'editor');
 <a name="assigning-models-to-a-role"></a>
 ### Assigning Models to a Role
 
-You may also assign models from the role side:
+Sometimes it is more convenient to work from the role's side, such as on an admin screen listing every user with a role. The `assignToModels`, `removeFromModels`, and `syncModels` methods do the inverse of `assignRole`, `removeRole`, and `syncRoles`:
 
 ```php
 use Hypervel\Permission\Models\Role;
 
 $role = Role::findByName('writer');
 
+// Give the role to two users...
 $role->assignToModels([$userA, $userB]);
 
+// Remove it from one user...
 $role->removeFromModels($userA);
 
+// Replace every model that has this role...
 $role->syncModels([$userB, $userC]);
 ```
 
-These methods accept models, model IDs, arrays, and collections. When you pass raw IDs, pass the model class as the second argument or configure `permission.models.default_model`:
+These methods accept a model, an ID, or an array or collection mixing models and IDs. Models may be of any class using `HasRoles`. When you pass raw IDs, the package uses the class given as the second argument, then the `default_model` configuration value, then the user model of the role's guard:
 
 ```php
 $role->assignToModels([1, 2, 3], App\Models\User::class);
@@ -395,14 +461,34 @@ if ($user->hasRole('writer')) {
     // ...
 }
 
-if ($user->hasAnyRole(['writer', 'editor'])) {
+// The model has at least one of the roles...
+if ($user->hasRole(['editor', 'moderator'])) {
+    // ...
+}
+
+if ($user->hasAnyRole('writer', 'reader')) {
     // ...
 }
 
 if ($user->hasAllRoles(['writer', 'editor'])) {
     // ...
 }
+
+// The model has these roles and no others...
+if ($user->hasExactRoles(['writer', 'editor'])) {
+    // ...
+}
 ```
+
+These methods also accept `Role` models, collections, and strings separated by `|`, such as `'writer|editor'`. The `hasRole`, `hasAllRoles`, and `hasExactRoles` methods accept a guard name as their second argument.
+
+You may retrieve the names of a model's roles using `getRoleNames`:
+
+```php
+$roles = $user->getRoleNames();
+```
+
+Prefer [permission checks](#checking-permissions) for application behavior and keep role checks for the rare rules that depend on the role itself. See [best practices](#best-practices) for details.
 
 <a name="role-and-team-scopes"></a>
 ### Role and Team Scopes
@@ -413,6 +499,18 @@ You may query models by assigned roles:
 $writers = User::role('writer')->get();
 
 $usersWithoutWriterRole = User::withoutRole('writer')->get();
+
+$managerCount = User::role('manager')->count();
+```
+
+The scopes accept role names, IDs, enums, `Role` models, arrays, and collections, with an optional guard name as the second argument. Since roles and permissions are Eloquent relationships, you may also use the usual Eloquent methods:
+
+```php
+$users = User::with('roles')->get();
+
+$usersWithoutRoles = User::doesntHave('roles')->get();
+
+$roleNames = Role::pluck('name');
 ```
 
 When teams are enabled, you may also scope models by team:
@@ -465,18 +563,26 @@ The `hasPermissionTo` method checks direct permissions and permissions inherited
 if ($user->hasPermissionTo('edit articles')) {
     // ...
 }
+
+if ($user->hasPermissionTo($permission->id, 'admin')) {
+    // ...
+}
 ```
 
-You may also check direct permissions, or inspect permissions inherited through roles:
+You may pass a permission name, ID, enum, or `Permission` model, with an optional guard name as the second argument. Integers and UUID or ULID strings are looked up by key; other strings are permission names. The `hasPermissionTo` method throws a `PermissionDoesNotExist` exception when no matching permission exists, while `checkPermissionTo` returns `false` instead.
+
+A direct permission is assigned to the model itself rather than through one of its roles. For example, if the `writer` role may edit articles and the user is also given permission to delete articles, only the second is a direct permission:
 
 ```php
-if ($user->hasDirectPermission('edit articles')) {
-    // ...
-}
+$role->givePermissionTo('edit articles');
 
-if ($user->getPermissionsViaRoles()->contains('name', 'edit articles')) {
-    // ...
-}
+$user->assignRole('writer');
+$user->givePermissionTo('delete articles');
+
+$user->hasDirectPermission('delete articles'); // true
+$user->hasDirectPermission('edit articles'); // false
+
+$user->getPermissionsViaRoles()->contains('name', 'edit articles'); // true
 ```
 
 You may check whether a model has any or all of a given set of permissions:
@@ -511,7 +617,7 @@ $editors = User::permission('edit articles')->get();
 $usersWithoutEditPermission = User::withoutPermission('edit articles')->get();
 ```
 
-The `permission` and `withoutPermission` query scopes filter by effective stored permissions. Direct and role-granted denies override allows for the same permission. Wildcard permission strings are evaluated by runtime permission checks such as `hasPermissionTo`; query scopes match stored concrete permission records.
+The `permission` scope returns models that are allowed the permission directly or through a role and are not denied it, while `withoutPermission` returns the rest. The scopes accept permission names, IDs, enums, `Permission` models, arrays, and collections. They match assigned permissions exactly, so [wildcard permissions](#wildcard-permissions) apply to checks such as `hasPermissionTo` but not to these scopes.
 
 <a name="gate-and-super-admins"></a>
 ### Gate and Super Admins
@@ -524,9 +630,10 @@ if ($user->can('edit articles')) {
 }
 ```
 
-For super-admin behavior, register your own Gate `before` callback before normal policy checks:
+To give a super-admin role every ability without assigning it every permission, register a Gate [`before` callback](/docs/{{version}}/authorization#intercepting-gate-checks) in the `boot` method of your application's `AppServiceProvider`:
 
 ```php
+use App\Models\User;
 use Hypervel\Support\Facades\Gate;
 
 Gate::before(function (User $user, string $ability): ?bool {
@@ -534,14 +641,26 @@ Gate::before(function (User $user, string $ability): ?bool {
 });
 ```
 
-Direct package calls such as `hasPermissionTo` do not pass through Gate callbacks. Use `can`, `canAny`, policies, middleware, or Blade authorization checks when you want Gate-level behavior to apply.
+The callback should return `null` rather than `false` for other users, since a `false` result denies the ability before policies and permissions are checked. If you only want super-admin access for some models, you may use a [policy's `before` method](/docs/{{version}}/authorization#policy-filters) instead.
+
+You may also use a Gate `after` callback, which runs after the policies and permissions. Its result is only used when the gate, policies, and permissions returned `null`, so super-admins are still refused abilities your policies deny to everyone, such as writing a second review:
+
+```php
+Gate::after(function (User $user, string $ability): bool {
+    return $user->hasRole('super-admin');
+});
+```
+
+Direct package calls such as `hasPermissionTo`, `hasAnyPermission`, and `hasDirectPermission` do not pass through the gate, so super-admin callbacks do not apply to them. Use `can`, `canAny`, policies, the permission middleware, or Blade authorization checks when you want the gate to apply.
+
+When [teams](#teams) are enabled, a global super-admin role still has to be assigned to the user within each team.
 
 <a name="denied-permissions"></a>
 ### Denied Permissions
 
-Denied permissions explicitly reject access. The permission assignment tables store `is_denied` as the effect for the assignment edge, so a model or role has one row for a given permission in the current team context.
+Denied permissions explicitly reject access. Each assignment row stores whether it allows or denies the permission in its `is_denied` column, so a model or role has at most one assignment for a given permission (per team, when teams are enabled).
 
-Calling `denyPermissionTo` for an allowed permission flips that assignment to a deny. Calling `givePermissionTo` for a denied permission flips it back to an allow. A denied permission overrides an allowed permission, including permissions inherited through roles:
+Calling `denyPermissionTo` for an allowed permission changes that assignment to a deny. Calling `givePermissionTo` for a denied permission changes it back to an allow. A denied permission overrides an allowed permission, including permissions inherited through roles:
 
 ```php
 $user->givePermissionTo('delete articles');
@@ -580,9 +699,7 @@ $user->syncPermissionEffects(
 );
 ```
 
-When this method is called before a model is saved, the assignments are queued
-until save and the returned change set is empty because no database rows changed
-yet.
+The method returns the IDs it `attached`, `detached`, and `updated`. When it is called before the model is saved, the assignments are written when the model is saved and the returned arrays are empty, since no rows have changed yet.
 
 <a name="revoking-permissions"></a>
 ### Revoking Permissions
@@ -595,39 +712,45 @@ $user->revokePermissionTo('edit articles');
 $user->revokePermissionTo(['edit articles', 'delete articles']);
 ```
 
-This removes the assignment edge whether it is currently allowed or denied.
+This removes the assignment whether it currently allows or denies the permission.
 
 <a name="retrieving-permissions"></a>
 ### Retrieving Permissions
 
-You may retrieve the permissions a model receives directly and through roles:
+You may retrieve the permissions a model receives directly, through its roles, or both:
 
 ```php
+// Permissions assigned directly to the model...
+$permissions = $user->getDirectPermissions();
+
+// Permissions inherited from the model's roles...
+$permissions = $user->getPermissionsViaRoles();
+
+// Direct and inherited permissions...
 $permissions = $user->getAllPermissions();
+
+// The names of the direct permissions...
+$names = $user->getPermissionNames();
 ```
 
-To retrieve only permissions inherited through roles, use `getPermissionsViaRoles`:
-
-```php
-$rolePermissions = $user->getPermissionsViaRoles();
-```
-
-`getDirectPermissions`, `getPermissionsViaRoles`, `getAllPermissions`, and `getPermissionNames` return allowed permissions. Use `getDeniedPermissions` to retrieve [denied permissions](#denied-permissions).
+These methods return the permissions the model is allowed and leave out [denied permissions](#denied-permissions), which you may retrieve using `getDeniedPermissions`. The model's `permissions` relationship returns every direct assignment, including denied ones; each related model's `pivot->is_denied` attribute tells you which effect it has.
 
 <a name="using-enums"></a>
 ## Using Enums
 
-Role and permission methods accept backed enums and unit enums. Backed enums use their `value`; unit enums use their case `name`.
+You may use enums in place of role and permission names. String-backed enums use their value as the name, while unit enums use their case name. Separate enums for roles and permissions are usually easier to manage:
 
 ```php
-enum Permission: string
+namespace App\Enums;
+
+enum PermissionName: string
 {
     case EditArticles = 'edit articles';
     case DeleteArticles = 'delete articles';
     case PublishArticles = 'publish articles';
 }
 
-enum Role: string
+enum RoleName: string
 {
     case Writer = 'writer';
     case Editor = 'editor';
@@ -635,19 +758,34 @@ enum Role: string
 }
 ```
 
-You may pass enum cases to role and permission methods:
+You may pass enum cases when creating and finding roles and permissions, and to the role and permission methods:
 
 ```php
-$user->assignRole(Role::Writer);
+use App\Enums\PermissionName;
+use App\Enums\RoleName;
 
-$user->givePermissionTo(Permission::EditArticles);
+$role = Role::create(['name' => RoleName::Writer]);
+$role = Role::findByName(RoleName::Writer);
+$permission = Permission::findOrCreate(PermissionName::EditArticles);
 
-if ($user->hasPermissionTo(Permission::EditArticles)) {
+$user->assignRole(RoleName::Writer);
+
+$user->givePermissionTo(PermissionName::EditArticles);
+
+if ($user->hasPermissionTo(PermissionName::EditArticles)) {
     // ...
 }
 ```
 
-Unit enum case names are used as the role or permission name:
+The gate [accepts enum abilities](/docs/{{version}}/authorization#enum-abilities) too, so you may pass the same cases to `can` and `@can`:
+
+```php
+if ($user->can(PermissionName::EditArticles)) {
+    // ...
+}
+```
+
+Unit enums work the same way, using their case names:
 
 ```php
 enum SimplePermission
@@ -662,7 +800,19 @@ $user->givePermissionTo(SimplePermission::EditArticles);
 <a name="middleware"></a>
 ## Middleware
 
-The package includes route middleware for checking roles and permissions. Middleware checks require the authenticated user model to use the matching permission methods.
+Since permissions are registered with the gate, you may protect a route with a single permission using Hypervel's built-in [`can` middleware](/docs/{{version}}/authorization#via-middleware):
+
+```php
+use Hypervel\Auth\Middleware\Authorize;
+
+Route::post('/articles', [ArticleController::class, 'store'])
+    ->middleware('can:publish articles');
+
+Route::post('/articles', [ArticleController::class, 'store'])
+    ->middleware(Authorize::using('publish articles'));
+```
+
+The package also includes `PermissionMiddleware`, `RoleMiddleware`, and `RoleOrPermissionMiddleware` for checking several permissions or roles at once. They require the authenticated user model to use the `HasRoles` trait. When the user is not authenticated or lacks the required roles or permissions, they throw a `Hypervel\Permission\Exceptions\UnauthorizedException`, which renders a 403 response.
 
 <a name="permission-middleware"></a>
 ### Permission Middleware
@@ -678,12 +828,17 @@ Route::get('/admin', [AdminController::class, 'index'])
     ->middleware(PermissionMiddleware::using('view admin'));
 ```
 
-When multiple permissions are provided, the user only needs one of them:
+When multiple permissions are provided, the user only needs one of them. You may pass an array or a string separated by `|`, and a guard name as the second argument:
 
 ```php
 Route::get('/posts/edit', [PostController::class, 'edit'])
     ->middleware(PermissionMiddleware::using(['edit articles', 'edit all articles']));
+
+Route::get('/api/posts/edit', [PostController::class, 'edit'])
+    ->middleware(PermissionMiddleware::using('edit articles|edit all articles', 'api'));
 ```
+
+The permission middleware checks each permission through the gate, so [super-admin callbacks](#gate-and-super-admins) apply to it.
 
 <a name="role-middleware"></a>
 ### Role Middleware
@@ -706,14 +861,14 @@ Route::get('/editor', [EditorController::class, 'index'])
     ->middleware(RoleMiddleware::using(['editor', 'admin']));
 ```
 
-Middleware may also receive enum cases:
+Middleware may also receive [enum](#using-enums) cases:
 
 ```php
 Route::get('/admin', [AdminController::class, 'index'])
-    ->middleware(PermissionMiddleware::using(Permission::EditArticles));
+    ->middleware(PermissionMiddleware::using(PermissionName::EditArticles));
 
 Route::get('/editor', [EditorController::class, 'index'])
-    ->middleware(RoleMiddleware::using([Role::Editor, Role::Admin]));
+    ->middleware(RoleMiddleware::using([RoleName::Editor, RoleName::Admin]));
 ```
 
 <a name="role-or-permission-middleware"></a>
@@ -728,7 +883,65 @@ Route::get('/content', [ContentController::class, 'index'])
     ->middleware(RoleOrPermissionMiddleware::using(['editor', 'edit articles']));
 ```
 
-If the user is not authenticated or does not have the required role or permission, the middleware throws `Hypervel\Permission\Exceptions\UnauthorizedException`.
+<a name="middleware-aliases"></a>
+### Middleware Aliases
+
+The package registers the `role`, `permission`, and `role_or_permission` middleware aliases for you. Separate several names with `|`, and add a guard name after a comma:
+
+```php
+Route::middleware('role:manager')->group(function () {
+    // ...
+});
+
+Route::get('/articles/create', [ArticleController::class, 'create'])
+    ->middleware('permission:publish articles|edit articles');
+
+Route::get('/articles/{article}', [ArticleController::class, 'show'])
+    ->middleware('role_or_permission:manager|edit articles');
+
+Route::get('/api/admin', [AdminController::class, 'index'])
+    ->middleware('role:manager,api');
+```
+
+If a route returns a 404 response where you expect a 403, route model binding may be running before the permission check. You may [sort the middleware](/docs/{{version}}/middleware#sorting-middleware) so the package's middleware runs before `SubstituteBindings`:
+
+```php
+use Hypervel\Foundation\Configuration\Middleware;
+use Hypervel\Permission\Middleware\PermissionMiddleware;
+use Hypervel\Routing\Middleware\SubstituteBindings;
+
+->withMiddleware(function (Middleware $middleware): void {
+    $middleware->prependToPriorityList(
+        before: SubstituteBindings::class,
+        prepend: PermissionMiddleware::class,
+    );
+})
+```
+
+<a name="controller-middleware"></a>
+### Controller Middleware
+
+You may also apply the middleware in a controller's [`middleware` method](/docs/{{version}}/controllers#controller-middleware) or with the [`Middleware` and `Authorize` attributes](/docs/{{version}}/controllers#middleware-attributes):
+
+```php
+use Hypervel\Routing\Attributes\Controllers\Authorize;
+use Hypervel\Routing\Attributes\Controllers\Middleware;
+
+#[Middleware('role:manager', except: ['show'])]
+class ArticleController
+{
+    public function show()
+    {
+        // ...
+    }
+
+    #[Authorize('publish articles')]
+    public function store()
+    {
+        // ...
+    }
+}
+```
 
 <a name="passport-client-credentials"></a>
 ### Passport Client Credentials
@@ -756,40 +969,52 @@ class Client extends BaseClient implements AuthorizableContract
 }
 ```
 
-Set the client model in Passport, then protect client-credentials routes with this package's role or permission middleware. The permission middleware will use the Passport client when the request has a bearer token and no normal authenticated user.
+The client's `$guard_name` property or `guardName` method should return the name of your Passport guard. Set the client model in Passport, then protect client-credentials routes with this package's middleware. When the request has a bearer token and no authenticated user, the role, permission, and role-or-permission middleware authorize the client of the first guard using the `passport` driver.
 
 <a name="blade-directives"></a>
 ## Blade Directives
 
-The package registers Blade conditionals for roles and permissions:
+Since permissions are registered with the gate, you may check them using Hypervel's `@can`, `@cannot`, and `@canany` directives. To check a permission for a specific guard, pass the guard name as the second argument:
 
 ```blade
-@haspermission('edit articles')
+@can('edit articles')
     ...
-@endhaspermission
+@endcan
 
-@role('admin')
+@can('edit articles', 'admin')
     ...
+@endcan
+```
+
+The package also registers a `@haspermission` directive, which checks the permission without the gate. There is no `@hasanypermission` directive; use `@canany` instead.
+
+Although [permission checks are preferred](#best-practices), the package also provides directives for checking the authenticated user's roles:
+
+```blade
+@role('writer')
+    I am a writer!
+@else
+    I am not a writer...
 @endrole
 
-@hasanyrole(['writer', 'editor'])
-    ...
+@hasanyrole('writer|admin')
+    I am a writer, an admin, or both!
 @endhasanyrole
 
-@hasallroles(['writer', 'editor'])
-    ...
+@hasallroles(['writer', 'admin'])
+    I am both a writer and an admin!
 @endhasallroles
 
-@hasexactroles(['writer', 'editor'])
-    ...
+@hasexactroles('writer|admin')
+    I am a writer and an admin, and have no other roles!
 @endhasexactroles
 
 @unlessrole('guest')
-    ...
+    I am not a guest...
 @endunlessrole
 ```
 
-Pass the guard name as the second argument when needed:
+The `@hasrole` directive is an alias of `@role`. Role directives accept a role name, an array, a collection, or names separated by `|`. To check the user of a specific authentication guard, pass the guard name as the second argument:
 
 ```blade
 @role('admin', 'api')
@@ -814,19 +1039,20 @@ Route::get('/content', [ContentController::class, 'index'])
 <a name="custom-permission-checks"></a>
 ## Custom Permission Checks
 
-By default, the package registers a Gate `before` callback that delegates permission checks to `hasPermissionTo`:
+By default, the package registers a Gate `before` callback that checks each ability with the user's `checkPermissionTo` method. The callback returns `true` when the user has the permission and `null` otherwise, so your policies and other gate callbacks still decide the remaining abilities:
 
 ```php
 'register_permission_check_method' => true,
 ```
 
-Set this to `false` only when you want to register your own Gate logic:
+Set this to `false` only when you want to replace that check with your own logic. For example, if your application issues access tokens that carry the user's permissions, you might check the token instead of the database:
 
 ```php
 'register_permission_check_method' => false,
 ```
 
 ```php
+use App\Models\User;
 use Hypervel\Support\Facades\Gate;
 
 Gate::before(function (User $user, string $ability): ?bool {
@@ -834,37 +1060,49 @@ Gate::before(function (User $user, string $ability): ?bool {
 });
 ```
 
+Here, `hasTokenPermission` is a method you would implement on your own model.
+
 <a name="events"></a>
 ## Events
 
-Role and permission assignment events are disabled by default:
-
-```php
-'events_enabled' => false,
-```
-
-Enable them when your app listens for assignment changes:
+Role and permission assignment events are disabled by default. Enable them in the permission configuration file when your app listens for assignment changes:
 
 ```php
 'events_enabled' => true,
 ```
 
-The package may dispatch these events:
+The package dispatches the following events. Each receives the affected `$model`, along with the roles or permissions involved:
+
+<div class="overflow-auto">
+
+| Event | Roles or Permissions Property |
+| --- | --- |
+| `Hypervel\Permission\Events\RoleAttachedEvent` | `$rolesOrIds` |
+| `Hypervel\Permission\Events\RoleDetachedEvent` | `$rolesOrIds` |
+| `Hypervel\Permission\Events\PermissionAttachedEvent` | `$permissionsOrIds` |
+| `Hypervel\Permission\Events\PermissionDetachedEvent` | `$permissionsOrIds` |
+
+</div>
+
+Events are only dispatched when they are enabled and have a listener:
 
 ```php
-Hypervel\Permission\Events\RoleAttachedEvent::class;
-Hypervel\Permission\Events\RoleDetachedEvent::class;
-Hypervel\Permission\Events\PermissionAttachedEvent::class;
-Hypervel\Permission\Events\PermissionDetachedEvent::class;
+use Hypervel\Permission\Events\RoleAttachedEvent;
+use Hypervel\Support\Facades\Event;
+
+Event::listen(function (RoleAttachedEvent $event) {
+    $user = $event->model;
+    $roleIds = $event->rolesOrIds;
+});
 ```
 
-Events are only dispatched when events are enabled and the event dispatcher has listeners for the event class.
+The roles or permissions may be IDs, a model, or an array or collection of either, so inspect the value before acting on it:
 
-Assignment events preserve Spatie's request-oriented payloads. Role attach and detach events, as well as permission attach events, contain the requested IDs, including already-satisfied or empty requests. A direct permission removal passes the stored Permission model or collection to `PermissionDetachedEvent`.
+- Assigning, removing, and syncing roles, and giving or denying permissions, pass the requested IDs, even when nothing changed.
+- Revoking a permission passes the `Permission` model or models.
+- Syncing roles or permissions first dispatches a detached event with the model's previous role IDs or `Permission` collection, followed by an attached event with the requested IDs. The detached event is skipped when the model had none.
 
-Saved permission replacement operations dispatch a complete replacement pair. `PermissionDetachedEvent` receives the direct Permission collection as it existed before the operation, including permissions retained by the replacement. `PermissionAttachedEvent` then receives the requested replacement IDs. A same-set replacement therefore dispatches both events. The detached event is dispatched first, after the transaction succeeds and any affected permission cache has been cleared. A failed transaction dispatches neither event. Unsaved models have no stored collection to detach, so their queued replacement dispatches only the attached event.
-
-Assignments made before a subject model is saved are queued on that model and written atomically after save. Their events dispatch synchronously when the assignment method is called, in the caller's established context. The saved callback does not dispatch a duplicate event.
+Events are dispatched after the database changes succeed, so a failed sync dispatches nothing. When you assign roles or permissions to a model that has not been saved yet, they are written when the model is saved, but their events are dispatched right away. A sync on an unsaved model only dispatches the attached event.
 
 <a name="console-commands"></a>
 ## Console Commands
@@ -889,34 +1127,42 @@ The command supports the `default`, `borderless`, `compact`, and `box` table sty
 php artisan permission:show web compact
 ```
 
-Other commands are available for common setup and maintenance tasks:
+You may create roles and permissions from the console, optionally passing a guard name as the second argument:
 
 ```shell
 php artisan permission:create-role writer
+
 php artisan permission:create-permission "edit articles"
-php artisan permission:create-role writer web "edit articles|publish articles"
-php artisan permission:assign-role writer 1 web "App\Models\User"
-php artisan permission:create-role writer web --team-id=1
-php artisan permission:cache-reset
-php artisan permission:setup-teams
+
+php artisan permission:create-permission "edit articles" web
 ```
 
-When row partitioning is enabled, data and cache commands operate inside the ambient application partition and fail closed when it is missing. Establish context before invoking them. Permission does not add a generic partition option because the application owns partition identity and enumeration. `permission:setup-teams` remains schema-only.
+When creating a role, you may also create and assign permissions by listing them, separated by `|`. When teams are enabled, the `--team-id` option sets the role's team:
+
+```shell
+php artisan permission:create-role writer web "create articles|edit articles"
+
+php artisan permission:create-role writer web --team-id=1
+```
+
+The `permission:assign-role` command assigns a role to a user, given the role name, the user's ID, and optionally the guard name and user model class:
+
+```shell
+php artisan permission:assign-role writer 1 web "App\Models\User"
+```
+
+The `permission:cache-reset` command [clears the permission cache](#caching), and `permission:setup-teams` creates a migration that adds the [team](#teams) columns to existing tables.
+
+When row partitioning is enabled, the commands that read or write permission data run within the application's current partition and throw an exception when none is set, so set the [partition context](#partition-context) before running them. The `permission:setup-teams` command only creates a migration and does not need a partition.
 
 <a name="row-partitioning"></a>
 ## Row Partitioning
 
-Row partitioning adds one application-defined scalar dimension to every Permission operation. It is useful when the same subject may have different authorization data in separate workspaces, installations, realms, organizations, environments, or, for example, tenants.
+Row partitioning keeps the roles, permissions, and assignments of separate workspaces, organizations, or tenants apart while storing them in the same tables. It is useful when the same user may have different roles and permissions in each workspace.
 
-Permission does not provide a partition model, middleware, command option, migration, or context store. The application owns that domain. Permission receives only a column name and the current opaque `int|string` value, then applies it consistently to:
+You tell the package which column holds the partition and how to read the current partition value. The package then applies that value to every role and permission query, model write, relationship, assignment, query scope, wildcard check, console command, queued model, and cache entry. Your application owns the partitions themselves: the package does not provide a partition model, middleware, command option, migration, or context storage.
 
-- Role and Permission model queries and lifecycle writes;
-- role-permission, model-role, and model-permission relations and pivots;
-- assignment, synchronization, reverse-assignment, query-scope, eager-load, wildcard, and denied-permission paths;
-- console commands and queued Role or Permission restoration;
-- shared cache keys, assignment tokens, wildcard indexes, coroutine-local memoization, and invalidation.
-
-Partitioning is opt-in. Without registration, the package retains its normal unpartitioned behavior and schema.
+Partitioning is opt-in. Without registration, the package keeps its normal behavior and schema.
 
 <a name="registering-a-partition"></a>
 ### Registering a Partition
@@ -936,16 +1182,14 @@ public function register(): void
 }
 ```
 
-The registration is boot-only and persists for the worker lifetime. The resolver itself runs when Permission builds a query, relation, mutation, or cache identity and should read already-populated coroutine context. It must not query the database.
+The registration applies for the life of the worker, so register it once while your application boots rather than in a configuration file. The resolver runs whenever the package queries or caches permission data, so it should read a value your application has already placed in the current request's, job's, or command's [context](/docs/{{version}}/context) rather than query the database.
 
-The column must be a simple SQL identifier. Resolver values may be an integer, a non-empty string, or `null`; `0` and `'0'` are valid. The application must use one canonical representation for a partition throughout its lifetime. A missing or empty value throws `PermissionPartitionNotResolved` and never falls back to unpartitioned SQL or cache keys.
-
-Do not register partition callbacks through config files. Hypervel config is worker-lifetime state. Register the callback at boot and read request, job, or command state through `Context`.
+The column must be a simple SQL identifier. The resolver may return an integer, a non-empty string, or `null`; `0` and `'0'` are valid values. Always use the same representation for a given partition. When the resolver returns `null` or an empty string, the package throws a `PermissionPartitionNotResolved` exception instead of running unpartitioned queries.
 
 <a name="partitioned-schema"></a>
 ### Partitioned Schema
 
-The stock Permission migration remains unpartitioned. Before running migrations, applications opting in must customize all five authorization tables with the same non-null native partition column:
+The package's migration is not partitioned. If you use partitioning, replace it with your own migration that adds the same non-null partition column to all five tables:
 
 - `roles`
 - `permissions`
@@ -953,7 +1197,7 @@ The stock Permission migration remains unpartitioned. Before running migrations,
 - `model_has_roles`
 - `model_has_permissions`
 
-The following example uses UUID partition, Role, Permission, and subject IDs. Use native integer, UUID, or ULID columns consistently for your own key types:
+The following example uses UUIDs for the partition, role, permission, and user keys. Use integer, UUID, or ULID columns to match your own keys:
 
 ```php
 use Hypervel\Database\Schema\Blueprint;
@@ -1003,7 +1247,8 @@ Schema::create('role_has_permissions', function (Blueprint $table): void {
 Schema::create('model_has_roles', function (Blueprint $table): void {
     $table->uuid('workspace_id');
     $table->uuid('role_id');
-    $table->uuidMorphs('model');
+    $table->string('model_type');
+    $table->uuid('model_id');
 
     $table->primary(['workspace_id', 'role_id', 'model_id', 'model_type']);
     $table->index(
@@ -1020,7 +1265,8 @@ Schema::create('model_has_roles', function (Blueprint $table): void {
 Schema::create('model_has_permissions', function (Blueprint $table): void {
     $table->uuid('workspace_id');
     $table->uuid('permission_id');
-    $table->uuidMorphs('model');
+    $table->string('model_type');
+    $table->uuid('model_id');
     $table->boolean('is_denied')->default(false);
 
     $table->primary(['workspace_id', 'permission_id', 'model_id', 'model_type']);
@@ -1036,13 +1282,13 @@ Schema::create('model_has_permissions', function (Blueprint $table): void {
 });
 ```
 
-The `['workspace_id', 'id']` unique keys are required targets for the composite foreign keys even when Role and Permission IDs are globally unique primary keys. The subject lookup indexes use explicit names because application-defined partition and morph-key names can otherwise produce generated identifiers longer than MySQL and MariaDB allow. You may also add a foreign key from `workspace_id` to your own partition-owner table.
+The composite foreign keys reference the `['workspace_id', 'id']` unique keys, so the database rejects any assignment that links records from different partitions. The user lookup indexes have explicit names because generated names can exceed the identifier length MySQL and MariaDB allow. You may also add a foreign key from `workspace_id` to your own workspace table.
 
-Partition-leading primary, unique, and lookup indexes let the database narrow each operation immediately. Keep the partition first wherever Permission always supplies it first.
+Keep the partition column first in each primary key, unique key, and index, since every query the package runs filters by it.
 
-Polymorphic `(model_type, model_id)` values must identify one subject globally across the shared Permission dataset. UUIDs and ULIDs are the simplest choice. Globally allocated integer IDs are also valid. Reusing the same subject integer ID for unrelated local records in different partitions is not supported because hard deletion must find and remove every assignment belonging to one subject identity.
+Each `model_type` and `model_id` pair must identify one model across all partitions. UUIDs and ULIDs are the simplest choice, and integer IDs that are unique across partitions also work. Integer IDs that repeat between partitions for different records are not supported, since deleting a model removes its assignments in every partition.
 
-Partition-enabled custom Role and Permission models must extend the package bases. UUID models may use `HasUuids` normally:
+When partitioning is enabled, custom role and permission models must extend the package's models. UUID models may use the `HasUuids` trait as usual:
 
 ```php
 use Hypervel\Database\Eloquent\Concerns\HasUuids;
@@ -1060,25 +1306,31 @@ class Permission extends BasePermission
 }
 ```
 
-Configure both model classes under `permission.models`. Extending the bases is required in partitioned mode because they protect Eloquent operations that intentionally bypass global scopes, including instance updates, deletes, refreshes, quiet operations, increments, and queued model restoration.
+Configure both classes under `permission.models`. The package's models keep the partition check on Eloquent operations that skip global scopes, such as instance updates, deletes, refreshes, quiet operations, increments, and restoring queued models.
 
 <a name="partition-context"></a>
 ### Partition Context
 
-Establish application context before authentication or any Permission operation. A typical request flow resolves the workspace, stores its key in `Context`, authenticates the subject, and then calls normal methods such as `$user->can(...)` or `$user->hasPermissionTo(...)`.
+Set the current partition before authenticating the user or running any permission operation. Typically, a middleware finds the request's workspace and stores its key in `Context`, then the request authenticates and authorizes as usual:
 
-Hypervel propagates Context into queued jobs and hydrates it before serialized Eloquent models are restored. Put the partition value in propagating Context before dispatch. Commands, scheduled tasks, and seeders must establish their own context before resolving Permission models, running Permission commands, or clearing cache.
+```php
+use Hypervel\Support\Facades\Context;
 
-Role and Permission records always belong to a non-null partition. A global subject model may receive different assignments in several partitions. If a subject itself has the configured partition attribute, Permission rejects assignments when that stored value conflicts with current context.
+Context::add('workspace_id', $workspace->getKey());
+```
 
-Permission writes the captured partition value to pivot inserts automatically. Caller-supplied pivot data may omit the partition or repeat the same value, but a conflicting value throws and pivot updates cannot move an existing edge between partitions.
+Hypervel passes `Context` values to queued jobs and restores them before the job's models are restored, so a job dispatched within a workspace runs in that workspace. Console commands, scheduled tasks, and seeders must set the context themselves before using roles and permissions, running the package's commands, or clearing the cache.
 
-Models loaded with a narrowed `select()` that omits the partition column cannot safely build partitioned relations or perform later lifecycle mutations. Include the partition column whenever a Role or Permission instance will be related, refreshed, saved, restored, or deleted.
+Roles and permissions always belong to a partition. A user model that is not partitioned may have different roles and permissions in each partition. If the user model has its own partition column, the package rejects assignments when its value differs from the current partition.
+
+The package writes the current partition to each assignment row. Pivot data you pass may leave out the partition column or repeat the current value, but a different value throws an exception, and pivot updates cannot move an assignment to another partition.
+
+When you load roles or permissions using `select()`, include the partition column if you will use their relationships or later refresh, save, restore, or delete them.
 
 <a name="partitions-teams-and-guards"></a>
 ### Partitions, Teams, and Guards
 
-Partitions, teams, and guards are independent dimensions:
+Partitions, teams, and guards are separate, and the package filters by each of them:
 
 ```sql
 where workspace_id = ?
@@ -1086,7 +1338,7 @@ where workspace_id = ?
   and guard_name = ?
 ```
 
-A partition is not a Permission team. An application may use partitions without teams or many teams inside one partition. When teams are enabled, place the team column after the partition in relevant keys:
+A partition is not a [team](#teams). You may use partitions without teams, or many teams within each partition. When teams are enabled, put the team column after the partition column in the keys:
 
 ```php
 $table->unique(['workspace_id', 'team_id', 'name', 'guard_name']);
@@ -1094,124 +1346,172 @@ $table->primary(['workspace_id', 'team_id', 'role_id', 'model_id', 'model_type']
 $table->primary(['workspace_id', 'team_id', 'permission_id', 'model_id', 'model_type']);
 ```
 
-The Role table's `team_id` may be nullable for global Roles. The `model_has_roles` and `model_has_permissions` team columns are non-null because every assignment stores the active team; assigning a global Role still writes the active team to `model_has_roles`. The non-null assignment columns can therefore participate in the composite primary keys above.
+The `roles` table's team column is nullable, since global roles have no team. The assignment tables' team columns are not nullable: every assignment stores the current team, even for a global role, so they can be part of the primary keys above.
 
-MySQL and MariaDB permit multiple `NULL` values inside a unique key. Applications requiring exactly one global-team Role per name should use a non-null sentinel or a database-appropriate normalized/generated uniqueness key.
+All supported databases allow several `NULL` values in a unique key, so the unique key above does not stop two global roles from having the same name. If you need that guarantee, add a unique index over a generated column that replaces a `NULL` team with a fixed value.
 
 <a name="partition-cache-and-performance"></a>
 ### Partition Cache and Performance
 
-The resolved partition is part of every catalog, model-assignment, assignment-token, wildcard, via-role, and coroutine-local cache identity. Built-in mutations invalidate only the affected partition and, where possible, only the affected subject/team entry. Changing a Role in workspace A does not clear workspace B's catalog or assignment token.
+The current partition is part of every cache key the package uses, so each partition has its own cached roles, permissions, assignments, and wildcard indexes. The package's own changes only clear the cache entries of the partition they affect: changing a role in workspace A does not clear workspace B's cache.
 
-`permission:cache-reset` and `PermissionRegistrar::forgetCachedPermissions()` clear only the ambient partition when partitioning is enabled. Missing context throws. Permission does not provide a global partition enumerator; cross-partition maintenance should enumerate the application's own partition domain, establish each context, and invoke the normal reset.
+The `permission:cache-reset` command and `forgetCachedPermissions` method clear only the current partition and throw an exception when no partition is set. To reset every partition, loop over your own workspaces, set each one's context, and reset its cache.
 
-Partitioning adds no database queries to authorization or normal mutation paths:
+Partitioning adds no queries to permission checks or assignments. Each query gains one partition condition, and each assignment row stores the partition value. Warm permission checks run no queries, and loading the role and permission catalog takes three queries, the same as without partitioning.
 
-- warm authorization checks remain zero-query;
-- a cold permission catalog remains three queries;
-- cold authorization and assignment-cache misses retain their unpartitioned query counts;
-- synchronization uses the same query count in partitioned and unpartitioned modes; Role sync uses one delete and one bulk insert, while direct-permission sync adds the pivot read needed to compare denied effects;
-- the resolver is an in-memory Context lookup;
-- existing SQL receives one bound partition predicate;
-- pivot inserts receive the partition value.
+Hard deleting a user model is the exception. When partitioning or teams are enabled, the package first reads which partitions and teams the model's assignments belong to, so it can clear exactly those cache entries. This adds one query for each assignment table the model uses.
 
-With partition-leading indexes, the added predicate narrows the rows each query examines. It does not introduce a join or discovery query on ordinary operations. Hard subject deletion is the deliberate cold-path exception: when partitioning and/or teams are enabled, each assignment-owning trait performs one narrow discovery query for its own table so it can forget the exact partition/team cache identities it deletes. A model using only `HasPermissions` therefore uses one discovery query; a model using `HasRoles` uses one for each of the role and direct-permission assignment tables. No discovery query runs when both features are disabled.
+Use your database's `EXPLAIN` command to check that your indexes start with the partition column each query filters by, such as `workspace_id, name, guard_name` for finding roles by name or `workspace_id, model_type, model_id` for loading a user's assignments. Query plans differ between databases, so check them against production data.
 
-Role and Permission removal use one blind captured-scope delete regardless of listener presence because their public events report the already-known request. Role synchronization adds one pivot-only ID read only when `RoleDetachedEvent` has a listener, because that established payload is the pre-operation current Role set. The ordinary Role-sync path performs no discovery read.
-
-Use your database's `EXPLAIN` command to confirm application indexes begin with the partition predicate used by the query, for example `workspace_id, name, guard_name` for name lookup or `workspace_id, model_type, model_id` for subject assignments. Optimizer plans differ by engine, so verify them against production data rather than relying on one fixed plan.
-
-Logical cache keys include the raw canonical partition through collision-safe length-prefixed segments. Swoole cache stores hash logical keys before native table lookup, and Hypervel's Swoole table wrapper rejects oversized values instead of silently truncating them. Size Swoole cache table row count and value capacity for the application's number of partitions and catalog size.
+If you use the Swoole cache store, size its table for your number of partitions and the amount of role and permission data in each. The store rejects values larger than its configured size instead of truncating them.
 
 <a name="raw-and-bulk-writes"></a>
 ### Raw and Bulk Writes
 
-Package model and relation APIs apply partition predicates, invariant pivot values, and cache invalidation automatically. Package-owned multi-write operations such as synchronization and deferred multi-context flushing are transactional. Simple assignment and removal methods retain native Eloquent attach/detach semantics; wrap them in an application transaction when they must commit atomically with model touches or other application work. Low-level database APIs intentionally bypass some or all of those guarantees.
+The package's models and methods add the partition condition, write the partition value, and clear the affected cache for you. Methods that make several writes, such as syncing, run in a transaction. Single assignment and removal methods behave like Eloquent's `attach` and `detach`, so wrap them in a transaction when they must commit together with other work.
 
-Direct Query Builder writes, generic Pivot saves, `toBase()`, `getQuery()`, `newQueryWithoutScopes()`, explicit scope removal, truncation, insert-from-select, and builder force deletes require the application to supply the correct partition predicate/value, use an appropriate transaction, and reset every affected partition cache.
+Lower-level database APIs skip some or all of this. When you use the query builder directly, save a generic pivot, call `toBase`, `getQuery`, or `newQueryWithoutScopes`, remove the partition scope, truncate a table, insert from a select, or force delete through a query, you must add the partition condition or value yourself, use a transaction where needed, and reset the cache of each affected partition.
 
-Static Eloquent passthrough writes such as `insert`, `insertOrIgnore`, `insertGetId`, and `upsert` do not instantiate models and bypass partition insertion checks. Builder `update`, `increment`, and `decrement` retain the global partition predicate but bypass model lifecycle invalidation and must not change the partition column. Reset the affected ambient partition after any raw or bulk mutation.
+Eloquent's `insert`, `insertOrIgnore`, `insertGetId`, and `upsert` methods do not create models, so they skip the partition checks. Query `update`, `increment`, and `decrement` calls keep the partition condition but skip cache clearing, and must not change the partition column. Reset the current partition's cache after any of these writes.
 
 <a name="teams"></a>
 ## Teams
 
-Teams scope roles and role or permission assignments by a configured team foreign key. Enable teams before running the base permission migration if you want the base tables to include team columns:
+Teams let a model have different roles and permissions in each team it belongs to, such as an organization or project. Roles may be global or belong to one team, and every role or permission assignment belongs to a team.
+
+Enable teams in the permission configuration file before running the package's migration, so it adds the team columns. If the tables already exist, run the `permission:setup-teams` command and then migrate:
 
 ```php
 'teams' => true,
+
 'models' => [
     'team' => App\Models\Team::class,
 ],
 ```
 
-The default team resolver stores the active team ID in coroutine context. You may replace `team_resolver` with a class that implements `Hypervel\Permission\Contracts\PermissionsTeamResolver`.
+The migration creates integer team columns named `team_id`. You may rename them using the `column_names.team_foreign_key` configuration value, and change their type in the published migration if your team keys are UUIDs or ULIDs.
 
-Use the helpers to set the current team for the current coroutine:
+<a name="setting-the-current-team"></a>
+### Setting the Current Team
+
+The package checks and changes roles and permissions within the current team. Set the current team at the start of each request, typically in a middleware:
 
 ```php
-setPermissionsTeamId($team->getKey());
+<?php
 
-$user->assignRole('writer');
+namespace App\Http\Middleware;
+
+use Closure;
+use Hypervel\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
+
+class SetPermissionsTeam
+{
+    public function handle(Request $request, Closure $next): Response
+    {
+        setPermissionsTeamId($request->session()->get('team_id'));
+
+        return $next($request);
+    }
+}
 ```
 
-Select the current team before changing a model's roles or direct permissions, including when assigning a global role. Every assignment belongs to the active team, so a missing selection throws `TeamNotSelected` before the package queries or writes authorization data.
-
-You may also pass a team model:
+Add the middleware to the `web` group, and [sort it](/docs/{{version}}/middleware#sorting-middleware) before `SubstituteBindings` so the team is set before route model binding and authorization middleware run:
 
 ```php
-setPermissionsTeamId($team);
+use App\Http\Middleware\SetPermissionsTeam;
+use Hypervel\Foundation\Configuration\Middleware;
+use Hypervel\Routing\Middleware\SubstituteBindings;
+
+->withMiddleware(function (Middleware $middleware): void {
+    $middleware->web(append: [
+        SetPermissionsTeam::class,
+    ]);
+
+    $middleware->prependToPriorityList(
+        before: SubstituteBindings::class,
+        prepend: SetPermissionsTeam::class,
+    );
+})
 ```
 
-Roles may be global or team-specific:
+The `setPermissionsTeamId` helper also accepts a team model, and `getPermissionsTeamId` returns the current team's key. The current team belongs to the current request or job only, so it never carries over to other requests. Queued jobs and new coroutines start without a team, so set it again within them.
+
+Select the current team before changing a model's roles or direct permissions, including when assigning a global role. Without a current team, these methods throw a `TeamNotSelected` exception before touching the database.
+
+By default, the current team is stored in the request's [coroutine context](/docs/{{version}}/coroutine-context). You may replace the `team_resolver` configuration value with a class that implements `Hypervel\Permission\Contracts\PermissionsTeamResolver`.
+
+<a name="team-roles"></a>
+### Team Roles
+
+A role created without a `team_id` belongs to the current team:
 
 ```php
+// A global role, which may be assigned within any team...
 Role::create(['name' => 'writer', 'team_id' => null]);
 
-Role::create(['name' => 'writer', 'team_id' => $team->getKey()]);
+// A role for one team; other teams may have roles with the same name...
+Role::create(['name' => 'reader', 'team_id' => $team->getKey()]);
+
+// A role for the current team...
+Role::create(['name' => 'reviewer']);
 ```
 
-If teams are enabled after the package tables already exist, run `permission:setup-teams` and then migrate.
+Assigning and removing roles and permissions works the same as without teams, within the current team.
 
-When you change the active team during a request or job, package-loaded permission relations are reloaded automatically when their stored provenance no longer matches the active team:
+<a name="switching-teams"></a>
+### Switching Teams
+
+You may change the current team during a request or job, such as when a user switches teams or an admin page manages a user's roles in each team. The package's methods reload roles and permissions that were loaded for the previous team automatically:
 
 ```php
 setPermissionsTeamId($newTeamId);
 
 $user->hasRole('writer');
+$user->can('edit articles');
+```
+
+Reading the `roles` or `permissions` relationship directly returns what was loaded earlier, like any Eloquent relationship. Unset a relationship loaded for the previous team before reading it:
+
+```php
+$roles = $user->unsetRelation('roles')->roles;
 ```
 
 <a name="wildcard-permissions"></a>
 ## Wildcard Permissions
 
-Wildcard permissions allow one stored permission to match many checks:
+Wildcard permissions let one assigned permission match many checks. They are inspired by [Apache Shiro's permissions](https://shiro.apache.org/permissions.html). You may enable them in the permission configuration file:
 
 ```php
 'enable_wildcard_permission' => true,
 ```
 
-```php
-Permission::create(['name' => 'posts.*']);
+A wildcard permission is made of parts separated by dots, such as `posts.create.1`. The meaning of each part is up to your application. A common pattern is `{resource}.{action}.{target}`, but you may use as many parts as you like.
 
-$user->givePermissionTo('posts.*');
-
-$user->hasPermissionTo('posts.create');
-// true
-```
-
-A wildcard permission string is split into dot-separated parts. The `*` part means all values for that part, not any permission in the system:
+Any part may be `*`, which matches every value of that part:
 
 ```php
 Permission::create(['name' => 'posts.*']);
 
 $user->givePermissionTo('posts.*');
+
+$user->hasPermissionTo('posts.create'); // true
+$user->hasPermissionTo('posts.edit'); // true
 ```
 
-Subparts may be comma-separated:
+A trailing `*` is implied, so assigning `posts` also grants `posts.create` and `posts.edit`. In a checked name, `*` means "all" rather than "any": checking `posts.*` passes when the user was given `posts.*` or `posts`, but not when they only have `posts.create`.
+
+A part may also list several values separated by commas:
 
 ```php
-Permission::create(['name' => 'posts,users.create,update,view']);
-
+// Create, update, and view posts and users...
 $user->givePermissionTo('posts,users.create,update,view');
+
+// Create, update, and view any resource...
+$user->givePermissionTo('*.create,update,view');
+
+// Do anything to the posts with IDs 1, 4, and 6...
+$user->givePermissionTo('posts.*.1,4,6');
 ```
 
 Like any permission, a wildcard permission must exist as a permission record before it can be assigned. The names you check do not need records of their own, so `hasPermissionTo('posts.create')` matches `posts.*` even when no `posts.create` permission exists.
@@ -1260,6 +1560,20 @@ $team->assignRole('project-manager');
 $team->givePermissionTo('manage projects');
 ```
 
+Assignments are stored with the model's morph class, so a child model class has its own roles and permissions. If a child model should only use its parent's roles and permissions, you may return the parent's morph class from the child's `getMorphClass` method. The child then shares every assignment with the parent model of the same key:
+
+```php
+use Hypervel\Database\Eloquent\Relations\Relation;
+
+class Admin extends User
+{
+    public function getMorphClass(): string
+    {
+        return (string) Relation::getMorphAlias(User::class);
+    }
+}
+```
+
 <a name="custom-models"></a>
 ## Custom Models
 
@@ -1304,12 +1618,49 @@ After creating custom models, update the permission configuration:
 ],
 ```
 
+In the rare case that you replace the models instead of extending them, your models must implement the `Hypervel\Permission\Contracts\Role` and `Hypervel\Permission\Contracts\Permission` contracts. When [row partitioning](#row-partitioning) is enabled, custom models must extend the package's models.
+
+If you override `findByName`, `findOrCreate`, or `create` on your model, you may use the `enum_value` helper to accept [enums](#using-enums) as names:
+
+```php
+use Hypervel\Permission\Contracts\Role as RoleContract;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
+
+public static function findByName(UnitEnum|string $name, ?string $guardName = null): RoleContract
+{
+    $name = enum_value($name);
+
+    // ...
+}
+```
+
+The package's models do not use soft deletes, and soft deletes are not recommended for roles and permissions. Deleting a role or permission should normally remove its assignments rather than leave them waiting to become active again. If a custom model uses `SoftDeletes`, soft deleting it hides it from permission checks but keeps its assignments, and restoring it makes them active again. Use hard deletes when assignments should be removed permanently.
+
+<a name="adding-columns"></a>
+### Adding Columns
+
+You may add your own columns to the roles and permissions tables with a migration, just like any other table. For example, the package does not include a description column, but you may add one:
+
+```php
+Schema::table('permissions', function (Blueprint $table) {
+    $table->string('description')->nullable();
+});
+
+Schema::table('roles', function (Blueprint $table) {
+    $table->string('description')->nullable();
+});
+```
+
+Roles and permissions are cached with all of their columns except those listed in the `cache.column_names_except` configuration value. You may add large columns to that list to keep the cache small, but models read from the cache, such as those returned by `findByName`, will not have those columns.
+
 <a name="permission-database-connection"></a>
 ### Permission Database Connection
 
-All five permission tables, including pivot writes, use the configured Permission model's database connection. The configured Role and Permission models must use that same connection name. Role relation reads use the Role connection, while pivot writes and cache settlement use the Permission connection, so separate connection names would break transaction consistency even when they point to the same database.
+All five permission tables, including assignment writes, use the configured permission model's database connection. The configured role and permission models must use that same connection name. Role relationships are read through the role model's connection, while assignments are written and cache changes are applied through the permission model's connection, so different connection names would break transactions even when they point to the same database.
 
-A subject model may use another connection. When it lives in a physically separate database, reverse relations and subject query scopes are unavailable because they compile joins to the permission tables on the subject connection.
+Your user models may use another connection. When they live in a separate database, the `users` relationships of roles and permissions, and the role and permission query scopes on your models, are unavailable, because they join the permission tables using the user model's connection.
 
 <a name="custom-pivot-models"></a>
 ### Custom Pivot Models
@@ -1346,33 +1697,42 @@ When a custom permission pivot is configured, `getDirectPermissions()` and `getA
 
 The reverse `assignToModels`, `removeFromModels`, and `syncModels` methods do not use the assigned model's relationship override. When your custom pivot behavior is required, perform the assignment through the model's `givePermissionTo`, `revokePermissionTo`, `syncPermissions`, `assignRole`, `removeRole`, or `syncRoles` methods.
 
-In an unpartitioned application, models that replace rather than extend the package bases must implement `Hypervel\Permission\Contracts\Role` or `Hypervel\Permission\Contracts\Permission`. Partition-enabled Role and Permission models must extend the package bases so every unscoped Eloquent lifecycle path remains protected.
+To record when assignments are made, add `timestamps` to the pivot tables in a migration and call `withTimestamps` on the aliased relationships. Assignments then store `created_at`, and allowing or denying an assigned permission updates its `updated_at`:
 
-The package's default role and permission models do not use soft deletes, and soft deletes are not recommended for permission models. Roles and permissions are access-control records; deleting one should normally remove its assignments, not leave them waiting to become active again later.
+```php
+public function permissions(): BelongsToMany
+{
+    return $this->traitPermissions()->withTimestamps();
+}
+```
 
-If you use a custom role or permission model that uses `SoftDeletes`, soft-deleting a role or permission hides it from normal permission checks, but its assignment rows remain in the database. If the role or permission is restored, those assignments become active again. For roles, previous user-role and role-permission assignments become active again. For permissions, previous direct model-permission and role-permission assignments become active again.
-
-Use hard deletes for roles and permissions when assignments should be removed permanently.
+For the role-permission table, override the `permissions` method of a [custom role model](#custom-models) and the `roles` method of a custom permission model, calling `withTimestamps` on the parent's relationship. If you return roles or permissions as JSON, you may hide their pivot data by adding `pivot` to the custom model's `$hidden` property.
 
 <a name="deleting-models"></a>
 ### Deleting Models
 
-When you hard delete a subject model that uses `HasRoles` or `HasPermissions`, the package removes its assignments after the model row is deleted successfully. When the subject and permission storage use the same connection, the row deletion and assignment cleanup run in one transaction. When they use different connection names, assignment cleanup runs only after the subject transaction commits. If another transaction is already open on the subject connection, the delete uses a savepoint so a same-connection cleanup failure rolls back only that delete operation.
+When you hard delete a model that uses `HasRoles` or `HasPermissions`, the package removes its assignments after the model's row is deleted. When the model and the permission tables use the same connection, the row and its assignments are deleted in one transaction. If a transaction is already open on that connection, the delete uses a savepoint, so a failure while removing the assignments rolls back only that delete. When they use different connections, the assignments are deleted after the model's transaction commits.
 
-If your model defines its own `delete` method, it overrides the transaction supplied by the permission trait. Keep the model deletion and its events inside one transaction so the row and assignment cleanup cannot settle separately.
+If your model defines its own `delete` method, it replaces the transaction the trait adds. Keep the model's deletion and its events inside one transaction so the row and its assignments cannot be deleted separately.
 
-The `deleteQuietly` method intentionally skips model events, including permission validation and cleanup. Subject assignment tables do not have a foreign key to the subject model, so a quiet delete may leave assignment rows behind. Use the normal `delete` method when those assignments should be removed.
+The `deleteQuietly` method skips model events, including the package's checks and cleanup. The assignment tables have no foreign key to your models, so a quiet delete may leave assignment rows behind. Use the normal `delete` method when those assignments should be removed.
 
 <a name="uuid-and-ulid-keys"></a>
 ## UUID and ULID Keys
 
-If your user models use UUIDs or ULIDs, update the published migration before running it so `model_has_roles` and `model_has_permissions` use the correct morph key column type:
+The published migration uses integer keys. If your user models use UUIDs, change the morph key column in both the `model_has_roles` and `model_has_permissions` tables before running the migration. Use `ulid` instead of `uuid` for ULIDs:
 
 ```php
-$table->uuidMorphs('model');
+// Before...
+$table->unsignedBigInteger($modelMorphKey);
+
+// After...
+$table->uuid($modelMorphKey);
 ```
 
-If your role or permission models use UUIDs or ULIDs, extend the package models and set the primary key details on your custom models:
+You may also rename the morph key column, for example to `model_uuid`, using the `column_names.model_morph_key` configuration value.
+
+If your role or permission models use UUIDs, [extend the package's models](#custom-models) and add the `HasUuids` trait:
 
 ```php
 use Hypervel\Database\Eloquent\Concerns\HasUuids;
@@ -1381,31 +1741,23 @@ use Hypervel\Permission\Models\Role as BaseRole;
 class Role extends BaseRole
 {
     use HasUuids;
-
-    protected string $primaryKey = 'uuid';
 }
 ```
 
-Then update the published migration so the `roles`, `permissions`, and pivot tables use the same key type and references. You may also rename the model morph key in config:
-
-```php
-'column_names' => [
-    'model_morph_key' => 'model_uuid',
-],
-```
-
-Integer, UUID, and ULID Role, Permission, partition, and subject keys are supported. Keep every foreign and pivot column's native type identical to the key it references. In a partitioned schema, include the native partition column on all five authorization tables and use composite `(partition, related_id)` foreign keys as shown in [Partitioned Schema](#partitioned-schema).
+Then change the `id` columns of the `roles` and `permissions` tables to `$table->uuid('id')->primary()`, and the role and permission key columns of the three assignment tables to `uuid` columns. Every key column must have the same type as the key it references. For a partitioned schema, see the [partitioned schema](#partitioned-schema) example, which uses UUIDs throughout.
 
 <a name="caching"></a>
 ## Caching
 
-The permission registrar caches role and permission metadata using the configured cache store. Hot checks also use Hypervel's memo cache layer for the current coroutine, so repeated checks in one request or job avoid repeated cache-store reads.
+The package caches the role and permission catalog and each model's assignments, so permission checks usually run no queries. Within a request or job, repeated checks also reuse the values already read from the cache store.
 
-The cache store must keep cached values and refreshable atomic locks on the same backend. Stack and failover stores are not supported because their values and locks may use different backends. Hypervel validates this requirement on the first cache miss, while cache hits remain lock-free.
+The cache store must keep values and refreshable atomic locks on the same backend, such as the `redis`, `database`, `file`, `swoole`, or `array` stores. Stack and failover stores are not supported, since their values and locks may use different backends. The store is checked the first time the cache is filled.
 
-By default, cache identities are application-wide. When [row partitioning](#row-partitioning) is enabled, every relevant shared and coroutine-local identity includes the current partition automatically. Cache namespacing alone is not row isolation; use `resolvePartitionUsing` so database queries, pivot writes, relations, commands, cache entries, and invalidation all share the same fail-closed boundary.
+To use a dedicated store, set `cache.store` in the permission configuration file to one of your cache stores. The `array` store keeps values only for the current request or job, which effectively disables caching between requests.
 
-Built-in mutation methods refresh the relevant cache automatically:
+The cache configuration applies to the whole worker, so do not switch the permission cache store or keys for each tenant. To keep each tenant's permission data separate, use [row partitioning](#row-partitioning), which separates their database rows and cache entries.
+
+The package's methods clear the affected cache entries for you:
 
 ```php
 $role->givePermissionTo('edit articles');
@@ -1424,17 +1776,13 @@ $user->syncPermissionEffects(
 );
 ```
 
-Exact subject assignment mutations forget that subject's affected assignment entry. Replacing every subject assigned to a Role or Permission through `syncModels` advances the active partition's assignment token because a concurrent assignment cannot be enumerated safely across every supported database. Role or Permission catalog mutations invalidate only the affected partition's catalog. Hard or force deletion of a Role or Permission, and an explicit cache reset, also advance only that partition's assignment token. Raw or bulk writes bypass lifecycle invalidation and require an explicit reset in each affected established partition.
+Changing a model's roles or direct permissions clears only that model's cached assignments. Changing a role's permissions, or creating, updating, or deleting a role or permission, clears the cached catalog. Calling `syncModels`, hard deleting a role or permission, and resetting the cache expire every model's cached assignments.
 
-You may clear cached permission data with the command:
+If you change the permission tables any other way, such as with raw queries, reset the cache yourself using the `permission:cache-reset` command or the `forgetCachedPermissions` method:
 
 ```shell
 php artisan permission:cache-reset
 ```
-
-When partitioning is enabled, this clears only the ambient partition and throws if context is missing.
-
-You may also clear it from code:
 
 ```php
 use Hypervel\Permission\PermissionRegistrar;
@@ -1442,12 +1790,12 @@ use Hypervel\Permission\PermissionRegistrar;
 app(PermissionRegistrar::class)->forgetCachedPermissions();
 ```
 
-If you reset the cache inside a database transaction, Hypervel applies the reset after the transaction commits and discards it when the transaction rolls back. The method returns `true` once a transactional reset has been registered.
+If you reset the cache inside a database transaction, the reset is applied after the transaction commits and discarded if it rolls back. The method returns `true` once such a reset has been registered. When row partitioning is enabled, the reset applies only to the current partition.
 
 <a name="testing-and-seeding"></a>
 ## Testing and Seeding
 
-Partition-enabled tests and seeders must establish application partition context before resolving Role or Permission models, assigning authorization data, or clearing caches:
+When row partitioning is enabled, tests and seeders must set the partition context before using roles and permissions or clearing the cache:
 
 ```php
 use Hypervel\Support\Facades\Context;
@@ -1455,56 +1803,94 @@ use Hypervel\Support\Facades\Context;
 Context::add('workspace_id', $workspace->getKey());
 ```
 
-Do not disable partitioning or fall back to an unpartitioned cache during tests. Use the same context path as production so missing-context and isolation failures remain visible.
+Keep partitioning enabled in your tests and set the context the same way production does, so a missing context or a leak between partitions fails your tests.
 
-If tests create roles or permissions after the Gate has already registered its permission callback, clear the package cache in the test setup:
+<a name="seeding"></a>
+### Seeding
 
-```php
-use Hypervel\Permission\PermissionRegistrar;
-
-protected function setUp(): void
-{
-    parent::setUp();
-
-    $this->app->make(PermissionRegistrar::class)->forgetCachedPermissions();
-}
-```
-
-Seeders that create roles and permissions should clear the cache before seeding. If your seeder disables model events, clear it again after creating roles and permissions and before assigning them:
+Creating roles and permissions clears the permission cache through model events. The default `DatabaseSeeder` uses the `WithoutModelEvents` trait, so the seeders it calls run without model events. Clear the cache in them after creating roles and permissions and before assigning them:
 
 ```php
 use Hypervel\Database\Seeder;
 use Hypervel\Permission\Models\Permission;
 use Hypervel\Permission\Models\Role;
 use Hypervel\Permission\PermissionRegistrar;
-use Hypervel\Support\Facades\Context;
 
 class RolesAndPermissionsSeeder extends Seeder
 {
-    private const string WORKSPACE_ID = '0198f311-7d47-7c41-962a-97a99d8638ef';
-
     public function run(): void
     {
-        Context::add('workspace_id', self::WORKSPACE_ID);
-
-        app(PermissionRegistrar::class)->forgetCachedPermissions();
-
         Permission::create(['name' => 'edit articles']);
+        Permission::create(['name' => 'publish articles']);
+        Permission::create(['name' => 'unpublish articles']);
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
         Role::create(['name' => 'writer'])
             ->givePermissionTo('edit articles');
+
+        Role::create(['name' => 'moderator'])
+            ->givePermissionTo(['publish articles', 'unpublish articles']);
+
+        Role::create(['name' => 'admin'])
+            ->givePermissionTo(Permission::all());
     }
 }
 ```
 
+You may assign roles to users created by a factory using an [`afterCreating` callback](/docs/{{version}}/eloquent-factories#factory-callbacks), for example in a factory state:
+
+```php
+public function editor(): static
+{
+    return $this->afterCreating(function (User $user) {
+        $user->assignRole('editor');
+    });
+}
+```
+
+When seeding a large number of permissions, Eloquent's `insert` method is faster than `create`, since it skips model events and the package's checks. Provide every required column, including the guard name and any partition column, and clear the cache afterwards:
+
+```php
+Permission::insert([
+    ['name' => 'edit articles', 'guard_name' => 'web'],
+    ['name' => 'delete articles', 'guard_name' => 'web'],
+]);
+
+app(PermissionRegistrar::class)->forgetCachedPermissions();
+```
+
+<a name="testing"></a>
+### Testing
+
+When your tests use the `RefreshDatabase` trait, you may seed roles and permissions once after the database is migrated by adding the [`Seeder` attribute](/docs/{{version}}/database-testing#running-seeders) to your test class:
+
+```php
+use Database\Seeders\RolesAndPermissionsSeeder;
+use Hypervel\Foundation\Testing\Attributes\Seeder;
+use Hypervel\Foundation\Testing\RefreshDatabase;
+
+#[Seeder(RolesAndPermissionsSeeder::class)]
+class ArticleTest extends TestCase
+{
+    use RefreshDatabase;
+}
+```
+
+If your application lets users define their own roles and permissions, you may want factories for them. [Extend the package's models](#custom-models), add the `HasFactory` trait, and define factories for your models.
+
 <a name="best-practices"></a>
 ## Best Practices
 
-Use permissions for application behavior and roles for grouping permissions. For example, check `can('edit articles')` in controllers, policies, middleware, and Blade, then assign that permission to whichever roles should receive it.
+Assign permissions to roles, assign roles to users, and check permissions in your application:
 
-Use direct role checks for role-management screens or rare app rules that truly depend on the role itself:
+- users have roles;
+- roles have permissions;
+- your application checks permissions rather than roles wherever it can.
+
+Detailed permission names, such as `view documents` and `edit documents`, make access easy to control. Your views, policies, controllers, and routes check these permissions using `can` and `@can`, so your application rarely needs to know role names and you may rename or restructure roles freely. Give permissions directly to a user only when that user needs an exception to their roles.
+
+Keep direct role checks for role-management screens or rare rules that truly depend on the role itself:
 
 ```php
 if ($user->hasRole('admin')) {
@@ -1512,16 +1898,54 @@ if ($user->hasRole('admin')) {
 }
 ```
 
-Prefer policies and Gate checks when authorization depends on both the user and a specific model instance.
+When authorization depends on both the user and a specific model, combine permission checks with your application's rules in a [policy](/docs/{{version}}/authorization#creating-policies):
+
+```php
+<?php
+
+namespace App\Policies;
+
+use App\Models\Post;
+use App\Models\User;
+
+class PostPolicy
+{
+    public function view(?User $user, Post $post): bool
+    {
+        if ($post->published) {
+            return true;
+        }
+
+        if ($user === null) {
+            return false;
+        }
+
+        if ($user->can('view unpublished posts')) {
+            return true;
+        }
+
+        return $user->id === $post->user_id;
+    }
+
+    public function update(User $user, Post $post): bool
+    {
+        if ($user->can('edit all posts')) {
+            return true;
+        }
+
+        return $user->can('edit own posts') && $user->id === $post->user_id;
+    }
+}
+```
 
 <a name="performance"></a>
 ## Performance
 
-Permission checks use cached role and permission data after the first lookup. Model role assignments and direct permission assignments have their own cache keys. Those keys include the model type, model key, active partition when enabled, active team when team-scoped, and the partition-specific assignment token.
+Permission checks are served from the [cache](#caching) after the first lookup, so warm checks run no queries. Loading the role and permission catalog takes three queries, and each model's role and direct permission assignments are cached separately, per team and partition when those features are enabled.
 
-Warm authorization checks execute no database queries. A cold catalog uses three queries. Enabling row partitioning does not add queries: it adds one bound, indexed predicate to existing SQL and one value to pivot inserts. The partition resolver is an in-memory Context lookup. Exact subject mutations forget exact cache identities. Catalog changes invalidate only the affected catalog, while bulk reverse synchronization, hard or force deletion, and explicit cache resets advance the affected partition's assignment token so older entries expire naturally through the configured TTL.
+Syncing roles or permissions reads the model's current assignments once, then inserts, deletes, or updates only what changed. When assignment events are enabled and `PermissionDetachedEvent` has a listener, syncing permissions also loads the model's current permissions for the event.
 
-Saved permission replacements perform one additional relationship query only when assignment events are enabled and a listener is registered for `PermissionDetachedEvent`. When a custom pivot is configured, methods that return Permission models load the relationship once for the model in the current coroutine and reuse it on later calls. Authorization and permission-name checks remain query-free after the permission cache is warm.
+When a [custom pivot model](#custom-pivot-models) is configured, methods that return `Permission` models load the relationship once per request or job and reuse it. Permission checks and `getPermissionNames` still use the cache.
 
 If you need to display a model's roles or permissions, eager load the relationships you will render:
 
@@ -1534,16 +1958,19 @@ Eager loading is not required for normal `hasPermissionTo` or `hasRole` checks, 
 <a name="exceptions"></a>
 ## Exceptions
 
-Authorization failures throw `Hypervel\Permission\Exceptions\UnauthorizedException`. You may handle it with Hypervel's normal exception handling:
+The package's middleware throws a `Hypervel\Permission\Exceptions\UnauthorizedException` when authorization fails. You may customize its response using Hypervel's [exception handling](/docs/{{version}}/errors#rendering-exceptions) in your application's `bootstrap/app.php` file:
 
 ```php
+use Hypervel\Foundation\Configuration\Exceptions;
 use Hypervel\Permission\Exceptions\UnauthorizedException;
 
-$exceptions->render(function (UnauthorizedException $exception) {
-    return response()->json([
-        'message' => 'You do not have the required authorization.',
-    ], 403);
-});
+->withExceptions(function (Exceptions $exceptions): void {
+    $exceptions->render(function (UnauthorizedException $exception) {
+        return response()->json([
+            'message' => 'You do not have the required authorization.',
+        ], 403);
+    });
+})
 ```
 
 The exception exposes the required roles or permissions:
@@ -1554,23 +1981,17 @@ $exception->getRequiredRoles();
 $exception->getRequiredPermissions();
 ```
 
-Configuration and context failures use focused exceptions:
+The package's other exceptions are in the `Hypervel\Permission\Exceptions` namespace. The most common are:
 
-- `PermissionConnectionMismatch` when a Role or Permission model write uses a different connection name from the configured Permission model;
-- `PermissionPartitionAlreadyConfigured` when registration is repeated or occurs after registrar initialization;
-- `PermissionPartitionNotResolved` when enabled partition context is missing;
-- `PermissionPartitionViolation` when a model or pivot conflicts with its captured partition, attempts to change an immutable partition, or lacks a valid persisted partition value;
-- `PermissionPartitionModelNotSupported` when partition mode is configured with a Role or Permission model that does not extend the package base;
-- `TeamNotSelected` when teams are enabled and a write is attempted without a selected current team.
-
-<a name="differences-from-spatie-laravel-permission"></a>
-## Differences From Spatie Laravel Permission
-
-- Hypervel adds denied permissions. A denied assignment explicitly rejects an ability and wins over direct or role-granted allows. The `is_denied` flag is stored as the effect on the assignment row, so assigning allow or deny for the same model or role and permission updates the existing edge.
-- `getDirectPermissions()`, `getPermissionsViaRoles()`, `getAllPermissions()`, and `getPermissionNames()` return effective allowed permissions. `getDeniedPermissions()` returns the denied ones, and `hasDeniedPermission()` and `hasDeniedPermissionViaRoles()` check them.
-- Hypervel accepts pure unit enums anywhere enum names are valid role or permission inputs. Backed enums use their values; unit enums use their case names.
-- Hypervel adds opt-in generic row partitioning through `PermissionRegistrar::resolvePartitionUsing(...)`. It scopes model lifecycle operations, every package relation and pivot, queries, commands, cache identities, and invalidation without depending on any partition domain.
-- Hypervel's cache config uses `expiration_seconds` and separate named cache keys so role, model-role, model-permission, and assignment-token caches can be invalidated independently.
+- `RoleDoesNotExist` and `PermissionDoesNotExist`, when a role or permission is not found by name or ID;
+- `RoleAlreadyExists` and `PermissionAlreadyExists`, when creating a role or permission that already exists for the guard;
+- `GuardDoesNotMatch`, when assigning a role or permission of another guard;
+- `TeamNotSelected`, when teams are enabled and roles or permissions are changed without a current team;
+- `PermissionConnectionMismatch`, when a role or permission model writes through a different database connection than the configured permission model;
+- `PermissionPartitionNotResolved`, when partitioning is enabled and no partition is set;
+- `PermissionPartitionViolation`, when a model or pivot row belongs to a different partition than the current one, or a write would change a record's partition;
+- `PermissionPartitionAlreadyConfigured`, when the partition is registered twice or after the package has started;
+- `PermissionPartitionModelNotSupported`, when partitioning is enabled with role or permission models that do not extend the package's models.
 
 <a name="credits"></a>
 ## Credits

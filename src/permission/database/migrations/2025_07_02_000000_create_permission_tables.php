@@ -118,10 +118,12 @@ return new class extends Migration {
         });
 
         $cacheStore = config()->string('permission.cache.store', 'default');
+        $cache = app('cache')->store($cacheStore !== 'default' ? $cacheStore : null);
 
-        app('cache')
-            ->store($cacheStore !== 'default' ? $cacheStore : null)
-            ->forget(config()->string('permission.cache.keys.roles', PermissionRegistrar::ROLE_CATALOG_CACHE_KEY));
+        $cache->forget(config()->string('permission.cache.keys.roles', PermissionRegistrar::ROLE_CATALOG_CACHE_KEY));
+
+        // A new assignment token stops models whose keys are reused from reading the old tables' cached assignments.
+        $cache->forget(config()->string('permission.cache.keys.model_token', PermissionRegistrar::MODEL_CACHE_TOKEN_KEY));
     }
 
     /**

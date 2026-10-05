@@ -10,6 +10,8 @@ Documentation: https://hypervel.org/docs/permission
 - Role and permission inputs accept [unit enums](https://hypervel.org/docs/permission#using-enums) as well as backed enums. Unit enums use their case names.
 - Hypervel adds opt-in [row partitioning](https://hypervel.org/docs/permission#row-partitioning) through `PermissionRegistrar::resolvePartitionUsing(...)`. The stock migration is unpartitioned; applications that enable partitioning own a [partitioned schema](https://hypervel.org/docs/permission#partitioned-schema).
 - The [cache configuration](https://hypervel.org/docs/permission#cache) uses `expiration_seconds` instead of `expiration_time`, with separate named cache keys so role, model-role, model-permission, and assignment-token caches can be invalidated independently.
+- The [cache store](https://hypervel.org/docs/permission#caching) must keep values and refreshable atomic locks on the same backend, because concurrent cache fills are coordinated with a lock. Stack and failover stores are not supported.
+- The cache store and keys are worker-wide, and `initializeCache()` is for boot and tests. Instead of switching the cache per tenant during a request, use row partitioning, which also separates each tenant's cache entries.
 - There is no Octane reset listener or `register_octane_reset_listener` option. The current team and the loaded permission catalog are coroutine-local, so nothing carries over between requests.
 
 Ported from: https://github.com/spatie/laravel-permission

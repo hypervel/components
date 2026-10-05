@@ -143,6 +143,45 @@ class CacheTest extends TestCase
         $this->assertTrue($this->testUser->hasRole('testRole'));
     }
 
+    public function testPermissionMigrationForgetsCachedModelAssignments(): void
+    {
+        $this->testUser->assignRole('testRole');
+
+        // New coroutines fill and read the shared store instead of this coroutine's memo.
+        $roleNames = fn (): array => User::findOrFail($this->testUser->getKey())->getRoleNames()->all();
+
+        $this->assertSame([['testRole']], parallel([$roleNames]));
+
+        $migration = require dirname(__DIR__, 2)
+            . '/src/permission/database/migrations/2025_07_02_000000_create_permission_tables.php';
+        $migration->down();
+        $migration->up();
+
+        // The first role in the recreated tables takes the old role's key.
+        $this->app->make(RoleContract::class)::create(['name' => 'admin']);
+
+        $this->assertSame([[]], parallel([$roleNames]));
+    }
+
+    public function testTeamsMigrationForgetsCachedModelAssignments(): void
+    {
+        $this->testUser->assignRole('testRole');
+
+        // New coroutines fill and read the shared store instead of this coroutine's memo.
+        $roleNames = fn (): array => User::findOrFail($this->testUser->getKey())->getRoleNames()->all();
+
+        $this->assertSame([['testRole']], parallel([$roleNames]));
+
+        config()->set('permission.teams', true);
+        $this->app->forgetInstance(PermissionRegistrar::class);
+        $migration = require dirname(__DIR__, 2)
+            . '/src/permission/database/migrations/add_teams_fields.php.stub';
+        $migration->up();
+
+        // The migration moves existing assignments to team 1, so none apply without a current team.
+        $this->assertSame([[]], parallel([$roleNames]));
+    }
+
     public function testCatalogOnlyMutationsDoNotRotateTheAssignmentToken(): void
     {
         $registrar = $this->app->make(PermissionRegistrar::class);

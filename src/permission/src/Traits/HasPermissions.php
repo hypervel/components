@@ -1020,6 +1020,23 @@ trait HasPermissions
     }
 
     /**
+     * Build the values for a bulk permission effect update.
+     *
+     * @return array<string, mixed>
+     */
+    private function permissionEffectUpdate(BelongsToMany $relation, bool $isDenied): array
+    {
+        $values = ['is_denied' => $isDenied];
+
+        // Like updateExistingPivot(), keep a timestamped pivot's updated_at current.
+        if ($relation->hasPivotColumn($updatedAt = $relation->updatedAt())) {
+            $values[$updatedAt] = $this->freshTimestamp();
+        }
+
+        return $values;
+    }
+
+    /**
      * Build a collision-safe assignment ID identity.
      */
     protected function assignmentIdIdentity(int|string $id): string
@@ -1190,7 +1207,7 @@ trait HasPermissions
                 if ($relation->getPivotClass() === Pivot::class) {
                     $relation->newPivotQuery()
                         ->whereIn($relatedPivotKey, $updateAllowed)
-                        ->update(['is_denied' => false]);
+                        ->update($this->permissionEffectUpdate($relation, false));
                 } else {
                     foreach ($updateAllowed as $id) {
                         $relation->updateExistingPivot($id, ['is_denied' => false], false);
@@ -1202,7 +1219,7 @@ trait HasPermissions
                 if ($relation->getPivotClass() === Pivot::class) {
                     $relation->newPivotQuery()
                         ->whereIn($relatedPivotKey, $updateDenied)
-                        ->update(['is_denied' => true]);
+                        ->update($this->permissionEffectUpdate($relation, true));
                 } else {
                     foreach ($updateDenied as $id) {
                         $relation->updateExistingPivot($id, ['is_denied' => true], false);

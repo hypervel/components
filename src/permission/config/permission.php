@@ -36,7 +36,7 @@ return [
 
         /*
          * The model used when raw IDs are passed to reverse-assignment helpers.
-         * Set to null to use the authenticated guard's user model.
+         * Set to null to use the user model of the role's guard.
          */
         'default_model' => null,
     ],
