@@ -763,6 +763,8 @@ You may pass enum cases when creating and finding roles and permissions, and to 
 ```php
 use App\Enums\PermissionName;
 use App\Enums\RoleName;
+use Hypervel\Permission\Models\Permission;
+use Hypervel\Permission\Models\Role;
 
 $role = Role::create(['name' => RoleName::Writer]);
 $role = Role::findByName(RoleName::Writer);
@@ -1356,6 +1358,8 @@ All supported databases allow several `NULL` values in a unique key, so the uniq
 The current partition is part of every cache key the package uses, so each partition has its own cached roles, permissions, assignments, and wildcard indexes. The package's own changes only clear the cache entries of the partition they affect: changing a role in workspace A does not clear workspace B's cache.
 
 The `permission:cache-reset` command and `forgetCachedPermissions` method clear only the current partition and throw an exception when no partition is set. To reset every partition, loop over your own workspaces, set each one's context, and reset its cache.
+
+When a custom migration recreates partitioned tables, reset each affected partition's cache this way. Otherwise, cached assignments from the old tables may apply to new records that reuse their keys.
 
 Partitioning adds no queries to permission checks or assignments. Each query gains one partition condition, and each assignment row stores the partition value. Warm permission checks run no queries, and loading the role and permission catalog takes three queries, the same as without partitioning.
 
