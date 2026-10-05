@@ -121,20 +121,6 @@ trait EnforcesPermissionPartition
     }
 
     /**
-     * Initialize and mark eager-loaded relation collections.
-     *
-     * @param array<int, Model> $models
-     * @return array<int, Model>
-     */
-    public function initRelation(array $models, string $relation): array
-    {
-        $models = parent::initRelation($models, $relation);
-        $this->markPermissionRelationCollections($models, $relation);
-
-        return $models;
-    }
-
-    /**
      * Match and mark eager-loaded relation collections.
      *
      * @param array<int, Model> $models
@@ -143,7 +129,16 @@ trait EnforcesPermissionPartition
     public function match(array $models, EloquentCollection $results, string $relation): array
     {
         $models = parent::match($models, $results, $relation);
-        $this->markPermissionRelationCollections($models, $relation);
+
+        // Models without results keep the empty collection initRelation() gave them, so they are marked too.
+        foreach ($models as $model) {
+            $this->permissionPartitionRegistrar->markLoadedRelation(
+                $model,
+                $relation,
+                $model->getRelation($relation),
+                $this->permissionRelationContext,
+            );
+        }
 
         return $models;
     }
@@ -173,26 +168,5 @@ trait EnforcesPermissionPartition
         $this->permissionPartitionRegistrar->ensureTeamIsSelectedForMutation(
             $this->permissionRelationContext,
         );
-    }
-
-    /**
-     * Mark the loaded collection attached to each eager-loaded model.
-     *
-     * @param array<int, Model> $models
-     */
-    protected function markPermissionRelationCollections(array $models, string $relation): void
-    {
-        foreach ($models as $model) {
-            $collection = $model->getRelation($relation);
-
-            if ($collection instanceof Collection) {
-                $this->permissionPartitionRegistrar->markLoadedRelation(
-                    $model,
-                    $relation,
-                    $collection,
-                    $this->permissionRelationContext,
-                );
-            }
-        }
     }
 }

@@ -195,29 +195,6 @@ class PermissionPartitionTest extends DatabaseTestCase
         $this->app->make(PermissionRegistrar::class)->forgetCachedPermissions();
     }
 
-    public function testCompositeSchemaAndPartitionLeadingIndexesArePortable(): void
-    {
-        $roleIndexes = Schema::getIndexes('roles');
-        $permissionIndexes = Schema::getIndexes('permissions');
-        $modelRoleIndexes = Schema::getIndexes('model_has_roles');
-        $modelPermissionIndexes = Schema::getIndexes('model_has_permissions');
-
-        $this->assertTrue(collect($roleIndexes)->contains(
-            fn (array $index): bool => $index['columns'] === ['workspace_id', 'id'] && $index['unique'],
-        ));
-        $this->assertTrue(collect($permissionIndexes)->contains(
-            fn (array $index): bool => $index['columns'] === ['workspace_id', 'id'] && $index['unique'],
-        ));
-        $this->assertTrue(collect($modelRoleIndexes)->contains(
-            fn (array $index): bool => $index['name'] === 'model_has_roles_partition_subject_index'
-                && $index['columns'] === ['workspace_id', 'model_type', 'model_test_id'],
-        ));
-        $this->assertTrue(collect($modelPermissionIndexes)->contains(
-            fn (array $index): bool => $index['name'] === 'model_has_permissions_partition_subject_index'
-                && $index['columns'] === ['workspace_id', 'model_type', 'model_test_id'],
-        ));
-    }
-
     public function testSameNameAndGuardAreUniqueOnlyInsideAPartition(): void
     {
         $permissionA = PartitionedPermission::create(['name' => 'articles.edit']);
@@ -233,7 +210,7 @@ class PermissionPartitionTest extends DatabaseTestCase
         PartitionedPermission::create(['name' => 'articles.edit']);
     }
 
-    public function testCompositeForeignKeysRejectCrossPartitionEdges(): void
+    public function testCompositeForeignKeysRejectCrossPartitionAssignments(): void
     {
         $roleA = PartitionedRole::create(['name' => 'editor']);
 

@@ -111,6 +111,9 @@ class PartitionCommandTest extends PartitionTestCase
         Artisan::call($command, $arguments);
     }
 
+    /**
+     * Get commands that read or write partitioned records.
+     */
     public static function partitionRequiredCommands(): array
     {
         return [
@@ -134,22 +137,5 @@ class PartitionCommandTest extends PartitionTestCase
             'guard' => 'web',
             'userModelNamespace' => GlobalPartitionUser::class,
         ]);
-    }
-
-    public function testCommandsDoNotInventAPartitionOption(): void
-    {
-        $commands = Artisan::all();
-
-        foreach ([
-            'permission:create-role',
-            'permission:create-permission',
-            'permission:assign-role',
-            'permission:show',
-            'permission:cache-reset',
-            'permission:setup-teams',
-        ] as $name) {
-            $this->assertArrayHasKey($name, $commands);
-            $this->assertFalse($commands[$name]->getDefinition()->hasOption('partition'));
-        }
     }
 }

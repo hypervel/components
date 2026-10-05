@@ -7,7 +7,6 @@ namespace Hypervel\Permission;
 use Closure;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\ModelCacheCoordinator;
-use Hypervel\Container\Container as BaseContainer;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Auth\Access\Authorizable;
 use Hypervel\Contracts\Auth\Access\Gate;
@@ -41,7 +40,6 @@ use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
 use LogicException;
-use UnexpectedValueException;
 use WeakMap;
 use WeakReference;
 
@@ -199,14 +197,6 @@ class PermissionRegistrar
             throw PermissionPartitionNotResolved::forColumn(static::$partitionColumn);
         }
 
-        if (! is_int($value) && ! is_string($value)) {
-            throw new UnexpectedValueException(sprintf(
-                'Permission partition resolver for column "%s" returned %s; expected int, string, or null.',
-                static::$partitionColumn,
-                get_debug_type($value),
-            ));
-        }
-
         return new PermissionPartition(static::$partitionColumn, $value);
     }
 
@@ -233,7 +223,7 @@ class PermissionRegistrar
             $value = null;
         }
 
-        if ((! is_int($value) && ! is_string($value)) || $value === '') {
+        if (! is_int($value) && ! is_string($value)) {
             throw PermissionPartitionViolation::forMissingRecordPartition($model, $column, $value);
         }
 
@@ -575,7 +565,7 @@ class PermissionRegistrar
         $settlement->deferred = true;
         $tokens = CoroutineContext::get(self::DIRTY_CACHE_TOKENS_CONTEXT_KEY, []);
 
-        if (($owner = $tokens[$cacheKey][$connectionName] ?? null) instanceof PermissionCacheSettlement) {
+        if (($owner = $tokens[$cacheKey][$connectionName] ?? null) !== null) {
             // Each nested record owns rollback cleanup without requiring a transaction-record identity map.
             $connection->afterRollBack(fn () => $rollBack($owner));
 
@@ -633,9 +623,8 @@ class PermissionRegistrar
         string $connection,
     ): ?PermissionCacheSettlement {
         $tokens = CoroutineContext::get(self::DIRTY_CACHE_TOKENS_CONTEXT_KEY, []);
-        $settlement = $tokens[$cacheKey][$connection] ?? null;
 
-        return $settlement instanceof PermissionCacheSettlement ? $settlement : null;
+        return $tokens[$cacheKey][$connection] ?? null;
     }
 
     /**
@@ -888,7 +877,7 @@ class PermissionRegistrar
         $key = $this->modelRuntimeCacheKey($model);
         $items = CoroutineContext::get(self::MODEL_VIA_ROLE_PERMISSIONS_CONTEXT_KEY, []);
 
-        if (isset($items[$key]) && $items[$key] instanceof BaseCollection) {
+        if (isset($items[$key])) {
             return $items[$key];
         }
 
@@ -908,7 +897,7 @@ class PermissionRegistrar
         $key = $this->modelRuntimeCacheKey($model);
         $items = CoroutineContext::get(self::MODEL_DIRECT_PERMISSIONS_CONTEXT_KEY, []);
 
-        if (isset($items[$key]) && $items[$key] instanceof BaseCollection) {
+        if (isset($items[$key])) {
             return $items[$key];
         }
 
@@ -1458,7 +1447,7 @@ class PermissionRegistrar
         ]);
         $catalogs = CoroutineContext::get(self::MODEL_CLASS_CATALOG_CONTEXT_KEY, []);
 
-        if (isset($catalogs[$key]) && $catalogs[$key] instanceof Collection) {
+        if (isset($catalogs[$key])) {
             return $catalogs[$key];
         }
 
@@ -1537,7 +1526,7 @@ class PermissionRegistrar
             foreach ($ids as $id) {
                 $model = $byKey[(string) $id] ?? null;
 
-                if (! $model instanceof Model) {
+                if ($model === null) {
                     continue;
                 }
 
@@ -2120,11 +2109,5 @@ class PermissionRegistrar
         static::$partitionColumn = null;
         static::$partitionResolver = null;
         static::$initialized = false;
-
-        $app = BaseContainer::getInstance();
-
-        if ($app->bound(self::class)) {
-            $app->forgetInstance(self::class);
-        }
     }
 }

@@ -5,11 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Permission;
 
 use Composer\InstalledVersions;
-use Hypervel\Cache\ModelCacheCoordinator;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Access\Gate as GateContract;
 use Hypervel\Contracts\Auth\Factory as AuthFactory;
-use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Foundation\Console\AboutCommand;
 use Hypervel\Permission\Commands\AssignRoleCommand;
 use Hypervel\Permission\Commands\CacheResetCommand;
@@ -38,12 +36,6 @@ class PermissionServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->mergeConfigFrom(__DIR__ . '/../config/permission.php', 'permission');
-
-        $this->app->singleton(PermissionRegistrar::class, fn (Application $app): PermissionRegistrar => new PermissionRegistrar(
-            $app->make('config'),
-            $app,
-            $app->make(ModelCacheCoordinator::class),
-        ));
 
         $this->registerModelBindings();
 

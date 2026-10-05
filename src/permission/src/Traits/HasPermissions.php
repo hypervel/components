@@ -1577,7 +1577,7 @@ trait HasPermissions
         $guardName = $this->guardNameForPermissionMatch($permission, $guardName);
         $storedPermission = $this->permissionForMatch($permission, $guardName);
 
-        if (! $storedPermission instanceof Model) {
+        if ($storedPermission === null) {
             return false;
         }
 
