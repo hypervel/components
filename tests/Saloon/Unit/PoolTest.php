@@ -2,15 +2,18 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Saloon\Http;
+namespace Hypervel\Tests\Saloon\Unit;
 
 use DateInterval;
 use DateTimeInterface;
+use Generator;
+use GuzzleHttp\Promise\PromiseInterface;
 use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\Repository;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Exceptions\ChildCancellationException;
 use Hypervel\Engine\Channel;
@@ -28,6 +31,7 @@ use Hypervel\Saloon\Cache\Traits\HasCaching;
 use Hypervel\Saloon\Enums\Method;
 use Hypervel\Saloon\Exceptions\InvalidPoolItemException;
 use Hypervel\Saloon\Exceptions\PoolException;
+use Hypervel\Saloon\Facades\Saloon;
 use Hypervel\Saloon\Http\Connector;
 use Hypervel\Saloon\Http\Faking\MockClient;
 use Hypervel\Saloon\Http\Faking\MockResponse;
@@ -37,7 +41,11 @@ use Hypervel\Saloon\Http\Response;
 use Hypervel\Saloon\Http\Sender;
 use Hypervel\Saloon\RateLimit\Traits\HasRateLimits;
 use Hypervel\Saloon\SaloonManager;
-use Hypervel\Tests\TestCase;
+use Hypervel\Saloon\SaloonServiceProvider;
+use Hypervel\Support\Collection;
+use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Saloon\Fixtures\Connectors\TestConnector;
+use Hypervel\Tests\Saloon\Fixtures\Requests\UserRequest;
 use InvalidArgumentException;
 use Mockery as m;
 use RuntimeException;
@@ -46,8 +54,386 @@ use Throwable;
 
 use function Hypervel\Coroutine\parallel;
 
+// Pools send through coroutines, so send() returns the successful responses instead of a promise to wait on, and
+// handlers record what they receive for assertions afterwards. Connectors take no mock client, so the global fake
+// stands in for upstream's connector client.
+// REMOVED: Unit/AsyncRequestTest - sendAsync() is not ported. Its success, error-response and connection-error cases
+// map to Feature/PoolTest, and its then() chaining cases only test promises.
 class PoolTest extends TestCase
 {
+    /**
+     * Get the package providers.
+     */
+    protected function getPackageProviders(ApplicationContract $app): array
+    {
+        return [SaloonServiceProvider::class];
+    }
+
+    public function testAcceptsAnArrayForRequests(): void
+    {
+        Saloon::fake([
+            MockResponse::make(['name' => 'Sam']),
+            MockResponse::make(['name' => 'Charlotte']),
+            MockResponse::make(['name' => 'Mantas']),
+        ]);
+
+        $connector = new TestConnector;
+        $handled = [];
+
+        $requests = [
+            new UserRequest,
+            new UserRequest,
+            new UserRequest,
+        ];
+
+        $pool = $connector->pool($requests);
+
+        $pool->setConcurrency(5);
+
+        $pool->withResponseHandler(function (Response $response, int $index) use (&$handled): void {
+            $handled[$index] = $response->request();
+        });
+
+        $pool->send();
+
+        ksort($handled);
+
+        $this->assertSame($requests, $handled);
+    }
+
+    public function testAcceptsAnArrayForAliasedRequests(): void
+    {
+        Saloon::fake([
+            MockResponse::make(['name' => 'Sam']),
+            MockResponse::make(['name' => 'Charlotte']),
+            MockResponse::make(['name' => 'Mantas']),
+        ]);
+
+        $connector = new TestConnector;
+        $handled = [];
+
+        $requests = [
+            'a' => new UserRequest,
+            'b' => new UserRequest,
+            'c' => new UserRequest,
+        ];
+
+        $pool = $connector->pool($requests);
+
+        $pool->setConcurrency(5);
+
+        $pool->withResponseHandler(function (Response $response, string $name) use (&$handled): void {
+            $handled[$name] = $response->request();
+        });
+
+        $pool->send();
+
+        ksort($handled);
+
+        $this->assertSame($requests, $handled);
+    }
+
+    public function testAcceptsAGeneratorForRequests(): void
+    {
+        Saloon::fake([
+            MockResponse::make(['name' => 'Sam']),
+            MockResponse::make(['name' => 'Charlotte']),
+            MockResponse::make(['name' => 'Mantas']),
+        ]);
+
+        $connector = new TestConnector;
+        $handled = [];
+
+        $requests = new Collection;
+
+        $generatorCallback = function () use ($requests): Generator {
+            for ($i = 0; $i < 3; ++$i) {
+                $request = new UserRequest;
+                $requests->put($i, $request);
+
+                yield $i => $request;
+            }
+        };
+
+        $this->assertIsCallable($generatorCallback);
+        $this->assertInstanceOf(Generator::class, $generatorCallback());
+
+        $pool = $connector->pool($generatorCallback());
+        $pool->setConcurrency(5);
+        $pool->withResponseHandler(function (Response $response, int $index) use (&$handled): void {
+            $handled[$index] = $response->request();
+        });
+
+        $pool->send();
+
+        ksort($handled);
+
+        $this->assertCount(3, $handled);
+        $this->assertSame($requests->all(), $handled);
+    }
+
+    public function testAcceptsAGeneratorForAliasedRequests(): void
+    {
+        Saloon::fake([
+            MockResponse::make(['name' => 'Sam']),
+            MockResponse::make(['name' => 'Charlotte']),
+            MockResponse::make(['name' => 'Mantas']),
+        ]);
+
+        $connector = new TestConnector;
+        $handled = [];
+
+        $requests = new Collection;
+
+        $generatorCallback = function () use ($requests): Generator {
+            foreach (['a', 'b', 'c'] as $name) {
+                $request = new UserRequest;
+                $requests->put($name, $request);
+
+                yield $name => $request;
+            }
+        };
+
+        $this->assertIsCallable($generatorCallback);
+        $this->assertInstanceOf(Generator::class, $generatorCallback());
+
+        $pool = $connector->pool($generatorCallback());
+        $pool->setConcurrency(5);
+        $pool->withResponseHandler(function (Response $response, string $name) use (&$handled): void {
+            $handled[$name] = $response->request();
+        });
+
+        $pool->send();
+
+        ksort($handled);
+
+        $this->assertSame(['a', 'b', 'c'], $requests->keys()->all());
+        $this->assertSame($requests->all(), $handled);
+    }
+
+    // Request callbacks run when the pool is sent rather than when it is created, so handlers read the requests the
+    // callback builds by reference.
+    public function testAcceptsACallbackThatReturnsAnArrayForRequests(): void
+    {
+        Saloon::fake([
+            MockResponse::make(['name' => 'Sam']),
+            MockResponse::make(['name' => 'Charlotte']),
+            MockResponse::make(['name' => 'Mantas']),
+        ]);
+
+        $connector = new TestConnector;
+        $handled = [];
+
+        $requests = new Collection;
+
+        $arrayCallback = function () use (&$requests): array {
+            $requests = $requests->merge([
+                new UserRequest,
+                new UserRequest,
+                new UserRequest,
+            ]);
+
+            return $requests->all();
+        };
+
+        $this->assertIsCallable($arrayCallback);
+        $this->assertIsArray($requests->all());
+
+        $pool = $connector->pool($arrayCallback);
+
+        $pool->setConcurrency(5);
+
+        $pool->withResponseHandler(function (Response $response, int $index) use (&$handled): void {
+            $handled[$index] = $response->request();
+        });
+
+        $pool->send();
+
+        ksort($handled);
+
+        $this->assertCount(3, $handled);
+        $this->assertSame($requests->all(), $handled);
+    }
+
+    public function testAcceptsACallbackThatReturnsAnArrayForAliasedRequests(): void
+    {
+        Saloon::fake([
+            MockResponse::make(['name' => 'Sam']),
+            MockResponse::make(['name' => 'Charlotte']),
+            MockResponse::make(['name' => 'Mantas']),
+        ]);
+
+        $connector = new TestConnector;
+        $handled = [];
+        $callbackConnector = null;
+
+        $requests = new Collection;
+
+        $arrayCallback = function (Connector $received) use (&$requests, &$callbackConnector): array {
+            $callbackConnector = $received;
+
+            $requests = $requests->merge([
+                'a' => new UserRequest,
+                'b' => new UserRequest,
+                'c' => new UserRequest,
+            ]);
+
+            return $requests->all();
+        };
+
+        $this->assertIsCallable($arrayCallback);
+        $this->assertIsArray($requests->all());
+
+        $pool = $connector->pool($arrayCallback);
+        $pool->setConcurrency(5);
+        $pool->withResponseHandler(function (Response $response, string $name) use (&$handled): void {
+            $handled[$name] = $response->request();
+        });
+
+        $pool->send();
+
+        ksort($handled);
+
+        $this->assertSame($connector, $callbackConnector);
+        $this->assertSame(['a', 'b', 'c'], $requests->keys()->all());
+        $this->assertSame($requests->all(), $handled);
+    }
+
+    public function testAcceptsACallbackThatReturnsAGeneratorForRequests(): void
+    {
+        Saloon::fake([
+            UserRequest::class => MockResponse::make(['name' => 'Sam']),
+        ]);
+
+        $connector = new TestConnector;
+        $handled = [];
+
+        $requests = new Collection;
+
+        $generatorCallback = function () use ($requests): Generator {
+            for ($i = 0; $i < 3; ++$i) {
+                $request = new UserRequest;
+                $requests->put($i, $request);
+
+                yield $i => $request;
+            }
+        };
+
+        $this->assertIsCallable($generatorCallback);
+        $this->assertInstanceOf(Generator::class, $generatorCallback());
+
+        $pool = $connector->pool($generatorCallback);
+        $pool->setConcurrency(5);
+        $pool->withResponseHandler(function (Response $response, int $index) use (&$handled): void {
+            $handled[$index] = $response->request();
+        });
+
+        $pool->send();
+
+        ksort($handled);
+
+        $this->assertCount(3, $handled);
+        $this->assertSame($requests->all(), $handled);
+
+        // The callback produces a fresh generator on every send, so the pool can be sent again.
+        $firstRequests = $handled;
+        $handled = [];
+
+        $pool->send();
+
+        ksort($handled);
+
+        $this->assertCount(3, $handled);
+        $this->assertSame($requests->all(), $handled);
+        $this->assertNotSame($firstRequests, $handled);
+    }
+
+    public function testAcceptsACallbackThatReturnsAGeneratorForAliasedRequests(): void
+    {
+        Saloon::fake([
+            MockResponse::make(['name' => 'Sam']),
+            MockResponse::make(['name' => 'Charlotte']),
+            MockResponse::make(['name' => 'Mantas']),
+        ]);
+
+        $connector = new TestConnector;
+        $handled = [];
+
+        $requests = new Collection;
+
+        $generatorCallback = function () use ($requests): Generator {
+            foreach (['a', 'b', 'c'] as $name) {
+                $request = new UserRequest;
+                $requests->put($name, $request);
+
+                yield $name => $request;
+            }
+        };
+
+        $this->assertIsCallable($generatorCallback);
+        $this->assertInstanceOf(Generator::class, $generatorCallback());
+
+        $pool = $connector->pool($generatorCallback);
+        $pool->setConcurrency(5);
+        $pool->withResponseHandler(function (Response $response, string $name) use (&$handled): void {
+            $handled[$name] = $response->request();
+        });
+
+        $pool->send();
+
+        ksort($handled);
+
+        $this->assertSame(['a', 'b', 'c'], $requests->keys()->all());
+        $this->assertSame($requests->all(), $handled);
+    }
+
+    // Invalid items stop scheduling and are reported after the requests already started have settled.
+    public function testThrowsAnExceptionIfAnInvalidItemIsPassedIntoTheIterator(): void
+    {
+        Saloon::fake([
+            MockResponse::make(['name' => 'Sam']),
+            MockResponse::make(['name' => 'Charlotte']),
+        ]);
+
+        $connector = new TestConnector;
+
+        $pool = $connector->pool([
+            new UserRequest,
+            new UserRequest,
+            new TestConnector,
+        ]);
+
+        try {
+            $pool->send();
+            $this->fail('The invalid pool item was not rejected.');
+        } catch (PoolException $exception) {
+            $this->assertInstanceOf(InvalidPoolItemException::class, $exception->orchestrationFailure());
+            $this->assertSame([0, 1], array_keys($exception->responses()));
+        }
+    }
+
+    public function testYouCanGetTheRequestsProvidedIntoThePool(): void
+    {
+        $connector = new TestConnector;
+
+        $requests = [
+            new UserRequest,
+            new UserRequest,
+            new TestConnector,
+        ];
+
+        $pool = $connector->pool($requests);
+        $iterable = $pool->requests();
+
+        $this->assertIsIterable($iterable);
+
+        foreach ($iterable as $index => $request) {
+            $this->assertSame($requests[$index], $request);
+        }
+
+        $this->assertSame(2, $index);
+    }
+
     public function testPoolBoundsConcurrencyPreservesInputOrderAndPropagatesContext(): void
     {
         CoroutineContext::set('pool-tenant', 'tenant-a');
@@ -95,77 +481,28 @@ class PoolTest extends TestCase
         ], $handlerContexts);
     }
 
-    public function testHandledRequestFailuresAreOmittedAfterEveryChildSettles(): void
+    public function testProducerFailuresTakePrecedenceAndWaitForStartedChildren(): void
     {
+        $sendFailure = new RuntimeException('send failed');
+        $producerFailure = new RuntimeException('producer failed');
         $manager = $this->manager();
         $manager->fake([
-            PoolFailingRequestStub::class => MockResponse::make()->throw(new RuntimeException('failed')),
-            PoolRequestStub::class => MockResponse::make(['ok' => true]),
-        ]);
-        $handled = [];
-        $connector = new PoolConnectorStub($manager);
-
-        $responses = $connector->pool([
-            'failed' => new PoolFailingRequestStub,
-            'successful' => new PoolRequestStub(1),
-        ])->withExceptionHandler(function (RuntimeException $exception, string $key) use (&$handled): void {
-            $handled[$key] = $exception->getMessage();
-        })->send();
-
-        $this->assertSame(['failed' => 'failed'], $handled);
-        $this->assertSame(['successful'], array_keys($responses));
-    }
-
-    public function testPoolExceptionPreservesRequestCallbackAndPartialResults(): void
-    {
-        $manager = $this->manager();
-        $manager->fake([
-            PoolFailingRequestStub::class => MockResponse::make()->throw(new RuntimeException('send failed')),
+            PoolFailingRequestStub::class => MockResponse::make()->throw($sendFailure),
             PoolRequestStub::class => MockResponse::make(['ok' => true]),
         ]);
         $connector = new PoolConnectorStub($manager);
 
         try {
-            $connector->pool([
-                'failed' => new PoolFailingRequestStub,
-                'successful' => new PoolRequestStub(1),
-            ])->withResponseHandler(function (): void {
-                throw new RuntimeException('callback failed');
-            })->send();
-            $this->fail('The pool exception was not thrown.');
-        } catch (PoolException $exception) {
-            $this->assertSame('send failed', $exception->failures()['failed']->getMessage());
-            $this->assertSame('callback failed', $exception->callbackFailures()['successful']->getMessage());
-            $this->assertSame(['successful'], array_keys($exception->responses()));
-            $this->assertNull($exception->orchestrationFailure());
-        }
-    }
-
-    public function testInvalidItemsAndProducerFailuresWaitForStartedChildren(): void
-    {
-        $manager = $this->manager();
-        $manager->fake([PoolRequestStub::class => MockResponse::make(['ok' => true])]);
-        $connector = new PoolConnectorStub($manager);
-
-        try {
-            $connector->pool((function (): iterable {
+            $connector->pool(function () use ($producerFailure): iterable {
+                yield 'failed' => new PoolFailingRequestStub;
                 yield 'started' => new PoolRequestStub(1);
-                yield 'invalid' => new PoolConnectorStub($this->manager());
-            })())->send();
-            $this->fail('The invalid pool item was not rejected.');
-        } catch (PoolException $exception) {
-            $this->assertInstanceOf(InvalidPoolItemException::class, $exception->orchestrationFailure());
-            $this->assertSame(['started'], array_keys($exception->responses()));
-        }
-
-        try {
-            $connector->pool(function (): iterable {
-                yield 'started' => new PoolRequestStub(1);
-                throw new RuntimeException('producer failed');
+                throw $producerFailure;
             })->send();
             $this->fail('The producer failure was not returned.');
         } catch (PoolException $exception) {
-            $this->assertSame('producer failed', $exception->orchestrationFailure()?->getMessage());
+            $this->assertSame($producerFailure, $exception->orchestrationFailure());
+            $this->assertSame($producerFailure, $exception->getPrevious());
+            $this->assertSame(['failed' => $sendFailure], $exception->failures());
             $this->assertSame(['started'], array_keys($exception->responses()));
         }
     }
@@ -365,7 +702,7 @@ class PoolTest extends TestCase
     {
         $http = new Factory;
         $http->registerConnection('saloon');
-        $http->fake(function () {
+        $http->fake(function (): PromiseInterface {
             usleep(5000);
 
             return Factory::response(['ok' => true]);
@@ -463,15 +800,24 @@ class PoolTest extends TestCase
 
 class PoolConnectorStub extends Connector
 {
+    /**
+     * Create a connector that sends through the given manager.
+     */
     public function __construct(protected SaloonManager $manager)
     {
     }
 
+    /**
+     * Resolve the integration base URL.
+     */
     public function resolveBaseUrl(): string
     {
         return 'https://api.example.com';
     }
 
+    /**
+     * Send a request through the isolated manager.
+     */
     public function send(Request $request, ?MockClient $mockClient = null): Response
     {
         return $this->manager->send($this, $request, $mockClient);
@@ -482,11 +828,17 @@ class PoolRequestStub extends Request
 {
     protected Method $method = Method::GET;
 
+    /**
+     * Create a request identified by a query parameter.
+     */
     public function __construct(int $id)
     {
         $this->withQueryParameters(['id' => $id]);
     }
 
+    /**
+     * Define the endpoint for the request.
+     */
     public function resolveEndpoint(): string
     {
         return '/users';
@@ -497,6 +849,9 @@ class PoolFailingRequestStub extends Request
 {
     protected Method $method = Method::GET;
 
+    /**
+     * Define the endpoint for the request.
+     */
     public function resolveEndpoint(): string
     {
         return '/failure';
@@ -508,12 +863,19 @@ class ScopedPoolRequestStub extends PoolRequestStub implements Cacheable
     use HasCaching;
     use HasRateLimits;
 
+    /**
+     * Define the cache lifetime in seconds.
+     */
     public function cacheFor(): DateInterval|DateTimeInterface|int
     {
         return 60;
     }
 
-    /** @return list<AdmissionPolicy> */
+    /**
+     * Resolve the request's rate limits.
+     *
+     * @return list<AdmissionPolicy>
+     */
     protected function resolveRateLimits(PendingRequest $pendingRequest): array
     {
         return [Limit::perMinute(10)->by((string) $pendingRequest->request()->queryParameters()['id'])];

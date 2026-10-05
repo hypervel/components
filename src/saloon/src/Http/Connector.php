@@ -57,6 +57,9 @@ abstract class Connector
         return $manager->send($this, $request, $mockClient);
     }
 
+    // sendAsync() is not included: pool() sends concurrently through coroutines instead of promises. Upstream's
+    // deprecated sendAndRetry() is not included either; use retry() or defaultRetryPolicy(). See the package README.
+
     /**
      * Prepare a request for sending through this connector.
      *

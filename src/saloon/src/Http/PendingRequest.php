@@ -617,6 +617,9 @@ class PendingRequest
         return $this->fakeResponse;
     }
 
+    // isAsynchronous() and setAsynchronous() are not included: every pending request is sent synchronously, and pools
+    // send concurrently through coroutines. See the package README.
+
     /**
      * Validate the request's caching configuration.
      */

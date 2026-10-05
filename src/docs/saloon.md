@@ -1545,7 +1545,7 @@ $pool = $github->pool([
 
 $responses = $pool->send();
 
-$responses['hypervel']->throw();
+$responses['hypervel']->json();
 ```
 
 The pool also accepts a lazy iterable or a producer callback that receives the connector:
@@ -1557,6 +1557,8 @@ $responses = $github->pool(function (Connector $connector) use ($usernames) {
     }
 }, concurrency: 10)->send();
 ```
+
+The callback runs each time the pool is sent, so a pool whose callback returns a new iterable each time may be sent again. A generator passed directly can only be sent once.
 
 The concurrency value must be a positive integer. Scheduling blocks when the bound is full, so a lazy iterable does not create an unbounded queue of child coroutines.
 
@@ -1602,7 +1604,11 @@ $responses = $github->pool(
 )->send();
 ```
 
-A handled failure is omitted from the returned responses. Without an exception handler, or when a response or exception callback fails, Saloon waits for every started child and then throws `PoolException`. The exception provides `orchestrationFailure`, `failures`, `callbackFailures`, and `responses` methods so no completed work or cause is lost.
+A failed response is a request failure: when the response would throw, such as a `4xx` or `5xx` status or a request your [failure hooks](#error-handling) mark as failed, the exception handler receives its request exception, and `$exception->response()` returns the response. A handled failure is omitted from the returned responses.
+
+Without an exception handler, or when a response or exception callback fails, Saloon waits for every started child and then throws `PoolException`. The exception provides `orchestrationFailure`, `failures`, `callbackFailures`, and `responses` methods so no completed work or cause is lost. Its previous exception is the failure that stopped scheduling, otherwise the first request failure, or the first callback failure if no request failed, so reported pool failures show their cause.
+
+To stop sending early, end the request generator. Requests that have already started, or that are waiting for a free slot, still run to completion.
 
 <a name="caching"></a>
 ## Caching

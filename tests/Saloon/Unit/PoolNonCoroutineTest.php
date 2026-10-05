@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Saloon\Http;
+namespace Hypervel\Tests\Saloon\Unit;
 
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
@@ -64,15 +64,24 @@ class PoolNonCoroutineTest extends TestCase
 
 class PoolNonCoroutineConnectorStub extends Connector
 {
+    /**
+     * Create a connector that sends through the given manager.
+     */
     public function __construct(protected SaloonManager $manager)
     {
     }
 
+    /**
+     * Resolve the integration base URL.
+     */
     public function resolveBaseUrl(): string
     {
         return 'https://api.example.com';
     }
 
+    /**
+     * Send a request through the isolated manager.
+     */
     public function send(Request $request, ?MockClient $mockClient = null): Response
     {
         return $this->manager->send($this, $request, $mockClient);
@@ -83,6 +92,9 @@ class PoolNonCoroutineRequestStub extends Request
 {
     protected Method $method = Method::GET;
 
+    /**
+     * Define the endpoint for the request.
+     */
     public function resolveEndpoint(): string
     {
         return '/users';
