@@ -62,6 +62,9 @@ class SaloonServiceProvider extends ServiceProvider
             $options,
         );
 
+        // The plugin's Telescope, Pulse and Nightwatch middleware are not included: Saloon requests go through the
+        // HTTP client, which Telescope's watcher records, and Hypervel has no Pulse or Nightwatch package.
+
         $this->registerConsoleResources();
     }
 

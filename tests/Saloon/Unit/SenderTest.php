@@ -68,6 +68,12 @@ class SenderTest extends TestCase
 
     // REMOVED: the case that sets a class which does not implement the sender contract. There is no sender contract.
 
+    // laravel-plugin's Feature/TelescopeMiddlewareTest covers the plugin's own Telescope recording middleware. Saloon
+    // requests reach Telescope's HTTP client watcher instead, so these cases check the tags and opt-out passed to it,
+    // and Telescope's ClientRequestWatcherTest covers formatting and masking.
+    // REMOVED: laravel-plugin's Feature/PulseMiddlewareTest and Feature/NightwatchMiddlewareTest. Hypervel has no Pulse
+    // or Nightwatch package.
+
     public function testItSendsTheFinalOperationThroughTheSelectedHttpConnection(): void
     {
         $http = new Factory;
