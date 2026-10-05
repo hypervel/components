@@ -39,7 +39,7 @@ class Debugger
     }
 
     /**
-     * Terminate the current process.
+     * Stop the current request or command.
      */
     public static function terminate(): never
     {

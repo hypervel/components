@@ -177,6 +177,9 @@ class FixtureTest extends TestCase
         }
     }
 
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -188,6 +191,9 @@ class FixtureTest extends TestCase
         $this->bindManager(false);
     }
 
+    /**
+     * Clean up the test environment.
+     */
     protected function tearDown(): void
     {
         $this->files->deleteDirectory($this->fixturePath);

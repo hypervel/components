@@ -24,6 +24,9 @@ class SaloonClientTest extends TestCase
         return [SaloonServiceProvider::class];
     }
 
+    /**
+     * Set up the test server connection.
+     */
     protected function setUp(): void
     {
         parent::setUp();

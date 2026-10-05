@@ -354,6 +354,9 @@ class SaloonManagerTest extends TestCase
         $this->assertSame($response->toPsrRequest(), $response->pendingRequest()->toPsrRequest());
     }
 
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();

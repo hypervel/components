@@ -2,29 +2,72 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Saloon\Http;
+namespace Hypervel\Tests\Saloon\Unit;
 
 use GuzzleHttp\Cookie\CookieJarInterface;
+use GuzzleHttp\Promise\PromiseInterface;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Telescope\TelescopeTag;
 use Hypervel\Http\Client\Factory;
 use Hypervel\Http\Client\Request as HttpRequest;
 use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\Saloon\Enums\Method;
+use Hypervel\Saloon\Facades\Saloon;
 use Hypervel\Saloon\Http\Auth\BasicAuthenticator;
 use Hypervel\Saloon\Http\Connector;
 use Hypervel\Saloon\Http\PendingRequest;
 use Hypervel\Saloon\Http\Request;
 use Hypervel\Saloon\Http\Response;
 use Hypervel\Saloon\Http\Sender;
+use Hypervel\Saloon\SaloonServiceProvider;
 use Hypervel\Saloon\Traits\Body\HasJsonBody;
-use Hypervel\Tests\TestCase;
+use Hypervel\Support\Facades\Http;
+use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Saloon\Fixtures\Connectors\TestConnector;
+use Hypervel\Tests\Saloon\Fixtures\Requests\UserRequest;
 use Mockery as m;
 use Psr\Http\Message\RequestInterface;
 
+// Hypervel HTTP is Saloon's only transport. Connectors choose a named HTTP connection instead of a sender.
 class SenderTest extends TestCase
 {
+    public function testTheDefaultConnectionOnAllConnectorsIsTheSaloonConnection(): void
+    {
+        $connector = new TestConnector;
+        $sender = Saloon::sender();
+
+        $pendingRequest = $connector->createPendingRequest(new UserRequest);
+
+        $this->assertSame('saloon', $sender->resolveTransport($pendingRequest)['connection']);
+
+        // Test the same instance is re-used
+
+        $this->assertSame($sender, Saloon::sender());
+    }
+
+    // Upstream also overrides the sender through a connector property; connectors select their connection only
+    // through resolveHttpConnection().
+    public function testYouCanOverwriteTheConnectionOnAConnectorUsingTheResolveHttpConnectionMethod(): void
+    {
+        Http::registerConnection('secondary', ['timeout' => 12]);
+        $timeout = null;
+        Http::fake(function (HttpRequest $request, array $options) use (&$timeout): PromiseInterface {
+            $timeout = $options['timeout'];
+
+            return Http::response('Default', 200, ['X-Fake' => 'true']);
+        });
+
+        $response = (new SecondaryConnectionConnectorStub)->send(new UserRequest);
+
+        $this->assertSame(12, $timeout);
+        $this->assertSame('true', $response->header('X-Fake'));
+        $this->assertSame('Default', $response->body());
+    }
+
+    // REMOVED: the case that sets a class which does not implement the sender contract. There is no sender contract.
+
     public function testItSendsTheFinalOperationThroughTheSelectedHttpConnection(): void
     {
         $http = new Factory;
@@ -34,7 +77,7 @@ class SenderTest extends TestCase
         ]);
         $capturedRequest = null;
         $capturedOptions = null;
-        $http->fake(function (HttpRequest $request, array $options) use (&$capturedRequest, &$capturedOptions) {
+        $http->fake(function (HttpRequest $request, array $options) use (&$capturedRequest, &$capturedOptions): PromiseInterface {
             $capturedRequest = $request;
             $capturedOptions = $options;
 
@@ -80,7 +123,7 @@ class SenderTest extends TestCase
         $http = new Factory;
         $http->registerConnection('saloon');
         $capturedOptions = null;
-        $http->fake(function (HttpRequest $request, array $options) use (&$capturedOptions) {
+        $http->fake(function (HttpRequest $request, array $options) use (&$capturedOptions): PromiseInterface {
             $capturedOptions = $options;
 
             return Factory::response();
@@ -97,6 +140,17 @@ class SenderTest extends TestCase
         $this->assertSame([TelescopeTag::Saloon], $capturedOptions['telescope_tags']);
     }
 
+    /**
+     * Get the package providers.
+     */
+    protected function getPackageProviders(ApplicationContract $app): array
+    {
+        return [SaloonServiceProvider::class];
+    }
+
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -131,13 +185,30 @@ class SenderTest extends TestCase
     }
 }
 
+class SecondaryConnectionConnectorStub extends TestConnector
+{
+    /**
+     * Resolve the HTTP connection used by this connector.
+     */
+    public function resolveHttpConnection(): ?string
+    {
+        return 'secondary';
+    }
+}
+
 class SenderConnectorStub extends Connector
 {
+    /**
+     * Resolve the integration base URL.
+     */
     public function resolveBaseUrl(): string
     {
         return 'https://api.example.com';
     }
 
+    /**
+     * Resolve the default query parameters.
+     */
     protected function defaultQuery(): array
     {
         return ['version' => 1];
@@ -154,11 +225,17 @@ class SenderRequestStub extends Request
 
     protected ?string $response = SenderResponseStub::class;
 
+    /**
+     * Resolve the request endpoint.
+     */
     public function resolveEndpoint(): string
     {
         return '/users';
     }
 
+    /**
+     * Modify the final PSR request.
+     */
     public function handlePsrRequest(RequestInterface $request, PendingRequest $pendingRequest): RequestInterface
     {
         ++static::$psrHookCalls;

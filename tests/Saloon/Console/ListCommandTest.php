@@ -20,6 +20,9 @@ class ListCommandTest extends TestCase
         return [SaloonServiceProvider::class];
     }
 
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -28,6 +31,9 @@ class ListCommandTest extends TestCase
         (new Filesystem)->deleteDirectory($this->integrationsPath);
     }
 
+    /**
+     * Clean up the test environment.
+     */
     protected function tearDown(): void
     {
         (new Filesystem)->deleteDirectory($this->integrationsPath);

@@ -25,6 +25,9 @@ class GeneratorCommandsTest extends TestCase
         return [SaloonServiceProvider::class];
     }
 
+    /**
+     * Clean up the test environment.
+     */
     protected function tearDown(): void
     {
         $files = new Filesystem;

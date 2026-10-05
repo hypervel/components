@@ -161,6 +161,9 @@ class MockClientTest extends TestCase
         $this->assertNull(MockClient::getGlobal());
     }
 
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -171,6 +174,9 @@ class MockClientTest extends TestCase
         $this->files->ensureDirectoryExists($this->fixturePath);
     }
 
+    /**
+     * Clean up the test environment.
+     */
     protected function tearDown(): void
     {
         $this->files->deleteDirectory($this->fixturePath);

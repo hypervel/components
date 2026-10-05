@@ -376,6 +376,9 @@ class PendingRequestTest extends TestCase
         return [SaloonServiceProvider::class];
     }
 
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();

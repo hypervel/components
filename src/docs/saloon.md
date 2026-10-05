@@ -1096,7 +1096,7 @@ $response->toPsrResponse();
 $response->dataUrl();
 ```
 
-The `dataUrl` method returns the response body as a base64 data URL using its `Content-Type` header.
+The `dataUrl` method returns the response body as a base64 data URL using its `Content-Type` header. The `isJson` and `isXml` methods check whether that header names a JSON or XML type, and `array` is an alias of `json`.
 
 You may use [`lines` and `jsonLines`](/docs/{{version}}/http-client#streaming-responses) to process a response as it arrives. Enable the `stream` request option and leave response caching and fixture recording disabled, since both read the body before returning the response.
 
@@ -1236,7 +1236,9 @@ if ($response->failed()) {
 $response->throw();
 ```
 
-By default, 4xx responses throw `ClientException`, 5xx responses throw `ServerException`, and other integration-defined failures throw `RequestException`. Transport failures throw `FatalRequestException`.
+Common statuses throw an exception named after them from the `Hypervel\Saloon\Exceptions\Request\Statuses` namespace, such as `NotFoundException` or `TooManyRequestsException`. These extend `ClientException` for 4xx responses and `ServerException` for 5xx responses, which other 4xx and 5xx responses throw directly. Other integration-defined failures throw `RequestException`.
+
+A request that could not complete throws `FatalRequestException`. This includes failed connections and transfers that break while the response is being received, whatever status the partial response has.
 
 You may define provider-specific failure behavior on a request or connector:
 
@@ -1254,7 +1256,22 @@ public function shouldThrowRequestException(Response $response): bool
 
 In this example, the integration treats a 404 response as an empty result instead of an exception.
 
-A non-null request failure decision takes precedence over the connector decision, which takes precedence over the status-code fallback. You may return a custom Saloon request exception from `getRequestException`. The `AlwaysThrowOnErrors` plugin calls `throw` automatically after each response.
+A non-null request failure decision takes precedence over the connector decision, which takes precedence over the status-code fallback. You may return a custom Saloon request exception from `getRequestException`, and a request's exception takes precedence over its connector's. To give a custom exception its own message, override its `prepareMessage` method:
+
+```php
+use Hypervel\Http\Client\Response;
+use Hypervel\Saloon\Exceptions\Request\RequestException;
+
+class GitHubException extends RequestException
+{
+    protected function prepareMessage(Response $response): string
+    {
+        return 'GitHub: ' . $response->json('message');
+    }
+}
+```
+
+The `AlwaysThrowOnErrors` plugin calls `throw` automatically after each response.
 
 <a name="retries"></a>
 ### Retries
@@ -1291,7 +1308,7 @@ $request->debugRequest();
 $request->debugResponse();
 ```
 
-The `debugRequest` and `debugResponse` methods accept a custom callback. All three methods accept `die: true`, which terminates the current worker process and is intended only for local debugging.
+To debug every request sent through a connector, call the same methods on the pending request from the connector's `boot` method. The `debugRequest` and `debugResponse` methods accept a custom callback. All three methods accept `die: true`, which stops the current request or command after the output and is intended only for local debugging.
 
 > [!WARNING]
 > Debug output contains raw headers and bodies and may expose credentials or other sensitive values. Custom callbacks are also responsible for any stream reads they perform.
@@ -2301,7 +2318,7 @@ Hypervel Saloon keeps the connector, request, middleware, authentication, respon
 - Saloon responses extend Hypervel HTTP responses rather than forwarding a selected subset of methods.
 - Test fixture settings are configured through the `Saloon` facade instead of a process-global mock configuration object.
 - Application-wide stray-request protection uses `Http::preventStrayRequests()`. Saloon mock clients separately control unmatched requests while they are active.
-- The optional `xmlReader` response extension is not included. Use the built-in `xml` or `dom` methods instead.
+- The `xmlReader` response method is not included. Use the `xml` or `dom` methods, or install [XML Wrangler](https://github.com/saloonphp/xml-wrangler) and pass `$response->toPsrResponse()` to `XmlReader::fromPsrResponse()`.
 
 These differences remove framework-neutral adapter layers while retaining the public concepts needed to build complete integrations and reusable SDKs for Hypervel.
 
