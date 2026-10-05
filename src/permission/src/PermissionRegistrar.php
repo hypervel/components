@@ -7,7 +7,6 @@ namespace Hypervel\Permission;
 use Closure;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\ModelCacheCoordinator;
-use Hypervel\Container\Container as BaseContainer;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Auth\Access\Authorizable;
 use Hypervel\Contracts\Auth\Access\Gate;
@@ -16,6 +15,7 @@ use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Database\Connection;
+use Hypervel\Database\ConnectionName;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
@@ -23,6 +23,7 @@ use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Permission\Contracts\Permission as PermissionContract;
 use Hypervel\Permission\Contracts\PermissionsTeamResolver;
 use Hypervel\Permission\Contracts\Role as RoleContract;
+use Hypervel\Permission\Contracts\Wildcard;
 use Hypervel\Permission\Exceptions\PermissionConnectionMismatch;
 use Hypervel\Permission\Exceptions\PermissionPartitionAlreadyConfigured;
 use Hypervel\Permission\Exceptions\PermissionPartitionModelNotSupported;
@@ -39,7 +40,6 @@ use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
 use LogicException;
-use UnexpectedValueException;
 use WeakMap;
 use WeakReference;
 
@@ -52,6 +52,8 @@ class PermissionRegistrar
     public const string DEFAULT_PERMISSION_PIVOT_KEY = 'permission_id';
 
     public const string DEFAULT_TEAM_FOREIGN_KEY = 'team_id';
+
+    public const int DEFAULT_CACHE_EXPIRATION_SECONDS = 86400;
 
     public const array DEFAULT_CACHE_COLUMN_NAMES_EXCEPT = ['created_at', 'updated_at', 'deleted_at'];
 
@@ -110,6 +112,8 @@ class PermissionRegistrar
 
     protected string $modelCacheTokenKey;
 
+    protected CacheManager $cacheManager;
+
     protected ?string $cacheStoreName = null;
 
     /**
@@ -126,7 +130,6 @@ class PermissionRegistrar
      * Create a new permission registrar.
      */
     public function __construct(
-        protected CacheManager $cacheManager,
         protected ConfigRepository $config,
         protected Container $app,
         protected ModelCacheCoordinator $modelCacheCoordinator,
@@ -194,14 +197,6 @@ class PermissionRegistrar
             throw PermissionPartitionNotResolved::forColumn(static::$partitionColumn);
         }
 
-        if (! is_int($value) && ! is_string($value)) {
-            throw new UnexpectedValueException(sprintf(
-                'Permission partition resolver for column "%s" returned %s; expected int, string, or null.',
-                static::$partitionColumn,
-                get_debug_type($value),
-            ));
-        }
-
         return new PermissionPartition(static::$partitionColumn, $value);
     }
 
@@ -228,7 +223,7 @@ class PermissionRegistrar
             $value = null;
         }
 
-        if ((! is_int($value) && ! is_string($value)) || $value === '') {
+        if (! is_int($value) && ! is_string($value)) {
             throw PermissionPartitionViolation::forMissingRecordPartition($model, $column, $value);
         }
 
@@ -277,14 +272,17 @@ class PermissionRegistrar
         /** @var null|class-string<Model> $teamClass */
         $teamClass = $this->config->get('permission.models.team');
         /** @var class-string<PermissionsTeamResolver> $teamResolverClass */
-        $teamResolverClass = $this->config->string('permission.team_resolver', DefaultTeamResolver::class);
+        $teamResolverClass = $this->config->string('permission.team_resolver');
 
         $this->permissionClass = $permissionClass;
         $this->roleClass = $roleClass;
         $this->teamClass = $teamClass;
         $this->teamResolver = $this->app->make($teamResolverClass);
 
-        $this->cacheExpirationTime = $this->config->integer('permission.cache.expiration_seconds', 86400);
+        $this->cacheExpirationTime = $this->config->integer(
+            'permission.cache.expiration_seconds',
+            self::DEFAULT_CACHE_EXPIRATION_SECONDS,
+        );
         $this->teams = $this->config->boolean('permission.teams');
         $this->teamsKey = $this->config->string(
             'permission.column_names.team_foreign_key',
@@ -314,6 +312,10 @@ class PermissionRegistrar
         $this->pivotPermission = is_string($pivotPermission) && $pivotPermission !== ''
             ? $pivotPermission
             : self::DEFAULT_PERMISSION_PIVOT_KEY;
+
+        // Resolve the manager here rather than in the constructor, so reinitializing after the
+        // 'cache' binding is replaced doesn't keep using stores memoized by the previous manager.
+        $this->cacheManager = $this->app->make('cache');
 
         $cacheStore = $this->config->string('permission.cache.store', 'default');
         $this->cacheStoreName = $cacheStore === 'default' ? null : $cacheStore;
@@ -563,7 +565,7 @@ class PermissionRegistrar
         $settlement->deferred = true;
         $tokens = CoroutineContext::get(self::DIRTY_CACHE_TOKENS_CONTEXT_KEY, []);
 
-        if (($owner = $tokens[$cacheKey][$connectionName] ?? null) instanceof PermissionCacheSettlement) {
+        if (($owner = $tokens[$cacheKey][$connectionName] ?? null) !== null) {
             // Each nested record owns rollback cleanup without requiring a transaction-record identity map.
             $connection->afterRollBack(fn () => $rollBack($owner));
 
@@ -621,9 +623,8 @@ class PermissionRegistrar
         string $connection,
     ): ?PermissionCacheSettlement {
         $tokens = CoroutineContext::get(self::DIRTY_CACHE_TOKENS_CONTEXT_KEY, []);
-        $settlement = $tokens[$cacheKey][$connection] ?? null;
 
-        return $settlement instanceof PermissionCacheSettlement ? $settlement : null;
+        return $tokens[$cacheKey][$connection] ?? null;
     }
 
     /**
@@ -773,165 +774,6 @@ class PermissionRegistrar
     }
 
     /**
-     * Forget a model's direct role and permission assignment caches.
-     */
-    public function forgetModelAssignmentCache(Model $model): void
-    {
-        $this->forgetModelAssignmentCacheFor(
-            $model,
-            $this->resolvePartition(),
-            $this->teams ? $this->getPermissionsTeamId() : null,
-        );
-    }
-
-    /**
-     * Forget a model's assignment caches for an explicit partition and team.
-     */
-    public function forgetModelAssignmentCacheFor(
-        Model $model,
-        ?PermissionPartition $partition,
-        int|string|null $team,
-    ): void {
-        $this->forgetModelAssignmentCacheForIdentity(
-            $model->getMorphClass(),
-            (string) $model->getKey(),
-            $partition,
-            $team,
-        );
-    }
-
-    /**
-     * Forget assignment caches for an explicit morph identity, partition, and team.
-     */
-    public function forgetModelAssignmentCacheForIdentity(
-        string $morphType,
-        int|string $modelKey,
-        ?PermissionPartition $partition,
-        int|string|null $team,
-    ): void {
-        $cache = $this->cacheRepository();
-
-        $this->modelCacheCoordinator->invalidate(
-            $cache,
-            $this->modelCacheKeyForIdentity(
-                $this->modelRolesCacheKeyPrefix,
-                $morphType,
-                $modelKey,
-                $partition,
-                $team,
-            ),
-        );
-        $this->modelCacheCoordinator->invalidate(
-            $cache,
-            $this->modelCacheKeyForIdentity(
-                $this->modelPermissionsCacheKeyPrefix,
-                $morphType,
-                $modelKey,
-                $partition,
-                $team,
-            ),
-        );
-
-        $runtimeKey = $this->modelRuntimeCacheKeyForIdentity(
-            $morphType,
-            $modelKey,
-            $partition,
-            $team,
-        );
-
-        $this->forgetRuntimeCacheItem(self::MODEL_VIA_ROLE_PERMISSIONS_CONTEXT_KEY, $runtimeKey);
-        $this->forgetRuntimeCacheItem(self::MODEL_DIRECT_PERMISSIONS_CONTEXT_KEY, $runtimeKey);
-        $this->forgetRuntimeCacheItem(self::WILDCARD_PERMISSION_INDEX_CONTEXT_KEY, $runtimeKey);
-    }
-
-    /**
-     * Invalidate assignment caches after a model mutation settles.
-     */
-    public function invalidateModelAssignmentCacheAfterMutation(
-        Model $model,
-        ?PermissionPartition $partition,
-        int|string|null $team,
-    ): void {
-        $this->invalidateModelAssignmentCacheForIdentityAfterMutation(
-            $model->getMorphClass(),
-            (string) $model->getKey(),
-            $partition,
-            $team,
-        );
-    }
-
-    /**
-     * Invalidate assignment caches for an exact identity after a mutation settles.
-     */
-    public function invalidateModelAssignmentCacheForIdentityAfterMutation(
-        string $morphType,
-        int|string $modelKey,
-        ?PermissionPartition $partition,
-        int|string|null $team,
-    ): void {
-        $runtimeKey = $this->modelRuntimeCacheKeyForIdentity(
-            $morphType,
-            $modelKey,
-            $partition,
-            $team,
-        );
-        $clearRuntime = function () use ($runtimeKey): void {
-            $this->forgetRuntimeCacheItem(self::MODEL_VIA_ROLE_PERMISSIONS_CONTEXT_KEY, $runtimeKey);
-            $this->forgetRuntimeCacheItem(self::MODEL_DIRECT_PERMISSIONS_CONTEXT_KEY, $runtimeKey);
-            $this->forgetRuntimeCacheItem(self::WILDCARD_PERMISSION_INDEX_CONTEXT_KEY, $runtimeKey);
-        };
-
-        foreach ([$this->modelRolesCacheKeyPrefix, $this->modelPermissionsCacheKeyPrefix] as $prefix) {
-            $this->settleCacheMutation(
-                $this->modelCacheKeyForIdentity($prefix, $morphType, $modelKey, $partition, $team),
-                $clearRuntime,
-            );
-        }
-    }
-
-    /**
-     * Forget a model's cached role assignments.
-     */
-    public function forgetModelRoleCache(Model $model): void
-    {
-        $this->forgetModelRoleCacheFor(
-            $model,
-            $this->resolvePartition(),
-            $this->teams ? $this->getPermissionsTeamId() : null,
-        );
-    }
-
-    /**
-     * Forget a model's role assignment cache for an explicit partition and team.
-     */
-    public function forgetModelRoleCacheFor(
-        Model $model,
-        ?PermissionPartition $partition,
-        int|string|null $team,
-    ): void {
-        $this->modelCacheCoordinator->invalidate(
-            $this->cacheRepository(),
-            $this->modelCacheKeyForIdentity(
-                $this->modelRolesCacheKeyPrefix,
-                $model->getMorphClass(),
-                (string) $model->getKey(),
-                $partition,
-                $team,
-            ),
-        );
-
-        $runtimeKey = $this->modelRuntimeCacheKeyForIdentity(
-            $model->getMorphClass(),
-            (string) $model->getKey(),
-            $partition,
-            $team,
-        );
-
-        $this->forgetRuntimeCacheItem(self::MODEL_VIA_ROLE_PERMISSIONS_CONTEXT_KEY, $runtimeKey);
-        $this->forgetRuntimeCacheItem(self::WILDCARD_PERMISSION_INDEX_CONTEXT_KEY, $runtimeKey);
-    }
-
-    /**
      * Invalidate a model's role cache after a mutation settles.
      */
     public function invalidateModelRoleCacheAfterMutation(
@@ -976,48 +818,6 @@ class PermissionRegistrar
                 $this->forgetRuntimeCacheItem(self::WILDCARD_PERMISSION_INDEX_CONTEXT_KEY, $runtimeKey);
             },
         );
-    }
-
-    /**
-     * Forget a model's cached permission assignments.
-     */
-    public function forgetModelPermissionCache(Model $model): void
-    {
-        $this->forgetModelPermissionCacheFor(
-            $model,
-            $this->resolvePartition(),
-            $this->teams ? $this->getPermissionsTeamId() : null,
-        );
-    }
-
-    /**
-     * Forget a model's permission assignment cache for an explicit partition and team.
-     */
-    public function forgetModelPermissionCacheFor(
-        Model $model,
-        ?PermissionPartition $partition,
-        int|string|null $team,
-    ): void {
-        $this->modelCacheCoordinator->invalidate(
-            $this->cacheRepository(),
-            $this->modelCacheKeyForIdentity(
-                $this->modelPermissionsCacheKeyPrefix,
-                $model->getMorphClass(),
-                (string) $model->getKey(),
-                $partition,
-                $team,
-            ),
-        );
-
-        $runtimeKey = $this->modelRuntimeCacheKeyForIdentity(
-            $model->getMorphClass(),
-            (string) $model->getKey(),
-            $partition,
-            $team,
-        );
-
-        $this->forgetRuntimeCacheItem(self::MODEL_DIRECT_PERMISSIONS_CONTEXT_KEY, $runtimeKey);
-        $this->forgetRuntimeCacheItem(self::WILDCARD_PERMISSION_INDEX_CONTEXT_KEY, $runtimeKey);
     }
 
     /**
@@ -1077,7 +877,7 @@ class PermissionRegistrar
         $key = $this->modelRuntimeCacheKey($model);
         $items = CoroutineContext::get(self::MODEL_VIA_ROLE_PERMISSIONS_CONTEXT_KEY, []);
 
-        if (isset($items[$key]) && $items[$key] instanceof BaseCollection) {
+        if (isset($items[$key])) {
             return $items[$key];
         }
 
@@ -1085,17 +885,6 @@ class PermissionRegistrar
         CoroutineContext::set(self::MODEL_VIA_ROLE_PERMISSIONS_CONTEXT_KEY, $items);
 
         return $items[$key];
-    }
-
-    /**
-     * Forget a model's permissions granted through roles.
-     */
-    public function forgetModelViaRolePermissions(Model $model): void
-    {
-        $this->forgetRuntimeCacheItem(
-            self::MODEL_VIA_ROLE_PERMISSIONS_CONTEXT_KEY,
-            $this->modelRuntimeCacheKey($model),
-        );
     }
 
     /**
@@ -1108,7 +897,7 @@ class PermissionRegistrar
         $key = $this->modelRuntimeCacheKey($model);
         $items = CoroutineContext::get(self::MODEL_DIRECT_PERMISSIONS_CONTEXT_KEY, []);
 
-        if (isset($items[$key]) && $items[$key] instanceof BaseCollection) {
+        if (isset($items[$key])) {
             return $items[$key];
         }
 
@@ -1286,6 +1075,28 @@ class PermissionRegistrar
      */
     public function getWildcardPermissionIndex(Model $record): array
     {
+        return $this->wildcardPermissionIndexes($record)['allowed'];
+    }
+
+    /**
+     * Get the wildcard index of a model's denied permissions.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    public function getDeniedWildcardPermissionIndex(Model $record): array
+    {
+        return $this->wildcardPermissionIndexes($record)['denied'];
+    }
+
+    /**
+     * Get a model's allowed and denied wildcard indexes.
+     *
+     * Both live in one entry, so every wildcard index invalidation clears them together.
+     *
+     * @return array{allowed: array<string, array<string, mixed>>, denied: array<string, array<string, mixed>>}
+     */
+    private function wildcardPermissionIndexes(Model $record): array
+    {
         $key = $this->wildcardPermissionIndexKey($record);
         $indexes = CoroutineContext::get(self::WILDCARD_PERMISSION_INDEX_CONTEXT_KEY, []);
 
@@ -1293,15 +1104,16 @@ class PermissionRegistrar
             return $indexes[$key];
         }
 
-        $getWildcardClass = Closure::fromCallable([$record, 'getWildcardClass']);
+        /** @var Wildcard $wildcard */
+        $wildcard = $this->app->make($record->getWildcardClass(), ['record' => $record]); // @phpstan-ignore method.notFound (the record uses HasPermissions)
 
-        /** @var array<string, array<string, mixed>> $index */
-        $index = $this->app->make($getWildcardClass(), ['record' => $record])->getIndex();
-
-        $indexes[$key] = $index;
+        $indexes[$key] = [
+            'allowed' => $wildcard->getIndex(),
+            'denied' => $wildcard->getDeniedIndex(),
+        ];
         CoroutineContext::set(self::WILDCARD_PERMISSION_INDEX_CONTEXT_KEY, $indexes);
 
-        return $index;
+        return $indexes[$key];
     }
 
     /**
@@ -1515,17 +1327,19 @@ class PermissionRegistrar
         );
 
         $roles = $this->getHydratedRoleCollection($payload['roles']);
-        $permissions = $this->getHydratedPermissionCollection($payload['permissions'], $roles);
+        $roleIndexes = $this->indexModels($roles);
+        $permissions = $this->getHydratedPermissionCollection($payload['permissions'], $roleIndexes['byKey']);
+        $permissionIndexes = $this->indexModels($permissions);
 
         $catalog = [
             'roles' => $roles,
             'permissions' => $permissions,
-            'permissionByKey' => $this->indexModelsByKey($permissions),
-            'permissionByNameAndGuard' => $this->indexModelsByNameAndGuard($permissions),
-            'permissionOrderByKey' => $this->indexModelOrderByKey($permissions),
-            'roleByKey' => $this->indexModelsByKey($roles),
-            'roleByNameAndGuard' => $this->indexModelsByNameAndGuard($roles),
-            'roleOrderByKey' => $this->indexModelOrderByKey($roles),
+            'permissionByKey' => $permissionIndexes['byKey'],
+            'permissionByNameAndGuard' => $permissionIndexes['byNameAndGuard'],
+            'permissionOrderByKey' => $permissionIndexes['orderByKey'],
+            'roleByKey' => $roleIndexes['byKey'],
+            'roleByNameAndGuard' => $roleIndexes['byNameAndGuard'],
+            'roleOrderByKey' => $roleIndexes['orderByKey'],
             'hasDeniedRolePermissions' => (bool) $payload['hasDeniedRolePermissions'],
         ];
 
@@ -1633,7 +1447,7 @@ class PermissionRegistrar
         ]);
         $catalogs = CoroutineContext::get(self::MODEL_CLASS_CATALOG_CONTEXT_KEY, []);
 
-        if (isset($catalogs[$key]) && $catalogs[$key] instanceof Collection) {
+        if (isset($catalogs[$key])) {
             return $catalogs[$key];
         }
 
@@ -1712,7 +1526,7 @@ class PermissionRegistrar
             foreach ($ids as $id) {
                 $model = $byKey[(string) $id] ?? null;
 
-                if (! $model instanceof Model) {
+                if ($model === null) {
                     continue;
                 }
 
@@ -1921,6 +1735,7 @@ class PermissionRegistrar
     {
         $this->validatePermissionClass($permissionClass);
         $this->permissionClass = $permissionClass;
+        $this->config->set('permission.models.permission', $permissionClass);
         $this->app->bind(PermissionContract::class, $permissionClass);
         $this->forgetCachedPermissions();
 
@@ -1949,6 +1764,7 @@ class PermissionRegistrar
     {
         $this->validateRoleClass($roleClass);
         $this->roleClass = $roleClass;
+        $this->config->set('permission.models.role', $roleClass);
         $this->app->bind(RoleContract::class, $roleClass);
         $this->forgetCachedPermissions();
 
@@ -1995,6 +1811,7 @@ class PermissionRegistrar
     public function setTeamClass(?string $teamClass): static
     {
         $this->teamClass = $teamClass;
+        $this->config->set('permission.models.team', $teamClass);
         $this->forgetCachedPermissions();
 
         return $this;
@@ -2046,35 +1863,28 @@ class PermissionRegistrar
             self::DEFAULT_CACHE_COLUMN_NAMES_EXCEPT,
         );
         $hasDeniedRolePermissions = false;
-        $partition = $this->resolvePartition();
 
         return [
             'permissions' => $this->getPermissionsWithRoles()
-                ->map(function (Model $permission) use ($except, &$hasDeniedRolePermissions, $partition): array {
-                    $roles = $this->relationCollection($permission, 'roles')
-                        ->map(function (Model $role) use ($permission, &$hasDeniedRolePermissions, $partition): array {
-                            $isDenied = $this->pivotIsDenied($role);
-                            $hasDeniedRolePermissions = $hasDeniedRolePermissions || $isDenied;
-                            $pivot = [
-                                $this->pivotPermission => $permission->getKey(),
-                                $this->pivotRole => $role->getKey(),
-                                'is_denied' => $isDenied,
-                            ];
+                ->map(function (Model $permission) use ($except, &$hasDeniedRolePermissions): array {
+                    $roleKeys = [];
+                    $deniedRoleKeys = [];
 
-                            if ($partition) {
-                                $pivot[$partition->column] = $partition->value;
-                            }
+                    foreach ($permission->getRelation('roles') as $role) {
+                        $roleKeys[] = $role->getKey();
 
-                            return [
-                                'pivot' => $pivot,
-                            ];
-                        })
-                        ->values()
-                        ->all();
+                        if ($role->getRelation('pivot')->is_denied) {
+                            $deniedRoleKeys[] = $role->getKey();
+                        }
+                    }
 
+                    $hasDeniedRolePermissions = $hasDeniedRolePermissions || $deniedRoleKeys !== [];
+
+                    // Role keys instead of pivot rows keep the payload small; hydration rebuilds the pivots.
                     return [
                         'attributes' => Arr::except($permission->getAttributes(), $except),
-                        'roles' => $roles,
+                        'roles' => $roleKeys,
+                        'denied_roles' => $deniedRoleKeys,
                     ];
                 })
                 ->values()
@@ -2090,7 +1900,7 @@ class PermissionRegistrar
     }
 
     /**
-     * Determine if any cached role-permission edge is denied.
+     * Determine if any role in the catalog is denied a permission.
      */
     public function hasDeniedRolePermissions(): bool
     {
@@ -2098,48 +1908,44 @@ class PermissionRegistrar
     }
 
     /**
-     * Determine if a hydrated pivot marks the permission as denied.
-     */
-    protected function pivotIsDenied(Model $model): bool
-    {
-        if (! $model->relationLoaded('pivot')) {
-            return false;
-        }
-
-        $pivot = $model->getRelation('pivot');
-
-        return $pivot instanceof Pivot && (bool) $pivot->getAttribute('is_denied');
-    }
-
-    /**
-     * Get a hydrated relation collection.
-     */
-    protected function relationCollection(Model $model, string $relation): Collection
-    {
-        $value = $model->getRelation($relation);
-
-        return $value instanceof Collection ? $value : new Collection;
-    }
-
-    /**
      * Get the hydrated permission collection.
      *
      * @param array<int, array<string, mixed>> $permissions
+     * @param array<string, Model> $rolesByKey
      */
-    private function getHydratedPermissionCollection(array $permissions, Collection $roles): Collection
+    private function getHydratedPermissionCollection(array $permissions, array $rolesByKey): Collection
     {
-        $permissionInstance = (new ($this->getPermissionClass())())->newInstance([], true);
-        $rolesByKey = $roles->keyBy(fn (Model $role): string => (string) $role->getKey());
+        $permissionInstance = $this->newCatalogModelPrototype($this->getPermissionClass());
         $context = new PermissionRelationContext($this->resolvePartition(), false, null);
 
+        // Each role-permission pivot is cloned from this one, which costs far less than building a pivot model per pivot.
+        $pivotInstance = Pivot::fromRawAttributes(
+            $permissionInstance,
+            [],
+            $this->config->string('permission.table_names.role_has_permissions'),
+            true,
+        )->setPivotKeys($this->pivotPermission, $this->pivotRole);
+
+        if ($context->partition) {
+            $pivotInstance->setPivotConstraints([
+                ['where', [
+                    $context->partition->column,
+                    '=',
+                    $context->partition->value,
+                ]],
+            ]);
+        }
+
         return Collection::make(array_map(
-            function (array $item) use ($permissionInstance, $rolesByKey, $context): Model {
+            function (array $item) use ($permissionInstance, $rolesByKey, $context, $pivotInstance): Model {
                 $permission = (clone $permissionInstance)->setRawAttributes((array) $item['attributes'], true);
                 $roles = $this->getHydratedPermissionRoleCollection(
-                    (array) $item['roles'],
                     $permission,
+                    (array) $item['roles'],
+                    (array) $item['denied_roles'],
                     $rolesByKey,
-                    $context,
+                    $pivotInstance,
+                    $context->partition,
                 );
 
                 $permission->setRelation('roles', $roles);
@@ -2158,7 +1964,7 @@ class PermissionRegistrar
      */
     private function getHydratedRoleCollection(array $roles): Collection
     {
-        $roleInstance = (new ($this->getRoleClass())())->newInstance([], true);
+        $roleInstance = $this->newCatalogModelPrototype($this->getRoleClass());
 
         return Collection::make(array_map(
             fn (array $item): Model => (clone $roleInstance)->setRawAttributes((array) $item['attributes'], true),
@@ -2167,31 +1973,53 @@ class PermissionRegistrar
     }
 
     /**
-     * Index models by primary key.
+     * Create the prototype that hydrated catalog models are cloned from.
      *
-     * @return array<string, Model>
+     * @param class-string<Model> $class
      */
-    private function indexModelsByKey(Collection $models): array
+    private function newCatalogModelPrototype(string $class): Model
     {
-        return $models
-            ->mapWithKeys(fn (Model $model): array => [(string) $model->getKey() => $model])
-            ->all();
+        $model = (new $class)->newInstance([], true);
+        $connection = $model->getConnectionName();
+
+        if ($connection === null || $connection === '') {
+            $connection = $model::getConnectionResolver()->getDefaultConnection();
+        }
+
+        $connectionName = ConnectionName::parse($connection);
+
+        // Name the connection like Eloquent hydration (Connection::getWritableName()) so catalog models
+        // match database-loaded models in is() and contains(). Resolving the connection to read its name
+        // would take a pooled connection on warm checks that otherwise use none.
+        return $model->setConnection(
+            $connectionName->isRead() ? $connectionName->base : $connectionName->requested,
+        );
     }
 
     /**
-     * Index models by name and guard.
+     * Index models by primary key, by name and guard, and by catalog position.
      *
-     * @return array<string, list<Model>>
+     * @return array{byKey: array<string, Model>, byNameAndGuard: array<string, list<Model>>, orderByKey: array<string, int>}
      */
-    private function indexModelsByNameAndGuard(Collection $models): array
+    private function indexModels(Collection $models): array
     {
-        $indexed = [];
+        $byKey = [];
+        $byNameAndGuard = [];
+        $orderByKey = [];
+        $position = 0;
 
         foreach ($models as $model) {
-            $indexed[$this->nameGuardIndexKey($model->getAttribute('name'), $model->getAttribute('guard_name'))][] = $model;
+            $key = (string) $model->getKey();
+            $byKey[$key] = $model;
+            $byNameAndGuard[$this->nameGuardIndexKey($model->getAttribute('name'), $model->getAttribute('guard_name'))][] = $model;
+            $orderByKey[$key] = $position++;
         }
 
-        return $indexed;
+        return [
+            'byKey' => $byKey,
+            'byNameAndGuard' => $byNameAndGuard,
+            'orderByKey' => $orderByKey,
+        ];
     }
 
     /**
@@ -2204,64 +2032,53 @@ class PermissionRegistrar
     }
 
     /**
-     * Index model catalog order by primary key.
-     *
-     * @return array<string, int>
-     */
-    private function indexModelOrderByKey(Collection $models): array
-    {
-        $order = [];
-
-        foreach ($models->values() as $index => $model) {
-            $order[(string) $model->getKey()] = $index;
-        }
-
-        return $order;
-    }
-
-    /**
      * Get the hydrated role collection for a cached permission.
      *
-     * @param array<int, array<string, mixed>> $roles
+     * @param array<int, int|string> $roleKeys
+     * @param array<int, int|string> $deniedRoleKeys
+     * @param array<string, Model> $roleCatalog
      */
     private function getHydratedPermissionRoleCollection(
-        array $roles,
         Model $permission,
-        Collection $roleCatalog,
-        PermissionRelationContext $context,
+        array $roleKeys,
+        array $deniedRoleKeys,
+        array $roleCatalog,
+        Pivot $pivotInstance,
+        ?PermissionPartition $partition,
     ): Collection {
-        return Collection::make(array_values(array_filter(array_map(function (array $item) use ($permission, $roleCatalog, $context): ?Model {
-            $roleKey = $item['pivot'][$this->pivotRole] ?? null;
-            $role = $roleKey === null ? null : $roleCatalog->get((string) $roleKey);
+        $denied = $deniedRoleKeys === [] ? [] : array_flip(array_map(strval(...), $deniedRoleKeys));
+        $basePivotAttributes = [
+            $this->pivotPermission => $permission->getKey(),
+            $this->pivotRole => null,
+            'is_denied' => false,
+        ];
+
+        if ($partition) {
+            $basePivotAttributes[$partition->column] = $partition->value;
+        }
+
+        $roles = [];
+
+        foreach ($roleKeys as $roleKey) {
+            $role = $roleCatalog[(string) $roleKey] ?? null;
 
             if (! $role) {
-                return null;
+                continue;
             }
+
+            $pivotAttributes = $basePivotAttributes;
+            $pivotAttributes[$this->pivotRole] = $roleKey;
+            $pivotAttributes['is_denied'] = isset($denied[(string) $roleKey]);
 
             $role = clone $role;
-            $pivot = Pivot::fromRawAttributes(
-                $permission,
-                (array) $item['pivot'],
-                $this->config->string('permission.table_names.role_has_permissions'),
-                true,
-            );
-            $pivot->setPivotKeys($this->pivotPermission, $this->pivotRole)
-                ->setRelatedModel($role);
+            // The pivot keeps the prototype's parent, which only supplies timestamp column names, and no related
+            // model, which nothing reads. Pointing them at this permission and role would make each request's
+            // catalog cyclic, so only the garbage collector could free it.
+            $role->setRelation('pivot', (clone $pivotInstance)->setRawAttributes($pivotAttributes, true));
+            $roles[] = $role;
+        }
 
-            if ($context->partition) {
-                $pivot->setPivotConstraints([
-                    ['where', [
-                        $context->partition->column,
-                        '=',
-                        $context->partition->value,
-                    ]],
-                ]);
-            }
-
-            $role->setRelation('pivot', $pivot);
-
-            return $role;
-        }, $roles))));
+        return new Collection($roles);
     }
 
     /**
@@ -2292,11 +2109,5 @@ class PermissionRegistrar
         static::$partitionColumn = null;
         static::$partitionResolver = null;
         static::$initialized = false;
-
-        $app = BaseContainer::getInstance();
-
-        if ($app->bound(self::class)) {
-            $app->forgetInstance(self::class);
-        }
     }
 }

@@ -54,6 +54,9 @@ jobs:
       - name: Run framework test suite
         run: vendor/bin/paratest -c phpunit.xml.dist
 
+      - name: Run Permission suite with the database cache store
+        run: CACHE_STORE=database vendor/bin/paratest -c phpunit.xml.dist tests/Permission
+
       - name: Run Testbench package-mode suite
         run: php src/testbench/bin/testbench package:test --parallel tests/Testbench
 

@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Permission\Integration;
 
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Tests\Permission\TestCase;
 
 class WildcardRouteTest extends TestCase
 {
-    protected function setUp(): void
+    protected function defineEnvironment(ApplicationContract $app): void
     {
-        parent::setUp();
+        parent::defineEnvironment($app);
 
-        $this->app->make('config')->set('permission.enable_wildcard_permission', true);
-        $this->flushPermissionState();
+        $app->make('config')->set('permission.enable_wildcard_permission', true);
     }
 
     public function testPermissionFunction(): void

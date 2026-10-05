@@ -6,9 +6,11 @@ namespace Hypervel\Cache;
 
 use Closure;
 use Hypervel\Cache\Exceptions\UnsupportedModelCacheStoreException;
+use Hypervel\Contracts\Cache\AuthoritativeRawReadable;
 use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\RefreshableLock;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
+use Hypervel\Contracts\Cache\Store;
 
 /**
  * Coordinate shared model cache fills and exact invalidations.
@@ -65,14 +67,22 @@ class ModelCacheCoordinator
             return $cached[self::ENVELOPE_VALUE_KEY];
         }
 
-        $lock = $this->lock($cache, $key);
+        $store = $cache->getStore();
+        $lock = $this->lock($store, $key);
         $acquired = false;
         $result = $lock
-            ->get(function () use ($cache, $key, $ttl, $read, $cacheNull, $writeCache, $lock, &$acquired): mixed {
+            ->get(function () use ($cache, $store, $key, $ttl, $read, $cacheNull, $writeCache, $lock, &$acquired): mixed {
                 $acquired = true;
-                $cached = $cache->get($key);
+
+                // A memoized read would repeat the miss above and hide a fill that
+                // finished before this lock was acquired.
+                $cached = $cache instanceof AuthoritativeRawReadable
+                    ? $cache->getAuthoritativeRaw($key)
+                    : $cache->get($key);
 
                 if ($this->isEnvelope($cached)) {
+                    $this->rememberEnvelope($store, $key, $cached);
+
                     return $cached[self::ENVELOPE_VALUE_KEY];
                 }
 
@@ -88,8 +98,13 @@ class ModelCacheCoordinator
                     return $value;
                 }
 
-                ($writeCache === null ? $cache : $writeCache())
-                    ->put($key, $this->envelope($value), $ttl);
+                $envelope = $this->envelope($value);
+                $published = ($writeCache === null ? $cache : $writeCache())
+                    ->put($key, $envelope, $ttl);
+
+                if ($published && $writeCache === null) {
+                    $this->rememberEnvelope($store, $key, $envelope);
+                }
 
                 return $value;
             });
@@ -102,7 +117,7 @@ class ModelCacheCoordinator
      */
     public function invalidate(CacheRepository $cache, string $key): bool
     {
-        return (bool) $this->lock($cache, $key)
+        return (bool) $this->lock($cache->getStore(), $key)
             ->betweenBlockedAttemptsSleepFor(self::INVALIDATION_RETRY_MILLISECONDS)
             ->block(
                 self::INVALIDATION_WAIT_SECONDS,
@@ -124,6 +139,25 @@ class ModelCacheCoordinator
     }
 
     /**
+     * Remember a shared envelope in a plain memoized store for the current coroutine.
+     *
+     * Memoized writes forget their key, and a memoized miss survives a store read
+     * that bypasses it, so later fills would otherwise lock and read the store again.
+     *
+     * @param array{__hypervel_model_cache: 'present', value: mixed} $envelope
+     */
+    private function rememberEnvelope(Store $store, string $key, array $envelope): void
+    {
+        // Memoized tagged caches expose their backing store, so tagged keys never reach this memo.
+        if (! $store instanceof MemoizedStore) {
+            return;
+        }
+
+        $store->forgetMemoized($key);
+        $store->memoize($key, fn (): array => $envelope);
+    }
+
+    /**
      * Determine whether the value is a cache presence envelope.
      */
     private function isEnvelope(mixed $value): bool
@@ -139,9 +173,8 @@ class ModelCacheCoordinator
      *
      * @throws UnsupportedModelCacheStoreException
      */
-    private function lock(CacheRepository $cache, string $key): RefreshableLock
+    private function lock(Store $store, string $key): RefreshableLock
     {
-        $store = $cache->getStore();
         $validatedStore = $store instanceof MemoizedStore
             ? $store->getInnerStore()
             : $store;

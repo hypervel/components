@@ -56,6 +56,8 @@ class Config
     }
 
     /**
+     * Get the team model class.
+     *
      * @return class-string<Model>
      */
     public static function teamModel(): string
@@ -146,6 +148,8 @@ class Config
     }
 
     /**
+     * Get the role model class.
+     *
      * @return class-string<Model>
      */
     public static function roleModel(): string
@@ -154,6 +158,8 @@ class Config
     }
 
     /**
+     * Get the permission model class.
+     *
      * @return class-string<Model>
      */
     public static function permissionModel(): string
@@ -166,7 +172,7 @@ class Config
      */
     public static function eventsEnabled(): bool
     {
-        return self::repository()->boolean('permission.events_enabled', false);
+        return self::repository()->boolean('permission.events_enabled');
     }
 
     /**
@@ -174,7 +180,7 @@ class Config
      */
     public static function usePassportClientCredentials(): bool
     {
-        return self::repository()->boolean('permission.use_passport_client_credentials', false);
+        return self::repository()->boolean('permission.use_passport_client_credentials');
     }
 
     /**
@@ -182,7 +188,7 @@ class Config
      */
     public static function displayRoleInException(): bool
     {
-        return self::repository()->boolean('permission.display_role_in_exception', false);
+        return self::repository()->boolean('permission.display_role_in_exception');
     }
 
     /**
@@ -190,7 +196,7 @@ class Config
      */
     public static function displayPermissionInException(): bool
     {
-        return self::repository()->boolean('permission.display_permission_in_exception', false);
+        return self::repository()->boolean('permission.display_permission_in_exception');
     }
 
     /**
@@ -198,10 +204,12 @@ class Config
      */
     public static function wildcardPermissionsEnabled(): bool
     {
-        return self::repository()->boolean('permission.enable_wildcard_permission', false);
+        return self::repository()->boolean('permission.enable_wildcard_permission');
     }
 
     /**
+     * Get the wildcard permission class.
+     *
      * @return class-string<Wildcard>
      */
     public static function wildcardPermissionClass(): string

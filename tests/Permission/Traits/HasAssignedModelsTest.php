@@ -9,6 +9,7 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Permission\PermissionRegistrar;
 use Hypervel\Permission\Support\Config;
 use Hypervel\Support\Facades\DB;
+use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Tests\Permission\Fixtures\Models\SoftDeletingUser;
 use Hypervel\Tests\Permission\Fixtures\Models\User;
 use Hypervel\Tests\Permission\TestCase;
@@ -234,6 +235,9 @@ class HasAssignedModelsTest extends TestCase
         $this->assertFalse($otherUser->fresh()->hasRole($this->testUserRole));
     }
 
+    /**
+     * Provide reverse assignment methods with keyless model inputs.
+     */
     public static function reverseAssignmentProvider(): array
     {
         return [
@@ -289,29 +293,7 @@ class HasAssignedModelsTest extends TestCase
         $this->assertFalse($user1->fresh()->hasRole($this->testUserRole));
     }
 
-    public function testItUsesConfigDefaultModelWhenResolvingIds(): void
-    {
-        config()->set('permission.models.default_model', User::class);
-
-        $user1 = User::create(['email' => 'user1@test.com']);
-
-        $this->testUserRole->syncModels([$user1->getKey()]);
-
-        $this->assertTrue($user1->fresh()->hasRole($this->testUserRole));
-    }
-
-    public function testNullDefaultModelUsesTheAuthenticatedGuardModelWhenResolvingIds(): void
-    {
-        config()->set('permission.models.default_model', null);
-
-        $user = User::create(['email' => 'user@test.com']);
-
-        $this->testUserRole->syncModels([$user->getKey()]);
-
-        $this->assertTrue($user->fresh()->hasRole($this->testUserRole));
-    }
-
-    public function testUnsavedRoleReverseAssignmentsAreQueryFreeFluentNoOps(): void
+    public function testItDoesNothingWhenAssigningAnUnsavedRoleToModels(): void
     {
         $user = User::create(['email' => 'user@test.com']);
         $role = $this->testUserRole->newInstance([
@@ -334,6 +316,44 @@ class HasAssignedModelsTest extends TestCase
         $this->assertSame(0, DB::table(Config::modelHasRolesTable())
             ->where($registrar->pivotRole, $role->getKey())
             ->count());
+    }
+
+    #[DefineEnvironment('usesTeams')]
+    public function testItAppliesTheCurrentTeamIdWhenAssigningModelsWithTeamsEnabled(): void
+    {
+        $this->setUpTeams();
+
+        $user1 = User::create(['email' => 'team-user1@test.com']);
+
+        $this->testUserRole->assignToModels($user1);
+
+        $pivot = DB::table(Config::modelHasRolesTable())
+            ->where(Config::morphKey(), $user1->getKey())
+            ->first();
+
+        $this->assertSame(1, (int) $pivot->team_test_id);
+    }
+
+    public function testItUsesConfigDefaultModelWhenResolvingIds(): void
+    {
+        config()->set('permission.models.default_model', User::class);
+
+        $user1 = User::create(['email' => 'user1@test.com']);
+
+        $this->testUserRole->syncModels([$user1->getKey()]);
+
+        $this->assertTrue($user1->fresh()->hasRole($this->testUserRole));
+    }
+
+    public function testNullDefaultModelUsesTheAuthenticatedGuardModelWhenResolvingIds(): void
+    {
+        config()->set('permission.models.default_model', null);
+
+        $user = User::create(['email' => 'user@test.com']);
+
+        $this->testUserRole->syncModels([$user->getKey()]);
+
+        $this->assertTrue($user->fresh()->hasRole($this->testUserRole));
     }
 
     #[DataProvider('reverseAssignmentOwnerProvider')]
@@ -362,6 +382,9 @@ class HasAssignedModelsTest extends TestCase
         $this->assertFalse($replacementUser->fresh()->hasRole($this->testUserRole));
     }
 
+    /**
+     * Provide reverse assignment methods.
+     */
     public static function reverseAssignmentOwnerProvider(): array
     {
         return [

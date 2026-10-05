@@ -20,6 +20,7 @@ use Hypervel\Tests\Permission\Fixtures\Models\RuntimeRole;
 use Hypervel\Tests\Permission\Fixtures\Models\User;
 use Hypervel\Tests\Permission\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use ReflectionMethod;
 
 enum TestRoleEnum: string
 {
@@ -28,10 +29,8 @@ enum TestRoleEnum: string
 
 class RoleTest extends TestCase
 {
-    protected function setUp(): void
+    protected function setUpInCoroutine(): void
     {
-        parent::setUp();
-
         Permission::create(['name' => 'other-permission']);
         Permission::create(['name' => 'wrong-guard-permission', 'guard_name' => 'admin']);
     }
@@ -108,13 +107,12 @@ class RoleTest extends TestCase
 
     public function testItThrowsAnExceptionWhenGivenAPermissionThatBelongsToAnotherGuard(): void
     {
-        $this->expectException(PermissionDoesNotExist::class);
+        try {
+            $this->testUserRole->givePermissionTo('admin-permission');
+            $this->fail('Expected missing permission exception.');
+        } catch (PermissionDoesNotExist) {
+        }
 
-        $this->testUserRole->givePermissionTo('admin-permission');
-    }
-
-    public function testItThrowsGuardMismatchWhenGivenAPermissionObjectFromAnotherGuard(): void
-    {
         $this->expectException(GuardDoesNotMatch::class);
 
         $this->testUserRole->givePermissionTo($this->testAdminPermission);
@@ -123,7 +121,7 @@ class RoleTest extends TestCase
     public function testGuardMismatchReportsAnExplicitZeroNamedGuard(): void
     {
         $this->expectException(GuardDoesNotMatch::class);
-        $this->expectExceptionMessage('should use guard `0` instead of `admin`');
+        $this->expectExceptionMessageIsOrContains('should use guard `0` instead of `admin`');
 
         $this->testUserRole->hasPermissionTo($this->testAdminPermission, '0');
     }
@@ -131,7 +129,7 @@ class RoleTest extends TestCase
     public function testGuardMismatchTreatsAnEmptyGuardAsUnspecified(): void
     {
         $this->expectException(GuardDoesNotMatch::class);
-        $this->expectExceptionMessage('should use guard `web` instead of `admin`');
+        $this->expectExceptionMessageIsOrContains('should use guard `web` instead of `admin`');
 
         $this->testUserRole->hasPermissionTo($this->testAdminPermission, '');
     }
@@ -171,22 +169,30 @@ class RoleTest extends TestCase
         $this->testUserRole->syncPermissions('permission-does-not-exist');
     }
 
-    public function testItThrowsAnExceptionWhenSyncingPermissionsThatBelongToADifferentGuardByName(): void
+    public function testItThrowsAnExceptionWhenSyncingPermissionsThatBelongToADifferentGuard(): void
     {
         $this->testUserRole->givePermissionTo('edit-articles');
 
-        $this->expectException(PermissionDoesNotExist::class);
-
-        $this->testUserRole->syncPermissions('admin-permission');
-    }
-
-    public function testItThrowsGuardMismatchWhenSyncingPermissionObjectsFromAnotherGuard(): void
-    {
-        $this->testUserRole->givePermissionTo('edit-articles');
+        try {
+            $this->testUserRole->syncPermissions('admin-permission');
+            $this->fail('Expected missing permission exception.');
+        } catch (PermissionDoesNotExist) {
+        }
 
         $this->expectException(GuardDoesNotMatch::class);
 
         $this->testUserRole->syncPermissions($this->testAdminPermission);
+    }
+
+    public function testItWillRemoveAllPermissionsWhenPassingAnEmptyArrayToSyncPermissions(): void
+    {
+        $this->testUserRole->givePermissionTo('edit-articles');
+        $this->testUserRole->givePermissionTo('edit-news');
+
+        $this->testUserRole->syncPermissions([]);
+
+        $this->assertFalse($this->testUserRole->hasPermissionTo('edit-articles'));
+        $this->assertFalse($this->testUserRole->hasPermissionTo('edit-news'));
     }
 
     public function testSyncPermissionErrorDoesNotDetachPermissions(): void
@@ -245,6 +251,13 @@ class RoleTest extends TestCase
         $this->assertSame($expected, $role->name);
     }
 
+    public function testItReturnsFalseWhenCheckingPermissionViaRoleOnARoleInstanceDirectly(): void
+    {
+        $method = new ReflectionMethod($this->testUserRole, 'hasPermissionViaRole');
+
+        $this->assertFalse($method->invoke($this->testUserRole, $this->testUserPermission));
+    }
+
     public function testItReturnsFalseIfItDoesNotHaveAPermissionObject(): void
     {
         $permission = Permission::findByName('other-permission');
@@ -298,6 +311,15 @@ class RoleTest extends TestCase
         $this->app->make(Role::class)::findById(456789, 'web');
     }
 
+    public function testItThrowsAnExceptionWhenAPermissionOfTheWrongGuardIsPassedIn(): void
+    {
+        $permission = Permission::findByName('wrong-guard-permission', 'admin');
+
+        $this->expectException(GuardDoesNotMatch::class);
+
+        $this->testUserRole->hasPermissionTo($permission);
+    }
+
     public function testItBelongsToAGuard(): void
     {
         $role = $this->app->make(Role::class)->create(['name' => 'admin', 'guard_name' => 'admin']);
@@ -333,7 +355,7 @@ class RoleTest extends TestCase
             ->findOrFail($this->testUserRole->getKey());
 
         $this->expectException(MissingAttributeException::class);
-        $this->expectExceptionMessage('The attribute [guard_name]');
+        $this->expectExceptionMessageIsOrContains('The attribute [guard_name]');
 
         $role->guardName();
     }
@@ -347,12 +369,12 @@ class RoleTest extends TestCase
             ->findOrFail($this->testUserRole->getKey());
 
         $this->expectException(MissingAttributeException::class);
-        $this->expectExceptionMessage('The attribute [guard_name]');
+        $this->expectExceptionMessageIsOrContains('The attribute [guard_name]');
 
         $role->users();
     }
 
-    public function testItCanChangeRoleClassAtRuntime(): void
+    public function testItCanChangeRoleClassOnRuntime(): void
     {
         $role = $this->app->make(Role::class)->create(['name' => 'test-role-old']);
 
@@ -389,6 +411,9 @@ class RoleTest extends TestCase
 
 class RoleWithGuardNameAccessor extends RoleModel
 {
+    /**
+     * Get the guard name.
+     */
     public function getGuardNameAttribute(string $value): string
     {
         return $value === 'stored' ? 'accessed' : $value;

@@ -274,7 +274,7 @@ class PartitionRelationsTest extends PartitionTestCase
         $this->assertSame(3, DB::table(Config::modelHasRolesTable())->count());
     }
 
-    public function testPivotUpdatesCannotMoveAnExistingEdge(): void
+    public function testPivotUpdatesCannotMoveAnExistingAssignment(): void
     {
         $user = GlobalPartitionUser::create(['email' => 'global@example.com']);
         $permission = PartitionedPermission::create(['name' => 'articles.edit']);
@@ -1211,34 +1211,15 @@ SQL,
         $roleB = PartitionedRole::create(['name' => 'member']);
         $userB->assignRole($roleB);
 
-        $this->assertSame(
-            [$userB->getKey()],
-            GlobalPartitionUser::query()->whereHas('roles')->pluck('id')->all(),
-        );
-
-        $this->setPartition(self::PARTITION_A);
-
-        $this->assertSame(
-            [$userA->getKey()],
-            GlobalPartitionUser::query()->whereHas('roles')->pluck('id')->all(),
-        );
-    }
-
-    public function testAllRelationExistenceShapesStayInsideTheCurrentPartition(): void
-    {
-        $userA = GlobalPartitionUser::create(['email' => 'a@example.com']);
-        $userB = GlobalPartitionUser::create(['email' => 'b@example.com']);
-        $roleA = PartitionedRole::create(['name' => 'member']);
-        $userA->assignRole($roleA);
-
-        $this->setPartition(self::PARTITION_B);
-        $roleB = PartitionedRole::create(['name' => 'member']);
-        $userB->assignRole($roleB);
-
+        $this->assertSame([$userB->getKey()], GlobalPartitionUser::query()->whereHas('roles')->pluck('id')->all());
         $this->assertSame([$userB->getKey()], GlobalPartitionUser::query()->has('roles')->pluck('id')->all());
         $this->assertSame([$userA->getKey()], GlobalPartitionUser::query()->whereDoesntHave('roles')->pluck('id')->all());
         $this->assertSame(1, GlobalPartitionUser::query()->withCount('roles')->findOrFail($userB->getKey())->roles_count);
         $this->assertSame(0, GlobalPartitionUser::query()->withCount('roles')->findOrFail($userA->getKey())->roles_count);
+
+        $this->setPartition(self::PARTITION_A);
+
+        $this->assertSame([$userA->getKey()], GlobalPartitionUser::query()->whereHas('roles')->pluck('id')->all());
     }
 
     public function testNarrowedPersistedRoleCannotConstructRelations(): void
