@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Permission;
 
 use Hypervel\Auth\EloquentUserProvider;
 use Hypervel\Cache\CacheManager;
+use Hypervel\Cache\DatabaseStore;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Schema\Blueprint;
@@ -18,6 +19,7 @@ use Hypervel\Permission\Exceptions\UnauthorizedException;
 use Hypervel\Permission\Guard;
 use Hypervel\Permission\PermissionRegistrar;
 use Hypervel\Permission\PermissionServiceProvider;
+use Hypervel\Support\Facades\Auth;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\TestCase as TestbenchTestCase;
@@ -27,6 +29,9 @@ use Hypervel\Tests\Permission\Fixtures\Models\Permission;
 use Hypervel\Tests\Permission\Fixtures\Models\Role;
 use Hypervel\Tests\Permission\Fixtures\Models\Team;
 use Hypervel\Tests\Permission\Fixtures\Models\User;
+use Hypervel\Tests\Permission\Fixtures\PassportGuard;
+
+use function Hypervel\Testbench\default_migration_path;
 
 abstract class TestCase extends TestbenchTestCase
 {
@@ -73,28 +78,10 @@ abstract class TestCase extends TestbenchTestCase
         $app->make('config')->set([
             'database.default' => 'testing',
             'permission.register_permission_check_method' => true,
-            'permission.teams' => false,
             'permission.column_names.model_morph_key' => 'model_test_id',
             'permission.column_names.team_foreign_key' => 'team_test_id',
             'permission.column_names.role_pivot_key' => 'role_test_id',
             'permission.column_names.permission_pivot_key' => 'permission_test_id',
-            'permission.cache' => [
-                'expiration_seconds' => 86400,
-                'store' => 'array',
-                'keys' => [
-                    'roles' => 'hypervel.permission.cache.roles',
-                    'model_roles' => 'hypervel.permission.cache.model.roles',
-                    'model_permissions' => 'hypervel.permission.cache.model.permissions',
-                    'model_token' => 'hypervel.permission.cache.model.token',
-                ],
-                'column_names_except' => ['created_at', 'updated_at', 'deleted_at'],
-            ],
-            'permission.models' => [
-                'permission' => \Hypervel\Permission\Models\Permission::class,
-                'role' => \Hypervel\Permission\Models\Role::class,
-                'team' => null,
-                'default_model' => User::class,
-            ],
             'auth.guards.web' => [
                 'driver' => 'session',
                 'provider' => 'users',
@@ -139,9 +126,9 @@ abstract class TestCase extends TestbenchTestCase
                 ],
             ],
             'view.paths' => [__DIR__ . '/Fixtures/views'],
-            'cache.default' => 'array',
-            'cache.stores.array' => ['driver' => 'array'],
             'cache.prefix' => 'permission_tests',
+            // Pruning expired database cache locks would add a random query to counted queries.
+            'cache.stores.database.lock_lottery' => [0, 100],
         ]);
     }
 
@@ -150,13 +137,19 @@ abstract class TestCase extends TestbenchTestCase
      */
     protected function migrateFreshUsing(): array
     {
+        $paths = [dirname(__DIR__, 2) . '/src/permission/database/migrations'];
+
+        // The permission migration clears its cache keys, so a database store needs its tables first.
+        if ($this->app->make(PermissionRegistrar::class)->getCacheStore() instanceof DatabaseStore) {
+            $paths[] = default_migration_path() . '/0001_01_01_000003_testbench_create_cache_table.php';
+            $paths[] = default_migration_path() . '/0001_01_01_000004_testbench_create_cache_locks_table.php';
+        }
+
         return [
             '--seed' => $this->shouldSeed(),
             '--database' => $this->getRefreshConnection(),
             '--realpath' => true,
-            '--path' => [
-                dirname(__DIR__, 2) . '/src/permission/database/migrations',
-            ],
+            '--path' => $paths,
         ];
     }
 
@@ -242,6 +235,17 @@ abstract class TestCase extends TestbenchTestCase
     }
 
     /**
+     * Authenticate the given client through the Passport guard.
+     *
+     * Hypervel has no Passport package, so this stands in for Passport::actingAsClient().
+     */
+    protected function actingAsClient(Client $client): void
+    {
+        Auth::extend('passport', fn (): PassportGuard => new PassportGuard($client));
+        Auth::forgetGuards();
+    }
+
+    /**
      * Set up team-aware permissions.
      */
     protected function setUpTeams(): void
@@ -249,6 +253,17 @@ abstract class TestCase extends TestbenchTestCase
         $this->app->make('config')->set('permission.teams', true);
         $this->flushPermissionState();
         setPermissionsTeamId(1);
+    }
+
+    /**
+     * Enable teams before the permission tables are migrated.
+     *
+     * Upstream's migration always adds the roles team column under its `permission.testing`
+     * flag. Hypervel's migration adds team columns only when teams are enabled.
+     */
+    protected function usesTeams(ApplicationContract $app): void
+    {
+        $app->make('config')->set('permission.teams', true);
     }
 
     /**
@@ -288,6 +303,18 @@ abstract class TestCase extends TestbenchTestCase
     protected function reloadPermissions(): void
     {
         $this->app->make(PermissionRegistrar::class)->forgetCachedPermissions();
+    }
+
+    /**
+     * Create the database cache table.
+     */
+    protected function createCacheTable(): void
+    {
+        Schema::create('cache', function (Blueprint $table): void {
+            $table->string('key')->unique();
+            $table->text('value');
+            $table->integer('expiration');
+        });
     }
 
     /**

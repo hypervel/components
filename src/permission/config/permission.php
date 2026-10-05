@@ -79,7 +79,7 @@ return [
     | and permission attached and detached events. Events are only constructed
     | when a listener is registered for the corresponding event class.
     |
-     */
+    */
 
     'register_permission_check_method' => true,
 
@@ -93,7 +93,7 @@ return [
     | Teams scope roles and assignments by the configured team foreign key.
     | A custom resolver must implement the PermissionsTeamResolver contract.
     |
-     */
+    */
 
     'teams' => false,
 
@@ -112,7 +112,7 @@ return [
     | These options expose required role or permission names in authorization
     | exception messages. Leave them disabled when those names are sensitive.
     |
-     */
+    */
 
     'display_permission_in_exception' => false,
 
@@ -126,7 +126,7 @@ return [
     | Wildcard matching is disabled by default. A custom parser must implement
     | the Hypervel\Permission\Contracts\Wildcard contract.
     |
-     */
+    */
 
     'enable_wildcard_permission' => false,
 
@@ -139,7 +139,7 @@ return [
     |
     | Permission data is cached for 24 hours by default. The named cache keys
     | separate catalog and assignment data so each can be invalidated precisely.
-    | Omitted key members use the package names shown below.
+    | Omitted settings and key members use the defaults shown below.
     | Column exclusions reduce the serialized catalog without hiding required
     | model, partition, or team columns.
     |

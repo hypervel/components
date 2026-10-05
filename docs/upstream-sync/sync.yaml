@@ -163,6 +163,7 @@ spatie/laravel-permission:
   checked_through: null
   last_reviewed_pr: null
   sync_date: null
+  notes: Upstream Pest files map to PHPUnit classes at the same paths under tests/Permission, with each it()/test() description as the method name. Upstream's permission.testing migration flag, which adds the roles team column while teams are off so cases can enable teams mid-test, is not ported; those cases enable teams before migrating with #[DefineEnvironment('usesTeams')]. The CACHE_DRIVER cache-driver test runs map to CACHE_STORE. Passport::actingAsClient() maps to TestCase::actingAsClient() with the PassportGuard fixture because Hypervel has no Passport package. Octane listeners and register_octane_reset_listener are not ported because team IDs and loaded catalogs are coroutine-local.
 
 aimeos/laravel-nestedset:
   branch: master

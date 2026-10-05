@@ -53,6 +53,8 @@ class PermissionRegistrar
 
     public const string DEFAULT_TEAM_FOREIGN_KEY = 'team_id';
 
+    public const int DEFAULT_CACHE_EXPIRATION_SECONDS = 86400;
+
     public const array DEFAULT_CACHE_COLUMN_NAMES_EXCEPT = ['created_at', 'updated_at', 'deleted_at'];
 
     public const string ROLE_CATALOG_CACHE_KEY = 'hypervel.permission.cache.roles';
@@ -110,6 +112,8 @@ class PermissionRegistrar
 
     protected string $modelCacheTokenKey;
 
+    protected CacheManager $cacheManager;
+
     protected ?string $cacheStoreName = null;
 
     /**
@@ -126,7 +130,6 @@ class PermissionRegistrar
      * Create a new permission registrar.
      */
     public function __construct(
-        protected CacheManager $cacheManager,
         protected ConfigRepository $config,
         protected Container $app,
         protected ModelCacheCoordinator $modelCacheCoordinator,
@@ -277,14 +280,17 @@ class PermissionRegistrar
         /** @var null|class-string<Model> $teamClass */
         $teamClass = $this->config->get('permission.models.team');
         /** @var class-string<PermissionsTeamResolver> $teamResolverClass */
-        $teamResolverClass = $this->config->string('permission.team_resolver', DefaultTeamResolver::class);
+        $teamResolverClass = $this->config->string('permission.team_resolver');
 
         $this->permissionClass = $permissionClass;
         $this->roleClass = $roleClass;
         $this->teamClass = $teamClass;
         $this->teamResolver = $this->app->make($teamResolverClass);
 
-        $this->cacheExpirationTime = $this->config->integer('permission.cache.expiration_seconds', 86400);
+        $this->cacheExpirationTime = $this->config->integer(
+            'permission.cache.expiration_seconds',
+            self::DEFAULT_CACHE_EXPIRATION_SECONDS,
+        );
         $this->teams = $this->config->boolean('permission.teams');
         $this->teamsKey = $this->config->string(
             'permission.column_names.team_foreign_key',
@@ -314,6 +320,10 @@ class PermissionRegistrar
         $this->pivotPermission = is_string($pivotPermission) && $pivotPermission !== ''
             ? $pivotPermission
             : self::DEFAULT_PERMISSION_PIVOT_KEY;
+
+        // Resolve the manager here rather than in the constructor, so reinitializing after the
+        // 'cache' binding is replaced doesn't keep using stores memoized by the previous manager.
+        $this->cacheManager = $this->app->make('cache');
 
         $cacheStore = $this->config->string('permission.cache.store', 'default');
         $this->cacheStoreName = $cacheStore === 'default' ? null : $cacheStore;
@@ -1293,10 +1303,8 @@ class PermissionRegistrar
             return $indexes[$key];
         }
 
-        $getWildcardClass = Closure::fromCallable([$record, 'getWildcardClass']);
-
         /** @var array<string, array<string, mixed>> $index */
-        $index = $this->app->make($getWildcardClass(), ['record' => $record])->getIndex();
+        $index = $this->app->make($record->getWildcardClass(), ['record' => $record])->getIndex(); // @phpstan-ignore method.notFound (the record uses HasPermissions)
 
         $indexes[$key] = $index;
         CoroutineContext::set(self::WILDCARD_PERMISSION_INDEX_CONTEXT_KEY, $indexes);
@@ -1921,6 +1929,7 @@ class PermissionRegistrar
     {
         $this->validatePermissionClass($permissionClass);
         $this->permissionClass = $permissionClass;
+        $this->config->set('permission.models.permission', $permissionClass);
         $this->app->bind(PermissionContract::class, $permissionClass);
         $this->forgetCachedPermissions();
 
@@ -1949,6 +1958,7 @@ class PermissionRegistrar
     {
         $this->validateRoleClass($roleClass);
         $this->roleClass = $roleClass;
+        $this->config->set('permission.models.role', $roleClass);
         $this->app->bind(RoleContract::class, $roleClass);
         $this->forgetCachedPermissions();
 
@@ -1995,6 +2005,7 @@ class PermissionRegistrar
     public function setTeamClass(?string $teamClass): static
     {
         $this->teamClass = $teamClass;
+        $this->config->set('permission.models.team', $teamClass);
         $this->forgetCachedPermissions();
 
         return $this;

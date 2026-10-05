@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Permission;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
-use Hypervel\Permission\DefaultTeamResolver;
 use Hypervel\Permission\PermissionRegistrar;
 use Hypervel\Permission\PermissionServiceProvider;
 use Hypervel\Testbench\TestCase;
@@ -22,7 +21,7 @@ class PermissionServiceProviderTest extends TestCase
     {
         $config = require dirname(__DIR__, 2) . '/src/permission/config/permission.php';
 
-        $this->assertSame(DefaultTeamResolver::class, $config['team_resolver']);
+        $this->assertSame(PermissionRegistrar::DEFAULT_CACHE_EXPIRATION_SECONDS, $config['cache']['expiration_seconds']);
         $this->assertSame(PermissionRegistrar::DEFAULT_CACHE_COLUMN_NAMES_EXCEPT, $config['cache']['column_names_except']);
         $this->assertSame(PermissionRegistrar::DEFAULT_TEAM_FOREIGN_KEY, $config['column_names']['team_foreign_key']);
         $this->assertSame(PermissionRegistrar::ROLE_CATALOG_CACHE_KEY, $config['cache']['keys']['roles']);
@@ -41,7 +40,7 @@ class PermissionServiceProviderTest extends TestCase
             . '/src/permission/database/migrations/2025_07_02_000000_create_permission_tables.php';
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Error: config/permission.php not loaded.');
+        $this->expectExceptionMessageIsOrContains('Error: config/permission.php not loaded.');
 
         $migration->up();
     }

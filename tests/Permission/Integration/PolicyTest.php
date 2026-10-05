@@ -23,10 +23,11 @@ class PolicyTest extends TestCase
 
         $this->assertTrue($this->testUser->can('update', $record2));
 
+        // test that the Admin cannot yet view 'special admin content', because doesn't have Role yet
         $this->assertFalse($this->testAdmin->can('update', $record1));
 
         $this->testAdmin->assignRole($this->testAdminRole);
-
+        // test that the Admin can view 'special admin content'
         $this->assertTrue($this->testAdmin->can('update', $record1));
         $this->assertTrue($this->testAdmin->can('update', $record2));
     }

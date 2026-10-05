@@ -188,7 +188,7 @@ return [
 ];
 ```
 
-When `store` is omitted or set to `default`, the application's default cache store is used. The expiration defaults to 24 hours when omitted. Separate keys isolate the permission catalog, model-role assignments, direct model permissions, and the assignment namespace token so mutations can invalidate only the affected data. Omitted key members use the package names shown in the example. The `column_names_except` list removes unneeded model attributes from the cached catalog; required identity, guard, team, and partition columns cannot be excluded.
+When `store` is omitted or set to `default`, the application's default cache store is used. A store that isn't defined in your cache configuration throws an exception. The expiration defaults to 24 hours when omitted. Separate keys isolate the permission catalog, model-role assignments, direct model permissions, and the assignment namespace token so mutations can invalidate only the affected data. Omitted key members use the package names shown in the example. The `column_names_except` list removes unneeded model attributes from the cached catalog; required identity, guard, team, and partition columns cannot be excluded.
 
 You may include required role or permission names in authorization exception messages:
 

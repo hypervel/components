@@ -2,29 +2,33 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Permission;
+namespace Hypervel\Tests\Permission\Integration;
 
 use Hypervel\Contracts\Auth\Access\Gate;
 use Hypervel\Permission\Contracts\Permission;
 use Hypervel\Tests\Permission\Fixtures\Models\TestRolePermissionsEnum;
+use Hypervel\Tests\Permission\TestCase;
 
 class GateTest extends TestCase
 {
-    public function testItDeniesMissingPermissionsThroughGate(): void
+    public function testItCanDetermineIfAUserDoesNotHaveAPermission(): void
     {
         $this->assertFalse($this->testUser->can('edit-articles'));
     }
 
-    public function testOtherGateBeforeCallbacksCanGrantMissingPermissions(): void
+    public function testItAllowsOtherGateBeforeCallbacksToRunIfAUserDoesNotHaveAPermission(): void
     {
         $this->assertFalse($this->testUser->can('edit-articles'));
 
-        $this->app->make(Gate::class)->before(fn (): bool => true);
+        $this->app->make(Gate::class)->before(function (): bool {
+            // this Gate-before intercept overrides everything to true ... like a typical Super-Admin might use
+            return true;
+        });
 
         $this->assertTrue($this->testUser->can('edit-articles'));
     }
 
-    public function testGateAfterCallbackCanGrantDeniedPrivileges(): void
+    public function testItAllowsGateAfterCallbackToGrantDeniedPrivileges(): void
     {
         $this->assertFalse($this->testUser->can('edit-articles'));
 
@@ -33,7 +37,7 @@ class GateTest extends TestCase
         $this->assertTrue($this->testUser->can('edit-articles'));
     }
 
-    public function testItAllowsDirectPermissionsThroughGate(): void
+    public function testItCanDetermineIfAUserHasADirectPermission(): void
     {
         $this->testUser->givePermissionTo('edit-articles');
 
@@ -42,9 +46,26 @@ class GateTest extends TestCase
         $this->assertFalse($this->testUser->can('admin-permission'));
     }
 
-    public function testItAllowsRolePermissionsThroughGate(): void
+    public function testItCanDetermineIfAUserHasADirectPermissionUsingEnums(): void
+    {
+        $enum = TestRolePermissionsEnum::ViewArticles;
+
+        $permission = $this->app->make(Permission::class)->findOrCreate($enum->value, 'web');
+
+        $this->assertFalse($this->testUser->can($enum->value));
+        $this->assertFalse($this->testUser->canAny([$enum->value, 'some other permission']));
+
+        $this->testUser->givePermissionTo($enum);
+
+        $this->assertTrue($this->testUser->hasPermissionTo($enum));
+        $this->assertTrue($this->testUser->can($enum->value));
+        $this->assertTrue($this->testUser->canAny([$enum->value, 'some other permission']));
+    }
+
+    public function testItCanDetermineIfAUserHasAPermissionThroughRoles(): void
     {
         $this->testUserRole->givePermissionTo($this->testUserPermission);
+
         $this->testUser->assignRole($this->testUserRole);
 
         $this->assertTrue($this->testUser->hasPermissionTo($this->testUserPermission));
@@ -53,29 +74,16 @@ class GateTest extends TestCase
         $this->assertFalse($this->testUser->can('admin-permission'));
     }
 
-    public function testItAllowsRolePermissionsForUsersWithDifferentGuardsThroughGate(): void
+    public function testItCanDetermineIfAUserWithADifferentGuardHasAPermissionWhenUsingRoles(): void
     {
         $this->testAdminRole->givePermissionTo($this->testAdminPermission);
+
         $this->testAdmin->assignRole($this->testAdminRole);
 
         $this->assertTrue($this->testAdmin->hasPermissionTo($this->testAdminPermission));
         $this->assertTrue($this->testAdmin->can('admin-permission'));
         $this->assertFalse($this->testAdmin->can('non-existing-permission'));
         $this->assertFalse($this->testAdmin->can('edit-articles'));
-    }
-
-    public function testItAllowsEnumPermissionsThroughGate(): void
-    {
-        $this->app->make(Permission::class)::findOrCreate(TestRolePermissionsEnum::ViewArticles);
-
-        $this->assertFalse($this->testUser->can(TestRolePermissionsEnum::ViewArticles->value));
-        $this->assertFalse($this->testUser->canAny([TestRolePermissionsEnum::ViewArticles->value, 'missing']));
-
-        $this->testUser->givePermissionTo(TestRolePermissionsEnum::ViewArticles);
-
-        $this->assertTrue($this->testUser->hasPermissionTo(TestRolePermissionsEnum::ViewArticles));
-        $this->assertTrue($this->testUser->can(TestRolePermissionsEnum::ViewArticles->value));
-        $this->assertTrue($this->testUser->canAny([TestRolePermissionsEnum::ViewArticles->value, 'missing']));
     }
 
     public function testDeniedPermissionDeniesGatePermission(): void

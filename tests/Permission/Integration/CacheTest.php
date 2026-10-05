@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Permission\Integration;
 
+use Hypervel\Cache\DatabaseStore;
 use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Permission\Contracts\Permission;
 use Hypervel\Permission\Contracts\Role;
@@ -19,16 +20,27 @@ class CacheTest extends TestCase
 {
     protected PermissionRegistrar $registrar;
 
+    protected int $cacheInitCount = 0;
+
+    protected int $cacheLoadCount = 0;
+
+    // Permissions, role pivots and the role catalog. Upstream doesn't cache roles,
+    // so its count is 2 and its role lookups query the database instead.
     protected int $cacheRunCount = 3;
 
-    protected function setUp(): void
+    protected function setUpInCoroutine(): void
     {
-        parent::setUp();
-
         $this->registrar = $this->app->make(PermissionRegistrar::class);
+
         $this->registrar->forgetCachedPermissions();
 
         DB::connection()->enableQueryLog();
+
+        if ($this->registrar->getCacheStore() instanceof DatabaseStore) {
+            // A cold entry is read once, then filled under a cache lock: acquire, refresh, write and release.
+            $this->cacheInitCount = 1;
+            $this->cacheLoadCount = 4;
+        }
     }
 
     public function testItCanCacheThePermissions(): void
@@ -37,7 +49,7 @@ class CacheTest extends TestCase
 
         $this->registrar->getPermissions();
 
-        $this->assertQueryCount($this->cacheRunCount);
+        $this->assertQueryCount($this->cacheInitCount + $this->cacheLoadCount + $this->cacheRunCount);
     }
 
     public function testItFlushesTheCacheWhenCreatingAPermission(): void
@@ -48,7 +60,7 @@ class CacheTest extends TestCase
 
         $this->registrar->getPermissions();
 
-        $this->assertQueryCount($this->cacheRunCount);
+        $this->assertQueryCount($this->cacheInitCount + $this->cacheLoadCount + $this->cacheRunCount);
     }
 
     public function testItFlushesTheCacheWhenUpdatingAPermission(): void
@@ -62,7 +74,7 @@ class CacheTest extends TestCase
 
         $this->registrar->getPermissions();
 
-        $this->assertQueryCount($this->cacheRunCount);
+        $this->assertQueryCount($this->cacheInitCount + $this->cacheLoadCount + $this->cacheRunCount);
     }
 
     public function testItFlushesTheCacheWhenCreatingARole(): void
@@ -73,7 +85,7 @@ class CacheTest extends TestCase
 
         $this->registrar->getPermissions();
 
-        $this->assertQueryCount($this->cacheRunCount);
+        $this->assertQueryCount($this->cacheInitCount + $this->cacheLoadCount + $this->cacheRunCount);
     }
 
     public function testItFlushesTheCacheWhenUpdatingARole(): void
@@ -87,7 +99,7 @@ class CacheTest extends TestCase
 
         $this->registrar->getPermissions();
 
-        $this->assertQueryCount($this->cacheRunCount);
+        $this->assertQueryCount($this->cacheInitCount + $this->cacheLoadCount + $this->cacheRunCount);
     }
 
     public function testItShouldNotFlushTheCacheWhenRemovingAPermissionFromAUser(): void
@@ -132,7 +144,7 @@ class CacheTest extends TestCase
 
         $this->registrar->getPermissions();
 
-        $this->assertQueryCount($this->cacheRunCount);
+        $this->assertQueryCount($this->cacheInitCount + $this->cacheLoadCount + $this->cacheRunCount);
     }
 
     public function testItFlushesTheCacheWhenAssigningAPermissionToARole(): void
@@ -143,7 +155,7 @@ class CacheTest extends TestCase
 
         $this->registrar->getPermissions();
 
-        $this->assertQueryCount($this->cacheRunCount);
+        $this->assertQueryCount($this->cacheInitCount + $this->cacheLoadCount + $this->cacheRunCount);
     }
 
     public function testItShouldNotFlushTheCacheOnUserCreation(): void
@@ -167,7 +179,7 @@ class CacheTest extends TestCase
 
         $this->registrar->getPermissions();
 
-        $this->assertQueryCount($this->cacheRunCount);
+        $this->assertQueryCount($this->cacheInitCount + $this->cacheLoadCount + $this->cacheRunCount);
     }
 
     public function testNoOpPermissionSyncDoesNotFlushTheCache(): void
@@ -202,6 +214,7 @@ class CacheTest extends TestCase
         $this->testUser->assignRole('testRole');
         $this->testUser->loadMissing('roles', 'permissions');
 
+        // assignRole() loaded the catalog to find the role by name, so the first check is cached too.
         $this->resetQueryCount();
         $this->assertTrue($this->testUser->hasPermissionTo('edit-articles'));
         $this->assertQueryCount(0);
@@ -219,7 +232,7 @@ class CacheTest extends TestCase
         $this->assertQueryCount(0);
     }
 
-    public function testColdAuthorizationUsesFiveQueries(): void
+    public function testColdAuthorizationLoadsTheCatalogAndTheModelAssignmentsOnce(): void
     {
         $this->testUserRole->givePermissionTo('edit-articles');
         $this->testUser->assignRole('testRole');
@@ -228,16 +241,25 @@ class CacheTest extends TestCase
 
         $this->assertTrue($this->testUser->hasPermissionTo('edit-articles'));
 
-        $this->assertQueryCount($this->cacheRunCount + 2);
+        // The catalog, the user's direct permissions and the user's roles are each filled once.
+        // A database store also reads the assignment token and reads the filled roles again.
+        $this->assertQueryCount(
+            $this->cacheRunCount + 2
+            + 3 * ($this->cacheInitCount + $this->cacheLoadCount)
+            + 2 * $this->cacheInitCount
+        );
     }
 
     public function testItDifferentiatesTheCacheByGuardName(): void
     {
+        // Upstream passes the guard name as a permission name, so its test throws on the
+        // next line before reaching the guard check. Create that permission so it continues.
         $this->app->make(Permission::class)->create(['name' => 'web']);
         $this->testUserRole->givePermissionTo(['edit-articles', 'web']);
         $this->testUser->assignRole('testRole');
         $this->testUser->loadMissing('roles', 'permissions');
 
+        // assignRole() loaded the catalog to find the role by name.
         $this->resetQueryCount();
         $this->assertTrue($this->testUser->hasPermissionTo('edit-articles', 'web'));
         $this->assertQueryCount(0);
@@ -255,6 +277,7 @@ class CacheTest extends TestCase
         $this->testUser->assignRole('testRole');
         $this->testUser->loadMissing('roles.permissions', 'permissions');
 
+        // assignRole() loaded the catalog to find the role by name.
         $this->resetQueryCount();
         $this->registrar->getPermissions();
         $this->assertQueryCount(0);
@@ -266,12 +289,14 @@ class CacheTest extends TestCase
         $this->assertQueryCount(0);
     }
 
-    public function testItStoresRoleAttributesOnceWhileHydratingPermissionPivots(): void
+    public function testItShouldNotOverHydrateRolesForGetAllPermissions(): void
     {
         $this->testUserRole->givePermissionTo(['edit-articles', 'edit-news']);
         $permissions = $this->registrar->getPermissions();
         $roles = $permissions->flatMap->roles;
 
+        // Each role carries its own role-permission pivot with the deny flag, so permissions
+        // can't share upstream's single role instance. The cache stores role attributes once.
         $this->assertNotSame($roles[0], $roles[1]);
         $this->assertSame($roles[0]->getKey(), $roles[1]->getKey());
         $this->assertNotSame(
@@ -303,13 +328,13 @@ class CacheTest extends TestCase
 
         $this->resetQueryCount();
         $this->registrar->getPermissions();
-        $this->assertQueryCount($this->cacheRunCount);
+        $this->assertQueryCount($this->cacheInitCount + $this->cacheLoadCount + $this->cacheRunCount);
 
         Artisan::call('permission:cache-reset');
 
         $this->resetQueryCount();
         $this->registrar->getPermissions();
-        $this->assertQueryCount($this->cacheRunCount);
+        $this->assertQueryCount($this->cacheInitCount + $this->cacheLoadCount + $this->cacheRunCount);
     }
 
     public function testItShowsAnErrorWhenTheCacheExistsButCannotBeFlushed(): void

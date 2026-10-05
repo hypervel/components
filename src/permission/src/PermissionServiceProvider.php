@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Permission;
 
 use Composer\InstalledVersions;
-use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\ModelCacheCoordinator;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Access\Gate as GateContract;
 use Hypervel\Contracts\Auth\Factory as AuthFactory;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Foundation\Console\AboutCommand;
 use Hypervel\Permission\Commands\AssignRoleCommand;
 use Hypervel\Permission\Commands\CacheResetCommand;
@@ -39,8 +39,7 @@ class PermissionServiceProvider extends ServiceProvider
     {
         $this->mergeConfigFrom(__DIR__ . '/../config/permission.php', 'permission');
 
-        $this->app->singleton(PermissionRegistrar::class, fn ($app) => new PermissionRegistrar(
-            $app->make(CacheManager::class),
+        $this->app->singleton(PermissionRegistrar::class, fn (Application $app): PermissionRegistrar => new PermissionRegistrar(
             $app->make('config'),
             $app,
             $app->make(ModelCacheCoordinator::class),
@@ -187,7 +186,7 @@ class PermissionServiceProvider extends ServiceProvider
         $this->callAfterResolving(GateContract::class, function (GateContract $gate): void {
             $config = $this->app->make('config');
 
-            if (! $config->boolean('permission.register_permission_check_method', true)) {
+            if (! $config->boolean('permission.register_permission_check_method')) {
                 return;
             }
 
@@ -207,9 +206,8 @@ class PermissionServiceProvider extends ServiceProvider
         AboutCommand::add('Hypervel Permissions', static function () use ($config): array {
             $enabledFeatures = Collection::make([
                 'Teams' => $config->boolean('permission.teams'),
-                'Wildcard Permissions' => $config->boolean('permission.enable_wildcard_permission', false),
-                'Passport Client Credentials' => $config->boolean('permission.use_passport_client_credentials', false),
-                'Denied Permissions' => true,
+                'Wildcard-Permissions' => $config->boolean('permission.enable_wildcard_permission'),
+                'Passport' => $config->boolean('permission.use_passport_client_credentials'),
             ])
                 ->filter()
                 ->keys();
