@@ -16,6 +16,7 @@ use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Database\Connection;
+use Hypervel\Database\ConnectionName;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
@@ -2094,7 +2095,7 @@ class PermissionRegistrar
      */
     private function getHydratedPermissionCollection(array $permissions, Collection $roles): Collection
     {
-        $permissionInstance = (new ($this->getPermissionClass())())->newInstance([], true);
+        $permissionInstance = $this->newCatalogModelPrototype($this->getPermissionClass());
         $rolesByKey = $roles->keyBy(fn (Model $role): string => (string) $role->getKey());
         $context = new PermissionRelationContext($this->resolvePartition(), false, null);
 
@@ -2124,12 +2125,36 @@ class PermissionRegistrar
      */
     private function getHydratedRoleCollection(array $roles): Collection
     {
-        $roleInstance = (new ($this->getRoleClass())())->newInstance([], true);
+        $roleInstance = $this->newCatalogModelPrototype($this->getRoleClass());
 
         return Collection::make(array_map(
             fn (array $item): Model => (clone $roleInstance)->setRawAttributes((array) $item['attributes'], true),
             $roles,
         ));
+    }
+
+    /**
+     * Create the prototype that hydrated catalog models are cloned from.
+     *
+     * @param class-string<Model> $class
+     */
+    private function newCatalogModelPrototype(string $class): Model
+    {
+        $model = (new $class)->newInstance([], true);
+        $connection = $model->getConnectionName();
+
+        if ($connection === null || $connection === '') {
+            $connection = $model::getConnectionResolver()->getDefaultConnection();
+        }
+
+        $connectionName = ConnectionName::parse($connection);
+
+        // Name the connection like Eloquent hydration (Connection::getWritableName()) so catalog models
+        // match database-loaded models in is() and contains(). Resolving the connection to read its name
+        // would take a pooled connection on warm checks that otherwise use none.
+        return $model->setConnection(
+            $connectionName->isRead() ? $connectionName->base : $connectionName->requested,
+        );
     }
 
     /**

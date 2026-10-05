@@ -1206,7 +1206,7 @@ Permission::create(['name' => 'posts,users.create,update,view']);
 $user->givePermissionTo('posts,users.create,update,view');
 ```
 
-The wildcard permission or wildcard pattern must exist as a permission record before it can be assigned or checked.
+Like any permission, a wildcard permission must exist as a permission record before it can be assigned. The names you check do not need records of their own, so `hasPermissionTo('posts.create')` matches `posts.*` even when no `posts.create` permission exists.
 
 To customize wildcard parsing, configure `wildcard_permission` with a class that implements `Hypervel\Permission\Contracts\Wildcard`.
 

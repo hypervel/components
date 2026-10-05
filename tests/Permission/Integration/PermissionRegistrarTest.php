@@ -22,6 +22,8 @@ use Hypervel\Tests\Permission\Fixtures\Models\Role as TestRole;
 use Hypervel\Tests\Permission\Fixtures\Models\Team;
 use Hypervel\Tests\Permission\TestCase;
 use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\DataProvider;
+use UnitEnum;
 
 class PermissionRegistrarTest extends TestCase
 {
@@ -380,6 +382,36 @@ class PermissionRegistrarTest extends TestCase
         $this->assertFalse(array_key_exists('created_at', $role->getAttributes()));
     }
 
+    #[DataProvider('catalogRoleConnections')]
+    public function testCatalogModelsMatchDatabaseLoadedModels(string $roleClass, string $connection): void
+    {
+        $this->testUser->assignRole('testRole');
+        $this->testUser->givePermissionTo('edit-articles');
+        $this->app->make(PermissionRegistrar::class)->setRoleClass($roleClass);
+        $user = $this->testUser->fresh();
+
+        $role = $roleClass::findByName('testRole');
+        $permission = $this->app->make(PermissionContract::class)::findByName('edit-articles');
+
+        $this->assertSame($connection, $role->getConnectionName());
+        $this->assertTrue($role->is($roleClass::query()->find($role->getKey())));
+        $this->assertTrue($user->roles->contains($role));
+        $this->assertTrue($user->permissions->contains($permission));
+    }
+
+    /**
+     * Provide catalog role connections and their hydrated names.
+     */
+    public static function catalogRoleConnections(): array
+    {
+        return [
+            'default connection' => [HypervelRole::class, 'testing'],
+            'empty connection' => [EmptyConnectionRole::class, 'testing'],
+            'read alias' => [ReadConnectionRole::class, 'testing'],
+            'write alias' => [WriteConnectionRole::class, 'testing::write'],
+        ];
+    }
+
     public function testInitializeCacheUsesOptionalConfigurationDefaults(): void
     {
         $permissionConfig = config()->array('permission');
@@ -517,4 +549,19 @@ class PermissionRegistrarTest extends TestCase
 
         $this->assertFalse($resolverCalled);
     }
+}
+
+class EmptyConnectionRole extends HypervelRole
+{
+    protected UnitEnum|string|null $connection = '';
+}
+
+class ReadConnectionRole extends HypervelRole
+{
+    protected UnitEnum|string|null $connection = 'testing::read';
+}
+
+class WriteConnectionRole extends HypervelRole
+{
+    protected UnitEnum|string|null $connection = 'testing::write';
 }

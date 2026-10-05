@@ -90,6 +90,9 @@ class GuardTest extends TestCase
         Guard::getNames($partialModel);
     }
 
+    /**
+     * Provide the role and permission model classes.
+     */
     public static function permissionModelClasses(): array
     {
         return [
