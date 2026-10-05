@@ -1012,10 +1012,11 @@ class HasPermissionsTest extends TestCase
 
     public function testItFiresDetachEventWhenSyncingPermissions(): void
     {
+        // Grant before faking, so the attached assertion only matches the sync's event.
+        $this->testUser->givePermissionTo('edit-articles', 'edit-news');
+
         Event::fake([PermissionDetachedEvent::class, PermissionAttachedEvent::class]);
         app('config')->set('permission.events_enabled', true);
-
-        $this->testUser->givePermissionTo('edit-articles', 'edit-news');
 
         $this->testUser->syncPermissions('edit-articles');
 
