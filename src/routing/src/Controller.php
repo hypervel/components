@@ -6,6 +6,7 @@ namespace Hypervel\Routing;
 
 use BadMethodCallException;
 use Closure;
+use Hypervel\Container\NativeInvoker;
 
 abstract class Controller
 {
@@ -42,7 +43,9 @@ abstract class Controller
      */
     public function callAction(string $method, array $parameters): mixed
     {
-        return $this->{$method}(...array_values($parameters));
+        return $parameters === []
+            ? $this->{$method}()
+            : NativeInvoker::call($this->{$method}(...), array_values($parameters));
     }
 
     /**

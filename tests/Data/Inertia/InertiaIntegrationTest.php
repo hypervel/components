@@ -7,13 +7,17 @@ namespace Hypervel\Tests\Data\Inertia\InertiaIntegrationTest;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Data\Attributes\AutoInertiaDeferred;
 use Hypervel\Data\Attributes\AutoInertiaLazy;
+use Hypervel\Data\CursorPaginatedDataCollection;
 use Hypervel\Data\Data;
 use Hypervel\Data\DataServiceProvider;
 use Hypervel\Data\Lazy;
+use Hypervel\Data\PaginatedDataCollection;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
 use Hypervel\Inertia\Inertia;
 use Hypervel\Inertia\InertiaServiceProvider;
+use Hypervel\Pagination\CursorPaginator;
+use Hypervel\Pagination\LengthAwarePaginator;
 use Hypervel\Testbench\TestCase;
 
 use function Hypervel\Coroutine\parallel;
@@ -91,6 +95,41 @@ class InertiaIntegrationTest extends TestCase
 
         $this->assertSame(11, $first);
         $this->assertSame(21, $second);
+    }
+
+    public function testScrollPropsReadPaginatedDataCollections(): void
+    {
+        $users = new PaginatedDataCollection(
+            InertiaChildData::class,
+            new LengthAwarePaginator([['id' => '1']], 3, 1, 2, ['path' => '/users']),
+        );
+        $events = (new CursorPaginatedDataCollection(
+            InertiaChildData::class,
+            new CursorPaginator([['id' => '2'], ['id' => '3']], 1, null, ['path' => '/events']),
+        ))->wrap('items');
+
+        $response = Inertia::render('TestComponent', [
+            'users' => Inertia::scroll($users),
+            'events' => Inertia::scroll($events, 'items'),
+        ])->toResponse($this->makeInertiaRequest());
+
+        $this->assertInstanceOf(JsonResponse::class, $response);
+
+        $page = $response->getData(true);
+
+        $this->assertSame([['id' => 1]], $page['props']['users']['data']);
+        $this->assertSame(2, $page['props']['users']['meta']['current_page']);
+        $this->assertSame([['id' => 2]], $page['props']['events']['items']);
+        $this->assertSame([
+            'pageName' => 'page',
+            'previousPage' => 1,
+            'nextPage' => 3,
+            'currentPage' => 2,
+            'reset' => false,
+        ], $page['scrollProps']['users']);
+        $this->assertSame('cursor', $page['scrollProps']['events']['pageName']);
+        $this->assertSame($events->items()->nextCursor()?->encode(), $page['scrollProps']['events']['nextPage']);
+        $this->assertSame(['users.data', 'events.items'], $page['mergeProps']);
     }
 
     /**

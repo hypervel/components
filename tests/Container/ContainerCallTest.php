@@ -17,9 +17,22 @@ use Hypervel\Tests\TestCase;
 use ReflectionProperty;
 use RuntimeException;
 use stdClass;
+use TypeError;
 
 class ContainerCallTest extends TestCase
 {
+    public function testCallsAndConstructorsConvertScalarsWithPhpWeakTyping(): void
+    {
+        $container = new Container;
+
+        $this->assertSame(5, $container->call(static fn (int $id): int => $id, ['id' => '5']));
+        $this->assertSame(30, $container->make(ContainerCallTypedScalarStub::class, ['timeout' => '30'])->timeout);
+
+        $this->expectException(TypeError::class);
+
+        $container->call(static fn (int $id): int => $id, ['id' => 'abc']);
+    }
+
     public function testCallWithAtSignBasedClassReferencesWithoutMethodThrowsException(): void
     {
         $this->expectException(Error::class);
@@ -606,6 +619,17 @@ class ContainerTestCallStub
     public function unresolvable($foo, $bar)
     {
         return func_get_args();
+    }
+}
+
+class ContainerCallTypedScalarStub
+{
+    /**
+     * Create a new stub instance.
+     */
+    public function __construct(
+        public int $timeout,
+    ) {
     }
 }
 

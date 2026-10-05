@@ -574,9 +574,26 @@ Laravel's deprecated `InvokableRule` contract is not available. Change rules tha
 
 When porting `spatie/laravel-data`, replace its namespace with `Hypervel\Data` and review the [Data Objects documentation](/docs/{{version}}/data-objects). The familiar `Data`, `Dto`, `Resource`, `Optional`, mapping, casting, validation, lazy-value, collection, resource, and Eloquent APIs are all available.
 
-Replace Spatie's `From*` attributes with Hypervel contextual constructor attributes and its `withOptionalValues()` and `withoutOptionalValues()` factory switches with declared `Optional` unions. `SerializeTransformer` and `UnserializeCast` are not included; use native PHP serialization or explicit custom casts and transformers. Livewire and TypeScript integrations are also not included.
+Replace Spatie's `From*` attributes with Hypervel contextual constructor attributes. `UnserializeCast` is not included; write a custom cast that passes `allowed_classes` to `unserialize()` for trusted values. Livewire and TypeScript integrations are also not included.
 
-Model attributes containing `null` remain explicit values, including for non-nullable properties with defaults. When several payloads are supplied to `from()`, the first payload containing a property's input key wins, including when its value is `null`.
+In `config/data.php`, the `casts`, `transformers`, `normalizers`, and `rule_inferrers` options only hold your own extensions; remove Spatie's built-in entries, since Hypervel's built-in handling is fixed. If you enabled Spatie's optional `FormRequestNormalizer`, keep it as `Hypervel\Data\Normalizers\FormRequestNormalizer`. Typed iterable items are always cast and transformed, and an array given to a collection property becomes that collection.
+
+Review these behavior differences in ported code:
+
+- `Resource` authorizes and validates request input, like `Data` and `Dto`.
+- A named factory that receives a request and returns the finished object must validate the request itself.
+- When `from()` receives several payloads, the combined input is validated once, and a later explicit `null` replaces an earlier value.
+- Responses use the `200` status code for `POST` requests. Set `201` in `withResponse()` instead of overriding `calculateResponseStatus()`.
+- Data classes whose properties share an input path or output key are rejected when first used.
+- Custom `pipeline()` overrides and `DataPipe` classes are not supported. Rebuild them with named factories, `prepareForPipeline()`, or factory hooks.
+- A value that a union property already accepts is kept, such as a string for `string|SongData` or an array for `array|Collection`, and validation applies the rules of the declared type that holds it. Declare `Collection` alone when the property should always hold a collection. See [type conversion](/docs/{{version}}/data-objects#type-conversion).
+- A model attribute holding `null` is passed as `null` instead of falling back to the property's default or `Optional`. Columns that were not selected still count as missing.
+- A custom cast's `$properties` contains only declared property values keyed by PHP property name, without undeclared input or raw input names.
+- `CreationContext::$dataClass` is the class the creation started with, even while nested objects are created, and the context has no `from()`, `collect()`, or `currentPath`. Replace `$context->from()` with `TargetData::factory($context)->from()`, which copies the context's options but not its hooks. A cast can read `$property->className` for the class that declares the property.
+- An array or collection cannot be collected into a paginator target or given to a paginator property. Pass a Hypervel paginator so its pagination details are kept.
+- A required property declared outside the constructor that receives no input, and no value from its default or the constructor, fails with `CannotCreateData` instead of staying uninitialized.
+- Casts and transformers that read Spatie's metadata need small changes. `DataProperty` has `hasDefaultValue` but no `defaultValue`. Hypervel reads defaults from reflection when it needs them, so a default such as `new Money(0)` is never one object shared by every request in the worker; read it from the constructor parameter's or property's reflection. `DataClass` exposes `constructor` and `constructorParameters` instead of `constructorMethod`, and `TransformationContext::$transformers` is an array of factory transformers keyed by type instead of a `GlobalTransformersCollection`. Likewise, `withCastCollection()` and `CreationContext::$casts` use an array of casts keyed by type instead of a `GlobalCastsCollection`. Create factories with `Data::factory()` instead of `CreationContextFactory::createFromConfig()`, and read their options through `get()`.
+- Replace `getDataContext()` with `getPartialsDefinition()` and `getWrap()`, and `make:data --namespace` with `--target-namespace` and a complete namespace.
 
 <a name="rate-limiting"></a>
 ### Rate Limiting

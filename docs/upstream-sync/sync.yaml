@@ -126,23 +126,23 @@ laravel/tinker:
 
 laravel/wayfinder:
   branch: main
-  checked_through: null
-  last_reviewed_pr: null
-  sync_date: null
+  checked_through: dd454ed0a7fba5debbcbd8f3da06a2b4a7fae6b8
+  last_reviewed_pr: 295
+  sync_date: '2026-10-03'
   notes: Track main for applicable fixes. Wayfinder next and its Surveyor, Ranger and Structure Discoverer dependency ports are deferred until Wayfinder v1. At each sync, check whether v1 has been released; if so, notify the owner and obtain approval before changing the tracked branch or beginning those ports.
 
 laravel/docs:
   branch: 13.x
-  checked_through: null
-  last_reviewed_pr: null
-  sync_date: null
+  checked_through: 156fc7fde114548640e13c39aa79b991291c3f91
+  last_reviewed_pr: 11395
+  sync_date: '2026-10-03'
   notes: Shared documentation for the framework and Laravel packages. Reconcile upstream changes with existing Hypervel documentation, including independently written coverage. Replace custom wording for equivalent content with upstream wording, adapting it for Hypervel and preserving enhancements and intentional differences absent upstream. Do not duplicate existing coverage.
 
 inertiajs/inertia-laravel:
   branch: 3.x
-  checked_through: null
-  last_reviewed_pr: null
-  sync_date: null
+  checked_through: 4da52b72da39396cad1d3ec8523b6c649009456e
+  last_reviewed_pr: 918
+  sync_date: '2026-10-03'
 
 inertiajs/docs:
   branch: main
@@ -153,9 +153,10 @@ inertiajs/docs:
 
 spatie/laravel-data:
   branch: main
-  checked_through: null
+  checked_through: ce296f22861dc1237ce468754cc7f46d3ac34ad5
   last_reviewed_pr: null
-  sync_date: null
+  sync_date: '2026-10-03'
+  notes: Hypervel replaces upstream's data pipes and resolvers with a fixed engine. The pipes and DataFromSomethingResolver map to Support/Creation/DataCreator and its per-operation ConstructionState; the validation resolvers and built-in rule inferrers map to Support/Validation/DataValidationCompiler and DataValidator; TransformedDataResolver and VisibleDataFieldsResolver map to Support/Transformation/DataTransformer and PartialTree. DataCreator's direct construction from DataClass creation recipes and DataTransformer's bulk copy are deliberate fast paths, so apply upstream behavior changes to them as well as to the general paths, and compare tests/Benchmarks/Data/benchmark.php results before and after. Upstream tests for those replaced classes live in the matching upstream feature tests or in the owning engine's tests under tests/Data/Support.
 
 spatie/laravel-permission:
   branch: main

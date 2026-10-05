@@ -70,6 +70,7 @@
 
 ## Validation
 
+- Remove pipe-separated validation rule strings in favor of arrays of rules across both `hypervel/validation` and `hypervel/data`, including Data's rule normalizer, denormalizer and `#[Rule]` handling. Update callers, tests and documentation together; preserve pipes inside individual regex patterns.
 - Adopt Brick Math 0.20's bounded parsing API for untrusted numeric validation inputs once the supported dependency graph permits it. Ramsey UUID currently limits Brick Math to 0.18, which has neither bounded parsing nor 0.20's parser-backtracking fix, so an intermediate upgrade would not address this issue. Preserve the configurable exponent-range behavior and cover delegated and compiled rules, oversized mantissas and exponents, malformed input, and `multiple_of`; do not add a local parsing workaround or disguise an incompatible Brick version with a Composer alias.
 
 ## Notifications

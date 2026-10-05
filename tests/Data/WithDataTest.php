@@ -13,6 +13,7 @@ use Hypervel\Data\WithData;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Http\FormRequest;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Data\Fixtures\SimpleData;
 use Hypervel\Validation\ValidationException;
 
 class WithDataTest extends TestCase
@@ -25,7 +26,7 @@ class WithDataTest extends TestCase
         return [DataServiceProvider::class];
     }
 
-    public function testModelCanDeclareItsDataClassWithAProperty(): void
+    public function testCanAddTheWithDataTraitToAModel(): void
     {
         $model = new WithDataModelSource;
         $model->setRawAttributes(['name' => 'Taylor']);
@@ -36,12 +37,28 @@ class WithDataTest extends TestCase
         $this->assertSame('Taylor', $data->name);
     }
 
-    public function testArrayableCanDeclareItsDataClassWithAMethod(): void
+    public function testCanDefineTheWithDataTraitDataClassByMethod(): void
     {
         $data = (new WithDataArrayableSource('Taylor'))->getData();
 
         $this->assertInstanceOf(WithDataNameData::class, $data);
         $this->assertSame('Taylor', $data->name);
+    }
+
+    public function testCanAddTheWithDataTraitToARequest(): void
+    {
+        $formRequest = new class extends FormRequest {
+            /** @use WithData<SimpleData> */
+            use WithData;
+
+            public string $dataClass = SimpleData::class;
+        };
+
+        $formRequest->replace([
+            'string' => 'Hello World',
+        ]);
+
+        $this->assertEquals(SimpleData::from('Hello World'), $formRequest->getData());
     }
 
     public function testPropertyDeclarationTakesPrecedenceOverMethodDeclaration(): void

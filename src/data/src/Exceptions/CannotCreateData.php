@@ -6,6 +6,7 @@ namespace Hypervel\Data\Exceptions;
 
 use Exception;
 use Hypervel\Data\Support\DataClass;
+use Hypervel\Data\Support\DataMethod;
 use Hypervel\Data\Support\DataProperty;
 
 class CannotCreateData extends Exception
@@ -127,18 +128,29 @@ class CannotCreateData extends Exception
     }
 
     /**
-     * Create an exception for an ambiguous data-collectable union.
+     * Create an exception for a value no single container type of a union accepts.
      *
      * @param list<string> $candidates
      */
-    public static function ambiguousDataCollectableUnion(
+    public static function ambiguousContainerUnion(
         DataProperty $property,
         array $candidates,
     ): self {
         return new self(
             "Could not create property [{$property->className}::\${$property->name}] from an ambiguous "
-            . 'data-collectable union [' . implode(', ', $candidates) . ']. Supply a finished compatible '
-            . 'container, define an explicit cast, or return the target object from a named factory.'
+            . 'container union [' . implode(', ', $candidates) . ']. Supply a value exactly one container '
+            . 'type accepts, define an explicit cast, or return the target object from a named factory.'
+        );
+    }
+
+    /**
+     * Create an exception for a named factory that did not return the requested object.
+     */
+    public static function invalidNamedFactoryResult(DataClass $dataClass, DataMethod $method, mixed $value): self
+    {
+        return new self(
+            "Could not create data class [{$dataClass->name}]: the named factory [{$method->name}()] returned ["
+            . get_debug_type($value) . "] instead of an instance of [{$dataClass->name}]."
         );
     }
 

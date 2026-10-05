@@ -13,6 +13,7 @@ use Hypervel\Data\CursorPaginatedDataCollection;
 use Hypervel\Data\Data;
 use Hypervel\Data\DataCollection;
 use Hypervel\Data\DataServiceProvider;
+use Hypervel\Data\Exceptions\CannotCreateDataCollectable;
 use Hypervel\Data\PaginatedDataCollection;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
@@ -49,6 +50,21 @@ class DataCollectTest extends TestCase
         $this->assertSame($source['second'], $array['second']);
         $this->assertInstanceOf(DataCollection::class, $collection);
         $this->assertSame(['first', 'second'], array_keys($collection->items()));
+    }
+
+    public function testNullCollectsOnlyIntoAnExplicitNonPaginatorTarget(): void
+    {
+        $this->assertSame([], RootCollectData::collect(null, 'array'));
+        $this->assertEquals(new Collection, RootCollectData::collect(null, Collection::class));
+        $this->assertEquals(new DataCollection(RootCollectData::class, []), RootCollectData::collect(null, DataCollection::class));
+
+        foreach ([null, Paginator::class] as $into) {
+            try {
+                RootCollectData::collect(null, $into);
+                $this->fail('Expected null without an explicit non-paginator target to be rejected.');
+            } catch (CannotCreateDataCollectable) {
+            }
+        }
     }
 
     public function testCollectPreservesOrdinaryCollectionShapeAndDowngradesEloquentCollections(): void

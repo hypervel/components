@@ -8,8 +8,6 @@ use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Data\Attributes\Computed;
 use Hypervel\Data\Attributes\Hidden;
 use Hypervel\Data\Attributes\MapOutputName;
-use Hypervel\Data\Attributes\PropertyForMorph;
-use Hypervel\Data\Contracts\PropertyMorphableData;
 use Hypervel\Data\Data;
 use Hypervel\Data\DataCollection;
 use Hypervel\Data\DataServiceProvider;
@@ -23,14 +21,38 @@ use Hypervel\Data\Support\Transformation\TransformationContextFactory;
 use Hypervel\Database\Eloquent\Casts\Json;
 use Hypervel\Database\Eloquent\JsonEncodingException;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Crypt;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Fluent;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Data\Fixtures\AbstractData\AbstractData;
+use Hypervel\Tests\Data\Fixtures\AbstractData\AbstractDataA;
+use Hypervel\Tests\Data\Fixtures\AbstractData\AbstractDataB;
+use Hypervel\Tests\Data\Fixtures\AbstractPropertyMorphableData;
+use Hypervel\Tests\Data\Fixtures\Enums\DummyBackedEnum;
+use Hypervel\Tests\Data\Fixtures\LazyData;
+use Hypervel\Tests\Data\Fixtures\Models\DummyModelWithCasts;
+use Hypervel\Tests\Data\Fixtures\Models\DummyModelWithCustomCollectionCasts;
+use Hypervel\Tests\Data\Fixtures\Models\DummyModelWithDefaultCasts;
+use Hypervel\Tests\Data\Fixtures\Models\DummyModelWithEncryptedCasts;
+use Hypervel\Tests\Data\Fixtures\Models\DummyModelWithJson;
+use Hypervel\Tests\Data\Fixtures\MultiData;
+use Hypervel\Tests\Data\Fixtures\PropertyMorphableDataA;
+use Hypervel\Tests\Data\Fixtures\PropertyMorphableDataB;
+use Hypervel\Tests\Data\Fixtures\SimpleData;
+use Hypervel\Tests\Data\Fixtures\SimpleDataCollection;
 use JsonException;
 use RuntimeException;
 use stdClass;
 
 class DataCollectionEloquentCastTest extends TestCase
 {
+    use RefreshDatabase;
+
+    protected bool $migrateRefresh = true;
+
     /**
      * Get package providers for the data collection cast test application.
      */
@@ -52,7 +74,318 @@ class DataCollectionEloquentCastTest extends TestCase
         $config->set('app.previous_keys', []);
     }
 
-    public function testCollectionCastRoundTripsCollectionsArraysKeysAndNull(): void
+    /**
+     * Get the migration options.
+     */
+    protected function migrateFreshUsing(): array
+    {
+        return [
+            '--database' => $this->getRefreshConnection(),
+            '--realpath' => true,
+            '--path' => __DIR__ . '/../Fixtures/Migrations',
+        ];
+    }
+
+    public function testCanSaveADataCollection(): void
+    {
+        DummyModelWithCasts::create([
+            'data_collection' => SimpleData::collect([
+                'Hello',
+                'World',
+            ], DataCollection::class),
+        ]);
+
+        $this->assertDatabaseHas(DummyModelWithCasts::class, [
+            'data_collection' => json_encode([
+                ['string' => 'Hello'],
+                ['string' => 'World'],
+            ]),
+        ]);
+    }
+
+    public function testCanSaveADataObjectAsAnArray(): void
+    {
+        DummyModelWithCasts::create([
+            'data_collection' => [
+                ['string' => 'Hello'],
+                ['string' => 'World'],
+            ],
+        ]);
+
+        $this->assertDatabaseHas(DummyModelWithCasts::class, [
+            'data_collection' => json_encode([
+                ['string' => 'Hello'],
+                ['string' => 'World'],
+            ]),
+        ]);
+    }
+
+    public function testCanSaveADataObjectAsAnArrayFromACollection(): void
+    {
+        DummyModelWithCasts::create([
+            'data_collection' => new Collection([
+                ['string' => 'Hello'],
+                ['string' => 'World'],
+            ]),
+        ]);
+
+        $this->assertDatabaseHas(DummyModelWithCasts::class, [
+            'data_collection' => json_encode([
+                ['string' => 'Hello'],
+                ['string' => 'World'],
+            ]),
+        ]);
+    }
+
+    public function testCanLoadADataObject(): void
+    {
+        DB::table('dummy_model_with_casts')->insert([
+            'data_collection' => json_encode([
+                ['string' => 'Hello'],
+                ['string' => 'World'],
+            ]),
+        ]);
+
+        $this->assertEquals(new DataCollection(SimpleData::class, [
+            new SimpleData('Hello'),
+            new SimpleData('World'),
+        ]), DummyModelWithCasts::first()->data_collection);
+    }
+
+    public function testCanSaveANullAsAValue(): void
+    {
+        DummyModelWithCasts::create([
+            'data_collection' => null,
+        ]);
+
+        $this->assertDatabaseHas(DummyModelWithCasts::class, [
+            'data_collection' => null,
+        ]);
+    }
+
+    public function testCanLoadNullAsAValue(): void
+    {
+        DB::table('dummy_model_with_casts')->insert([
+            'data_collection' => null,
+        ]);
+
+        $this->assertNull(DummyModelWithCasts::first()->data_collection);
+    }
+
+    public function testCanSaveACustomDataCollection(): void
+    {
+        DummyModelWithCustomCollectionCasts::create([
+            'data_collection' => [
+                ['string' => 'Hello'],
+                ['string' => 'World'],
+            ],
+        ]);
+
+        // Eloquent's JSON codec encodes the stored value, so the collection's pretty-printing toJson() doesn't apply
+        // (README).
+        $this->assertDatabaseHas(DummyModelWithCustomCollectionCasts::class, [
+            'data_collection' => json_encode([
+                ['string' => 'Hello'],
+                ['string' => 'World'],
+            ]),
+        ]);
+    }
+
+    public function testRetrievesCustomDataCollection(): void
+    {
+        DB::table('dummy_model_with_casts')->insert([
+            'data_collection' => json_encode([
+                ['string' => 'Hello'],
+                ['string' => 'World'],
+            ]),
+        ]);
+
+        $this->assertEquals(new SimpleDataCollection(
+            SimpleData::class,
+            [
+                new SimpleData('Hello'),
+                new SimpleData('World'),
+            ]
+        ), DummyModelWithCustomCollectionCasts::first()->data_collection);
+    }
+
+    public function testLoadsACustomDataCollectionWhenNullableArgumentUsedAndValueIsNullInDatabase(): void
+    {
+        DB::table('dummy_model_with_casts')->insert([
+            'data' => null,
+        ]);
+
+        $collection = DummyModelWithDefaultCasts::first()->data_collection;
+
+        $this->assertInstanceOf(SimpleDataCollection::class, $collection);
+        $this->assertCount(0, $collection);
+    }
+
+    public function testCanUseAnAbstractDataCollectionWithMultipleChildren(): void
+    {
+        $abstractA = new AbstractDataA('A\A');
+        $abstractB = new AbstractDataB('B\B');
+
+        $modelId = DummyModelWithCasts::create([
+            'abstract_collection' => [$abstractA, $abstractB],
+        ])->id;
+
+        $model = DummyModelWithCasts::find($modelId);
+
+        $this->assertInstanceOf(DataCollection::class, $model->abstract_collection);
+        $this->assertContainsOnlyInstancesOf(AbstractData::class, $model->abstract_collection->items());
+        $this->assertInstanceOf(AbstractDataA::class, $model->abstract_collection[0]);
+        $this->assertInstanceOf(AbstractDataB::class, $model->abstract_collection[1]);
+    }
+
+    public function testCanLoadAndSaveAnAbstractPropertyMorphableDataCollection(): void
+    {
+        $modelClass = new class extends Model {
+            protected array $guarded = [];
+
+            protected array $casts = [
+                'data_collection' => SimpleDataCollection::class . ':' . AbstractPropertyMorphableData::class,
+            ];
+
+            protected ?string $table = 'dummy_model_with_casts';
+
+            public bool $timestamps = false;
+        };
+
+        $abstractA = new PropertyMorphableDataA('foo', DummyBackedEnum::FOO);
+        $abstractB = new PropertyMorphableDataB('bar');
+
+        $modelId = $modelClass::create([
+            'data_collection' => [$abstractA, $abstractB],
+        ])->id;
+
+        // Eloquent's JSON codec encodes the stored value, rather than the collection's pretty-printing toJson().
+        $this->assertDatabaseHas($modelClass::class, [
+            'data_collection' => json_encode([
+                ['a' => 'foo', 'enum' => 'foo', 'variant' => 'a'],
+                ['b' => 'bar', 'variant' => 'b'],
+            ]),
+        ]);
+
+        $model = $modelClass::find($modelId);
+
+        $this->assertInstanceOf(PropertyMorphableDataA::class, $model->data_collection[0]);
+        $this->assertSame('foo', $model->data_collection[0]->a);
+        $this->assertSame(DummyBackedEnum::FOO, $model->data_collection[0]->enum);
+        $this->assertInstanceOf(PropertyMorphableDataB::class, $model->data_collection[1]);
+        $this->assertSame('bar', $model->data_collection[1]->b);
+    }
+
+    public function testCanSaveADataCollectionWithLazyPropertiesWhichGetResolved(): void
+    {
+        DummyModelWithCasts::create([
+            'lazy_data_collection' => LazyData::collect([
+                LazyData::fromString('Hello'),
+                LazyData::fromString('World'),
+            ], DataCollection::class),
+        ]);
+
+        $this->assertDatabaseHas(DummyModelWithCasts::class, [
+            'lazy_data_collection' => json_encode([
+                ['name' => 'Hello'],
+                ['name' => 'World'],
+            ]),
+        ]);
+    }
+
+    public function testCanCorrectlyDetectIfTheAttributeIsDirty(): void
+    {
+        // Set a raw JSON string with spaces in it to mimic database behavior
+        $model = new DummyModelWithJson;
+        $model->setRawAttributes(['data_collection' => '[{"second": "Second", "first": "First"}, {"first": "Third", "second": "Fourth"}]']);
+        $model->save();
+
+        $model->data_collection = [
+            new MultiData('First', 'Second'),
+            new MultiData('Third', 'Fourth'),
+        ];
+
+        $this->assertSame('[{"second": "Second", "first": "First"}, {"first": "Third", "second": "Fourth"}]', $model->getRawOriginal('data_collection'));
+        $this->assertSame('[{"first":"First","second":"Second"},{"first":"Third","second":"Fourth"}]', $model->getAttributes()['data_collection']);
+        $this->assertFalse($model->isDirty('data_collection'));
+    }
+
+    public function testFlagsTheAttributeAsDirtyWhenItIsEncryptedAndThereArePreviousEncryptionKeys(): void
+    {
+        // The encrypter reads app.previous_keys when it is created, so the key is added to it directly.
+        try {
+            Crypt::previousKeys([random_bytes(32)]);
+
+            $model = new DummyModelWithEncryptedCasts;
+            $model->data_collection = [
+                new SimpleData('First'),
+                new SimpleData('Second'),
+            ];
+            $model->save();
+
+            $model->data_collection = $model->data_collection;
+
+            $this->assertNotSame($model->getAttributes()['data_collection'], $model->getRawOriginal('data_collection'));
+            $this->assertTrue($model->isDirty('data_collection'));
+        } finally {
+            Crypt::previousKeys([]);
+        }
+    }
+
+    public function testDoesNotFlagTheAttributeAsDirtyWhenItIsEncryptedAndThereAreNoPreviousEncryptionKeys(): void
+    {
+        $model = new DummyModelWithEncryptedCasts;
+        $model->data_collection = [
+            new SimpleData('First'),
+            new SimpleData('Second'),
+        ];
+        $model->save();
+
+        $model->data_collection = $model->data_collection;
+
+        $this->assertNotSame($model->getAttributes()['data_collection'], $model->getRawOriginal('data_collection'));
+        $this->assertFalse($model->isDirty('data_collection'));
+    }
+
+    public function testCanUpdateAModelWhereTheCastIsInitiallyNull(): void
+    {
+        $model = new DummyModelWithCasts;
+        $model->setRawAttributes(['data_collection' => null]);
+        $model->save();
+
+        $this->assertDatabaseHas(DummyModelWithCasts::class, [
+            'data_collection' => null,
+        ]);
+
+        $model->update([
+            'data_collection' => Collection::make([new SimpleData('Test')]),
+        ]);
+
+        $this->assertDatabaseHas(DummyModelWithCasts::class, [
+            'data_collection' => json_encode([['string' => 'Test']]),
+        ]);
+    }
+
+    public function testCanUpdateAModelWhereTheCastIsInitiallyNotNull(): void
+    {
+        $model = DummyModelWithCasts::create([
+            'data_collection' => Collection::make([new SimpleData('Test')]),
+        ]);
+
+        $this->assertDatabaseHas(DummyModelWithCasts::class, [
+            'data_collection' => json_encode([['string' => 'Test']]),
+        ]);
+
+        $model->update([
+            'data_collection' => null,
+        ]);
+
+        $this->assertDatabaseHas(DummyModelWithCasts::class, [
+            'data_collection' => null,
+        ]);
+    }
+
+    public function testCollectionCastKeepsItemKeys(): void
     {
         $model = new CollectionCastModel;
         $model->items = new DataCollection(CollectionItemData::class, [
@@ -66,40 +399,39 @@ class DataCollectionEloquentCastTest extends TestCase
         ], Json::decode($model->getAttributes()['items']));
 
         $model = new CollectionCastModel;
-        $model->items = [
-            ['name' => 'Taylor'],
-            ['name' => 'Abigail'],
-        ];
-
-        $this->assertSame([
-            ['name' => 'Taylor'],
-            ['name' => 'Abigail'],
-        ], Json::decode($model->getAttributes()['items']));
-
-        $model = new CollectionCastModel;
         $model->setRawAttributes([
             'items' => '{"first":{"name":"Taylor"},"second":{"name":"Abigail"}}',
         ]);
 
-        $this->assertInstanceOf(DataCollection::class, $model->items);
         $this->assertSame(['first', 'second'], array_keys($model->items->items()));
         $this->assertEquals(new CollectionItemData('Taylor'), $model->items['first']);
         $this->assertEquals(new CollectionItemData('Abigail'), $model->items['second']);
-
-        $model = new CollectionCastModel;
-        $model->items = null;
-
-        $this->assertNull($model->getAttributes()['items']);
-        $this->assertNull($model->items);
     }
 
-    public function testCollectionCastReturnsTheDeclaredCollectionSubclass(): void
+    public function testCollectionCastAcceptsCollectionsAndOtherArrayables(): void
     {
         $model = new CollectionCastModel;
-        $model->setRawAttributes(['custom_items' => '[{"name":"Taylor"}]']);
+        $model->graph_items = Collection::make([
+            new CollectionGraphItemData(
+                name: 'Taylor',
+                secret: 'private',
+                lazy: Lazy::create(static fn (): string => 'resolved'),
+            ),
+        ]);
 
-        $this->assertInstanceOf(CustomDataCollection::class, $model->custom_items);
-        $this->assertEquals(new CollectionItemData('Taylor'), $model->custom_items[0]);
+        $this->assertSame([
+            ['name' => 'Taylor', 'secret' => 'private', 'lazy' => 'resolved'],
+        ], Json::decode($model->getAttributes()['graph_items']));
+
+        $model->items = new Fluent([
+            'first' => ['name' => 'Taylor'],
+            'second' => new CollectionItemData('Abigail'),
+        ]);
+
+        $this->assertSame([
+            'first' => ['name' => 'Taylor'],
+            'second' => ['name' => 'Abigail'],
+        ], Json::decode($model->getAttributes()['items']));
     }
 
     public function testStoredCollectionsUseOneInternalRootItemOperation(): void
@@ -238,115 +570,71 @@ class DataCollectionEloquentCastTest extends TestCase
         }
     }
 
-    public function testPropertyMorphableCollectionUsesOrdinaryItemPayloads(): void
-    {
-        $caster = new DataCollectionEloquentCast(CollectionPropertyMorphData::class);
-        $model = new CollectionCastModel;
-        $encoded = $caster->set($model, 'property_morph_items', [
-            new CollectionPropertyMorphFoo('first'),
-            new CollectionPropertyMorphBar('second'),
-        ], []);
-
-        $this->assertEquals([
-            ['name' => 'first', 'variant' => 'foo'],
-            ['name' => 'second', 'variant' => 'bar'],
-        ], Json::decode($encoded));
-
-        $decoded = $caster->get($model, 'property_morph_items', $encoded, []);
-
-        $this->assertInstanceOf(CollectionPropertyMorphFoo::class, $decoded[0]);
-        $this->assertInstanceOf(CollectionPropertyMorphBar::class, $decoded[1]);
-    }
-
-    public function testAbstractCollectionRoundTripsEnforcedAliasesAndEncryption(): void
+    public function testAbstractCollectionStoresAliasesOrClassNamesAndRoundTripsEncryption(): void
     {
         $this->app->make(DataConfig::class)->enforceMorphMap([
             'first' => CollectionAbstractFirst::class,
-            'second' => CollectionAbstractSecond::class,
         ]);
 
         $items = [
             new CollectionAbstractFirst('one'),
             new CollectionAbstractSecond('two'),
         ];
+        $stored = [
+            ['type' => 'first', 'data' => ['name' => 'one']],
+            ['type' => CollectionAbstractSecond::class, 'data' => ['name' => 'two']],
+        ];
         $model = new CollectionCastModel;
         $model->abstract_items = $items;
-
-        $this->assertSame([
-            ['type' => 'first', 'data' => ['name' => 'one']],
-            ['type' => 'second', 'data' => ['name' => 'two']],
-        ], Json::decode($model->getAttributes()['abstract_items']));
-
-        $model = new CollectionCastModel;
-        $model->setRawAttributes(['abstract_items' => Json::encode([
-            ['type' => 'first', 'data' => ['name' => 'one']],
-            ['type' => 'second', 'data' => ['name' => 'two']],
-        ])]);
-
-        $this->assertInstanceOf(CollectionAbstractFirst::class, $model->abstract_items[0]);
-        $this->assertInstanceOf(CollectionAbstractSecond::class, $model->abstract_items[1]);
-
-        $model = new CollectionCastModel;
-        $model->encrypted_items = [new CollectionItemData('concrete')];
         $model->encrypted_abstract_items = $items;
-        $encryptedConcrete = $model->getAttributes()['encrypted_items'];
-        $encrypted = $model->getAttributes()['encrypted_abstract_items'];
 
-        $this->assertSame(
-            [['name' => 'concrete']],
-            Json::decode(Crypt::decryptString($encryptedConcrete)),
-        );
-        $this->assertNotSame('[', $encrypted[0]);
-        $this->assertCount(2, Json::decode(Crypt::decryptString($encrypted)));
+        $this->assertSame($stored, Json::decode($model->getAttributes()['abstract_items']));
+        $this->assertSame($stored, Json::decode(Crypt::decryptString($model->getAttributes()['encrypted_abstract_items'])));
 
         $model = new CollectionCastModel;
         $model->setRawAttributes([
-            'encrypted_items' => $encryptedConcrete,
-            'encrypted_abstract_items' => $encrypted,
+            'abstract_items' => Json::encode($stored),
+            'encrypted_abstract_items' => Crypt::encryptString(Json::encode($stored)),
         ]);
 
-        $this->assertEquals(new CollectionItemData('concrete'), $model->encrypted_items[0]);
-        $this->assertInstanceOf(CollectionAbstractFirst::class, $model->encrypted_abstract_items[0]);
-        $this->assertInstanceOf(CollectionAbstractSecond::class, $model->encrypted_abstract_items[1]);
+        foreach (['abstract_items', 'encrypted_abstract_items'] as $attribute) {
+            $this->assertEquals(new CollectionAbstractFirst('one'), $model->{$attribute}[0]);
+            $this->assertEquals(new CollectionAbstractSecond('two'), $model->{$attribute}[1]);
+        }
     }
 
-    public function testAbstractCollectionRejectsMissingAndUnknownAliases(): void
+    public function testAbstractCollectionRejectsStoredTypesOutsideTheDeclaredClass(): void
     {
+        $this->app->make(DataConfig::class)->enforceMorphMap([
+            'other' => CollectionOtherData::class,
+        ]);
+        CollectionUnrelatedFactory::$created = false;
+
         $caster = new DataCollectionEloquentCast(CollectionAbstractData::class);
         $model = new CollectionCastModel;
 
-        $this->assertThrows(
-            fn () => $caster->set(
-                $model,
-                'abstract_items',
-                [new CollectionAbstractFirst('value')],
-                [],
-            ),
-            CannotCastData::class,
-            'should have an enforced morph alias',
-        );
-        $this->assertThrows(
-            fn () => $caster->get(
-                $model,
-                'abstract_items',
-                '[{"type":"missing","data":{"name":"value"}}]',
-                [],
-            ),
-            CannotCastData::class,
-            'is not registered',
-        );
-        $this->assertThrows(
-            fn () => $caster->get(
-                $model,
-                'abstract_items',
-                json_encode([
-                    ['type' => CollectionAbstractFirst::class, 'data' => ['name' => 'value']],
-                ], JSON_THROW_ON_ERROR),
-                [],
-            ),
-            CannotCastData::class,
-            'is not registered',
-        );
+        foreach ([
+            'missing',
+            'other',
+            CollectionOtherData::class,
+            CollectionAbstractData::class,
+            CollectionDto::class,
+            CollectionUnrelatedFactory::class,
+        ] as $type) {
+            $this->assertThrows(
+                fn (): ?DataCollection => $caster->get(
+                    $model,
+                    'abstract_items',
+                    json_encode([['type' => $type, 'data' => ['name' => 'value']]], JSON_THROW_ON_ERROR),
+                    [],
+                ),
+                CannotCastData::class,
+                'should be a registered alias or a concrete transformable subtype',
+            );
+        }
+
+        // A stored class outside the declared type is rejected before anything is created from it.
+        $this->assertFalse(CollectionUnrelatedFactory::$created);
     }
 
     public function testCollectionCastRejectsInvalidAssignedAndStoredItems(): void
@@ -408,25 +696,6 @@ class DataCollectionEloquentCastTest extends TestCase
 
         $this->assertTrue($model->isDirty('items'));
     }
-
-    public function testEncryptedCollectionDirtyComparisonHonorsPreviousKeys(): void
-    {
-        $first = Crypt::encryptString('[{"name":"Taylor"}]');
-        $second = Crypt::encryptString('[{"name":"Taylor"}]');
-        $model = new CollectionCastModel;
-        $model->setRawAttributes(['encrypted_items' => $first], true);
-        $model->setRawAttributes(['encrypted_items' => $second]);
-
-        $this->assertFalse($model->isDirty('encrypted_items'));
-
-        try {
-            Crypt::previousKeys([random_bytes(32)]);
-
-            $this->assertTrue($model->isDirty('encrypted_items'));
-        } finally {
-            Crypt::previousKeys([]);
-        }
-    }
 }
 
 class CollectionCastModel extends Model
@@ -439,13 +708,10 @@ class CollectionCastModel extends Model
         return [
             'items' => DataCollection::class . ':' . CollectionItemData::class,
             'default_items' => DataCollection::class . ':' . CollectionItemData::class . ',default',
-            'custom_items' => CustomDataCollection::class . ':' . CollectionItemData::class,
             'graph_items' => DataCollection::class . ':' . CollectionGraphItemData::class,
             'override_items' => DataCollection::class . ':' . CollectionOverrideData::class,
             'abstract_items' => DataCollection::class . ':' . CollectionAbstractData::class,
-            'encrypted_items' => DataCollection::class . ':' . CollectionItemData::class . ',encrypted',
             'encrypted_abstract_items' => DataCollection::class . ':' . CollectionAbstractData::class . ',encrypted',
-            'property_morph_items' => DataCollection::class . ':' . CollectionPropertyMorphData::class,
         ];
     }
 }
@@ -530,13 +796,6 @@ class CollectionGraphItemData extends Data
     }
 }
 
-/**
- * @extends DataCollection<array-key, CollectionItemData>
- */
-class CustomDataCollection extends DataCollection
-{
-}
-
 abstract class CollectionAbstractData extends Data
 {
     public function __construct(public string $name)
@@ -566,36 +825,17 @@ class CollectionDto extends Dto
     }
 }
 
-abstract class CollectionPropertyMorphData extends Data implements PropertyMorphableData
+class CollectionUnrelatedFactory
 {
-    public function __construct(
-        #[PropertyForMorph]
-        public string $variant,
-    ) {
-    }
+    public static bool $created = false;
 
-    public static function morph(array $properties): ?string
+    /**
+     * Record that a value was created.
+     */
+    public static function from(mixed ...$payloads): self
     {
-        return match ($properties['variant'] ?? null) {
-            'foo' => CollectionPropertyMorphFoo::class,
-            'bar' => CollectionPropertyMorphBar::class,
-            default => null,
-        };
-    }
-}
+        self::$created = true;
 
-class CollectionPropertyMorphFoo extends CollectionPropertyMorphData
-{
-    public function __construct(public string $name)
-    {
-        parent::__construct('foo');
-    }
-}
-
-class CollectionPropertyMorphBar extends CollectionPropertyMorphData
-{
-    public function __construct(public string $name)
-    {
-        parent::__construct('bar');
+        return new self;
     }
 }

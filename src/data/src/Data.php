@@ -34,4 +34,6 @@ abstract class Data implements AppendableDataContract, BaseDataContract, Eloquen
     use TransformableDataConcern;
     use ValidateableDataConcern;
     use WrappableDataConcern;
+
+    // REMOVED: ContextableData; partial selections and wrapping live on IncludeableData and WrappableData.
 }

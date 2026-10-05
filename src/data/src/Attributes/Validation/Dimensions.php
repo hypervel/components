@@ -104,9 +104,19 @@ class Dimensions extends ObjectValidationAttribute
      */
     public static function create(string ...$parameters): static
     {
-        $parameters = collect($parameters)->mapWithKeys(function (string $parameter) {
+        $parameters = collect($parameters)->mapWithKeys(function (string $parameter): array {
             return [Str::camel(Str::before($parameter, '=')) => Str::after($parameter, '=')];
         })->all();
+
+        // Native constraints without an attribute parameter, such as min_ratio, stay in the original rule string.
+        $unsupported = array_diff(
+            array_keys($parameters),
+            ['minWidth', 'minHeight', 'maxWidth', 'maxHeight', 'ratio', 'width', 'height'],
+        );
+
+        if ($unsupported !== []) {
+            throw CannotBuildValidationRule::create('Could not make a dimensions rule with [' . implode(', ', $unsupported) . '].');
+        }
 
         return new static(...$parameters);
     }

@@ -17,6 +17,7 @@ use Hypervel\Data\Support\Transformation\TransformationContext;
 use Hypervel\Data\Transformers\DateTimeInterfaceTransformer;
 use Hypervel\Support\Carbon as HypervelCarbon;
 use Hypervel\Support\CarbonImmutable as HypervelCarbonImmutable;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 
@@ -27,10 +28,7 @@ class DateTimeInterfaceTransformerTest extends TestCase
         return [DataServiceProvider::class];
     }
 
-    /**
-     * Test supported date implementations use the configured format.
-     */
-    public function testTransformsDates(): void
+    public function testCanTransformDates(): void
     {
         $transformer = new DateTimeInterfaceTransformer;
 
@@ -39,10 +37,7 @@ class DateTimeInterfaceTransformerTest extends TestCase
         }
     }
 
-    /**
-     * Test an explicit format overrides the configured format.
-     */
-    public function testTransformsDatesWithAnAlternativeFormat(): void
+    public function testCanTransformDatesWithAnAlternativeFormat(): void
     {
         $transformer = new DateTimeInterfaceTransformer(format: 'd-m-Y');
 
@@ -51,25 +46,21 @@ class DateTimeInterfaceTransformerTest extends TestCase
         }
     }
 
-    /**
-     * Test dates are transformed in an alternative timezone without mutation.
-     */
-    public function testChangesTheTimezoneWithoutMutatingTheValue(): void
+    public function testCanChangeTheTimezone(): void
     {
         $transformer = new DateTimeInterfaceTransformer(setTimeZone: 'Europe/Brussels');
 
         foreach ($this->dates() as $date) {
             $this->assertSame('1994-05-19T02:00:00+02:00', $this->transform($transformer, $date));
+            // The transformed copy changes timezone; the property's value does not.
             $this->assertSame('UTC', $date->getTimezone()->getName());
         }
     }
 
-    /**
-     * Test a leading reset marker is omitted from output formatting.
-     */
-    public function testTransformsDatesWithLeadingResetMarker(): void
+    #[WithConfig('data.date_format', '!Y-m-d')]
+    public function testCanTransformDatesWithLeadingExclamationMark(): void
     {
-        $transformer = new DateTimeInterfaceTransformer(format: '!Y-m-d');
+        $transformer = new DateTimeInterfaceTransformer;
         $date = Carbon::createFromFormat('!Y-m-d', '1994-05-19', new DateTimeZone('UTC'));
 
         $this->assertSame('1994-05-19', $this->transform($transformer, $date));

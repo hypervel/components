@@ -29,9 +29,10 @@ trait ResponsableData
     {
         $data = $this;
         $container = Container::getInstance();
+        // Nested data collections wrap as in Spatie; the resource wraps the root itself.
         $contextFactory = $container
             ->make(RequestQueryStringPartialsResolver::class)
-            ->resolve($data, $request, TransformationContextFactory::create());
+            ->resolve($data, $request, TransformationContextFactory::create()->withWrapping());
         $context = $contextFactory->get($data);
         $transformer = $container->make(DataTransformer::class);
         $wrapper = $data->getWrap()->getKey(
@@ -51,6 +52,7 @@ trait ResponsableData
                 $originalItems,
                 $transformed,
                 $wrapper,
+                $transformer,
             ))->toResponse($request);
         }
 
