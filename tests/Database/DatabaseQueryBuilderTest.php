@@ -8047,6 +8047,14 @@ SQL, ['"John"'])->andReturn(1);
         $this->assertEquals(['en'], $builder->getBindings());
     }
 
+    public function testWhereJsonContainsSqliteKeepsTheJsonEachAliasUnprefixed(): void
+    {
+        $builder = $this->getSQLiteBuilder(prefix: 'prefix_');
+        $builder->select('*')->from('users')->whereJsonContains('users.options', 'en');
+
+        $this->assertSame('select * from "prefix_users" where exists (select 1 from json_each("prefix_users"."options") where "json_each"."value" is ?)', $builder->toSql());
+    }
+
     public function testWhereJsonDoesntContainMySql()
     {
         $builder = $this->getMySqlBuilder();

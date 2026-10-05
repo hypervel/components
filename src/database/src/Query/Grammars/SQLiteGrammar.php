@@ -170,7 +170,8 @@ class SQLiteGrammar extends Grammar
     {
         [$field, $path] = $this->wrapJsonFieldAndPath($column);
 
-        return 'exists (select 1 from json_each(' . $field . $path . ') where ' . $this->wrap('json_each.value') . ' is ' . $value . ')';
+        // "json_each" is the table-valued function's alias, not a table, so it never takes the table prefix.
+        return 'exists (select 1 from json_each(' . $field . $path . ') where ' . $this->wrapValue('json_each') . '.' . $this->wrapValue('value') . ' is ' . $value . ')';
     }
 
     /**
