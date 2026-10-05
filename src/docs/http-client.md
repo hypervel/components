@@ -24,6 +24,7 @@
     - [Running Concurrent Requests After the Response](#running-concurrent-requests-after-the-response)
 - [Connections](#connections)
 - [Restricting Destinations](#restricting-destinations)
+    - [Validating URLs](#validating-destination-urls)
     - [Allowing Internal Networks](#allowing-internal-networks)
     - [Egress Proxies](#egress-proxies)
     - [Limitations](#destination-policy-limitations)
@@ -1026,6 +1027,15 @@ $response = Http::withDestinationPolicy(new PublicDestinationPolicy)
 The policy resolves the destination's hostname, rejects the request if any of its addresses are private or reserved, and then connects only to the addresses it checked. Since the connection is pinned to those addresses, a hostname whose DNS answer changes after the check cannot send the request somewhere else. Each redirect is checked the same way before it is followed.
 
 If a destination is not allowed, a `Hypervel\Http\Client\Destinations\DisallowedDestinationException` is thrown, and the request is never retried. If the destination's hostname cannot be resolved, a `Hypervel\Http\Client\Destinations\DestinationResolutionException` is thrown instead. It extends `ConnectionException`, so it is reported like any other connection failure and retried when you configure retries using `retry()`. The time spent resolving the hostname counts against the request's timeout and connect timeout.
+
+<a name="validating-destination-urls"></a>
+### Validating URLs
+
+You may check a URL before storing it, such as when a user saves a webhook endpoint, using the policy's `validate` method. It throws a `DisallowedDestinationException` for a URL the policy would never send to, including a private address written as an IP address. Hostnames are not resolved, since their addresses may change before a request is sent; each request checks them when it resolves them:
+
+```php
+(new PublicDestinationPolicy)->validate($request->input('url'));
+```
 
 <a name="allowing-internal-networks"></a>
 ### Allowing Internal Networks

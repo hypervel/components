@@ -890,8 +890,6 @@ class PdoConnection extends Connection
 
     /**
      * Get the maximum number of bindings supported by one statement.
-     *
-     * @internal
      */
     public function maxBindings(): int
     {

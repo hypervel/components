@@ -1608,6 +1608,17 @@ DB::table('users')->insert([
 ]);
 ```
 
+Each database limits how many values one statement may bind. When inserting many records at once, you may split them using the connection's `maxBindings` method, which returns the limit of the connection's database:
+
+```php
+$connection = DB::connection();
+$perStatement = intdiv($connection->maxBindings(), count($records[0]));
+
+foreach (array_chunk($records, $perStatement) as $chunk) {
+    $connection->table('users')->insert($chunk);
+}
+```
+
 The `insertOrIgnore` method will ignore errors while inserting records into the database. When using this method, you should be aware that duplicate record errors will be ignored and other types of errors may also be ignored depending on the database engine. For example, `insertOrIgnore` will [bypass MySQL's strict mode](https://dev.mysql.com/doc/refman/en/sql-mode.html#ignore-effect-on-execution):
 
 ```php

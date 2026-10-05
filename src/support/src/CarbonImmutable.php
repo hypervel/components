@@ -12,6 +12,7 @@ use Hypervel\Support\Traits\DateHelpers;
  * Carbon's immutable magic modifier metadata names its base class even though
  * these methods preserve subclasses at runtime.
  *
+ * @method static addDays(int|float $value = 1)
  * @method static addMicrosecond()
  * @method static addMicroseconds(int|float $value = 1)
  * @method static addMinute()
