@@ -27,6 +27,7 @@ use Hypervel\Support\Facades\Facade;
  * @method static \Hypervel\Saloon\SaloonManager resolveCacheScopeUsing(null|Closure $resolver)
  * @method static \Hypervel\Saloon\Http\Response<mixed> send(\Hypervel\Saloon\Http\Connector $connector, \Hypervel\Saloon\Http\Request<mixed> $request, \Hypervel\Saloon\Http\Faking\MockClient|null $mockClient = null)
  * @method static \Hypervel\Saloon\Http\Sender sender()
+ * @method static void setEventDispatcher(\Hypervel\Contracts\Events\Dispatcher $events)
  * @method static \Hypervel\Saloon\SaloonManager throwOnMissingFixtures(bool $throw = true)
  * @method static bool throwsOnMissingFixtures()
  *

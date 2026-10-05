@@ -6,6 +6,7 @@ namespace Hypervel\Saloon;
 
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Http\Client\Factory as HttpFactory;
 use Hypervel\RateLimiter\RateLimiter;
@@ -37,6 +38,13 @@ class SaloonServiceProvider extends ServiceProvider
         ));
 
         $this->app->alias('saloon', SaloonManager::class);
+
+        // Event fakes replace the dispatcher after the manager may already hold the original.
+        $this->app->rebinding('events', function (Container $container, Dispatcher $events): void {
+            if ($container->resolved('saloon')) {
+                $container->make('saloon')->setEventDispatcher($events);
+            }
+        });
     }
 
     /**

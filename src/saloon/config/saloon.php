@@ -64,8 +64,9 @@ return [
     | Generated Integrations
     |--------------------------------------------------------------------------
     |
-    | The path and namespace are independent. A null namespace derives
-    | "Http\\Integrations" beneath the application's root namespace.
+    | A null namespace follows the path beneath the application directory,
+    | so "app/Http/Integrations" becomes "App\Http\Integrations". Set the
+    | namespace when the path is outside the application directory.
     |
     */
 

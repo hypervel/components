@@ -28,6 +28,7 @@ use RuntimeException;
 
 // Pools send through coroutines, so send() returns the successful responses instead of a promise to wait on.
 // Connectors take no mock client, so the global fake stands in for upstream's connector client.
+// laravel-plugin's Feature/PoolTest repeats these cases, so this file and Integration/Saloon/Feature/PoolTest cover it.
 // REMOVED: Feature/AsyncRequestTest - sendAsync() is not ported. Its live success and error cases map to
 // Integration/Saloon/Feature/PoolTest, and its response middleware, custom response and send-time middleware cases to
 // testPooledRequestsRunTheirMiddlewareWhenSentAndReturnCustomResponses.

@@ -16,6 +16,7 @@ use Hypervel\Tests\Saloon\Fixtures\Requests\HasConnectorUserRequest;
 use Hypervel\Tests\Saloon\Fixtures\Requests\UserRequest;
 
 // Upstream's live test API is replaced by the engine test server's /user and /error routes.
+// laravel-plugin's Feature/RequestTest repeats the first two cases, so they cover it too.
 class RequestTest extends TestCase
 {
     use InteractsWithServer;

@@ -8,7 +8,10 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Saloon\SaloonServiceProvider;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Testing\ParallelTesting;
 use InvalidArgumentException;
+use LogicException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\Process\Process;
 
 class GeneratorCommandsTest extends TestCase
@@ -19,6 +22,13 @@ class GeneratorCommandsTest extends TestCase
      * @var list<string>
      */
     protected array $generatedFiles = [];
+
+    /**
+     * The generated directories that the test owns.
+     *
+     * @var list<string>
+     */
+    protected array $generatedDirectories = [];
 
     /**
      * Get the package providers.
@@ -37,6 +47,10 @@ class GeneratorCommandsTest extends TestCase
 
         foreach ($this->generatedFiles as $generatedFile) {
             $files->delete($generatedFile);
+        }
+
+        foreach ($this->generatedDirectories as $generatedDirectory) {
+            $files->deleteDirectory($generatedDirectory);
         }
 
         parent::tearDown();
@@ -104,6 +118,33 @@ class GeneratorCommandsTest extends TestCase
         ]);
     }
 
+    public function testMissingArgumentsArePromptedWithExistingIntegrations(): void
+    {
+        $integrationsPath = ParallelTesting::tempDir('SaloonGeneratorCommandsTest');
+        $files = new Filesystem;
+        $files->deleteDirectory($integrationsPath);
+        $files->ensureDirectoryExists($integrationsPath . '/GitHub');
+        $files->ensureDirectoryExists($integrationsPath . '/Stripe');
+        $this->generatedDirectories[] = $integrationsPath;
+        config()->set('saloon.integrations_path', $integrationsPath);
+        config()->set('saloon.integrations_namespace', 'Domain\Integrations');
+
+        $this->artisan('saloon:request')
+            ->expectsChoice('What is the related integration?', 'Stripe', ['GitHub', 'Stripe'])
+            ->expectsQuestion('What should the Saloon request be named?', 'CreatePayment')
+            ->expectsChoice(
+                'What method should the Saloon request send?',
+                'POST',
+                ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'CONNECT', 'TRACE', 'QUERY'],
+            )
+            ->assertSuccessful();
+
+        $contents = $this->generatedFile($integrationsPath . '/Stripe/Requests/CreatePayment.php');
+
+        $this->assertStringContainsString('namespace Domain\Integrations\Stripe\Requests;', $contents);
+        $this->assertStringContainsString('protected Method $method = Method::POST;', $contents);
+    }
+
     public function testAllSupportingTypesCanBeGenerated(): void
     {
         $commands = [
@@ -140,6 +181,60 @@ class GeneratorCommandsTest extends TestCase
         $contents = $this->generatedFile($path);
 
         $this->assertStringContainsString('namespace Domain\Integrations\Stripe;', $contents);
+    }
+
+    #[DataProvider('integrationsPathsInsideTheAppDirectory')]
+    public function testAnIntegrationsPathInsideTheAppDirectoryDeterminesTheNamespace(string $relativePath, string $namespace): void
+    {
+        $integrationsPath = app_path($relativePath);
+        config()->set('saloon.integrations_path', $integrationsPath);
+        $this->generatedDirectories[] = $integrationsPath . '/Stripe';
+
+        $this->artisan('saloon:connector', [
+            'integration' => 'Stripe',
+            'name' => 'StripeConnector',
+            '--no-interaction' => true,
+        ])->assertSuccessful();
+
+        $contents = $this->generatedFile($integrationsPath . '/Stripe/StripeConnector.php');
+
+        $this->assertStringContainsString("namespace {$namespace};", $contents);
+    }
+
+    /**
+     * Get integrations paths inside the app directory and their generated namespaces.
+     *
+     * @return array<string, array{string, string}>
+     */
+    public static function integrationsPathsInsideTheAppDirectory(): array
+    {
+        return [
+            'application directory' => ['', 'App\Stripe'],
+            'subdirectory' => ['Integrations', 'App\Integrations\Stripe'],
+        ];
+    }
+
+    public function testAnIntegrationsPathOutsideTheAppDirectoryRequiresANamespace(): void
+    {
+        // A sibling whose name starts with the app directory's name is still outside it.
+        config()->set('saloon.integrations_path', base_path('app-other/Integrations'));
+        $this->generatedDirectories[] = base_path('app-other');
+
+        try {
+            $this->artisan('saloon:connector', [
+                'integration' => 'Stripe',
+                'name' => 'StripeConnector',
+                '--no-interaction' => true,
+            ])->run();
+            $this->fail('The missing integrations namespace was not rejected.');
+        } catch (LogicException $exception) {
+            $this->assertSame(
+                'The [saloon.integrations_namespace] configuration value is required when the integrations path is outside the application directory.',
+                $exception->getMessage(),
+            );
+        }
+
+        $this->assertDirectoryDoesNotExist(base_path('app-other'));
     }
 
     public function testCommandOptionsOverrideConfiguredPathAndNamespace(): void

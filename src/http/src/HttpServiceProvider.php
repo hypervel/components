@@ -6,6 +6,8 @@ namespace Hypervel\Http;
 
 use Http\Discovery\ClassDiscovery;
 use Hypervel\Context\RequestContext;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Core\Events\BeforeServerFork;
 use Hypervel\Http\Client\Factory;
 use Hypervel\Http\Discovery\GuzzlePsr18Strategy;
@@ -20,6 +22,7 @@ class HttpServiceProvider extends ServiceProvider
     {
         $this->registerPsr18Discovery();
         $this->registerRequestFactory();
+        $this->registerClientEventRebindHandler();
     }
 
     /**
@@ -76,6 +79,18 @@ class HttpServiceProvider extends ServiceProvider
         $this->app->bind('request', function ($app) {
             return RequestContext::getOrNull()
                 ?? Request::create($app->make('config')->get('app.url') ?? 'http://localhost');
+        });
+    }
+
+    /**
+     * Pass a replaced event dispatcher, such as an event fake, to the resolved HTTP client factory.
+     */
+    protected function registerClientEventRebindHandler(): void
+    {
+        $this->app->rebinding('events', function (Container $container, Dispatcher $events): void {
+            if ($container->resolved(Factory::class)) {
+                $container->make(Factory::class)->setDispatcher($events);
+            }
         });
     }
 }

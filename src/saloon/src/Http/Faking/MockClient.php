@@ -327,6 +327,9 @@ class MockClient
         return $this->withoutResponseCache;
     }
 
+    // The plugin's deprecated MockClient subclass, with startMocking(), isMocking() and resolve(), is not included;
+    // Saloon::fake() and global() manage the global mock client. See the package README.
+
     /**
      * Register or retrieve the manager-backed global mock client.
      *

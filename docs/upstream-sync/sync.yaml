@@ -189,7 +189,7 @@ saloonphp/laravel-plugin:
   checked_through: null
   last_reviewed_pr: null
   sync_date: null
-  notes: Part of the unified src/saloon package; reconcile alongside the core entry rather than creating a separate package. Provider, config, console, facade and event changes map to SaloonServiceProvider, config/saloon.php, Console, Facades and Events. Upstream's HTTP layer is a mock client and middleware, not a sender. Fakes and fixture recording map to SaloonManager and Http/Faking, SaloonManager dispatches the request events, and Telescope support comes from the framework HTTP client watcher through Http/Sender's Telescope tags. Tests map to tests/Saloon/Hypervel.
+  notes: Part of the unified src/saloon package; reconcile alongside the core entry rather than creating a separate package. Provider, config, console, facade and event changes map to SaloonServiceProvider, config/saloon.php, Console, Facades and Events. Upstream's HTTP layer is a mock client and middleware, not a sender. Fakes and fixture recording map to SaloonManager and Http/Faking, SaloonManager dispatches the request events, and Telescope support comes from the framework HTTP client watcher through Http/Sender's Telescope tags. Tests map to tests/Saloon/Hypervel and use the core fixtures, which the plugin's fixtures copy; the plugin's Feature/PoolTest and Feature/RequestTest repeat core cases and are covered by the core tests.
 
 saloonphp/cache-plugin:
   branch: v3

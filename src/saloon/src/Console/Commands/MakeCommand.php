@@ -97,13 +97,28 @@ abstract class MakeCommand extends GeneratorCommand
 
     /**
      * Get the configured integrations namespace.
+     *
+     * Without a configured namespace, the integrations path must be inside the application directory, whose
+     * subdirectories follow the application's root namespace.
      */
     protected function integrationNamespace(): string
     {
         $namespace = $this->config->get('saloon.integrations_namespace');
 
         if ($namespace === null) {
-            return rtrim($this->rootNamespace(), '\\') . '\Http\Integrations';
+            $rootNamespace = rtrim($this->rootNamespace(), '\\');
+            $appPath = rtrim($this->hypervel->path(), '/\\');
+            $integrationsPath = rtrim($this->config->string('saloon.integrations_path'), '/\\');
+
+            if ($integrationsPath === $appPath) {
+                return $rootNamespace;
+            }
+
+            if (! str_starts_with($integrationsPath, $appPath . DIRECTORY_SEPARATOR)) {
+                throw new LogicException('The [saloon.integrations_namespace] configuration value is required when the integrations path is outside the application directory.');
+            }
+
+            return $rootNamespace . '\\' . str_replace(DIRECTORY_SEPARATOR, '\\', substr($integrationsPath, strlen($appPath) + 1));
         }
 
         if (! is_string($namespace) || $namespace === '') {

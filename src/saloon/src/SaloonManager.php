@@ -299,6 +299,17 @@ class SaloonManager
     }
 
     /**
+     * Set the event dispatcher.
+     *
+     * Boot or tests only. The dispatcher persists on the manager for the
+     * worker lifetime and receives every subsequent Saloon request event.
+     */
+    public function setEventDispatcher(Dispatcher $events): void
+    {
+        $this->events = $events;
+    }
+
+    /**
      * Get the global middleware pipeline.
      *
      * Boot-only. Middleware added to this pipeline persists on the manager for
@@ -310,7 +321,7 @@ class SaloonManager
     }
 
     /**
-     * Replace the global mock client.
+     * Add responses to the global mock client, or replace it with the given client.
      *
      * Tests only. The client persists on the manager until the test
      * application is destroyed or `clearFake()` is called.
@@ -319,9 +330,13 @@ class SaloonManager
      */
     public function fake(array|MockClient $responses = []): MockClient
     {
-        return $this->mockClient = $responses instanceof MockClient
-            ? $responses
-            : new MockClient($responses);
+        if ($responses instanceof MockClient) {
+            return $this->mockClient = $responses;
+        }
+
+        ($this->mockClient ??= new MockClient)->addResponses($responses);
+
+        return $this->mockClient;
     }
 
     /**
@@ -390,6 +405,10 @@ class SaloonManager
     {
         ($this->mockClient ?? new MockClient)->assertSentCount($count, $requestClass);
     }
+
+    // The plugin's deprecated record(), stopRecording(), isRecording(), recordResponse(), getRecordedResponses() and
+    // getLastRecordedResponse() are not included: recorded() lists the responses recorded by the active mock client,
+    // and the SentSaloonRequest event observes every sent response. See the package README.
 
     /**
      * Register the cache scope resolver.

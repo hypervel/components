@@ -2190,7 +2190,7 @@ Saloon provides a strict mock client, response sequences, fixtures, request reco
 <a name="faking-responses"></a>
 ### Faking Responses
 
-Use the `Saloon` facade to replace responses for the current test application:
+Use the `Saloon` facade to fake responses for the current test application:
 
 ```php
 use App\Http\Integrations\GitHub\Requests\GetUser;
@@ -2204,6 +2204,8 @@ Saloon::fake([
     ]),
 ]);
 ```
+
+Calling `fake` again adds responses to the same mock client, so a test may extend the fakes registered in its `setUp` method. To replace the global mock client instead, pass a `MockClient` instance to `fake`.
 
 Responses may be matched by request class, connector class, or wildcard URL. Request matches take precedence over connector matches, followed by URL matches and sequence responses:
 
@@ -2361,7 +2363,7 @@ You may publish the generator stubs using the `saloon-stubs` tag:
 php artisan vendor:publish --tag=saloon-stubs
 ```
 
-Set `saloon.integrations_path` to change where generated files are written. Set `saloon.integrations_namespace` when that path uses a custom Composer namespace. The path and namespace are configured independently; Saloon does not guess a namespace from an arbitrary filesystem path.
+Set `saloon.integrations_path` to change where generated files are written. When the path is inside your application directory, generated classes follow it beneath your application's namespace, so `app_path('Integrations')` produces classes in `App\Integrations`. For a path outside the application directory, also set `saloon.integrations_namespace` to the namespace Composer loads from that path.
 
 <a name="differences-from-saloon"></a>
 ## Differences From Saloon
