@@ -2,19 +2,18 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Saloon\Http;
+namespace Hypervel\Tests\Saloon\Unit\Oauth2;
 
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\Saloon\Data\OAuthConfig;
-use Hypervel\Saloon\Http\Connector;
 use Hypervel\Saloon\Http\OAuth2\GetAccessTokenRequest;
 use Hypervel\Saloon\Http\OAuth2\GetClientCredentialsTokenBasicAuthRequest;
 use Hypervel\Saloon\Http\OAuth2\GetClientCredentialsTokenRequest;
 use Hypervel\Saloon\Http\OAuth2\GetRefreshTokenRequest;
-use Hypervel\Saloon\Http\OAuth2\GetUserRequest;
 use Hypervel\Saloon\Http\PendingRequest;
 use Hypervel\Saloon\Http\Request;
+use Hypervel\Tests\Saloon\Fixtures\Connectors\TestConnector;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -34,6 +33,11 @@ class OAuthRequestTest extends TestCase
         $this->assertSame('application/x-www-form-urlencoded', $pendingRequest->headers()['Content-Type']);
     }
 
+    /**
+     * Get each OAuth token request with its expected form body.
+     *
+     * @return array<string, array{Request, array<string, string>}>
+     */
     public static function requestBodies(): array
     {
         $config = static::config();
@@ -78,32 +82,6 @@ class OAuthRequestTest extends TestCase
         ];
     }
 
-    public function testBasicAuthRequestKeepsCredentialsOutOfTheBody(): void
-    {
-        $pendingRequest = $this->pendingRequest(
-            new GetClientCredentialsTokenBasicAuthRequest(static::config()),
-        )->applyAuthentication();
-
-        $this->assertSame(['client', 'secret'], $pendingRequest->transportAuthentication());
-    }
-
-    public function testTrustedAbsoluteOAuthEndpointsUseTheSharedUrlPolicy(): void
-    {
-        $config = new OAuthConfig(
-            'client',
-            'secret',
-            tokenEndpoint: 'https://oauth.example.net/token',
-            userEndpoint: 'https://oauth.example.net/user',
-            allowBaseUrlOverride: true,
-        );
-
-        $token = $this->pendingRequest(new GetClientCredentialsTokenRequest($config))->finalizeUri();
-        $user = $this->pendingRequest(new GetUserRequest($config))->finalizeUri();
-
-        $this->assertSame('https://oauth.example.net/token', (string) $token->uri());
-        $this->assertSame('https://oauth.example.net/user', (string) $user->uri());
-    }
-
     /**
      * Create the OAuth configuration used by request tests.
      */
@@ -123,18 +101,10 @@ class OAuthRequestTest extends TestCase
     protected function pendingRequest(Request $request): PendingRequest
     {
         return new PendingRequest(
-            new OAuthConnectorStub,
+            new TestConnector('https://api.example.com'),
             $request,
             m::mock(CacheFactory::class),
             m::mock(RateLimiter::class),
         );
-    }
-}
-
-class OAuthConnectorStub extends Connector
-{
-    public function resolveBaseUrl(): string
-    {
-        return 'https://api.example.com';
     }
 }

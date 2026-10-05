@@ -4,11 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Saloon\Traits\OAuth2;
 
-use Carbon\CarbonInterface;
-use Hypervel\Saloon\Contracts\OAuthAuthenticator;
-use Hypervel\Saloon\Http\Auth\AccessTokenAuthenticator;
 use Hypervel\Saloon\Http\Connector;
 use Hypervel\Saloon\Http\Response;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Date;
 use SensitiveParameter;
 use UnexpectedValueException;
@@ -17,54 +15,29 @@ use UnexpectedValueException;
  * @phpstan-require-extends Connector
  * @phpstan-ignore trait.unused (user-facing OAuth 2 trait)
  */
-trait CreatesOAuthAuthenticator
+trait ParsesOAuthTokenResponses
 {
     /**
-     * Create an OAuth authenticator from a token response.
+     * Parse the access token, expiry and data of a token response.
+     *
+     * @return array{string, ?CarbonImmutable, array<array-key, mixed>}
      */
-    protected function createOAuthAuthenticatorFromResponse(
-        #[SensitiveParameter]
-        Response $response,
-        #[SensitiveParameter]
-        ?string $fallbackRefreshToken = null,
-    ): OAuthAuthenticator {
+    protected function parseOAuthTokenResponse(#[SensitiveParameter] Response $response): array
+    {
         $data = $response->json();
         $accessToken = is_array($data) ? ($data['access_token'] ?? null) : null;
 
-        if (! is_string($accessToken) || $accessToken === '') {
+        if (! is_array($data) || ! is_string($accessToken) || $accessToken === '') {
             throw new UnexpectedValueException('The OAuth token response does not contain a valid access token.');
         }
 
-        $refreshToken = $data['refresh_token'] ?? $fallbackRefreshToken;
-
-        if ($refreshToken !== null && ! is_string($refreshToken)) {
-            throw new UnexpectedValueException('The OAuth token response contains an invalid refresh token.');
-        }
-
-        return $this->createOAuthAuthenticator(
-            $accessToken,
-            $refreshToken,
-            $this->resolveOAuthExpiry($data['expires_in'] ?? null),
-        );
-    }
-
-    /**
-     * Create an OAuth authenticator.
-     */
-    protected function createOAuthAuthenticator(
-        #[SensitiveParameter]
-        string $accessToken,
-        #[SensitiveParameter]
-        ?string $refreshToken = null,
-        ?CarbonInterface $expiresAt = null,
-    ): OAuthAuthenticator {
-        return new AccessTokenAuthenticator($accessToken, $refreshToken, $expiresAt);
+        return [$accessToken, $this->resolveOAuthExpiry($data['expires_in'] ?? null), $data];
     }
 
     /**
      * Resolve an OAuth token expiry.
      */
-    protected function resolveOAuthExpiry(mixed $expiresIn): ?CarbonInterface
+    protected function resolveOAuthExpiry(mixed $expiresIn): ?CarbonImmutable
     {
         if ($expiresIn === null) {
             return null;
@@ -85,7 +58,8 @@ trait CreatesOAuthAuthenticator
             throw new UnexpectedValueException('The OAuth token response contains an invalid expiry duration.');
         }
 
-        $now = Date::now();
+        // Date may be configured to create mutable dates, so copy the clock into an immutable expiry.
+        $now = CarbonImmutable::instance(Date::now());
 
         if ($now->getTimestamp() > PHP_INT_MAX - $expiresIn) {
             throw new UnexpectedValueException('The OAuth token response contains an invalid expiry duration.');

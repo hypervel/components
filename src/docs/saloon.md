@@ -1391,6 +1391,8 @@ session(['github_oauth_state' => $authorization->state]);
 return redirect((string) $authorization);
 ```
 
+The `authorizationUrl` method also accepts a `scopeSeparator` and an array of `additionalQueryParameters`. Additional parameters may replace the standard ones, such as `response_type` for an OpenID Connect hybrid flow, but the URL's `state` always matches the returned state.
+
 After the provider redirects to your application, exchange the code and validate the returned state:
 
 ```php
@@ -1511,7 +1513,19 @@ $authenticator = $connector->getAccessToken(
 );
 ```
 
-For providers that require a different request body or token response format, override the protected `resolveAccessTokenRequest`, `resolveRefreshTokenRequest`, `resolveUserRequest`, `createOAuthAuthenticatorFromResponse`, or `createOAuthAuthenticator` method on the connector. These methods let you adapt the provider protocol without replacing the OAuth flow.
+For providers that require a different request body or token response format, override the protected `resolveAccessTokenRequest`, `resolveRefreshTokenRequest`, `resolveUserRequest`, `createOAuthAuthenticatorFromResponse`, or `createOAuthAuthenticator` method on the connector. These methods let you adapt the provider protocol without replacing the OAuth flow. A PKCE verifier is added to the request your `resolveAccessTokenRequest` method returns.
+
+For example, you may return your own authenticator class. Authorization code connectors receive the access token, refresh token, and expiry, while client credentials connectors receive the access token and expiry:
+
+```php
+use DateTimeImmutable;
+use Hypervel\Saloon\Contracts\OAuthAuthenticator;
+
+protected function createOAuthAuthenticator(string $accessToken, ?string $refreshToken = null, ?DateTimeImmutable $expiresAt = null): OAuthAuthenticator
+{
+    return new SpotifyAuthenticator($accessToken, $refreshToken, $expiresAt);
+}
+```
 
 <a name="concurrent-requests"></a>
 ## Concurrent Requests
