@@ -455,7 +455,7 @@ Requests and pending requests provide fluent methods that mirror Hypervel's HTTP
 <a name="headers"></a>
 ### Headers
 
-Use `withHeader` to add one header or `withHeaders` to merge several headers. The `replaceHeaders` method replaces matching header names without removing unrelated headers. Header names are matched without regard to casing:
+Use `withHeader` to add one header or `withHeaders` to merge several headers. Adding a header that is already present keeps both values. The `replaceHeaders` method replaces matching header names without removing unrelated headers. Header names are matched without regard to casing:
 
 ```php
 $request
@@ -466,6 +466,17 @@ $request
     ])
     ->acceptJson()
     ->withUserAgent('Acme Application/1.0');
+```
+
+The `withoutHeader` and `withoutHeaders` methods remove headers, also ignoring case. Removing a header from a request only affects the request's own headers, since connector defaults are merged into the pending request when the request is sent. To remove a connector default, remove it from the pending request in a hook or middleware:
+
+```php
+use Hypervel\Saloon\Http\PendingRequest;
+
+public function boot(PendingRequest $pendingRequest): void
+{
+    $pendingRequest->withoutHeader('X-Api-Version');
+}
 ```
 
 <a name="request-url"></a>
@@ -494,6 +505,12 @@ $request->withQueryParameters([
 ```
 
 Request values replace connector values with the same key. Values added later by middleware replace earlier values. Query parameters already present in the connector base URL or request endpoint are preserved unless the request contains the same top-level key.
+
+The `withoutQueryParameters` method removes parameters added through `withQueryParameters` or `defaultQuery`. As with headers, removing a parameter from a request does not remove a connector default; remove it from the pending request instead. Values embedded in the base URL, endpoint, or `withQueryString` query are unchanged:
+
+```php
+$request->withoutQueryParameters(['page', 'per_page']);
+```
 
 Use `withQueryString` when an API supplies an already-encoded query, including repeated parameter names:
 
@@ -755,6 +772,32 @@ $request
 ```
 
 The `timeout` and `connectTimeout` methods accept seconds, while `delay` accepts milliseconds.
+
+The `withoutOptions` method removes options from the request, so the connector's value or the HTTP connection's configured value applies again. To remove a connector default, call `withoutOptions` on the pending request:
+
+```php
+$request->withoutOptions(['timeout', 'connect_timeout']);
+```
+
+The `HasTimeout` plugin gives a connector or request default timeouts from its `$connectTimeout` and `$requestTimeout` properties, in seconds. You may override the `getConnectTimeout` or `getRequestTimeout` methods to calculate them instead. Options set on the same connector or request take precedence over its declared timeouts, and a request's timeouts take precedence over its connector's. A timeout that is not declared leaves the existing options and the HTTP connection's configured value in effect:
+
+```php
+use Hypervel\Saloon\Traits\Plugins\HasTimeout;
+
+class GitHubConnector extends Connector
+{
+    use HasTimeout;
+
+    protected int $connectTimeout = 5;
+
+    protected int $requestTimeout = 60;
+
+    public function resolveBaseUrl(): string
+    {
+        return 'https://api.github.com';
+    }
+}
+```
 
 To specify a cookie's path or other attributes, use `withCookie` with a Guzzle `SetCookie` instance. The cookie must include a domain:
 

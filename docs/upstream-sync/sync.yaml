@@ -182,41 +182,42 @@ saloonphp/saloon:
   checked_through: null
   last_reviewed_pr: null
   sync_date: null
+  notes: Core of the unified hypervel/saloon package, together with the four plugin entries and shared documentation below. Upstream's connector send path and senders map to SaloonManager and Http/Sender, which use Hypervel's HTTP client; pools use coroutines. Assess upstream changes against these framework integrations and preserve supported SDK-generator extension points. Upstream tests and fixtures map to the same paths under tests/Saloon/{Unit,Feature,Fixtures}. Public contract differences belong in src/saloon/README.md.
 
 saloonphp/laravel-plugin:
   branch: v4
   checked_through: null
   last_reviewed_pr: null
   sync_date: null
-  notes: Integrated into src/saloon.
+  notes: Part of the unified src/saloon package; reconcile alongside the core entry rather than creating a separate package. Provider, config, console, facade and event changes map to SaloonServiceProvider, config/saloon.php, Console, Facades and Events. Upstream's HTTP layer is a mock client and middleware, not a sender. Fakes and fixture recording map to SaloonManager and Http/Faking, SaloonManager dispatches the request events, and Telescope support comes from the framework HTTP client watcher through Http/Sender's Telescope tags. Tests map to tests/Saloon/Hypervel.
 
 saloonphp/cache-plugin:
   branch: v3
   checked_through: null
   last_reviewed_pr: null
   sync_date: null
-  notes: Integrated into src/saloon.
+  notes: Part of the unified src/saloon package. Upstream caching maps to Cache and SaloonManager using Hypervel's cache services; assess behavior against that integration instead of duplicating upstream drivers. Tests map to tests/Saloon/Cache.
 
 saloonphp/pagination-plugin:
   branch: v2
   checked_through: null
   last_reviewed_pr: null
   sync_date: null
-  notes: Integrated into src/saloon.
+  notes: Part of the unified src/saloon package, under Pagination. Request-owned pagination and link paginators are also used by SDK generators; check affected consumers when adapting upstream changes. Tests map to tests/Saloon/Pagination.
 
 saloonphp/rate-limit-plugin:
   branch: v2
   checked_through: null
   last_reviewed_pr: null
   sync_date: null
-  notes: Integrated into src/saloon.
+  notes: Part of the unified src/saloon package. Upstream rate-limit behavior maps to RateLimit and SaloonManager using Hypervel's rate-limiter policies and stores; assess changes against those framework services. Tests map to tests/Saloon/RateLimit.
 
 Sammyjo20/saloon-docs:
   branch: v3
   checked_through: null
   last_reviewed_pr: null
   sync_date: null
-  notes: Shared documentation for Saloon and its plugins.
+  notes: Shared documentation for the unified src/saloon package and all four plugin entries above, mapped to src/docs/saloon.md. The v3 branch includes v4 guidance; verify examples against the tracked source and Hypervel's integrations, using Laravel-style prose.
 
 getsentry/sentry-laravel:
   branch: master

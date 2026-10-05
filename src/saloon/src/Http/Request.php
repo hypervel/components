@@ -221,7 +221,6 @@ abstract class Request implements SelfBuilding
         $this->headerRepository = $this->headerRepository !== null ? clone $this->headerRepository : null;
         $this->queryRepository = $this->queryRepository !== null ? clone $this->queryRepository : null;
         $this->optionRepository = $this->optionRepository !== null ? clone $this->optionRepository : null;
-        $this->delayRepository = $this->delayRepository !== null ? clone $this->delayRepository : null;
         $this->middlewarePipeline = $this->middlewarePipeline !== null ? clone $this->middlewarePipeline : null;
         $this->bodyRepository = $this->bodyRepository !== null ? clone $this->bodyRepository : null;
     }

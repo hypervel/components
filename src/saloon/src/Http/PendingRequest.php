@@ -23,7 +23,6 @@ use Hypervel\Saloon\Exceptions\Request\FatalRequestException;
 use Hypervel\Saloon\Http\PendingRequest\BootPlugins;
 use Hypervel\Saloon\Repositories\ArrayRepository;
 use Hypervel\Saloon\Repositories\Body\MultipartBodyRepository;
-use Hypervel\Saloon\Repositories\IntegerRepository;
 use Hypervel\Saloon\Traits\Auth\AuthenticatesRequests;
 use Hypervel\Saloon\Traits\Body\HasBody;
 use Hypervel\Saloon\Traits\HasDebugging;
@@ -47,6 +46,7 @@ class PendingRequest
     use HasDebugging;
     use HasRequestProperties {
         withQueryParameters as protected addQueryParameters;
+        withoutQueryParameters as protected removeQueryParameters;
         withQueryString as protected replaceQueryString;
     }
     use Macroable;
@@ -126,9 +126,7 @@ class PendingRequest
             $connector->options(),
             $request->options(),
         ));
-        $this->delayRepository = new IntegerRepository(
-            $request->delayMilliseconds() ?? $connector->delayMilliseconds(),
-        );
+        $this->delay = $request->delayMilliseconds() ?? $connector->delayMilliseconds();
         $this->middlewarePipeline = clone $request->middleware();
 
         $connectorBody = $connector->copyDefaultBodyRepository();
@@ -220,6 +218,23 @@ class PendingRequest
     {
         $this->uri = null;
         $this->addQueryParameters($parameters);
+
+        return $this;
+    }
+
+    /**
+     * Remove query parameters and invalidate the finalized URI.
+     *
+     * Only values added through the query parameter methods are removed. Values embedded in the base URL, endpoint
+     * or raw query string are unchanged.
+     *
+     * @param array<int, string>|string $keys
+     * @return $this
+     */
+    public function withoutQueryParameters(array|string $keys): static
+    {
+        $this->uri = null;
+        $this->removeQueryParameters($keys);
 
         return $this;
     }

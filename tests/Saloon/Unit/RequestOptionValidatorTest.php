@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Saloon\Http;
+namespace Hypervel\Tests\Saloon\Unit;
 
 use Hypervel\Saloon\Exceptions\PendingRequestException;
 use Hypervel\Saloon\Http\RequestOptionValidator;
