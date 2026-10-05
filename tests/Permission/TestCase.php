@@ -17,6 +17,8 @@ use Hypervel\Permission\Contracts\Permission as PermissionContract;
 use Hypervel\Permission\Contracts\Role as RoleContract;
 use Hypervel\Permission\Exceptions\UnauthorizedException;
 use Hypervel\Permission\Guard;
+use Hypervel\Permission\Models\Permission as BasePermission;
+use Hypervel\Permission\Models\Role as BaseRole;
 use Hypervel\Permission\PermissionRegistrar;
 use Hypervel\Permission\PermissionServiceProvider;
 use Hypervel\Support\Facades\Auth;
@@ -43,25 +45,24 @@ abstract class TestCase extends TestbenchTestCase
 
     protected Admin $testAdmin;
 
-    protected \Hypervel\Permission\Models\Role $testUserRole;
+    protected BaseRole $testUserRole;
 
-    protected \Hypervel\Permission\Models\Role $testAdminRole;
+    protected BaseRole $testAdminRole;
 
-    protected \Hypervel\Permission\Models\Permission $testUserPermission;
+    protected BasePermission $testUserPermission;
 
-    protected \Hypervel\Permission\Models\Permission $testAdminPermission;
+    protected BasePermission $testAdminPermission;
 
     protected Client $testClient;
 
-    protected \Hypervel\Permission\Models\Permission $testClientPermission;
+    protected BasePermission $testClientPermission;
 
-    protected \Hypervel\Permission\Models\Role $testClientRole;
+    protected BaseRole $testClientRole;
 
     /**
      * Get package providers.
-     * @param mixed $app
      */
-    protected function getPackageProviders($app): array
+    protected function getPackageProviders(ApplicationContract $app): array
     {
         return [
             PermissionServiceProvider::class,
