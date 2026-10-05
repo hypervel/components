@@ -15,7 +15,6 @@ use Hypervel\Permission\Events\PermissionAttachedEvent;
 use Hypervel\Permission\Events\PermissionDetachedEvent;
 use Hypervel\Permission\Exceptions\GuardDoesNotMatch;
 use Hypervel\Permission\Exceptions\PermissionDoesNotExist;
-use Hypervel\Permission\Guard;
 use Hypervel\Permission\PermissionRegistrar;
 use Hypervel\Permission\Traits\HasRoles;
 use Hypervel\Support\ClassInvoker;
@@ -117,9 +116,7 @@ class HasPermissionsTest extends TestCase
 
     public function testItCanRevokeAPermissionWhenUsingACustomPivotClassWithoutTeams(): void
     {
-        config()->set('auth.providers.users.model', HasPermissionsCustomPivotUser::class);
-        // Guard caches provider models for the worker lifetime.
-        Guard::flushState();
+        $this->useAuthUserModel(HasPermissionsCustomPivotUser::class);
 
         $user = HasPermissionsCustomPivotUser::create(['email' => 'custom-pivot-permissions-without-teams@test.com']);
 

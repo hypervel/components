@@ -298,6 +298,19 @@ abstract class TestCase extends TestbenchTestCase
     }
 
     /**
+     * Use a user model for the default auth provider.
+     *
+     * @param class-string<Model> $model
+     */
+    protected function useAuthUserModel(string $model): void
+    {
+        $this->app->make('config')->set('auth.providers.users.model', $model);
+
+        // Guard caches provider models for the worker lifetime.
+        Guard::flushState();
+    }
+
+    /**
      * Reload permission cache state.
      */
     protected function reloadPermissions(): void

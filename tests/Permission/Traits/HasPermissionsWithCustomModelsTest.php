@@ -14,22 +14,34 @@ use Hypervel\Tests\Permission\Fixtures\Models\User;
 
 class HasPermissionsWithCustomModelsTest extends HasPermissionsTest
 {
-    protected int $resetDatabaseQuery = 0;
-
     protected function setUpInCoroutine(): void
     {
         $this->setUpCustomModels();
     }
 
-    public function testItCanScopeUsersUsingAInt(): void
-    {
-        // Skipped because custom model uses uuid, replacement "testItCanScopeUsersUsingAUuid".
-        $this->assertTrue(true);
-    }
-
     public function testItCanUseCustomModelPermission(): void
     {
         $this->assertSame(Permission::class, $this->testUserPermission::class);
+    }
+
+    public function testItCanUseCustomFieldsFromCache(): void
+    {
+        DB::connection()->getSchemaBuilder()->table(config('permission.table_names.roles'), function ($table): void {
+            $table->string('type')->default('R');
+        });
+        DB::connection()->getSchemaBuilder()->table(config('permission.table_names.permissions'), function ($table): void {
+            $table->string('type')->default('P');
+        });
+
+        $this->testUserRole->givePermissionTo($this->testUserPermission);
+        app(PermissionRegistrar::class)->getPermissions();
+
+        DB::enableQueryLog();
+        $this->assertSame('P', Permission::findByName('edit-articles')->type);
+        $this->assertSame('R', Permission::findByName('edit-articles')->roles[0]->type);
+        DB::disableQueryLog();
+
+        $this->assertCount(0, DB::getQueryLog());
     }
 
     public function testBasePermissionRequestsReuseTheConfiguredCustomCatalogAndPrimaryKey(): void
@@ -57,43 +69,11 @@ class HasPermissionsWithCustomModelsTest extends HasPermissionsTest
         $this->assertSame([], DB::getQueryLog());
     }
 
-    public function testFindOrCreateRestoresSoftDeletedPermission(): void
+    public function testItCanScopeUsersUsingAInt(): void
     {
-        $permission = Permission::create(['name' => 'restorable-permission']);
-        $permissionId = $permission->getKey();
-        $this->testUserRole->givePermissionTo($permission);
-        $this->testUser->givePermissionTo($permission);
-
-        $permission->delete();
-
-        $restoredPermission = Permission::findOrCreate('restorable-permission');
-
-        $this->assertSame($permissionId, $restoredPermission->getKey());
-        $this->assertFalse($restoredPermission->trashed());
-        $this->assertNull($restoredPermission->deleted_at);
-        $this->assertSame(1, Permission::withTrashed()->where('name', 'restorable-permission')->count());
-        $this->assertTrue($this->testUserRole->hasPermissionTo($restoredPermission));
-        $this->assertTrue($this->testUser->fresh()->hasPermissionTo($restoredPermission));
-    }
-
-    public function testItCanUseCustomFieldsFromCache(): void
-    {
-        DB::connection()->getSchemaBuilder()->table(config('permission.table_names.roles'), function ($table): void {
-            $table->string('type')->default('R');
-        });
-        DB::connection()->getSchemaBuilder()->table(config('permission.table_names.permissions'), function ($table): void {
-            $table->string('type')->default('P');
-        });
-
-        $this->testUserRole->givePermissionTo($this->testUserPermission);
-        app(PermissionRegistrar::class)->getPermissions();
-
-        DB::enableQueryLog();
-        $this->assertSame('P', Permission::findByName('edit-articles')->type);
-        $this->assertSame('R', Permission::findByName('edit-articles')->roles[0]->type);
-        DB::disableQueryLog();
-
-        $this->assertCount(0, DB::getQueryLog());
+        // Skipped because custom model uses uuid,
+        // replacement "testItCanScopeUsersUsingAUuid"
+        $this->assertTrue(true);
     }
 
     public function testItCanScopeUsersUsingAUuid(): void
@@ -111,7 +91,7 @@ class HasPermissionsWithCustomModelsTest extends HasPermissionsTest
         $this->assertCount(1, User::permission([$uuid2])->get());
     }
 
-    public function testItDoesNotDetachRolesWhenSoftDeleting(): void
+    public function testItDoesntDetachRolesWhenSoftDeleting(): void
     {
         $this->testUserRole->givePermissionTo($this->testUserPermission);
 
@@ -119,7 +99,9 @@ class HasPermissionsWithCustomModelsTest extends HasPermissionsTest
         $this->testUserPermission->delete();
         DB::disableQueryLog();
 
-        $this->assertCount(1 + $this->resetDatabaseQuery, DB::getQueryLog());
+        // A database cache store invalidates the permission catalog when deleting and again when deleted
+        // (lock, delete and release each).
+        $this->assertCount($this->usesDatabaseCacheStore() ? 7 : 1, DB::getQueryLog());
 
         $permission = Permission::onlyTrashed()->find($this->testUserPermission->getKey());
 
@@ -131,7 +113,7 @@ class HasPermissionsWithCustomModelsTest extends HasPermissionsTest
         );
     }
 
-    public function testItDoesNotDetachUsersWhenSoftDeleting(): void
+    public function testItDoesntDetachUsersWhenSoftDeleting(): void
     {
         $this->testUser->givePermissionTo($this->testUserPermission);
         $registrar = app(PermissionRegistrar::class);
@@ -141,7 +123,9 @@ class HasPermissionsWithCustomModelsTest extends HasPermissionsTest
         $this->testUserPermission->delete();
         DB::disableQueryLog();
 
-        $this->assertCount(1 + $this->resetDatabaseQuery, DB::getQueryLog());
+        // A database cache store invalidates the permission catalog when deleting and again when deleted
+        // (lock, delete and release each).
+        $this->assertCount($this->usesDatabaseCacheStore() ? 7 : 1, DB::getQueryLog());
 
         $permission = Permission::onlyTrashed()->find($this->testUserPermission->getKey());
 
@@ -166,7 +150,9 @@ class HasPermissionsWithCustomModelsTest extends HasPermissionsTest
         $this->testUserPermission->forceDelete();
         DB::disableQueryLog();
 
-        $this->assertCount(3 + $this->resetDatabaseQuery, DB::getQueryLog());
+        // A database cache store invalidates the permission catalog once for the delete transaction
+        // (lock, delete and release) and writes a new model assignment token.
+        $this->assertCount($this->usesDatabaseCacheStore() ? 7 : 3, DB::getQueryLog()); // avoid detach permissions on permissions
 
         $this->assertNull(Permission::withTrashed()->find($permissionId));
         $this->assertSame(
@@ -184,7 +170,26 @@ class HasPermissionsWithCustomModelsTest extends HasPermissionsTest
         $this->assertNotSame($token, $registrar->modelAssignmentCacheToken());
     }
 
-    public function testItTouchesWhenAssigningNewPermissions(): void
+    public function testFindOrCreateRestoresSoftDeletedPermission(): void
+    {
+        $permission = Permission::create(['name' => 'restorable-permission']);
+        $permissionId = $permission->getKey();
+        $this->testUserRole->givePermissionTo($permission);
+        $this->testUser->givePermissionTo($permission);
+
+        $permission->delete();
+
+        $restoredPermission = Permission::findOrCreate('restorable-permission');
+
+        $this->assertSame($permissionId, $restoredPermission->getKey());
+        $this->assertFalse($restoredPermission->trashed());
+        $this->assertNull($restoredPermission->deleted_at);
+        $this->assertSame(1, Permission::withTrashed()->where('name', 'restorable-permission')->count());
+        $this->assertTrue($this->testUserRole->hasPermissionTo($restoredPermission));
+        $this->assertTrue($this->testUser->fresh()->hasPermissionTo($restoredPermission));
+    }
+
+    public function testItShouldTouchWhenAssigningNewPermissions(): void
     {
         CarbonImmutable::setTestNow('2021-07-19 10:13:14');
 
