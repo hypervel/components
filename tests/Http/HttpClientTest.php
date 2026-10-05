@@ -3337,21 +3337,81 @@ class HttpClientTest extends TestCase
         $this->assertSame('abc123', $stream->getContents());
     }
 
-    public function testZeroProgressPsrSinkFailsAndRecordsTheRequest(): void
+    public function testZeroProgressPsrSinkFailsLikeATransportAndRecordsTheResponse(): void
     {
         $this->factory->fakeSequence()->push('abc123');
         $stream = new PrefixWriteStream(Utils::streamFor(''), 0);
 
         try {
             $this->factory->sink($stream)->get('https://example.com');
-            $this->fail('RuntimeException was not thrown.');
-        } catch (RuntimeException $exception) {
+            $this->fail('ConnectionException was not thrown.');
+        } catch (ConnectionException $exception) {
             $this->assertSame('Unable to write to stream', $exception->getMessage());
+            $this->assertInstanceOf(ResponseException::class, $exception->getPrevious());
         }
 
         $this->factory->assertSentCount(1);
         $this->factory->assertSent(fn (Request $request, ?Response $response): bool => $request->url() === 'https://example.com'
-            && $response === null);
+            && $response?->status() === 200);
+    }
+
+    public function testDecoratedSinkCallbacksStillTakeTheResponseAlone(): void
+    {
+        $stream = Utils::streamFor('');
+
+        (new DecoratingSinkPendingRequest($this->factory))
+            ->stub(fn () => Factory::response('abc123'))
+            ->sink($stream)
+            ->get('https://example.com');
+
+        $this->assertSame('abc123', (string) $stream);
+
+        try {
+            (new DecoratingSinkPendingRequest($this->factory))
+                ->stub(fn () => Factory::response('abc123'))
+                ->sink(new PrefixWriteStream(Utils::streamFor(''), 0))
+                ->get('https://example.com');
+            $this->fail('ConnectionException was not thrown.');
+        } catch (ConnectionException $exception) {
+            $this->assertSame('Unable to write to stream', $exception->getMessage());
+            $this->assertSame('https://example.com', (string) $exception->getPrevious()?->getRequest()->getUri());
+        }
+    }
+
+    public function testFakedResponsesReachOnHeadersBeforeTheSink(): void
+    {
+        $this->factory->fakeSequence()->push('abc123', 201, ['X-Fake' => 'yes']);
+        $stream = Utils::streamFor('');
+        $seen = null;
+
+        $this->factory->sink($stream)->withOptions([
+            'on_headers' => function (ResponseInterface $response, RequestInterface $request) use ($stream, &$seen): void {
+                $seen = [$response->getStatusCode(), $response->getHeaderLine('X-Fake'), (string) $request->getUri(), $stream->getSize()];
+            },
+        ])->get('https://example.com');
+
+        $this->assertSame([201, 'yes', 'https://example.com', 0], $seen);
+        $this->assertSame('abc123', (string) $stream);
+    }
+
+    public function testOnHeadersFailuresOnFakedResponsesFailLikeATransport(): void
+    {
+        $this->factory->fakeSequence()->push('abc123');
+        $failure = new RuntimeException('Refused.');
+
+        try {
+            $this->factory->withOptions([
+                'on_headers' => function () use ($failure): void {
+                    throw $failure;
+                },
+            ])->get('https://example.com');
+            $this->fail('ConnectionException was not thrown.');
+        } catch (ConnectionException $exception) {
+            $this->assertSame('An error was encountered during the on_headers event', $exception->getMessage());
+            $this->assertSame($failure, $exception->getPrevious()?->getPrevious());
+        }
+
+        $this->factory->assertSent(fn (Request $request, ?Response $response): bool => $response?->status() === 200);
     }
 
     public function testNonseekableResourceSinkReceivesTheCompleteBody(): void
@@ -3394,8 +3454,8 @@ class HttpClientTest extends TestCase
 
             try {
                 $this->factory->sink($sink)->get('https://example.com');
-                $this->fail('RuntimeException was not thrown.');
-            } catch (RuntimeException $exception) {
+                $this->fail('ConnectionException was not thrown.');
+            } catch (ConnectionException $exception) {
                 $this->assertSame('Unable to write to stream', $exception->getMessage());
             }
 
@@ -3449,20 +3509,12 @@ class HttpClientTest extends TestCase
         }
     }
 
-    #[DataProvider('failedSinkProvider')]
-    public function testFailedFakeSinksAreRecordedAndPropagated(string $sinkType): void
+    public function testFailedFakePathSinkIsRecordedAndPropagated(): void
     {
         $directory = ParallelTesting::tempDir('HttpClientFailedSink');
         $filesystem = new Filesystem;
         $filesystem->deleteDirectory($directory);
-
-        $sink = $sinkType === 'resource'
-            ? fopen('php://memory', 'r')
-            : $directory . '/missing/sunk.txt';
-
-        $expectedMessage = $sinkType === 'resource'
-            ? 'Unable to write to stream'
-            : "Unable to write response body to sink [{$sink}].";
+        $sink = $directory . '/missing/sunk.txt';
 
         $this->factory->fake(['*' => $this->factory::response('abc123')]);
 
@@ -3470,12 +3522,8 @@ class HttpClientTest extends TestCase
             $this->factory->sink($sink)->get('https://example.com');
             $this->fail('RuntimeException was not thrown.');
         } catch (RuntimeException $exception) {
-            $this->assertSame($expectedMessage, $exception->getMessage());
+            $this->assertSame("Unable to write response body to sink [{$sink}].", $exception->getMessage());
         } finally {
-            if (is_resource($sink)) {
-                fclose($sink);
-            }
-
             $filesystem->deleteDirectory($directory);
         }
 
@@ -3484,12 +3532,24 @@ class HttpClientTest extends TestCase
             && $response === null);
     }
 
-    public static function failedSinkProvider(): array
+    public function testFailedFakeResourceSinkFailsLikeATransportAndRecordsTheResponse(): void
     {
-        return [
-            'read-only resource' => ['resource'],
-            'missing directory' => ['path'],
-        ];
+        $sink = fopen('php://memory', 'r');
+
+        $this->factory->fake(['*' => $this->factory::response('abc123')]);
+
+        try {
+            $this->factory->sink($sink)->get('https://example.com');
+            $this->fail('ConnectionException was not thrown.');
+        } catch (ConnectionException $exception) {
+            $this->assertSame('Unable to write to stream', $exception->getMessage());
+        } finally {
+            fclose($sink);
+        }
+
+        $this->factory->assertSentCount(1);
+        $this->factory->assertSent(fn (Request $request, ?Response $response) => $request->url() === 'https://example.com'
+            && $response?->status() === 200);
     }
 
     public function testCanAssertAgainstOrderOfHttpRequestsWithUrlStrings(): void
@@ -7040,6 +7100,16 @@ class PreparedBodyTrackingPendingRequest extends PendingRequest
         ++$this->preparedBodyHandlerBuilds;
 
         return parent::buildPreparedBodyHandler();
+    }
+}
+
+class DecoratingSinkPendingRequest extends PendingRequest
+{
+    protected function sinkStubHandler(mixed $sink): Closure
+    {
+        $handler = parent::sinkStubHandler($sink);
+
+        return static fn (ResponseInterface $response): ResponseInterface => $handler($response);
     }
 }
 

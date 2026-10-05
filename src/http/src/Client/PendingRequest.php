@@ -1858,13 +1858,31 @@ class PendingRequest implements Transient
 
                 $response = is_array($response) ? Factory::response($response) : $response;
 
+                /** @var null|callable $onHeaders */
+                $onHeaders = $options['on_headers'] ?? null;
                 $sink = $options['sink'] ?? null;
 
-                if ($sink !== null) {
-                    return $response->then($this->sinkStubHandler($sink));
+                if ($onHeaders === null && $sink === null) {
+                    return $response;
                 }
 
-                return $response;
+                // Faked responses reach on_headers and the sink as transported ones do: headers first, then the body.
+                return $response->then(function (ResponseInterface $psrResponse) use ($request, $onHeaders, $sink): ResponseInterface {
+                    if ($onHeaders !== null) {
+                        try {
+                            // Guzzle 8 also passes the request.
+                            if (class_exists(ResponseException::class)) {
+                                $onHeaders($psrResponse, $request);
+                            } else {
+                                $onHeaders($psrResponse);
+                            }
+                        } catch (Throwable $e) {
+                            throw $this->transferExceptionWithResponse('An error was encountered during the on_headers event', $request, $psrResponse, $e);
+                        }
+                    }
+
+                    return $sink === null ? $psrResponse : $this->sinkStubHandler($sink)($psrResponse, $request);
+                });
             };
         };
     }
@@ -1872,11 +1890,21 @@ class PendingRequest implements Transient
     /**
      * Get the sink stub handler callback.
      *
+     * A sink that stops accepting the body fails the request as a transport
+     * would, with the response, so the callback also takes the request. A
+     * subclass decorating the callback may still pass the response alone, as
+     * Laravel's callback takes it; the request being sent is used then.
+     *
      * @param resource|StreamInterface|string $sink
+     * @return Closure(ResponseInterface, ?RequestInterface=): ResponseInterface
      */
     protected function sinkStubHandler(mixed $sink): Closure
     {
-        return function (ResponseInterface $psrResponse) use ($sink): ResponseInterface {
+        $sentRequest = $this->request?->toPsrRequest();
+
+        return function (ResponseInterface $psrResponse, ?RequestInterface $request = null) use ($sink, $sentRequest): ResponseInterface {
+            /** @var RequestInterface $request */
+            $request ??= $sentRequest;
             $body = $psrResponse->getBody()->getContents();
             $length = strlen($body);
 
@@ -1895,7 +1923,7 @@ class PendingRequest implements Transient
                     $written = @fwrite($sink, $offset === 0 ? $body : substr($body, $offset));
 
                     if ($written === false || $written === 0) {
-                        throw new RuntimeException('Unable to write to stream');
+                        throw $this->transferExceptionWithResponse('Unable to write to stream', $request, $psrResponse);
                     }
 
                     $offset += $written;
@@ -1914,7 +1942,7 @@ class PendingRequest implements Transient
                 $written = $sink->write($offset === 0 ? $body : substr($body, $offset));
 
                 if ($written === 0) {
-                    throw new RuntimeException('Unable to write to stream');
+                    throw $this->transferExceptionWithResponse('Unable to write to stream', $request, $psrResponse);
                 }
 
                 $offset += $written;
@@ -2300,6 +2328,17 @@ class PendingRequest implements Transient
         }
 
         return null;
+    }
+
+    /**
+     * Create the exception a transport raises when a request fails after its response's headers arrived.
+     */
+    protected function transferExceptionWithResponse(string $message, RequestInterface $request, ResponseInterface $response, ?Throwable $previous = null): RequestException
+    {
+        // Guzzle 8 carries the response on ResponseException, Guzzle 7 on RequestException.
+        return class_exists(ResponseException::class)
+            ? new ResponseException($message, $request, $response, $previous)
+            : new RequestException($message, $request, $response, $previous); // @phpstan-ignore argument.type (Only Guzzle 7 reaches this branch; its RequestException takes the response third.)
     }
 
     /**
