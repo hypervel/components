@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Permission\Middleware;
 
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
 use Hypervel\Permission\Exceptions\UnauthorizedException;
@@ -22,66 +23,73 @@ class WildcardMiddlewareTest extends TestCase
 
     protected RoleOrPermissionMiddleware $roleOrPermissionMiddleware;
 
-    protected function setUp(): void
+    protected function defineEnvironment(ApplicationContract $app): void
     {
-        parent::setUp();
+        parent::defineEnvironment($app);
 
+        $app->make('config')->set('permission.enable_wildcard_permission', true);
+    }
+
+    protected function setUpInCoroutine(): void
+    {
         $this->roleMiddleware = $this->app->make(RoleMiddleware::class);
         $this->permissionMiddleware = $this->app->make(PermissionMiddleware::class);
         $this->roleOrPermissionMiddleware = $this->app->make(RoleOrPermissionMiddleware::class);
-
-        $this->app->make('config')->set('permission.enable_wildcard_permission', true);
-        $this->flushPermissionState();
     }
 
-    public function testGuestCannotAccessPermissionProtectedRoute(): void
+    public function testItDoesNotAllowAGuestToAccessARouteProtectedByThePermissionMiddleware(): void
     {
         $this->assertSame(403, $this->runMiddleware($this->permissionMiddleware, 'articles.edit'));
     }
 
-    public function testUserCanAccessRouteWithWildcardPermission(): void
+    public function testItAllowsAUserToAccessARouteProtectedByPermissionMiddlewareIfTheyHaveThisPermission(): void
     {
         Auth::login($this->testUser);
 
         Permission::create(['name' => 'articles']);
+
         $this->testUser->givePermissionTo('articles');
 
         $this->assertSame(200, $this->runMiddleware($this->permissionMiddleware, 'articles.edit'));
     }
 
-    public function testUserCanAccessRouteWithOneOfTheWildcardPermissions(): void
+    public function testItAllowsAUserToAccessARouteProtectedByThisPermissionMiddlewareIfTheyHaveOneOfThePermissions(): void
     {
         Auth::login($this->testUser);
 
         Permission::create(['name' => 'articles.*.test']);
+
         $this->testUser->givePermissionTo('articles.*.test');
 
         $this->assertSame(200, $this->runMiddleware($this->permissionMiddleware, 'news.edit|articles.create.test'));
         $this->assertSame(200, $this->runMiddleware($this->permissionMiddleware, ['news.edit', 'articles.create.test']));
+        $this->assertSame(403, $this->runMiddleware($this->permissionMiddleware, 'articles.create.other'));
     }
 
-    public function testUserCannotAccessRouteWithDifferentWildcardPermission(): void
+    public function testItDoesNotAllowAUserToAccessARouteProtectedByThePermissionMiddlewareIfTheyHaveADifferentPermission(): void
     {
         Auth::login($this->testUser);
 
         Permission::create(['name' => 'articles.*']);
+
         $this->testUser->givePermissionTo('articles.*');
 
         $this->assertSame(403, $this->runMiddleware($this->permissionMiddleware, 'news.edit'));
     }
 
-    public function testUserCannotAccessRouteWithNoMatchingPermission(): void
+    public function testItDoesNotAllowAUserToAccessARouteProtectedByPermissionMiddlewareIfTheyHaveNoPermissions(): void
     {
         Auth::login($this->testUser);
 
         $this->assertSame(403, $this->runMiddleware($this->permissionMiddleware, 'articles.edit|news.edit'));
     }
 
-    public function testUserCanAccessPermissionOrRoleProtectedRouteWithWildcardPermissionOrRole(): void
+    public function testItAllowsAUserToAccessARouteProtectedByPermissionOrRoleMiddlewareIfTheyHaveThisPermissionOrRole(): void
     {
         Auth::login($this->testUser);
 
         Permission::create(['name' => 'articles.*']);
+
         $this->testUser->assignRole('testRole');
         $this->testUser->givePermissionTo('articles.*');
 
@@ -98,20 +106,20 @@ class WildcardMiddlewareTest extends TestCase
         $this->assertSame(200, $this->runMiddleware($this->roleOrPermissionMiddleware, ['testRole', 'articles.edit']));
     }
 
-    public function testItCanFetchRequiredPermissionsFromException(): void
+    public function testItCanFetchTheRequiredPermissionsFromTheException(): void
     {
         Auth::login($this->testUser);
+
+        $requiredPermissions = [];
 
         try {
             $this->permissionMiddleware->handle(new Request, function (): Response {
                 return (new Response)->setContent('<html></html>');
             }, 'permission.some');
-        } catch (UnauthorizedException $exception) {
-            $this->assertSame(['permission.some'], $exception->getRequiredPermissions());
-
-            return;
+        } catch (UnauthorizedException $e) {
+            $requiredPermissions = $e->getRequiredPermissions();
         }
 
-        $this->fail('Expected unauthorized permission exception was not thrown.');
+        $this->assertSame(['permission.some'], $requiredPermissions);
     }
 }

@@ -4,18 +4,21 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Permission\Models;
 
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Permission\Models\Permission;
 use Hypervel\Tests\Permission\TestCase;
 
 class WildcardRoleTest extends TestCase
 {
-    protected function setUp(): void
+    protected function defineEnvironment(ApplicationContract $app): void
     {
-        parent::setUp();
+        parent::defineEnvironment($app);
 
-        $this->app->make('config')->set('permission.enable_wildcard_permission', true);
-        $this->flushPermissionState();
+        $app->make('config')->set('permission.enable_wildcard_permission', true);
+    }
 
+    protected function setUpInCoroutine(): void
+    {
         Permission::create(['name' => 'other-permission']);
         Permission::create(['name' => 'wrong-guard-permission', 'guard_name' => 'admin']);
     }

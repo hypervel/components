@@ -141,25 +141,25 @@ class PermissionServiceProvider extends ServiceProvider
      */
     protected function registerMacroHelpers(): void
     {
-        Route::macro('role', function ($roles = []) {
+        Route::macro('role', function (mixed $roles = []): Route {
             $roles = Arr::wrap($roles);
-            $roles = array_map(fn ($role) => enum_value($role), $roles);
+            $roles = array_map(enum_value(...), $roles);
 
             /** @var Route $this */
             return $this->middleware('role:' . implode('|', $roles));
         });
 
-        Route::macro('permission', function ($permissions = []) {
+        Route::macro('permission', function (mixed $permissions = []): Route {
             $permissions = Arr::wrap($permissions);
-            $permissions = array_map(fn ($permission) => enum_value($permission), $permissions);
+            $permissions = array_map(enum_value(...), $permissions);
 
             /** @var Route $this */
             return $this->middleware('permission:' . implode('|', $permissions));
         });
 
-        Route::macro('roleOrPermission', function ($rolesOrPermissions = []) {
+        Route::macro('roleOrPermission', function (mixed $rolesOrPermissions = []): Route {
             $rolesOrPermissions = Arr::wrap($rolesOrPermissions);
-            $rolesOrPermissions = array_map(fn ($item) => enum_value($item), $rolesOrPermissions);
+            $rolesOrPermissions = array_map(enum_value(...), $rolesOrPermissions);
 
             /** @var Route $this */
             return $this->middleware('role_or_permission:' . implode('|', $rolesOrPermissions));

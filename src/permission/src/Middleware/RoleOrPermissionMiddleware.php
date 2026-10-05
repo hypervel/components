@@ -49,7 +49,6 @@ class RoleOrPermissionMiddleware
         }
 
         $rolesOrPermissions = explode('|', self::parseRoleOrPermissionToString($roleOrPermission));
-        $hasAnyRole = Closure::fromCallable([$user, 'hasAnyRole']);
 
         foreach ($rolesOrPermissions as $roleOrPermission) {
             if ($user->can($roleOrPermission)) {
@@ -57,7 +56,7 @@ class RoleOrPermissionMiddleware
             }
         }
 
-        if ($hasAnyRole($rolesOrPermissions)) {
+        if ($user->hasAnyRole($rolesOrPermissions)) {
             return $next($request);
         }
 
@@ -83,7 +82,7 @@ class RoleOrPermissionMiddleware
         $roleOrPermission = enum_value($roleOrPermission);
 
         if (is_array($roleOrPermission)) {
-            return implode('|', array_map(fn ($r) => enum_value($r), $roleOrPermission));
+            return implode('|', array_map(enum_value(...), $roleOrPermission));
         }
 
         return (string) $roleOrPermission;

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Permission;
 
-use Closure;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Permission\Contracts\Wildcard;
 use Hypervel\Permission\Exceptions\WildcardPermissionNotProperlyFormatted;
@@ -34,9 +33,8 @@ class WildcardPermission implements Wildcard
     {
         $index = [];
 
-        $getAllPermissions = Closure::fromCallable([$this->record, 'getAllPermissions']);
-
-        foreach ($getAllPermissions() as $permission) {
+        // @phpstan-ignore method.notFound (the record uses HasPermissions)
+        foreach ($this->record->getAllPermissions() as $permission) {
             $index[$permission->guard_name] = $this->buildIndex(
                 $index[$permission->guard_name] ?? [],
                 explode(static::PART_DELIMITER, $permission->name),
