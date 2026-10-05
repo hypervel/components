@@ -160,9 +160,9 @@ spatie/laravel-data:
 
 spatie/laravel-permission:
   branch: main
-  checked_through: null
+  checked_through: 6615eefac655efcd652fe394a20cbdf4f72c609f
   last_reviewed_pr: null
-  sync_date: null
+  sync_date: '2026-10-05'
   notes: Upstream Pest files map to PHPUnit classes at the same paths under tests/Permission, with each it()/test() description as the method name. Upstream's permission.testing migration flag, which adds the roles team column while teams are off so cases can enable teams mid-test, is not ported; those cases enable teams before migrating through the DefineEnvironment attribute's usesTeams method. The CACHE_DRIVER cache-driver test runs map to CACHE_STORE. Passport::actingAsClient() maps to TestCase::actingAsClient() with the PassportGuard fixture because Hypervel has no Passport package. Upstream's single cached permission collection maps to PermissionRegistrar's catalog payload (getSerializedPermissionsForCache() stores role keys per permission; permissionCatalog() and modelClassCatalog() hydrate it) plus the per-model assignment caches (rememberModel*()), which are filled through Cache\ModelCacheCoordinator and invalidated after commit; apply upstream cache or loading changes to both. Upstream relation definitions map to the Role and Permission relation methods built through BuildsPermissionRelations, whose Partitioned* relations add partition and team constraints and loaded-relation tracking. Upstream's detach-then-attach syncs map to HasRoles::syncRoles() and HasPermissions::synchronizePermissionAssignments(), which read the current pivots and write only the differences, keeping each permission's is_denied effect. Upstream docs map to sections of src/docs/permission.md; the example app, PhpStorm, UI options, schema diagram, upgrade and project pages are not ported.
 
 aimeos/laravel-nestedset:
