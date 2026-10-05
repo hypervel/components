@@ -585,23 +585,35 @@ trait HasRoles
             $this->unsetRelation('permissions');
         }
 
-        $contexts = [];
+        if ($this instanceof Permission) {
+            $contexts = [];
 
-        foreach ([...$roleAssignments, ...$permissionAssignments] as $assignment) {
-            $contexts[$assignment['context']->identity()] = $assignment['context'];
-        }
-
-        foreach ($contexts as $context) {
-            if ($this instanceof Permission) {
-                $registrar->invalidatePermissionCatalogAfterMutation($context->partition);
-            } else {
-                $registrar->invalidateModelAssignmentCacheAfterMutation(
-                    $this,
-                    $context->partition,
-                    $context->team,
-                );
+            foreach ([...$roleAssignments, ...$permissionAssignments] as $assignment) {
+                $contexts[$assignment['context']->identity()] = $assignment['context'];
             }
+
+            foreach ($contexts as $context) {
+                $registrar->invalidatePermissionCatalogAfterMutation($context->partition);
+            }
+
+            return;
         }
+
+        $roleContexts = [];
+
+        foreach ($roleAssignments as $assignment) {
+            $roleContexts[$assignment['context']->identity()] = $assignment['context'];
+        }
+
+        foreach ($roleContexts as $context) {
+            $registrar->invalidateModelRoleCacheAfterMutation(
+                $this,
+                $context->partition,
+                $context->team,
+            );
+        }
+
+        $this->invalidateQueuedPermissionAssignmentContexts($permissionAssignments);
     }
 
     /**

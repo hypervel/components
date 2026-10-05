@@ -306,6 +306,14 @@ abstract class TestCase extends TestbenchTestCase
     }
 
     /**
+     * Determine whether the permission cache uses the database store.
+     */
+    protected function usesDatabaseCacheStore(): bool
+    {
+        return $this->app->make(PermissionRegistrar::class)->getCacheStore() instanceof DatabaseStore;
+    }
+
+    /**
      * Create the database cache table.
      */
     protected function createCacheTable(): void

@@ -308,12 +308,9 @@ class PermissionRegistrarTest extends TestCase
 
         $this->assertTrue($registrar->getPermissions(['name' => 'missing-permission', 'guard_name' => 'web'])->isEmpty());
 
-        try {
-            $permissionClass::findByName('missing-permission');
-            $this->fail('Expected missing permission exception was not thrown.');
-        } catch (PermissionDoesNotExist) {
-            $this->assertTrue(true);
-        }
+        $this->expectException(PermissionDoesNotExist::class);
+
+        $permissionClass::findByName('missing-permission');
     }
 
     public function testRoleLookupUsesCatalogIndexAndStillThrowsWhenMissing(): void
@@ -323,12 +320,9 @@ class PermissionRegistrarTest extends TestCase
 
         $this->assertTrue($role->is($roleClass::findById($role->getKey())));
 
-        try {
-            $roleClass::findByName('missing-role');
-            $this->fail('Expected missing role exception was not thrown.');
-        } catch (RoleDoesNotExist) {
-            $this->assertTrue(true);
-        }
+        $this->expectException(RoleDoesNotExist::class);
+
+        $roleClass::findByName('missing-role');
     }
 
     public function testPermissionCreateUsesDatabaseForDuplicateCheckWhenCatalogIsStale(): void

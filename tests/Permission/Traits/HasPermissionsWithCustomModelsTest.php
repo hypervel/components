@@ -21,7 +21,7 @@ class HasPermissionsWithCustomModelsTest extends HasPermissionsTest
         $this->setUpCustomModels();
     }
 
-    public function testItCanScopeUsersUsingAnInt(): void
+    public function testItCanScopeUsersUsingAInt(): void
     {
         // Skipped because custom model uses uuid, replacement "testItCanScopeUsersUsingAUuid".
         $this->assertTrue(true);

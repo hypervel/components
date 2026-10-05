@@ -133,6 +133,18 @@ class CacheTest extends TestCase
         $this->assertSame(['edit-news'], $this->testUser->getPermissionsViaRoles()->pluck('name')->all());
     }
 
+    public function testReverseRoleAssignmentsKeepTheWarmDirectPermissionMemo(): void
+    {
+        $this->testUser->givePermissionTo('edit-articles');
+        $user = User::findOrFail($this->testUser->getKey());
+        $directPermission = $user->getDirectPermissions()->sole();
+
+        $this->testUserRole->assignToModels($user);
+
+        $this->assertTrue($user->hasRole('testRole'));
+        $this->assertSame($directPermission, $user->getDirectPermissions()->sole());
+    }
+
     public function testUnsavedModelsDoNotUseViaRolePermissionMemo(): void
     {
         $user = new User(['email' => 'unsaved@user.com']);

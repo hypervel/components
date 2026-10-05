@@ -855,51 +855,6 @@ class PermissionRegistrar
     }
 
     /**
-     * Invalidate assignment caches after a model mutation settles.
-     */
-    public function invalidateModelAssignmentCacheAfterMutation(
-        Model $model,
-        ?PermissionPartition $partition,
-        int|string|null $team,
-    ): void {
-        $this->invalidateModelAssignmentCacheForIdentityAfterMutation(
-            $model->getMorphClass(),
-            (string) $model->getKey(),
-            $partition,
-            $team,
-        );
-    }
-
-    /**
-     * Invalidate assignment caches for an exact identity after a mutation settles.
-     */
-    public function invalidateModelAssignmentCacheForIdentityAfterMutation(
-        string $morphType,
-        int|string $modelKey,
-        ?PermissionPartition $partition,
-        int|string|null $team,
-    ): void {
-        $runtimeKey = $this->modelRuntimeCacheKeyForIdentity(
-            $morphType,
-            $modelKey,
-            $partition,
-            $team,
-        );
-        $clearRuntime = function () use ($runtimeKey): void {
-            $this->forgetRuntimeCacheItem(self::MODEL_VIA_ROLE_PERMISSIONS_CONTEXT_KEY, $runtimeKey);
-            $this->forgetRuntimeCacheItem(self::MODEL_DIRECT_PERMISSIONS_CONTEXT_KEY, $runtimeKey);
-            $this->forgetRuntimeCacheItem(self::WILDCARD_PERMISSION_INDEX_CONTEXT_KEY, $runtimeKey);
-        };
-
-        foreach ([$this->modelRolesCacheKeyPrefix, $this->modelPermissionsCacheKeyPrefix] as $prefix) {
-            $this->settleCacheMutation(
-                $this->modelCacheKeyForIdentity($prefix, $morphType, $modelKey, $partition, $team),
-                $clearRuntime,
-            );
-        }
-    }
-
-    /**
      * Forget a model's cached role assignments.
      */
     public function forgetModelRoleCache(Model $model): void
