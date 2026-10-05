@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Saloon\Fixtures\Requests;
 
 use Hypervel\Saloon\Enums\Method;
 use Hypervel\Saloon\Http\Request;
-use Hypervel\Tests\Saloon\Fixtures\Connectors\TestConnector;
 
 class DefaultPropertiesRequest extends Request
 {
@@ -15,10 +14,7 @@ class DefaultPropertiesRequest extends Request
      */
     protected Method $method = Method::GET;
 
-    /**
-     * The connector.
-     */
-    protected string $connector = TestConnector::class;
+    // Upstream's $connector property is removed: the request does not use HasConnector, so nothing reads it.
 
     /**
      * Define the endpoint for the request.
@@ -48,15 +44,7 @@ class DefaultPropertiesRequest extends Request
         ];
     }
 
-    /**
-     * Define the default data.
-     */
-    protected function defaultData(): mixed
-    {
-        return [
-            'song' => 'Call Me',
-        ];
-    }
+    // Upstream's defaultData() is removed: nothing calls it, so the request has no default body.
 
     /**
      * Define the default request options.

@@ -13,14 +13,15 @@ use Hypervel\Saloon\Http\Response;
 use Hypervel\Saloon\SaloonManager;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
-use Hypervel\Support\Traits\ReflectsClosures;
 use PHPUnit\Framework\Assert as PHPUnit;
 use ReflectionFunction;
+use ReflectionIntersectionType;
+use ReflectionNamedType;
+use ReflectionType;
+use ReflectionUnionType;
 
 class MockClient
 {
-    use ReflectsClosures;
-
     /**
      * Responses consumed in registration order.
      *
@@ -69,6 +70,11 @@ class MockClient
      * @var null|list<string>
      */
     protected ?array $allowedStrayRequestUrls = [];
+
+    /**
+     * Whether requests using this mock client bypass the response cache.
+     */
+    protected bool $withoutResponseCache = false;
 
     /**
      * Create a mock client.
@@ -138,7 +144,7 @@ class MockClient
         }
 
         foreach ($this->urlResponses as $url => $response) {
-            if (Str::is($url, (string) $pendingRequest->uri())) {
+            if ($this->urlMatches($url, $pendingRequest)) {
                 return $this->resolveValue($response, $pendingRequest);
             }
         }
@@ -302,6 +308,26 @@ class MockClient
     }
 
     /**
+     * Bypass the response cache for requests using this mock client.
+     *
+     * @return $this
+     */
+    public function withoutCache(): static
+    {
+        $this->withoutResponseCache = true;
+
+        return $this;
+    }
+
+    /**
+     * Determine if requests using this mock client bypass the response cache.
+     */
+    public function shouldBypassResponseCache(): bool
+    {
+        return $this->withoutResponseCache;
+    }
+
+    /**
      * Register or retrieve the manager-backed global mock client.
      *
      * Tests only. The client persists until the test application is destroyed
@@ -356,21 +382,62 @@ class MockClient
         if (is_string($value)) {
             return is_a($value, Request::class, true)
                 ? $request instanceof $value
-                : Str::is($value, (string) $response->pendingRequest()->uri());
+                : $this->urlMatches($value, $response->pendingRequest());
         }
 
         $closure = $value(...);
         $parameters = (new ReflectionFunction($closure))->getParameters();
 
-        if ($parameters !== [] && $parameters[0]->hasType()) {
-            $types = $this->firstClosureParameterTypes($closure);
-
-            if (! array_any($types, fn (string $type): bool => $request instanceof $type)) {
-                return false;
-            }
+        if ($parameters !== [] && ! $this->requestMatchesType($request, $parameters[0]->getType())) {
+            return false;
         }
 
         return (bool) $closure($request, $response);
+    }
+
+    /**
+     * Determine if the request satisfies a closure parameter type.
+     */
+    protected function requestMatchesType(Request $request, ?ReflectionType $type): bool
+    {
+        if ($type instanceof ReflectionNamedType) {
+            if ($type->isBuiltin()) {
+                return in_array($type->getName(), ['mixed', 'object'], true);
+            }
+
+            $class = $type->getName();
+
+            return $request instanceof $class;
+        }
+
+        if ($type instanceof ReflectionUnionType) {
+            return array_any(
+                $type->getTypes(),
+                fn (ReflectionType $subType): bool => $this->requestMatchesType($request, $subType),
+            );
+        }
+
+        if ($type instanceof ReflectionIntersectionType) {
+            return array_all(
+                $type->getTypes(),
+                fn (ReflectionType $subType): bool => $this->requestMatchesType($request, $subType),
+            );
+        }
+
+        return true;
+    }
+
+    /**
+     * Determine if the pending request's URL matches the pattern.
+     *
+     * A pattern may omit the scheme and host, and matches the URL with or without its query string.
+     */
+    protected function urlMatches(string $pattern, PendingRequest $pendingRequest): bool
+    {
+        $pattern = Str::start($pattern, '*');
+        $uri = $pendingRequest->uri();
+
+        return Str::is($pattern, (string) $uri) || Str::is($pattern, (string) $uri->withQuery(''));
     }
 
     /**
@@ -388,7 +455,7 @@ class MockClient
 
         return array_any(
             $this->allowedStrayRequestUrls,
-            fn (string $url): bool => Str::is($url, (string) $pendingRequest->uri()),
+            fn (string $url): bool => $this->urlMatches($url, $pendingRequest),
         );
     }
 

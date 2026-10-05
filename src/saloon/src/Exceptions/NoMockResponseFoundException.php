@@ -13,6 +13,6 @@ class NoMockResponseFoundException extends SaloonException
      */
     public function __construct(PendingRequest $pendingRequest)
     {
-        parent::__construct(sprintf('Saloon could not find a mock response for [%s]. Consider using a wildcard URL mock or a connector mock.', $pendingRequest->uri()));
+        parent::__construct(sprintf('Saloon was unable to guess a mock response for your request [%s], consider using a wildcard url mock or a connector mock.', $pendingRequest->uri()));
     }
 }

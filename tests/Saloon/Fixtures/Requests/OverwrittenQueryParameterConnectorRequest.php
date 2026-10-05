@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Saloon\Fixtures\Requests;
 
 use Hypervel\Saloon\Enums\Method;
 use Hypervel\Saloon\Http\Request;
-use Hypervel\Tests\Saloon\Fixtures\Connectors\QueryParameterConnector;
 
 class OverwrittenQueryParameterConnectorRequest extends Request
 {
@@ -15,10 +14,7 @@ class OverwrittenQueryParameterConnectorRequest extends Request
      */
     protected Method $method = Method::GET;
 
-    /**
-     * The connector.
-     */
-    protected string $connector = QueryParameterConnector::class;
+    // Upstream's $connector property is removed: the request does not use HasConnector, so nothing reads it.
 
     /**
      * Define the endpoint for the request.

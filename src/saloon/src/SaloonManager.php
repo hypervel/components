@@ -130,7 +130,9 @@ class SaloonManager
             $cacheRepository = null;
             $cacheKey = null;
 
-            if ($pendingRequest->fakeResponse() === null && $pendingRequest->isCacheable()) {
+            if ($pendingRequest->fakeResponse() === null
+                && $mockClient?->shouldBypassResponseCache() !== true
+                && $pendingRequest->isCacheable()) {
                 [$cacheRepository, $cacheKey] = $this->resolveCache($pendingRequest, $transport);
 
                 if ($pendingRequest->shouldInvalidateCache()) {

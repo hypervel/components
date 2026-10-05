@@ -2209,6 +2209,8 @@ Saloon::fake([
 ]);
 ```
 
+A URL pattern may leave out the scheme and host, such as `'api.github.com/repos/*'` or `'/user'`, and matches the URL with or without its query string. A pattern that includes a query string, such as `'/users?page=2'`, matches only that encoded query. Assertions and `allowStrayRequests` use the same patterns.
+
 Each matching value may also be a callback that receives the pending request and returns a mock response or fixture. A lower-level `Http::fake()` still prevents a network request after the Saloon lifecycle reaches Hypervel's HTTP client. The response is recorded by the HTTP client and `isMocked()` returns false. When no Saloon mock client is active, Saloon facade assertions do not include the response.
 
 You may attach a mock client to one request using `withMockClient`, or pass it as the second argument to `Connector::send`. An explicitly supplied client takes precedence over a request client, which takes precedence over the facade's global test client. Mock responses are matched after request middleware has run and the URL is final, so URL matches see any changes middleware made.
@@ -2317,7 +2319,15 @@ class GitHubFixture extends Fixture
 }
 ```
 
-Invalid or failed regular expressions prevent the fixture from being written. You may use `merge` or `through` to adjust a recorded JSON object or array during replay, and `withContext` to store additional fixture metadata.
+Header rules apply to each value of a matching header, so a closure receives one value and returns its replacement. Invalid or failed regular expressions prevent the fixture from being written. You may use `merge` or `through` to adjust a recorded JSON object or array during replay, and `withContext` to store additional fixture metadata.
+
+Mock responses and existing fixtures never use the response cache, but a request that reaches the network through a mock client, such as a missing fixture being recorded or an allowed stray request, still does. Call `withoutCache` on the mock client to keep those requests out of the cache, so a recorded fixture always comes from the network:
+
+```php
+Saloon::fake([
+    GetUser::class => new Fixture('github/users/hypervel'),
+])->withoutCache();
+```
 
 Tests may override the fixture directory and missing-fixture behavior:
 

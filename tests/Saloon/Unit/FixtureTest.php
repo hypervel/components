@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Saloon\Http;
+namespace Hypervel\Tests\Saloon\Unit;
 
 use Hypervel\Container\Container;
 use Hypervel\Filesystem\Filesystem;
@@ -31,7 +31,7 @@ class FixtureTest extends TestCase
             201,
             ['Authorization' => ['Bearer secret'], 'X-Trace' => ['abc']],
             '{"token":"secret","nested":{"token":"secret"},"message":"key=secret"}',
-            ['existing' => true],
+            ['existing' => true, 'provider' => 'recorded'],
         ));
 
         $this->assertTrue($this->files->exists($fixture->getFixturePath()));
@@ -60,7 +60,43 @@ class FixtureTest extends TestCase
             json_decode((string) $response->body()->all(), true, 512, JSON_THROW_ON_ERROR),
         );
         $restored = RecordedResponse::fromFile($contents);
-        $this->assertSame(['existing' => true, 'provider' => 'example'], $restored->context);
+        $this->assertSame(['provider' => 'recorded', 'existing' => true], $restored->context);
+        $this->assertSame(['provider' => 'example'], $fixture->getContext()->all());
+    }
+
+    public function testHeaderRulesApplyToEachHeaderValue(): void
+    {
+        $fixture = new HeaderFixtureStub('headers', $this->files);
+
+        $fixture->store(new RecordedResponse(
+            200,
+            [
+                'Set-Cookie' => ['session=abc', 'token=def'],
+                'server' => ['nginx'],
+                'X-Api-Key' => 'abc',
+            ],
+        ));
+
+        $recorded = RecordedResponse::fromFile($this->files->get($fixture->getFixturePath()));
+
+        $this->assertSame(['session=[redacted]', 'token=[redacted]'], $recorded->headers['Set-Cookie']);
+        $this->assertSame(['secret'], $recorded->headers['server']);
+        $this->assertSame('[redacted]', $recorded->headers['X-Api-Key']);
+    }
+
+    public function testArrayDataIsRedactedBeforeStorage(): void
+    {
+        $fixture = new RedactingFixtureStub('array-data', $this->files);
+
+        $fixture->store(new RecordedResponse(200, [], ['token' => 'secret', 'message' => 'key=secret']));
+
+        $contents = $this->files->get($fixture->getFixturePath());
+
+        $this->assertStringNotContainsString('secret', $contents);
+        $this->assertSame(
+            ['token' => '[redacted]', 'message' => '[redacted]'],
+            json_decode(RecordedResponse::fromFile($contents)->data, true, 512, JSON_THROW_ON_ERROR),
+        );
     }
 
     #[DataProvider('invalidFixtureNames')]
@@ -245,6 +281,21 @@ class RedactingFixtureStub extends Fixture
     protected function defineSensitiveRegexPatterns(): array
     {
         return ['/key=[^"}]*/' => '[redacted]'];
+    }
+}
+
+class HeaderFixtureStub extends Fixture
+{
+    /**
+     * Define sensitive response headers.
+     */
+    protected function defineSensitiveHeaders(): array
+    {
+        return [
+            'set-cookie' => fn (string $value): string => strstr($value, '=', true) . '=[redacted]',
+            'Server' => 'secret',
+            'x-api-key' => '[redacted]',
+        ];
     }
 }
 

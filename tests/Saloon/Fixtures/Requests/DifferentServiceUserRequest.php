@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Saloon\Fixtures\Requests;
 use Hypervel\Saloon\Enums\Method;
 use Hypervel\Saloon\Http\Request;
 
-class QueryParameterConnectorRequest extends Request
+class DifferentServiceUserRequest extends Request
 {
     /**
      * Define the method that the request will use.
@@ -22,15 +22,5 @@ class QueryParameterConnectorRequest extends Request
     public function resolveEndpoint(): string
     {
         return '/user';
-    }
-
-    /**
-     * Define the default query parameters.
-     */
-    protected function defaultQuery(): array
-    {
-        return [
-            'include' => 'user',
-        ];
     }
 }
