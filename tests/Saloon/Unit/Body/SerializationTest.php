@@ -50,6 +50,9 @@ class SerializationTest extends TestCase
             'name' => new Stringable('Sam'),
             'metadata' => new Collection([
                 'sidekick' => new class implements JsonSerializable {
+                    /**
+                     * Get the JSON representation of the value.
+                     */
                     public function jsonSerialize(): string
                     {
                         return 'Mantas';

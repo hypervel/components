@@ -71,6 +71,11 @@ class FixtureTest extends TestCase
         (new Fixture($name, $this->files))->getFixturePath();
     }
 
+    /**
+     * Get the fixture names that are unsafe or not portable.
+     *
+     * @return array<string, array{string}>
+     */
     public static function invalidFixtureNames(): array
     {
         return [
@@ -218,16 +223,25 @@ class FixtureTest extends TestCase
 
 class RedactingFixtureStub extends Fixture
 {
+    /**
+     * Define sensitive response headers.
+     */
     protected function defineSensitiveHeaders(): array
     {
         return ['authorization' => '[redacted]'];
     }
 
+    /**
+     * Define sensitive JSON attributes.
+     */
     protected function defineSensitiveJsonParameters(): array
     {
         return ['token' => '[redacted]'];
     }
 
+    /**
+     * Define sensitive response body patterns.
+     */
     protected function defineSensitiveRegexPatterns(): array
     {
         return ['/key=[^"}]*/' => '[redacted]'];
@@ -236,6 +250,9 @@ class RedactingFixtureStub extends Fixture
 
 class RegexFixtureStub extends Fixture
 {
+    /**
+     * Create a fixture that redacts the given pattern.
+     */
     public function __construct(
         string $name,
         Filesystem $files,
@@ -244,6 +261,9 @@ class RegexFixtureStub extends Fixture
         parent::__construct($name, $files);
     }
 
+    /**
+     * Define sensitive response body patterns.
+     */
     protected function defineSensitiveRegexPatterns(): array
     {
         return [$this->pattern => '[redacted]'];
@@ -252,16 +272,25 @@ class RegexFixtureStub extends Fixture
 
 class CallableNamedReplacementFixtureStub extends Fixture
 {
+    /**
+     * Define sensitive response headers.
+     */
     protected function defineSensitiveHeaders(): array
     {
         return ['authorization' => 'trim'];
     }
 
+    /**
+     * Define sensitive JSON attributes.
+     */
     protected function defineSensitiveJsonParameters(): array
     {
         return ['token' => 'trim'];
     }
 
+    /**
+     * Define sensitive response body patterns.
+     */
     protected function defineSensitiveRegexPatterns(): array
     {
         return ['/key=[^"}]*/' => 'trim'];

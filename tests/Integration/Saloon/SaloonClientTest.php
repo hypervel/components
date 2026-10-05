@@ -19,6 +19,9 @@ class SaloonClientTest extends TestCase
 
     protected int $serverPort = 19505;
 
+    /**
+     * Get the package providers.
+     */
     protected function getPackageProviders(ApplicationContract $app): array
     {
         return [SaloonServiceProvider::class];
@@ -91,6 +94,9 @@ class SaloonEngineConnector extends Connector
     {
     }
 
+    /**
+     * Resolve the integration base URL.
+     */
     public function resolveBaseUrl(): string
     {
         return $this->baseUrl;
@@ -101,6 +107,9 @@ class SaloonEngineRequest extends Request
 {
     protected Method $method = Method::GET;
 
+    /**
+     * Resolve the request endpoint.
+     */
     public function resolveEndpoint(): string
     {
         return '';

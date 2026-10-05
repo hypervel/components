@@ -15,6 +15,9 @@ class ListCommandTest extends TestCase
 {
     protected string $integrationsPath;
 
+    /**
+     * Get the package providers.
+     */
     protected function getPackageProviders(ApplicationContract $app): array
     {
         return [SaloonServiceProvider::class];

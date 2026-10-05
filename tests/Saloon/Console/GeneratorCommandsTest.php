@@ -20,6 +20,9 @@ class GeneratorCommandsTest extends TestCase
      */
     protected array $generatedFiles = [];
 
+    /**
+     * Get the package providers.
+     */
     protected function getPackageProviders(ApplicationContract $app): array
     {
         return [SaloonServiceProvider::class];

@@ -229,6 +229,9 @@ class MockClientTest extends TestCase
 
 class MockConnectorStub extends Connector
 {
+    /**
+     * Resolve the integration base URL.
+     */
     public function resolveBaseUrl(): string
     {
         return 'https://api.example.com';
@@ -243,6 +246,9 @@ class MockRequestA extends Request
 {
     protected Method $method = Method::GET;
 
+    /**
+     * Resolve the request endpoint.
+     */
     public function resolveEndpoint(): string
     {
         return '/users/a';
@@ -253,6 +259,9 @@ class MockRequestB extends Request
 {
     protected Method $method = Method::GET;
 
+    /**
+     * Resolve the request endpoint.
+     */
     public function resolveEndpoint(): string
     {
         return '/users/b';
@@ -263,6 +272,9 @@ class MockRequestC extends Request
 {
     protected Method $method = Method::GET;
 
+    /**
+     * Resolve the request endpoint.
+     */
     public function resolveEndpoint(): string
     {
         return '/other';
@@ -273,6 +285,9 @@ class AllowedMockRequest extends Request
 {
     protected Method $method = Method::GET;
 
+    /**
+     * Resolve the request endpoint.
+     */
     public function resolveEndpoint(): string
     {
         return '/allowed/request';
