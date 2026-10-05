@@ -621,7 +621,7 @@ class CreateIssue extends Request
 }
 ```
 
-The JSON, form, XML, and multipart traits supply the appropriate content type unless you already defined one. String and stream bodies do not assume a content type, so specify one using `contentType` or `defaultHeaders`. Body traits may also be used on connectors when every request shares the same body format; request body values take precedence over connector values.
+The JSON, form, and XML traits supply the appropriate content type unless you already defined one. A multipart body always receives `multipart/form-data` with its boundary unless the content type you define declares a boundary. String and stream bodies do not assume a content type, so specify one using `contentType` or `defaultHeaders`. Body traits may also be used on connectors when every request shares the same body format; request body values take precedence over connector values.
 
 When both a connector and request define a body, their body repositories must be the same type. For example, a request using `HasFormBody` cannot be sent through a connector using `HasJsonBody`. Saloon throws a `PendingRequestException` when the body types do not match.
 
@@ -634,11 +634,13 @@ $request->withBody($stream, 'application/octet-stream');
 $request->withBody($stream, null);
 ```
 
-The `withData` method merges structured values into the current JSON or form body. If the request does not yet have a structured body, the method creates a JSON body:
+The `withData` method merges structured values into the current JSON or form body. If the request has no JSON, form, or multipart body, the method creates a JSON body:
 
 ```php
 $request->withData(['active' => true]);
 ```
+
+On a multipart body, `withData` adds each value as a field after the existing parts. Fields are appended, so repeating a name adds another field instead of replacing the first. Nested arrays are sent as bracketed field names such as `roles[0]`, `true` is sent as `1`, and `false` and `null` are sent as empty fields.
 
 Laravel `Arrayable` objects, `JsonSerializable` objects, and stringable values are normalized recursively in JSON, form, and query data.
 
@@ -655,7 +657,7 @@ protected function defaultBodyRepository(): ?BodyRepository
 }
 ```
 
-The request may still use `HasJsonBody` so Saloon supplies the JSON content type. Invalid JSON values throw a `BodyException` instead of being sent as an empty body.
+The request may still use `HasJsonBody` so Saloon supplies the JSON content type. When the connector also defines a JSON body, the request's values are merged into the connector's repository, so the connector's flags apply. Invalid JSON values throw a `BodyException` instead of being sent as an empty body.
 
 <a name="multipart-requests"></a>
 ### Multipart Requests
@@ -670,6 +672,17 @@ $request
     ])
     ->attach('description', 'Quarterly report');
 ```
+
+You may also pass an array of parts, each containing the same arguments:
+
+```php
+$request->attach([
+    ['document', fopen($path, 'rb'), 'report.pdf', ['Content-Type' => 'application/pdf']],
+    ['description', 'Quarterly report'],
+]);
+```
+
+When a request has a body in another format, `attach` replaces it with a multipart body. The `asMultipart` method selects a multipart body without adding a value. Neither method discards values that a multipart body already contains.
 
 Saloon preserves multipart streams, filenames, headers, order, and the generated boundary. Caller-owned streams are not buffered automatically.
 
@@ -736,7 +749,7 @@ class NdjsonBodyRepository implements MergeableBody
 }
 ```
 
-Implement `MergeableBody` when connector values should be merged with request values. A repository that implements only `BodyRepository` is replaced as a complete value instead. The `withData` method is reserved for the built-in JSON and form repositories; calling it on a custom repository selects a JSON body.
+Implement `MergeableBody` when connector values should be merged with request values. A repository that implements only `BodyRepository` is replaced as a complete value instead. The `withData` method is reserved for the built-in JSON, form, and multipart repositories; calling it on a custom repository selects a JSON body.
 
 Return the repository from the request or connector's `defaultBodyRepository` method and set the appropriate content type during `boot`:
 

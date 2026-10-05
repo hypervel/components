@@ -2,11 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Saloon\Repositories\Body;
+namespace Hypervel\Tests\Saloon\Unit\Body;
 
 use Hypervel\Saloon\Exceptions\BodyException;
 use Hypervel\Saloon\Repositories\Body\FormBodyRepository;
 use Hypervel\Saloon\Repositories\Body\JsonBodyRepository;
+use Hypervel\Saloon\Repositories\Body\StringBodyRepository;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Stringable;
 use Hypervel\Tests\TestCase;
@@ -16,6 +17,33 @@ use stdClass;
 
 class SerializationTest extends TestCase
 {
+    public function testTheJsonBodyRepositoryCanBeEncodedIntoJson(): void
+    {
+        $body = new JsonBodyRepository([
+            'name' => 'Sam',
+            'sidekick' => 'Mantas',
+        ]);
+
+        $this->assertSame('{"name":"Sam","sidekick":"Mantas"}', (string) $body);
+    }
+
+    public function testTheFormBodyRepositoryCanBeEncodedIntoAQueryList(): void
+    {
+        $body = new FormBodyRepository([
+            'name' => 'Sam',
+            'sidekick' => 'Mantas',
+        ]);
+
+        $this->assertSame('name=Sam&sidekick=Mantas', (string) $body);
+    }
+
+    public function testTheStringBodyRepositoryCanBeEncodedIntoAString(): void
+    {
+        $body = new StringBodyRepository('name: Sam');
+
+        $this->assertSame('name: Sam', (string) $body);
+    }
+
     public function testJsonBodyRepositoryEncodesSupportedNestedValuesOnce(): void
     {
         $body = new JsonBodyRepository([
@@ -35,16 +63,6 @@ class SerializationTest extends TestCase
             (string) $body,
         );
         $this->assertSame((string) $body, (string) $body->toStream());
-    }
-
-    public function testJsonBodyRepositoryHonorsCustomEncodingFlags(): void
-    {
-        $body = new JsonBodyRepository(['url' => 'https://hypervel.org']);
-
-        $body->setJsonFlags(JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
-
-        $this->assertSame(JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES, $body->getJsonFlags());
-        $this->assertSame('{"url":"https://hypervel.org"}', (string) $body);
     }
 
     public function testJsonBodyRepositoryTranslatesThrownEncodingErrors(): void

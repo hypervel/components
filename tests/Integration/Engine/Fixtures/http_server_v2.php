@@ -5,7 +5,7 @@ declare(strict_types=1);
 /**
  * HTTP/2 test server for engine integration tests.
  *
- * Listens on port 19505 and handles cookie-based test endpoints.
+ * Listens on port 19505 and handles cookie and multipart test endpoints.
  * This is a simplified version that doesn't require HttpMessage classes.
  */
 
@@ -47,6 +47,17 @@ $callback = function () {
                 // Return received cookies as JSON
                 $response->setHeader('Content-Type', 'application/json');
                 $response->end(json_encode($cookies));
+            })(),
+            '/mixed-multipart' => (function () use ($request, $response): void {
+                // Return the parsed multipart fields and file for Saloon's multipart tests
+                $file = $request->files['file'] ?? null;
+
+                $response->setHeader('Content-Type', 'application/json');
+                $response->end(json_encode([
+                    'name' => $request->post['name'] ?? null,
+                    'fields' => $request->post ?? [],
+                    'file_contents' => $file === null ? null : file_get_contents($file['tmp_name']),
+                ]));
             })(),
             default => (function () use ($request, $response) {
                 $body = $request->rawContent();

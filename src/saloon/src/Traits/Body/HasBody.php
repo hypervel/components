@@ -6,6 +6,7 @@ namespace Hypervel\Saloon\Traits\Body;
 
 use Hypervel\Saloon\Contracts\Body\BodyRepository;
 use Hypervel\Saloon\Data\MultipartValue;
+use Hypervel\Saloon\Http\StructuredDataNormalizer;
 use Hypervel\Saloon\Repositories\Body\ArrayBodyRepository;
 use Hypervel\Saloon\Repositories\Body\FormBodyRepository;
 use Hypervel\Saloon\Repositories\Body\JsonBodyRepository;
@@ -15,6 +16,10 @@ use Hypervel\Saloon\Repositories\Body\StringBodyRepository;
 use Psr\Http\Message\StreamInterface;
 use Stringable;
 
+/**
+ * Every request and pending request uses this trait, so body traits need no upstream `HasBody` contract or
+ * `ChecksForHasBody` check.
+ */
 trait HasBody
 {
     /**
@@ -68,13 +73,15 @@ trait HasBody
     }
 
     /**
-     * Use a multipart request body.
+     * Use a multipart request body, keeping any existing multipart values.
      *
      * @return $this
      */
     public function asMultipart(): static
     {
-        $this->bodyRepository = new MultipartBodyRepository;
+        if (! $this->bodyRepository() instanceof MultipartBodyRepository) {
+            $this->bodyRepository = new MultipartBodyRepository;
+        }
 
         return $this;
     }
@@ -82,21 +89,29 @@ trait HasBody
     /**
      * Attach a multipart value to the request.
      *
-     * @param float|int|resource|StreamInterface|string $contents
-     * @param array<string, string> $headers
+     * @param array<array-key, array<array-key, mixed>>|string $name
+     * @param null|array<array-key, mixed>|bool|float|int|resource|StreamInterface|string $contents
+     * @param array<string, list<string>|string> $headers
      * @return $this
      */
     public function attach(
-        string $name,
+        array|string $name,
         mixed $contents = '',
         ?string $filename = null,
         array $headers = [],
     ): static {
-        $repository = $this->bodyRepository;
+        if (is_array($name)) {
+            foreach ($name as $file) {
+                $this->attach(...$file);
+            }
 
-        if (! $repository instanceof MultipartBodyRepository) {
-            $repository = $this->bodyRepository = new MultipartBodyRepository;
+            return $this;
         }
+
+        $this->asMultipart();
+
+        /** @var MultipartBodyRepository $repository */
+        $repository = $this->bodyRepository;
 
         $repository->attach(new MultipartValue($name, $contents, $filename, $headers));
 
@@ -106,12 +121,22 @@ trait HasBody
     /**
      * Merge structured values into the request body.
      *
+     * A multipart body receives each value as an appended field.
+     *
      * @param array<array-key, mixed> $data
      * @return $this
      */
     public function withData(array $data): static
     {
         $repository = $this->bodyRepository();
+
+        if ($repository instanceof MultipartBodyRepository) {
+            foreach (StructuredDataNormalizer::forUrlEncoding($data) as $name => $value) {
+                $repository->add((string) $name, $value);
+            }
+
+            return $this;
+        }
 
         if (! $repository instanceof ArrayBodyRepository) {
             $repository = $this->bodyRepository = new JsonBodyRepository;

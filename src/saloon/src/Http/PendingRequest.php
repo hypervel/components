@@ -480,6 +480,11 @@ class PendingRequest
         $headers = $this->headers();
 
         if (($contentType = $this->multipartContentType()) !== null) {
+            $headers = array_filter(
+                $headers,
+                static fn (string $name): bool => strcasecmp($name, 'Content-Type') !== 0,
+                ARRAY_FILTER_USE_KEY,
+            );
             $headers['Content-Type'] = $contentType;
         }
 
@@ -668,15 +673,25 @@ class PendingRequest
     }
 
     /**
-     * Resolve the multipart content type when the caller did not provide one.
+     * Resolve the multipart content type unless the caller provided one with a boundary.
      */
     protected function multipartContentType(): ?string
     {
         $repository = $this->bodyRepository();
 
-        return $repository instanceof MultipartBodyRepository && ! $this->hasHeader('Content-Type')
-            ? $repository->contentType()
-            : null;
+        if (! $repository instanceof MultipartBodyRepository) {
+            return null;
+        }
+
+        // A content type without a boundary, such as a connector's JSON default or one kept from the body format
+        // the request used before attach(), cannot describe a multipart body, so it is replaced.
+        foreach (HeaderNormalizer::normalize($this->headers()) as $name => $value) {
+            if (strcasecmp($name, 'Content-Type') === 0 && stripos(implode(', ', (array) $value), 'boundary=') !== false) {
+                return null;
+            }
+        }
+
+        return $repository->contentType();
     }
 
     /**

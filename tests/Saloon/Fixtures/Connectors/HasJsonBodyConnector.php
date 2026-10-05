@@ -5,16 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Saloon\Fixtures\Connectors;
 
 use Hypervel\Saloon\Http\Connector;
+use Hypervel\Saloon\Traits\Body\HasJsonBody;
 use Hypervel\Saloon\Traits\Plugins\AcceptsJson;
 
-class TestConnector extends Connector
+class HasJsonBodyConnector extends Connector
 {
     use AcceptsJson;
-
-    /**
-     * The base URL of the test API.
-     */
-    public const string API_URL = 'https://tests.saloon.dev/api';
+    use HasJsonBody;
 
     /**
      * Create a new connector instance.
@@ -28,7 +25,7 @@ class TestConnector extends Connector
      */
     public function resolveBaseUrl(): string
     {
-        return $this->url ?? self::API_URL;
+        return $this->url ?? TestConnector::API_URL;
     }
 
     /**
@@ -40,6 +37,19 @@ class TestConnector extends Connector
     {
         return [
             'Accept' => 'application/json',
+        ];
+    }
+
+    /**
+     * Define the default body.
+     *
+     * @return string[]
+     */
+    protected function defaultBody(): array
+    {
+        return [
+            'name' => 'Gareth',
+            'drink' => 'Moonshine',
         ];
     }
 }

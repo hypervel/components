@@ -4,17 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Saloon\Fixtures\Connectors;
 
+use Hypervel\Saloon\Data\MultipartValue;
 use Hypervel\Saloon\Http\Connector;
+use Hypervel\Saloon\Traits\Body\HasMultipartBody;
 use Hypervel\Saloon\Traits\Plugins\AcceptsJson;
 
-class TestConnector extends Connector
+class HasMultipartBodyConnector extends Connector
 {
     use AcceptsJson;
-
-    /**
-     * The base URL of the test API.
-     */
-    public const string API_URL = 'https://tests.saloon.dev/api';
+    use HasMultipartBody;
 
     /**
      * Create a new connector instance.
@@ -28,7 +26,7 @@ class TestConnector extends Connector
      */
     public function resolveBaseUrl(): string
     {
-        return $this->url ?? self::API_URL;
+        return $this->url ?? TestConnector::API_URL;
     }
 
     /**
@@ -40,6 +38,19 @@ class TestConnector extends Connector
     {
         return [
             'Accept' => 'application/json',
+        ];
+    }
+
+    /**
+     * Define the default body.
+     *
+     * @return list<MultipartValue>
+     */
+    protected function defaultBody(): array
+    {
+        return [
+            new MultipartValue('nickname', 'Gareth', 'user.txt', ['X-Saloon' => 'Yee-haw!']),
+            new MultipartValue('drink', 'Moonshine', 'moonshine.txt', ['X-My-Head' => 'Spinning!']),
         ];
     }
 }
