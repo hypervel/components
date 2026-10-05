@@ -2,12 +2,16 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Saloon\Http;
+namespace Hypervel\Tests\Saloon\Unit;
 
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Http\Client\Request as HttpRequest;
 use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\Saloon\Contracts\Body\BodyRepository;
 use Hypervel\Saloon\Enums\Method;
+use Hypervel\Saloon\Events\SendingSaloonRequest;
+use Hypervel\Saloon\Exceptions\InvalidHeaderException;
 use Hypervel\Saloon\Exceptions\MissingAuthenticatorException;
 use Hypervel\Saloon\Exceptions\PendingRequestException;
 use Hypervel\Saloon\Http\Auth\AccessTokenAuthenticator;
@@ -19,16 +23,158 @@ use Hypervel\Saloon\Http\Connector;
 use Hypervel\Saloon\Http\PendingRequest;
 use Hypervel\Saloon\Http\Request;
 use Hypervel\Saloon\Repositories\Body\StringBodyRepository;
+use Hypervel\Saloon\SaloonServiceProvider;
 use Hypervel\Saloon\Traits\Auth\RequiresAuth;
 use Hypervel\Saloon\Traits\Body\HasJsonBody;
 use Hypervel\Saloon\Traits\Body\HasStringBody;
-use Hypervel\Tests\TestCase;
+use Hypervel\Support\Facades\Event;
+use Hypervel\Support\Facades\Http;
+use Hypervel\Support\Stringable;
+use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Saloon\Fixtures\Connectors\TestConnector;
+use Hypervel\Tests\Saloon\Fixtures\Requests\UserRequest;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Http\Message\StreamInterface;
+use stdClass;
 
 class PendingRequestTest extends TestCase
 {
+    public function testYouCanOverwriteTheUrlAndTheMethodOfThePendingRequest(): void
+    {
+        Http::fake(['*' => Http::response(['name' => 'Sam'])]);
+
+        $connector = new TestConnector;
+        $request = new UserRequest;
+
+        // Connectors are read-only, so the middleware is registered on the request instead of the connector.
+        $request->middleware()->onRequest(function (PendingRequest $pendingRequest): void {
+            $pendingRequest->withUrl('https://other-endpoint.co.uk' . $pendingRequest->request()->resolveEndpoint());
+            $pendingRequest->withMethod(Method::POST);
+        });
+
+        $this->assertSame(Method::GET, $request->method());
+
+        $response = $connector->send($request);
+        $pendingRequest = $response->pendingRequest();
+
+        $this->assertSame('https://other-endpoint.co.uk/user', (string) $pendingRequest->uri());
+        $this->assertSame(Method::POST, $pendingRequest->method());
+        $this->assertSame(Method::GET, $request->method());
+        $this->assertNull($request->url());
+        Http::assertSent(fn (HttpRequest $sent): bool => $sent->method() === 'POST'
+            && $sent->url() === 'https://other-endpoint.co.uk/user');
+    }
+
+    public function testThePendingRequestIsMacroable(): void
+    {
+        PendingRequest::macro('yee', fn (): string => 'haw');
+
+        $pendingRequest = (new TestConnector)->createPendingRequest(new UserRequest);
+
+        $this->assertSame('haw', $pendingRequest->yee());
+    }
+
+    public function testThePendingRequestValidatesProperlyFormedHeaders(): void
+    {
+        $request = (new UserRequest)->withHeaders([
+            'Content-Type: application/json',
+        ]);
+
+        $this->expectException(InvalidHeaderException::class);
+        $this->expectExceptionMessage('One or more of the headers are invalid. Make sure to use the header name as the key. For example: [\'Content-Type\' => \'application/json\'].');
+
+        (new TestConnector)->createPendingRequest($request);
+    }
+
+    public function testHeadersWrittenAsAListAreRejectedBeforePluginsMatchHeaderNames(): void
+    {
+        $request = (new PendingRequestRequestStub)->withHeaders(['Accept: application/json']);
+
+        $this->expectException(InvalidHeaderException::class);
+
+        (new PendingRequestConnectorStub)->createPendingRequest($request);
+    }
+
+    public function testHeaderValuesAreNormalizedForTheOutgoingRequest(): void
+    {
+        $pendingRequest = (new TestConnector)->createPendingRequest((new UserRequest)->withHeaders([
+            'X-Null' => null,
+            'X-Empty' => [],
+            'X-List' => ['one', 2, true],
+            'X-Stringable' => new Stringable('value'),
+            'X-Float' => 1.5,
+            'X-Not-A-Number' => NAN,
+            'X-Infinite' => -INF,
+        ]));
+
+        $headers = $pendingRequest->toPsrRequest()->getHeaders();
+
+        $this->assertSame([''], $headers['X-Null']);
+        $this->assertSame([''], $headers['X-Empty']);
+        $this->assertSame(['one', '2', '1'], $headers['X-List']);
+        $this->assertSame(['value'], $headers['X-Stringable']);
+        $this->assertSame(['1.5'], $headers['X-Float']);
+        $this->assertSame(['NAN'], $headers['X-Not-A-Number']);
+        $this->assertSame(['-INF'], $headers['X-Infinite']);
+    }
+
+    public function testHeaderValuesMustBeScalarNullOrStringable(): void
+    {
+        $pendingRequest = (new TestConnector)->createPendingRequest(
+            (new UserRequest)->withHeader('X-Object', new stdClass),
+        );
+
+        $this->expectException(InvalidHeaderException::class);
+        $this->expectExceptionMessage('HTTP header values must be scalar, null, Hypervel Stringable, or arrays of those values.');
+
+        $pendingRequest->toPsrRequest();
+    }
+
+    public function testPreparingARequestRunsItsHooksAndMiddlewareWithoutSendingIt(): void
+    {
+        Http::fake();
+        Event::fake([SendingSaloonRequest::class]);
+
+        $request = (new PendingRequestRequestStub)->withData(['name' => 'Taylor']);
+        $request->middleware()->onRequest(function (PendingRequest $pendingRequest): void {
+            ++PendingRequestRequestStub::$middlewareCalls;
+        });
+
+        $pendingRequest = (new PendingRequestConnectorStub)->createPendingRequest($request);
+
+        $this->assertSame(1, PendingRequestConnectorStub::$bootCalls);
+        $this->assertSame(1, PendingRequestRequestStub::$bootCalls);
+        $this->assertSame(1, PendingRequestRequestStub::$middlewareCalls);
+        $this->assertSame('application/json', $pendingRequest->headers()['Content-Type']);
+        $this->assertNull($pendingRequest->preparedBody());
+        Event::assertNotDispatched(SendingSaloonRequest::class);
+        Http::assertNothingSent();
+    }
+
+    public function testUrlParametersAreExpandedWithoutChangingTheRequest(): void
+    {
+        $request = (new PendingRequestRequestStub)
+            ->withUrl('https://{region}.example.com/{version}/users')
+            ->withUrlParameters(['region' => 'eu', 'version' => 'v1']);
+        $pendingRequest = $this->pendingRequest(new PendingRequestConnectorWithoutBodyStub, $request);
+
+        $this->assertSame('https://eu.example.com/v1/users', (string) $pendingRequest->finalizeUri()->uri());
+
+        $pendingRequest->withUrlParameters(['version' => 'v2']);
+
+        $this->assertSame('https://eu.example.com/v2/users', (string) $pendingRequest->uri());
+        $this->assertSame(['region' => 'eu', 'version' => 'v1'], $request->urlParameters());
+    }
+
+    public function testUrlParametersAreExpandedInTheBaseUrlAndEndpoint(): void
+    {
+        $request = (new PendingTemplateRequestStub)->withUrlParameters(['tenant' => 'acme', 'id' => 'a b/c']);
+        $pendingRequest = $this->pendingRequest(new PendingTemplateConnectorStub, $request);
+
+        $this->assertSame('https://acme.example.com/v1/users/a%20b%2Fc', (string) $pendingRequest->uri());
+    }
+
     public function testConstructionOnlySnapshotsOperationState(): void
     {
         $connector = new PendingRequestConnectorStub;
@@ -222,6 +368,14 @@ class PendingRequestTest extends TestCase
         ], $pendingRequest->headers());
     }
 
+    /**
+     * Get the package providers.
+     */
+    protected function getPackageProviders(ApplicationContract $app): array
+    {
+        return [SaloonServiceProvider::class];
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -251,31 +405,49 @@ class PendingRequestConnectorStub extends Connector
 
     public static int $bootCalls = 0;
 
+    /**
+     * Resolve the integration base URL.
+     */
     public function resolveBaseUrl(): string
     {
         return 'https://api.example.com/v1';
     }
 
+    /**
+     * Configure a pending request for this resource.
+     */
     public function boot(PendingRequest $pendingRequest): void
     {
         ++static::$bootCalls;
     }
 
+    /**
+     * Resolve the default headers.
+     */
     protected function defaultHeaders(): array
     {
         return ['X-Connector' => 'connector'];
     }
 
+    /**
+     * Resolve the default query parameters.
+     */
     protected function defaultQuery(): array
     {
         return ['version' => 1];
     }
 
+    /**
+     * Resolve the default request options.
+     */
     protected function defaultOptions(): array
     {
         return ['allow_redirects' => ['strict' => true]];
     }
 
+    /**
+     * Resolve the default JSON body.
+     */
     protected function defaultBody(): array
     {
         return ['connector' => true];
@@ -290,6 +462,30 @@ class PendingRawQueryConnectorStub extends Connector
     public function resolveBaseUrl(): string
     {
         return 'https://api.example.com?base=old';
+    }
+}
+
+class PendingTemplateConnectorStub extends Connector
+{
+    /**
+     * Resolve the integration base URL.
+     */
+    public function resolveBaseUrl(): string
+    {
+        return 'https://{tenant}.example.com/v1';
+    }
+}
+
+class PendingTemplateRequestStub extends Request
+{
+    protected Method $method = Method::GET;
+
+    /**
+     * Resolve the request endpoint.
+     */
+    public function resolveEndpoint(): string
+    {
+        return '/users/{id}';
     }
 }
 
@@ -324,11 +520,17 @@ class PendingRequestRequestStub extends Request
 
     protected Method $method = Method::POST;
 
+    /**
+     * Resolve the request endpoint.
+     */
     public function resolveEndpoint(): string
     {
         return '/users';
     }
 
+    /**
+     * Configure a pending request for this resource.
+     */
     public function boot(PendingRequest $pendingRequest): void
     {
         ++static::$bootCalls;
@@ -341,6 +543,9 @@ class PendingRequestStringBodyStub extends Request
 
     protected Method $method = Method::POST;
 
+    /**
+     * Resolve the request endpoint.
+     */
     public function resolveEndpoint(): string
     {
         return '/users';
@@ -349,6 +554,9 @@ class PendingRequestStringBodyStub extends Request
 
 class PendingRequestConnectorWithoutBodyStub extends Connector
 {
+    /**
+     * Resolve the integration base URL.
+     */
     public function resolveBaseUrl(): string
     {
         return 'https://api.example.com';
@@ -359,11 +567,17 @@ class PendingRequestCountingBodyStub extends Request
 {
     protected Method $method = Method::POST;
 
+    /**
+     * Resolve the request endpoint.
+     */
     public function resolveEndpoint(): string
     {
         return '/users';
     }
 
+    /**
+     * Resolve the default body repository.
+     */
     protected function defaultBodyRepository(): ?BodyRepository
     {
         return new CountingBodyRepository('prepared');
@@ -374,6 +588,9 @@ class CountingBodyRepository extends StringBodyRepository
 {
     public static int $streamCalls = 0;
 
+    /**
+     * Convert the body repository into a stream.
+     */
     public function toStream(): StreamInterface
     {
         ++static::$streamCalls;
@@ -388,11 +605,17 @@ class CustomRequiresAuthRequestStub extends Request
 
     protected Method $method = Method::GET;
 
+    /**
+     * Resolve the request endpoint.
+     */
     public function resolveEndpoint(): string
     {
         return '/users';
     }
 
+    /**
+     * Get the missing authenticator message.
+     */
     protected function getRequiresAuthMessage(PendingRequest $pendingRequest): string
     {
         return 'Custom authentication is required.';

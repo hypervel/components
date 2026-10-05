@@ -95,20 +95,7 @@ class SaloonManager
         while (true) {
             ++$attempt;
 
-            $pendingRequest = new PendingRequest(
-                $connector,
-                $request,
-                $this->cache,
-                $this->rateLimiter,
-            );
-            $pendingRequest
-                ->applyAuthentication()
-                ->bootPlugins();
-            $connector->boot($pendingRequest);
-            $request->boot($pendingRequest);
-            $pendingRequest
-                ->mergeMiddleware($this->middleware)
-                ->executeRequestPipeline();
+            $pendingRequest = $this->createPendingRequest($connector, $request);
 
             if ($this->events->hasListeners(SendingSaloonRequest::class)) {
                 $this->events->dispatch(new SendingSaloonRequest($pendingRequest));
@@ -247,6 +234,30 @@ class SaloonManager
 
             $this->sleepMilliseconds($retryPolicy->delayFor($attempt, $exception));
         }
+    }
+
+    /**
+     * Prepare a request for sending through a connector.
+     *
+     * The pending request has run its plugins, authenticator, boot hooks, and global and request middleware, in that
+     * order. It has not been finalized, matched against mock responses or sent.
+     *
+     * @template TDto
+     * @param Request<TDto> $request
+     * @return PendingRequest<TDto>
+     */
+    public function createPendingRequest(Connector $connector, Request $request): PendingRequest
+    {
+        $pendingRequest = new PendingRequest($connector, $request, $this->cache, $this->rateLimiter);
+        $pendingRequest
+            ->bootPlugins()
+            ->applyAuthentication();
+        $connector->boot($pendingRequest);
+        $request->boot($pendingRequest);
+
+        return $pendingRequest
+            ->mergeMiddleware($this->middleware)
+            ->executeRequestPipeline();
     }
 
     /**

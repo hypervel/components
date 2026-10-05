@@ -2,26 +2,28 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Saloon\Http;
+namespace Hypervel\Tests\Saloon\Feature;
 
-use Hypervel\Container\Container;
-use Hypervel\Contracts\Cache\Factory as CacheFactory;
-use Hypervel\Contracts\Config\Repository as ConfigRepository;
-use Hypervel\Events\Dispatcher;
-use Hypervel\Http\Client\Factory;
-use Hypervel\RateLimiter\RateLimiter;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Saloon\Enums\Method;
 use Hypervel\Saloon\Http\Connectors\NullConnector;
 use Hypervel\Saloon\Http\Faking\MockClient;
 use Hypervel\Saloon\Http\Faking\MockResponse;
-use Hypervel\Saloon\Http\Sender;
 use Hypervel\Saloon\Http\SoloRequest;
-use Hypervel\Saloon\SaloonManager;
-use Hypervel\Tests\TestCase;
-use Mockery as m;
+use Hypervel\Saloon\SaloonServiceProvider;
+use Hypervel\Testbench\TestCase;
 
+// Upstream's cases send real requests and are in tests/Integration/Saloon/Feature/SoloRequestTest.php.
 class SoloRequestTest extends TestCase
 {
+    /**
+     * Get the package providers.
+     */
+    protected function getPackageProviders(ApplicationContract $app): array
+    {
+        return [SaloonServiceProvider::class];
+    }
+
     public function testItSendsAnAbsoluteEndpointThroughTheNormalLifecycle(): void
     {
         $request = new SoloRequestStub;
@@ -36,26 +38,14 @@ class SoloRequestTest extends TestCase
         $this->assertSame('complete', $response->body());
     }
 
-    protected function setUp(): void
+    public function testItCanBePreparedThroughItsConnector(): void
     {
-        parent::setUp();
+        $request = new SoloRequestStub;
+        $pendingRequest = $request->createPendingRequest();
 
-        $http = new Factory;
-        $http->registerConnection('saloon');
-        $config = m::mock(ConfigRepository::class);
-        $config->shouldReceive('string')
-            ->with('saloon.connection.name')
-            ->andReturn('saloon');
-        $manager = new SaloonManager(
-            new Sender($http, $config),
-            m::mock(CacheFactory::class),
-            m::mock(RateLimiter::class),
-            $config,
-            new Dispatcher,
-        );
-        $container = new Container;
-        $container->instance('saloon', $manager);
-        Container::setInstance($container);
+        $this->assertSame($request, $pendingRequest->request());
+        $this->assertSame($request->connector(), $pendingRequest->connector());
+        $this->assertSame('https://api.example.com/users', (string) $pendingRequest->uri());
     }
 }
 
@@ -63,6 +53,9 @@ class SoloRequestStub extends SoloRequest
 {
     protected Method $method = Method::GET;
 
+    /**
+     * Resolve the request endpoint.
+     */
     public function resolveEndpoint(): string
     {
         return 'https://api.example.com/users';

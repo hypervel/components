@@ -57,6 +57,23 @@ abstract class Connector
     }
 
     /**
+     * Prepare a request for sending through this connector.
+     *
+     * The pending request has run its hooks and request middleware but has not been finalized or sent.
+     *
+     * @template TRequestDto
+     * @param Request<TRequestDto> $request
+     * @return PendingRequest<TRequestDto>
+     */
+    public function createPendingRequest(Request $request): PendingRequest
+    {
+        /** @var SaloonManager $manager */
+        $manager = Container::getInstance()->make('saloon');
+
+        return $manager->createPendingRequest($this, $request);
+    }
+
+    /**
      * Create a bounded request pool.
      *
      * @param callable(Connector): iterable<array-key, Request>|iterable<array-key, Request> $requests

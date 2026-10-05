@@ -114,6 +114,51 @@ class HeadersTest extends TestCase
         $this->assertFalse($request->hasHeader('X-Custom-Header'));
     }
 
+    public function testReplaceHeadersMatchesNamesCaseInsensitively(): void
+    {
+        $request = (new UserRequest)
+            ->withHeaders([
+                'Authorization' => 'Bearer old',
+                'X-Keep' => 'yes',
+            ])
+            ->replaceHeaders([
+                'authorization' => 'Bearer new',
+                'AUTHORIZATION' => 'Bearer newest',
+            ]);
+
+        $this->assertSame([
+            'X-Keep' => 'yes',
+            'AUTHORIZATION' => 'Bearer newest',
+        ], $request->headers());
+    }
+
+    public function testIncomingHeaderWinsWhenAnExistingCaseVariantFollowsItsExactName(): void
+    {
+        $request = (new UserRequest)
+            ->withHeaders([
+                'Authorization' => 'Bearer stale exact',
+                'authorization' => 'Bearer stale variant',
+                'X-Keep' => 'yes',
+            ])
+            ->replaceHeaders([
+                'Authorization' => 'Bearer new',
+            ]);
+
+        $this->assertSame([
+            'X-Keep' => 'yes',
+            'Authorization' => 'Bearer new',
+        ], $request->headers());
+    }
+
+    public function testAcceptReplacesTheExistingAcceptHeader(): void
+    {
+        $request = (new UserRequest)
+            ->accept('text/plain')
+            ->acceptJson();
+
+        $this->assertSame('application/json', $request->headers()['Accept']);
+    }
+
     /**
      * Create a pending request with isolated framework dependencies.
      */

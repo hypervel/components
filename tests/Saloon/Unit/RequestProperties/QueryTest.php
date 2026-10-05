@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Saloon\Unit\RequestProperties;
 
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\RateLimiter\RateLimiter;
+use Hypervel\Saloon\Enums\Method;
 use Hypervel\Saloon\Http\Connector;
 use Hypervel\Saloon\Http\PendingRequest;
 use Hypervel\Saloon\Http\Request;
@@ -118,6 +119,20 @@ class QueryTest extends TestCase
         $this->assertSame('sort=raw', $pendingRequest->uri()->getQuery());
     }
 
+    public function testRawQueryDefaultsOverridesAndCloneIsolation(): void
+    {
+        $this->assertNull((new QueryParameterRequest)->queryString());
+        $request = new RawQueryRequestStub;
+        $this->assertSame('tag=a&tag=b', $request->queryString());
+        $request->withQueryString('cursor=a%2Fb')->withQueryParameters(['limit' => 10]);
+        $clone = clone $request;
+
+        $this->assertSame($clone, $clone->withQueryString(''));
+        $this->assertSame('', $clone->queryString());
+        $this->assertSame('cursor=a%2Fb', $request->queryString());
+        $this->assertSame(['limit' => 10], $clone->queryParameters());
+    }
+
     /**
      * Create a pending request with isolated framework dependencies.
      */
@@ -129,5 +144,26 @@ class QueryTest extends TestCase
             m::mock(CacheFactory::class),
             m::mock(RateLimiter::class),
         );
+    }
+}
+
+class RawQueryRequestStub extends Request
+{
+    protected Method $method = Method::GET;
+
+    /**
+     * Resolve the request endpoint.
+     */
+    public function resolveEndpoint(): string
+    {
+        return 'users';
+    }
+
+    /**
+     * Resolve the default raw query string override.
+     */
+    protected function defaultQueryString(): ?string
+    {
+        return 'tag=a&tag=b';
     }
 }

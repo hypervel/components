@@ -48,8 +48,19 @@ class PendingRequest
         withQueryParameters as protected addQueryParameters;
         withoutQueryParameters as protected removeQueryParameters;
         withQueryString as protected replaceQueryString;
+        withUrlParameters as protected addUrlParameters;
     }
     use Macroable;
+
+    /**
+     * The HTTP method used by the operation.
+     */
+    protected Method $method;
+
+    /**
+     * The absolute URL override.
+     */
+    protected ?string $url;
 
     /**
      * The finalized request URI.
@@ -103,6 +114,11 @@ class PendingRequest
     protected ?FakeResponse $fakeResponse = null;
 
     /**
+     * Whether the connector and request plugins are booting.
+     */
+    protected bool $bootingPlugins = false;
+
+    /**
      * Create a side-effect-free pending request.
      *
      * @param Request<TDto> $request
@@ -113,10 +129,16 @@ class PendingRequest
         protected CacheFactory $cache,
         protected RateLimiter $rateLimiter,
     ) {
-        $this->headerRepository = new ArrayRepository(array_merge(
-            $connector->headers(),
-            $request->headers(),
-        ));
+        $this->method = $request->method();
+        $this->url = $request->url();
+        $this->urlParameters = $request->urlParameters();
+        $headers = array_merge($connector->headers(), $request->headers());
+
+        // Plugins and authenticators match header names case-insensitively, so headers written as a list such as
+        // ['Accept: application/json'] are rejected here with a clear message instead of failing inside them.
+        HeaderNormalizer::ensureValidNames($headers);
+
+        $this->headerRepository = new ArrayRepository($headers);
         $this->queryRepository = new ArrayRepository(array_merge(
             $connector->queryParameters(),
             $request->queryParameters(),
@@ -170,7 +192,54 @@ class PendingRequest
      */
     public function method(): Method
     {
-        return $this->request->method();
+        return $this->method;
+    }
+
+    /**
+     * Change the HTTP method used by the operation.
+     *
+     * @return $this
+     */
+    public function withMethod(Method $method): static
+    {
+        $this->method = $method;
+
+        return $this;
+    }
+
+    /**
+     * Get the absolute URL override.
+     */
+    public function url(): ?string
+    {
+        return $this->url;
+    }
+
+    /**
+     * Replace the connector base URL and request endpoint for this operation.
+     *
+     * @return $this
+     */
+    public function withUrl(string $url): static
+    {
+        $this->uri = null;
+        $this->url = $url;
+
+        return $this;
+    }
+
+    /**
+     * Specify the URL parameters and invalidate the finalized URI.
+     *
+     * @param array<array-key, mixed> $parameters
+     * @return $this
+     */
+    public function withUrlParameters(array $parameters = []): static
+    {
+        $this->uri = null;
+        $this->addUrlParameters($parameters);
+
+        return $this;
     }
 
     /**
@@ -182,12 +251,11 @@ class PendingRequest
             return $this->uri;
         }
 
-        $url = $this->request->url();
-        $uri = $url !== null
-            ? UrlResolver::resolve('', $url, false)
+        $uri = $this->url !== null
+            ? UrlResolver::resolve('', UrlResolver::expand($this->url, $this->urlParameters), false)
             : UrlResolver::resolve(
-                $this->connector->resolveBaseUrl(),
-                $this->request->resolveEndpoint(),
+                UrlResolver::expand($this->connector->resolveBaseUrl(), $this->urlParameters),
+                UrlResolver::expand($this->request->resolveEndpoint(), $this->urlParameters),
                 $this->request->allowsBaseUrlOverride() ?? $this->connector->allowsBaseUrlOverride(),
             );
         $query = $this->queryString();
@@ -250,20 +318,28 @@ class PendingRequest
     }
 
     /**
-     * Authenticate the pending request immediately.
+     * Authenticate the pending request.
+     *
+     * The authenticator is applied immediately, except while plugins boot: it is then applied once every plugin has
+     * booted.
      *
      * @return $this
      */
     public function authenticate(Authenticator $authenticator): static
     {
         $this->setAuthenticator($authenticator);
-        $authenticator->set($this);
+
+        // A later plugin may still change the URL or headers the authenticator reads, such as an API version in the
+        // host, so applyAuthentication() applies the selected authenticator after the plugins boot.
+        if (! $this->bootingPlugins) {
+            $authenticator->set($this);
+        }
 
         return $this;
     }
 
     /**
-     * Apply the configured authenticator.
+     * Apply the selected authenticator.
      */
     public function applyAuthentication(): static
     {
@@ -277,7 +353,13 @@ class PendingRequest
      */
     public function bootPlugins(): static
     {
-        (new BootPlugins)($this);
+        $this->bootingPlugins = true;
+
+        try {
+            (new BootPlugins)($this);
+        } finally {
+            $this->bootingPlugins = false;
+        }
 
         return $this;
     }

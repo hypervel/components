@@ -59,6 +59,17 @@ $callback = function () {
                     'file_contents' => $file === null ? null : file_get_contents($file['tmp_name']),
                 ]));
             })(),
+            '/user' => (function () use ($response): void {
+                // Return the user from Saloon's test API
+                $response->setHeader('Content-Type', 'application/json');
+                $response->end(json_encode(['name' => 'Sammyjo20', 'actual_name' => 'Sam', 'twitter' => '@carre_sam']));
+            })(),
+            '/error' => (function () use ($response): void {
+                // Fail like the error endpoint of Saloon's test API
+                $response->status(500);
+                $response->setHeader('Content-Type', 'application/json');
+                $response->end(json_encode(['message' => 'Server Error']));
+            })(),
             default => (function () use ($request, $response) {
                 $body = $request->rawContent();
                 $ret = 'Hello World.';

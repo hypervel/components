@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Saloon;
 
 use Carbon\CarbonInterval;
+use GuzzleHttp\Promise\PromiseInterface;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Http\Client\Factory;
 use Hypervel\Http\Client\Request as HttpRequest;
 use Hypervel\RateLimiter\RateLimiter;
+use Hypervel\Saloon\Contracts\Authenticator;
 use Hypervel\Saloon\Contracts\FakeResponse;
 use Hypervel\Saloon\Contracts\RequestMiddleware;
 use Hypervel\Saloon\Enums\Method;
@@ -18,7 +20,6 @@ use Hypervel\Saloon\Events\SendingSaloonRequest;
 use Hypervel\Saloon\Events\SentSaloonRequest;
 use Hypervel\Saloon\Exceptions\Request\FatalRequestException;
 use Hypervel\Saloon\Exceptions\Request\RequestException;
-use Hypervel\Saloon\Http\Auth\TokenAuthenticator;
 use Hypervel\Saloon\Http\Connector;
 use Hypervel\Saloon\Http\Faking\MockResponse;
 use Hypervel\Saloon\Http\PendingRequest;
@@ -273,16 +274,22 @@ class SaloonManagerTest extends TestCase
     public function testPluginAuthenticationIsAppliedOnce(): void
     {
         $http = $this->http();
-        $authorization = null;
-        $http->fake(function (HttpRequest $request) use (&$authorization) {
-            $authorization = $request->header('Authorization');
+        $sent = null;
+        $http->fake(function (HttpRequest $request) use (&$sent): PromiseInterface {
+            $sent = $request;
 
             return Factory::response();
         });
 
-        $this->manager($http)->send(new ManagerConnectorStub, new PluginAuthenticatedManagerRequestStub);
+        $this->manager($http)->send(
+            new ManagerConnectorStub,
+            (new PluginAuthenticatedManagerRequestStub)->withToken('configured'),
+        );
 
-        $this->assertSame(['Bearer secret'], $authorization);
+        // The plugin's authenticator adds its header, so applying it twice would repeat the value. The configured
+        // token it replaced is not applied.
+        $this->assertSame(['secret'], $sent->header('X-Api-Key'));
+        $this->assertFalse($sent->hasHeader('Authorization'));
     }
 
     public function testSendingAndSentEventsArePairedForFakeResponses(): void
@@ -483,9 +490,31 @@ class BodyManagerRequestStub extends ManagerRequestStub
 
 trait AppliesManagerAuthentication
 {
+    /**
+     * Authenticate the pending request with an API key.
+     */
     public function bootAppliesManagerAuthentication(PendingRequest $pendingRequest): void
     {
-        $pendingRequest->authenticate(new TokenAuthenticator('secret'));
+        $pendingRequest->authenticate(new ApiKeyManagerAuthenticator('secret'));
+    }
+}
+
+readonly class ApiKeyManagerAuthenticator implements Authenticator
+{
+    /**
+     * Create an API key authenticator.
+     */
+    public function __construct(
+        public string $key,
+    ) {
+    }
+
+    /**
+     * Apply the authentication to the request.
+     */
+    public function set(PendingRequest $pendingRequest): void
+    {
+        $pendingRequest->withHeader('X-Api-Key', $this->key);
     }
 }
 

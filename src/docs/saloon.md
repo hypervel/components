@@ -17,6 +17,7 @@
     - [Headers](#headers)
     - [Request URL](#request-url)
     - [Query Parameters](#query-parameters)
+    - [API Versions](#api-versions)
     - [Authentication](#authentication)
     - [Request Bodies](#request-bodies)
     - [Multipart Requests](#multipart-requests)
@@ -373,6 +374,17 @@ $response = $github->send(
 
 The returned `Hypervel\Saloon\Http\Response` extends Hypervel's normal HTTP response, so the same JSON, header, status, exception, and PSR-7 methods are available.
 
+To inspect an outgoing request without sending it, pass the request to the connector's `createPendingRequest` method. The pending request has run its plugins, authenticator, boot hooks, and request middleware:
+
+```php
+$pendingRequest = $github->createPendingRequest(GetUser::make('hypervel'));
+
+$pendingRequest->headers();
+$pendingRequest->uri();
+```
+
+The URL and body are finalized, and fake responses are matched, only when a request is sent. Sending creates a new pending request, so make outgoing changes on the request or in its hooks and middleware rather than on an inspected pending request.
+
 <a name="standalone-requests"></a>
 ### Standalone Requests
 
@@ -395,7 +407,26 @@ class GetStatus extends SoloRequest
 $response = (new GetStatus)->send();
 ```
 
-Normal connector requests accept relative endpoints. An absolute endpoint is rejected unless the request or connector explicitly opts into base URL replacement. This protects credentials from being sent to an unexpected host.
+A request that always uses the same connector may send itself with the `HasConnector` trait. Define the connector class in a `$connector` property:
+
+```php
+use Hypervel\Saloon\Traits\Request\HasConnector;
+
+class GetUser extends Request
+{
+    use HasConnector;
+
+    protected string $connector = GitHubConnector::class;
+
+    // ...
+}
+
+$response = GetUser::make('hypervel')->send();
+```
+
+The request creates its connector once, and the `connector` method returns it. Use `setConnector` to supply a configured instance instead, or override `resolveConnector` when the connector needs constructor arguments. The `createPendingRequest` method prepares the request through that connector.
+
+Normal connector requests accept relative endpoints. An endpoint without a scheme is always a path on the connector's host, even when it contains a colon, such as `documents:batchGet`, or begins with `//`. An absolute endpoint is rejected unless the request or connector explicitly opts into base URL replacement. This protects credentials from being sent to an unexpected host.
 
 Override `allowsBaseUrlOverride` on a request to return `true` when that request may use an application-controlled absolute endpoint. The request method returns `null` by default, which inherits the connector's decision:
 
@@ -492,6 +523,30 @@ The URL must be absolute HTTP or HTTPS. It replaces both the connector base URL 
 
 The `url` method returns the override, or `null` when none was supplied. Explicit query strings and query parameters are still applied as described below.
 
+The `withUrlParameters` method fills URI template placeholders in the connector base URL, the request endpoint, or the URL override, just like Hypervel's HTTP client:
+
+```php
+// Base URL: https://{region}.api.example.com
+// Endpoint: /accounts/{account}
+
+$request->withUrlParameters([
+    'region' => 'eu',
+    'account' => $accountId,
+]);
+```
+
+Values in simple placeholders such as `{account}` are percent-encoded, so slashes and query characters in a value stay part of that value. Placeholders are only replaced when parameters are given.
+
+Pending requests also provide `withUrl` and `withMethod`, so a hook or middleware may redirect a single operation without changing the request instance:
+
+```php
+use Hypervel\Saloon\Enums\Method;
+
+$pendingRequest
+    ->withUrl('https://uploads.example.com/files')
+    ->withMethod(Method::PUT);
+```
+
 <a name="query-parameters"></a>
 ### Query Parameters
 
@@ -521,6 +576,31 @@ $request->withQueryString('tag=php&tag=hypervel&cursor=a%2Fb');
 The query should not include a leading `?`. It replaces the query in the base URL and request endpoint. Passing an empty string clears that query. Parameters defined on the connector or added using `withQueryParameters`, including authentication parameters, are still applied and take precedence when names match.
 
 You may define a default query string by overriding `defaultQueryString(): ?string` on your request. Returning `null` leaves the URL's query unchanged. The `queryString` method returns this string, while `queryParameters` returns the separately configured array parameters. Middleware may also call `withQueryString` on a pending request to replace the query for that attempt.
+
+<a name="api-versions"></a>
+### API Versions
+
+The `HasApiVersion` plugin sends an API version with each operation. Assign the version in the connector or request constructor, and choose where it is sent with the `$versionMode` property: a header (the default), a query parameter, or the URL. The `$versionKey` property names the header or query parameter and defaults to `api-version`:
+
+```php
+use Hypervel\Saloon\Enums\VersionMode;
+use Hypervel\Saloon\Traits\Plugins\HasApiVersion;
+
+class AnthropicConnector extends Connector
+{
+    use HasApiVersion;
+
+    public function __construct()
+    {
+        $this->apiVersion = '2023-06-01';
+        $this->versionKey = 'anthropic-version';
+    }
+
+    // ...
+}
+```
+
+In URL mode, the version replaces a `{version}` placeholder in the base URL, endpoint, or URL override, such as `https://generativelanguage.googleapis.com/{version}`. The version may only contain letters, numbers, dashes, underscores, and single dots, so it can only fill that subdomain label or path segment. You may override `getApiVersion` to calculate the version. When both a connector and a request send a version, the request's version is used.
 
 <a name="authentication"></a>
 ### Authentication
@@ -991,6 +1071,8 @@ trait AddsRequestId
 ```
 
 Use the trait on any connector or request. Saloon discovers plugin boot methods once per concrete class and invokes them for each operation.
+
+Connector plugins boot before request plugins, and the request is authenticated once every plugin has booted. This lets an authenticator use the URL and headers set by plugins, such as an [API version](#api-versions) in the host. A plugin may select the authenticator by calling `authenticate` on the pending request; Saloon applies it after the remaining plugins boot. The connector and request `boot` methods and request middleware run after authentication, so calling `authenticate` there applies the authenticator immediately.
 
 <a name="responses"></a>
 ## Responses
@@ -2068,7 +2150,7 @@ Saloon::fake([
 
 Each matching value may also be a callback that receives the pending request and returns a mock response or fixture. A lower-level `Http::fake()` still prevents a network request after the Saloon lifecycle reaches Hypervel's HTTP client. The response is recorded by the HTTP client and `isMocked()` returns false. When no Saloon mock client is active, Saloon facade assertions do not include the response.
 
-You may attach a mock client to one request using `withMockClient`, or pass it as the second argument to `Connector::send`. An explicitly supplied client takes precedence over a request client, which takes precedence over the facade's global test client.
+You may attach a mock client to one request using `withMockClient`, or pass it as the second argument to `Connector::send`. An explicitly supplied client takes precedence over a request client, which takes precedence over the facade's global test client. Mock responses are matched after request middleware has run and the URL is final, so URL matches see any changes middleware made.
 
 Mock clients are strict by default. An unmatched request throws `NoMockResponseFoundException` instead of reaching the network.
 
