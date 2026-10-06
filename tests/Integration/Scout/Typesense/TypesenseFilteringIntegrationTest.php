@@ -199,7 +199,7 @@ class TypesenseFilteringIntegrationTest extends TypesenseScoutIntegrationTestCas
     public function testUnsupportedComparisonOperatorIsRejected(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Unsupported Typesense filter operator [<>].');
+        $this->expectExceptionMessageIs('Unsupported Typesense filter operator [<>].');
 
         TypesenseSearchableModel::search('')->where('ranking', '<>', 1)->get();
     }
