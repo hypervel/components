@@ -32,7 +32,7 @@ class SlidingWindowTest extends TestCase
     public function testFactoryOverflowNamesItsPublicWindowUnit(callable $factory, string $unit): void
     {
         $this->expectException(InvalidRateLimitException::class);
-        $this->expectExceptionMessage("The rate limit window {$unit} exceeds the maximum supported duration.");
+        $this->expectExceptionMessageIs("The rate limit window {$unit} exceeds the maximum supported duration.");
 
         $factory();
     }
@@ -83,7 +83,7 @@ class SlidingWindowTest extends TestCase
     public function testCapacityAboveTheExactIntegerCeilingIsRejected(): void
     {
         $this->expectException(InvalidRateLimitException::class);
-        $this->expectExceptionMessage('The sliding-window capacity may not exceed 9007199254.');
+        $this->expectExceptionMessageIs('The sliding-window capacity may not exceed 9007199254.');
 
         SlidingWindow::perMinute(9_007_199_255);
     }

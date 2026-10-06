@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Integration\RateLimiter\Database\Sqlite;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testbench\Attributes\RequiresDatabase;
 use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Testing\ParallelTesting;
@@ -39,6 +40,11 @@ class DatabaseStoreTest extends DatabaseStoreTestCase
         parent::tearDownAfterClass();
     }
 
+    public function testStoreContractCooldownExtendsWithoutShorteningAndExpires(): void
+    {
+        $this->freezeTime(fn () => parent::testStoreContractCooldownExtendsWithoutShorteningAndExpires());
+    }
+
     // @TODO Remove these overrides when the first tagged Swoole release containing
     // https://github.com/swoole/swoole-src/pull/6140 is the minimum supported version.
     public function testConcurrentFirstUseAdmitsExactlyTheConfiguredCapacity(): void
@@ -59,6 +65,20 @@ class DatabaseStoreTest extends DatabaseStoreTestCase
     public function testConcurrentCooldownBlocksRetainTheLongestExpiry(): void
     {
         $this->markTestSkipped('Requires the Swoole AIO scheduler fix from PR #6140.');
+    }
+
+    /**
+     * Advance the SQLite store's clock when the contract test freezes time.
+     */
+    protected function advanceRateLimiterStoreContractClock(int $seconds): bool
+    {
+        if (! CarbonImmutable::hasTestNow()) {
+            return false;
+        }
+
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds($seconds));
+
+        return true;
     }
 
     protected function defineEnvironment(ApplicationContract $app): void
