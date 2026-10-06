@@ -803,7 +803,7 @@ class ResponseBridgeTest extends TestCase
         $swooleResponse->shouldNotReceive('sendfile');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Binary file responses cannot emit trailers.');
+        $this->expectExceptionMessageIs('Binary file responses cannot emit trailers.');
 
         ResponseBridge::send($response, $swooleResponse);
     }
@@ -880,7 +880,7 @@ class ResponseBridgeTest extends TestCase
         $swooleResponse->shouldNotReceive('header');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIs($message);
 
         ResponseBridge::send($response, $swooleResponse);
     }
@@ -891,7 +891,7 @@ class ResponseBridgeTest extends TestCase
         $response = new ResponseBridgeTrailerResponse('body', [], [$name => 'value']);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIs($message);
 
         ResponseBridge::send($response, $this->mockSwooleResponse());
     }
@@ -916,7 +916,7 @@ class ResponseBridgeTest extends TestCase
         ]);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Response trailer names must be unique after normalization.');
+        $this->expectExceptionMessageIs('Response trailer names must be unique after normalization.');
 
         ResponseBridge::send($response, $this->mockSwooleResponse());
     }
@@ -938,7 +938,7 @@ class ResponseBridgeTest extends TestCase
         $response = new ResponseBridgeTrailerResponse('body', [], ['x-value' => 123]);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Response trailer values must be strings.');
+        $this->expectExceptionMessageIs('Response trailer values must be strings.');
 
         ResponseBridge::send($response, $this->mockSwooleResponse());
     }
@@ -948,7 +948,7 @@ class ResponseBridgeTest extends TestCase
         $response = new ResponseBridgeTrailerResponse('body', [], ['x-value' => "one\r\ntwo"]);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Response trailer values cannot contain line breaks.');
+        $this->expectExceptionMessageIs('Response trailer values cannot contain line breaks.');
 
         ResponseBridge::send($response, $this->mockSwooleResponse());
     }
@@ -1227,7 +1227,7 @@ class ResponseBridgeTest extends TestCase
         $swooleResponse->shouldNotReceive('header');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to set the response status.');
+        $this->expectExceptionMessageIs('Unable to set the response status.');
 
         ResponseBridge::send(new Response('body'), $swooleResponse);
     }
@@ -1240,7 +1240,7 @@ class ResponseBridgeTest extends TestCase
         $swooleResponse->shouldNotReceive('end');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to set a response header.');
+        $this->expectExceptionMessageIs('Unable to set a response header.');
 
         ResponseBridge::send(new Response('body', headers: ['X-Fail' => 'value']), $swooleResponse);
     }
@@ -1255,7 +1255,7 @@ class ResponseBridgeTest extends TestCase
         $swooleResponse->shouldNotReceive('end');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to set a response cookie.');
+        $this->expectExceptionMessageIs('Unable to set a response cookie.');
 
         ResponseBridge::send($response, $swooleResponse);
     }
@@ -1269,7 +1269,7 @@ class ResponseBridgeTest extends TestCase
         $swooleResponse->shouldNotReceive('end');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to set a response trailer.');
+        $this->expectExceptionMessageIs('Unable to set a response trailer.');
 
         ResponseBridge::send($response, $swooleResponse);
     }
@@ -1281,7 +1281,7 @@ class ResponseBridgeTest extends TestCase
         $swooleResponse->shouldReceive('end')->once()->andReturnFalse();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to complete the response.');
+        $this->expectExceptionMessageIs('Unable to complete the response.');
 
         ResponseBridge::send(new Response('body'), $swooleResponse);
     }
@@ -1293,7 +1293,7 @@ class ResponseBridgeTest extends TestCase
         $swooleResponse->shouldReceive('end')->once()->withNoArgs()->andReturnFalse();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to complete the response.');
+        $this->expectExceptionMessageIs('Unable to complete the response.');
 
         ResponseBridge::send(new Response('body'), $swooleResponse, withBody: false);
     }
@@ -1306,7 +1306,7 @@ class ResponseBridgeTest extends TestCase
         $swooleResponse->shouldReceive('end')->once()->with('body')->andReturnFalse();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to complete the response.');
+        $this->expectExceptionMessageIs('Unable to complete the response.');
 
         ResponseBridge::send($response, $swooleResponse);
     }
@@ -1319,7 +1319,7 @@ class ResponseBridgeTest extends TestCase
         $swooleResponse->shouldReceive('sendfile')->once()->with($path, 0, 0)->andReturnFalse();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to send the response file.');
+        $this->expectExceptionMessageIs('Unable to send the response file.');
 
         ResponseBridge::send(new BinaryFileResponse($path), $swooleResponse);
     }
