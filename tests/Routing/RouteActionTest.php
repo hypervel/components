@@ -80,7 +80,7 @@ class RouteActionTest extends RoutingTestCase
     public function testItRejectsNonControllerStringCallables(string $action): void
     {
         $this->expectException(UnexpectedValueException::class);
-        $this->expectExceptionMessage("Invalid route action: [{$action}].");
+        $this->expectExceptionMessageIs("Invalid route action: [{$action}].");
 
         RouteAction::parse('test', $action);
     }
