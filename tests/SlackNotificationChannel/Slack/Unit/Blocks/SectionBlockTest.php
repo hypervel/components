@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Notifications\Slack\Blocks;
+namespace Hypervel\Tests\SlackNotificationChannel\Slack\Unit\Blocks;
 
 use Hypervel\Notifications\Slack\BlockKit\Blocks\SectionBlock;
 use Hypervel\Notifications\Slack\BlockKit\Elements\ImageElement;
@@ -133,6 +133,16 @@ class SectionBlockTest extends TestCase
             ],
             'block_id' => 'section1',
         ], $block->toArray());
+    }
+
+    public function testZeroBlockIdIsPreservedAndEmptyFieldsRemainOmitted(): void
+    {
+        $block = new SectionBlock;
+        $block->text('Content');
+        $block->id('0');
+
+        $this->assertSame('0', $block->toArray()['block_id']);
+        $this->assertArrayNotHasKey('fields', $block->toArray());
     }
 
     public function testBlockIdCantExceedTwoFiveFiveCharacters(): void

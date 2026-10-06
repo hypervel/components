@@ -109,7 +109,7 @@ class SectionBlock implements BlockContract
             'block_id' => $this->blockId,
             'accessory' => $this->accessory?->toArray(),
             'fields' => array_map(fn (Arrayable $element) => $element->toArray(), $this->fields),
-        ]);
+        ], static fn (mixed $value): bool => $value !== null && $value !== '' && $value !== []);
 
         return array_merge([
             'type' => 'section',
