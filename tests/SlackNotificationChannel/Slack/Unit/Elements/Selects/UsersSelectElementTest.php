@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Notifications\Slack\Elements\Selects;
+namespace Hypervel\Tests\SlackNotificationChannel\Slack\Unit\Elements\Selects;
 
 use Hypervel\Notifications\Slack\BlockKit\Elements\Selects\UsersSelectElement;
 use Hypervel\Tests\TestCase;
