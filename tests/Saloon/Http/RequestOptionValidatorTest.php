@@ -15,7 +15,7 @@ class RequestOptionValidatorTest extends TestCase
     public function testItRejectsOptionsOwnedByTheSaloonLifecycle(string $option): void
     {
         $this->expectException(PendingRequestException::class);
-        $this->expectExceptionMessage("The [{$option}] option cannot be set in request options");
+        $this->expectExceptionMessageIsOrContains("The [{$option}] option cannot be set in request options");
 
         RequestOptionValidator::validate([$option => null], 'request options');
     }

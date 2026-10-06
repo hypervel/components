@@ -13,7 +13,7 @@ class HeaderNormalizerTest extends TestCase
     public function testHeaderNamesMustBeStrings(): void
     {
         $this->expectException(InvalidHeaderException::class);
-        $this->expectExceptionMessage('HTTP header names must be strings.');
+        $this->expectExceptionMessageIs('HTTP header names must be strings.');
 
         HeaderNormalizer::normalize(['Content-Type', 'application/json']);
     }
