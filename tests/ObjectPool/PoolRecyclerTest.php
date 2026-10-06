@@ -294,7 +294,7 @@ class PoolRecyclerTest extends TestCase
     public function testConstructorRejectsInvalidIntervals(float $interval): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The recycler interval must be a finite number greater than 0.');
+        $this->expectExceptionMessageIs('The recycler interval must be a finite number greater than 0.');
 
         new PoolRecycler(m::mock(Factory::class), $interval);
     }
