@@ -129,7 +129,7 @@ class ScopedNodeTest extends TestCase
         $root = MenuItem::findOrFail(4);
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             "Nested set {$label} root [Hypervel\\Tests\\NestedSet\\Fixtures\\Models\\MenuItem] does not match the query scoped([...]) selection.",
         );
 
@@ -174,7 +174,7 @@ class ScopedNodeTest extends TestCase
             ->findOrFail(6);
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Nested set node [Hypervel\Tests\NestedSet\Fixtures\Models\MenuItem] must have scope attribute [menu_id] selected.',
         );
 
@@ -199,7 +199,7 @@ class ScopedNodeTest extends TestCase
             ->findOrFail(3);
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Nested set node [Hypervel\Tests\NestedSet\Fixtures\Models\MenuItem] must have scope attribute [menu_id] selected.',
         );
 
@@ -222,7 +222,7 @@ class ScopedNodeTest extends TestCase
         $query = MenuItem::query();
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('scoped([...])');
+        $this->expectExceptionMessageIsOrContains('scoped([...])');
 
         match ($operation) {
             'lookup' => $query->getNodeData(1),
@@ -261,7 +261,7 @@ class ScopedNodeTest extends TestCase
     public function testNewNodeRequiresItsConfiguredScopeAttribute(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('attribute [menu_id] was not selected');
+        $this->expectExceptionMessageIsOrContains('attribute [menu_id] was not selected');
 
         (new MenuItem(['title' => 'missing scope']))->save();
     }
@@ -392,7 +392,7 @@ class ScopedNodeTest extends TestCase
             ->findOrFail(5);
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             "Nested set relation parent for [Hypervel\\Tests\\NestedSet\\Fixtures\\Models\\MenuItem] requires the [{$requiredColumn}] column.",
         );
 
@@ -588,7 +588,7 @@ class ScopedNodeTest extends TestCase
         $node->menu_id = 2;
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Nested set scope attribute [menu_id] cannot be changed on an existing [Hypervel\Tests\NestedSet\Fixtures\Models\MenuItem] model.',
         );
 
@@ -601,7 +601,7 @@ class ScopedNodeTest extends TestCase
         $node->menu_id = null;
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('scope attribute [menu_id] cannot be changed');
+        $this->expectExceptionMessageIsOrContains('scope attribute [menu_id] cannot be changed');
 
         $node->save();
     }
@@ -615,7 +615,7 @@ class ScopedNodeTest extends TestCase
         $node->title = 'changed';
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Nested set model [Hypervel\Tests\NestedSet\Fixtures\Models\MenuItem] requires the [id] column to be selected.',
         );
 
@@ -631,7 +631,7 @@ class ScopedNodeTest extends TestCase
 
         $this->assertSame([], DB::getQueryLog());
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('attribute [menu_id] was not selected');
+        $this->expectExceptionMessageIsOrContains('attribute [menu_id] was not selected');
 
         $node->save();
     }
@@ -689,7 +689,7 @@ class ScopedNodeTest extends TestCase
         $node->menu_id = 2;
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Nodes must be in the same tree.');
+        $this->expectExceptionMessageIs('Nodes must be in the same tree.');
 
         $node->save();
     }
@@ -715,7 +715,7 @@ class ScopedNodeTest extends TestCase
         $this->assertSame([], DB::getQueryLog());
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Nodes must be in the same tree.');
+        $this->expectExceptionMessageIs('Nodes must be in the same tree.');
 
         $source->save();
     }
@@ -801,7 +801,7 @@ class ScopedNodeTest extends TestCase
     public function testAppendingToAnotherScopeFails(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Nodes must be in the same tree.');
+        $this->expectExceptionMessageIs('Nodes must be in the same tree.');
 
         $foo = MenuItem::find(1);
         $bar = MenuItem::find(3);
@@ -812,7 +812,7 @@ class ScopedNodeTest extends TestCase
     public function testInsertingBeforeAnotherScopeFails(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Nodes must be in the same tree.');
+        $this->expectExceptionMessageIs('Nodes must be in the same tree.');
 
         $foo = MenuItem::find(1);
         $bar = MenuItem::find(3);
@@ -848,7 +848,7 @@ class ScopedNodeTest extends TestCase
 
         if ($requiredColumn !== null) {
             $this->expectException(LogicException::class);
-            $this->expectExceptionMessage(
+            $this->expectExceptionMessageIs(
                 "Nested set relation eager load for [Hypervel\\Tests\\NestedSet\\Fixtures\\Models\\MenuItem] requires the [{$requiredColumn}] column.",
             );
         }
