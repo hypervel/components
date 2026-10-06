@@ -30,7 +30,7 @@ class ConnectionPoolNonCoroutineTest extends TestCase
         $pool->borrow();
 
         $this->expectException(PoolExhaustedException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Connection pool exhausted. Cannot establish new connection before wait_timeout.'
         );
 
