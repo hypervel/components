@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Notifications\Slack\Blocks;
+namespace Hypervel\Tests\SlackNotificationChannel\Slack\Unit\Blocks;
 
 use Hypervel\Notifications\Slack\BlockKit\Blocks\HeaderBlock;
 use Hypervel\Tests\TestCase;
@@ -58,6 +58,11 @@ class HeaderBlockTest extends TestCase
             ],
             'block_id' => 'header1',
         ], $block->toArray());
+    }
+
+    public function testZeroBlockIdIsPreserved(): void
+    {
+        $this->assertSame('0', (new HeaderBlock('Header'))->id('0')->toArray()['block_id']);
     }
 
     public function testBlockIdCantExceedTwoFiveFiveCharacters(): void
