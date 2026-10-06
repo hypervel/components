@@ -21,7 +21,7 @@ class CoroutineTest extends TestCase
         $coroutine = new Coroutine(fn () => null);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Coroutine has not been executed.');
+        $this->expectExceptionMessageIs('Coroutine has not been executed.');
 
         $coroutine->getId();
     }
