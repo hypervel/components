@@ -966,7 +966,7 @@ class PhpRedisClusterConnectionTest extends TestCase
         $connection->shouldTransform(true);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Unable to determine default node');
+        $this->expectExceptionMessageIsOrContains('Unable to determine default node');
 
         $connection->ping();
     }

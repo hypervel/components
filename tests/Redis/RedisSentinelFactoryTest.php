@@ -338,7 +338,7 @@ class RedisSentinelFactoryTest extends TestCase
         };
 
         $this->expectException(InvalidRedisConnectionException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIsOrContains(
             '[tcp://127.0.0.1:26379]: master was not resolved'
         );
 
