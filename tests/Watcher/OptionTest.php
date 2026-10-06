@@ -229,7 +229,7 @@ class OptionTest extends TestCase
     public function testFromConfigRejectsAnEmptyWatchEntry(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Watcher paths must not be empty.');
+        $this->expectExceptionMessageIs('Watcher paths must not be empty.');
 
         Option::fromConfig(['watch' => ['']], $this->tempDir);
     }
@@ -237,7 +237,7 @@ class OptionTest extends TestCase
     public function testFromConfigRejectsAnAbsoluteWatchEntry(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Watcher paths must be relative to the application base path.');
+        $this->expectExceptionMessageIs('Watcher paths must be relative to the application base path.');
 
         Option::fromConfig(['watch' => ['/app']], $this->tempDir);
     }
@@ -245,7 +245,7 @@ class OptionTest extends TestCase
     public function testFromConfigRequiresAtLeastOneWatchPath(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The watcher requires at least one watch path.');
+        $this->expectExceptionMessageIs('The watcher requires at least one watch path.');
 
         Option::fromConfig([], $this->tempDir);
     }
@@ -253,7 +253,7 @@ class OptionTest extends TestCase
     public function testFromConfigRejectsAnExplicitlyEmptyWatchList(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The watcher requires at least one watch path.');
+        $this->expectExceptionMessageIs('The watcher requires at least one watch path.');
 
         Option::fromConfig(['watch' => []], $this->tempDir);
     }
@@ -311,7 +311,7 @@ class OptionTest extends TestCase
     public function testConstructorRejectsNonPositiveScanInterval(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The watcher scan interval must be greater than 0.');
+        $this->expectExceptionMessageIs('The watcher scan interval must be greater than 0.');
 
         new Option(scanInterval: 0);
     }
@@ -319,7 +319,7 @@ class OptionTest extends TestCase
     public function testFromConfigRejectsNonPositiveScanInterval(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The watcher scan interval must be greater than 0.');
+        $this->expectExceptionMessageIs('The watcher scan interval must be greater than 0.');
 
         Option::fromConfig([
             'watch' => ['.env'],
