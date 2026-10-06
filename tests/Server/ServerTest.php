@@ -237,7 +237,7 @@ class ServerTest extends TestCase
         $nativeServer->expects('on')->with(Event::ON_WORKER_START, m::type('callable'))->andReturnFalse();
 
         $this->expectException(ServerException::class);
-        $this->expectExceptionMessage('Failed to register event [workerStart] on server [test].');
+        $this->expectExceptionMessageIs('Failed to register event [workerStart] on server [test].');
 
         $this->server(m::mock(Container::class))->registerEvents($nativeServer, [
             Event::ON_WORKER_START => static function (): void {
@@ -251,7 +251,7 @@ class ServerTest extends TestCase
         $nativePort->expects('on')->with(Event::ON_REQUEST, m::type('callable'))->andReturnFalse();
 
         $this->expectException(ServerException::class);
-        $this->expectExceptionMessage('Failed to register event [request] on server [test].');
+        $this->expectExceptionMessageIs('Failed to register event [request] on server [test].');
 
         $this->server(m::mock(Container::class))->registerEvents($nativePort, [
             Event::ON_REQUEST => static function (SwooleRequest $request, SwooleResponse $response): void {
@@ -267,7 +267,7 @@ class ServerTest extends TestCase
         $server->createWith($nativeServer);
 
         $this->expectException(ServerException::class);
-        $this->expectExceptionMessage('Failed to configure server [http].');
+        $this->expectExceptionMessageIs('Failed to configure server [http].');
 
         $server->init(new ServerConfig([
             'servers' => [
@@ -387,7 +387,7 @@ class ServerTest extends TestCase
         $server->createWith($nativeServer);
 
         $this->expectException(ServerException::class);
-        $this->expectExceptionMessage('Failed to listen on server port [127.0.0.1:8001].');
+        $this->expectExceptionMessageIs('Failed to listen on server port [127.0.0.1:8001].');
 
         $server->init(new ServerConfig([
             'servers' => [
@@ -400,7 +400,7 @@ class ServerTest extends TestCase
     public function testUnsupportedServerTypeUsesThePackageInvalidArgumentException(): void
     {
         $this->expectException(ServerInvalidArgumentException::class);
-        $this->expectExceptionMessage('Server type is invalid.');
+        $this->expectExceptionMessageIs('Server type is invalid.');
 
         $this->server(m::mock(Container::class))->init(new ServerConfig([
             'servers' => [
@@ -417,7 +417,7 @@ class ServerTest extends TestCase
         $server->useNativeServer($nativeServer);
 
         $this->expectException(ServerException::class);
-        $this->expectExceptionMessage('Failed to start the Swoole server.');
+        $this->expectExceptionMessageIs('Failed to start the Swoole server.');
 
         $server->start();
     }
