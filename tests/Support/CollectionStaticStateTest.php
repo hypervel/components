@@ -31,7 +31,7 @@ class CollectionStaticStateTest extends TestCase
         $this->assertFalse($collection::hasMacro('adults'));
 
         $this->expectException(Exception::class);
-        $this->expectExceptionMessage('Property [adults] does not exist on this collection instance.');
+        $this->expectExceptionMessageIs('Property [adults] does not exist on this collection instance.');
 
         $instance->adults;
     }
