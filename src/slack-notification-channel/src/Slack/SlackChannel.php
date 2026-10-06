@@ -2,42 +2,40 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Notifications\Channels;
+namespace Hypervel\Notifications\Slack;
 
-use GuzzleHttp\Client as HttpClient;
-use Hypervel\Config\Repository;
+use Hypervel\Http\Client\Factory;
+use Hypervel\Http\Client\Response;
 use Hypervel\Notifications\Notification;
-use Hypervel\Notifications\Slack\SlackMessage;
-use Hypervel\Notifications\Slack\SlackRoute;
+use Hypervel\Support\Facades\Config;
 use LogicException;
-use Psr\Http\Message\ResponseInterface;
 use RuntimeException;
 
-class SlackWebApiChannel
+class SlackChannel
 {
+    /**
+     * The HTTP connection used to send Slack API messages.
+     */
+    public const string CONNECTION = 'slack-notifications';
+
     protected const string SLACK_API_URL = 'https://slack.com/api/chat.postMessage';
 
     /**
      * Create a new Slack channel instance.
      */
     public function __construct(
-        protected HttpClient $client,
-        protected Repository $config
+        protected Factory $http
     ) {
     }
 
     /**
      * Send the given notification.
      */
-    public function send(mixed $notifiable, Notification $notification): ?ResponseInterface
+    public function send(mixed $notifiable, Notification $notification): ?Response
     {
-        if (! method_exists($notification, 'toSlack')) {
-            throw new RuntimeException('Notification is missing `toSlack` method.');
-        }
-
-        $message = $notification->toSlack($notifiable);
-
         $route = $this->determineRoute($notifiable, $notification);
+
+        $message = $notification->toSlack($notifiable); // @phpstan-ignore method.notFound
 
         $payload = $this->buildJsonPayload($message, $route);
 
@@ -49,16 +47,14 @@ class SlackWebApiChannel
             throw new LogicException('Slack API authentication token is not set.');
         }
 
-        $response = $this->client->post(static::SLACK_API_URL, [
-            'json' => $payload,
-            'headers' => [
-                'Authorization' => "Bearer {$route->token}",
-            ],
-        ]);
+        $response = $this->http->connection(self::CONNECTION)
+            ->asJson()
+            ->withToken($route->token)
+            ->post(static::SLACK_API_URL, $payload)
+            ->throw();
 
-        $result = json_decode($content = $response->getBody()->getContents(), true);
-        if ($response->getStatusCode() === 200 && ($result['ok'] ?? false) === false) {
-            throw new RuntimeException('Slack API call failed with error [' . ($result['error'] ?? $content) . '].');
+        if ($response->successful() && $response->json('ok') === false) {
+            throw new RuntimeException('Slack API call failed with error [' . $response->json('error') . '].');
         }
 
         return $response;
@@ -72,7 +68,7 @@ class SlackWebApiChannel
         $payload = $message->toArray();
 
         return array_merge($payload, [
-            'channel' => $route->channel ?? $payload['channel'] ?? $this->config->get('services.slack.notifications.channel'),
+            'channel' => $route->channel ?? $payload['channel'] ?? Config::get('services.slack.notifications.channel'),
         ]);
     }
 
@@ -85,12 +81,12 @@ class SlackWebApiChannel
 
         // When the route is a string, we will assume it is a channel name and will use the default API token for the application...
         if (is_string($route)) {
-            return SlackRoute::make($route, $this->config->get('services.slack.notifications.bot_user_oauth_token'));
+            return SlackRoute::make($route, Config::get('services.slack.notifications.bot_user_oauth_token'));
         }
 
         return SlackRoute::make(
             $route->channel ?? null,
-            $route->token ?? $this->config->get('services.slack.notifications.bot_user_oauth_token'),
+            $route->token ?? Config::get('services.slack.notifications.bot_user_oauth_token'),
         );
     }
 }
