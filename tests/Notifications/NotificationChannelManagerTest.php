@@ -18,7 +18,6 @@ use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Foundation\Application;
 use Hypervel\Notifications\ChannelManager;
 use Hypervel\Notifications\Channels\MailChannel;
-use Hypervel\Notifications\Channels\SlackNotificationRouterChannel;
 use Hypervel\Notifications\Events\NotificationDelivered;
 use Hypervel\Notifications\Events\NotificationFailed;
 use Hypervel\Notifications\Events\NotificationSending;
@@ -33,6 +32,7 @@ use Hypervel\Queue\QueueRoutes;
 use Hypervel\Queue\SerializesModels;
 use Hypervel\Support\Testing\Fakes\NotificationFake;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use Laravel\SerializableClosure\SerializableClosure;
 use Mockery as m;
 use Mockery\MockInterface;
@@ -71,13 +71,16 @@ class NotificationChannelManagerTest extends TestCase
         $this->assertNull((new NotificationFake)->channel(NotificationChannelManagerTestIntIdentifier::Zero));
     }
 
-    public function testSlackChannelResolvesDirectly(): void
+    public function testSlackRequiresItsPackageProvider(): void
     {
         $container = $this->getContainer();
 
         $manager = new ChannelManager($container);
 
-        $this->assertInstanceOf(SlackNotificationRouterChannel::class, $manager->channel('slack'));
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessageIs('Driver [slack] not supported.');
+
+        $manager->channel('slack');
     }
 
     public function testManagerAliasesResolveTheSameAutoSingleton(): void

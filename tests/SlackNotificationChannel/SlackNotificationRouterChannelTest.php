@@ -2,17 +2,18 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Notifications;
+namespace Hypervel\Tests\SlackNotificationChannel;
 
 use GuzzleHttp\Psr7\Response;
 use GuzzleHttp\Psr7\Uri;
 use Hypervel\Container\Container;
-use Hypervel\Notifications\Channels\SlackNotificationRouterChannel;
-use Hypervel\Notifications\Channels\SlackWebApiChannel;
+use Hypervel\Http\Client\Response as HttpResponse;
 use Hypervel\Notifications\Channels\SlackWebhookChannel;
 use Hypervel\Notifications\Notification;
+use Hypervel\Notifications\Slack\SlackChannel as SlackWebApiChannel;
 use Hypervel\Notifications\Slack\SlackRoute;
-use Hypervel\Tests\Notifications\Slack\Fixtures\SlackChannelTestNotification;
+use Hypervel\Notifications\SlackNotificationRouterChannel;
+use Hypervel\Tests\SlackNotificationChannel\Slack\Fixtures\SlackChannelTestNotification;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
@@ -60,16 +61,16 @@ class SlackNotificationRouterChannelTest extends TestCase
         $webhook->shouldNotReceive('send');
         $webApi->shouldReceive('send')->once()->withArgs(function ($notifiable, $notification) {
             return $notifiable->routeNotificationFor('slack', $notification) instanceof SlackRoute;
-        })->andReturn(new Response);
+        })->andReturn($response = new HttpResponse(new Response));
         $app->instance(SlackWebhookChannel::class, $webhook);
         $app->instance(SlackWebApiChannel::class, $webApi);
 
         $channel = new SlackNotificationRouterChannel($app);
 
-        $channel->send(
+        $this->assertSame($response, $channel->send(
             new SlackNotificationRouterTestNotifiable(SlackRoute::make('#general')),
             new SlackChannelTestNotification,
-        );
+        ));
     }
 
     public function testItStopsSendingWhenTheNotifiableRouteIsFalse(): void
@@ -93,11 +94,17 @@ class SlackNotificationRouterChannelTest extends TestCase
 
 class SlackNotificationRouterTestNotifiable
 {
+    /**
+     * Create a notifiable with the given Slack route.
+     */
     public function __construct(
         private readonly mixed $route,
     ) {
     }
 
+    /**
+     * Get the notification route.
+     */
     public function routeNotificationFor(string $driver, ?Notification $notification = null): mixed
     {
         return $this->route;
