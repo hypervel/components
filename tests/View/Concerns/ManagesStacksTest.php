@@ -34,7 +34,7 @@ class ManagesStacksTest extends TestCase
     public function testStopPushRequiresAStartedPush(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Cannot end a push stack without first starting one.');
+        $this->expectExceptionMessageIs('Cannot end a push stack without first starting one.');
 
         (new FakeViewFactory)->stopPush();
     }
@@ -42,7 +42,7 @@ class ManagesStacksTest extends TestCase
     public function testStopPrependRequiresAStartedPrepend(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Cannot end a prepend operation without first starting one.');
+        $this->expectExceptionMessageIs('Cannot end a prepend operation without first starting one.');
 
         (new FakeViewFactory)->stopPrepend();
     }
