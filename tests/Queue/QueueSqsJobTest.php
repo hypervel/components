@@ -497,7 +497,7 @@ class QueueSqsJobTest extends TestCase
         );
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage("Unable to delete the SQS overflow payload [{$pointer}].");
+        $this->expectExceptionMessageIs("Unable to delete the SQS overflow payload [{$pointer}].");
 
         $job->delete();
     }
@@ -671,7 +671,7 @@ class QueueSqsJobTest extends TestCase
         $this->assertSame(0, $pool->getBorrowedCount());
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('client is no longer available');
+        $this->expectExceptionMessageIsOrContains('client is no longer available');
 
         $job->getSqs();
     }

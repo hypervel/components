@@ -1736,7 +1736,7 @@ class QueueWorkerTest extends TestCase
         });
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Killed with status [124].');
+        $this->expectExceptionMessageIs('Killed with status [124].');
 
         try {
             (new KillTestWorker(...$this->workerDependencies('default', ['queue' => []])))
