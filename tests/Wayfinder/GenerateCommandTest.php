@@ -93,7 +93,7 @@ class GenerateCommandTest extends TestCase
     public function testExplicitEmptyOutputPathIsRejected(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The --path option may not be empty.');
+        $this->expectExceptionMessageIs('The --path option may not be empty.');
 
         $this->artisan('wayfinder:generate', ['--path' => ''])->run();
     }
@@ -103,7 +103,7 @@ class GenerateCommandTest extends TestCase
         Route::get('/index-controller', [IndexController::class, 'show']);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Controller [\\' . IndexController::class . '] cannot generate module');
+        $this->expectExceptionMessageIsOrContains('Controller [\\' . IndexController::class . '] cannot generate module');
 
         $this->artisan('wayfinder:generate', [
             '--path' => $this->tempPath,
