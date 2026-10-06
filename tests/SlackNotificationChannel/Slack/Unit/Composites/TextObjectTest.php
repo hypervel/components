@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Notifications\Slack\Composites;
+namespace Hypervel\Tests\SlackNotificationChannel\Slack\Unit\Composites;
 
 use Hypervel\Notifications\Slack\BlockKit\Composites\TextObject;
 use Hypervel\Tests\TestCase;
