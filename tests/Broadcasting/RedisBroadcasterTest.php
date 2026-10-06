@@ -277,7 +277,7 @@ class RedisBroadcasterTest extends TestCase
         $this->redis->expects('connection')->andReturn($connection);
 
         $this->expectException(BroadcastException::class);
-        $this->expectExceptionMessage('Redis error: Cluster unavailable.');
+        $this->expectExceptionMessageIs('Redis error: Cluster unavailable.');
 
         (new RedisBroadcaster($this->container, $this->redis))
             ->broadcast(['test-channel'], 'test-event', ['data' => 'value']);

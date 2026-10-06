@@ -96,7 +96,7 @@ class BroadcastPoolProxyTest extends TestCase
         $proxy->resolveAuthenticatedUserUsing(fn (): array => ['id' => 'user']);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Authenticated-user resolver callbacks on pooled broadcasters require an instance of '
             . Broadcaster::class . '; [' . PoolProxyContractOnlyBroadcaster::class . '] was returned.'
         );
