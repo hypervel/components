@@ -17,7 +17,7 @@ class ListenCommandTest extends IntegrationTestCase
         config(['horizon.watch' => [], 'watcher' => []]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('List of directories / files to watch not found.');
+        $this->expectExceptionMessageIsOrContains('List of directories / files to watch not found.');
 
         $this->artisan('horizon:listen');
     }
@@ -27,7 +27,7 @@ class ListenCommandTest extends IntegrationTestCase
         config(['horizon.watch' => null, 'watcher' => []]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('List of directories / files to watch not found.');
+        $this->expectExceptionMessageIsOrContains('List of directories / files to watch not found.');
 
         $this->artisan('horizon:listen');
     }
@@ -39,7 +39,7 @@ class ListenCommandTest extends IntegrationTestCase
         config(['horizon' => $config, 'watcher' => []]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('List of directories / files to watch not found.');
+        $this->expectExceptionMessageIsOrContains('List of directories / files to watch not found.');
 
         $this->artisan('horizon:listen');
     }
@@ -73,7 +73,7 @@ class ListenCommandTest extends IntegrationTestCase
         });
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('__sentinel_start_called__');
+        $this->expectExceptionMessageIs('__sentinel_start_called__');
 
         $this->artisan('horizon:listen');
     }
@@ -101,7 +101,7 @@ class ListenCommandTest extends IntegrationTestCase
         });
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('__sentinel_start_called__');
+        $this->expectExceptionMessageIs('__sentinel_start_called__');
 
         $this->artisan('horizon:listen');
     }
@@ -129,7 +129,7 @@ class ListenCommandTest extends IntegrationTestCase
         });
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('__sentinel_start_called__');
+        $this->expectExceptionMessageIs('__sentinel_start_called__');
 
         $this->artisan('horizon:listen');
     }
