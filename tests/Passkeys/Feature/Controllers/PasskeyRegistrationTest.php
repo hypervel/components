@@ -439,7 +439,7 @@ class PasskeyRegistrationTest extends TestCase
         $binding = Route::getBindingCallback('passkey');
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Invalid guard configuration.');
+        $this->expectExceptionMessageIs('Invalid guard configuration.');
 
         $binding('1');
     }

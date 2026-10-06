@@ -76,7 +76,7 @@ class PasskeysGuardTest extends TestCase
         );
 
         $this->expectException(InvalidPasskeyException::class);
-        $this->expectExceptionMessage('Passkey not recognized. It may have been removed from your account.');
+        $this->expectExceptionMessageIs('Passkey not recognized. It may have been removed from your account.');
 
         app(VerifyPasskey::class)($credential, PublicKeyCredentialRequestOptions::create(
             challenge: random_bytes(32),

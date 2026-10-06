@@ -135,7 +135,7 @@ class PasskeysTest extends TestCase
         config(['passkeys.user_handle_secret' => '']);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Passkey user handle secret must not be empty.');
+        $this->expectExceptionMessageIs('Passkey user handle secret must not be empty.');
 
         Passkeys::userHandleSecret();
     }
@@ -175,7 +175,7 @@ class PasskeysTest extends TestCase
         config(['passkeys.relying_party_id' => '']);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Passkey relying party ID must not be empty.');
+        $this->expectExceptionMessageIs('Passkey relying party ID must not be empty.');
 
         Passkeys::relyingPartyId();
     }
@@ -190,7 +190,7 @@ class PasskeysTest extends TestCase
         );
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Passkey relying party ID resolver returned no value for host [dynamic.example.com].');
+        $this->expectExceptionMessageIs('Passkey relying party ID resolver returned no value for host [dynamic.example.com].');
 
         Passkeys::relyingPartyId();
     }
@@ -250,7 +250,7 @@ class PasskeysTest extends TestCase
         config(['passkeys.allowed_origins' => []]);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('At least one passkey allowed origin must be configured.');
+        $this->expectExceptionMessageIs('At least one passkey allowed origin must be configured.');
 
         Passkeys::allowedOrigins();
     }
@@ -265,7 +265,7 @@ class PasskeysTest extends TestCase
         );
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Passkey allowed origins resolver returned no values for host [dynamic.example.com].');
+        $this->expectExceptionMessageIs('Passkey allowed origins resolver returned no values for host [dynamic.example.com].');
 
         Passkeys::allowedOrigins();
     }
