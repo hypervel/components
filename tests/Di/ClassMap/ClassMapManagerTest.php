@@ -64,7 +64,7 @@ class ClassMapManagerTest extends TestCase
     {
         // This test class itself is already loaded
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Cannot override class map for [' . self::class . ']');
+        $this->expectExceptionMessageIsOrContains('Cannot override class map for [' . self::class . ']');
 
         ClassMapManager::add([
             self::class => '/tmp/replacement.php',
@@ -74,7 +74,7 @@ class ClassMapManagerTest extends TestCase
     public function testAddThrowsWhenInterfaceAlreadyLoaded(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Cannot override class map');
+        $this->expectExceptionMessageIsOrContains('Cannot override class map');
 
         ClassMapManager::add([
             Countable::class => '/tmp/replacement.php',
@@ -84,7 +84,7 @@ class ClassMapManagerTest extends TestCase
     public function testAddThrowsWhenTraitAlreadyLoaded(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Cannot override class map');
+        $this->expectExceptionMessageIsOrContains('Cannot override class map');
 
         ClassMapManager::add([
             LoadedTraitForClassMapTest::class => '/tmp/replacement.php',
