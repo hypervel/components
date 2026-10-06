@@ -414,7 +414,7 @@ class DatabaseSchemaBlueprintTest extends SqliteTestCase
         });
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Cannot rebuild table [items] because index [items_active_index] references a dropped column.',
         );
 

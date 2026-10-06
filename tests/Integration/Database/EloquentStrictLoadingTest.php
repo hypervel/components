@@ -43,7 +43,7 @@ class EloquentStrictLoadingTest extends DatabaseTestCase
     public function testStrictModeThrowsAnExceptionOnLazyLoading(): void
     {
         $this->expectException(LazyLoadingViolationException::class);
-        $this->expectExceptionMessage('Attempted to lazy load');
+        $this->expectExceptionMessageIsOrContains('Attempted to lazy load');
 
         EloquentStrictLoadingTestModel1::create();
         EloquentStrictLoadingTestModel1::create();
@@ -105,7 +105,7 @@ class EloquentStrictLoadingTest extends DatabaseTestCase
     public function testStrictModeThrowsAnExceptionOnLazyLoadingInRelations(): void
     {
         $this->expectException(LazyLoadingViolationException::class);
-        $this->expectExceptionMessage('Attempted to lazy load');
+        $this->expectExceptionMessageIsOrContains('Attempted to lazy load');
 
         $model1 = EloquentStrictLoadingTestModel1::create();
         EloquentStrictLoadingTestModel2::create(['model_1_id' => $model1->id]);

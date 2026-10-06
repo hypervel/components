@@ -150,7 +150,7 @@ class DatabaseDbCommandTest extends TestCase
     public function testUnknownConnectionUsesTheCommandSpecificError(): void
     {
         $this->expectException(UnexpectedValueException::class);
-        $this->expectExceptionMessage('Invalid database connection [missing].');
+        $this->expectExceptionMessageIs('Invalid database connection [missing].');
 
         $this->getConnection([], ['connection' => 'missing']);
     }
@@ -264,7 +264,7 @@ class DatabaseDbCommandTest extends TestCase
     public function testMalformedSelectedRoleUrlFails(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The database configuration URL is malformed.');
+        $this->expectExceptionMessageIs('The database configuration URL is malformed.');
 
         $this->getConnection([
             'mysql' => $this->mysqlConfig([
@@ -389,7 +389,7 @@ class DatabaseDbCommandTest extends TestCase
     public function testUnknownDriverHasATargetedExtensionError(): void
     {
         $this->expectException(UnexpectedValueException::class);
-        $this->expectExceptionMessage('Unsupported database CLI driver [custom]. Register a resolver using DatabaseCliManager::extend().');
+        $this->expectExceptionMessageIs('Unsupported database CLI driver [custom]. Register a resolver using DatabaseCliManager::extend().');
 
         (new DbCommand)->getCommand(['driver' => 'custom']);
     }

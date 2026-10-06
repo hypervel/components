@@ -283,7 +283,7 @@ class PostgresSchemaBuilderTest extends PostgresTestCase
 
         $this->assertSame(20, DB::table('generated_records')->value('value'));
         $this->expectException(QueryException::class);
-        $this->expectExceptionMessage('violates check constraint');
+        $this->expectExceptionMessageIsOrContains('violates check constraint');
         DB::table('generated_records')->insert(['source' => -1]);
     }
 
@@ -302,7 +302,7 @@ class PostgresSchemaBuilderTest extends PostgresTestCase
         });
 
         $this->expectException(QueryException::class);
-        $this->expectExceptionMessage($generated ? 'is a generated column' : 'is not a generated column');
+        $this->expectExceptionMessageIsOrContains($generated ? 'is a generated column' : 'is not a generated column');
 
         Schema::table('generated_records', function (Blueprint $table) use ($generated): void {
             $column = $table->integer('value')->storedAs('source * 10')->change();

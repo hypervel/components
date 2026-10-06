@@ -139,7 +139,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $blueprint = $this->getBlueprint(table: 'users');
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIsOrContains(
             'The [whereNotNull] modifier must be chained onto an index definition.',
         );
 
@@ -155,7 +155,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $blueprint = $this->getBlueprint(table: 'users');
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'The [whereNotNull] modifier is only available for ordinary indexes.',
         );
 
@@ -238,7 +238,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $blueprint = $this->getBlueprint(table: 'children');
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Cannot drop foreign key [children_first_fk] with a second constraint name [children_second_fk]. Pass the foreign key columns as the first argument when specifying its name.',
         );
 

@@ -48,7 +48,7 @@ class DatabaseEloquentCreateOrFirstValidationTest extends TestCase
         };
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Create-or-first is unavailable for this builder.');
+        $this->expectExceptionMessageIs('Create-or-first is unavailable for this builder.');
         $query->{$method}(['id' => 2], $values);
     }
 

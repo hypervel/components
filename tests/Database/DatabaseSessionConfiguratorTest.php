@@ -327,7 +327,7 @@ class DatabaseSessionConfiguratorTest extends TestCase
         $connection = $this->connection($pdo);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Reentrant database session configuration is not allowed.');
+        $this->expectExceptionMessageIs('Reentrant database session configuration is not allowed.');
 
         try {
             $connection->getPdo();
@@ -441,7 +441,7 @@ class DatabaseSessionConfiguratorTest extends TestCase
         });
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Reentrant database session configuration is not allowed.');
+        $this->expectExceptionMessageIs('Reentrant database session configuration is not allowed.');
 
         try {
             $connection->getPdo();
@@ -499,7 +499,7 @@ class DatabaseSessionConfiguratorTest extends TestCase
         $connection->markSessionStateUnknownForTest($pdo);
 
         $this->expectException(LostConnectionException::class);
-        $this->expectExceptionMessage('Lost connection and no reconnector available.');
+        $this->expectExceptionMessageIs('Lost connection and no reconnector available.');
 
         $connection->getPdo();
     }

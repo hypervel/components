@@ -93,7 +93,7 @@ class EloquentModelRefreshTest extends DatabaseTestCase
         $partialPost = Post::query()->select('title')->findOrFail($post->id);
 
         $this->expectException(MissingAttributeException::class);
-        $this->expectExceptionMessage('The attribute [id]');
+        $this->expectExceptionMessageIsOrContains('The attribute [id]');
 
         $partialPost->fresh();
     }
@@ -106,7 +106,7 @@ class EloquentModelRefreshTest extends DatabaseTestCase
         $partialPost = Post::query()->select('title')->findOrFail($post->id);
 
         $this->expectException(MissingAttributeException::class);
-        $this->expectExceptionMessage('The attribute [id]');
+        $this->expectExceptionMessageIsOrContains('The attribute [id]');
 
         $partialPost->refresh();
     }

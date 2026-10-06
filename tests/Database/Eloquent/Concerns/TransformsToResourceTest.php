@@ -26,7 +26,7 @@ class TransformsToResourceTest extends TestCase
     public function testToResourceThrowsExceptionWhenResourceCannotBeFound(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Failed to find resource class for model [Hypervel\Tests\Database\Eloquent\Concerns\TransformsToResourceTestModel].');
+        $this->expectExceptionMessageIs('Failed to find resource class for model [Hypervel\Tests\Database\Eloquent\Concerns\TransformsToResourceTestModel].');
 
         $model = new TransformsToResourceTestModel;
         $model->toResource();

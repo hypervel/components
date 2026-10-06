@@ -119,7 +119,7 @@ class DatabaseEloquentAsVectorCastTest extends TestCase
         $this->useGrammar(MariaDbGrammar::class);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The [embedding] attribute must be an array of floats or an Arrayable instance.');
+        $this->expectExceptionMessageIs('The [embedding] attribute must be an array of floats or an Arrayable instance.');
 
         $model = new AsVectorTestModel;
         $model->embedding = 'not a vector';

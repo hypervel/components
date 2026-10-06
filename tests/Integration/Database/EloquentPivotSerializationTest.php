@@ -165,7 +165,7 @@ class EloquentPivotSerializationTest extends DatabaseTestCase
         $pivot->setRawAttributes($attributes, true);
 
         $this->expectException(MissingAttributeException::class);
-        $this->expectExceptionMessage("The attribute [{$missingColumn}]");
+        $this->expectExceptionMessageIsOrContains("The attribute [{$missingColumn}]");
 
         $pivot->getQueueableId();
     }

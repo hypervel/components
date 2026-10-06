@@ -175,7 +175,7 @@ class DatabaseConnectorTest extends TestCase
         $connector->expects($this->never())->method('createConnection');
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Database connection [lock_timeout] must be a positive integer.');
+        $this->expectExceptionMessageIs('Database connection [lock_timeout] must be a positive integer.');
 
         $connector->connect($config);
     }
@@ -227,7 +227,7 @@ class DatabaseConnectorTest extends TestCase
         $connector->expects($this->never())->method('createConnection');
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Database connection [lock_timeout] must be a positive integer.');
+        $this->expectExceptionMessageIs('Database connection [lock_timeout] must be a positive integer.');
 
         $connector->connect($config);
     }
@@ -562,7 +562,7 @@ class DatabaseConnectorTest extends TestCase
         $connector->expects($this->never())->method('createConnection');
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('SQLite connections use [busy_timeout] instead of [lock_timeout].');
+        $this->expectExceptionMessageIs('SQLite connections use [busy_timeout] instead of [lock_timeout].');
 
         $connector->connect($config);
     }

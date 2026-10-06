@@ -126,7 +126,7 @@ class DatabaseMigratorTest extends TestCase
         $this->bindConfig([]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Migration connection name cannot be empty.');
+        $this->expectExceptionMessageIs('Migration connection name cannot be empty.');
 
         Migrator::resolveMigrationConnectionName(null);
     }
@@ -268,7 +268,7 @@ class DatabaseMigratorTest extends TestCase
         $this->bindConfig([]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Migration connection name cannot be empty.');
+        $this->expectExceptionMessageIs('Migration connection name cannot be empty.');
 
         Migrator::resolveMigrationConnectionName('');
     }
@@ -280,7 +280,7 @@ class DatabaseMigratorTest extends TestCase
         ]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'The migrations_connection value for database connection [pgsql-pooled] cannot be empty.'
         );
 
@@ -294,7 +294,7 @@ class DatabaseMigratorTest extends TestCase
         ]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Configuration value for key [database.connections.pgsql-pooled.migrations_connection] must be a string, array given.'
         );
 
@@ -309,7 +309,7 @@ class DatabaseMigratorTest extends TestCase
         $this->bindConfig($connections);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIs($message);
 
         Migrator::resolveMigrationConnectionName('first');
     }
@@ -372,7 +372,7 @@ class DatabaseMigratorTest extends TestCase
         $migrator = new Migrator($repository, $resolver, new Filesystem);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Migration connection name cannot be empty.');
+        $this->expectExceptionMessageIs('Migration connection name cannot be empty.');
 
         $migrator->setConnection(null);
     }
