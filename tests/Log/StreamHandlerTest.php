@@ -221,7 +221,7 @@ class StreamHandlerTest extends TestCase
 
         try {
             $this->expectException(UnexpectedValueException::class);
-            $this->expectExceptionMessage('and it could not be created');
+            $this->expectExceptionMessageIsOrContains('and it could not be created');
 
             (new Logger('test', [new StreamHandler($file . '/child/app.log')]))->info('message');
         } finally {
