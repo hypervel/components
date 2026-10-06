@@ -140,7 +140,7 @@ class ClientStreamingCallTest extends TestCase
         $call->writesDone();
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('request stream has already been closed');
+        $this->expectExceptionMessageIsOrContains('request stream has already been closed');
 
         $call->write(new StringValue);
     }

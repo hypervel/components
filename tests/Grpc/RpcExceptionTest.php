@@ -33,7 +33,7 @@ class RpcExceptionTest extends TestCase
     public function testRejectsSuccessfulStatus(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('An RPC exception requires a non-OK gRPC status.');
+        $this->expectExceptionMessageIs('An RPC exception requires a non-OK gRPC status.');
 
         new RpcException(StatusCode::Ok);
     }
@@ -100,7 +100,7 @@ class RpcExceptionTest extends TestCase
     public function testRejectsSuccessfulCompletedCallState(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('A successful call cannot produce an RPC exception.');
+        $this->expectExceptionMessageIs('A successful call cannot produce an RPC exception.');
 
         RpcException::fromCall(
             new Status(StatusCode::Ok),
