@@ -195,7 +195,7 @@ class ButtonElement implements ElementContract
             'style' => $this->style,
             'confirm' => $this->confirm?->toArray(),
             'accessibility_label' => $this->accessibilityLabel,
-        ]);
+        ], static fn (mixed $value): bool => $value !== null && $value !== '');
 
         return array_merge([
             'type' => 'button',

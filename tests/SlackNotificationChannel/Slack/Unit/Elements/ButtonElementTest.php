@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Notifications\Slack\Elements;
+namespace Hypervel\Tests\SlackNotificationChannel\Slack\Unit\Elements;
 
 use Hypervel\Notifications\Slack\BlockKit\Composites\ConfirmObject;
 use Hypervel\Notifications\Slack\BlockKit\Composites\PlainTextOnlyTextObject;
@@ -163,6 +163,14 @@ class ButtonElementTest extends TestCase
         $this->assertSame($id, $payload['action_id']);
         $this->assertSame($value, $payload['value']);
         $this->assertSame($label, $payload['accessibility_label']);
+    }
+
+    public function testZeroValueAndAccessibilityLabelArePreserved(): void
+    {
+        $payload = (new ButtonElement('Zero'))->value('0')->accessibilityLabel('0')->toArray();
+
+        $this->assertSame('0', $payload['value']);
+        $this->assertSame('0', $payload['accessibility_label']);
     }
 
     public function testValueCantExceedTwoThousandCharacters(): void
