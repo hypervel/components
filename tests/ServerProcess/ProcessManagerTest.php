@@ -71,7 +71,7 @@ class ProcessManagerTest extends TestCase
         ProcessManager::setRunning(true);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Processes are running');
+        $this->expectExceptionMessageIsOrContains('Processes are running');
 
         ProcessManager::register(m::mock(ProcessInterface::class));
     }
