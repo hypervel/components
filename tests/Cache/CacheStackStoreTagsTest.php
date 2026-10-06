@@ -82,7 +82,7 @@ class CacheStackStoreTagsTest extends TestCase
         ]);
 
         $this->expectException(NotSupportedException::class);
-        $this->expectExceptionMessage('Stack layer 1');
+        $this->expectExceptionMessageIsOrContains('Stack layer 1');
 
         $stack->tags(['t']);
     }

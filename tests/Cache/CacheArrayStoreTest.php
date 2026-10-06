@@ -643,7 +643,7 @@ class CacheArrayStoreTest extends TestCase
         $lock->acquire();
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Refresh requires a positive TTL');
+        $this->expectExceptionMessageIs('Refresh requires a positive TTL.');
 
         $lock->refresh(0);
     }
@@ -655,7 +655,7 @@ class CacheArrayStoreTest extends TestCase
         $lock->acquire();
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Refresh requires a positive TTL');
+        $this->expectExceptionMessageIs('Refresh requires a positive TTL.');
 
         $lock->refresh(-5);
     }
@@ -669,7 +669,7 @@ class CacheArrayStoreTest extends TestCase
 
         // Invalid parameters should throw regardless of ownership
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Refresh requires a positive TTL');
+        $this->expectExceptionMessageIs('Refresh requires a positive TTL.');
 
         $wannabeOwner->refresh(0);
     }

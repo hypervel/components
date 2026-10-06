@@ -251,7 +251,7 @@ class RedisStoreTest extends RedisCacheTestCase
         $redis = $this->createStore($connection);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Invalid cache tag mode [invalid]. Supported modes are [any, all].'
         );
 

@@ -105,7 +105,7 @@ class CacheSwooleStoreConcurrencyTest extends TestCase
     public function testChildExitBeforeReadyFailsWithinTheHarnessDeadline(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('exited before reaching the start barrier');
+        $this->expectExceptionMessageIsOrContains('exited before reaching the start barrier');
 
         $this->runConcurrentProcesses(
             $this->createState(),
@@ -119,7 +119,7 @@ class CacheSwooleStoreConcurrencyTest extends TestCase
     public function testChildExitBeforePayloadFailsWithinTheHarnessDeadline(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('exited before sending a complete payload');
+        $this->expectExceptionMessageIsOrContains('exited before sending a complete payload');
 
         $this->runConcurrentProcesses(
             $this->createState(),
@@ -173,7 +173,7 @@ class CacheSwooleStoreConcurrencyTest extends TestCase
     public function testChildThrowableIsReturnedAsAnErrorPayload(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Child process failed: expected child failure');
+        $this->expectExceptionMessageIs('Child process failed: expected child failure');
 
         $this->runConcurrentProcesses(
             $this->createState(),
@@ -185,7 +185,7 @@ class CacheSwooleStoreConcurrencyTest extends TestCase
     public function testStalledChildFailsWithinTheHarnessDeadline(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Timed out waiting for cache concurrency child');
+        $this->expectExceptionMessageIsOrContains('Timed out waiting for cache concurrency child');
 
         $this->runConcurrentProcesses(
             $this->createState(),

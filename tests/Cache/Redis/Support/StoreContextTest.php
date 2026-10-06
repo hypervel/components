@@ -117,7 +117,7 @@ class StoreContextTest extends TestCase
         });
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Test exception');
+        $this->expectExceptionMessageIs('Test exception');
 
         $context->withConnection(function () {
             throw new RuntimeException('Test exception');

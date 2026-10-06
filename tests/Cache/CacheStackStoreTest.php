@@ -220,7 +220,7 @@ class CacheStackStoreTest extends TestCase
     public function testConstructorRequiresAtLeastOneStore(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('A cache stack requires at least one store layer.');
+        $this->expectExceptionMessageIs('A cache stack requires at least one store layer.');
 
         new StackStore([]);
     }
