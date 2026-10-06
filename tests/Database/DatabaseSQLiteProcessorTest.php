@@ -10,7 +10,7 @@ use UnexpectedValueException;
 
 class DatabaseSQLiteProcessorTest extends TestCase
 {
-    public function testProcessColumns()
+    public function testProcessColumns(): void
     {
         $processor = new SQLiteProcessor;
 

@@ -33,7 +33,7 @@ class EloquentHasManyTest extends DatabaseTestCase
         });
     }
 
-    public function testCanGetHasOneFromHasManyRelationship()
+    public function testCanGetHasOneFromHasManyRelationship(): void
     {
         $user = EloquentHasManyTestUser::create();
 
@@ -42,7 +42,7 @@ class EloquentHasManyTest extends DatabaseTestCase
         $this->assertInstanceOf(HasOne::class, $user->logins()->one());
     }
 
-    public function testHasOneRelationshipFromHasMany()
+    public function testHasOneRelationshipFromHasMany(): void
     {
         $user = EloquentHasManyTestUser::create();
 
@@ -63,7 +63,7 @@ class EloquentHasManyTest extends DatabaseTestCase
         $this->assertEquals($latestLogin->id, $user->latestLogin->id);
     }
 
-    public function testFirstOrCreate()
+    public function testFirstOrCreate(): void
     {
         $user = EloquentHasManyTestUser::create();
 
@@ -74,7 +74,7 @@ class EloquentHasManyTest extends DatabaseTestCase
         $this->assertCount(1, $user->posts()->get());
     }
 
-    public function testFirstOrCreateWithinTransaction()
+    public function testFirstOrCreateWithinTransaction(): void
     {
         $user = EloquentHasManyTestUser::create();
 
@@ -89,7 +89,7 @@ class EloquentHasManyTest extends DatabaseTestCase
         $this->assertCount(1, $user->posts()->get());
     }
 
-    public function testCreateOrFirst()
+    public function testCreateOrFirst(): void
     {
         $user = EloquentHasManyTestUser::create();
 
@@ -100,7 +100,7 @@ class EloquentHasManyTest extends DatabaseTestCase
         $this->assertCount(1, $user->posts()->get());
     }
 
-    public function testCreateOrFirstWithinTransaction()
+    public function testCreateOrFirstWithinTransaction(): void
     {
         $user = EloquentHasManyTestUser::create();
 

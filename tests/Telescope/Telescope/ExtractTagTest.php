@@ -12,7 +12,7 @@ use Hypervel\Tests\Telescope\FeatureTestCase;
 
 class ExtractTagTest extends FeatureTestCase
 {
-    public function testExtractTagFromArrayContainingFlatCollection()
+    public function testExtractTagFromArrayContainingFlatCollection(): void
     {
         $flatCollection = EntryModelFactory::new()->create();
 
@@ -22,7 +22,7 @@ class ExtractTagTest extends FeatureTestCase
         $this->assertSame($tag, $extractedTag[0]);
     }
 
-    public function testExtractTagFromArrayContainingDeepCollection()
+    public function testExtractTagFromArrayContainingDeepCollection(): void
     {
         $deepCollection = EntryModelFactory::times(1)->create()->groupBy('type');
 
@@ -32,7 +32,7 @@ class ExtractTagTest extends FeatureTestCase
         $this->assertSame($tag, $extractedTag[0]);
     }
 
-    public function testExtractTagFromMailable()
+    public function testExtractTagFromMailable(): void
     {
         $deepCollection = EntryModelFactory::times(1)->create()->groupBy('type');
         $mailable = new DummyMailableWithData($deepCollection);

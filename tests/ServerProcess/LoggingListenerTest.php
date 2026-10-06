@@ -16,7 +16,7 @@ use Mockery as m;
 
 class LoggingListenerTest extends TestCase
 {
-    public function testLogBeforeProcessStartLogsViaStdoutLogger()
+    public function testLogBeforeProcessStartLogsViaStdoutLogger(): void
     {
         $logger = m::mock(StdoutLoggerInterface::class);
         $logger->shouldReceive('info')->once()->with('Process[my-worker.2] start.');
@@ -31,7 +31,7 @@ class LoggingListenerTest extends TestCase
         $listener->handle($event);
     }
 
-    public function testLogAfterProcessStoppedLogsViaStdoutLogger()
+    public function testLogAfterProcessStoppedLogsViaStdoutLogger(): void
     {
         $logger = m::mock(StdoutLoggerInterface::class);
         $logger->shouldReceive('info')->once()->with('Process[scheduler.0] stopped.');
@@ -46,7 +46,7 @@ class LoggingListenerTest extends TestCase
         $listener->handle($event);
     }
 
-    public function testLogBeforeProcessStartFallsBackToEchoWhenNoLogger()
+    public function testLogBeforeProcessStartFallsBackToEchoWhenNoLogger(): void
     {
         $container = m::mock(ContainerContract::class);
         $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->andReturn(false);
@@ -61,7 +61,7 @@ class LoggingListenerTest extends TestCase
         $this->assertSame("Process[queue.1] start.\n", $output);
     }
 
-    public function testLogAfterProcessStoppedFallsBackToEchoWhenNoLogger()
+    public function testLogAfterProcessStoppedFallsBackToEchoWhenNoLogger(): void
     {
         $container = m::mock(ContainerContract::class);
         $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->andReturn(false);

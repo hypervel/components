@@ -11,7 +11,7 @@ use Hypervel\Tests\Telescope\FeatureTestCase;
 
 class ClearCommandTest extends FeatureTestCase
 {
-    public function testClearCommandWillDeleteAllEntries()
+    public function testClearCommandWillDeleteAllEntries(): void
     {
         EntryModelFactory::new()->create();
 

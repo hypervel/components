@@ -147,7 +147,7 @@ class WorkerProcessTest extends IntegrationTestCase
         $this->addToAssertionCount(1);
     }
 
-    public function testWorkerProcessFiresEventIfStoppedProcessCantBeRestarted()
+    public function testWorkerProcessFiresEventIfStoppedProcessCantBeRestarted(): void
     {
         Event::fake();
         $process = Process::fromShellCommandline('exit 1');
@@ -170,7 +170,7 @@ class WorkerProcessTest extends IntegrationTestCase
         }
     }
 
-    public function testProcessIsNotRestartedDuringCooldownPeriod()
+    public function testProcessIsNotRestartedDuringCooldownPeriod(): void
     {
         Event::fake();
 
@@ -197,7 +197,7 @@ class WorkerProcessTest extends IntegrationTestCase
         }
     }
 
-    public function testProcessIsRestartedAfterCooldownPeriod()
+    public function testProcessIsRestartedAfterCooldownPeriod(): void
     {
         Event::fake();
 

@@ -73,14 +73,14 @@ class DatabaseEloquentIrregularPluralTest extends TestCase
         return $connection->getSchemaBuilder();
     }
 
-    public function testItPluralizesTheTableName()
+    public function testItPluralizesTheTableName(): void
     {
         $model = new IrregularPluralHuman;
 
         $this->assertSame('irregular_plural_humans', $model->getTable());
     }
 
-    public function testItTouchesTheParentWithAnIrregularPlural()
+    public function testItTouchesTheParentWithAnIrregularPlural(): void
     {
         CarbonImmutable::setTestNow('2018-05-01 12:13:14');
 
@@ -104,7 +104,7 @@ class DatabaseEloquentIrregularPluralTest extends TestCase
         $this->assertSame('2018-05-01 15:16:17', (string) $human->updated_at);
     }
 
-    public function testItPluralizesMorphToManyRelationships()
+    public function testItPluralizesMorphToManyRelationships(): void
     {
         $human = IrregularPluralHuman::create(['email' => 'bobby@example.com']);
 

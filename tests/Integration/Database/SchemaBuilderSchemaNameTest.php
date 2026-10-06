@@ -61,7 +61,7 @@ class SchemaBuilderSchemaNameTest extends DatabaseTestCase
     }
 
     #[DataProvider('connectionProvider')]
-    public function testSchemas($connection)
+    public function testSchemas($connection): void
     {
         $schema = Schema::connection($connection);
 
@@ -83,7 +83,7 @@ class SchemaBuilderSchemaNameTest extends DatabaseTestCase
     }
 
     #[DataProvider('connectionProvider')]
-    public function testCreate($connection)
+    public function testCreate($connection): void
     {
         $schema = Schema::connection($connection);
 
@@ -104,7 +104,7 @@ class SchemaBuilderSchemaNameTest extends DatabaseTestCase
     }
 
     #[DataProvider('connectionProvider')]
-    public function testRename($connection)
+    public function testRename($connection): void
     {
         $schema = Schema::connection($connection);
 
@@ -134,7 +134,7 @@ class SchemaBuilderSchemaNameTest extends DatabaseTestCase
     }
 
     #[DataProvider('connectionProvider')]
-    public function testDrop($connection)
+    public function testDrop($connection): void
     {
         $schema = Schema::connection($connection);
 
@@ -169,7 +169,7 @@ class SchemaBuilderSchemaNameTest extends DatabaseTestCase
     }
 
     #[DataProvider('connectionProvider')]
-    public function testDropIfExists($connection)
+    public function testDropIfExists($connection): void
     {
         $schema = Schema::connection($connection);
 
@@ -192,7 +192,7 @@ class SchemaBuilderSchemaNameTest extends DatabaseTestCase
     }
 
     #[DataProvider('connectionProvider')]
-    public function testAddColumns($connection)
+    public function testAddColumns($connection): void
     {
         $schema = Schema::connection($connection);
 
@@ -226,7 +226,7 @@ class SchemaBuilderSchemaNameTest extends DatabaseTestCase
     }
 
     #[DataProvider('connectionProvider')]
-    public function testRenameColumns($connection)
+    public function testRenameColumns($connection): void
     {
         $schema = Schema::connection($connection);
 
@@ -258,7 +258,7 @@ class SchemaBuilderSchemaNameTest extends DatabaseTestCase
     }
 
     #[DataProvider('connectionProvider')]
-    public function testModifyColumns($connection)
+    public function testModifyColumns($connection): void
     {
         $schema = Schema::connection($connection);
 
@@ -299,7 +299,7 @@ class SchemaBuilderSchemaNameTest extends DatabaseTestCase
     }
 
     #[DataProvider('connectionProvider')]
-    public function testDropColumns($connection)
+    public function testDropColumns($connection): void
     {
         $schema = Schema::connection($connection);
 
@@ -333,7 +333,7 @@ class SchemaBuilderSchemaNameTest extends DatabaseTestCase
     }
 
     #[DataProvider('connectionProvider')]
-    public function testIndexes($connection)
+    public function testIndexes($connection): void
     {
         $schema = Schema::connection($connection);
 
@@ -391,7 +391,7 @@ class SchemaBuilderSchemaNameTest extends DatabaseTestCase
 
     #[DataProvider('connectionProvider')]
     #[RequiresDatabase(['mariadb', 'mysql', 'pgsql'])]
-    public function testForeignKeys($connection)
+    public function testForeignKeys($connection): void
     {
         $schema = Schema::connection($connection);
         $currentSchema = $schema->getCurrentSchemaName();
@@ -441,7 +441,7 @@ class SchemaBuilderSchemaNameTest extends DatabaseTestCase
 
     #[DataProvider('connectionProvider')]
     #[RequiresDatabase('sqlite')]
-    public function testForeignKeysOnSameSchema($connection)
+    public function testForeignKeysOnSameSchema($connection): void
     {
         $schema = Schema::connection($connection);
 
@@ -480,7 +480,7 @@ class SchemaBuilderSchemaNameTest extends DatabaseTestCase
     }
 
     #[DataProvider('connectionProvider')]
-    public function testHasView($connection)
+    public function testHasView($connection): void
     {
         $db = DB::connection($connection);
         $schema = $db->getSchemaBuilder();
@@ -513,7 +513,7 @@ class SchemaBuilderSchemaNameTest extends DatabaseTestCase
 
     #[DataProvider('connectionProvider')]
     #[RequiresDatabase(['mariadb', 'mysql', 'pgsql'])]
-    public function testComment($connection)
+    public function testComment($connection): void
     {
         $schema = Schema::connection($connection);
         $currentSchema = $schema->getCurrentSchemaName();
@@ -551,7 +551,7 @@ class SchemaBuilderSchemaNameTest extends DatabaseTestCase
 
     #[DataProvider('connectionProvider')]
     #[RequiresDatabase(['mariadb', 'mysql', 'pgsql'])]
-    public function testAutoIncrementStartingValue($connection)
+    public function testAutoIncrementStartingValue($connection): void
     {
         $this->expectNotToPerformAssertions();
 

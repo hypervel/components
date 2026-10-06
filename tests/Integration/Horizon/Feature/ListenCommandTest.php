@@ -12,7 +12,7 @@ use RuntimeException;
 
 class ListenCommandTest extends IntegrationTestCase
 {
-    public function testListenCommandRequiresWatchConfiguration()
+    public function testListenCommandRequiresWatchConfiguration(): void
     {
         config(['horizon.watch' => [], 'watcher' => []]);
 
@@ -22,7 +22,7 @@ class ListenCommandTest extends IntegrationTestCase
         $this->artisan('horizon:listen');
     }
 
-    public function testListenCommandRequiresWatchConfigurationToBeSet()
+    public function testListenCommandRequiresWatchConfigurationToBeSet(): void
     {
         config(['horizon.watch' => null, 'watcher' => []]);
 
@@ -32,7 +32,7 @@ class ListenCommandTest extends IntegrationTestCase
         $this->artisan('horizon:listen');
     }
 
-    public function testListenCommandRequiresWatchConfigurationKeyToExist()
+    public function testListenCommandRequiresWatchConfigurationKeyToExist(): void
     {
         $config = config('horizon');
         unset($config['watch']);
@@ -44,7 +44,7 @@ class ListenCommandTest extends IntegrationTestCase
         $this->artisan('horizon:listen');
     }
 
-    public function testListenCommandFallsBackToWatcherConfig()
+    public function testListenCommandFallsBackToWatcherConfig(): void
     {
         $config = config('horizon');
         unset($config['watch']);
@@ -78,7 +78,7 @@ class ListenCommandTest extends IntegrationTestCase
         $this->artisan('horizon:listen');
     }
 
-    public function testListenCommandFallsBackToWatcherConfigWhenHorizonWatchIsEmpty()
+    public function testListenCommandFallsBackToWatcherConfigWhenHorizonWatchIsEmpty(): void
     {
         config(['horizon.watch' => []]);
         config(['watcher.watch' => ['app']]);
@@ -106,7 +106,7 @@ class ListenCommandTest extends IntegrationTestCase
         $this->artisan('horizon:listen');
     }
 
-    public function testListenCommandFallsBackToWatcherConfigWhenHorizonWatchIsNull()
+    public function testListenCommandFallsBackToWatcherConfigWhenHorizonWatchIsNull(): void
     {
         config(['horizon.watch' => null]);
         config(['watcher.watch' => ['app']]);

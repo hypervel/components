@@ -106,7 +106,7 @@ class FormTest extends TestCase
         $this->assertSame(4, $restoreCalls);
     }
 
-    public function testPassesAllAvailableResponsesToEachStep()
+    public function testPassesAllAvailableResponsesToEachStep(): void
     {
         Prompt::fake([
             'L',
@@ -127,7 +127,7 @@ class FormTest extends TestCase
         Prompt::assertOutputContains('Are you sure your name is Luke and your language is PHP?');
     }
 
-    public function testCanKeyAResponseByAGivenString()
+    public function testCanKeyAResponseByAGivenString(): void
     {
         Prompt::fake([
             'L',
@@ -148,7 +148,7 @@ class FormTest extends TestCase
         Prompt::assertOutputContains('Are you sure your name is Luke and your language is PHP?');
     }
 
-    public function testDoesNotAllowRevertingNormalPrompts()
+    public function testDoesNotAllowRevertingNormalPrompts(): void
     {
         Prompt::fake([
             'L',
@@ -257,7 +257,7 @@ class FormTest extends TestCase
         $this->assertSame('Jess', $responses[0]);
     }
 
-    public function testStopStepsAtTheMomentOfReverting()
+    public function testStopStepsAtTheMomentOfReverting(): void
     {
         Prompt::fake([
             '2',

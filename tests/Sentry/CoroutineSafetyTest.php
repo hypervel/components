@@ -24,7 +24,7 @@ use Swoole\Coroutine\Channel;
  */
 class CoroutineSafetyTest extends SentryTestCase
 {
-    public function testIntegrationTransactionNameIsIsolatedPerCoroutine()
+    public function testIntegrationTransactionNameIsIsolatedPerCoroutine(): void
     {
         // Set transaction name in parent coroutine
         Integration::setTransaction('/parent-route');
@@ -51,7 +51,7 @@ class CoroutineSafetyTest extends SentryTestCase
         $this->assertNull($childTransaction);
     }
 
-    public function testTracingEventHandlerSpanStacksAreIsolatedPerCoroutine()
+    public function testTracingEventHandlerSpanStacksAreIsolatedPerCoroutine(): void
     {
         $handler = new TracingEventHandler(config()->array('sentry.tracing'));
 
@@ -88,7 +88,7 @@ class CoroutineSafetyTest extends SentryTestCase
         $this->assertCount(1, CoroutineContext::get($parentStackKey, []));
     }
 
-    public function testTracksPushedScopesAndSpansTraitIsIsolatedPerCoroutine()
+    public function testTracksPushedScopesAndSpansTraitIsIsolatedPerCoroutine(): void
     {
         // The trait uses Context keys namespaced by class name.
         // Verify that different coroutines get independent stacks.

@@ -48,7 +48,7 @@ class EloquentThroughTest extends DatabaseTestCase
         (new Like)->comment()->associate($comment2)->save();
     }
 
-    public function test()
+    public function test(): void
     {
         /** @var Post $post */
         $post = Post::first();

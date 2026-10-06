@@ -13,7 +13,7 @@ use Mockery as m;
 
 class CommandExecutedTest extends TestCase
 {
-    public function testCommandExecutedConstructor()
+    public function testCommandExecutedConstructor(): void
     {
         $connection = m::mock(PhpRedisConnection::class);
         $connection->shouldReceive('getName')->andReturn('default');
@@ -27,7 +27,7 @@ class CommandExecutedTest extends TestCase
         $this->assertSame('default', $event->connectionName);
     }
 
-    public function testCommandExecutedConnectionNameIsDerivedFromConnection()
+    public function testCommandExecutedConnectionNameIsDerivedFromConnection(): void
     {
         $connection = m::mock(PhpRedisConnection::class);
         $connection->shouldReceive('getName')->once()->andReturn('cache');
@@ -37,7 +37,7 @@ class CommandExecutedTest extends TestCase
         $this->assertSame('cache', $event->connectionName);
     }
 
-    public function testCommandFailedConstructor()
+    public function testCommandFailedConstructor(): void
     {
         $connection = m::mock(PhpRedisConnection::class);
         $connection->shouldReceive('getName')->andReturn('default');
@@ -53,7 +53,7 @@ class CommandExecutedTest extends TestCase
         $this->assertNull($event->time);
     }
 
-    public function testCommandFailedWithTime()
+    public function testCommandFailedWithTime(): void
     {
         $connection = m::mock(PhpRedisConnection::class);
         $connection->shouldReceive('getName')->andReturn('default');

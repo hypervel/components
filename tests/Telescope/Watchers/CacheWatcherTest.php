@@ -33,7 +33,7 @@ class CacheWatcherTest extends FeatureTestCase
         CacheWatcher::enableCacheEvents($this->app);
     }
 
-    public function testFlushStateDisablesCacheEvents()
+    public function testFlushStateDisablesCacheEvents(): void
     {
         $this->assertTrue($this->eventsAreEnabled());
 
@@ -42,7 +42,7 @@ class CacheWatcherTest extends FeatureTestCase
         $this->assertFalse($this->eventsAreEnabled());
     }
 
-    public function testCacheWatcherRegistersMissedEntries()
+    public function testCacheWatcherRegistersMissedEntries(): void
     {
         $this->app->make(Repository::class)->get('empty-key');
 
@@ -53,7 +53,7 @@ class CacheWatcherTest extends FeatureTestCase
         $this->assertSame('empty-key', $entry->content['key']);
     }
 
-    public function testCacheWatcherRegistersStoreEntries()
+    public function testCacheWatcherRegistersStoreEntries(): void
     {
         $this->app->make(Repository::class)->put('my-key', 'laravel', 1);
 
@@ -65,7 +65,7 @@ class CacheWatcherTest extends FeatureTestCase
         $this->assertSame('laravel', $entry->content['value']);
     }
 
-    public function testCacheWatcherRegistersHitEntries()
+    public function testCacheWatcherRegistersHitEntries(): void
     {
         $repository = $this->app->make(Repository::class);
 
@@ -83,7 +83,7 @@ class CacheWatcherTest extends FeatureTestCase
         $this->assertSame('laravel', $entry->content['value']);
     }
 
-    public function testCacheWatcherRegistersForgetEntries()
+    public function testCacheWatcherRegistersForgetEntries(): void
     {
         $repository = $this->app->make(Repository::class);
 
@@ -100,7 +100,7 @@ class CacheWatcherTest extends FeatureTestCase
         $this->assertSame('outdated', $entry->content['key']);
     }
 
-    public function testCacheWatcherHidesHiddenValuesWhenSet()
+    public function testCacheWatcherHidesHiddenValuesWhenSet(): void
     {
         $this->app->make(Repository::class)->put('my-hidden-value-key', 'laravel', 1);
 
@@ -112,7 +112,7 @@ class CacheWatcherTest extends FeatureTestCase
         $this->assertSame('********', $entry->content['value']);
     }
 
-    public function testCacheWatcherHidesHiddenValuesWhenRetrieved()
+    public function testCacheWatcherHidesHiddenValuesWhenRetrieved(): void
     {
         $repository = $this->app->make(Repository::class);
 
@@ -130,7 +130,7 @@ class CacheWatcherTest extends FeatureTestCase
         $this->assertSame('********', $entry->content['value']);
     }
 
-    public function testCacheWatcherSkipsRecordingIgnoredCacheKeys()
+    public function testCacheWatcherSkipsRecordingIgnoredCacheKeys(): void
     {
         $this->app->make(Repository::class)->put('ignored-key', 'laravel');
         $this->app->make(Repository::class)->put('laravel:pulse:restart', 'laravel');

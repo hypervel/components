@@ -128,7 +128,7 @@ class StreamTest extends TestCase
         );
     }
 
-    public function testRendersAppendedText()
+    public function testRendersAppendedText(): void
     {
         Prompt::fake();
 
@@ -141,7 +141,7 @@ class StreamTest extends TestCase
         Prompt::assertOutputContains('World!');
     }
 
-    public function testReturnsFullMessageAsValue()
+    public function testReturnsFullMessageAsValue(): void
     {
         Prompt::fake();
 
@@ -153,7 +153,7 @@ class StreamTest extends TestCase
         $this->assertSame('Hello, World!', $stream->value());
     }
 
-    public function testAccumulatesMessageProperty()
+    public function testAccumulatesMessageProperty(): void
     {
         Prompt::fake();
 
@@ -168,7 +168,7 @@ class StreamTest extends TestCase
         $this->assertSame('foobarbaz', $stream->value());
     }
 
-    public function testThrowsWhenPromptCalled()
+    public function testThrowsWhenPromptCalled(): void
     {
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Stream cannot be prompted');
@@ -179,7 +179,7 @@ class StreamTest extends TestCase
         $stream->prompt();
     }
 
-    public function testReturnsLinesFromStream()
+    public function testReturnsLinesFromStream(): void
     {
         Prompt::fake();
 
@@ -192,7 +192,7 @@ class StreamTest extends TestCase
         $this->assertGreaterThanOrEqual(1, count($lines));
     }
 
-    public function testWrapsLongLines()
+    public function testWrapsLongLines(): void
     {
         Prompt::fake();
 
@@ -208,7 +208,7 @@ class StreamTest extends TestCase
         $this->assertGreaterThan(1, count($lines));
     }
 
-    public function testHandlesNewlinesInAppendedText()
+    public function testHandlesNewlinesInAppendedText(): void
     {
         Prompt::fake();
 
@@ -223,7 +223,7 @@ class StreamTest extends TestCase
         $this->assertGreaterThanOrEqual(3, count($lines));
     }
 
-    public function testHandlesEmptyAppends()
+    public function testHandlesEmptyAppends(): void
     {
         Prompt::fake();
 
@@ -236,7 +236,7 @@ class StreamTest extends TestCase
         $this->assertSame('Hello', $stream->value());
     }
 
-    public function testCanBeCreatedViaHelperFunction()
+    public function testCanBeCreatedViaHelperFunction(): void
     {
         Prompt::fake();
 

@@ -12,7 +12,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 class GridTest extends TestCase
 {
     #[DataProvider('multipleItemsProvider')]
-    public function testRendersGridWithMultipleItems($items)
+    public function testRendersGridWithMultipleItems($items): void
     {
         Prompt::fake();
 
@@ -33,7 +33,7 @@ class GridTest extends TestCase
     }
 
     #[DataProvider('singleItemProvider')]
-    public function testRendersGridWithSingleItem($items)
+    public function testRendersGridWithSingleItem($items): void
     {
         Prompt::fake();
 
@@ -51,7 +51,7 @@ class GridTest extends TestCase
     }
 
     #[DataProvider('emptyItemsProvider')]
-    public function testRendersEmptyGridWithoutOutput($items)
+    public function testRendersEmptyGridWithoutOutput($items): void
     {
         Prompt::fake();
 
@@ -69,7 +69,7 @@ class GridTest extends TestCase
     }
 
     #[DataProvider('unicodeItemsProvider')]
-    public function testRendersGridWithUnicodeCharacters($items)
+    public function testRendersGridWithUnicodeCharacters($items): void
     {
         Prompt::fake();
 
@@ -88,7 +88,7 @@ class GridTest extends TestCase
         ];
     }
 
-    public function testRendersBoxDrawingCharactersForBorders()
+    public function testRendersBoxDrawingCharactersForBorders(): void
     {
         Prompt::fake();
 
@@ -104,7 +104,7 @@ class GridTest extends TestCase
         $this->assertStringContainsString('─', $output);
     }
 
-    public function testRendersTableSeparatorsBetweenMultipleRows()
+    public function testRendersTableSeparatorsBetweenMultipleRows(): void
     {
         Prompt::fake();
 
@@ -116,7 +116,7 @@ class GridTest extends TestCase
         $this->assertStringContainsString('┤', $output);
     }
 
-    public function testRespectsCustomMaxWidthParameter()
+    public function testRespectsCustomMaxWidthParameter(): void
     {
         Prompt::fake();
 
@@ -129,7 +129,7 @@ class GridTest extends TestCase
         $this->assertStringContainsString('item3', $output);
     }
 
-    public function testUsesDefaultTerminalWidthWhenMaxWidthNotProvided()
+    public function testUsesDefaultTerminalWidthWhenMaxWidthNotProvided(): void
     {
         Prompt::fake();
 
@@ -141,7 +141,7 @@ class GridTest extends TestCase
         $this->assertStringContainsString('item2', $output);
     }
 
-    public function testHandlesGridItemsWithVaryingCharacterLengths()
+    public function testHandlesGridItemsWithVaryingCharacterLengths(): void
     {
         Prompt::fake();
 
@@ -152,7 +152,7 @@ class GridTest extends TestCase
         Prompt::assertStrippedOutputContains('xyz');
     }
 
-    public function testArrangesManyItemsInBalancedColumnsAcrossMultipleRows()
+    public function testArrangesManyItemsInBalancedColumnsAcrossMultipleRows(): void
     {
         Prompt::fake();
 
@@ -165,7 +165,7 @@ class GridTest extends TestCase
         }
     }
 
-    public function testRendersGridItemsContainingSpecialCharacters()
+    public function testRendersGridItemsContainingSpecialCharacters(): void
     {
         Prompt::fake();
 
@@ -177,7 +177,7 @@ class GridTest extends TestCase
         Prompt::assertStrippedOutputContains('%progress');
     }
 
-    public function testPadsIncompleteRowsWithEmptyCellsToMaintainGridStructure()
+    public function testPadsIncompleteRowsWithEmptyCellsToMaintainGridStructure(): void
     {
         Prompt::fake();
 
@@ -193,7 +193,7 @@ class GridTest extends TestCase
         $this->assertStringContainsString('│', $output);
     }
 
-    public function testReturnsTrueWhenPromptMethodCalled()
+    public function testReturnsTrueWhenPromptMethodCalled(): void
     {
         Prompt::fake();
 
@@ -202,7 +202,7 @@ class GridTest extends TestCase
         $this->assertTrue($grid->prompt());
     }
 
-    public function testReturnsTrueWhenValueMethodCalled()
+    public function testReturnsTrueWhenValueMethodCalled(): void
     {
         Prompt::fake();
 
@@ -211,7 +211,7 @@ class GridTest extends TestCase
         $this->assertTrue($grid->value());
     }
 
-    public function testSetsPromptStateToSubmitAfterRendering()
+    public function testSetsPromptStateToSubmitAfterRendering(): void
     {
         Prompt::fake();
 
@@ -221,7 +221,7 @@ class GridTest extends TestCase
         $this->assertSame('submit', $grid->state);
     }
 
-    public function testDisplaysGridItemsWhenDisplayMethodCalled()
+    public function testDisplaysGridItemsWhenDisplayMethodCalled(): void
     {
         Prompt::fake();
 
@@ -232,7 +232,7 @@ class GridTest extends TestCase
         Prompt::assertStrippedOutputContains('item2');
     }
 
-    public function testDoesNotOutputGridItemsUntilDisplayMethodCalled()
+    public function testDoesNotOutputGridItemsUntilDisplayMethodCalled(): void
     {
         Prompt::fake();
 
@@ -241,7 +241,7 @@ class GridTest extends TestCase
         Prompt::assertStrippedOutputDoesntContain('item1');
     }
 
-    public function testRendersCompleteGridWithMultipleRowsAndBalancedColumns()
+    public function testRendersCompleteGridWithMultipleRowsAndBalancedColumns(): void
     {
         Prompt::fake();
 

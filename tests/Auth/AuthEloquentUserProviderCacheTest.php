@@ -65,7 +65,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
     // Cache disabled (default behaviour)
     // ------------------------------------------------------------------
 
-    public function testRetrieveByIdWithoutCacheDoesNotTouchCache()
+    public function testRetrieveByIdWithoutCacheDoesNotTouchCache(): void
     {
         $this->cacheManager->shouldNotReceive('store');
 
@@ -79,7 +79,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
     // Cache enabled — basic operation
     // ------------------------------------------------------------------
 
-    public function testRetrieveByIdCachesMissedLookup()
+    public function testRetrieveByIdCachesMissedLookup(): void
     {
         $repo = $this->stubCache(RedisStore::class);
         $user = m::mock(Authenticatable::class);
@@ -93,7 +93,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $this->assertSame($user, $provider->retrieveById(42));
     }
 
-    public function testRetrieveByIdReturnsCachedUser()
+    public function testRetrieveByIdReturnsCachedUser(): void
     {
         $repo = $this->stubCache(RedisStore::class);
         $user = m::mock(Authenticatable::class);
@@ -106,7 +106,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $this->assertSame($user, $provider->retrieveById(42));
     }
 
-    public function testRetrieveByIdCachesNullForMissingUser()
+    public function testRetrieveByIdCachesNullForMissingUser(): void
     {
         $repo = $this->stubCache(RedisStore::class);
         $key = $this->buildDefaultKey(999);
@@ -119,7 +119,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $this->assertNull($provider->retrieveById(999));
     }
 
-    public function testRetrieveByIdReturnsNullForCachedNull()
+    public function testRetrieveByIdReturnsNullForCachedNull(): void
     {
         $repo = $this->stubCache(RedisStore::class);
 
@@ -131,7 +131,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $this->assertNull($provider->retrieveById(999));
     }
 
-    public function testRetrieveByCredentialsIsNeverCached()
+    public function testRetrieveByCredentialsIsNeverCached(): void
     {
         $repo = $this->stubCache(RedisStore::class);
         $this->cacheCoordinator->shouldNotReceive('fill');
@@ -150,7 +150,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $this->assertSame($expectedUser, $provider->retrieveByCredentials(['username' => 'u']));
     }
 
-    public function testRetrieveByTokenIsNeverCached()
+    public function testRetrieveByTokenIsNeverCached(): void
     {
         $repo = $this->stubCache(RedisStore::class);
         $this->cacheCoordinator->shouldNotReceive('fill');
@@ -175,7 +175,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
     // Cache key resolution
     // ------------------------------------------------------------------
 
-    public function testDefaultCacheKeyIncludesFqcnAndIdentifier()
+    public function testDefaultCacheKeyIncludesFqcnAndIdentifier(): void
     {
         $repo = $this->stubCache(RedisStore::class);
         $expectedKey = self::DEFAULT_KEY_PREFIX . ':' . self::MODEL . ':42';
@@ -188,7 +188,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $provider->retrieveById(42);
     }
 
-    public function testEnableCacheNormalizesBlankPrefixToDefault()
+    public function testEnableCacheNormalizesBlankPrefixToDefault(): void
     {
         // Two enableCache() calls with blank prefixes (null and '') should both
         // produce keys using the provider default. We set up two distinct
@@ -214,7 +214,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $providerEmpty->retrieveById(42);
     }
 
-    public function testCustomCacheKeyResolverIsUsed()
+    public function testCustomCacheKeyResolverIsUsed(): void
     {
         EloquentUserProvider::resolveUserCacheKeyUsing(fn (mixed $id): string => "tenant5:{$id}");
 
@@ -228,7 +228,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $provider->retrieveById(42);
     }
 
-    public function testCustomCacheKeyResolverReceivesLookupContext()
+    public function testCustomCacheKeyResolverReceivesLookupContext(): void
     {
         $received = [];
         EloquentUserProvider::resolveUserCacheKeyUsing(function (
@@ -252,7 +252,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $this->assertSame([42, self::MODEL, null], $received);
     }
 
-    public function testCacheKeyAlwaysIncludesFqcnEvenWithCustomResolver()
+    public function testCacheKeyAlwaysIncludesFqcnEvenWithCustomResolver(): void
     {
         EloquentUserProvider::resolveUserCacheKeyUsing(fn (mixed $id): string => "wrapper:{$id}");
 
@@ -357,7 +357,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
     // ------------------------------------------------------------------
 
     #[DataProvider('supportedStoreProvider')]
-    public function testEnableCacheAcceptsSupportedStores(string $storeClass)
+    public function testEnableCacheAcceptsSupportedStores(string $storeClass): void
     {
         $repo = $this->stubCache($storeClass);
         $this->storeValidator->shouldReceive('validate')
@@ -383,7 +383,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
     }
 
     #[DataProvider('unsupportedStoreProvider')]
-    public function testEnableCacheRejectsUnsupportedStores(string $storeClass)
+    public function testEnableCacheRejectsUnsupportedStores(string $storeClass): void
     {
         $repo = $this->stubCache($storeClass);
         $this->storeValidator->shouldReceive('validate')
@@ -409,7 +409,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         yield 'Stack' => [StackStore::class];
     }
 
-    public function testEnableCacheLeavesProviderInDisabledStateWhenValidationFails()
+    public function testEnableCacheLeavesProviderInDisabledStateWhenValidationFails(): void
     {
         $repo = $this->stubCache(ArrayStore::class);
         $this->storeValidator->shouldReceive('validate')
@@ -468,7 +468,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
     // Manual invalidation
     // ------------------------------------------------------------------
 
-    public function testClearUserCacheRemovesCachedEntry()
+    public function testClearUserCacheRemovesCachedEntry(): void
     {
         $repo = $this->stubCache(RedisStore::class);
         $this->cacheCoordinator->shouldReceive('invalidate')
@@ -481,7 +481,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $provider->clearUserCache(42);
     }
 
-    public function testClearUserCacheUsesCustomKeyResolver()
+    public function testClearUserCacheUsesCustomKeyResolver(): void
     {
         $received = [];
         EloquentUserProvider::resolveUserCacheKeyUsing(function (
@@ -506,7 +506,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $this->assertSame([42, self::MODEL, null], $received);
     }
 
-    public function testClearUserCacheIsNoOpWhenCacheDisabled()
+    public function testClearUserCacheIsNoOpWhenCacheDisabled(): void
     {
         $this->cacheManager->shouldNotReceive('store');
 
@@ -522,7 +522,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
     // flushState
     // ------------------------------------------------------------------
 
-    public function testFlushStateClearsAllStaticState()
+    public function testFlushStateClearsAllStaticState(): void
     {
         EloquentUserProvider::resolveUserCacheKeyUsing(fn (mixed $id): string => (string) $id);
 
@@ -564,7 +564,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         yield 'mixed' => [['auth_users', true]];
     }
 
-    public function testEnableCacheAcceptsTagsWhenValidationPasses()
+    public function testEnableCacheAcceptsTagsWhenValidationPasses(): void
     {
         $repo = $this->stubCache(RedisStore::class);
         $this->storeValidator->shouldReceive('validateAnyModeTags')
@@ -577,7 +577,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $this->assertTrue($provider->isCacheEnabled());
     }
 
-    public function testEnableCacheRejectsTagsWithAllModeStore()
+    public function testEnableCacheRejectsTagsWithAllModeStore(): void
     {
         $repo = $this->stubCache(RedisStore::class);
         $this->storeValidator->shouldReceive('validateAnyModeTags')
@@ -594,7 +594,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
     }
 
     #[DataProvider('nonTaggableWhitelistedStoreProvider')]
-    public function testEnableCacheRejectsTagsWithNonTaggableStore(string $storeClass)
+    public function testEnableCacheRejectsTagsWithNonTaggableStore(string $storeClass): void
     {
         $repo = $this->stubCache($storeClass);
         $this->storeValidator->shouldReceive('validateAnyModeTags')
@@ -617,7 +617,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         yield 'Swoole' => [SwooleStore::class];
     }
 
-    public function testRetrieveByIdMissUsesTaggedRepoForPutWhenTagsConfigured()
+    public function testRetrieveByIdMissUsesTaggedRepoForPutWhenTagsConfigured(): void
     {
         $plainRepo = $this->stubCache(RedisStore::class);
         $taggedRepo = m::mock(CacheRepository::class);
@@ -633,7 +633,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $this->assertSame($user, $provider->retrieveById(42));
     }
 
-    public function testRetrieveByIdUsesTaggedRepoWhenTagsConfigured()
+    public function testRetrieveByIdUsesTaggedRepoWhenTagsConfigured(): void
     {
         $plainRepo = $this->stubCache(RedisStore::class);
         $taggedRepo = m::mock(CacheRepository::class);
@@ -648,7 +648,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $this->assertSame($user, $provider->retrieveById(42));
     }
 
-    public function testClearUserCacheUsesPlainRepoEvenWhenTagsConfigured()
+    public function testClearUserCacheUsesPlainRepoEvenWhenTagsConfigured(): void
     {
         $plainRepo = $this->stubCache(RedisStore::class);
 
@@ -663,7 +663,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $provider->clearUserCache(42);
     }
 
-    public function testEffectiveTagsCombineStaticAndDynamic()
+    public function testEffectiveTagsCombineStaticAndDynamic(): void
     {
         EloquentUserProvider::resolveUserCacheTagsUsing(fn (): array => ['scope:a']);
 
@@ -681,7 +681,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $provider->retrieveById(42);
     }
 
-    public function testEffectiveTagsAreJustStaticWhenNoResolver()
+    public function testEffectiveTagsAreJustStaticWhenNoResolver(): void
     {
         $plainRepo = $this->stubCache(RedisStore::class);
         $taggedRepo = m::mock(CacheRepository::class);
@@ -697,7 +697,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $provider->retrieveById(42);
     }
 
-    public function testDynamicResolverIsInvokedFreshlyOnEachPut()
+    public function testDynamicResolverIsInvokedFreshlyOnEachPut(): void
     {
         $count = 0;
         EloquentUserProvider::resolveUserCacheTagsUsing(function () use (&$count): array {
@@ -746,7 +746,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $this->assertSame(2, $count);
     }
 
-    public function testDynamicResolverIgnoredWhenNoStaticTagsConfigured()
+    public function testDynamicResolverIgnoredWhenNoStaticTagsConfigured(): void
     {
         $resolverInvoked = false;
         EloquentUserProvider::resolveUserCacheTagsUsing(function () use (&$resolverInvoked): array {
@@ -770,7 +770,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $this->assertFalse($resolverInvoked);
     }
 
-    public function testFlushStateClearsTagsResolver()
+    public function testFlushStateClearsTagsResolver(): void
     {
         EloquentUserProvider::resolveUserCacheTagsUsing(fn (): array => ['scope:a']);
 
@@ -782,7 +782,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $this->assertNull($reflection->getStaticPropertyValue('cacheTagsResolver'));
     }
 
-    public function testEnableCacheLeavesProviderInDisabledStateWhenTagValidationFails()
+    public function testEnableCacheLeavesProviderInDisabledStateWhenTagValidationFails(): void
     {
         $repo = $this->stubCache(RedisStore::class);
         $this->storeValidator->shouldReceive('validateAnyModeTags')
@@ -812,7 +812,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $this->assertSame($user, $provider->retrieveById(42));
     }
 
-    public function testRecallingEnableCacheWithoutTagsClearsPreviousTagState()
+    public function testRecallingEnableCacheWithoutTagsClearsPreviousTagState(): void
     {
         // First call uses a Redis store in any-mode (tag-valid), second
         // call uses a plain Redis store (no tags). Set up both upfront so

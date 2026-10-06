@@ -10,7 +10,7 @@ use Hypervel\Tests\TestCase;
 
 class ContainerResolveNonInstantiableTest extends TestCase
 {
-    public function testResolvingNonInstantiableWithDefaultRemovesWiths()
+    public function testResolvingNonInstantiableWithDefaultRemovesWiths(): void
     {
         $container = new Container;
         $object = $container->make(ParentClass::class, ['i' => 42]);
@@ -18,7 +18,7 @@ class ContainerResolveNonInstantiableTest extends TestCase
         $this->assertSame(42, $object->i);
     }
 
-    public function testResolvingNonInstantiableWithVariadicRemovesWiths()
+    public function testResolvingNonInstantiableWithVariadicRemovesWiths(): void
     {
         $container = new Container;
         $parent = $container->make(VariadicParentClass::class, ['i' => 42]);
@@ -27,7 +27,7 @@ class ContainerResolveNonInstantiableTest extends TestCase
         $this->assertSame(42, $parent->i);
     }
 
-    public function testResolveVariadicPrimitive()
+    public function testResolveVariadicPrimitive(): void
     {
         $container = new Container;
         $parent = $container->make(VariadicPrimitive::class);

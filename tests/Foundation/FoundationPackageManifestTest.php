@@ -59,7 +59,7 @@ class FoundationPackageManifestTest extends TestCase
         return $path;
     }
 
-    public function testProvidersReturnsDiscoveredProviders()
+    public function testProvidersReturnsDiscoveredProviders(): void
     {
         $manifest = $this->makeManifest();
 
@@ -75,7 +75,7 @@ class FoundationPackageManifestTest extends TestCase
         $this->assertNotContains('Hypervel\Tests\Foundation\Bootstrap\TestFourServiceProvider', $providers);
     }
 
-    public function testAliasesReturnsDiscoveredAliases()
+    public function testAliasesReturnsDiscoveredAliases(): void
     {
         $manifest = $this->makeManifest();
 
@@ -84,7 +84,7 @@ class FoundationPackageManifestTest extends TestCase
         $this->assertSame(['TestAlias' => 'TestClass'], $aliases);
     }
 
-    public function testBuildWritesCacheFile()
+    public function testBuildWritesCacheFile(): void
     {
         $manifest = $this->makeManifest();
 
@@ -98,7 +98,7 @@ class FoundationPackageManifestTest extends TestCase
         $this->assertArrayHasKey('vendor-a/package-b', $cached);
     }
 
-    public function testBuildCachesVersions()
+    public function testBuildCachesVersions(): void
     {
         $manifest = $this->makeManifest();
 
@@ -500,7 +500,7 @@ class FoundationPackageManifestTest extends TestCase
         $this->assertSame($existingManifest, $this->filesystem->get($manifestPath));
     }
 
-    public function testVersionReturnsPackageVersion()
+    public function testVersionReturnsPackageVersion(): void
     {
         $manifest = $this->makeManifest();
 
@@ -508,14 +508,14 @@ class FoundationPackageManifestTest extends TestCase
         $this->assertSame('v2.3.0', $manifest->version('vendor-a/package-b'));
     }
 
-    public function testVersionReturnsNullForUnknownPackage()
+    public function testVersionReturnsNullForUnknownPackage(): void
     {
         $manifest = $this->makeManifest();
 
         $this->assertNull($manifest->version('vendor-a/nonexistent'));
     }
 
-    public function testHasPackageReturnsTrueForInstalledPackage()
+    public function testHasPackageReturnsTrueForInstalledPackage(): void
     {
         $manifest = $this->makeManifest();
 
@@ -523,14 +523,14 @@ class FoundationPackageManifestTest extends TestCase
         $this->assertTrue($manifest->hasPackage('vendor-a/package-b'));
     }
 
-    public function testHasPackageReturnsFalseForUnknownPackage()
+    public function testHasPackageReturnsFalseForUnknownPackage(): void
     {
         $manifest = $this->makeManifest();
 
         $this->assertFalse($manifest->hasPackage('vendor-a/nonexistent'));
     }
 
-    public function testHasPackageReturnsFalseForDontDiscoverPackage()
+    public function testHasPackageReturnsFalseForDontDiscoverPackage(): void
     {
         $manifest = $this->makeManifest();
 
@@ -538,7 +538,7 @@ class FoundationPackageManifestTest extends TestCase
         $this->assertFalse($manifest->hasPackage('vendor-a/package-c'));
     }
 
-    public function testDontDiscoverFromProjectComposerJson()
+    public function testDontDiscoverFromProjectComposerJson(): void
     {
         $manifest = $this->makeManifest();
 
@@ -546,7 +546,7 @@ class FoundationPackageManifestTest extends TestCase
         $this->assertFalse($manifest->hasPackage('vendor-a/package-d'));
     }
 
-    public function testIgnorePackageDiscoveriesFromStaticMethod()
+    public function testIgnorePackageDiscoveriesFromStaticMethod(): void
     {
         PackageManifest::ignorePackageDiscoveriesFrom(['*']);
 
@@ -556,7 +556,7 @@ class FoundationPackageManifestTest extends TestCase
         $this->assertEmpty($manifest->aliases());
     }
 
-    public function testIgnoreSpecificPackage()
+    public function testIgnoreSpecificPackage(): void
     {
         PackageManifest::ignorePackageDiscoveriesFrom(['vendor-a/package-a']);
 
@@ -585,7 +585,7 @@ class FoundationPackageManifestTest extends TestCase
         $this->assertSame($providers, $manifest->providers());
     }
 
-    public function testBuildDoesNotApplyRuntimeIgnoresToDiskCache()
+    public function testBuildDoesNotApplyRuntimeIgnoresToDiskCache(): void
     {
         // Set runtime ignore to '*' — should NOT affect what's written to disk
         PackageManifest::ignorePackageDiscoveriesFrom(['*']);
@@ -603,7 +603,7 @@ class FoundationPackageManifestTest extends TestCase
         $this->assertEmpty($manifest->providers());
     }
 
-    public function testFlushStateResetsIgnoreList()
+    public function testFlushStateResetsIgnoreList(): void
     {
         PackageManifest::ignorePackageDiscoveriesFrom(['*']);
 
@@ -614,7 +614,7 @@ class FoundationPackageManifestTest extends TestCase
         $this->assertNotEmpty($manifest->providers());
     }
 
-    public function testSatisfiesThrowsWithoutComposerSemver()
+    public function testSatisfiesThrowsWithoutComposerSemver(): void
     {
         if (class_exists(\Composer\Semver\VersionParser::class)) {
             $this->markTestSkipped('composer/semver is installed — cannot test missing dependency path.');
@@ -628,7 +628,7 @@ class FoundationPackageManifestTest extends TestCase
         $manifest->satisfies('vendor-a/package-a', '^1.0');
     }
 
-    public function testSatisfiesReturnsTrueForMatchingConstraint()
+    public function testSatisfiesReturnsTrueForMatchingConstraint(): void
     {
         $manifest = $this->makeManifest();
 
@@ -638,7 +638,7 @@ class FoundationPackageManifestTest extends TestCase
         $this->assertTrue($manifest->satisfies('vendor-a/package-a', '~1.0'));
     }
 
-    public function testSatisfiesReturnsFalseForNonMatchingConstraint()
+    public function testSatisfiesReturnsFalseForNonMatchingConstraint(): void
     {
         $manifest = $this->makeManifest();
 
@@ -647,7 +647,7 @@ class FoundationPackageManifestTest extends TestCase
         $this->assertFalse($manifest->satisfies('vendor-a/package-a', '<1.0'));
     }
 
-    public function testSatisfiesReturnsFalseForUnknownPackage()
+    public function testSatisfiesReturnsFalseForUnknownPackage(): void
     {
         $manifest = $this->makeManifest();
 

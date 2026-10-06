@@ -6,7 +6,7 @@ namespace Hypervel\Tests\View\Blade;
 
 class BladeOverwriteSectionTest extends AbstractBladeTestCase
 {
-    public function testOverwriteSectionsAreCompiled()
+    public function testOverwriteSectionsAreCompiled(): void
     {
         $this->assertSame('<?php $__env->stopSection(true); ?>', $this->compiler->compileString('@overwrite'));
     }

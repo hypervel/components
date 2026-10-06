@@ -9,7 +9,7 @@ use Hypervel\Tests\TestCase;
 
 class AuthenticatableTest extends TestCase
 {
-    public function testItReturnsSameRememberTokenForString()
+    public function testItReturnsSameRememberTokenForString(): void
     {
         $user = new User;
         $user->setRememberToken('sample_token');
@@ -19,7 +19,7 @@ class AuthenticatableTest extends TestCase
     // REMOVED: testItReturnsStringAsRememberTokenWhenItWasSetToTrue
     // Tests implicit bool-to-string coercion which is a TypeError under strict_types.
 
-    public function testItReturnsNullWhenRememberTokenNameWasSetToEmpty()
+    public function testItReturnsNullWhenRememberTokenNameWasSetToEmpty(): void
     {
         $user = new class extends User {
             public function getRememberTokenName(): string

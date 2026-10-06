@@ -9,7 +9,7 @@ use Hypervel\Tests\TestCase;
 
 class DatabaseTransactionsManagerTest extends TestCase
 {
-    public function testItExecutesCallbacksImmediatelyIfThereIsOnlyOneTransaction()
+    public function testItExecutesCallbacksImmediatelyIfThereIsOnlyOneTransaction(): void
     {
         $testObject = new TestingDatabaseTransactionsManagerTestObject;
         $manager = new DatabaseTransactionsManager([null]);
@@ -22,7 +22,7 @@ class DatabaseTransactionsManagerTest extends TestCase
         $this->assertEquals(1, $testObject->runs);
     }
 
-    public function testItIgnoresTheBaseTransactionForCallbackApplicableTransactions()
+    public function testItIgnoresTheBaseTransactionForCallbackApplicableTransactions(): void
     {
         $manager = new DatabaseTransactionsManager([null]);
 
@@ -33,7 +33,7 @@ class DatabaseTransactionsManagerTest extends TestCase
         $this->assertEquals(2, $manager->callbackApplicableTransactions()[0]->level);
     }
 
-    public function testCommittingDoesNotRemoveTheBasePendingTransaction()
+    public function testCommittingDoesNotRemoveTheBasePendingTransaction(): void
     {
         $manager = new DatabaseTransactionsManager([null]);
 
@@ -50,7 +50,7 @@ class DatabaseTransactionsManagerTest extends TestCase
         $this->assertEquals(2, $manager->callbackApplicableTransactions()[0]->level);
     }
 
-    public function testItExecutesCallbacksForTheSecondTransaction()
+    public function testItExecutesCallbacksForTheSecondTransaction(): void
     {
         $testObject = new TestingDatabaseTransactionsManagerTestObject;
         $manager = new DatabaseTransactionsManager([null]);
@@ -93,7 +93,7 @@ class DatabaseTransactionsManagerTest extends TestCase
         $this->assertSame(['default'], $callbacks);
     }
 
-    public function testItExecutesTransactionCallbacksAtLevelOne()
+    public function testItExecutesTransactionCallbacksAtLevelOne(): void
     {
         $manager = new DatabaseTransactionsManager([null]);
 
@@ -102,7 +102,7 @@ class DatabaseTransactionsManagerTest extends TestCase
         $this->assertFalse($manager->afterCommitCallbacksShouldBeExecuted(2));
     }
 
-    public function testSkipsTheNumberOfConnectionsTransacting()
+    public function testSkipsTheNumberOfConnectionsTransacting(): void
     {
         $manager = new DatabaseTransactionsManager([null]);
 

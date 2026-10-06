@@ -55,7 +55,7 @@ class DatabaseEloquentBelongsToManyLazyByIdTest extends TestCase
         });
     }
 
-    public function testBelongsToLazyById()
+    public function testBelongsToLazyById(): void
     {
         $this->seedData();
 

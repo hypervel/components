@@ -10,7 +10,7 @@ use Hypervel\Testbench\Attributes\RequiresDatabase;
 
 class TimestampTypeTest extends DatabaseTestCase
 {
-    public function testChangeDatetimeColumnToTimestampColumn()
+    public function testChangeDatetimeColumnToTimestampColumn(): void
     {
         Schema::create('test', function (Blueprint $table) {
             $table->addColumn('datetime', 'datetime_to_timestamp');
@@ -31,7 +31,7 @@ class TimestampTypeTest extends DatabaseTestCase
         );
     }
 
-    public function testChangeTimestampColumnToDatetimeColumn()
+    public function testChangeTimestampColumnToDatetimeColumn(): void
     {
         Schema::create('test', function (Blueprint $table) {
             $table->addColumn('timestamp', 'timestamp_to_datetime');
@@ -53,7 +53,7 @@ class TimestampTypeTest extends DatabaseTestCase
     }
 
     #[RequiresDatabase(['mysql', 'mariadb'])]
-    public function testChangeStringColumnToTimestampColumn()
+    public function testChangeStringColumnToTimestampColumn(): void
     {
         Schema::create('test', function (Blueprint $table) {
             $table->string('string_to_timestamp');

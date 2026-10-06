@@ -23,7 +23,7 @@ class QueryingWithEnumsTest extends DatabaseTestCase
         });
     }
 
-    public function testCanQueryWithEnums()
+    public function testCanQueryWithEnums(): void
     {
         DB::table('enum_casts')->insert([
             'string_status' => 'pending',
@@ -45,7 +45,7 @@ class QueryingWithEnumsTest extends DatabaseTestCase
         $this->assertSame('pending', $record4->non_backed_status);
     }
 
-    public function testCanInsertWithEnums()
+    public function testCanInsertWithEnums(): void
     {
         DB::table('enum_casts')->insert([
             'string_status' => StringStatus::Pending,

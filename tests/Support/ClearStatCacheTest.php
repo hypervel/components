@@ -17,7 +17,7 @@ class ClearStatCacheTest extends TestCase
         ClearStatCache::flushState();
     }
 
-    public function testGetAndSetInterval()
+    public function testGetAndSetInterval(): void
     {
         $this->assertSame(1, ClearStatCache::getInterval());
 
@@ -25,7 +25,7 @@ class ClearStatCacheTest extends TestCase
         $this->assertSame(5, ClearStatCache::getInterval());
     }
 
-    public function testClearAlwaysClearsWhenIntervalBelowOne()
+    public function testClearAlwaysClearsWhenIntervalBelowOne(): void
     {
         ClearStatCache::setInterval(0);
 
@@ -39,7 +39,7 @@ class ClearStatCacheTest extends TestCase
         $this->assertGreaterThanOrEqual($firstCleared, $this->getStaticProperty('lastCleared'));
     }
 
-    public function testClearClearsOnFirstCallWhenNeverCleared()
+    public function testClearClearsOnFirstCallWhenNeverCleared(): void
     {
         ClearStatCache::setInterval(3600);
 
@@ -50,7 +50,7 @@ class ClearStatCacheTest extends TestCase
         $this->assertGreaterThan(0, $this->getStaticProperty('lastCleared'));
     }
 
-    public function testClearSkipsWhenIntervalHasNotElapsed()
+    public function testClearSkipsWhenIntervalHasNotElapsed(): void
     {
         ClearStatCache::setInterval(3600);
 
@@ -64,7 +64,7 @@ class ClearStatCacheTest extends TestCase
         $this->assertSame($recentTimestamp, $this->getStaticProperty('lastCleared'));
     }
 
-    public function testClearRunsWhenIntervalHasElapsed()
+    public function testClearRunsWhenIntervalHasElapsed(): void
     {
         ClearStatCache::setInterval(10);
 
@@ -78,7 +78,7 @@ class ClearStatCacheTest extends TestCase
         $this->assertGreaterThan($oldTimestamp, $this->getStaticProperty('lastCleared'));
     }
 
-    public function testFlushStateRestoresDefaults()
+    public function testFlushStateRestoresDefaults(): void
     {
         ClearStatCache::setInterval(10);
         $this->setStaticProperty('lastCleared', time());

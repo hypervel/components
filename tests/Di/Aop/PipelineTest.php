@@ -13,7 +13,7 @@ use WeakReference;
 
 class PipelineTest extends TestCase
 {
-    public function testPipelineExecutesAspectAndReturnsResult()
+    public function testPipelineExecutesAspectAndReturnsResult(): void
     {
         $container = Container::getInstance();
         $pipeline = new Pipeline($container);
@@ -29,7 +29,7 @@ class PipelineTest extends TestCase
         $this->assertTrue($result);
     }
 
-    public function testPipelineDoesNotCreateCircularReference()
+    public function testPipelineDoesNotCreateCircularReference(): void
     {
         $container = Container::getInstance();
         $pipeline = new Pipeline($container);

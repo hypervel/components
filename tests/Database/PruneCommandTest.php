@@ -65,7 +65,7 @@ class PruneCommandTest extends TestCase
         ]);
     }
 
-    public function testPrunableModelWithPrunableRecords()
+    public function testPrunableModelWithPrunableRecords(): void
     {
         $output = $this->artisan(['--model' => PrunableTestModelWithPrunableRecords::class]);
 
@@ -82,7 +82,7 @@ class PruneCommandTest extends TestCase
         );
     }
 
-    public function testPrunableTestModelWithoutPrunableRecords()
+    public function testPrunableTestModelWithoutPrunableRecords(): void
     {
         $observedEvents = [];
         $events = Application::getInstance()->make(DispatcherContract::class);
@@ -107,7 +107,7 @@ class PruneCommandTest extends TestCase
         $this->assertSame([], $observedEvents);
     }
 
-    public function testPrunableSoftDeletedModelWithPrunableRecords()
+    public function testPrunableSoftDeletedModelWithPrunableRecords(): void
     {
         $db = new DB;
         $db->addConnection([
@@ -144,7 +144,7 @@ class PruneCommandTest extends TestCase
         $this->assertEquals(2, PrunableTestSoftDeletedModelWithPrunableRecords::withTrashed()->count());
     }
 
-    public function testNonPrunableTest()
+    public function testNonPrunableTest(): void
     {
         $output = $this->artisan(['--model' => NonPrunableTestModel::class]);
 
@@ -154,7 +154,7 @@ class PruneCommandTest extends TestCase
         );
     }
 
-    public function testNonPrunableTestWithATrait()
+    public function testNonPrunableTestWithATrait(): void
     {
         $output = $this->artisan(['--model' => NonPrunableTrait::class]);
 
@@ -206,7 +206,7 @@ class PruneCommandTest extends TestCase
         );
     }
 
-    public function testTheCommandMayBePretended()
+    public function testTheCommandMayBePretended(): void
     {
         $db = new DB;
         $db->addConnection([
@@ -240,7 +240,7 @@ class PruneCommandTest extends TestCase
         $this->assertEquals(5, PrunableTestModelWithPrunableRecords::count());
     }
 
-    public function testTheCommandMayBePretendedOnSoftDeletedModel()
+    public function testTheCommandMayBePretendedOnSoftDeletedModel(): void
     {
         $db = new DB;
         $db->addConnection([

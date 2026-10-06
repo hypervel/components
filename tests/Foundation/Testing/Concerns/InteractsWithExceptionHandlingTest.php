@@ -15,7 +15,7 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class InteractsWithExceptionHandlingTest extends TestCase
 {
-    public function testWithoutExceptionHandlingRethrowsExceptions()
+    public function testWithoutExceptionHandlingRethrowsExceptions(): void
     {
         $this->withoutExceptionHandling();
 
@@ -29,7 +29,7 @@ class InteractsWithExceptionHandlingTest extends TestCase
         $this->get('/error');
     }
 
-    public function testWithoutExceptionHandlingReplacesHandler()
+    public function testWithoutExceptionHandlingReplacesHandler(): void
     {
         $this->withoutExceptionHandling();
 
@@ -38,7 +38,7 @@ class InteractsWithExceptionHandlingTest extends TestCase
         $this->assertInstanceOf(WithoutExceptionHandlingHandler::class, $handler);
     }
 
-    public function testWithExceptionHandlingRestoresOriginalHandler()
+    public function testWithExceptionHandlingRestoresOriginalHandler(): void
     {
         $originalHandler = $this->app->make(ExceptionHandler::class);
 
@@ -50,7 +50,7 @@ class InteractsWithExceptionHandlingTest extends TestCase
         $this->assertSame($originalHandler, $restoredHandler);
     }
 
-    public function testWithoutExceptionHandlingAllowsExceptedExceptions()
+    public function testWithoutExceptionHandlingAllowsExceptedExceptions(): void
     {
         $this->withoutExceptionHandling([NotFoundHttpException::class]);
 
@@ -64,7 +64,7 @@ class InteractsWithExceptionHandlingTest extends TestCase
         $response->assertNotFound();
     }
 
-    public function testWithoutExceptionHandlingEnrichesNotFoundMessage()
+    public function testWithoutExceptionHandlingEnrichesNotFoundMessage(): void
     {
         $this->withoutExceptionHandling();
 
@@ -74,7 +74,7 @@ class InteractsWithExceptionHandlingTest extends TestCase
         $this->get('/nonexistent');
     }
 
-    public function testHandleExceptionsIsAliasForWithoutExceptionHandling()
+    public function testHandleExceptionsIsAliasForWithoutExceptionHandling(): void
     {
         $this->handleExceptions([NotFoundHttpException::class]);
 
@@ -87,7 +87,7 @@ class InteractsWithExceptionHandlingTest extends TestCase
         $response->assertNotFound();
     }
 
-    public function testWithExceptionHandlingRestoresFromFake()
+    public function testWithExceptionHandlingRestoresFromFake(): void
     {
         // First fake the exception handler
         $originalHandler = $this->app->make(ExceptionHandler::class);
@@ -108,14 +108,14 @@ class InteractsWithExceptionHandlingTest extends TestCase
         $this->assertInstanceOf(ExceptionHandlerFake::class, $currentHandler);
     }
 
-    public function testAssertThrowsPassesWhenExceptionIsThrown()
+    public function testAssertThrowsPassesWhenExceptionIsThrown(): void
     {
         $this->assertThrows(function () {
             throw new RuntimeException('test');
         }, RuntimeException::class);
     }
 
-    public function testAssertThrowsPassesWithMessageCheck()
+    public function testAssertThrowsPassesWithMessageCheck(): void
     {
         $this->assertThrows(
             fn () => throw new RuntimeException('specific message'),
@@ -124,7 +124,7 @@ class InteractsWithExceptionHandlingTest extends TestCase
         );
     }
 
-    public function testAssertThrowsWithClosurePredicate()
+    public function testAssertThrowsWithClosurePredicate(): void
     {
         $this->assertThrows(
             fn () => throw new RuntimeException('test'),
@@ -132,14 +132,14 @@ class InteractsWithExceptionHandlingTest extends TestCase
         );
     }
 
-    public function testAssertDoesntThrowPassesWhenNoExceptionIsThrown()
+    public function testAssertDoesntThrowPassesWhenNoExceptionIsThrown(): void
     {
         $this->assertDoesntThrow(function () {
             // no exception
         });
     }
 
-    public function testWithoutExceptionHandlingShouldReportReturnsFalse()
+    public function testWithoutExceptionHandlingShouldReportReturnsFalse(): void
     {
         $this->withoutExceptionHandling();
 

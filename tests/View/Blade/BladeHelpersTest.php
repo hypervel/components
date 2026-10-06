@@ -6,7 +6,7 @@ namespace Hypervel\Tests\View\Blade;
 
 class BladeHelpersTest extends AbstractBladeTestCase
 {
-    public function testEchosAreCompiled()
+    public function testEchosAreCompiled(): void
     {
         $this->assertSame('<?php echo csrf_field(); ?>', $this->compiler->compileString('@csrf'));
         $this->assertSame('<?php echo method_field(\'patch\'); ?>', $this->compiler->compileString("@method('patch')"));

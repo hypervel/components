@@ -61,7 +61,7 @@ class DatabaseEloquentInverseRelationMorphOneTest extends TestCase
         parent::tearDown();
     }
 
-    public function testMorphOneInverseRelationIsProperlySetToParentWhenLazyLoaded()
+    public function testMorphOneInverseRelationIsProperlySetToParentWhenLazyLoaded(): void
     {
         MorphOneInverseImageModel::factory(6)->create();
         $posts = MorphOneInversePostModel::all();
@@ -74,7 +74,7 @@ class DatabaseEloquentInverseRelationMorphOneTest extends TestCase
         }
     }
 
-    public function testMorphOneInverseRelationIsProperlySetToParentWhenEagerLoaded()
+    public function testMorphOneInverseRelationIsProperlySetToParentWhenEagerLoaded(): void
     {
         MorphOneInverseImageModel::factory(6)->create();
         $posts = MorphOneInversePostModel::with('image')->get();
@@ -87,7 +87,7 @@ class DatabaseEloquentInverseRelationMorphOneTest extends TestCase
         }
     }
 
-    public function testMorphOneGuessedInverseRelationIsProperlySetToParentWhenLazyLoaded()
+    public function testMorphOneGuessedInverseRelationIsProperlySetToParentWhenLazyLoaded(): void
     {
         MorphOneInverseImageModel::factory(6)->create();
         $posts = MorphOneInversePostModel::all();
@@ -100,7 +100,7 @@ class DatabaseEloquentInverseRelationMorphOneTest extends TestCase
         }
     }
 
-    public function testMorphOneGuessedInverseRelationIsProperlySetToParentWhenEagerLoaded()
+    public function testMorphOneGuessedInverseRelationIsProperlySetToParentWhenEagerLoaded(): void
     {
         MorphOneInverseImageModel::factory(6)->create();
         $posts = MorphOneInversePostModel::with('guessedImage')->get();
@@ -113,7 +113,7 @@ class DatabaseEloquentInverseRelationMorphOneTest extends TestCase
         }
     }
 
-    public function testMorphOneInverseRelationIsProperlySetToParentWhenMaking()
+    public function testMorphOneInverseRelationIsProperlySetToParentWhenMaking(): void
     {
         $post = MorphOneInversePostModel::create();
 
@@ -123,7 +123,7 @@ class DatabaseEloquentInverseRelationMorphOneTest extends TestCase
         $this->assertSame($post, $image->imageable);
     }
 
-    public function testMorphOneInverseRelationIsProperlySetToParentWhenCreating()
+    public function testMorphOneInverseRelationIsProperlySetToParentWhenCreating(): void
     {
         $post = MorphOneInversePostModel::create();
 
@@ -133,7 +133,7 @@ class DatabaseEloquentInverseRelationMorphOneTest extends TestCase
         $this->assertSame($post, $image->imageable);
     }
 
-    public function testMorphOneInverseRelationIsProperlySetToParentWhenCreatingQuietly()
+    public function testMorphOneInverseRelationIsProperlySetToParentWhenCreatingQuietly(): void
     {
         $post = MorphOneInversePostModel::create();
 
@@ -143,7 +143,7 @@ class DatabaseEloquentInverseRelationMorphOneTest extends TestCase
         $this->assertSame($post, $image->imageable);
     }
 
-    public function testMorphOneInverseRelationIsProperlySetToParentWhenForceCreating()
+    public function testMorphOneInverseRelationIsProperlySetToParentWhenForceCreating(): void
     {
         $post = MorphOneInversePostModel::create();
 
@@ -153,7 +153,7 @@ class DatabaseEloquentInverseRelationMorphOneTest extends TestCase
         $this->assertSame($post, $image->imageable);
     }
 
-    public function testMorphOneInverseRelationIsProperlySetToParentWhenSaving()
+    public function testMorphOneInverseRelationIsProperlySetToParentWhenSaving(): void
     {
         $post = MorphOneInversePostModel::create();
         $image = MorphOneInverseImageModel::make();
@@ -165,7 +165,7 @@ class DatabaseEloquentInverseRelationMorphOneTest extends TestCase
         $this->assertSame($post, $image->imageable);
     }
 
-    public function testMorphOneInverseRelationIsProperlySetToParentWhenSavingQuietly()
+    public function testMorphOneInverseRelationIsProperlySetToParentWhenSavingQuietly(): void
     {
         $post = MorphOneInversePostModel::create();
         $image = MorphOneInverseImageModel::make();
@@ -177,7 +177,7 @@ class DatabaseEloquentInverseRelationMorphOneTest extends TestCase
         $this->assertSame($post, $image->imageable);
     }
 
-    public function testMorphOneInverseRelationIsProperlySetToParentWhenUpdating()
+    public function testMorphOneInverseRelationIsProperlySetToParentWhenUpdating(): void
     {
         $post = MorphOneInversePostModel::create();
         $image = MorphOneInverseImageModel::factory()->create();

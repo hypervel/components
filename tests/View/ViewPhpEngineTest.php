@@ -10,7 +10,7 @@ use Hypervel\View\Engines\PhpEngine;
 
 class ViewPhpEngineTest extends TestCase
 {
-    public function testViewsMayBeProperlyRendered()
+    public function testViewsMayBeProperlyRendered(): void
     {
         $engine = new PhpEngine(new Filesystem);
         $this->assertSame('Hello World' . PHP_EOL, $engine->get(__DIR__ . '/Fixtures/basic.php'));

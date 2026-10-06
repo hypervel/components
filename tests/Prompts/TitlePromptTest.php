@@ -11,7 +11,7 @@ use function Hypervel\Prompts\title;
 
 class TitlePromptTest extends TestCase
 {
-    public function testUpdatesTheTitle()
+    public function testUpdatesTheTitle(): void
     {
         Prompt::fake();
 

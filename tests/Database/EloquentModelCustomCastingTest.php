@@ -189,7 +189,7 @@ class EloquentModelCustomCastingTest extends TestCase
         ], $model->toArray());
     }
 
-    public function testModelWithCustomCastsWorkWithCustomIncrementDecrement()
+    public function testModelWithCustomCastsWorkWithCustomIncrementDecrement(): void
     {
         $model = new Member;
         $model->amount = new Euro('2');
@@ -202,7 +202,7 @@ class EloquentModelCustomCastingTest extends TestCase
         $this->assertSame('3.00', $model->amount->value);
     }
 
-    public function testModelWithCustomCastsCompareFunction()
+    public function testModelWithCustomCastsCompareFunction(): void
     {
         // Set raw attribute, this is an example of how we would receive JSON string from the database.
         // Note the spaces after the colon.
@@ -221,7 +221,7 @@ class EloquentModelCustomCastingTest extends TestCase
         $this->assertTrue($model->isDirty('document'));
     }
 
-    public function testModelWithCustomCastsUnguardedCanBeMassAssigned()
+    public function testModelWithCustomCastsUnguardedCanBeMassAssigned(): void
     {
         Person::preventSilentlyDiscardingAttributes();
 
@@ -230,7 +230,7 @@ class EloquentModelCustomCastingTest extends TestCase
         $this->assertSame('Anytown, USA', $model->address->lineTwo);
     }
 
-    public function testModelWithCustomCastsCanBeGuardedAgainstMassAssigned()
+    public function testModelWithCustomCastsCanBeGuardedAgainstMassAssigned(): void
     {
         Person::preventSilentlyDiscardingAttributes();
         $this->expectException(MassAssignmentException::class);

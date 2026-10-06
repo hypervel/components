@@ -14,7 +14,7 @@ class InterfaceMakeCommandTest extends TestCase
         'app/Interfaces/Gateway.php',
     ];
 
-    public function testItCanGenerateInterfaceFile()
+    public function testItCanGenerateInterfaceFile(): void
     {
         $this->artisan('make:interface', ['name' => 'Gateway'])
             ->assertExitCode(0);

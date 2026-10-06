@@ -15,7 +15,7 @@ class EnumMakeCommandTest extends TestCase
         'app/*/OrderStatusEnum.php',
     ];
 
-    public function testItCanGenerateEnumFile()
+    public function testItCanGenerateEnumFile(): void
     {
         $this->artisan('make:enum', ['name' => 'StatusEnum'])
             ->assertExitCode(0);
@@ -26,7 +26,7 @@ class EnumMakeCommandTest extends TestCase
         ], 'app/StatusEnum.php');
     }
 
-    public function testItCanGenerateEnumFileWithString()
+    public function testItCanGenerateEnumFileWithString(): void
     {
         $this->artisan('make:enum', ['name' => 'StringEnum', '--string' => true])
             ->assertExitCode(0);
@@ -37,7 +37,7 @@ class EnumMakeCommandTest extends TestCase
         ], 'app/StringEnum.php');
     }
 
-    public function testItCanGenerateEnumFileWithInt()
+    public function testItCanGenerateEnumFileWithInt(): void
     {
         $this->artisan('make:enum', ['name' => 'IntEnum', '--int' => true])
             ->assertExitCode(0);

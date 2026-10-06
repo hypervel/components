@@ -61,7 +61,7 @@ class DatabaseManagerTest extends TestCase
         $this->assertSame($connection, $reconnector->connection);
     }
 
-    public function testDisconnectDisconnectsNonPooledConnection()
+    public function testDisconnectDisconnectsNonPooledConnection(): void
     {
         $manager = $this->db->getDatabaseManager();
 
@@ -82,7 +82,7 @@ class DatabaseManagerTest extends TestCase
     // REMOVED: Capsule's setter writes unused configuration and cannot safely
     // define a connection-wide row shape. Use Query\Builder::fetchUsing() per query.
 
-    public function testFlushStateClearsMacros()
+    public function testFlushStateClearsMacros(): void
     {
         try {
             DatabaseManager::macro('stateTest', fn () => 'state');
@@ -97,7 +97,7 @@ class DatabaseManagerTest extends TestCase
         }
     }
 
-    public function testDisconnectWithNamedNonPooledConnection()
+    public function testDisconnectWithNamedNonPooledConnection(): void
     {
         $this->db->addConnection([
             'driver' => 'sqlite',
@@ -177,7 +177,7 @@ class DatabaseManagerTest extends TestCase
         $this->assertSame('default', $manager->connection()->getName());
     }
 
-    public function testDisconnectWithNoExistingConnectionDoesNotError()
+    public function testDisconnectWithNoExistingConnectionDoesNotError(): void
     {
         $manager = $this->db->getDatabaseManager();
 
@@ -187,7 +187,7 @@ class DatabaseManagerTest extends TestCase
         $this->assertTrue(true);
     }
 
-    public function testReconnectAfterDisconnectOnNonPooledConnection()
+    public function testReconnectAfterDisconnectOnNonPooledConnection(): void
     {
         $manager = $this->db->getDatabaseManager();
 
@@ -381,7 +381,7 @@ class DatabaseManagerTest extends TestCase
         }
     }
 
-    public function testExtendWorksEndToEndThroughNonPooledPath()
+    public function testExtendWorksEndToEndThroughNonPooledPath(): void
     {
         $custom = new SQLiteConnection(new PDO('sqlite::memory:'), ':memory:');
         $manager = $this->db->getDatabaseManager();
@@ -401,7 +401,7 @@ class DatabaseManagerTest extends TestCase
         $this->assertSame($custom, $result);
     }
 
-    public function testForgetExtensionWorksEndToEndThroughNonPooledPath()
+    public function testForgetExtensionWorksEndToEndThroughNonPooledPath(): void
     {
         $custom = new SQLiteConnection(new PDO('sqlite::memory:'), ':memory:');
         $manager = $this->db->getDatabaseManager();

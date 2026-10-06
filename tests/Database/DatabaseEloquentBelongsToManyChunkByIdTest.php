@@ -57,7 +57,7 @@ class DatabaseEloquentBelongsToManyChunkByIdTest extends TestCase
         });
     }
 
-    public function testBelongsToChunkById()
+    public function testBelongsToChunkById(): void
     {
         $this->seedData();
 
@@ -72,7 +72,7 @@ class DatabaseEloquentBelongsToManyChunkByIdTest extends TestCase
         $this->assertSame(3, $i);
     }
 
-    public function testBelongsToChunkByIdDesc()
+    public function testBelongsToChunkByIdDesc(): void
     {
         $this->seedData();
 

@@ -33,7 +33,7 @@ class DatabaseEloquentBelongsToManyAggregateTest extends TestCase
         $this->createSchema();
     }
 
-    public function testWithSumDifferentTables()
+    public function testWithSumDifferentTables(): void
     {
         $this->seedData();
 
@@ -44,7 +44,7 @@ class DatabaseEloquentBelongsToManyAggregateTest extends TestCase
         $this->assertEquals(12, $order->total_products);
     }
 
-    public function testWithSumSameTable()
+    public function testWithSumSameTable(): void
     {
         $this->seedData();
 
@@ -55,7 +55,7 @@ class DatabaseEloquentBelongsToManyAggregateTest extends TestCase
         $this->assertEquals(1200, $order->total_allocated);
     }
 
-    public function testWithSumExpression()
+    public function testWithSumExpression(): void
     {
         $this->seedData();
 

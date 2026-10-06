@@ -6,7 +6,7 @@ namespace Hypervel\Tests\View\Blade;
 
 class BladeEchoTest extends AbstractBladeTestCase
 {
-    public function testEchosAreCompiled()
+    public function testEchosAreCompiled(): void
     {
         $this->assertSame('<?php echo $name; ?>', $this->compiler->compileString('{!!$name!!}'));
         $this->assertSame('<?php echo $name; ?>', $this->compiler->compileString('{!! $name !!}'));
@@ -64,7 +64,7 @@ class BladeEchoTest extends AbstractBladeTestCase
         );
     }
 
-    public function testEscapedWithAtEchosAreCompiled()
+    public function testEscapedWithAtEchosAreCompiled(): void
     {
         $this->assertSame('{{$name}}', $this->compiler->compileString('@{{$name}}'));
         $this->assertSame('{{ $name }}', $this->compiler->compileString('@{{ $name }}'));

@@ -6,14 +6,14 @@ namespace Hypervel\Tests\View\Blade;
 
 class BladeIncludesTest extends AbstractBladeTestCase
 {
-    public function testEachsAreCompiled()
+    public function testEachsAreCompiled(): void
     {
         $this->assertSame('<?php echo $__env->renderEach(\'foo\', \'bar\'); ?>', $this->compiler->compileString('@each(\'foo\', \'bar\')'));
         $this->assertSame('<?php echo $__env->renderEach(\'foo\', \'(bar))\'); ?>', $this->compiler->compileString('@each(\'foo\', \'(bar))\')'));
         $this->assertSame('<?php echo $__env->renderEach(name(foo)); ?>', $this->compiler->compileString('@each(name(foo))'));
     }
 
-    public function testIncludesAreCompiled()
+    public function testIncludesAreCompiled(): void
     {
         $this->assertSame('<?php echo $__env->make(\'foo\', array_diff_key(get_defined_vars(), [\'__data\' => 1, \'__path\' => 1]))->render(); ?>', $this->compiler->compileString('@include(\'foo\')'));
         $this->assertSame('<?php echo $__env->make(\'foo\', [\'((\'], array_diff_key(get_defined_vars(), [\'__data\' => 1, \'__path\' => 1]))->render(); ?>', $this->compiler->compileString('@include(\'foo\', [\'((\'])'));
@@ -21,26 +21,26 @@ class BladeIncludesTest extends AbstractBladeTestCase
         $this->assertSame('<?php echo $__env->make(name(foo), array_diff_key(get_defined_vars(), [\'__data\' => 1, \'__path\' => 1]))->render(); ?>', $this->compiler->compileString('@include(name(foo))'));
     }
 
-    public function testIncludeIfsAreCompiled()
+    public function testIncludeIfsAreCompiled(): void
     {
         $this->assertSame('<?php if ($__env->exists(\'foo\')) echo $__env->make(\'foo\', array_diff_key(get_defined_vars(), [\'__data\' => 1, \'__path\' => 1]))->render(); ?>', $this->compiler->compileString('@includeIf(\'foo\')'));
         $this->assertSame('<?php if ($__env->exists(name(foo))) echo $__env->make(name(foo), array_diff_key(get_defined_vars(), [\'__data\' => 1, \'__path\' => 1]))->render(); ?>', $this->compiler->compileString('@includeIf(name(foo))'));
     }
 
-    public function testIncludeWhensAreCompiled()
+    public function testIncludeWhensAreCompiled(): void
     {
         $this->assertSame('<?php echo $__env->renderWhen(true, \'foo\', ["foo" => "bar"], array_diff_key(get_defined_vars(), [\'__data\' => 1, \'__path\' => 1])); ?>', $this->compiler->compileString('@includeWhen(true, \'foo\', ["foo" => "bar"])'));
         $this->assertSame('<?php echo $__env->renderWhen(true, \'foo\', array_diff_key(get_defined_vars(), [\'__data\' => 1, \'__path\' => 1])); ?>', $this->compiler->compileString('@includeWhen(true, \'foo\')'));
     }
 
-    public function testIncludeUnlessesAreCompiled()
+    public function testIncludeUnlessesAreCompiled(): void
     {
         $this->assertSame('<?php echo $__env->renderUnless(true, \'foo\', ["foo" => "bar"], array_diff_key(get_defined_vars(), [\'__data\' => 1, \'__path\' => 1])); ?>', $this->compiler->compileString('@includeUnless(true, \'foo\', ["foo" => "bar"])'));
         $this->assertSame('<?php echo $__env->renderUnless(true, \'foo\', ["foo" => "bar_))-))>"], array_diff_key(get_defined_vars(), [\'__data\' => 1, \'__path\' => 1])); ?>', $this->compiler->compileString('@includeUnless(true, \'foo\', ["foo" => "bar_))-))>"])'));
         $this->assertSame('<?php echo $__env->renderUnless($undefined ?? true, \'foo\', array_diff_key(get_defined_vars(), [\'__data\' => 1, \'__path\' => 1])); ?>', $this->compiler->compileString('@includeUnless($undefined ?? true, \'foo\')'));
     }
 
-    public function testIncludeFirstsAreCompiled()
+    public function testIncludeFirstsAreCompiled(): void
     {
         $this->assertSame('<?php echo $__env->first(["one", "two"], array_diff_key(get_defined_vars(), [\'__data\' => 1, \'__path\' => 1]))->render(); ?>', $this->compiler->compileString('@includeFirst(["one", "two"])'));
         $this->assertSame('<?php echo $__env->first(["one", "two"], ["foo" => "bar"], array_diff_key(get_defined_vars(), [\'__data\' => 1, \'__path\' => 1]))->render(); ?>', $this->compiler->compileString('@includeFirst(["one", "two"], ["foo" => "bar"])'));
@@ -49,7 +49,7 @@ class BladeIncludesTest extends AbstractBladeTestCase
         $this->assertSame('<?php echo $__env->first(["issue", "#45424)"], [(string) "foo()" => "bar(-(("], array_diff_key(get_defined_vars(), [\'__data\' => 1, \'__path\' => 1]))->render(); ?>', $this->compiler->compileString('@includeFirst(["issue", "#45424)"], [(string) "foo()" => "bar(-(("])'));
     }
 
-    public function testIncludeScopedsAreCompiled()
+    public function testIncludeScopedsAreCompiled(): void
     {
         $this->assertSame('<?php echo $__env->make(\'foo\')->render(); ?>', $this->compiler->compileString('@includeIsolated(\'foo\')'));
         $this->assertSame('<?php echo $__env->make(\'foo\', [\'((\'])->render(); ?>', $this->compiler->compileString('@includeIsolated(\'foo\', [\'((\'])'));

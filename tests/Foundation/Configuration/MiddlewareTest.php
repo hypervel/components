@@ -26,7 +26,7 @@ use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
 
 class MiddlewareTest extends TestCase
 {
-    public function testConvertEmptyStringsToNull()
+    public function testConvertEmptyStringsToNull(): void
     {
         $configuration = new Middleware;
         $middleware = new ConvertEmptyStringsToNull;
@@ -76,7 +76,7 @@ class MiddlewareTest extends TestCase
         $this->assertSame('', $request->input('bbb'));
     }
 
-    public function testTrimStrings()
+    public function testTrimStrings(): void
     {
         $configuration = new Middleware;
         $middleware = new TrimStrings;
@@ -116,7 +116,7 @@ class MiddlewareTest extends TestCase
         $this->assertSame('  789  ', $request->input('ccc'));
     }
 
-    public function testTrustProxies()
+    public function testTrustProxies(): void
     {
         $configuration = new Middleware;
         $middleware = new TrustProxies;
@@ -150,7 +150,7 @@ class MiddlewareTest extends TestCase
         ], $method->invoke($middleware));
     }
 
-    public function testTrustHeaders()
+    public function testTrustHeaders(): void
     {
         $configuration = new Middleware;
         $middleware = new TrustProxies;
@@ -189,7 +189,7 @@ class MiddlewareTest extends TestCase
             | Request::HEADER_X_FORWARDED_PORT, $method->invoke($middleware));
     }
 
-    public function testTrustHosts()
+    public function testTrustHosts(): void
     {
         $app = m::mock(Application::class);
         $configuration = new Middleware;
@@ -230,7 +230,7 @@ class MiddlewareTest extends TestCase
         $this->assertSame([], $middleware->hosts());
     }
 
-    public function testEncryptCookies()
+    public function testEncryptCookies(): void
     {
         $configuration = new Middleware;
         $encrypter = m::mock(Encrypter::class);
@@ -316,7 +316,7 @@ class MiddlewareTest extends TestCase
 
     // REMOVED: validateCsrfTokens() is a deprecated alias for
     // preventRequestForgery().
-    public function testPreventRequestForgery()
+    public function testPreventRequestForgery(): void
     {
         $configuration = new Middleware;
         $middleware = new PreventRequestForgery(
@@ -339,7 +339,7 @@ class MiddlewareTest extends TestCase
         $this->assertTrue($reflection->getStaticPropertyValue('allowSameSite'));
     }
 
-    public function testDefaultGlobalMiddleware()
+    public function testDefaultGlobalMiddleware(): void
     {
         $middleware = new Middleware;
 
@@ -355,7 +355,7 @@ class MiddlewareTest extends TestCase
         ], $middleware->getGlobalMiddleware());
     }
 
-    public function testExplicitEmptyGlobalMiddlewareOverridesDefaults()
+    public function testExplicitEmptyGlobalMiddlewareOverridesDefaults(): void
     {
         $middleware = new Middleware;
 
@@ -364,7 +364,7 @@ class MiddlewareTest extends TestCase
         $this->assertSame([], $middleware->getGlobalMiddleware());
     }
 
-    public function testDefaultWebMiddlewareGroup()
+    public function testDefaultWebMiddlewareGroup(): void
     {
         $middleware = new Middleware;
         $groups = $middleware->getMiddlewareGroups();
@@ -379,7 +379,7 @@ class MiddlewareTest extends TestCase
         ], $groups['web']);
     }
 
-    public function testDefaultApiMiddlewareGroup()
+    public function testDefaultApiMiddlewareGroup(): void
     {
         $middleware = new Middleware;
         $groups = $middleware->getMiddlewareGroups();
@@ -389,7 +389,7 @@ class MiddlewareTest extends TestCase
         ], $groups['api']);
     }
 
-    public function testDefaultMiddlewareAliases()
+    public function testDefaultMiddlewareAliases(): void
     {
         $middleware = new Middleware;
 
@@ -426,7 +426,7 @@ class MiddlewareTest extends TestCase
         );
     }
 
-    public function testStatefulApiAddsEnsureFrontendRequestsAreStateful()
+    public function testStatefulApiAddsEnsureFrontendRequestsAreStateful(): void
     {
         $middleware = new Middleware;
         $middleware->statefulApi();
@@ -443,7 +443,7 @@ class MiddlewareTest extends TestCase
         );
     }
 
-    public function testDefaultMiddlewarePriority()
+    public function testDefaultMiddlewarePriority(): void
     {
         $kernel = new \Hypervel\Foundation\Http\Kernel(
             m::mock(Application::class),
@@ -469,7 +469,7 @@ class MiddlewareTest extends TestCase
         ], $priority);
     }
 
-    public function testWithMiddlewareAppliesPriorityToKernel()
+    public function testWithMiddlewareAppliesPriorityToKernel(): void
     {
         $kernel = new \Hypervel\Foundation\Http\Kernel(
             m::mock(Application::class),
@@ -495,7 +495,7 @@ class MiddlewareTest extends TestCase
         ], $property->getValue($kernel));
     }
 
-    public function testWithMiddlewareAppliesAppendsToPriority()
+    public function testWithMiddlewareAppliesAppendsToPriority(): void
     {
         $kernel = new \Hypervel\Foundation\Http\Kernel(
             m::mock(Application::class),
@@ -522,7 +522,7 @@ class MiddlewareTest extends TestCase
         $this->assertSame($bindingsIndex + 1, $appendedIndex, 'Appended middleware should be immediately after SubstituteBindings');
     }
 
-    public function testWithMiddlewareAppliesPrependsToPriority()
+    public function testWithMiddlewareAppliesPrependsToPriority(): void
     {
         $kernel = new \Hypervel\Foundation\Http\Kernel(
             m::mock(Application::class),
@@ -549,7 +549,7 @@ class MiddlewareTest extends TestCase
         $this->assertSame($bindingsIndex - 1, $prependedIndex, 'Prepended middleware should be immediately before SubstituteBindings');
     }
 
-    public function testWithMiddlewareAppliesGlobalGroupsAndAliasesToKernel()
+    public function testWithMiddlewareAppliesGlobalGroupsAndAliasesToKernel(): void
     {
         $kernel = new \Hypervel\Foundation\Http\Kernel(
             m::mock(Application::class),
@@ -580,7 +580,7 @@ class MiddlewareTest extends TestCase
         $this->assertSame('CustomAliasMiddleware', $aliases['custom-alias']);
     }
 
-    public function testWithMiddlewareWiresConfigThroughApplicationBuilder()
+    public function testWithMiddlewareWiresConfigThroughApplicationBuilder(): void
     {
         $app = \Hypervel\Foundation\Application::configure(
             basePath: __DIR__

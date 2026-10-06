@@ -30,7 +30,7 @@ use Throwable;
 
 class ExceptionHandlerTest extends TestCase
 {
-    public function testItRendersAuthorizationExceptions()
+    public function testItRendersAuthorizationExceptions(): void
     {
         Route::get('test-route', fn () => Response::deny('expected message', 321)->authorize());
 
@@ -71,7 +71,7 @@ class ExceptionHandlerTest extends TestCase
         $this->assertSame([], $reported);
     }
 
-    public function testItRendersAuthorizationExceptionsWithCustomStatusCode()
+    public function testItRendersAuthorizationExceptionsWithCustomStatusCode(): void
     {
         Route::get('test-route', fn () => Response::deny('expected message', 321)->withStatus(404)->authorize());
 
@@ -88,7 +88,7 @@ class ExceptionHandlerTest extends TestCase
             ]);
     }
 
-    public function testItRendersAuthorizationExceptionsWithStatusCodeTextWhenNoMessageIsSet()
+    public function testItRendersAuthorizationExceptionsWithStatusCodeTextWhenNoMessageIsSet(): void
     {
         Route::get('test-route', fn () => Response::denyWithStatus(404)->authorize());
 
@@ -119,7 +119,7 @@ class ExceptionHandlerTest extends TestCase
             ]);
     }
 
-    public function testItRendersAuthorizationExceptionsWithStatusButWithoutResponse()
+    public function testItRendersAuthorizationExceptionsWithStatusButWithoutResponse(): void
     {
         Route::get('test-route', fn () => throw (new AuthorizationException)->withStatus(418));
 
@@ -136,7 +136,7 @@ class ExceptionHandlerTest extends TestCase
             ]);
     }
 
-    public function testItHasFallbackErrorMessageForUnknownStatusCodes()
+    public function testItHasFallbackErrorMessageForUnknownStatusCodes(): void
     {
         Route::get('test-route', fn () => throw (new AuthorizationException)->withStatus(399));
 
@@ -153,7 +153,7 @@ class ExceptionHandlerTest extends TestCase
             ]);
     }
 
-    public function testItReturns400CodeOnMalformedRequests()
+    public function testItReturns400CodeOnMalformedRequests(): void
     {
         // HTTP request...
         $this->post('test-route', ['_method' => '__construct'])
@@ -274,7 +274,7 @@ class ExceptionHandlerTest extends TestCase
             ->assertHeader('Content-Type', 'text/html; charset=UTF-8');
     }
 
-    public function testItDoesNotLeakSensitiveInfoInHtmlWhenDebugIsFalse()
+    public function testItDoesNotLeakSensitiveInfoInHtmlWhenDebugIsFalse(): void
     {
         Config::set('app.debug', false);
 
@@ -290,7 +290,7 @@ class ExceptionHandlerTest extends TestCase
         $this->assertStringNotContainsString('Stack Trace', $content);
     }
 
-    public function testItReportsRequestExceptions()
+    public function testItReportsRequestExceptions(): void
     {
         config(['logging.default' => 'test_log']);
         config(['logging.channels.test_log' => [

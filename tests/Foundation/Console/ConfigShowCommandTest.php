@@ -30,7 +30,7 @@ class ConfigShowCommandTest extends \Hypervel\Testbench\TestCase
         parent::tearDown();
     }
 
-    public function testDisplayConfig()
+    public function testDisplayConfig(): void
     {
         config()->set('test', [
             'string' => 'Test',
@@ -60,7 +60,7 @@ class ConfigShowCommandTest extends \Hypervel\Testbench\TestCase
             ->expectsOutput('  class ............................................. stdClass  ');
     }
 
-    public function testDisplayNestedConfigItems()
+    public function testDisplayNestedConfigItems(): void
     {
         config()->set('test', [
             'nested' => [
@@ -74,7 +74,7 @@ class ConfigShowCommandTest extends \Hypervel\Testbench\TestCase
             ->expectsOutput('  foo .................................................... bar  ');
     }
 
-    public function testDisplaySingleValue()
+    public function testDisplaySingleValue(): void
     {
         config()->set('foo', 'bar');
 
@@ -83,7 +83,7 @@ class ConfigShowCommandTest extends \Hypervel\Testbench\TestCase
             ->expectsOutput('  foo .................................................... bar  ');
     }
 
-    public function testDisplayErrorIfConfigDoesNotExist()
+    public function testDisplayErrorIfConfigDoesNotExist(): void
     {
         $this->artisan(ConfigShowCommand::class, ['config' => 'invalid'])
             ->assertFailed();

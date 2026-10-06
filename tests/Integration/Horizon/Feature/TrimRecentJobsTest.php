@@ -14,7 +14,7 @@ use Mockery as m;
 
 class TrimRecentJobsTest extends IntegrationTestCase
 {
-    public function testTrimmerHasACooldownPeriod()
+    public function testTrimmerHasACooldownPeriod(): void
     {
         $trim = new TrimRecentJobs;
 

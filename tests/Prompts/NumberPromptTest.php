@@ -20,7 +20,7 @@ use function Hypervel\Prompts\number;
 
 class NumberPromptTest extends TestCase
 {
-    public function testReturnsTheInput()
+    public function testReturnsTheInput(): void
     {
         Prompt::fake(['1', '0', Key::ENTER]);
 
@@ -29,7 +29,7 @@ class NumberPromptTest extends TestCase
         $this->assertSame(10, $result);
     }
 
-    public function testAcceptsDefaultValue()
+    public function testAcceptsDefaultValue(): void
     {
         Prompt::fake([Key::ENTER]);
 
@@ -54,7 +54,7 @@ class NumberPromptTest extends TestCase
         Prompt::assertOutputContains('Must be an integer');
     }
 
-    public function testValidatesMinimumValue()
+    public function testValidatesMinimumValue(): void
     {
         Prompt::fake(['0', Key::ENTER, Key::BACKSPACE, '1', Key::ENTER]);
 
@@ -333,7 +333,7 @@ class NumberPromptTest extends TestCase
         $this->assertSame(1, number('Value', default: 1));
     }
 
-    public function testStartsWithMinimumValueWhenUpArrowPressedAndValueIsEmpty()
+    public function testStartsWithMinimumValueWhenUpArrowPressedAndValueIsEmpty(): void
     {
         Prompt::fake([Key::UP, Key::ENTER]);
 
@@ -346,7 +346,7 @@ class NumberPromptTest extends TestCase
         $this->assertSame(1, $result);
     }
 
-    public function testIncreasesWhenUpArrowPressed()
+    public function testIncreasesWhenUpArrowPressed(): void
     {
         Prompt::fake(['1', Key::UP, Key::UP, Key::ENTER]);
 
@@ -359,7 +359,7 @@ class NumberPromptTest extends TestCase
         $this->assertSame(3, $result);
     }
 
-    public function testWillNotIncreasePastMaximumValue()
+    public function testWillNotIncreasePastMaximumValue(): void
     {
         Prompt::fake(['9', Key::UP, Key::UP, Key::ENTER]);
 
@@ -372,7 +372,7 @@ class NumberPromptTest extends TestCase
         $this->assertSame(10, $result);
     }
 
-    public function testStartsWithMaximumValueWhenDownArrowPressedAndValueIsEmpty()
+    public function testStartsWithMaximumValueWhenDownArrowPressedAndValueIsEmpty(): void
     {
         Prompt::fake([Key::DOWN, Key::ENTER]);
 
@@ -385,7 +385,7 @@ class NumberPromptTest extends TestCase
         $this->assertSame(10, $result);
     }
 
-    public function testDecreasesWhenDownArrowPressed()
+    public function testDecreasesWhenDownArrowPressed(): void
     {
         Prompt::fake(['3', Key::DOWN, Key::DOWN, Key::ENTER]);
 
@@ -398,7 +398,7 @@ class NumberPromptTest extends TestCase
         $this->assertSame(1, $result);
     }
 
-    public function testWillNotDecreasePastMinimumValue()
+    public function testWillNotDecreasePastMinimumValue(): void
     {
         Prompt::fake(['1', Key::DOWN, Key::DOWN, Key::ENTER]);
 
@@ -411,7 +411,7 @@ class NumberPromptTest extends TestCase
         $this->assertSame(1, $result);
     }
 
-    public function testCanSetStepSize()
+    public function testCanSetStepSize(): void
     {
         Prompt::fake(['1', Key::UP, Key::UP, Key::ENTER]);
 
@@ -423,7 +423,7 @@ class NumberPromptTest extends TestCase
         $this->assertSame(5, $result);
     }
 
-    public function testCancels()
+    public function testCancels(): void
     {
         Prompt::fake([Key::CTRL_C]);
 
@@ -432,7 +432,7 @@ class NumberPromptTest extends TestCase
         Prompt::assertOutputContains('Cancelled.');
     }
 
-    public function testBackspaceKeyRemovesCharacter()
+    public function testBackspaceKeyRemovesCharacter(): void
     {
         Prompt::fake(['1', '0', 's', Key::BACKSPACE, Key::ENTER]);
 
@@ -441,7 +441,7 @@ class NumberPromptTest extends TestCase
         $this->assertSame(10, $result);
     }
 
-    public function testDeleteKeyRemovesCharacter()
+    public function testDeleteKeyRemovesCharacter(): void
     {
         Prompt::fake(['1', '0', 's', Key::LEFT, Key::DELETE, Key::ENTER]);
 
@@ -450,7 +450,7 @@ class NumberPromptTest extends TestCase
         $this->assertSame(10, $result);
     }
 
-    public function testCanFallBack()
+    public function testCanFallBack(): void
     {
         Prompt::fallbackWhen(true);
 
@@ -465,7 +465,7 @@ class NumberPromptTest extends TestCase
         $this->assertSame('result', $result);
     }
 
-    public function testSupportsEmacsStyleKeyBinding()
+    public function testSupportsEmacsStyleKeyBinding(): void
     {
         Prompt::fake(['1', 's', '0', Key::CTRL_B, Key::CTRL_H, Key::CTRL_F, Key::ENTER]);
 
@@ -474,7 +474,7 @@ class NumberPromptTest extends TestCase
         $this->assertSame(10, $result);
     }
 
-    public function testReturnsEmptyStringWhenNonInteractive()
+    public function testReturnsEmptyStringWhenNonInteractive(): void
     {
         Prompt::interactive(false);
 
@@ -483,7 +483,7 @@ class NumberPromptTest extends TestCase
         $this->assertSame('', $result);
     }
 
-    public function testReturnsDefaultValueWhenNonInteractive()
+    public function testReturnsDefaultValueWhenNonInteractive(): void
     {
         Prompt::interactive(false);
 
@@ -492,7 +492,7 @@ class NumberPromptTest extends TestCase
         $this->assertSame(10, $result);
     }
 
-    public function testValidatesDefaultValueWhenNonInteractive()
+    public function testValidatesDefaultValueWhenNonInteractive(): void
     {
         $this->expectException(NonInteractiveValidationException::class);
         $this->expectExceptionMessage('Required.');
@@ -502,7 +502,7 @@ class NumberPromptTest extends TestCase
         number(label: 'How many items do you want to buy?', required: true);
     }
 
-    public function testAllowsCustomizingCancellation()
+    public function testAllowsCustomizingCancellation(): void
     {
         $this->expectException(Exception::class);
         $this->expectExceptionMessage('Cancelled.');

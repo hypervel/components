@@ -42,7 +42,7 @@ class CacheStackStoreTest extends TestCase
         CarbonImmutable::setTestNow('2000-01-01 12:34:56.123456');
     }
 
-    public function testRetrieveItemFromStoreStacked()
+    public function testRetrieveItemFromStoreStacked(): void
     {
         $this->createStores();
 
@@ -225,7 +225,7 @@ class CacheStackStoreTest extends TestCase
         new StackStore([]);
     }
 
-    public function testPutWithCorrectTTL()
+    public function testPutWithCorrectTTL(): void
     {
         $this->createStores();
 
@@ -244,7 +244,7 @@ class CacheStackStoreTest extends TestCase
         $this->assertSame($value, $this->store->get($key));
     }
 
-    public function testAvoidRedundantCall()
+    public function testAvoidRedundantCall(): void
     {
         $this->createStores();
 
@@ -259,7 +259,7 @@ class CacheStackStoreTest extends TestCase
         $this->assertSame($value, $this->store->get($key));
     }
 
-    public function testMissingItemsReturnNull()
+    public function testMissingItemsReturnNull(): void
     {
         $this->createStores();
 
@@ -271,7 +271,7 @@ class CacheStackStoreTest extends TestCase
         $this->assertNull($this->store->get($key));
     }
 
-    public function testNullSentinelPropagatesThroughStackedStores()
+    public function testNullSentinelPropagatesThroughStackedStores(): void
     {
         $stack = new StackStore([
             new ArrayStore(serializesValues: true),
@@ -296,7 +296,7 @@ class CacheStackStoreTest extends TestCase
         $this->assertFalse($invoked);
     }
 
-    public function testPutItemToStoreStacked()
+    public function testPutItemToStoreStacked(): void
     {
         $this->createStores();
 
@@ -312,7 +312,7 @@ class CacheStackStoreTest extends TestCase
         $this->assertTrue($this->store->put($key, $value, $ttl));
     }
 
-    public function testPutItemToStoreFailed()
+    public function testPutItemToStoreFailed(): void
     {
         $this->createStores();
 
@@ -327,7 +327,7 @@ class CacheStackStoreTest extends TestCase
         $this->assertFalse($this->store->put($key, $value, $ttl));
     }
 
-    public function testPutItemToStoreFailedAndRollback()
+    public function testPutItemToStoreFailedAndRollback(): void
     {
         $this->createStores();
 
@@ -544,7 +544,7 @@ class CacheStackStoreTest extends TestCase
         }
     }
 
-    public function testMany()
+    public function testMany(): void
     {
         $this->createStores();
 
@@ -554,7 +554,7 @@ class CacheStackStoreTest extends TestCase
         $this->assertEquals(['foo' => 'bar', 'bar' => 'baz'], $this->store->many(['foo', 'bar']));
     }
 
-    public function testPutMany()
+    public function testPutMany(): void
     {
         $this->createStores();
 
@@ -569,14 +569,14 @@ class CacheStackStoreTest extends TestCase
         $this->assertTrue($this->store->putMany(['foo' => 'bar', 'bar' => 'baz'], $ttl));
     }
 
-    public function testPutManyReturnsTrueForEmptyInput()
+    public function testPutManyReturnsTrueForEmptyInput(): void
     {
         $this->createStores();
 
         $this->assertTrue($this->store->putMany([], 100));
     }
 
-    public function testPutManyReturnsFalseForFailedKeyAndAttemptsLaterKeys()
+    public function testPutManyReturnsFalseForFailedKeyAndAttemptsLaterKeys(): void
     {
         $this->createStores();
 
@@ -626,7 +626,7 @@ class CacheStackStoreTest extends TestCase
         $this->assertFalse((new StackStoreProxy($store, 60))->putMany(['key' => 'value'], 90));
     }
 
-    public function testIncrement()
+    public function testIncrement(): void
     {
         $this->createStores();
 
@@ -644,7 +644,7 @@ class CacheStackStoreTest extends TestCase
         $this->assertSame(3, $this->store->increment($key, 2));
     }
 
-    public function testIncrementWithTTL()
+    public function testIncrementWithTTL(): void
     {
         $this->createStores();
 
@@ -678,7 +678,7 @@ class CacheStackStoreTest extends TestCase
         $this->assertSame(5, $this->store->get('counter'));
     }
 
-    public function testDecrement()
+    public function testDecrement(): void
     {
         $this->createStores();
 
@@ -696,7 +696,7 @@ class CacheStackStoreTest extends TestCase
         $this->assertSame(-3, $this->store->decrement($key, 2));
     }
 
-    public function testDecrementWithTTL()
+    public function testDecrementWithTTL(): void
     {
         $this->createStores();
 
@@ -711,7 +711,7 @@ class CacheStackStoreTest extends TestCase
         $this->assertSame(1, $this->store->decrement($key));
     }
 
-    public function testForever()
+    public function testForever(): void
     {
         $this->createStores();
 
@@ -721,7 +721,7 @@ class CacheStackStoreTest extends TestCase
         $this->assertTrue($this->store->forever('foo', 'bar'));
     }
 
-    public function testForeverFailed()
+    public function testForeverFailed(): void
     {
         $this->createStores();
 
@@ -730,7 +730,7 @@ class CacheStackStoreTest extends TestCase
         $this->assertFalse($this->store->forever('foo', 'bar'));
     }
 
-    public function testForeverFailedWithRollback()
+    public function testForeverFailedWithRollback(): void
     {
         $this->createStores();
 
@@ -741,7 +741,7 @@ class CacheStackStoreTest extends TestCase
         $this->assertFalse($this->store->forever('foo', 'bar'));
     }
 
-    public function testForget()
+    public function testForget(): void
     {
         $this->createStores();
 
@@ -751,7 +751,7 @@ class CacheStackStoreTest extends TestCase
         $this->assertTrue($this->store->forget('foo'));
     }
 
-    public function testForgetFailed()
+    public function testForgetFailed(): void
     {
         $this->createStores();
 
@@ -799,7 +799,7 @@ class CacheStackStoreTest extends TestCase
         }
     }
 
-    public function testFlush()
+    public function testFlush(): void
     {
         $this->createStores();
 
@@ -809,7 +809,7 @@ class CacheStackStoreTest extends TestCase
         $this->assertTrue($this->store->flush());
     }
 
-    public function testFlushFailed()
+    public function testFlushFailed(): void
     {
         $this->createStores();
 
@@ -838,7 +838,7 @@ class CacheStackStoreTest extends TestCase
         }
     }
 
-    public function testThreeStores()
+    public function testThreeStores(): void
     {
         /** @var ArrayStore|MockInterface $array */
         $array = m::mock(ArrayStore::class);
@@ -888,7 +888,7 @@ class CacheStackStoreTest extends TestCase
         $this->assertFalse($store->put($key, $value, $ttl));
     }
 
-    public function testInvalidRecord()
+    public function testInvalidRecord(): void
     {
         $this->createStores();
 
@@ -902,7 +902,7 @@ class CacheStackStoreTest extends TestCase
         $this->assertNull($this->store->get($key));
     }
 
-    public function testProxyMaxTTL()
+    public function testProxyMaxTTL(): void
     {
         /** @var MockInterface|SwooleStore $swoole */
         $swoole = m::mock(SwooleStore::class);
@@ -927,7 +927,7 @@ class CacheStackStoreTest extends TestCase
         $this->assertTrue($store->put($key, $value, $ttl));
     }
 
-    public function testProxyMaxTTLWithForever()
+    public function testProxyMaxTTLWithForever(): void
     {
         /** @var MockInterface|SwooleStore $swoole */
         $swoole = m::mock(SwooleStore::class);
@@ -950,7 +950,7 @@ class CacheStackStoreTest extends TestCase
         $this->assertTrue($store->forever($key, $value));
     }
 
-    public function testTouchPropagatesThroughAllLayers()
+    public function testTouchPropagatesThroughAllLayers(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::now());
         $this->createStores();
@@ -966,7 +966,7 @@ class CacheStackStoreTest extends TestCase
         $this->assertTrue($this->store->touch($key, 60));
     }
 
-    public function testTouchReturnsFalseWhenKeyDoesNotExist()
+    public function testTouchReturnsFalseWhenKeyDoesNotExist(): void
     {
         $this->createStores();
 
@@ -976,7 +976,7 @@ class CacheStackStoreTest extends TestCase
         $this->assertFalse($this->store->touch('nonexistent', 60));
     }
 
-    public function testTouchProxyCapsMaxTTL()
+    public function testTouchProxyCapsMaxTTL(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::now());
 

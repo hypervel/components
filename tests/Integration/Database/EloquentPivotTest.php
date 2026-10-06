@@ -50,7 +50,7 @@ class EloquentPivotTest extends DatabaseTestCase
         });
     }
 
-    public function testPivotConvenientHelperReturnExpectedResult()
+    public function testPivotConvenientHelperReturnExpectedResult(): void
     {
         $user = PivotTestUser::forceCreate(['email' => 'taylor@laravel.com']);
         $user2 = PivotTestUser::forceCreate(['email' => 'ralph@ralphschindler.com']);
@@ -74,7 +74,7 @@ class EloquentPivotTest extends DatabaseTestCase
         });
     }
 
-    public function testPivotValuesCanBeSetFromRelationDefinition()
+    public function testPivotValuesCanBeSetFromRelationDefinition(): void
     {
         $user = PivotTestUser::forceCreate(['email' => 'taylor@laravel.com']);
         $active = PivotTestProject::forceCreate(['name' => 'Active Project']);

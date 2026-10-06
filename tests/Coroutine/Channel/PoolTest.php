@@ -10,7 +10,7 @@ use Hypervel\Tests\TestCase;
 
 class PoolTest extends TestCase
 {
-    public function testFlushStateClearsReleasedChannelsAndResetsSingleton()
+    public function testFlushStateClearsReleasedChannelsAndResetsSingleton(): void
     {
         try {
             $pool = Pool::getInstance();

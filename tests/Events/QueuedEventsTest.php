@@ -76,7 +76,7 @@ class QueuedEventsTest extends TestCase
         });
     }
 
-    public function testCustomizedQueuedEventHandlersAreQueued()
+    public function testCustomizedQueuedEventHandlersAreQueued(): void
     {
         $d = new Dispatcher;
 
@@ -92,7 +92,7 @@ class QueuedEventsTest extends TestCase
         $fakeQueue->assertPushedOn('my_queue', CallQueuedListener::class);
     }
 
-    public function testQueueIsSetByGetQueue()
+    public function testQueueIsSetByGetQueue(): void
     {
         $d = new Dispatcher;
 
@@ -190,7 +190,7 @@ class QueuedEventsTest extends TestCase
         $d->dispatch('some.event', ['foo', 'bar']);
     }
 
-    public function testQueueIsSetByGetQueueDynamically()
+    public function testQueueIsSetByGetQueueDynamically(): void
     {
         $d = new Dispatcher;
 
@@ -206,7 +206,7 @@ class QueuedEventsTest extends TestCase
         $fakeQueue->assertPushedOn('p0', CallQueuedListener::class);
     }
 
-    public function testQueueIsSetByGetConnectionDynamically()
+    public function testQueueIsSetByGetConnectionDynamically(): void
     {
         $d = new Dispatcher;
         $queueManager = $this->createMock(QueueManager::class);
@@ -312,7 +312,7 @@ class QueuedEventsTest extends TestCase
         $d->dispatch('some.event', [['useHighDelay' => true], 'bar']);
     }
 
-    public function testQueuePropagateRetryUntilAndMaxExceptions()
+    public function testQueuePropagateRetryUntilAndMaxExceptions(): void
     {
         $d = new Dispatcher;
 
@@ -330,7 +330,7 @@ class QueuedEventsTest extends TestCase
         });
     }
 
-    public function testQueuePropagateTries()
+    public function testQueuePropagateTries(): void
     {
         $d = new Dispatcher;
 
@@ -378,7 +378,7 @@ class QueuedEventsTest extends TestCase
         );
     }
 
-    public function testQueuePropagateMessageGroupProperty()
+    public function testQueuePropagateMessageGroupProperty(): void
     {
         $d = new Dispatcher;
 
@@ -396,7 +396,7 @@ class QueuedEventsTest extends TestCase
         });
     }
 
-    public function testQueuePropagateMessageGroupMethodOverProperty()
+    public function testQueuePropagateMessageGroupMethodOverProperty(): void
     {
         $d = new Dispatcher;
 
@@ -414,7 +414,7 @@ class QueuedEventsTest extends TestCase
         });
     }
 
-    public function testQueuePropagateDeduplicationIdMethod()
+    public function testQueuePropagateDeduplicationIdMethod(): void
     {
         $d = new Dispatcher;
 
@@ -434,7 +434,7 @@ class QueuedEventsTest extends TestCase
         });
     }
 
-    public function testQueuePropagateDeduplicatorMethodOverDeduplicationIdMethod()
+    public function testQueuePropagateDeduplicatorMethodOverDeduplicationIdMethod(): void
     {
         $d = new Dispatcher;
 
@@ -454,7 +454,7 @@ class QueuedEventsTest extends TestCase
         });
     }
 
-    public function testQueuePropagateMiddleware()
+    public function testQueuePropagateMiddleware(): void
     {
         $d = new Dispatcher;
 
@@ -475,7 +475,7 @@ class QueuedEventsTest extends TestCase
         });
     }
 
-    public function testDispatchesOnQueueDefinedWithEnum()
+    public function testDispatchesOnQueueDefinedWithEnum(): void
     {
         $d = new Dispatcher;
 
@@ -604,7 +604,7 @@ class QueuedEventsTest extends TestCase
         });
     }
 
-    public function testUniqueLockKeyUsesListenerClassName()
+    public function testUniqueLockKeyUsesListenerClassName(): void
     {
         $listener = new CallQueuedListener(TestDispatcherShouldBeUnique::class, 'handle', []);
         $listener->shouldBeUnique = true;

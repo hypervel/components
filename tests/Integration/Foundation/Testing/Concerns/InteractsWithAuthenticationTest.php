@@ -55,7 +55,7 @@ class InteractsWithAuthenticationTest extends TestCase
         ]);
     }
 
-    public function testAssertAsGuest()
+    public function testAssertAsGuest(): void
     {
         $guard = m::mock(Guard::class);
         $guard->shouldReceive('check')
@@ -76,7 +76,7 @@ class InteractsWithAuthenticationTest extends TestCase
         $this->assertFalse($this->isAuthenticated());
     }
 
-    public function testAssertActingAs()
+    public function testAssertActingAs(): void
     {
         $user = m::mock(UserContract::class);
         $guard = m::mock(Guard::class);
@@ -109,7 +109,7 @@ class InteractsWithAuthenticationTest extends TestCase
         $this->assertAuthenticatedAs($user);
     }
 
-    public function testActingAsIsProperlyHandledForSessionAuth()
+    public function testActingAsIsProperlyHandledForSessionAuth(): void
     {
         Route::get('me', function (Request $request) {
             return 'Hello ' . $request->user()->username;
@@ -241,7 +241,7 @@ class InteractsWithAuthenticationTest extends TestCase
         $this->assertAuthenticatedAs($secondaryUser, 'secondary');
     }
 
-    public function testActingAsIsProperlyHandledForAuthViaRequest()
+    public function testActingAsIsProperlyHandledForAuthViaRequest(): void
     {
         Route::get('me', function (Request $request) {
             return 'Hello ' . $request->user()->username;
@@ -365,7 +365,7 @@ class InteractsWithAuthenticationTest extends TestCase
         $this->assertSame(3, $resolutions);
     }
 
-    public function testActingAsGuestClearsTheUser()
+    public function testActingAsGuestClearsTheUser(): void
     {
         Route::get('me', function (Request $request) {
             return 'Hello ' . $request->user()->username;

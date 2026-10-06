@@ -11,7 +11,7 @@ class ViewMakeCommandTest extends TestCase
         'tests/Feature/View/FooTest.php',
     ];
 
-    public function testItCanGenerateViewFile()
+    public function testItCanGenerateViewFile(): void
     {
         $this->artisan('make:view', ['name' => 'foo'])
             ->assertExitCode(0);
@@ -20,7 +20,7 @@ class ViewMakeCommandTest extends TestCase
         $this->assertFilenameNotExists('tests/Feature/View/FooTest.php');
     }
 
-    public function testItCanGenerateViewFileWithTest()
+    public function testItCanGenerateViewFileWithTest(): void
     {
         $this->artisan('make:view', ['name' => 'foo', '--test' => true])
             ->assertExitCode(0);

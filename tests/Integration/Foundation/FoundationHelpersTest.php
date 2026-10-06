@@ -116,7 +116,7 @@ class FoundationHelpersTest extends TestCase
     // REMOVED: testMixThrowsExceptionWhenAssetIsMissingFromManifestWhenInDebugMode - Mix deleted from Hypervel
     // REMOVED: testMixOnlyThrowsAndReportsOneExceptionWhenAssetIsMissingFromManifestWhenInDebugMode - Mix deleted from Hypervel
 
-    public function testFakeReturnsSameInstance()
+    public function testFakeReturnsSameInstance(): void
     {
         $this->assertSame(fake(), fake());
         $this->assertSame(fake(), fake('en_US'));
@@ -124,7 +124,7 @@ class FoundationHelpersTest extends TestCase
         $this->assertNotSame(fake('en_US'), fake('en_AU'));
     }
 
-    public function testFakeUsesLocale()
+    public function testFakeUsesLocale(): void
     {
         // Process-global RNG state is not coroutine-isolated, so assert locale ownership instead of an exact draw.
         $this->assertContains(

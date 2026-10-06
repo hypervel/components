@@ -87,7 +87,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ], $blueprint->toSql());
     }
 
-    public function testIndexDefaultNames()
+    public function testIndexDefaultNames(): void
     {
         $blueprint = $this->getBlueprint(table: 'users');
         $blueprint->unique(['foo', 'bar']);
@@ -183,7 +183,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertSame([$foreign], $blueprint->getCommands());
     }
 
-    public function testIndexDefaultNamesWhenPrefixSupplied()
+    public function testIndexDefaultNamesWhenPrefixSupplied(): void
     {
         $blueprint = $this->getBlueprint(table: 'users', prefix: 'prefix_');
         $blueprint->unique(['foo', 'bar']);
@@ -201,7 +201,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertSame('prefix_geo_coordinates_spatialindex', $commands[0]->index);
     }
 
-    public function testDropIndexDefaultNames()
+    public function testDropIndexDefaultNames(): void
     {
         $blueprint = $this->getBlueprint(table: 'users');
         $blueprint->dropUnique(['foo', 'bar']);
@@ -261,7 +261,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertSame('0', $blueprint->getCommands()[0]->index);
     }
 
-    public function testDropIndexDefaultNamesWhenPrefixSupplied()
+    public function testDropIndexDefaultNamesWhenPrefixSupplied(): void
     {
         $blueprint = $this->getBlueprint(table: 'users', prefix: 'prefix_');
         $blueprint->dropUnique(['foo', 'bar']);
@@ -303,7 +303,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertEquals(['alter table "users" add column "created" date not null default CURRENT_DATE'], $getSql('SQLite'));
     }
 
-    public function testDefaultCurrentDateTime()
+    public function testDefaultCurrentDateTime(): void
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'users', function ($table) {
@@ -316,7 +316,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertEquals(['alter table "users" add column "created" datetime not null default CURRENT_TIMESTAMP'], $getSql('SQLite'));
     }
 
-    public function testDefaultCurrentTimestamp()
+    public function testDefaultCurrentTimestamp(): void
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'users', function ($table) {
@@ -353,7 +353,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertEquals(['alter table "users" add column "birth_year" integer not null default (CAST(strftime(\'%Y\', \'now\') AS INTEGER))'], $getSql('SQLite'));
     }
 
-    public function testRemoveColumn()
+    public function testRemoveColumn(): void
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'users', function ($table) {
@@ -492,7 +492,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertSame(['add', 'add', 'unique'], array_column($blueprint->getCommands(), 'name'));
     }
 
-    public function testRenameColumn()
+    public function testRenameColumn(): void
     {
         $getSql = function ($grammar) {
             $connection = $this->getConnection($grammar);
@@ -509,7 +509,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertEquals(['alter table "users" rename column "foo" to "bar"'], $getSql('SQLite'));
     }
 
-    public function testNativeRenameColumnOnMysql57()
+    public function testNativeRenameColumnOnMysql57(): void
     {
         $connection = $this->getConnection('MySql');
         $connection->shouldReceive('isMaria')->andReturn(false);
@@ -533,7 +533,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ], $blueprint->toSql());
     }
 
-    public function testNativeRenameColumnOnLegacyMariaDB()
+    public function testNativeRenameColumnOnLegacyMariaDB(): void
     {
         $connection = $this->getConnection('MariaDb');
         $connection->shouldReceive('isMaria')->andReturn(true);
@@ -560,7 +560,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ], $blueprint->toSql());
     }
 
-    public function testDropColumn()
+    public function testDropColumn(): void
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'users', function ($table) {
@@ -573,7 +573,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertEquals(['alter table "users" drop column "foo"'], $getSql('SQLite'));
     }
 
-    public function testNativeColumnModifyingOnMySql()
+    public function testNativeColumnModifyingOnMySql(): void
     {
         $blueprint = $this->getBlueprint('MySql', 'users', function ($table) {
             $table->double('amount')->nullable()->invisible()->after('name')->change();
@@ -595,7 +595,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ], $blueprint->toSql());
     }
 
-    public function testMacroable()
+    public function testMacroable(): void
     {
         Blueprint::macro('foo', function () {
             return $this->addCommand('foo');
@@ -612,7 +612,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertEquals(['bar'], $blueprint->toSql());
     }
 
-    public function testDefaultUsingIdMorph()
+    public function testDefaultUsingIdMorph(): void
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'comments', function ($table) {
@@ -627,7 +627,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ], $getSql('MySql'));
     }
 
-    public function testDefaultUsingNullableIdMorph()
+    public function testDefaultUsingNullableIdMorph(): void
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'comments', function ($table) {
@@ -642,7 +642,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ], $getSql('MySql'));
     }
 
-    public function testDefaultUsingUuidMorph()
+    public function testDefaultUsingUuidMorph(): void
     {
         Builder::defaultMorphKeyType('uuid');
 
@@ -659,7 +659,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ], $getSql('MySql'));
     }
 
-    public function testDefaultUsingNullableUuidMorph()
+    public function testDefaultUsingNullableUuidMorph(): void
     {
         Builder::defaultMorphKeyType('uuid');
 
@@ -676,7 +676,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ], $getSql('MySql'));
     }
 
-    public function testDefaultUsingUlidMorph()
+    public function testDefaultUsingUlidMorph(): void
     {
         Builder::defaultMorphKeyType('ulid');
 
@@ -693,7 +693,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ], $getSql('MySql'));
     }
 
-    public function testDefaultUsingNullableUlidMorph()
+    public function testDefaultUsingNullableUlidMorph(): void
     {
         Builder::defaultMorphKeyType('ulid');
 
@@ -710,7 +710,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ], $getSql('MySql'));
     }
 
-    public function testGenerateRelationshipColumnWithIncrementalModel()
+    public function testGenerateRelationshipColumnWithIncrementalModel(): void
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
@@ -723,7 +723,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ], $getSql('MySql'));
     }
 
-    public function testGenerateRelationshipColumnWithNonIncrementalModel()
+    public function testGenerateRelationshipColumnWithNonIncrementalModel(): void
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
@@ -736,7 +736,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ], $getSql('MySql'));
     }
 
-    public function testGenerateRelationshipColumnWithUuidModel()
+    public function testGenerateRelationshipColumnWithUuidModel(): void
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
@@ -762,7 +762,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ], $getSql('MySql'));
     }
 
-    public function testGenerateRelationshipColumnWithUlidModel()
+    public function testGenerateRelationshipColumnWithUlidModel(): void
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
@@ -792,7 +792,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ], $getSql('MySql'));
     }
 
-    public function testGenerateRelationshipConstrainedColumn()
+    public function testGenerateRelationshipConstrainedColumn(): void
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
@@ -834,7 +834,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ], $getSql('MySql'));
     }
 
-    public function testGenerateRelationshipForModelWithNonStandardPrimaryKeyName()
+    public function testGenerateRelationshipForModelWithNonStandardPrimaryKeyName(): void
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
@@ -848,7 +848,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ], $getSql('MySql'));
     }
 
-    public function testDropRelationshipColumnWithIncrementalModel()
+    public function testDropRelationshipColumnWithIncrementalModel(): void
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
@@ -861,7 +861,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ], $getSql('MySql'));
     }
 
-    public function testDropRelationshipColumnWithUuidModel()
+    public function testDropRelationshipColumnWithUuidModel(): void
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
@@ -874,7 +874,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ], $getSql('MySql'));
     }
 
-    public function testDropConstrainedRelationshipColumnWithIncrementalModel()
+    public function testDropConstrainedRelationshipColumnWithIncrementalModel(): void
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
@@ -888,7 +888,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ], $getSql('MySql'));
     }
 
-    public function testDropConstrainedRelationshipColumnWithUuidModel()
+    public function testDropConstrainedRelationshipColumnWithUuidModel(): void
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
@@ -902,7 +902,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ], $getSql('MySql'));
     }
 
-    public function testTinyTextColumn()
+    public function testTinyTextColumn(): void
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
@@ -915,7 +915,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertEquals(['alter table "posts" add column "note" varchar(255) not null'], $getSql('Postgres'));
     }
 
-    public function testTinyTextNullableColumn()
+    public function testTinyTextNullableColumn(): void
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
@@ -928,7 +928,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertEquals(['alter table "posts" add column "note" varchar(255) null'], $getSql('Postgres'));
     }
 
-    public function testRawColumn()
+    public function testRawColumn(): void
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
@@ -949,7 +949,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ], $getSql('Postgres'));
     }
 
-    public function testTableComment()
+    public function testTableComment(): void
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
@@ -961,7 +961,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertEquals(['comment on table "posts" is \'Look at my comment, it is amazing\''], $getSql('Postgres'));
     }
 
-    public function testColumnDefault()
+    public function testColumnDefault(): void
     {
         // Test a normal string literal column default.
         $getSql = function ($grammar) {

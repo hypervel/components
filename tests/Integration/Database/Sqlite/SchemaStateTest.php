@@ -29,7 +29,7 @@ class SchemaStateTest extends SqliteTestCase
     }
 
     #[RequiresOperatingSystem('Linux|Darwin')]
-    public function testSchemaDumpOnSqlite()
+    public function testSchemaDumpOnSqlite(): void
     {
         if (! is_executable('/usr/bin/sqlite3') && ! shell_exec('which sqlite3')) {
             $this->markTestSkipped('sqlite3 CLI tool is not available');

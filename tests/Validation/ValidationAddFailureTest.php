@@ -20,7 +20,7 @@ class ValidationAddFailureTest extends TestCase
         return new Validator($trans, ['foo' => ['bar' => ['baz' => '']]], ['foo.bar.baz' => 'sometimes|required']);
     }
 
-    public function testAddFailureExists()
+    public function testAddFailureExists(): void
     {
         $validator = $this->makeValidator();
         $method_name = 'addFailure';
@@ -28,7 +28,7 @@ class ValidationAddFailureTest extends TestCase
         $this->assertIsCallable([$validator, $method_name]);
     }
 
-    public function testAddFailureIsFunctional()
+    public function testAddFailureIsFunctional(): void
     {
         $attribute = 'Eugene';
         $validator = $this->makeValidator();

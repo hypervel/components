@@ -50,7 +50,7 @@ class MakesHttpRequestsTest extends TestCase
         $this->assertSame('http://localhost/previous/url', $this->app->make('session')->previousUrl());
     }
 
-    public function testFromRemoveHeader()
+    public function testFromRemoveHeader(): void
     {
         $this->withHeader('name', 'Milwad')->from('previous/url');
 
@@ -61,7 +61,7 @@ class MakesHttpRequestsTest extends TestCase
         $this->assertArrayNotHasKey('name', $this->defaultHeaders);
     }
 
-    public function testFromRemoveHeaders()
+    public function testFromRemoveHeaders(): void
     {
         $this->withHeaders([
             'name' => 'Milwad',
@@ -77,7 +77,7 @@ class MakesHttpRequestsTest extends TestCase
         $this->assertArrayNotHasKey('foo', $this->defaultHeaders);
     }
 
-    public function testWithTokenSetsAuthorizationHeader()
+    public function testWithTokenSetsAuthorizationHeader(): void
     {
         $this->withToken('foobar');
         $this->assertSame('Bearer foobar', $this->defaultHeaders['Authorization']);
@@ -86,7 +86,7 @@ class MakesHttpRequestsTest extends TestCase
         $this->assertSame('Basic foobar', $this->defaultHeaders['Authorization']);
     }
 
-    public function testWithBasicAuthSetsAuthorizationHeader()
+    public function testWithBasicAuthSetsAuthorizationHeader(): void
     {
         $callback = function ($username, $password) {
             return base64_encode("{$username}:{$password}");
@@ -113,7 +113,7 @@ class MakesHttpRequestsTest extends TestCase
         $this->assertCount(1, $password->getAttributes(SensitiveParameter::class));
     }
 
-    public function testWithoutTokenRemovesAuthorizationHeader()
+    public function testWithoutTokenRemovesAuthorizationHeader(): void
     {
         $this->withToken('foobar');
         $this->assertSame('Bearer foobar', $this->defaultHeaders['Authorization']);
@@ -122,7 +122,7 @@ class MakesHttpRequestsTest extends TestCase
         $this->assertArrayNotHasKey('Authorization', $this->defaultHeaders);
     }
 
-    public function testWithoutAndWithMiddleware()
+    public function testWithoutAndWithMiddleware(): void
     {
         $this->assertFalse($this->app->has('middleware.disable'));
 
@@ -139,7 +139,7 @@ class MakesHttpRequestsTest extends TestCase
         $this->assertTrue((new ReflectionMethod($this, 'withoutMiddleware'))->isPublic());
     }
 
-    public function testWithoutAndWithMiddlewareWithParameter()
+    public function testWithoutAndWithMiddlewareWithParameter(): void
     {
         $next = function ($request) {
             return $request;
@@ -184,7 +184,7 @@ class MakesHttpRequestsTest extends TestCase
         );
     }
 
-    public function testWithCookieSetCookie()
+    public function testWithCookieSetCookie(): void
     {
         $this->withCookie('foo', 'bar');
 
@@ -192,7 +192,7 @@ class MakesHttpRequestsTest extends TestCase
         $this->assertSame('bar', $this->defaultCookies['foo']);
     }
 
-    public function testWithCookiesSetsCookiesAndOverwritesPreviousValues()
+    public function testWithCookiesSetsCookiesAndOverwritesPreviousValues(): void
     {
         $this->withCookie('foo', 'bar');
         $this->withCookies([
@@ -205,7 +205,7 @@ class MakesHttpRequestsTest extends TestCase
         $this->assertSame('new-value', $this->defaultCookies['new-cookie']);
     }
 
-    public function testWithUnencryptedCookieSetCookie()
+    public function testWithUnencryptedCookieSetCookie(): void
     {
         $this->withUnencryptedCookie('foo', 'bar');
 
@@ -213,7 +213,7 @@ class MakesHttpRequestsTest extends TestCase
         $this->assertSame('bar', $this->unencryptedCookies['foo']);
     }
 
-    public function testWithUnencryptedCookiesSetsCookiesAndOverwritesPreviousValues()
+    public function testWithUnencryptedCookiesSetsCookiesAndOverwritesPreviousValues(): void
     {
         $this->withUnencryptedCookie('foo', 'bar');
         $this->withUnencryptedCookies([
@@ -226,7 +226,7 @@ class MakesHttpRequestsTest extends TestCase
         $this->assertSame('new-value', $this->unencryptedCookies['new-cookie']);
     }
 
-    public function testWithoutAndWithCredentials()
+    public function testWithoutAndWithCredentials(): void
     {
         $this->encryptCookies = false;
 
@@ -237,7 +237,7 @@ class MakesHttpRequestsTest extends TestCase
         $this->assertSame(['foo' => 'bar'], $this->prepareCookiesForJsonRequest());
     }
 
-    public function testCookieHelperRespectsConfiguredSecureDefault()
+    public function testCookieHelperRespectsConfiguredSecureDefault(): void
     {
         config(['session.secure' => true]);
 
@@ -246,7 +246,7 @@ class MakesHttpRequestsTest extends TestCase
         $this->assertTrue($cookie->isSecure());
     }
 
-    public function testFollowingRedirects()
+    public function testFollowingRedirects(): void
     {
         $router = $this->app->make(Router::class);
         $router->get('/foo', fn () => 'foo');
@@ -258,13 +258,13 @@ class MakesHttpRequestsTest extends TestCase
             ->assertSee('foo');
     }
 
-    public function testGetNotFound()
+    public function testGetNotFound(): void
     {
         $this->get('/foo')
             ->assertNotFound();
     }
 
-    public function testGetFoundRoute()
+    public function testGetFoundRoute(): void
     {
         $this->app->make(Router::class)->get('/foo', fn () => 'foo');
 
@@ -273,7 +273,7 @@ class MakesHttpRequestsTest extends TestCase
             ->assertSee('foo');
     }
 
-    public function testGetReturnsAfterDeferredRouteWorkCompletes()
+    public function testGetReturnsAfterDeferredRouteWorkCompletes(): void
     {
         DeferredHttpRequestState::reset();
 
@@ -293,7 +293,7 @@ class MakesHttpRequestsTest extends TestCase
         $this->assertTrue(DeferredHttpRequestState::$deferredWorkCompleted);
     }
 
-    public function testGetReturnsAfterDeferredRouteWorkCompletesWhenRouteThrowsHttpException()
+    public function testGetReturnsAfterDeferredRouteWorkCompletesWhenRouteThrowsHttpException(): void
     {
         DeferredHttpRequestState::reset();
 
@@ -312,7 +312,7 @@ class MakesHttpRequestsTest extends TestCase
         $this->assertTrue(DeferredHttpRequestState::$deferredWorkCompleted);
     }
 
-    public function testGetFoundRouteWithTrailingSlash()
+    public function testGetFoundRouteWithTrailingSlash(): void
     {
         $this->app->make(Router::class)->get('/foo', fn () => 'foo');
 
@@ -321,7 +321,7 @@ class MakesHttpRequestsTest extends TestCase
             ->assertSee('foo');
     }
 
-    public function testWithHeaders()
+    public function testWithHeaders(): void
     {
         $this->app->make(Router::class)->get('/headers', function (\Hypervel\Http\Request $request) {
             return new Response(
@@ -338,7 +338,7 @@ class MakesHttpRequestsTest extends TestCase
             ->assertHeader('X-Header', 'Value');
     }
 
-    public function testCallPropagatesFinishedRequestToParentCoroutine()
+    public function testCallPropagatesFinishedRequestToParentCoroutine(): void
     {
         $this->app->make(Router::class)->get('/hello', fn () => 'hello world');
 
@@ -378,7 +378,7 @@ class MakesHttpRequestsTest extends TestCase
         ], $order);
     }
 
-    public function testCallPropagatesFlashedInputToParentCoroutine()
+    public function testCallPropagatesFlashedInputToParentCoroutine(): void
     {
         $this->app->make(Router::class)
             ->get('/web/hello', function () {
@@ -453,7 +453,7 @@ class MakesHttpRequestsTest extends TestCase
         $this->assertSame('Hypervel', $stored['team']);
     }
 
-    public function testAssertSessionHasErrors()
+    public function testAssertSessionHasErrors(): void
     {
         $this->app->instance('session.store', $store = new Store('test-session', new ArraySessionHandler(1)));
 
@@ -494,7 +494,7 @@ class MakesHttpRequestsTest extends TestCase
         $response->assertSessionHasErrors(['foo']);
     }
 
-    public function testAssertSessionDoesntHaveErrors()
+    public function testAssertSessionDoesntHaveErrors(): void
     {
         $this->expectException(AssertionFailedError::class);
 
@@ -513,7 +513,7 @@ class MakesHttpRequestsTest extends TestCase
         $response->assertSessionDoesntHaveErrors(['foo']);
     }
 
-    public function testAssertSessionHasNoErrors()
+    public function testAssertSessionHasNoErrors(): void
     {
         $this->app->instance('session.store', $store = new Store('test-session', new ArraySessionHandler(1)));
 
@@ -545,7 +545,7 @@ class MakesHttpRequestsTest extends TestCase
         $this->assertStringContainsString('bar is required', $caughtException->getMessage());
     }
 
-    public function testAssertSessionHas()
+    public function testAssertSessionHas(): void
     {
         $this->app->instance('session.store', $store = new Store('test-session', new ArraySessionHandler(1)));
 
@@ -559,7 +559,7 @@ class MakesHttpRequestsTest extends TestCase
         $response->assertSessionHas(['foo', 'bar']);
     }
 
-    public function testAssertSessionMissing()
+    public function testAssertSessionMissing(): void
     {
         $this->expectException(AssertionFailedError::class);
 
@@ -571,7 +571,7 @@ class MakesHttpRequestsTest extends TestCase
         $response->assertSessionMissing('foo');
     }
 
-    public function testAssertSessionHasInput()
+    public function testAssertSessionHasInput(): void
     {
         $this->app->instance('session.store', $store = new Store('test-session', new ArraySessionHandler(1)));
 
@@ -592,7 +592,7 @@ class MakesHttpRequestsTest extends TestCase
         });
     }
 
-    public function testFollowingRedirectsTerminatesInExpectedOrder()
+    public function testFollowingRedirectsTerminatesInExpectedOrder(): void
     {
         $router = $this->app->make(Registrar::class);
 
@@ -670,7 +670,7 @@ class MakesHttpRequestsTest extends TestCase
             ]);
     }
 
-    public function testWithPrecognition()
+    public function testWithPrecognition(): void
     {
         $this->withPrecognition();
         $this->assertSame('true', $this->defaultHeaders['Precognition']);
@@ -683,7 +683,7 @@ class MakesHttpRequestsTest extends TestCase
             ->assertHeader('Precognition-Success', 'true');
     }
 
-    public function testCreateTestResponsePassesLoggedExceptionCollection()
+    public function testCreateTestResponsePassesLoggedExceptionCollection(): void
     {
         $this->app->make(Registrar::class)
             ->get('test-route', fn () => 'ok');
@@ -693,7 +693,7 @@ class MakesHttpRequestsTest extends TestCase
         $this->assertInstanceOf(LoggedExceptionCollection::class, $response->exceptions);
     }
 
-    public function testCreateTestResponseUsesContainerBoundExceptionCollection()
+    public function testCreateTestResponseUsesContainerBoundExceptionCollection(): void
     {
         $collection = new LoggedExceptionCollection;
         $this->app->instance(LoggedExceptionCollection::class, $collection);

@@ -14,7 +14,7 @@ use function Hypervel\Prompts\multiselect;
 
 class MultiSelectPromptTest extends TestCase
 {
-    public function testAcceptsAnArrayOfLabels()
+    public function testAcceptsAnArrayOfLabels(): void
     {
         Prompt::fake([Key::DOWN, Key::SPACE, Key::DOWN, Key::SPACE, Key::ENTER]);
 
@@ -34,7 +34,7 @@ class MultiSelectPromptTest extends TestCase
         Prompt::assertStrippedOutputContains('│ Blue');
     }
 
-    public function testAcceptsAnArrayOfKeysAndLabels()
+    public function testAcceptsAnArrayOfKeysAndLabels(): void
     {
         Prompt::fake([Key::DOWN, Key::SPACE, Key::DOWN, Key::SPACE, Key::ENTER]);
 
@@ -50,7 +50,7 @@ class MultiSelectPromptTest extends TestCase
         $this->assertSame(['green', 'blue'], $result);
     }
 
-    public function testAcceptsAnAssociateArrayWithIntegerKeys()
+    public function testAcceptsAnAssociateArrayWithIntegerKeys(): void
     {
         Prompt::fake([Key::DOWN, Key::SPACE, Key::DOWN, Key::SPACE, Key::ENTER]);
 
@@ -66,7 +66,7 @@ class MultiSelectPromptTest extends TestCase
         $this->assertSame([2, 3], $result);
     }
 
-    public function testAcceptsDefaultValuesWhenTheOptionsAreLabel()
+    public function testAcceptsDefaultValuesWhenTheOptionsAreLabel(): void
     {
         Prompt::fake([Key::ENTER]);
 
@@ -284,7 +284,7 @@ class MultiSelectPromptTest extends TestCase
         ], required: true);
     }
 
-    public function testSupportsSelectingAllOptions()
+    public function testSupportsSelectingAllOptions(): void
     {
         Prompt::fake([Key::CTRL_A, Key::ENTER]);
 
@@ -313,7 +313,7 @@ class MultiSelectPromptTest extends TestCase
         $this->assertSame([], $result);
     }
 
-    public function testSelectsAllOptionsWhenDefaultIsProvided()
+    public function testSelectsAllOptionsWhenDefaultIsProvided(): void
     {
         Prompt::fake([Key::CTRL_A, Key::ENTER]);
 
@@ -330,7 +330,7 @@ class MultiSelectPromptTest extends TestCase
         $this->assertSame(['red', 'green', 'blue'], $result);
     }
 
-    public function testDeselectsAllWhenAllOptionsAreAlreadyDefault()
+    public function testDeselectsAllWhenAllOptionsAreAlreadyDefault(): void
     {
         Prompt::fake([Key::CTRL_A, Key::ENTER]);
 

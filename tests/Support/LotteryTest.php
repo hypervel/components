@@ -10,7 +10,7 @@ use RuntimeException;
 
 class LotteryTest extends TestCase
 {
-    public function testItCanWin()
+    public function testItCanWin(): void
     {
         $wins = false;
 
@@ -22,7 +22,7 @@ class LotteryTest extends TestCase
         $this->assertTrue($wins);
     }
 
-    public function testItCanLose()
+    public function testItCanLose(): void
     {
         $wins = false;
         $loses = false;
@@ -38,7 +38,7 @@ class LotteryTest extends TestCase
         $this->assertTrue($loses);
     }
 
-    public function testItCanReturnValues()
+    public function testItCanReturnValues(): void
     {
         $win = Lottery::odds(1, 1)->winner(fn () => 'win')->choose();
         $this->assertSame('win', $win);
@@ -47,7 +47,7 @@ class LotteryTest extends TestCase
         $this->assertSame('lose', $lose);
     }
 
-    public function testItCanChooseSeveralTimes()
+    public function testItCanChooseSeveralTimes(): void
     {
         $results = Lottery::odds(1, 1)->winner(fn () => 'win')->choose(2);
         $this->assertSame(['win', 'win'], $results);
@@ -56,7 +56,7 @@ class LotteryTest extends TestCase
         $this->assertSame(['lose', 'lose'], $results);
     }
 
-    public function testItCanBePassedAsCallable()
+    public function testItCanBePassedAsCallable(): void
     {
         // Example...
         // DB::whenQueryingForLongerThan(Interval::seconds(5), Lottery::odds(1, 5)->winner(function ($connection) {
@@ -69,7 +69,7 @@ class LotteryTest extends TestCase
         $this->assertSame('winner-winner-chicken-dinner', $result);
     }
 
-    public function testWithoutSpecifiedClosuresBooleansAreReturned()
+    public function testWithoutSpecifiedClosuresBooleansAreReturned(): void
     {
         $win = Lottery::odds(1, 1)->choose();
         $this->assertTrue($win);
@@ -78,7 +78,7 @@ class LotteryTest extends TestCase
         $this->assertFalse($lose);
     }
 
-    public function testItCanForceWinningResultInTests()
+    public function testItCanForceWinningResultInTests(): void
     {
         $result = null;
         Lottery::alwaysWin(function () use (&$result) {
@@ -91,7 +91,7 @@ class LotteryTest extends TestCase
         ], $result);
     }
 
-    public function testItCanForceLosingResultInTests()
+    public function testItCanForceLosingResultInTests(): void
     {
         $result = null;
         Lottery::alwaysLose(function () use (&$result) {
@@ -128,7 +128,7 @@ class LotteryTest extends TestCase
         $this->assertTrue(Lottery::odds(1, 1)->choose());
     }
 
-    public function testItCanForceTheResultViaSequence()
+    public function testItCanForceTheResultViaSequence(): void
     {
         $result = null;
         Lottery::forceResultWithSequence([
@@ -180,7 +180,7 @@ class LotteryTest extends TestCase
         $this->assertFalse(ThrowingLottery::odds(1, 1)->choose());
     }
 
-    public function testFlushStateRestoresNormalResultFactory()
+    public function testFlushStateRestoresNormalResultFactory(): void
     {
         Lottery::alwaysLose();
         $this->assertFalse(Lottery::odds(1, 1)->choose());
@@ -197,14 +197,14 @@ class LotteryTest extends TestCase
         new Lottery(1.1);
     }
 
-    public function testItThrowsForOutOfLessThanOne()
+    public function testItThrowsForOutOfLessThanOne(): void
     {
         $this->expectException(RuntimeException::class);
 
         new Lottery(1, 0);
     }
 
-    public function testItCanWinWithFloat()
+    public function testItCanWinWithFloat(): void
     {
         $wins = false;
 
@@ -216,7 +216,7 @@ class LotteryTest extends TestCase
         $this->assertTrue($wins);
     }
 
-    public function testItCanLoseWithFloat()
+    public function testItCanLoseWithFloat(): void
     {
         $wins = false;
         $loses = false;

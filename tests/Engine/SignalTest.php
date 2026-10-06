@@ -11,7 +11,7 @@ use function Hypervel\Coroutine\go;
 
 class SignalTest extends TestCase
 {
-    public function testSignal()
+    public function testSignal(): void
     {
         $res = Signal::wait(SIGUSR1, 0.05);
         $this->assertFalse($res);

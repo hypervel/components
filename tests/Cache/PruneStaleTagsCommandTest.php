@@ -17,7 +17,7 @@ use Symfony\Component\Console\Output\NullOutput;
 
 class PruneStaleTagsCommandTest extends TestCase
 {
-    public function testPruneCallsFlushStaleTagsOnStore()
+    public function testPruneCallsFlushStaleTagsOnStore(): void
     {
         $store = m::mock(RedisStore::class);
         $store->shouldReceive('flushStaleTags')
@@ -48,7 +48,7 @@ class PruneStaleTagsCommandTest extends TestCase
         $this->assertSame(0, $result);
     }
 
-    public function testPruneUsesSpecifiedStore()
+    public function testPruneUsesSpecifiedStore(): void
     {
         $store = m::mock(RedisStore::class);
         $store->shouldReceive('flushStaleTags')
@@ -79,7 +79,7 @@ class PruneStaleTagsCommandTest extends TestCase
         $this->assertSame(0, $result);
     }
 
-    public function testPruneHandlesNonSupportedStoreGracefully()
+    public function testPruneHandlesNonSupportedStoreGracefully(): void
     {
         $nonRedisStore = m::mock(Store::class);
 

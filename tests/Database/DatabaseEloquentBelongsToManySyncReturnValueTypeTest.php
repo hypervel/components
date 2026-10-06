@@ -83,7 +83,7 @@ class DatabaseEloquentBelongsToManySyncReturnValueTypeTest extends TestCase
         ]);
     }
 
-    public function testSyncReturnValueType()
+    public function testSyncReturnValueType(): void
     {
         $this->seedData();
 
@@ -101,7 +101,7 @@ class DatabaseEloquentBelongsToManySyncReturnValueTypeTest extends TestCase
         });
     }
 
-    public function testSyncWithPivotDefaultsReturnValueType()
+    public function testSyncWithPivotDefaultsReturnValueType(): void
     {
         $this->seedData();
 

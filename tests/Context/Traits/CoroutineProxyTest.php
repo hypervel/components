@@ -11,7 +11,7 @@ use RuntimeException;
 
 class CoroutineProxyTest extends TestCase
 {
-    public function testCoroutineProxy()
+    public function testCoroutineProxy(): void
     {
         CoroutineContext::set('bar', new Bar);
         $foo = new Foo;
@@ -21,7 +21,7 @@ class CoroutineProxyTest extends TestCase
         $this->assertSame('foo', $foo->bar);
     }
 
-    public function testCoroutineProxyException()
+    public function testCoroutineProxyException(): void
     {
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Missing $proxyKey property in Hypervel\Tests\Context\Traits\Foo2.');
