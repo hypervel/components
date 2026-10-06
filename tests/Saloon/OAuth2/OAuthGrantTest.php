@@ -239,7 +239,7 @@ class OAuthGrantTest extends TestCase
         ));
 
         $this->expectException(PendingRequestException::class);
-        $this->expectExceptionMessage('The request endpoint cannot replace the connector base URL.');
+        $this->expectExceptionMessageIs('The request endpoint cannot replace the connector base URL.');
 
         try {
             $connector->refreshAccessToken('refresh');

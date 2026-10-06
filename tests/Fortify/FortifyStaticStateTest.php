@@ -47,7 +47,7 @@ class FortifyStaticStateTest extends TestCase
         $auth->shouldUse('unkeyed');
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Auth guard [unkeyed] does not declare a passwords broker. Set auth.guards.unkeyed.passwords.');
+        $this->expectExceptionMessageIs('Auth guard [unkeyed] does not declare a passwords broker. Set auth.guards.unkeyed.passwords.');
 
         Password::broker();
     }

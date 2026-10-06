@@ -159,7 +159,7 @@ class TaskTest extends TestCase
     public function testRejectsNegativeLogLimit(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The task log limit must be zero or greater.');
+        $this->expectExceptionMessageIs('The task log limit must be zero or greater.');
 
         new Task(limit: -1);
     }

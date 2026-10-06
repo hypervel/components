@@ -1063,7 +1063,7 @@ class JwtGuardTest extends TestCase
     public function testInvalidateThrowsWhenNoTokenIsAvailable(): void
     {
         $this->expectException(JwtException::class);
-        $this->expectExceptionMessage('Token could not be parsed from the request.');
+        $this->expectExceptionMessageIs('Token could not be parsed from the request.');
 
         $guard = $this->createGuard(request: null);
         RequestContext::forget();

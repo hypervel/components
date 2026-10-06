@@ -326,7 +326,7 @@ class BuilderTest extends TestCase
     public function testHybridSearchRequiresPositiveWeights(): void
     {
         $this->expectException(ScoutException::class);
-        $this->expectExceptionMessage('positive numbers');
+        $this->expectExceptionMessageIsOrContains('positive numbers');
 
         (new Builder(m::mock(Model::class), 'query'))->hybrid(1, 0);
     }
@@ -337,7 +337,7 @@ class BuilderTest extends TestCase
         $model->shouldReceive('searchableUsing')->andReturn(m::mock(Engine::class));
 
         $this->expectException(NotSupportedException::class);
-        $this->expectExceptionMessage('does not support semantic search');
+        $this->expectExceptionMessageIsOrContains('does not support semantic search');
 
         (new Builder($model, 'query'))->semantic()->raw();
     }
@@ -354,7 +354,7 @@ class BuilderTest extends TestCase
         });
 
         $this->expectException(NotSupportedException::class);
-        $this->expectExceptionMessage('does not support semantic search');
+        $this->expectExceptionMessageIsOrContains('does not support semantic search');
 
         (new Builder($model, 'query'))->raw();
     }

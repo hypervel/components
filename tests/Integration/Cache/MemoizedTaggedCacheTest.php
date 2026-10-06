@@ -217,7 +217,7 @@ class MemoizedTaggedCacheTest extends TestCase
     public function testErrorThrownWhenTagsNotSupported(): void
     {
         $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('This cache store does not support tagging.');
+        $this->expectExceptionMessageIs('This cache store does not support tagging.');
 
         Cache::memo('file')->tags(['foo', 'bar'])->put('name', 'Tim', 60);
     }

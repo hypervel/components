@@ -24,7 +24,7 @@ class InteractsWithExceptionHandlingTest extends TestCase
         });
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Something went wrong');
+        $this->expectExceptionMessageIs('Something went wrong');
 
         $this->get('/error');
     }
@@ -69,7 +69,7 @@ class InteractsWithExceptionHandlingTest extends TestCase
         $this->withoutExceptionHandling();
 
         $this->expectException(NotFoundHttpException::class);
-        $this->expectExceptionMessage('GET');
+        $this->expectExceptionMessageIsOrContains('GET');
 
         $this->get('/nonexistent');
     }
@@ -159,7 +159,7 @@ class InteractsWithExceptionHandlingTest extends TestCase
         });
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('test exception');
+        $this->expectExceptionMessageIs('test exception');
 
         $this->get('/report-exception');
     }
@@ -177,7 +177,7 @@ class InteractsWithExceptionHandlingTest extends TestCase
         });
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('test exception');
+        $this->expectExceptionMessageIs('test exception');
 
         $this->get('/report-exception-after-handler-swaps');
     }

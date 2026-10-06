@@ -173,7 +173,7 @@ class NodeTest extends TestCase
     public function testLowLevelMoveRejectsInvalidNodeData(array $nodeData): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Node data for [Hypervel\Tests\NestedSet\Fixtures\Models\Category] must contain [_lft], [_rgt], and [depth].',
         );
 
@@ -501,7 +501,7 @@ class NodeTest extends TestCase
             ->firstOrFail();
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Nested set model [Hypervel\Tests\NestedSet\Fixtures\Models\Category] requires the [id] column to be selected.',
         );
 
@@ -516,7 +516,7 @@ class NodeTest extends TestCase
             ->firstOrFail();
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Nested set model [Hypervel\Tests\NestedSet\Fixtures\Models\Category] requires the [id] column to be selected.',
         );
 
@@ -558,7 +558,7 @@ class NodeTest extends TestCase
     public function testFailsToInsertIntoChild(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Node must not be a descendant.');
+        $this->expectExceptionMessageIs('Node must not be a descendant.');
 
         $node = $this->findCategory('notebooks');
         $target = $node->children()->first();
@@ -569,7 +569,7 @@ class NodeTest extends TestCase
     public function testFailsToAppendIntoItself(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Node must not be a descendant.');
+        $this->expectExceptionMessageIs('Node must not be a descendant.');
 
         $node = $this->findCategory('notebooks');
 
@@ -579,7 +579,7 @@ class NodeTest extends TestCase
     public function testFailsToPrependIntoItself(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Node must not be a descendant.');
+        $this->expectExceptionMessageIs('Node must not be a descendant.');
 
         $node = $this->findCategory('notebooks');
 
@@ -593,7 +593,7 @@ class NodeTest extends TestCase
             ->setRgt(0);
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Node must be part of a tree.');
+        $this->expectExceptionMessageIs('Node must be part of a tree.');
 
         (new Category(['name' => 'test']))->appendToNode($target);
     }
@@ -648,7 +648,7 @@ class NodeTest extends TestCase
             ->setConnection('nested_set_other');
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Nodes must be in the same tree.');
+        $this->expectExceptionMessageIs('Nodes must be in the same tree.');
 
         $source->{$method}($target);
     }
@@ -862,7 +862,7 @@ class NodeTest extends TestCase
         $node = Category::query()->select($columns)->findOrFail(5);
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Nested set node [Hypervel\Tests\NestedSet\Fixtures\Models\Category] must have loaded bounds.',
         );
 
@@ -1197,7 +1197,7 @@ class NodeTest extends TestCase
     public function testFailsToSaveNodeUntilParentIsSaved(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Node must be part of a tree.');
+        $this->expectExceptionMessageIs('Node must be part of a tree.');
 
         $node = new Category(['name' => 'Node']);
         $parent = new Category(['name' => 'Parent']);
@@ -1389,7 +1389,7 @@ class NodeTest extends TestCase
         );
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Nested set relation parent for [Hypervel\Tests\NestedSet\Fixtures\Models\Category] requires the [id] column.',
         );
 
@@ -1402,7 +1402,7 @@ class NodeTest extends TestCase
         $nodes = Category::whereIn('id', $parentIds)->get();
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Nested set relation eager load for [Hypervel\Tests\NestedSet\Fixtures\Models\Category] requires the [id] column.',
         );
 
@@ -1425,7 +1425,7 @@ class NodeTest extends TestCase
         $nodes = Category::whereIn('id', [1, 3])->get();
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Nested set relation eager load for [Hypervel\Tests\NestedSet\Fixtures\Models\Category] requires the [parent_id] column.',
         );
 
@@ -1447,7 +1447,7 @@ class NodeTest extends TestCase
         $node = Category::query()->select(['id'])->findOrFail(7);
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Nested set relation parent for [Hypervel\Tests\NestedSet\Fixtures\Models\Category] requires the [parent_id] column.',
         );
 
@@ -1468,7 +1468,7 @@ class NodeTest extends TestCase
             : [$complete, $partial];
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             "Nested set relation parent for [Hypervel\\Tests\\NestedSet\\Fixtures\\Models\\Category] requires the [{$requiredColumn}] column.",
         );
 
@@ -1498,7 +1498,7 @@ class NodeTest extends TestCase
             ->get();
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             "Nested set relation parent for [Hypervel\\Tests\\NestedSet\\Fixtures\\Models\\Category] requires the [{$requiredColumn}] column.",
         );
 
@@ -1511,7 +1511,7 @@ class NodeTest extends TestCase
         $node = Category::query()->select(['id'])->findOrFail(7);
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             "Nested set relation parent for [Hypervel\\Tests\\NestedSet\\Fixtures\\Models\\Category] requires the [{$requiredColumn}] column.",
         );
 
@@ -1557,7 +1557,7 @@ class NodeTest extends TestCase
         $node = Category::query()->select(['id'])->findOrFail(7);
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             "Nested set relation parent for [Hypervel\\Tests\\NestedSet\\Fixtures\\Models\\Category] requires the [{$requiredColumn}] column.",
         );
 
@@ -1685,7 +1685,7 @@ class NodeTest extends TestCase
         $nodes = Category::defaultOrder()->get($columns);
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(sprintf(
+        $this->expectExceptionMessageIs(sprintf(
             'Nested set tree building for [Hypervel\Tests\NestedSet\Fixtures\Models\Category] requires the [%s] column in the projection.',
             $requiredColumn,
         ));
@@ -1714,7 +1714,7 @@ class NodeTest extends TestCase
             ->get(['id', 'parent_id', 'name']);
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Nested set tree building for [Hypervel\Tests\NestedSet\Fixtures\Models\Category] requires the [_lft] column in the projection.',
         );
 
@@ -1730,7 +1730,7 @@ class NodeTest extends TestCase
         $nodes = Category::defaultOrder()->get();
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Nested set tree building for [Hypervel\Tests\NestedSet\Fixtures\Models\Category] requires the [id] column on the supplied root.',
         );
 
@@ -1745,7 +1745,7 @@ class NodeTest extends TestCase
         $nodes = Category::defaultOrder()->get();
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(sprintf(
+        $this->expectExceptionMessageIs(sprintf(
             'Model [%s] must be node.',
             $root::class,
         ));
@@ -2267,7 +2267,7 @@ class NodeTest extends TestCase
         $node = Category::query()->select(['id'])->findOrFail(7);
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Nested set node [Hypervel\Tests\NestedSet\Fixtures\Models\Category] must have loaded bounds.',
         );
 
@@ -2291,7 +2291,7 @@ class NodeTest extends TestCase
         };
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(sprintf(
+        $this->expectExceptionMessageIs(sprintf(
             'Model [%s] must be node.',
             $node::class,
         ));
@@ -2305,7 +2305,7 @@ class NodeTest extends TestCase
         $node = Category::query()->select(['id', 'parent_id'])->findOrFail(7);
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Nested set node [Hypervel\Tests\NestedSet\Fixtures\Models\Category] must have loaded bounds.',
         );
 
@@ -2329,7 +2329,7 @@ class NodeTest extends TestCase
             ->findOrFail(7);
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Nested set node [Hypervel\Tests\NestedSet\Fixtures\Models\Category] must have a loaded parent.',
         );
 
@@ -2342,7 +2342,7 @@ class NodeTest extends TestCase
         $node->setTable('other_categories');
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Nested set node [Hypervel\Tests\NestedSet\Fixtures\Models\Category] uses connection [testing] and table [other_categories], but query model [Hypervel\Tests\NestedSet\Fixtures\Models\Category] uses connection [testing] and table [categories].',
         );
 
@@ -2366,7 +2366,7 @@ class NodeTest extends TestCase
     public function testWhereDescendantsOf(): void
     {
         $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'No query results for model [Hypervel\Tests\NestedSet\Fixtures\Models\Category] 124',
         );
 
@@ -2418,7 +2418,7 @@ class NodeTest extends TestCase
 
         if ($requiredColumn !== null) {
             $this->expectException(LogicException::class);
-            $this->expectExceptionMessage(
+            $this->expectExceptionMessageIs(
                 "Nested set relation eager load for [Hypervel\\Tests\\NestedSet\\Fixtures\\Models\\Category] requires the [{$requiredColumn}] column.",
             );
         }
@@ -2711,7 +2711,7 @@ class NodeTest extends TestCase
         ]);
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Nested set subtree for [Hypervel\Tests\NestedSet\Fixtures\Models\Category] with key [1] has parentage that crosses its stored bounds.',
         );
 
@@ -2806,7 +2806,7 @@ class NodeTest extends TestCase
         $root->setTable('other_categories');
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Nested set subtree repair root [Hypervel\Tests\NestedSet\Fixtures\Models\Category] uses connection [testing] and table [other_categories], but query model [Hypervel\Tests\NestedSet\Fixtures\Models\Category] uses connection [testing] and table [categories].',
         );
 
@@ -2826,7 +2826,7 @@ class NodeTest extends TestCase
         $root = Category::findOrFail(5);
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Nested set subtree for [Hypervel\Tests\NestedSet\Fixtures\Models\Category] with key [5] has invalid stored bounds.',
         );
 
@@ -3117,7 +3117,7 @@ class NodeTest extends TestCase
         ]);
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Nested set subtree for [Hypervel\Tests\NestedSet\Fixtures\Models\Category] with key [1] has parentage that crosses its stored bounds.',
         );
 
@@ -3210,7 +3210,7 @@ class NodeTest extends TestCase
     public function testRebuildFailsWithInvalidPK(): void
     {
         $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'No query results for model [Hypervel\Tests\NestedSet\Fixtures\Models\Category] 24',
         );
 

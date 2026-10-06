@@ -32,7 +32,7 @@ class ErrorPageTest extends TestCase
     public function itCanResolveExceptionWithoutExceptionHandling(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Bad route!');
+        $this->expectExceptionMessageIs('Bad route!');
 
         $this->withoutExceptionHandling()
             ->get('/failed');
@@ -51,7 +51,7 @@ class ErrorPageTest extends TestCase
     public function itCanResolveExceptionWithoutExceptionHandlingWithoutEnablingDebugMode(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Bad route!');
+        $this->expectExceptionMessageIs('Bad route!');
 
         $this->withoutExceptionHandling()
             ->get('/failed');
@@ -72,7 +72,7 @@ class ErrorPageTest extends TestCase
     public function itCanResolveExceptionUsingJsonRequestWithoutExceptionHandling(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Bad route!');
+        $this->expectExceptionMessageIs('Bad route!');
 
         $this->withoutExceptionHandling()
             ->get('/failed');

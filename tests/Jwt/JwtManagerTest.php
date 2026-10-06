@@ -187,7 +187,7 @@ class JwtManagerTest extends TestCase
     public function testThrowExceptionWhenTokenIsBlacklisted(): void
     {
         $this->expectException(TokenBlacklistedException::class);
-        $this->expectExceptionMessage('The token has been blacklisted');
+        $this->expectExceptionMessageIs('The token has been blacklisted');
 
         $token = 'foo.bar.baz';
         $payload = [
@@ -257,7 +257,7 @@ class JwtManagerTest extends TestCase
     public function testRefreshDoesNotInvalidateOldTokenWhenEncodingReplacementFails(): void
     {
         $this->expectException(JwtException::class);
-        $this->expectExceptionMessage('signing failed');
+        $this->expectExceptionMessageIs('signing failed');
 
         $token = 'foo.bar.baz';
         $payload = [
@@ -329,7 +329,7 @@ class JwtManagerTest extends TestCase
     public function testDecodeStillRejectsExpiredTokensWhenExpiredClaimValidationIsEnabled(): void
     {
         $this->expectException(TokenExpiredException::class);
-        $this->expectExceptionMessage('Token has expired');
+        $this->expectExceptionMessageIs('Token has expired');
 
         $payload = [
             'sub' => 1,
@@ -384,7 +384,7 @@ class JwtManagerTest extends TestCase
     public function testRefreshRejectsFutureNotBeforeClaim(): void
     {
         $this->expectException(JwtException::class);
-        $this->expectExceptionMessage('Not Before (nbf) timestamp cannot be in the future');
+        $this->expectExceptionMessageIs('Not Before (nbf) timestamp cannot be in the future');
 
         $token = 'foo.bar.baz';
         $payload = [
@@ -479,7 +479,7 @@ class JwtManagerTest extends TestCase
     public function testRefreshThrowsWhenRefreshWindowHasExpired(): void
     {
         $this->expectException(TokenExpiredException::class);
-        $this->expectExceptionMessage('Token has expired and can no longer be refreshed');
+        $this->expectExceptionMessageIs('Token has expired and can no longer be refreshed');
 
         $token = 'foo.bar.baz';
         $payload = [
@@ -547,7 +547,7 @@ class JwtManagerTest extends TestCase
     public function testRefreshRejectsMissingIssuedAtBeforeAnInfiniteRefreshWindow(array $issuedAt): void
     {
         $this->expectException(TokenInvalidException::class);
-        $this->expectExceptionMessage('Issued At (iat) claim is required to refresh a token.');
+        $this->expectExceptionMessageIs('Issued At (iat) claim is required to refresh a token.');
 
         $payload = [
             'sub' => 1,
@@ -580,7 +580,7 @@ class JwtManagerTest extends TestCase
     public function testRefreshFailsWhenTheOldTokenCannotBeInvalidated(): void
     {
         $this->expectException(JwtException::class);
-        $this->expectExceptionMessage('Unable to invalidate token because the blacklist write failed.');
+        $this->expectExceptionMessageIs('Unable to invalidate token because the blacklist write failed.');
 
         $payload = [
             'sub' => 1,
@@ -652,7 +652,7 @@ class JwtManagerTest extends TestCase
     public function testInvalidateThrowsWhenBlacklistPersistenceFails(bool $forceForever, string $method): void
     {
         $this->expectException(JwtException::class);
-        $this->expectExceptionMessage('Unable to invalidate token because the blacklist write failed.');
+        $this->expectExceptionMessageIs('Unable to invalidate token because the blacklist write failed.');
 
         $payload = [
             'sub' => 1,
@@ -698,7 +698,7 @@ class JwtManagerTest extends TestCase
     public function testThrowAnExceptionWhenEnableBlacklistIsSetToFalse(): void
     {
         $this->expectException(JwtException::class);
-        $this->expectExceptionMessage('You must have the blacklist enabled to invalidate a token.');
+        $this->expectExceptionMessageIs('You must have the blacklist enabled to invalidate a token.');
 
         $token = 'foo.bar.baz';
 

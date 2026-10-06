@@ -89,7 +89,7 @@ class UnionTypeTest extends TestCase
     public function testFinallyEmptyUnionIsRejected(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('A JSON Schema union must contain at least one type.');
+        $this->expectExceptionMessageIs('A JSON Schema union must contain at least one type.');
 
         JsonSchema::union([])->toArray();
     }

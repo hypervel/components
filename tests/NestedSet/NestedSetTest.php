@@ -130,7 +130,7 @@ class NestedSetTest extends TestCase
     public function testNodeRejectsIncompatibleAttributedBuilder(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('must use a builder that extends');
+        $this->expectExceptionMessageIsOrContains('must use a builder that extends');
 
         (new NestedSetTestIncompatibleBuilderNodeModel)
             ->newEloquentBuilder(m::mock(BaseQueryBuilder::class));
@@ -251,7 +251,7 @@ class NestedSetTest extends TestCase
         $model->setRawAttributes(['first' => $value]);
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage("unsupported scope value [{$type}] for attribute [first]");
+        $this->expectExceptionMessageIsOrContains("unsupported scope value [{$type}] for attribute [first]");
 
         $model->getNestedSetScope();
     }

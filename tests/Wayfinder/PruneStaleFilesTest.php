@@ -92,7 +92,7 @@ class PruneStaleFilesTest extends TestCase
         $this->files->failDeletes = true;
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage("Unable to delete stale generated file [{$stale}].");
+        $this->expectExceptionMessageIs("Unable to delete stale generated file [{$stale}].");
 
         $this->generate();
     }

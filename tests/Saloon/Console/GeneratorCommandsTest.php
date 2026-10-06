@@ -88,7 +88,7 @@ class GeneratorCommandsTest extends TestCase
     public function testUnsupportedRequestMethodIsRejected(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The method [BREW] is not supported.');
+        $this->expectExceptionMessageIs('The method [BREW] is not supported.');
 
         $this->artisan('saloon:request', [
             'integration' => 'Coffee',

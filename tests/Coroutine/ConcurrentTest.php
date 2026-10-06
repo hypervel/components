@@ -219,7 +219,7 @@ class ConcurrentTest extends TestCase
         $concurrent->closeForTest();
 
         $this->expectException(ChannelClosedException::class);
-        $this->expectExceptionMessage('The concurrency channel is closed.');
+        $this->expectExceptionMessageIs('The concurrency channel is closed.');
 
         $concurrent->waitForAvailableSlot(0.001);
     }

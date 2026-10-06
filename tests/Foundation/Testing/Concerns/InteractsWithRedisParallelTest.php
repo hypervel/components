@@ -112,7 +112,7 @@ class InteractsWithRedisParallelTest extends TestCase
         $this->setParallelTestingToken('3');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Parallel Redis worker [3] has no configured Redis database.');
+        $this->expectExceptionMessageIsOrContains('Parallel Redis worker [3] has no configured Redis database.');
 
         $this->harness()->parallelRedisDb();
     }
@@ -122,7 +122,7 @@ class InteractsWithRedisParallelTest extends TestCase
         $this->setRedisEnvironmentValue('REDIS_TEST_SECONDARY_DB', null);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('REDIS_TEST_SECONDARY_DB must be set before requesting the secondary Redis test database.');
+        $this->expectExceptionMessageIs('REDIS_TEST_SECONDARY_DB must be set before requesting the secondary Redis test database.');
 
         $this->harness()->secondaryRedisDb();
     }
@@ -157,7 +157,7 @@ class InteractsWithRedisParallelTest extends TestCase
         $this->setRedisEnvironmentValue('REDIS_TEST_SECONDARY_DB', '2');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('REDIS_TEST_SECONDARY_DB must be different from the current Redis test database.');
+        $this->expectExceptionMessageIs('REDIS_TEST_SECONDARY_DB must be different from the current Redis test database.');
 
         $this->harness()->secondaryRedisDb();
     }
@@ -169,7 +169,7 @@ class InteractsWithRedisParallelTest extends TestCase
         $this->setParallelTestingToken('1');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('REDIS_TEST_DB_MAX must be greater than or equal to REDIS_TEST_DB_MIN.');
+        $this->expectExceptionMessageIs('REDIS_TEST_DB_MAX must be greater than or equal to REDIS_TEST_DB_MIN.');
 
         $this->harness()->parallelRedisDb();
     }
@@ -180,7 +180,7 @@ class InteractsWithRedisParallelTest extends TestCase
         $this->setParallelTestingToken('1');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('REDIS_TEST_DB_MIN must be a non-negative integer.');
+        $this->expectExceptionMessageIs('REDIS_TEST_DB_MIN must be a non-negative integer.');
 
         $this->harness()->parallelRedisDb();
     }
@@ -190,7 +190,7 @@ class InteractsWithRedisParallelTest extends TestCase
         $this->setRedisEnvironmentValue('REDIS_DB', '-1');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('REDIS_DB must be a non-negative integer.');
+        $this->expectExceptionMessageIs('REDIS_DB must be a non-negative integer.');
 
         RedisTestDatabases::baseDatabase();
     }
@@ -202,7 +202,7 @@ class InteractsWithRedisParallelTest extends TestCase
         $this->setParallelTestingToken('zero');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('TEST_TOKEN must be a positive integer for Redis parallel testing.');
+        $this->expectExceptionMessageIs('TEST_TOKEN must be a positive integer for Redis parallel testing.');
 
         $this->harness()->parallelRedisDb();
     }
@@ -274,7 +274,7 @@ class InteractsWithRedisParallelTest extends TestCase
         $this->setParallelTestingToken('9');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Redis Cluster integration tests must run serially. Run them with ./vendor/bin/phpunit instead of ParaTest.');
+        $this->expectExceptionMessageIs('Redis Cluster integration tests must run serially. Run them with ./vendor/bin/phpunit instead of ParaTest.');
 
         $this->harness()->parallelRedisDb();
     }
@@ -285,7 +285,7 @@ class InteractsWithRedisParallelTest extends TestCase
         $this->setRedisEnvironmentValue('REDIS_TEST_SECONDARY_DB', '1');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Redis Cluster does not support secondary logical databases.');
+        $this->expectExceptionMessageIs('Redis Cluster does not support secondary logical databases.');
 
         $this->harness()->secondaryRedisDb();
     }
@@ -311,7 +311,7 @@ class InteractsWithRedisParallelTest extends TestCase
         );
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('REDIS_CLUSTER_HOSTS_AND_PORTS must be a comma-separated list of non-empty Redis Cluster seeds.');
+        $this->expectExceptionMessageIs('REDIS_CLUSTER_HOSTS_AND_PORTS must be a comma-separated list of non-empty Redis Cluster seeds.');
 
         RedisTestConfiguration::clusterSeeds();
     }
@@ -463,7 +463,7 @@ class InteractsWithRedisParallelTest extends TestCase
         $harness = $this->harness();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Redis connection [cache] must not use a URL during integration tests');
+        $this->expectExceptionMessageIsOrContains('Redis connection [cache] must not use a URL during integration tests');
 
         try {
             $harness->runSetUp();

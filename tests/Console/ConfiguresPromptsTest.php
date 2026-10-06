@@ -341,7 +341,7 @@ class ConfiguresPromptsTest extends TestCase
         Prompt::fallbackWhen(true);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('The validator must return a string or null.');
+        $this->expectExceptionMessageIs('The validator must return a string or null.');
 
         $this->runPrompt(
             fn () => text('Test', validate: fn (): mixed => $result),

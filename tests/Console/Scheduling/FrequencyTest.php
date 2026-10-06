@@ -128,7 +128,7 @@ class FrequencyTest extends TestCase
     public function testRepeatEveryRejectsZero(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The seconds [0] must be greater than zero.');
+        $this->expectExceptionMessageIs('The seconds [0] must be greater than zero.');
 
         (fn () => $this->repeatEvery(0))->call($this->event);
     }
@@ -136,7 +136,7 @@ class FrequencyTest extends TestCase
     public function testRepeatEveryRejectsNegativeValues(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The seconds [-5] must be greater than zero.');
+        $this->expectExceptionMessageIs('The seconds [-5] must be greater than zero.');
 
         (fn () => $this->repeatEvery(-5))->call($this->event);
     }

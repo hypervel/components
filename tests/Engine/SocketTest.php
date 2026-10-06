@@ -242,7 +242,7 @@ class SocketTest extends TestCase
         $handled = new Channel(1);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('expected server handler failure');
+        $this->expectExceptionMessageIs('expected server handler failure');
 
         $this->withServer(
             $server,

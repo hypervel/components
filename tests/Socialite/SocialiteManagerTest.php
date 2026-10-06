@@ -170,7 +170,7 @@ class SocialiteManagerTest extends TestCase
         ]);
 
         $this->expectException(DriverMissingConfigurationException::class);
-        $this->expectExceptionMessage('Missing required configuration keys [client_id, client_secret, redirect]');
+        $this->expectExceptionMessageIsOrContains('Missing required configuration keys [client_id, client_secret, redirect]');
 
         $this->app->make(SocialiteManager::class)->driver('x');
     }
@@ -306,7 +306,7 @@ class SocialiteManagerTest extends TestCase
     public function testItThrowsExceptionWhenClientSecretIsMissing(): void
     {
         $this->expectException(DriverMissingConfigurationException::class);
-        $this->expectExceptionMessage('Missing required configuration keys [client_secret] for [Hypervel\Socialite\Two\GithubProvider] OAuth provider.');
+        $this->expectExceptionMessageIs('Missing required configuration keys [client_secret] for [Hypervel\Socialite\Two\GithubProvider] OAuth provider.');
 
         $factory = $this->app->make(SocialiteManager::class);
 
@@ -322,7 +322,7 @@ class SocialiteManagerTest extends TestCase
     public function testItThrowsExceptionWhenClientIdIsMissing(): void
     {
         $this->expectException(DriverMissingConfigurationException::class);
-        $this->expectExceptionMessage('Missing required configuration keys [client_id] for [Hypervel\Socialite\Two\GithubProvider] OAuth provider.');
+        $this->expectExceptionMessageIs('Missing required configuration keys [client_id] for [Hypervel\Socialite\Two\GithubProvider] OAuth provider.');
 
         $factory = $this->app->make(SocialiteManager::class);
 
@@ -338,7 +338,7 @@ class SocialiteManagerTest extends TestCase
     public function testItThrowsExceptionWhenRedirectIsMissing(): void
     {
         $this->expectException(DriverMissingConfigurationException::class);
-        $this->expectExceptionMessage('Missing required configuration keys [redirect] for [Hypervel\Socialite\Two\GithubProvider] OAuth provider.');
+        $this->expectExceptionMessageIs('Missing required configuration keys [redirect] for [Hypervel\Socialite\Two\GithubProvider] OAuth provider.');
 
         $factory = $this->app->make(SocialiteManager::class);
 
@@ -354,7 +354,7 @@ class SocialiteManagerTest extends TestCase
     public function testItThrowsExceptionWhenConfigurationIsCompletelyMissing(): void
     {
         $this->expectException(DriverMissingConfigurationException::class);
-        $this->expectExceptionMessage('Missing required configuration keys [client_id, client_secret, redirect] for [Hypervel\Socialite\Two\GithubProvider] OAuth provider.');
+        $this->expectExceptionMessageIs('Missing required configuration keys [client_id, client_secret, redirect] for [Hypervel\Socialite\Two\GithubProvider] OAuth provider.');
 
         $factory = $this->app->make(SocialiteManager::class);
 

@@ -32,7 +32,7 @@ class ThemesTest extends TestCase
     public function testMissingRendererNamesTheConcretePromptClass(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Prompt renderer for [' . ThemesTestPrompt::class . '] not found.');
+        $this->expectExceptionMessageIs('Prompt renderer for [' . ThemesTestPrompt::class . '] not found.');
 
         (new ThemesTestPrompt)->renderForTest();
     }

@@ -198,7 +198,7 @@ class NumberPromptTest extends TestCase
         Prompt::interactive(false);
 
         $this->expectException(NonInteractiveValidationException::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIs($message);
 
         number('Value', default: $value, min: $min, max: $max);
     }
@@ -228,7 +228,7 @@ class NumberPromptTest extends TestCase
     public function testRejectsAnInvertedRange(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The minimum value must not be greater than the maximum value.');
+        $this->expectExceptionMessageIs('The minimum value must not be greater than the maximum value.');
 
         new NumberPrompt('Value', min: 2, max: 1);
     }
@@ -495,7 +495,7 @@ class NumberPromptTest extends TestCase
     public function testValidatesDefaultValueWhenNonInteractive(): void
     {
         $this->expectException(NonInteractiveValidationException::class);
-        $this->expectExceptionMessage('Required.');
+        $this->expectExceptionMessageIs('Required.');
 
         Prompt::interactive(false);
 
@@ -505,7 +505,7 @@ class NumberPromptTest extends TestCase
     public function testAllowsCustomizingCancellation(): void
     {
         $this->expectException(Exception::class);
-        $this->expectExceptionMessage('Cancelled.');
+        $this->expectExceptionMessageIs('Cancelled.');
 
         Prompt::cancelUsing(fn () => throw new Exception('Cancelled.'));
         Prompt::fake([Key::CTRL_C]);

@@ -269,7 +269,7 @@ class CommandTest extends TestCase
         $command = new CommandTestStubCommand;
 
         $this->expectException(ManuallyFailedException::class);
-        $this->expectExceptionMessage('Command failed manually.');
+        $this->expectExceptionMessageIs('Command failed manually.');
 
         $command->fail(null);
     }
@@ -279,7 +279,7 @@ class CommandTest extends TestCase
         $command = new CommandTestStubCommand;
 
         $this->expectException(ManuallyFailedException::class);
-        $this->expectExceptionMessage('Custom failure message');
+        $this->expectExceptionMessageIs('Custom failure message');
 
         $command->fail('Custom failure message');
     }
@@ -290,7 +290,7 @@ class CommandTest extends TestCase
         $exception = new RuntimeException('Original exception');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Original exception');
+        $this->expectExceptionMessageIs('Original exception');
 
         $command->fail($exception);
     }
@@ -301,7 +301,7 @@ class CommandTest extends TestCase
         $exception = new ManuallyFailedException('Pre-created failure');
 
         $this->expectException(ManuallyFailedException::class);
-        $this->expectExceptionMessage('Pre-created failure');
+        $this->expectExceptionMessageIs('Pre-created failure');
 
         $command->fail($exception);
     }
@@ -643,7 +643,7 @@ class CommandTest extends TestCase
     public function testAccessingApplicationBeforeInjectionThrows(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('The Hypervel application instance has not been set on this command.');
+        $this->expectExceptionMessageIs('The Hypervel application instance has not been set on this command.');
 
         $command = new CommandTestStubCommand;
         $command->getHypervel();

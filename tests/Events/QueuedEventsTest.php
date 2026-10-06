@@ -870,7 +870,7 @@ class QueuedEventsTest extends TestCase
         $dispatcher->listen('some.event', TestDispatcherDebouncedAndUniqueHandler::class . '@handle');
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('A debounced listener cannot also implement ShouldBeUnique.');
+        $this->expectExceptionMessageIs('A debounced listener cannot also implement ShouldBeUnique.');
 
         $dispatcher->dispatch('some.event', [['id' => 'event-123'], 'bar']);
     }

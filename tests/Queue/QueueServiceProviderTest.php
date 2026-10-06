@@ -113,7 +113,7 @@ class QueueServiceProviderTest extends TestCase
         $this->app->forgetInstance('queue.failer');
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Unsupported failed job provider [unsupported].');
+        $this->expectExceptionMessageIs('Unsupported failed job provider [unsupported].');
 
         $this->app->make('queue.failer');
     }

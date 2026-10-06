@@ -140,7 +140,7 @@ class GrpcInstrumentationTest extends TestCase
         };
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Unsupported gRPC operation type [');
+        $this->expectExceptionMessageIsOrContains('Unsupported gRPC operation type [');
 
         $this->operations->start($operation);
     }

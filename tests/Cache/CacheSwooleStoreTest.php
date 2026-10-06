@@ -60,7 +60,7 @@ class CacheSwooleStoreTest extends TestCase
         $container->shouldReceive('make')->once()->with('config')->andReturn($config);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Swoole table [missing] is not defined.');
+        $this->expectExceptionMessageIs('Swoole table [missing] is not defined.');
 
         (new SwooleTableManager($container))->get('missing');
     }
@@ -89,7 +89,7 @@ class CacheSwooleStoreTest extends TestCase
         $this->assertSame($first, $manager->get('first'));
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Swoole cache table [second] was not initialized before the server fork.');
+        $this->expectExceptionMessageIs('Swoole cache table [second] was not initialized before the server fork.');
 
         $manager->get('second');
     }
@@ -99,7 +99,7 @@ class CacheSwooleStoreTest extends TestCase
         $table = $this->createState(bytes: 8)->table();
 
         $this->expectException(ValueTooLargeForColumnException::class);
-        $this->expectExceptionMessage('Should be less than 8 characters but got 9 characters.');
+        $this->expectExceptionMessageIsOrContains('Should be less than 8 characters but got 9 characters.');
 
         $table->set('foo', ['value' => '123456789']);
     }
@@ -970,7 +970,7 @@ class CacheSwooleStoreTest extends TestCase
         $lock = $this->createStore()->lock('foo', 0);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Refresh requires a positive TTL. For a permanent lock, acquire it with seconds=0.');
+        $this->expectExceptionMessageIs('Refresh requires a positive TTL. For a permanent lock, acquire it with seconds=0.');
 
         $lock->refresh(0);
     }

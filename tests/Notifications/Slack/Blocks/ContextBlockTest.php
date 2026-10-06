@@ -29,7 +29,7 @@ class ContextBlockTest extends TestCase
     public function testRequiresAtLeastOneElement(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('There must be at least one element in each context block.');
+        $this->expectExceptionMessageIs('There must be at least one element in each context block.');
 
         $block = new ContextBlock;
         $block->toArray();
@@ -38,7 +38,7 @@ class ContextBlockTest extends TestCase
     public function testNotAllowMoreThanTenElements(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('There is a maximum of 10 elements in each context block.');
+        $this->expectExceptionMessageIs('There is a maximum of 10 elements in each context block.');
 
         $block = new ContextBlock;
         for ($i = 0; $i < 11; ++$i) {
@@ -69,7 +69,7 @@ class ContextBlockTest extends TestCase
     public function testBlockIdCantExceedTwoFiveFiveCharacters(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Maximum length for the block_id field is 255 characters.');
+        $this->expectExceptionMessageIs('Maximum length for the block_id field is 255 characters.');
 
         $block = new ContextBlock;
         $block->text('Location: 123 Main Street, New York, NY 10010');

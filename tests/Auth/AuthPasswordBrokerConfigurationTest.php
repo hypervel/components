@@ -19,7 +19,7 @@ class AuthPasswordBrokerConfigurationTest extends TestCase
         ]);
 
         $this->expectException(ErrorException::class);
-        $this->expectExceptionMessage('Undefined array key "driver"');
+        $this->expectExceptionMessageIsOrContains('Undefined array key "driver"');
 
         $this->app->make('auth.password')->broker('users');
     }

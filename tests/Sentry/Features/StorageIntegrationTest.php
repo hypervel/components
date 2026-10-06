@@ -629,7 +629,7 @@ class StorageIntegrationTest extends SentryTestCase
 
     public function testAnonymousDiskRequiresStoredLogicalName(): void
     {
-        $this->expectExceptionMessage('Missing `sentry_disk_name` config key for `sentry` filesystem driver.');
+        $this->expectExceptionMessageIs('Missing `sentry_disk_name` config key for `sentry` filesystem driver.');
 
         Storage::build([
             'driver' => 'sentry',
@@ -645,7 +645,7 @@ class StorageIntegrationTest extends SentryTestCase
             'filesystems.disks.local.sentry_disk_name' => 'local',
         ]);
 
-        $this->expectExceptionMessage('Missing `sentry_original_driver` config key for `sentry` filesystem driver.');
+        $this->expectExceptionMessageIs('Missing `sentry_original_driver` config key for `sentry` filesystem driver.');
 
         Storage::disk('local');
     }
@@ -658,7 +658,7 @@ class StorageIntegrationTest extends SentryTestCase
             'filesystems.disks.local.sentry_original_driver' => 'sentry',
         ]);
 
-        $this->expectExceptionMessage('`sentry_original_driver` for Sentry storage integration cannot be the `sentry` driver.');
+        $this->expectExceptionMessageIs('`sentry_original_driver` for Sentry storage integration cannot be the `sentry` driver.');
 
         Storage::disk('local');
     }

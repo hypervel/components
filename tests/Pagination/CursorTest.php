@@ -156,7 +156,7 @@ class CursorTest extends TestCase
     public function testConstructorRejectsArrayParameters(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Cursor parameter [id] must not be an array.');
+        $this->expectExceptionMessageIs('Cursor parameter [id] must not be an array.');
 
         new Cursor(['id' => [5, 9]]);
     }
@@ -173,7 +173,7 @@ class CursorTest extends TestCase
         $cursor = new Cursor(['id' => 1], true);
 
         $this->expectException(UnexpectedValueException::class);
-        $this->expectExceptionMessage('Unable to find parameter [missing] in pagination item.');
+        $this->expectExceptionMessageIs('Unable to find parameter [missing] in pagination item.');
 
         $cursor->parameter('missing');
     }

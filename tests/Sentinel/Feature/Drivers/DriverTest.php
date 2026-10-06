@@ -80,7 +80,7 @@ class DriverTest extends TestCase
     public function testItCanAuthorizeOrFailReverseProxyRequestWhenForwardingForPublicIps(): void
     {
         $this->expectException(AuthorizationException::class);
-        $this->expectExceptionMessage('This action is unauthorized.');
+        $this->expectExceptionMessageIs('This action is unauthorized.');
 
         $request = $this->createRequest($this->transformHeadersToServerVars([
             'REMOTE_ADDR' => '127.0.0.1',

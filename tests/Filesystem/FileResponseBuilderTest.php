@@ -339,7 +339,7 @@ class FileResponseBuilderTest extends TestCase
         );
 
         $this->expectException(UnableToReadFile::class);
-        $this->expectExceptionMessage('The stream resolver did not return an open resource.');
+        $this->expectExceptionMessageIsOrContains('The stream resolver did not return an open resource.');
 
         $this->streamedContent($response);
     }

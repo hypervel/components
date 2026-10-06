@@ -151,7 +151,7 @@ class InMemorySqliteSharedPdoTest extends TestCase
         ]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Database connection [uri_read_memory_test::read] cannot use a derived read pool for in-memory SQLite.'
         );
 

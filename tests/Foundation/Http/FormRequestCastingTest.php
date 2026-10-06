@@ -151,7 +151,7 @@ class FormRequestCastingTest extends TestCase
         ]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The decimal cast for input [value] requires a non-negative integer scale.');
+        $this->expectExceptionMessageIs('The decimal cast for input [value] requires a non-negative integer scale.');
 
         $request->validated();
     }
@@ -292,7 +292,7 @@ class FormRequestCastingTest extends TestCase
         $request = $this->validateRequest(PrimitiveRequest::class, ['decimal_value' => 'invalid']);
 
         $this->expectException(MathException::class);
-        $this->expectExceptionMessage('Unable to cast value to a decimal.');
+        $this->expectExceptionMessageIs('Unable to cast value to a decimal.');
 
         $request->validated();
     }
@@ -520,7 +520,7 @@ class FormRequestCastingTest extends TestCase
         ]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIs($message);
 
         $request->validated();
     }
@@ -694,7 +694,7 @@ class FormRequestCastingTest extends TestCase
         ]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Cannot cast request input [contact] to data object [' . ContactDataObject::class
             . ']: expected array, received string.',
         );
@@ -822,7 +822,7 @@ class FormRequestCastingTest extends TestCase
         ]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('An enum class is required for the FormRequest enum collection cast.');
+        $this->expectExceptionMessageIs('An enum class is required for the FormRequest enum collection cast.');
 
         $request->validated();
     }

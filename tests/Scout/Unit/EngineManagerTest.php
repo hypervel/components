@@ -350,7 +350,7 @@ class EngineManagerTest extends TestCase
         $manager = $this->createManager($container);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Driver [unsupported] is not supported.');
+        $this->expectExceptionMessageIs('Driver [unsupported] is not supported.');
 
         $manager->engine('unsupported');
     }

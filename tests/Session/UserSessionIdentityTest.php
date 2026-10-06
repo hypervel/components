@@ -80,7 +80,7 @@ class UserSessionIdentityTest extends TestCase
     public function testItRejectsAnEmptyIdentifier(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The user identifier may not be empty.');
+        $this->expectExceptionMessageIs('The user identifier may not be empty.');
 
         UserSessionIdentity::normalize('');
     }

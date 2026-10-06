@@ -402,7 +402,7 @@ class EventTest extends TestCase
         $this->container->instance(Filesystem::class, $filesystem);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to write the scheduled event output to [test.log].');
+        $this->expectExceptionMessageIs('Unable to write the scheduled event output to [test.log].');
 
         $event->writeOutput($this->container);
     }
@@ -423,7 +423,7 @@ class EventTest extends TestCase
         $this->container->instance(Filesystem::class, $filesystem);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to write the scheduled event output to [test.log].');
+        $this->expectExceptionMessageIs('Unable to write the scheduled event output to [test.log].');
 
         $event->writeOutput($this->container);
     }
@@ -443,7 +443,7 @@ class EventTest extends TestCase
         $this->container->instance(Filesystem::class, $filesystem);
 
         $this->expectException(FileNotFoundException::class);
-        $this->expectExceptionMessage('Unable to read file at path test.log.');
+        $this->expectExceptionMessageIs('Unable to read file at path test.log.');
 
         $event->finish($this->container, 0);
     }

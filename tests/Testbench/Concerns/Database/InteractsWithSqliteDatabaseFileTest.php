@@ -280,7 +280,7 @@ class InteractsWithSqliteDatabaseFileTest extends TestCase
         $this->testFilesystem->failCopyTarget = $this->baseDatabase;
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage("Unable to create SQLite database [{$this->baseDatabase}].");
+        $this->expectExceptionMessageIs("Unable to create SQLite database [{$this->baseDatabase}].");
 
         try {
             $this->withSqliteDatabase(static function (): void {
@@ -299,7 +299,7 @@ class InteractsWithSqliteDatabaseFileTest extends TestCase
         $this->testFilesystem->failCopyTarget = $this->activeDatabase;
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage("Unable to create SQLite database [{$this->activeDatabase}].");
+        $this->expectExceptionMessageIs("Unable to create SQLite database [{$this->activeDatabase}].");
 
         try {
             $this->withSqliteDatabase(static function (): void {

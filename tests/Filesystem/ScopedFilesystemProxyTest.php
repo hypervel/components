@@ -374,7 +374,7 @@ class ScopedFilesystemProxyTest extends TestCase
         $proxy = new ScopedFilesystemProxy($this->disk, static fn (): string => '');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('returned an empty prefix');
+        $this->expectExceptionMessageIsOrContains('returned an empty prefix');
 
         $proxy->image('photo.jpg');
     }
@@ -475,7 +475,7 @@ class ScopedFilesystemProxyTest extends TestCase
         $proxy = new ScopedFilesystemProxy($this->disk, static fn (): string => $prefix);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('returned an empty prefix');
+        $this->expectExceptionMessageIsOrContains('returned an empty prefix');
 
         $proxy->exists('file.txt');
     }
@@ -545,7 +545,7 @@ class ScopedFilesystemProxyTest extends TestCase
         $proxy = new ScopedFilesystemProxy($inner, static fn (): string => 'tenant');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('outside the resolved prefix');
+        $this->expectExceptionMessageIsOrContains('outside the resolved prefix');
 
         $proxy->files();
     }
@@ -701,7 +701,7 @@ class ScopedFilesystemProxyTest extends TestCase
         $proxy = new ScopedFilesystemProxy($inner, static fn (): string => 'tenant');
 
         $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('does not support [missing]');
+        $this->expectExceptionMessageIsOrContains('does not support [missing]');
         $proxy->missing('file.txt');
     }
 
@@ -743,7 +743,7 @@ class ScopedFilesystemProxyTest extends TestCase
         );
 
         $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('does not support [missing]');
+        $this->expectExceptionMessageIsOrContains('does not support [missing]');
 
         $proxy->missing('file.txt');
     }

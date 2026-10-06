@@ -40,7 +40,7 @@ class ContainerResolveNonInstantiableTest extends TestCase
         $container = new Container;
 
         $this->expectException(BindingResolutionException::class);
-        $this->expectExceptionMessage('Target [' . NonInstantiableTrait::class . '] is not instantiable.');
+        $this->expectExceptionMessageIs('Target [' . NonInstantiableTrait::class . '] is not instantiable.');
 
         $container->build(NonInstantiableTrait::class);
     }

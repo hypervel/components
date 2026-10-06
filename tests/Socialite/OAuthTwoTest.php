@@ -428,7 +428,7 @@ class OAuthTwoTest extends TestCase
         $provider->http->shouldNotReceive('post');
 
         $this->expectException(InvalidCodeException::class);
-        $this->expectExceptionMessage('The authorization code is missing or invalid.');
+        $this->expectExceptionMessageIs('The authorization code is missing or invalid.');
 
         $provider->user();
     }

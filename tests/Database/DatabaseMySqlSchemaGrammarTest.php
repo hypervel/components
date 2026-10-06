@@ -206,7 +206,7 @@ class DatabaseMySqlSchemaGrammarTest extends TestCase
         $blueprint->partitionByRange('id');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('This database driver does not support table partitioning.');
+        $this->expectExceptionMessageIs('This database driver does not support table partitioning.');
 
         $blueprint->toSql();
     }

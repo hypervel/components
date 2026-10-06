@@ -98,7 +98,7 @@ class ProxyDispatcherTest extends TestCase
     public function testRejectsAnInvalidVisibleArgumentPosition(): void
     {
         $this->expectException(ValueError::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'func_get_arg(): Argument #1 ($position) must be less than the number of the arguments passed '
             . 'to the currently executed function'
         );

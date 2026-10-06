@@ -176,7 +176,7 @@ class DataVarDumperCasterTest extends TestCase
         $this->app->make('config')->set('data.var_dumper_caster_mode', 'sometimes');
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Configuration [data.var_dumper_caster_mode]');
+        $this->expectExceptionMessageIsOrContains('Configuration [data.var_dumper_caster_mode]');
 
         (new DataServiceProvider($this->app))->boot($this->app->make('config'));
     }

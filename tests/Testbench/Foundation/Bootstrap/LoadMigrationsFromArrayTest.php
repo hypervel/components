@@ -76,7 +76,7 @@ class LoadMigrationsFromArrayTest extends TestCase
         (new LoadMigrationsFromArray(false, 'MissingSeeder'))->bootstrap($this->app);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Seeder class [MissingSeeder] does not exist.');
+        $this->expectExceptionMessageIs('Seeder class [MissingSeeder] does not exist.');
 
         app('events')->dispatch(new DatabaseRefreshed);
     }
@@ -87,7 +87,7 @@ class LoadMigrationsFromArrayTest extends TestCase
         (new LoadMigrationsFromArray(false, [123]))->bootstrap($this->app);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Testbench seeders must be existing class strings.');
+        $this->expectExceptionMessageIs('Testbench seeders must be existing class strings.');
 
         app('events')->dispatch(new DatabaseRefreshed);
     }
@@ -101,7 +101,7 @@ class LoadMigrationsFromArrayTest extends TestCase
         $kernel->expects('call')->with('db:seed')->andReturn(1);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Default seeder failed.');
+        $this->expectExceptionMessageIs('Default seeder failed.');
 
         app('events')->dispatch(new DatabaseRefreshed);
     }
@@ -117,7 +117,7 @@ class LoadMigrationsFromArrayTest extends TestCase
         ])->andReturn(1);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage(sprintf('Seeder [%s] failed.', TestbenchDatabaseSeeder::class));
+        $this->expectExceptionMessageIs(sprintf('Seeder [%s] failed.', TestbenchDatabaseSeeder::class));
 
         app('events')->dispatch(new DatabaseRefreshed);
     }

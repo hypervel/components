@@ -77,7 +77,7 @@ class HasPoolProxyTest extends TestCase
     public function testPoolControlValuesMustBeNonEmptyStrings(string $name, mixed $value): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage("The pool [{$name}] option must be a non-empty string.");
+        $this->expectExceptionMessageIs("The pool [{$name}] option must be a non-empty string.");
 
         $this->manager->definition('s3', [$name => $value], []);
     }

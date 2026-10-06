@@ -255,7 +255,7 @@ class SignalManagerTest extends TestCase
         $manager = $this->createManagerFromConfig([]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Unsupported signal process [workers]. Supported processes are [worker] and [server-process].',
         );
 
@@ -277,7 +277,7 @@ class SignalManagerTest extends TestCase
         $manager = $this->createManagerFromConfig([$handler::class], [$handler::class => $handler]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('must implement [Hypervel\Contracts\Signal\SignalHandler]');
+        $this->expectExceptionMessageIsOrContains('must implement [Hypervel\Contracts\Signal\SignalHandler]');
 
         $manager->listen(SignalHandler::WORKER);
     }
@@ -300,7 +300,7 @@ class SignalManagerTest extends TestCase
         $manager = $this->createManager($handler);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIsOrContains(
             'declares unsupported process [process]. Supported processes are [worker] and [server-process].',
         );
 
@@ -325,7 +325,7 @@ class SignalManagerTest extends TestCase
         $manager = $this->createManager($handler);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIsOrContains(
             'must declare an array of signal numbers for the [server-process] process.',
         );
 
@@ -347,7 +347,7 @@ class SignalManagerTest extends TestCase
         $manager = $this->createManager($handler);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('must declare an array of signal numbers for the [worker] process.');
+        $this->expectExceptionMessageIsOrContains('must declare an array of signal numbers for the [worker] process.');
 
         $manager->listen(SignalHandler::WORKER);
     }
@@ -377,7 +377,7 @@ class SignalManagerTest extends TestCase
         $manager = $this->createManagerFromConfig([[]]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Signal handler at index [0] must be a class name.');
+        $this->expectExceptionMessageIs('Signal handler at index [0] must be a class name.');
 
         $manager->listen(SignalHandler::WORKER);
     }
@@ -387,7 +387,7 @@ class SignalManagerTest extends TestCase
         $manager = $this->createManagerFromConfig([SignalHandlerStub::class => 'high']);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'The priority for signal handler [Hypervel\Tests\Signal\Fixtures\SignalHandlerStub] must be numeric.',
         );
 

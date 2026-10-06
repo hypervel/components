@@ -148,7 +148,7 @@ class CreateVendorSymlinkTest extends TestCase
         $application->shouldReceive('basePath')->once()->with('vendor')->andReturn($vendorPath);
         $this->assertTrue(is_link($vendorPath));
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage("Unable to remove vendor symlink [{$vendorPath}].");
+        $this->expectExceptionMessageIs("Unable to remove vendor symlink [{$vendorPath}].");
 
         (new DeleteVendorSymlink)->handle($application);
     }
@@ -171,7 +171,7 @@ class CreateVendorSymlinkTest extends TestCase
         $application->instance(PackageManifest::class, $manifest);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage("Unable to delete package manifest [{$cachedPath}].");
+        $this->expectExceptionMessageIs("Unable to delete package manifest [{$cachedPath}].");
 
         (new RefreshPackageDiscovery)->handle($application);
     }

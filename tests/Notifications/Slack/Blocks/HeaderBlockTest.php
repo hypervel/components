@@ -63,7 +63,7 @@ class HeaderBlockTest extends TestCase
     public function testBlockIdCantExceedTwoFiveFiveCharacters(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Maximum length for the block_id field is 255 characters.');
+        $this->expectExceptionMessageIs('Maximum length for the block_id field is 255 characters.');
 
         $block = new HeaderBlock('Budget Performance');
         $block->id(str_repeat('a', 256));

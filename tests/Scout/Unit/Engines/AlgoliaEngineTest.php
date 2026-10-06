@@ -383,7 +383,7 @@ class AlgoliaEngineTest extends TestCase
         $model->shouldNotReceive('indexableAs');
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Algolia filter deletion requires a non-empty filter.');
+        $this->expectExceptionMessageIs('Algolia filter deletion requires a non-empty filter.');
 
         $engine->deleteByFilter(new Builder($model, ''));
     }
@@ -407,7 +407,7 @@ class AlgoliaEngineTest extends TestCase
         $builder = (new Builder($model, ''))->where('tenant_id', 42);
 
         $this->expectException(ScoutException::class);
-        $this->expectExceptionMessage('Algolia filter deletion did not complete successfully.');
+        $this->expectExceptionMessageIs('Algolia filter deletion did not complete successfully.');
 
         $engine->deleteByFilter($builder);
     }
@@ -657,7 +657,7 @@ class AlgoliaEngineTest extends TestCase
         $builder->where('value', $operator, $value);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIs($message);
 
         $engine->search($builder);
     }

@@ -299,7 +299,7 @@ class AuthManagerTest extends TestCase
     public function testBuiltInGuardCreatorsRequireProvider(string $method): void
     {
         $this->expectException(ErrorException::class);
-        $this->expectExceptionMessage('Undefined array key "provider"');
+        $this->expectExceptionMessageIsOrContains('Undefined array key "provider"');
 
         (new AuthManager($this->app))->{$method}('api', []);
     }
@@ -427,7 +427,7 @@ class AuthManagerTest extends TestCase
         $this->app->instance('db', $database);
 
         $this->expectException(ErrorException::class);
-        $this->expectExceptionMessage('Undefined array key "table"');
+        $this->expectExceptionMessageIsOrContains('Undefined array key "table"');
 
         (new AuthManager($this->app))->createUserProvider('incomplete');
     }
@@ -452,7 +452,7 @@ class AuthManagerTest extends TestCase
         $this->app->make('config')->set('auth.providers.undefined', []);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Authentication user provider [] is not defined.');
+        $this->expectExceptionMessageIs('Authentication user provider [] is not defined.');
 
         (new AuthManager($this->app))->createUserProvider('undefined');
     }
@@ -552,7 +552,7 @@ class AuthManagerTest extends TestCase
         $container->instance('cache', $cacheManager);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIs($message);
 
         $manager->createUserProvider('users');
     }
@@ -866,7 +866,7 @@ class AuthManagerTest extends TestCase
     public function testResolveThrowsForUndefinedGuard(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Auth guard [missing] is not defined.');
+        $this->expectExceptionMessageIs('Auth guard [missing] is not defined.');
 
         $manager = new AuthManager($this->getContainer());
         $manager->guard('missing');
@@ -875,7 +875,7 @@ class AuthManagerTest extends TestCase
     public function testResolveThrowsForUndefinedDriver(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Auth driver [unknown] for guard [foo] is not defined.');
+        $this->expectExceptionMessageIs('Auth driver [unknown] for guard [foo] is not defined.');
 
         $manager = new AuthManager($container = $this->getContainer());
         $container->make('config')

@@ -90,7 +90,7 @@ class SupportReflectsClosuresTest extends TestCase
     public function testItWorksWithUnionTypesWithNoArguments(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('The given Closure has no parameters.');
+        $this->expectExceptionMessageIs('The given Closure has no parameters.');
 
         ReflectsClosuresClass::reflectFirstAll(function () {
         });
@@ -153,7 +153,7 @@ class SupportReflectsClosuresTest extends TestCase
     public function testFirstParameterTypesRejectInvalidActualFirstParameter(Closure $closure): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('The first parameter of the given Closure is missing a type hint.');
+        $this->expectExceptionMessageIs('The first parameter of the given Closure is missing a type hint.');
 
         ReflectsClosuresClass::reflectFirstAll($closure);
     }

@@ -173,7 +173,7 @@ class MigrateProcessorTest extends TestCase
         $processor->up();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to roll back migration batch [2].');
+        $this->expectExceptionMessageIs('Unable to roll back migration batch [2].');
 
         $processor->rollback();
     }
@@ -195,7 +195,7 @@ class MigrateProcessorTest extends TestCase
         $processor->up();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Migration batch [1] remains after rollback.');
+        $this->expectExceptionMessageIs('Migration batch [1] remains after rollback.');
 
         $processor->rollback();
     }

@@ -24,7 +24,7 @@ class LeakyBucketTest extends TestCase
     public function testFactoryOverflowNamesItsPublicPeriodUnit(callable $factory, string $unit): void
     {
         $this->expectException(InvalidRateLimitException::class);
-        $this->expectExceptionMessage("The rate limit period {$unit} exceeds the maximum supported duration.");
+        $this->expectExceptionMessageIs("The rate limit period {$unit} exceeds the maximum supported duration.");
 
         $factory();
     }

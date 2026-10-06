@@ -64,7 +64,7 @@ class StaticSelectElementTest extends TestCase
     public function testItRejectsInvalidPlaceholderText(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Text must be at least 1 character(s) long.');
+        $this->expectExceptionMessageIs('Text must be at least 1 character(s) long.');
 
         $select = new StaticSelectElement;
         $select->id('invalid_placeholder');
@@ -156,7 +156,7 @@ class StaticSelectElementTest extends TestCase
     public function testItRejectsInitialOptionWhenNoOptionsAvailable(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Unknown option value: non_existent_option.');
+        $this->expectExceptionMessageIs('Unknown option value: non_existent_option.');
 
         $select = new StaticSelectElement;
         $select->id('no_options');
@@ -193,7 +193,7 @@ class StaticSelectElementTest extends TestCase
     public function testExplicitActionIdCannotExceedTheSlackLimit(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Maximum length for the action_id field is 255 characters.');
+        $this->expectExceptionMessageIs('Maximum length for the action_id field is 255 characters.');
 
         (new StaticSelectElement)->id(str_repeat('a', 256));
     }
@@ -239,7 +239,7 @@ class StaticSelectElementTest extends TestCase
     public function testItRejectsAnEmptyOptionList(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('There must be at least one option in each static select element.');
+        $this->expectExceptionMessageIs('There must be at least one option in each static select element.');
 
         (new StaticSelectElement)->toArray();
     }
@@ -269,7 +269,7 @@ class StaticSelectElementTest extends TestCase
         }
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('There is a maximum of 100 options in each static select element.');
+        $this->expectExceptionMessageIs('There is a maximum of 100 options in each static select element.');
 
         $select->toArray();
     }

@@ -302,7 +302,7 @@ class FilesystemPoolProxyTest extends TestCase
         $this->assertSame(0, $this->pools->get('filesystem:driver')->getBorrowedCount());
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('does not support [getClient] access');
+        $this->expectExceptionMessageIsOrContains('does not support [getClient] access');
         $proxy->withClient(static fn (object $client): object => $client);
     }
 
@@ -312,7 +312,7 @@ class FilesystemPoolProxyTest extends TestCase
         $proxy = $this->proxy(fn (): FilesystemAdapter => $this->filesystem());
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Pooled disks do not expose borrowed internals.');
+        $this->expectExceptionMessageIsOrContains('Pooled disks do not expose borrowed internals.');
 
         $proxy->{$method}();
     }
@@ -331,7 +331,7 @@ class FilesystemPoolProxyTest extends TestCase
         $proxy = $this->proxy(fn (): FilesystemAdapter => $this->filesystem());
 
         $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('an unmapped call could return a lazy result');
+        $this->expectExceptionMessageIsOrContains('an unmapped call could return a lazy result');
 
         $proxy->listContents('', true);
     }

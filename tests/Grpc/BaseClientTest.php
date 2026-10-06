@@ -686,7 +686,7 @@ class BaseClientTest extends TestCase
         $this->bindFactory(new ClientCallClientFactory(new ClientCallClient));
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('plaintext target: verify_peer');
+        $this->expectExceptionMessageIsOrContains('plaintext target: verify_peer');
 
         new TestingBaseClient('http://example.test:50051', [
             'tls' => ['verify_peer' => false],
@@ -945,7 +945,7 @@ class BaseClientTest extends TestCase
         $this->assertFalse((new ReflectionClass(BaseClient::class))->hasMethod('__destruct'));
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('client is closed');
+        $this->expectExceptionMessageIsOrContains('client is closed');
 
         $client->unary(
             '/testing.Service/Unary',

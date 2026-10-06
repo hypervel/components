@@ -100,7 +100,7 @@ class AuthPasswordBrokerManagerTest extends TestCase
         ]));
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Configuration value for key [auth.guards.staff.passwords] must be a string');
+        $this->expectExceptionMessageIsOrContains('Configuration value for key [auth.guards.staff.passwords] must be a string');
 
         $manager->resolveBrokerNameForGuard('staff');
     }
@@ -189,7 +189,7 @@ class AuthPasswordBrokerManagerTest extends TestCase
         $container->instance(AuthFactory::class, $this->mockAuthFactory('web'));
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Auth guard [web] does not declare a passwords broker. Set auth.guards.web.passwords.');
+        $this->expectExceptionMessageIs('Auth guard [web] does not declare a passwords broker. Set auth.guards.web.passwords.');
 
         (new PasswordBrokerManager($container))->getDefaultDriver();
     }
@@ -506,7 +506,7 @@ class AuthPasswordBrokerManagerTest extends TestCase
         ]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Password resetter driver [unknown] is not defined.');
+        $this->expectExceptionMessageIs('Password resetter driver [unknown] is not defined.');
 
         (new PasswordBrokerManager($container))->broker('users');
     }
@@ -529,7 +529,7 @@ class AuthPasswordBrokerManagerTest extends TestCase
     public function testBrokerFailsFastWhenAppKeyIsNotConfigured(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Configuration value for key [app.key] must be a string, NULL given.');
+        $this->expectExceptionMessageIs('Configuration value for key [app.key] must be a string, NULL given.');
 
         $container = new Container;
         $container->instance('config', new Repository([

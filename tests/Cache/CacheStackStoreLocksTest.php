@@ -44,7 +44,7 @@ class CacheStackStoreLocksTest extends TestCase
         $stack = new StackStore([$this->plainStore()]);
 
         $this->expectException(NotSupportedException::class);
-        $this->expectExceptionMessage('does not support locks');
+        $this->expectExceptionMessageIsOrContains('does not support locks');
 
         $stack->lock('name');
     }
@@ -88,7 +88,7 @@ class CacheStackStoreLocksTest extends TestCase
         $stack = new StackStore([$this->plainStore(), $bottom]);
 
         $this->expectException(NotSupportedException::class);
-        $this->expectExceptionMessage('does not support flushing locks');
+        $this->expectExceptionMessageIsOrContains('does not support flushing locks');
 
         $stack->flushLocks();
     }

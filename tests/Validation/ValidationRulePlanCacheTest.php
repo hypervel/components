@@ -183,7 +183,7 @@ class ValidationRulePlanCacheTest extends TestCase
     public function testNonPositiveMaximumSizeIsRejected(int $size): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The rule plan cache size must be at least 1.');
+        $this->expectExceptionMessageIs('The rule plan cache size must be at least 1.');
 
         RulePlanCache::setMaxSize($size);
     }

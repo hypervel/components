@@ -25,7 +25,7 @@ class ImageElementTest extends TestCase
     public function testTheAltTextIsRequired(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Alt text is required for an image element.');
+        $this->expectExceptionMessageIs('Alt text is required for an image element.');
 
         $element = new ImageElement('http://placekitten.com/700/500');
 
@@ -57,7 +57,7 @@ class ImageElementTest extends TestCase
     public function testImageUrlCannotExceedThreeThousandCharacters(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Maximum length for the url field is 3000 characters.');
+        $this->expectExceptionMessageIs('Maximum length for the url field is 3000 characters.');
 
         new ImageElement(str_repeat('a', 3001), 'Alternative text');
     }

@@ -1056,7 +1056,7 @@ class EventsDispatcherTest extends TestCase
         $d->listen('myEvent', TestListenerLean::class);
 
         $this->expectException(Error::class);
-        $this->expectExceptionMessage('Call to undefined method ' . TestListenerLean::class . '::__invoke()');
+        $this->expectExceptionMessageIs('Call to undefined method ' . TestListenerLean::class . '::__invoke()');
 
         $d->dispatch('myEvent', 'somePayload');
 
@@ -1529,7 +1529,7 @@ class EventsDispatcherTest extends TestCase
     public function testClosureListenerRejectsAnUntypedFirstParameterInsteadOfUsingALaterType(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('The first parameter of the given Closure is missing a type hint.');
+        $this->expectExceptionMessageIs('The first parameter of the given Closure is missing a type hint.');
 
         (new Dispatcher)->listen(function ($untyped, ExampleEvent $event): void {});
     }

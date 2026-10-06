@@ -223,7 +223,7 @@ class AssertsPolicyQueryConsistencyTest extends TestCase
         $this->registerPolicy(MismatchingConsistencyPostPolicy::class);
 
         $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('Policy [edit] and withCan() returned different per-row results.');
+        $this->expectExceptionMessageIsOrContains('Policy [edit] and withCan() returned different per-row results.');
 
         $this->assertWithCanMatchesPolicy(
             'edit',

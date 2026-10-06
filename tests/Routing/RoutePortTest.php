@@ -135,7 +135,7 @@ class RoutePortTest extends RoutingTestCase
         $collection->add((new Route('GET', '/foo', fn () => 'a'))->port(8080));
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Cannot register [GET foo] for multiple ports');
+        $this->expectExceptionMessageIsOrContains('Cannot register [GET foo] for multiple ports');
 
         $collection->add((new Route('GET', '/foo', fn () => 'b'))->port(8000));
     }
@@ -146,7 +146,7 @@ class RoutePortTest extends RoutingTestCase
         $collection->add(new Route('GET', '/foo', fn () => 'a'));
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Cannot register [GET foo] for multiple ports');
+        $this->expectExceptionMessageIsOrContains('Cannot register [GET foo] for multiple ports');
 
         $collection->add((new Route('GET', '/foo', fn () => 'b'))->port(8080));
     }
@@ -157,7 +157,7 @@ class RoutePortTest extends RoutingTestCase
         $collection->add((new Route('GET', '/foo', fn () => 'a'))->port(8080));
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Cannot register [GET foo] for multiple ports');
+        $this->expectExceptionMessageIsOrContains('Cannot register [GET foo] for multiple ports');
 
         $collection->add(new Route('GET', '/foo', fn () => 'b'));
     }
@@ -373,7 +373,7 @@ class RoutePortTest extends RoutingTestCase
         $compiledCollection->setContainer($container);
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Cannot register [GET foo] for multiple ports');
+        $this->expectExceptionMessageIsOrContains('Cannot register [GET foo] for multiple ports');
 
         $compiledCollection->add((new Route('GET', 'foo', ['uses' => fn () => 'other', 'as' => 'foo2']))->port(8000));
     }

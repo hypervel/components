@@ -179,7 +179,7 @@ class CacheFailoverStoreTest extends TestCase
         $this->assertFalse($store->hasSeparateLockStore());
 
         $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('This failover cache store has no lock-providing stores to flush.');
+        $this->expectExceptionMessageIs('This failover cache store has no lock-providing stores to flush.');
 
         $store->flushLocks();
     }
@@ -260,7 +260,7 @@ class CacheFailoverStoreTest extends TestCase
         ]);
 
         $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage(sprintf(
+        $this->expectExceptionMessageIs(sprintf(
             'The failover cache store [%s] does not support flushing locks.',
             $second::class
         ));
@@ -302,7 +302,7 @@ class CacheFailoverStoreTest extends TestCase
         ]);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('first failure');
+        $this->expectExceptionMessageIs('first failure');
 
         $store->flushLocks();
     }

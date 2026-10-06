@@ -234,7 +234,7 @@ class DatabasePdoConnectionTest extends TestCase
         $connection = $this->getMockConnection([], $pdo);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('The database driver could not retrieve the last insert ID.');
+        $this->expectExceptionMessageIs('The database driver could not retrieve the last insert ID.');
 
         $connection->getLastInsertId('records_id_seq');
     }
@@ -279,7 +279,7 @@ class DatabasePdoConnectionTest extends TestCase
         );
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('No last insert ID has been captured for this connection.');
+        $this->expectExceptionMessageIs('No last insert ID has been captured for this connection.');
 
         $connection->getLastInsertId();
     }
@@ -721,7 +721,7 @@ class DatabasePdoConnectionTest extends TestCase
     public function testOnLostConnectionPDOIsNotSwappedWithinATransaction(): void
     {
         $this->expectException(QueryException::class);
-        $this->expectExceptionMessage('server has gone away (Connection: test, Host: , Port: , Database: , SQL: foo)');
+        $this->expectExceptionMessageIs('server has gone away (Connection: test, Host: , Port: , Database: , SQL: foo)');
 
         $pdo = m::mock(PDO::class);
         $pdo->shouldReceive('beginTransaction')->once();

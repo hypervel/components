@@ -192,7 +192,7 @@ class FoundationPackageManifestTest extends TestCase
         $this->filesystem->put($basePath . '/vendor/composer/installed.json', '{');
 
         $this->expectException(JsonException::class);
-        $this->expectExceptionMessage('Syntax error');
+        $this->expectExceptionMessageIs('Syntax error');
 
         PackageManifest::discoverInstalledPackages($this->filesystem, $basePath . '/vendor', []);
     }
@@ -224,7 +224,7 @@ class FoundationPackageManifestTest extends TestCase
         $this->filesystem->put($path, 'null');
 
         $this->expectException(UnexpectedValueException::class);
-        $this->expectExceptionMessage("Composer metadata [{$path}] must contain an array.");
+        $this->expectExceptionMessageIs("Composer metadata [{$path}] must contain an array.");
 
         PackageManifest::discoverInstalledPackages($this->filesystem, $basePath . '/vendor', []);
     }
@@ -238,7 +238,7 @@ class FoundationPackageManifestTest extends TestCase
         ], JSON_THROW_ON_ERROR));
 
         $this->expectException(UnexpectedValueException::class);
-        $this->expectExceptionMessage("Composer metadata [{$path}] member [packages] must contain an array.");
+        $this->expectExceptionMessageIs("Composer metadata [{$path}] member [packages] must contain an array.");
 
         PackageManifest::discoverInstalledPackages($this->filesystem, $basePath . '/vendor', []);
     }
@@ -252,7 +252,7 @@ class FoundationPackageManifestTest extends TestCase
         ], JSON_THROW_ON_ERROR));
 
         $this->expectException(UnexpectedValueException::class);
-        $this->expectExceptionMessage("Composer metadata package [0] in [{$path}] must contain an array.");
+        $this->expectExceptionMessageIs("Composer metadata package [0] in [{$path}] must contain an array.");
 
         PackageManifest::discoverInstalledPackages($this->filesystem, $basePath . '/vendor', []);
     }
@@ -266,7 +266,7 @@ class FoundationPackageManifestTest extends TestCase
         ], JSON_THROW_ON_ERROR));
 
         $this->expectException(UnexpectedValueException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             "Composer metadata package [0] in [{$path}] member [name] must be a non-empty string."
         );
 
@@ -283,7 +283,7 @@ class FoundationPackageManifestTest extends TestCase
         ], JSON_THROW_ON_ERROR));
 
         $this->expectException(UnexpectedValueException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             "Composer metadata package [0] in [{$path}] has an empty formatted package name."
         );
 
@@ -302,7 +302,7 @@ class FoundationPackageManifestTest extends TestCase
         ], JSON_THROW_ON_ERROR));
 
         $this->expectException(UnexpectedValueException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             "Composer metadata package [vendor/package] in [{$path}] member [version] must be a string or null."
         );
 
@@ -321,7 +321,7 @@ class FoundationPackageManifestTest extends TestCase
         ], JSON_THROW_ON_ERROR));
 
         $this->expectException(UnexpectedValueException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             "Composer metadata package [0] in [{$path}] member [extra.hypervel] must contain an array."
         );
 
@@ -415,7 +415,7 @@ class FoundationPackageManifestTest extends TestCase
         $this->filesystem->put($basePath . '/composer.json', '{');
 
         $this->expectException(JsonException::class);
-        $this->expectExceptionMessage('Syntax error');
+        $this->expectExceptionMessageIs('Syntax error');
 
         PackageManifest::rootHypervelExtra($this->filesystem, $basePath, 'test-state');
     }
@@ -427,7 +427,7 @@ class FoundationPackageManifestTest extends TestCase
         $this->filesystem->put($path, 'null');
 
         $this->expectException(UnexpectedValueException::class);
-        $this->expectExceptionMessage("Composer metadata [{$path}] must contain an array.");
+        $this->expectExceptionMessageIs("Composer metadata [{$path}] must contain an array.");
 
         PackageManifest::rootHypervelExtra($this->filesystem, $basePath, 'test-state');
     }
@@ -441,7 +441,7 @@ class FoundationPackageManifestTest extends TestCase
         ], JSON_THROW_ON_ERROR));
 
         $this->expectException(UnexpectedValueException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             "Composer metadata root package in [{$path}] member [extra.hypervel] must contain an array."
         );
 
@@ -623,7 +623,7 @@ class FoundationPackageManifestTest extends TestCase
         $manifest = $this->makeManifest();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('composer/semver');
+        $this->expectExceptionMessageIsOrContains('composer/semver');
 
         $manifest->satisfies('vendor-a/package-a', '^1.0');
     }

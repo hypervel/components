@@ -34,7 +34,7 @@ class OAuthConfigTest extends TestCase
     public function testItValidatesRequiredConfiguration(OAuthConfig $config, bool $withRedirectUri, string $message): void
     {
         $this->expectException(OAuthConfigValidationException::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIsOrContains($message);
 
         $config->validate($withRedirectUri);
     }

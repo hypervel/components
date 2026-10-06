@@ -101,7 +101,7 @@ class RequestTest extends TestCase
     public function testWithCookieRejectsInvalidCookies(array $cookie, string $message): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIs($message);
 
         (new ContainerRequestStub)->withCookie(new SetCookie($cookie));
     }

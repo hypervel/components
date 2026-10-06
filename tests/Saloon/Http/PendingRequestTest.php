@@ -165,7 +165,7 @@ class PendingRequestTest extends TestCase
     public function testConnectorAndRequestBodyTypesMustMatch(): void
     {
         $this->expectException(PendingRequestException::class);
-        $this->expectExceptionMessage('Connector and request body types must be the same.');
+        $this->expectExceptionMessageIs('Connector and request body types must be the same.');
 
         $this->pendingRequest(new PendingRequestConnectorStub, new PendingRequestStringBodyStub);
     }
@@ -193,7 +193,7 @@ class PendingRequestTest extends TestCase
         );
 
         $this->expectException(MissingAuthenticatorException::class);
-        $this->expectExceptionMessage('Custom authentication is required.');
+        $this->expectExceptionMessageIs('Custom authentication is required.');
 
         $pendingRequest->bootPlugins();
     }

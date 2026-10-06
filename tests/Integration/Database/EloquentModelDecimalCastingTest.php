@@ -149,7 +149,7 @@ class EloquentModelDecimalCastingTest extends DatabaseTestCase
         $model->setRawAttributes(['amount' => '12.5']);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The decimal cast for attribute [amount] requires a non-negative integer scale.');
+        $this->expectExceptionMessageIs('The decimal cast for attribute [amount] requires a non-negative integer scale.');
 
         $model->amount;
     }

@@ -934,7 +934,7 @@ class ProcessTest extends TestCase
     public function testFakeProcessesCanThrowWithoutOutput(): void
     {
         $this->expectException(ProcessFailedException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             <<<'EOT'
             The command "exit 1;" failed.
 
@@ -953,7 +953,7 @@ class ProcessTest extends TestCase
     public function testRealProcessesCanThrowWithoutOutput(): void
     {
         $this->expectException(ProcessFailedException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             <<<'EOT'
             The command "exit 1;" failed.
 
@@ -970,7 +970,7 @@ class ProcessTest extends TestCase
     public function testFakeProcessesCanThrowWithErrorOutput(): void
     {
         $this->expectException(ProcessFailedException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIsOrContains(
             <<<'EOT'
             The command "echo "Hello World" >&2; exit 1;" failed.
 
@@ -993,7 +993,7 @@ class ProcessTest extends TestCase
     public function testRealProcessesCanThrowWithErrorOutput(): void
     {
         $this->expectException(ProcessFailedException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIsOrContains(
             <<<'EOT'
             The command "echo "Hello World" >&2; exit 1;" failed.
 
@@ -1014,7 +1014,7 @@ class ProcessTest extends TestCase
     public function testFakeProcessesCanThrowWithOutput(): void
     {
         $this->expectException(ProcessFailedException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIsOrContains(
             <<<'EOT'
             The command "echo "Hello World" >&1; exit 1;" failed.
 
@@ -1037,7 +1037,7 @@ class ProcessTest extends TestCase
     public function testRealProcessesCanThrowWithOutput(): void
     {
         $this->expectException(ProcessFailedException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIsOrContains(
             <<<'EOT'
             The command "echo "Hello World" >&1; exit 1;" failed.
 
@@ -1063,7 +1063,7 @@ class ProcessTest extends TestCase
         }
 
         $this->expectException(ProcessTimedOutException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'The process "sleep 2; exit 1;" exceeded the timeout of 1 seconds.'
         );
 
@@ -1081,7 +1081,7 @@ class ProcessTest extends TestCase
         }
 
         $this->expectException(ProcessTimedOutException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'The process "sleep 2; exit 1;" exceeded the timeout of 1 seconds.'
         );
 
@@ -1266,7 +1266,7 @@ class ProcessTest extends TestCase
     public function testEmptyCallbackPipeFailsDescriptively(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Process pipe must contain at least one pending process.');
+        $this->expectExceptionMessageIs('Process pipe must contain at least one pending process.');
 
         (new Factory)->pipe(static function (): void {
         });
@@ -1275,7 +1275,7 @@ class ProcessTest extends TestCase
     public function testEmptyArrayPipeFailsDescriptively(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Process pipe must contain at least one pending process.');
+        $this->expectExceptionMessageIs('Process pipe must contain at least one pending process.');
 
         (new Factory)->pipe([]);
     }

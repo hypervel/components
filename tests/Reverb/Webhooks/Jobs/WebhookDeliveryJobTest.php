@@ -235,7 +235,7 @@ class WebhookDeliveryJobTest extends ReverbTestCase
     public function testNegativeRetriesCannotEnableUnlimitedAttempts(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The retry count must not be negative.');
+        $this->expectExceptionMessageIs('The retry count must not be negative.');
 
         new WebhookDeliveryJob(new WebhookPayload('test-id', 1, []), 'https://example.com', 'key', 'secret', retries: -1);
     }

@@ -160,7 +160,7 @@ class JwtGenerateCertsCommandTest extends TestCase
     public function testRejectsMismatchedEcCurve(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('ES512 requires the [secp521r1] curve.');
+        $this->expectExceptionMessageIs('ES512 requires the [secp521r1] curve.');
 
         $this->artisan('jwt:generate-certs', [
             '--force' => true,
@@ -174,7 +174,7 @@ class JwtGenerateCertsCommandTest extends TestCase
     public function testRejectsUnsupportedShaVariant(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('JWT certificate SHA variant must be 256, 384, or 512.');
+        $this->expectExceptionMessageIs('JWT certificate SHA variant must be 256, 384, or 512.');
 
         $this->artisan('jwt:generate-certs', [
             '--force' => true,
@@ -189,7 +189,7 @@ class JwtGenerateCertsCommandTest extends TestCase
         $directory = $this->temporaryDirectory('weak-rsa');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('JWT RSA certificates must use at least 2048 bits.');
+        $this->expectExceptionMessageIs('JWT RSA certificates must use at least 2048 bits.');
 
         try {
             $this->artisan('jwt:generate-certs', [
@@ -273,7 +273,7 @@ class JwtGenerateCertsCommandTest extends TestCase
     public function testInvalidAlgorithmFailsFast(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unknown JWT certificate algorithm.');
+        $this->expectExceptionMessageIs('Unknown JWT certificate algorithm.');
 
         $this->artisan('jwt:generate-certs', [
             '--algo' => 'invalid',

@@ -236,7 +236,7 @@ class DatabaseMigrationMigrateCommandTest extends TestCase
 
         if (! $graceful) {
             $this->expectException(RuntimeException::class);
-            $this->expectExceptionMessage('Database seeding failed after migrations ran.');
+            $this->expectExceptionMessageIs('Database seeding failed after migrations ran.');
         }
 
         $code = $command->run(new ArrayInput([

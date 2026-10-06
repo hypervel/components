@@ -347,7 +347,7 @@ class ClientPooledFilesystemTest extends TestCase
         $disk = $this->disk($clientCreations, $stackCreations);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Pooled disks do not expose borrowed internals.');
+        $this->expectExceptionMessageIsOrContains('Pooled disks do not expose borrowed internals.');
 
         $disk->{$method}();
     }
@@ -368,7 +368,7 @@ class ClientPooledFilesystemTest extends TestCase
         $disk = $this->disk($clientCreations, $stackCreations);
 
         $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('an unmapped call could return a lazy result');
+        $this->expectExceptionMessageIsOrContains('an unmapped call could return a lazy result');
 
         $disk->listContents('', true);
     }

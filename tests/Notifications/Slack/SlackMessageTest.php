@@ -18,7 +18,7 @@ class SlackMessageTest extends TestCase
     public function testExceptionWhenNoTextOrBlock(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Slack messages must contain at least a text message or block.');
+        $this->expectExceptionMessageIs('Slack messages must contain at least a text message or block.');
 
         $this->sendNotification(function (SlackMessage $message) {
             $message->to('foo');
@@ -28,7 +28,7 @@ class SlackMessageTest extends TestCase
     public function testExceptionWhenTooManyBlocks(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Slack messages can only contain up to 50 blocks.');
+        $this->expectExceptionMessageIs('Slack messages can only contain up to 50 blocks.');
 
         $this->sendNotification(function (SlackMessage $message) {
             for ($i = 0; $i < 51; ++$i) {
@@ -52,7 +52,7 @@ class SlackMessageTest extends TestCase
     public function testExceptionWithInvalidToken(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Slack API call failed with error [invalid_auth].');
+        $this->expectExceptionMessageIs('Slack API call failed with error [invalid_auth].');
 
         $this->assertNotificationSent([
             'channel' => '#ghost-talk',
@@ -590,7 +590,7 @@ class SlackMessageTest extends TestCase
             ->metadata('invoice.paid', ['reference' => "\xFF"]);
 
         $this->expectException(JsonException::class);
-        $this->expectExceptionMessage('Malformed UTF-8 characters');
+        $this->expectExceptionMessageIsOrContains('Malformed UTF-8 characters');
 
         $message->toBlockKitBuilderUrl();
     }

@@ -53,7 +53,7 @@ class LeaseTest extends TestCase
         $lease->release();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('The pool lease has already been finalized.');
+        $this->expectExceptionMessageIs('The pool lease has already been finalized.');
 
         $lease->get();
     }

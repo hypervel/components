@@ -104,7 +104,7 @@ class StubPublishCommandTest extends TestCase
         $this->filesystem->put($this->stubsPath, 'not a directory');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage("Unable to create directory [{$this->stubsPath}].");
+        $this->expectExceptionMessageIs("Unable to create directory [{$this->stubsPath}].");
 
         $this->artisan('stub:publish');
     }
