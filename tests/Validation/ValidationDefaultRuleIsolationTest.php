@@ -91,7 +91,7 @@ class ValidationDefaultRuleIsolationTest extends TestCase
         Password::defaults(static fn (): Email => new Email);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The default callback must return an instance of ' . Password::class . '.');
+        $this->expectExceptionMessageIs('The default callback must return an instance of ' . Password::class . '.');
 
         Password::default();
     }
