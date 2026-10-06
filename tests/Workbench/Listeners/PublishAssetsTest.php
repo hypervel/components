@@ -133,7 +133,7 @@ class PublishAssetsTest extends TestCase
         });
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to publish Workbench assets to [' . public_path('vendor/workbench/build') . '].');
+        $this->expectExceptionMessageIs('Unable to publish Workbench assets to [' . public_path('vendor/workbench/build') . '].');
 
         $this->dispatchServeCommandStarted();
     }
