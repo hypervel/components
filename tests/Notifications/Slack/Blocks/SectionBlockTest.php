@@ -28,7 +28,7 @@ class SectionBlockTest extends TestCase
     public function testExceptionWithoutTextAndField(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('A section requires at least one block, or the text to be set.');
+        $this->expectExceptionMessageIs('A section requires at least one block, or the text to be set.');
 
         $block = new SectionBlock;
 
@@ -38,7 +38,7 @@ class SectionBlockTest extends TestCase
     public function testTextHasAtLeastOneCharacter(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Text must be at least 1 character(s) long.');
+        $this->expectExceptionMessageIs('Text must be at least 1 character(s) long.');
 
         $block = new SectionBlock;
         $block->text('');
@@ -77,7 +77,7 @@ class SectionBlockTest extends TestCase
     public function testNotAllowMoreThanTenFields(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('There is a maximum of 10 fields in each section block.');
+        $this->expectExceptionMessageIs('There is a maximum of 10 fields in each section block.');
 
         $block = new SectionBlock;
         for ($i = 0; $i < 11; ++$i) {
@@ -138,7 +138,7 @@ class SectionBlockTest extends TestCase
     public function testBlockIdCantExceedTwoFiveFiveCharacters(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Maximum length for the block_id field is 255 characters.');
+        $this->expectExceptionMessageIs('Maximum length for the block_id field is 255 characters.');
 
         $block = new SectionBlock;
         $block->text('Location: 123 Main Street, New York, NY 10010');

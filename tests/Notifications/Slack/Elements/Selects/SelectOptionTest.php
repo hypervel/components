@@ -39,7 +39,7 @@ class SelectOptionTest extends TestCase
         Stringable|string|int|float|bool $value
     ): void {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The option value must not be empty.');
+        $this->expectExceptionMessageIs('The option value must not be empty.');
 
         new SelectOption('Example', $value);
     }
@@ -60,7 +60,7 @@ class SelectOptionTest extends TestCase
     public function testOptionValueCannotExceedOneHundredAndFiftyCharacters(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Maximum length for the option value field is 150 characters.');
+        $this->expectExceptionMessageIs('Maximum length for the option value field is 150 characters.');
 
         new SelectOption('Example', str_repeat('你', 151));
     }

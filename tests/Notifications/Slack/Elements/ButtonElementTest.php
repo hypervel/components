@@ -75,7 +75,7 @@ class ButtonElementTest extends TestCase
     public function testActionIdCantExceedTwoFiveFiveCharacters(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Maximum length for the action_id field is 255 characters.');
+        $this->expectExceptionMessageIs('Maximum length for the action_id field is 255 characters.');
 
         $element = new ButtonElement('Click Me');
         $element->id(str_repeat('a', 256));
@@ -120,7 +120,7 @@ class ButtonElementTest extends TestCase
     public function testUrlCantExceedThreeThousandCharacters(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Maximum length for the url field is 3000 characters.');
+        $this->expectExceptionMessageIs('Maximum length for the url field is 3000 characters.');
 
         $element = new ButtonElement('Click Me');
         $element->url(str_repeat('a', 3001));
@@ -168,7 +168,7 @@ class ButtonElementTest extends TestCase
     public function testValueCantExceedTwoThousandCharacters(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Maximum length for the value field is 2000 characters.');
+        $this->expectExceptionMessageIs('Maximum length for the value field is 2000 characters.');
 
         $element = new ButtonElement('Click Me');
         $element->value(str_repeat('a', 2001));
@@ -296,7 +296,7 @@ class ButtonElementTest extends TestCase
     public function testAccessibilityLabelCantExceedSeventyFiveCharacters(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Maximum length for the accessibility label is 75 characters.');
+        $this->expectExceptionMessageIs('Maximum length for the accessibility label is 75 characters.');
 
         $element = new ButtonElement('Click Me');
         $element->accessibilityLabel(str_repeat('a', 76));

@@ -139,7 +139,7 @@ class SlackWebApiChannelTest extends TestCase
         $this->config->set('services.slack.notifications.bot_user_oauth_token', 'config-set-token');
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Slack notification channel is not set.');
+        $this->expectExceptionMessageIs('Slack notification channel is not set.');
 
         $this->slackChannel->send(
             new SlackChannelTestNotifiable,
@@ -152,7 +152,7 @@ class SlackWebApiChannelTest extends TestCase
     public function testItThrowsAnExceptionWhenTheRouteNotificationForSlackMethodDoesNotProvideATokenAndTheConfigDoesNotEither(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Slack API authentication token is not set.');
+        $this->expectExceptionMessageIs('Slack API authentication token is not set.');
 
         $this->slackChannel->send(
             new SlackChannelTestNotifiable(SlackRoute::make('hypervel-channel')),

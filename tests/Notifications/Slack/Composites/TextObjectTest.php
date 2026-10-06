@@ -34,7 +34,7 @@ class TextObjectTest extends TestCase
     public function testTextHasAtLeastOneCharacter(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Text must be at least 1 character(s) long.');
+        $this->expectExceptionMessageIs('Text must be at least 1 character(s) long.');
 
         new TextObject('');
     }

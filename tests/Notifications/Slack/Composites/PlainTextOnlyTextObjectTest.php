@@ -23,7 +23,7 @@ class PlainTextOnlyTextObjectTest extends TestCase
     public function testTextHasAtLeastOneCharacter(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Text must be at least 1 character(s) long.');
+        $this->expectExceptionMessageIs('Text must be at least 1 character(s) long.');
 
         new PlainTextOnlyTextObject('');
     }
@@ -60,7 +60,7 @@ class PlainTextOnlyTextObjectTest extends TestCase
     public function testMalformedOverLimitTextIsRejectedBeforeTruncation(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Text must be valid UTF-8.');
+        $this->expectExceptionMessageIs('Text must be valid UTF-8.');
 
         new PlainTextOnlyTextObject(str_repeat('a', 3001) . "\xFF");
     }

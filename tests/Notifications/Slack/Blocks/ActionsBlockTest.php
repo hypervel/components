@@ -33,7 +33,7 @@ class ActionsBlockTest extends TestCase
     public function testRequiresAtLeastOneElement(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('There must be at least one element in each actions block.');
+        $this->expectExceptionMessageIs('There must be at least one element in each actions block.');
 
         $block = new ActionsBlock;
         $block->toArray();
@@ -42,7 +42,7 @@ class ActionsBlockTest extends TestCase
     public function testDoesNotAllowMoreTwentyFiveElements(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('There is a maximum of 25 elements in each actions block.');
+        $this->expectExceptionMessageIs('There is a maximum of 25 elements in each actions block.');
 
         $block = new ActionsBlock;
         for ($i = 0; $i < 26; ++$i) {
@@ -77,7 +77,7 @@ class ActionsBlockTest extends TestCase
     public function testBlockIdCantExceedTwoFiveFiveCharacters(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Maximum length for the block_id field is 255 characters.');
+        $this->expectExceptionMessageIs('Maximum length for the block_id field is 255 characters.');
 
         $block = new ActionsBlock;
         $block->button('Button');

@@ -24,7 +24,7 @@ class ImageBlockTest extends TestCase
     public function testUrlCantExceedThreeThousandCharacters(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Maximum length for the url field is 3000 characters.');
+        $this->expectExceptionMessageIs('Maximum length for the url field is 3000 characters.');
 
         new ImageBlock(str_repeat('a', 3001));
     }
@@ -32,7 +32,7 @@ class ImageBlockTest extends TestCase
     public function testAltTextIsRequired(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Alt text is required for an image block.');
+        $this->expectExceptionMessageIs('Alt text is required for an image block.');
 
         $block = new ImageBlock('http://placekitten.com/500/500');
 
@@ -42,7 +42,7 @@ class ImageBlockTest extends TestCase
     public function testAltTextCantExceedTwoThousandCharacters(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Maximum length for the alt text field is 2000 characters.');
+        $this->expectExceptionMessageIs('Maximum length for the alt text field is 2000 characters.');
 
         $block = new ImageBlock('http://placekitten.com/500/500');
         $block->alt(str_repeat('a', 2001));
@@ -53,7 +53,7 @@ class ImageBlockTest extends TestCase
     public function testConstructorAltTextCantExceedTwoThousandCharacters(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Maximum length for the alt text field is 2000 characters.');
+        $this->expectExceptionMessageIs('Maximum length for the alt text field is 2000 characters.');
 
         new ImageBlock('http://placekitten.com/500/500', str_repeat('a', 2001));
     }
@@ -107,7 +107,7 @@ class ImageBlockTest extends TestCase
     public function testBlockIdCantExceedTwoFiveFiveCharacters(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Maximum length for the block_id field is 255 characters.');
+        $this->expectExceptionMessageIs('Maximum length for the block_id field is 255 characters.');
 
         $block = new ImageBlock('http://placekitten.com/500/500');
         $block->id(str_repeat('a', 256));
