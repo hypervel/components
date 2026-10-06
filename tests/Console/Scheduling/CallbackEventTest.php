@@ -60,7 +60,7 @@ class CallbackEventTest extends TestCase
     public function testConstructorThrowsForNonCallable(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Invalid scheduled callback event. Must be a string or callable.');
+        $this->expectExceptionMessageIs('Invalid scheduled callback event. Must be a string or callable.');
 
         new CallbackEvent($this->mutex, ['not', 'callable', 'array']);
     }
@@ -68,7 +68,7 @@ class CallbackEventTest extends TestCase
     public function testConstructorThrowsForNonInvokableObject(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Invalid scheduled callback event. Must be a string or callable.');
+        $this->expectExceptionMessageIs('Invalid scheduled callback event. Must be a string or callable.');
 
         new CallbackEvent($this->mutex, new CallbackEventTestNonInvokable);
     }
@@ -78,7 +78,7 @@ class CallbackEventTest extends TestCase
         $event = new CallbackEvent($this->mutex, fn () => true);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Scheduled closures can not be run in the background.');
+        $this->expectExceptionMessageIs('Scheduled closures can not be run in the background.');
 
         $event->runInBackground();
     }
@@ -88,7 +88,7 @@ class CallbackEventTest extends TestCase
         $event = new CallbackEvent($this->mutex, fn () => true);
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage("A scheduled event name is required to prevent overlapping. Use the 'name' method before 'withoutOverlapping'.");
+        $this->expectExceptionMessageIs("A scheduled event name is required to prevent overlapping. Use the 'name' method before 'withoutOverlapping'.");
 
         $event->withoutOverlapping();
     }
@@ -110,7 +110,7 @@ class CallbackEventTest extends TestCase
         $event = new CallbackEvent($this->mutex, fn () => true);
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage("A scheduled event name is required to only run on one server. Use the 'name' method before 'onOneServer'.");
+        $this->expectExceptionMessageIs("A scheduled event name is required to only run on one server. Use the 'name' method before 'onOneServer'.");
 
         $event->onOneServer();
     }
@@ -214,7 +214,7 @@ class CallbackEventTest extends TestCase
         });
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Callback failed');
+        $this->expectExceptionMessageIs('Callback failed');
 
         $event->run($this->app);
     }

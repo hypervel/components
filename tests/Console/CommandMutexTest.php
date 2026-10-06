@@ -185,7 +185,7 @@ class CommandMutexTest extends TestCase
         );
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('after execute failed');
+        $this->expectExceptionMessageIs('after execute failed');
 
         $this->runCommand();
     }
