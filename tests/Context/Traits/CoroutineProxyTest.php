@@ -24,7 +24,7 @@ class CoroutineProxyTest extends TestCase
     public function testCoroutineProxyException(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Missing $proxyKey property in Hypervel\Tests\Context\Traits\Foo2.');
+        $this->expectExceptionMessageIs('Missing $proxyKey property in Hypervel\Tests\Context\Traits\Foo2.');
         $foo = new Foo2;
         $foo->callBar();
     }
