@@ -96,7 +96,7 @@ class SlackAttachment
     /**
      * The attachment's timestamp.
      */
-    public int $timestamp = 0;
+    public ?int $timestamp = null;
 
     /**
      * The attachment's callback ID.

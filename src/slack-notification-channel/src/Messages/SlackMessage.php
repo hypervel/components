@@ -46,12 +46,12 @@ class SlackMessage
     /**
      * Indicates if a preview of links should be inlined in the message.
      */
-    public bool $unfurlLinks = false;
+    public ?bool $unfurlLinks = null;
 
     /**
      * Indicates if a preview of links to media should be inlined in the message.
      */
-    public bool $unfurlMedia = false;
+    public ?bool $unfurlMedia = null;
 
     /**
      * The message's attachments.
@@ -130,7 +130,7 @@ class SlackMessage
     /**
      * Set the Slack channel the message should be sent to.
      */
-    public function to(string $channel): static
+    public function to(?string $channel): static
     {
         $this->channel = $channel;
 
