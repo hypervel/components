@@ -105,7 +105,7 @@ class CopyTestbenchFilesTest extends TestCase
         $this->filesystem->failedCopyTargets[] = $destination;
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage("Unable to publish Testbench environment [{$destination}].");
+        $this->expectExceptionMessageIs("Unable to publish Testbench environment [{$destination}].");
 
         $this->action->copyEnvironment($this->app, $this->filesystem, $this->workingPath());
     }

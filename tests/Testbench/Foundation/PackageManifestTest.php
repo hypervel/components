@@ -180,7 +180,7 @@ class PackageManifestTest extends TestCase
         );
 
         $this->expectException(UnexpectedValueException::class);
-        $this->expectExceptionMessage('member [name] must be a non-empty string.');
+        $this->expectExceptionMessageIsOrContains('member [name] must be a non-empty string.');
 
         $manifest->build();
     }
@@ -195,7 +195,7 @@ class PackageManifestTest extends TestCase
         $manifest->vendorPath = '/custom/vendor';
 
         $this->expectException(UnexpectedValueException::class);
-        $this->expectExceptionMessage('has an empty formatted package name.');
+        $this->expectExceptionMessageIsOrContains('has an empty formatted package name.');
 
         $manifest->build();
     }
@@ -212,7 +212,7 @@ class PackageManifestTest extends TestCase
         );
 
         $this->expectException(UnexpectedValueException::class);
-        $this->expectExceptionMessage('member [extra.hypervel] must contain an array.');
+        $this->expectExceptionMessageIsOrContains('member [extra.hypervel] must contain an array.');
 
         $manifest->build();
     }
