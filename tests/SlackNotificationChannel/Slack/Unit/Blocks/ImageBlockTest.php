@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Notifications\Slack\Blocks;
+namespace Hypervel\Tests\SlackNotificationChannel\Slack\Unit\Blocks;
 
 use Hypervel\Notifications\Slack\BlockKit\Blocks\ImageBlock;
 use Hypervel\Tests\TestCase;
@@ -102,6 +102,13 @@ class ImageBlockTest extends TestCase
             'alt_text' => 'An incredibly cute kitten.',
             'block_id' => 'actions1',
         ], $block->toArray());
+    }
+
+    public function testZeroBlockIdIsPreserved(): void
+    {
+        $block = (new ImageBlock('https://example.com/image.png', 'Image'))->id('0');
+
+        $this->assertSame('0', $block->toArray()['block_id']);
     }
 
     public function testBlockIdCantExceedTwoFiveFiveCharacters(): void
