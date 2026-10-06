@@ -175,7 +175,7 @@ class FacebookProviderOIDCTokenTest extends TestCase
 
         $this->expectJwksResponses($provider, [$knownKey, $knownKey]);
         $this->expectException(UnexpectedValueException::class);
-        $this->expectExceptionMessage('"kid" invalid');
+        $this->expectExceptionMessageIs('"kid" invalid, unable to lookup correct key');
 
         $provider->userFromToken($this->createSignedToken($unknownKey));
     }
