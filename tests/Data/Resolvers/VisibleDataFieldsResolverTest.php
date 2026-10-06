@@ -316,7 +316,7 @@ class VisibleDataFieldsResolverTest extends TestCase
     public function testWillFailGracefullyWhenANestedFieldDoesNotExist(string $operation): void
     {
         $this->expectException(CannotPerformPartialOnDataField::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIsOrContains(
             "Cannot apply the [{$operation}] partial to unknown data property [certainly-not-simple]",
         );
 

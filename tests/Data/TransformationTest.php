@@ -504,7 +504,7 @@ class TransformationTest extends TestCase
         ));
 
         $this->expectException(MaxTransformationDepthReached::class);
-        $this->expectExceptionMessage('Max transformation depth of 4 reached.');
+        $this->expectExceptionMessageIs('Max transformation depth of 4 reached.');
 
         TestMaxDataObjectTransformationDepthB::fromOther($a)->transform(
             TransformationContextFactory::create()->maxDepth(4)
@@ -536,7 +536,7 @@ class TransformationTest extends TestCase
         ));
 
         $this->expectException(MaxTransformationDepthReached::class);
-        $this->expectExceptionMessage('Max transformation depth of 4 reached.');
+        $this->expectExceptionMessageIs('Max transformation depth of 4 reached.');
 
         TestMaxDatCollectionTransformationDepthB::fromOther($a)->transform(
             TransformationContextFactory::create()->maxDepth(4)

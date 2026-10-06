@@ -46,7 +46,7 @@ class RouteParameterReferenceTest extends TestCase
         $this->bindRouteParameters([]);
 
         $this->expectException(CannotResolveRouteParameterReference::class);
-        $this->expectExceptionMessage('Cannot find route parameter post with property id');
+        $this->expectExceptionMessageIs('Cannot find route parameter post with property id');
 
         (new RouteParameterReference('post', 'id'))->getValue();
     }
@@ -56,7 +56,7 @@ class RouteParameterReferenceTest extends TestCase
         $this->bindRouteParameters(['post' => RouteParameterPost::make(69)]);
 
         $this->expectException(CannotResolveRouteParameterReference::class);
-        $this->expectExceptionMessage('Cannot find property missing in route parameter post');
+        $this->expectExceptionMessageIs('Cannot find property missing in route parameter post');
 
         (new RouteParameterReference('post', 'missing'))->getValue();
     }

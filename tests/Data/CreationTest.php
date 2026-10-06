@@ -713,7 +713,7 @@ class CreationTest extends TestCase
     public function testWillThrowACustomExceptionWhenADataConstructorCannotBeCalledDueToMissingComponent(): void
     {
         $this->expectException(CannotCreateData::class);
-        $this->expectExceptionMessage('its constructor requires 1 payload parameters');
+        $this->expectExceptionMessageIsOrContains('its constructor requires 1 payload parameters');
 
         SimpleData::from([]);
     }
