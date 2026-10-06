@@ -224,7 +224,7 @@ class MailMailableAssertionsTest extends TestCase
         $mailable = new MailableAssertionsStub;
 
         $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('contains "First Item" in specified order');
+        $this->expectExceptionMessageIsOrContains('contains "First Item" in specified order');
 
         $mailable->assertSeeInOrderInHtml([
             'It\'s a wonderful day',
@@ -238,7 +238,7 @@ class MailMailableAssertionsTest extends TestCase
         $mailable = new MailableAssertionsStub;
 
         $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('contains "0" in specified order');
+        $this->expectExceptionMessageIsOrContains('contains "0" in specified order');
 
         $mailable->assertSeeInOrderInText(['Sixth Item', '0']);
     }
@@ -248,7 +248,7 @@ class MailMailableAssertionsTest extends TestCase
         $mailable = new MailableAssertionsStub;
 
         $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('contains "0" in specified order');
+        $this->expectExceptionMessageIsOrContains('contains "0" in specified order');
 
         $mailable->assertSeeInOrderInHtml(['Sixth Item', '0']);
     }
