@@ -171,7 +171,7 @@ class StreamTest extends TestCase
     public function testThrowsWhenPromptCalled(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Stream cannot be prompted');
+        $this->expectExceptionMessageIs('Stream cannot be prompted');
 
         Prompt::fake();
 

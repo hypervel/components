@@ -170,7 +170,7 @@ class SuggestPromptTest extends TestCase
     public function testValidatesDefaultValueWhenNonInteractive(): void
     {
         $this->expectException(NonInteractiveValidationException::class);
-        $this->expectExceptionMessage('Required.');
+        $this->expectExceptionMessageIs('Required.');
 
         Prompt::interactive(false);
         suggest('What is your favorite color?', [

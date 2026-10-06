@@ -128,7 +128,7 @@ class ConfirmPromptTest extends TestCase
         Prompt::interactive(false);
 
         $this->expectException(NonInteractiveValidationException::class);
-        $this->expectExceptionMessage('Required.');
+        $this->expectExceptionMessageIs('Required.');
 
         confirm(
             'Would you like to continue?',
