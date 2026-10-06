@@ -10,7 +10,7 @@ class PolicyMakeCommandTest extends TestCase
         'app/Policies/FooPolicy.php',
     ];
 
-    public function testItCanGeneratePolicyFile()
+    public function testItCanGeneratePolicyFile(): void
     {
         $this->artisan('make:policy', ['name' => 'FooPolicy'])
             ->assertExitCode(0);
@@ -22,7 +22,7 @@ class PolicyMakeCommandTest extends TestCase
         ], 'app/Policies/FooPolicy.php');
     }
 
-    public function testItCanGeneratePolicyFileWithModelOption()
+    public function testItCanGeneratePolicyFileWithModelOption(): void
     {
         $this->artisan('make:policy', ['name' => 'FooPolicy', '--model' => 'Post'])
             ->assertExitCode(0);

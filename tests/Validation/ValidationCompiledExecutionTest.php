@@ -25,7 +25,7 @@ use Symfony\Component\HttpFoundation\File\UploadedFile as SymfonyUploadedFile;
 
 class ValidationCompiledExecutionTest extends TestCase
 {
-    public function testBasicPassFail()
+    public function testBasicPassFail(): void
     {
         $v = $this->makeValidator(['name' => 'John'], ['name' => 'required|string|max:255']);
         $this->assertTrue($v->passes());
@@ -34,7 +34,7 @@ class ValidationCompiledExecutionTest extends TestCase
         $this->assertFalse($v->passes());
     }
 
-    public function testValidatedOutput()
+    public function testValidatedOutput(): void
     {
         $v = $this->makeValidator(
             ['name' => 'John', 'age' => 30, 'extra' => 'ignored'],
@@ -44,7 +44,7 @@ class ValidationCompiledExecutionTest extends TestCase
         $this->assertSame(['name' => 'John', 'age' => 30], $v->validate());
     }
 
-    public function testFailedOutput()
+    public function testFailedOutput(): void
     {
         $v = $this->makeValidator(['name' => 123], ['name' => 'required|string']);
         $v->passes();
@@ -54,7 +54,7 @@ class ValidationCompiledExecutionTest extends TestCase
         $this->assertArrayHasKey('String', $failed['name']);
     }
 
-    public function testErrorMessagesWithReplacements()
+    public function testErrorMessagesWithReplacements(): void
     {
         $translator = new Translator(new ArrayLoader, 'en');
         $translator->addLines([
@@ -217,7 +217,7 @@ class ValidationCompiledExecutionTest extends TestCase
         }
     }
 
-    public function testBailStopsOnFirstFailure()
+    public function testBailStopsOnFirstFailure(): void
     {
         $v = $this->makeValidator(['name' => 123], ['name' => 'bail|string|max:255']);
         $v->passes();
@@ -247,7 +247,7 @@ class ValidationCompiledExecutionTest extends TestCase
         $this->assertSame(['Accepted'], array_keys($validator->failed()['literal.dot']));
     }
 
-    public function testStopOnFirstFailure()
+    public function testStopOnFirstFailure(): void
     {
         $v = $this->makeValidator(
             ['a' => 123, 'b' => 456],
@@ -260,7 +260,7 @@ class ValidationCompiledExecutionTest extends TestCase
         $this->assertFalse($v->errors()->has('b'));
     }
 
-    public function testSometimesRespectsPresence()
+    public function testSometimesRespectsPresence(): void
     {
         $v = $this->makeValidator([], ['name' => 'sometimes|required|string']);
         $this->assertTrue($v->passes());
@@ -269,7 +269,7 @@ class ValidationCompiledExecutionTest extends TestCase
         $this->assertFalse($v->passes());
     }
 
-    public function testNullableWithRequired()
+    public function testNullableWithRequired(): void
     {
         $v = $this->makeValidator(['name' => null], ['name' => 'nullable|required']);
         $this->assertFalse($v->passes());
@@ -278,14 +278,14 @@ class ValidationCompiledExecutionTest extends TestCase
         $this->assertTrue($v->passes());
     }
 
-    public function testRequiredOnEmptyString()
+    public function testRequiredOnEmptyString(): void
     {
         $v = $this->makeValidator(['name' => ''], ['name' => 'required|string']);
         $this->assertFalse($v->passes());
         $this->assertTrue($v->errors()->has('name'));
     }
 
-    public function testCustomMessages()
+    public function testCustomMessages(): void
     {
         $v = $this->makeValidator(
             ['name' => ''],
@@ -297,7 +297,7 @@ class ValidationCompiledExecutionTest extends TestCase
         $this->assertSame('The name field is mandatory.', $v->errors()->first('name'));
     }
 
-    public function testCustomAttributeNames()
+    public function testCustomAttributeNames(): void
     {
         $translator = new Translator(new ArrayLoader, 'en');
         $translator->addLines(['validation.required' => ':attribute is required.'], 'en');
@@ -309,7 +309,7 @@ class ValidationCompiledExecutionTest extends TestCase
         $this->assertSame('Full Name is required.', $v->errors()->first('name'));
     }
 
-    public function testClosureRule()
+    public function testClosureRule(): void
     {
         $v = $this->makeValidator(
             ['code' => 'invalid'],
@@ -324,7 +324,7 @@ class ValidationCompiledExecutionTest extends TestCase
         $this->assertSame('The code is invalid.', $v->errors()->first('code'));
     }
 
-    public function testRuleContractObject()
+    public function testRuleContractObject(): void
     {
         $rule = new class implements RuleContract {
             public function passes(string $attribute, mixed $value): bool
@@ -342,7 +342,7 @@ class ValidationCompiledExecutionTest extends TestCase
         $this->assertFalse($v->passes());
     }
 
-    public function testImplicitRuleRunsOnAbsentAttribute()
+    public function testImplicitRuleRunsOnAbsentAttribute(): void
     {
         $rule = new class implements RuleContract, ImplicitRule {
             public function passes(string $attribute, mixed $value): bool
@@ -360,7 +360,7 @@ class ValidationCompiledExecutionTest extends TestCase
         $this->assertFalse($v->passes());
     }
 
-    public function testCustomExtension()
+    public function testCustomExtension(): void
     {
         $v = $this->makeValidator(['code' => 'abc'], ['code' => 'custom_check']);
         $v->addExtension('custom_check', function ($attribute, $value) {
@@ -370,7 +370,7 @@ class ValidationCompiledExecutionTest extends TestCase
         $this->assertFalse($v->passes());
     }
 
-    public function testDependentRulesResolveCorrectly()
+    public function testDependentRulesResolveCorrectly(): void
     {
         $v = $this->makeValidator(
             ['password' => 'secret', 'password_confirmation' => 'secret'],
@@ -385,7 +385,7 @@ class ValidationCompiledExecutionTest extends TestCase
         $this->assertFalse($v->passes());
     }
 
-    public function testExcludeRulesProduceCorrectValidatedOutput()
+    public function testExcludeRulesProduceCorrectValidatedOutput(): void
     {
         $v = $this->makeValidator(
             ['type' => 'draft', 'title' => 'My Post', 'publish_date' => '2025-01-01'],
@@ -401,7 +401,7 @@ class ValidationCompiledExecutionTest extends TestCase
         $this->assertArrayHasKey('title', $validated);
     }
 
-    public function testDependentRulesWithWildcardParameters()
+    public function testDependentRulesWithWildcardParameters(): void
     {
         $v = $this->makeValidator(
             ['items' => [
@@ -419,7 +419,7 @@ class ValidationCompiledExecutionTest extends TestCase
         $this->assertFalse($v->errors()->has('items.0.end'));
     }
 
-    public function testBooleanStrictDelegated()
+    public function testBooleanStrictDelegated(): void
     {
         $v = $this->makeValidator(['flag' => true], ['flag' => 'boolean:strict']);
         $this->assertTrue($v->passes());
@@ -428,7 +428,7 @@ class ValidationCompiledExecutionTest extends TestCase
         $this->assertFalse($v->passes());
     }
 
-    public function testNumericStrictDelegated()
+    public function testNumericStrictDelegated(): void
     {
         $v = $this->makeValidator(['age' => 30], ['age' => 'numeric:strict']);
         $this->assertTrue($v->passes());
@@ -437,7 +437,7 @@ class ValidationCompiledExecutionTest extends TestCase
         $this->assertFalse($v->passes());
     }
 
-    public function testInWithSiblingArrayUsesArrayDiffBranch()
+    public function testInWithSiblingArrayUsesArrayDiffBranch(): void
     {
         $v = $this->makeValidator(
             ['tags' => ['php', 'js']],
@@ -452,7 +452,7 @@ class ValidationCompiledExecutionTest extends TestCase
         $this->assertFalse($v->passes());
     }
 
-    public function testWildcardValidationWithCorrectIndices()
+    public function testWildcardValidationWithCorrectIndices(): void
     {
         $translator = new Translator(new ArrayLoader, 'en');
         $translator->addLines(['validation.string' => ':attribute must be a string.'], 'en');
@@ -468,7 +468,7 @@ class ValidationCompiledExecutionTest extends TestCase
         $this->assertFalse($v->errors()->has('items.0.name'));
     }
 
-    public function testSubclassWithOverriddenValidateStringIsNotBypassed()
+    public function testSubclassWithOverriddenValidateStringIsNotBypassed(): void
     {
         $translator = new Translator(new ArrayLoader, 'en');
         $v = new AlwaysFailStringValidator($translator, ['name' => 'hello'], ['name' => 'string']);
@@ -670,7 +670,7 @@ class ValidationCompiledExecutionTest extends TestCase
         $this->assertArrayNotHasKey('details', $v->validated());
     }
 
-    public function testCustomPresenceVerifierDisablesBatching()
+    public function testCustomPresenceVerifierDisablesBatching(): void
     {
         $customVerifier = new class implements PresenceVerifierInterface {
             public function getCount(string $collection, string $column, mixed $value, int|string|null $excludeId = null, ?string $idColumn = null, array $extra = []): int
@@ -717,7 +717,7 @@ class ValidationCompiledExecutionTest extends TestCase
         }
     }
 
-    public function testExcludeAttributesResetAcrossValidatorReuse()
+    public function testExcludeAttributesResetAcrossValidatorReuse(): void
     {
         $v = $this->makeValidator(
             ['type' => 'draft', 'details' => 'some details'],
@@ -735,7 +735,7 @@ class ValidationCompiledExecutionTest extends TestCase
         $this->assertArrayHasKey('details', $v->validated());
     }
 
-    public function testPresenceVerifierRestoredAfterException()
+    public function testPresenceVerifierRestoredAfterException(): void
     {
         $translator = new Translator(new ArrayLoader, 'en');
         $v = new Validator($translator, ['name' => 'test'], ['name' => 'required|string']);
@@ -1164,7 +1164,7 @@ class ValidationCompiledExecutionTest extends TestCase
         }
     }
 
-    public function testShouldStopValidatingStillStopsAfterImplicitFailure()
+    public function testShouldStopValidatingStillStopsAfterImplicitFailure(): void
     {
         $v = $this->makeValidator(['name' => ''], ['name' => 'required|string']);
         $v->passes();
@@ -1174,7 +1174,7 @@ class ValidationCompiledExecutionTest extends TestCase
         $this->assertTrue($v->errors()->has('name'));
     }
 
-    public function testSometimesWithAbsentAttributeSkipsDelegatedRulesInCompiledPath()
+    public function testSometimesWithAbsentAttributeSkipsDelegatedRulesInCompiledPath(): void
     {
         $v = $this->makeValidator(
             ['items' => [['name' => 'valid']]],
@@ -1191,7 +1191,7 @@ class ValidationCompiledExecutionTest extends TestCase
         $this->assertArrayNotHasKey('code', $validated['items'][0]);
     }
 
-    public function testImplicitAttributeMapInvalidatedAfterSometimes()
+    public function testImplicitAttributeMapInvalidatedAfterSometimes(): void
     {
         $v = $this->makeValidator(
             [

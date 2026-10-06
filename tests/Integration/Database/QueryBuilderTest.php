@@ -176,14 +176,14 @@ class QueryBuilderTest extends DatabaseTestCase
         Schema::drop('accounting');
     }
 
-    public function testSole()
+    public function testSole(): void
     {
         $expected = ['id' => '1', 'title' => 'Foo Post'];
 
         $this->assertEquals($expected, (array) DB::table('posts')->where('title', 'Foo Post')->select('id', 'title')->sole());
     }
 
-    public function testSoleWithParameters()
+    public function testSoleWithParameters(): void
     {
         $expected = ['id' => '1'];
 
@@ -194,7 +194,7 @@ class QueryBuilderTest extends DatabaseTestCase
         $this->assertEquals($expected, (array) DB::table('posts')->where('title', 'Foo Post')->sole(['id', 'title']));
     }
 
-    public function testSoleFailsForMultipleRecords()
+    public function testSoleFailsForMultipleRecords(): void
     {
         DB::table('posts')->insert([
             ['title' => 'Foo Post', 'content' => 'Lorem Ipsum.', 'created_at' => new CarbonImmutable('2017-11-12 13:14:15')],
@@ -205,14 +205,14 @@ class QueryBuilderTest extends DatabaseTestCase
         DB::table('posts')->where('title', 'Foo Post')->sole();
     }
 
-    public function testSoleFailsIfNoRecords()
+    public function testSoleFailsIfNoRecords(): void
     {
         $this->expectException(RecordsNotFoundException::class);
 
         DB::table('posts')->where('title', 'Baz Post')->sole();
     }
 
-    public function testSelect()
+    public function testSelect(): void
     {
         $expected = ['id' => '1', 'title' => 'Foo Post'];
 
@@ -222,7 +222,7 @@ class QueryBuilderTest extends DatabaseTestCase
         $this->assertCount(4, (array) DB::table('posts')->select()->first());
     }
 
-    public function testSelectReplacesExistingSelects()
+    public function testSelectReplacesExistingSelects(): void
     {
         $this->assertEquals(
             ['id' => '1', 'title' => 'Foo Post'],
@@ -230,7 +230,7 @@ class QueryBuilderTest extends DatabaseTestCase
         );
     }
 
-    public function testSelectWithSubQuery()
+    public function testSelectWithSubQuery(): void
     {
         $this->assertEquals(
             ['id' => '1', 'title' => 'Foo Post', 'foo' => 'Lorem Ipsum.'],
@@ -240,7 +240,7 @@ class QueryBuilderTest extends DatabaseTestCase
         );
     }
 
-    public function testAddSelect()
+    public function testAddSelect(): void
     {
         $expected = ['id' => '1', 'title' => 'Foo Post', 'content' => 'Lorem Ipsum.'];
 
@@ -252,7 +252,7 @@ class QueryBuilderTest extends DatabaseTestCase
         $this->assertEquals(['id' => '1'], (array) DB::table('posts')->select('id')->addSelect([])->first());
     }
 
-    public function testAddSelectWithSubQuery()
+    public function testAddSelectWithSubQuery(): void
     {
         $this->assertEquals(
             ['id' => '1', 'title' => 'Foo Post', 'foo' => 'Lorem Ipsum.'],
@@ -262,7 +262,7 @@ class QueryBuilderTest extends DatabaseTestCase
         );
     }
 
-    public function testFromWithAlias()
+    public function testFromWithAlias(): void
     {
         $this->assertCount(2, DB::table('posts', 'alias')->select('alias.*')->get());
     }
@@ -307,7 +307,7 @@ class QueryBuilderTest extends DatabaseTestCase
         $this->assertSame([0], $query->getBindings());
     }
 
-    public function testFromWithSubQuery()
+    public function testFromWithSubQuery(): void
     {
         $this->assertSame(
             'Fake Post',
@@ -317,7 +317,7 @@ class QueryBuilderTest extends DatabaseTestCase
         );
     }
 
-    public function testWhereValueSubQuery()
+    public function testWhereValueSubQuery(): void
     {
         $subQuery = function ($query) {
             $query->selectRaw("'Sub query value'");
@@ -328,7 +328,7 @@ class QueryBuilderTest extends DatabaseTestCase
         $this->assertTrue(DB::table('posts')->where($subQuery, '!=', 'Does not match')->exists());
     }
 
-    public function testWhereValueSubQueryBuilder()
+    public function testWhereValueSubQueryBuilder(): void
     {
         $subQuery = DB::table('posts')->selectRaw("'Sub query value'")->limit(1);
 
@@ -341,7 +341,7 @@ class QueryBuilderTest extends DatabaseTestCase
         $this->assertTrue(DB::table('posts')->where(DB::raw('\'Does not match\''), '!=', $subQuery)->exists());
     }
 
-    public function testWhereNot()
+    public function testWhereNot(): void
     {
         $results = DB::table('posts')->whereNot(function ($query) {
             $query->where('title', 'Foo Post');
@@ -351,7 +351,7 @@ class QueryBuilderTest extends DatabaseTestCase
         $this->assertSame('Bar Post', $results[0]->title);
     }
 
-    public function testWhereNotInputStringParameter()
+    public function testWhereNotInputStringParameter(): void
     {
         $results = DB::table('posts')->whereNot('title', 'Foo Post')->get();
 
@@ -366,7 +366,7 @@ class QueryBuilderTest extends DatabaseTestCase
         $this->assertSame('Baz Post', $results[0]->title);
     }
 
-    public function testOrWhereNot()
+    public function testOrWhereNot(): void
     {
         $results = DB::table('posts')->where('id', 1)->orWhereNot(function ($query) {
             $query->where('title', 'Foo Post');
@@ -375,14 +375,14 @@ class QueryBuilderTest extends DatabaseTestCase
         $this->assertCount(2, $results);
     }
 
-    public function testWhereDate()
+    public function testWhereDate(): void
     {
         $this->assertSame(1, DB::table('posts')->whereDate('created_at', '2018-01-02')->count());
         $this->assertSame(1, DB::table('posts')->whereDate('created_at', new CarbonImmutable('2018-01-02'))->count());
     }
 
     #[DefineEnvironment('defineEnvironmentWouldThrowsPDOException')]
-    public function testWhereDateWithInvalidOperator()
+    public function testWhereDateWithInvalidOperator(): void
     {
         $sql = DB::table('posts')->whereDate('created_at', '? OR 1=1', '2018-01-02');
 
@@ -398,14 +398,14 @@ class QueryBuilderTest extends DatabaseTestCase
         $this->assertSame(0, $sql->count());
     }
 
-    public function testOrWhereDate()
+    public function testOrWhereDate(): void
     {
         $this->assertSame(2, DB::table('posts')->where('id', 1)->orWhereDate('created_at', '2018-01-02')->count());
         $this->assertSame(2, DB::table('posts')->where('id', 1)->orWhereDate('created_at', new CarbonImmutable('2018-01-02'))->count());
     }
 
     #[DefineEnvironment('defineEnvironmentWouldThrowsPDOException')]
-    public function testOrWhereDateWithInvalidOperator()
+    public function testOrWhereDateWithInvalidOperator(): void
     {
         $sql = DB::table('posts')->where('id', 1)->orWhereDate('created_at', '? OR 1=1', '2018-01-02');
 
@@ -427,14 +427,14 @@ class QueryBuilderTest extends DatabaseTestCase
         $this->assertSame(1, $sql->count());
     }
 
-    public function testWhereDay()
+    public function testWhereDay(): void
     {
         $this->assertSame(1, DB::table('posts')->whereDay('created_at', '02')->count());
         $this->assertSame(1, DB::table('posts')->whereDay('created_at', 2)->count());
         $this->assertSame(1, DB::table('posts')->whereDay('created_at', new CarbonImmutable('2018-01-02'))->count());
     }
 
-    public function testWhereDayWithInvalidOperator()
+    public function testWhereDayWithInvalidOperator(): void
     {
         $sql = DB::table('posts')->whereDay('created_at', '? OR 1=1', '02');
 
@@ -450,14 +450,14 @@ class QueryBuilderTest extends DatabaseTestCase
         $this->assertSame(0, $sql->count());
     }
 
-    public function testOrWhereDay()
+    public function testOrWhereDay(): void
     {
         $this->assertSame(2, DB::table('posts')->where('id', 1)->orWhereDay('created_at', '02')->count());
         $this->assertSame(2, DB::table('posts')->where('id', 1)->orWhereDay('created_at', 2)->count());
         $this->assertSame(2, DB::table('posts')->where('id', 1)->orWhereDay('created_at', new CarbonImmutable('2018-01-02'))->count());
     }
 
-    public function testOrWhereDayWithInvalidOperator()
+    public function testOrWhereDayWithInvalidOperator(): void
     {
         $sql = DB::table('posts')->where('id', 1)->orWhereDay('created_at', '? OR 1=1', '02');
 
@@ -479,14 +479,14 @@ class QueryBuilderTest extends DatabaseTestCase
         $this->assertSame(1, $sql->count());
     }
 
-    public function testWhereMonth()
+    public function testWhereMonth(): void
     {
         $this->assertSame(1, DB::table('posts')->whereMonth('created_at', '01')->count());
         $this->assertSame(1, DB::table('posts')->whereMonth('created_at', 1)->count());
         $this->assertSame(1, DB::table('posts')->whereMonth('created_at', new CarbonImmutable('2018-01-02'))->count());
     }
 
-    public function testWhereMonthWithInvalidOperator()
+    public function testWhereMonthWithInvalidOperator(): void
     {
         $sql = DB::table('posts')->whereMonth('created_at', '? OR 1=1', '01');
 
@@ -502,14 +502,14 @@ class QueryBuilderTest extends DatabaseTestCase
         $this->assertSame(0, $sql->count());
     }
 
-    public function testOrWhereMonth()
+    public function testOrWhereMonth(): void
     {
         $this->assertSame(2, DB::table('posts')->where('id', 1)->orWhereMonth('created_at', '01')->count());
         $this->assertSame(2, DB::table('posts')->where('id', 1)->orWhereMonth('created_at', 1)->count());
         $this->assertSame(2, DB::table('posts')->where('id', 1)->orWhereMonth('created_at', new CarbonImmutable('2018-01-02'))->count());
     }
 
-    public function testOrWhereMonthWithInvalidOperator()
+    public function testOrWhereMonthWithInvalidOperator(): void
     {
         $sql = DB::table('posts')->where('id', 1)->orWhereMonth('created_at', '? OR 1=1', '01');
 
@@ -531,7 +531,7 @@ class QueryBuilderTest extends DatabaseTestCase
         $this->assertSame(1, $sql->count());
     }
 
-    public function testWhereYear()
+    public function testWhereYear(): void
     {
         $this->assertSame(1, DB::table('posts')->whereYear('created_at', '2018')->count());
         $this->assertSame(1, DB::table('posts')->whereYear('created_at', 2018)->count());
@@ -539,7 +539,7 @@ class QueryBuilderTest extends DatabaseTestCase
     }
 
     #[DefineEnvironment('defineEnvironmentWouldThrowsPDOException')]
-    public function testWhereYearWithInvalidOperator()
+    public function testWhereYearWithInvalidOperator(): void
     {
         $sql = DB::table('posts')->whereYear('created_at', '? OR 1=1', '2018');
 
@@ -555,7 +555,7 @@ class QueryBuilderTest extends DatabaseTestCase
         $this->assertSame(0, $sql->count());
     }
 
-    public function testOrWhereYear()
+    public function testOrWhereYear(): void
     {
         $this->assertSame(2, DB::table('posts')->where('id', 1)->orWhereYear('created_at', '2018')->count());
         $this->assertSame(2, DB::table('posts')->where('id', 1)->orWhereYear('created_at', 2018)->count());
@@ -563,7 +563,7 @@ class QueryBuilderTest extends DatabaseTestCase
     }
 
     #[DefineEnvironment('defineEnvironmentWouldThrowsPDOException')]
-    public function testOrWhereYearWithInvalidOperator()
+    public function testOrWhereYearWithInvalidOperator(): void
     {
         $sql = DB::table('posts')->where('id', 1)->orWhereYear('created_at', '? OR 1=1', '2018');
 
@@ -585,14 +585,14 @@ class QueryBuilderTest extends DatabaseTestCase
         $this->assertSame(1, $sql->count());
     }
 
-    public function testWhereTime()
+    public function testWhereTime(): void
     {
         $this->assertSame(1, DB::table('posts')->whereTime('created_at', '03:04:05')->count());
         $this->assertSame(1, DB::table('posts')->whereTime('created_at', new CarbonImmutable('2018-01-02 03:04:05'))->count());
     }
 
     #[DefineEnvironment('defineEnvironmentWouldThrowsPDOException')]
-    public function testWhereTimeWithInvalidOperator()
+    public function testWhereTimeWithInvalidOperator(): void
     {
         $sql = DB::table('posts')->whereTime('created_at', '? OR 1=1', '03:04:05');
 
@@ -608,14 +608,14 @@ class QueryBuilderTest extends DatabaseTestCase
         $this->assertSame(0, $sql->count());
     }
 
-    public function testOrWhereTime()
+    public function testOrWhereTime(): void
     {
         $this->assertSame(2, DB::table('posts')->where('id', 1)->orWhereTime('created_at', '03:04:05')->count());
         $this->assertSame(2, DB::table('posts')->where('id', 1)->orWhereTime('created_at', new CarbonImmutable('2018-01-02 03:04:05'))->count());
     }
 
     #[DefineEnvironment('defineEnvironmentWouldThrowsPDOException')]
-    public function testOrWhereTimeWithInvalidOperator()
+    public function testOrWhereTimeWithInvalidOperator(): void
     {
         $sql = DB::table('posts')->where('id', 1)->orWhereTime('created_at', '? OR 1=1', '03:04:05');
 
@@ -637,7 +637,7 @@ class QueryBuilderTest extends DatabaseTestCase
         $this->assertSame(1, $sql->count());
     }
 
-    public function testWhereNested()
+    public function testWhereNested(): void
     {
         $results = DB::table('posts')->where('content', 'Lorem Ipsum.')->whereNested(function ($query) {
             $query->where('title', 'Foo Post')
@@ -646,7 +646,7 @@ class QueryBuilderTest extends DatabaseTestCase
         $this->assertSame(2, $results);
     }
 
-    public function testPaginateWithSpecificColumns()
+    public function testPaginateWithSpecificColumns(): void
     {
         $result = DB::table('posts')->paginate(5, ['title', 'content']);
 
@@ -657,7 +657,7 @@ class QueryBuilderTest extends DatabaseTestCase
         ]);
     }
 
-    public function testChunkMap()
+    public function testChunkMap(): void
     {
         DB::enableQueryLog();
 
@@ -683,7 +683,7 @@ class QueryBuilderTest extends DatabaseTestCase
         }
     }
 
-    public function testPluck()
+    public function testPluck(): void
     {
         // Test SELECT override, since pluck will take the first column.
         $this->assertSame([
@@ -730,7 +730,7 @@ class QueryBuilderTest extends DatabaseTestCase
         $this->assertSame(2, (int) $result[1]);
     }
 
-    public function testFetchUsing()
+    public function testFetchUsing(): void
     {
         // Fetch column as a list.
         $this->assertSame([

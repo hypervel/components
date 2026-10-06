@@ -25,7 +25,7 @@ use Throwable;
 
 class DatabaseConnectorTest extends TestCase
 {
-    public function testOptionResolution()
+    public function testOptionResolution(): void
     {
         $connector = new Connector;
         $connector->setDefaultOptions([0 => 'foo', 1 => 'bar']);
@@ -481,7 +481,7 @@ class DatabaseConnectorTest extends TestCase
         $this->assertSame($result, $connection);
     }
 
-    public function testPostgresIsolationLevelWithSpaceIsBackslashEscaped()
+    public function testPostgresIsolationLevelWithSpaceIsBackslashEscaped(): void
     {
         $dsn = 'pgsql:host=foo;dbname=\'bar\';options=\'-c default_transaction_isolation=read\\\ committed\'';
         $config = ['host' => 'foo', 'database' => 'bar', 'isolation_level' => 'read committed'];
@@ -494,7 +494,7 @@ class DatabaseConnectorTest extends TestCase
         $this->assertSame($result, $connection);
     }
 
-    public function testPostgresTimezoneIsBakedIntoDsn()
+    public function testPostgresTimezoneIsBakedIntoDsn(): void
     {
         $dsn = 'pgsql:host=foo;dbname=\'bar\';options=\'-c TimeZone=UTC\'';
         $config = ['host' => 'foo', 'database' => 'bar', 'timezone' => 'UTC'];
@@ -507,7 +507,7 @@ class DatabaseConnectorTest extends TestCase
         $this->assertSame($result, $connection);
     }
 
-    public function testPostgresSynchronousCommitIsBakedIntoDsn()
+    public function testPostgresSynchronousCommitIsBakedIntoDsn(): void
     {
         $dsn = 'pgsql:host=foo;dbname=\'bar\';options=\'-c synchronous_commit=off\'';
         $config = ['host' => 'foo', 'database' => 'bar', 'synchronous_commit' => 'off'];
@@ -520,7 +520,7 @@ class DatabaseConnectorTest extends TestCase
         $this->assertSame($result, $connection);
     }
 
-    public function testPostgresCombinesMultipleStartupParamsInDsn()
+    public function testPostgresCombinesMultipleStartupParamsInDsn(): void
     {
         $dsn = 'pgsql:host=foo;dbname=\'bar\';options=\'-c statement_timeout=5s -c TimeZone=Asia/Tokyo -c search_path="public" -c TimeZone=UTC -c default_transaction_isolation=SERIALIZABLE -c lock_timeout=2s -c synchronous_commit=on\'';
         $config = [

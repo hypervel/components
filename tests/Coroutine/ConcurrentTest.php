@@ -27,7 +27,7 @@ class ConcurrentTest extends TestCase
         $this->getContainer();
     }
 
-    public function testConcurrent()
+    public function testConcurrent(): void
     {
         $concurrent = new Concurrent($limit = 10);
         $this->assertSame($limit, $concurrent->getLimit());
@@ -53,7 +53,7 @@ class ConcurrentTest extends TestCase
         $this->assertSame(15, $count);
     }
 
-    public function testException()
+    public function testException(): void
     {
         $con = new Concurrent(10);
         $count = 0;

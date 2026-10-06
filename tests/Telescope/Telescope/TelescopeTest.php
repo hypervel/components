@@ -76,7 +76,7 @@ class TelescopeTest extends FeatureTestCase
         $this->assertSame([], $observedEvents);
     }
 
-    public function testRunAfterRecordingCallback()
+    public function testRunAfterRecordingCallback(): void
     {
         Telescope::afterRecording(function (Telescope $telescope, IncomingEntry $entry) {
             ++$this->count;
@@ -88,7 +88,7 @@ class TelescopeTest extends FeatureTestCase
         $this->assertSame(2, $this->count);
     }
 
-    public function testAfterRecordingCallbackCanStoreAndFlush()
+    public function testAfterRecordingCallbackCanStoreAndFlush(): void
     {
         Telescope::afterRecording(function (Telescope $telescope, IncomingEntry $entry) {
             if (count(Telescope::getEntriesQueue()) > 1) {
@@ -181,7 +181,7 @@ class TelescopeTest extends FeatureTestCase
         $this->assertSame($storedBatches[0][0]['batch_id'], $storedBatches[1][0]['batch_id']);
     }
 
-    public function testRunAfterStoreCallback()
+    public function testRunAfterStoreCallback(): void
     {
         $storedEntries = null;
         $storedBatchId = null;
@@ -250,7 +250,7 @@ class TelescopeTest extends FeatureTestCase
         $this->assertFalse($laterHookRan);
     }
 
-    public function testDontStartRecordingWhenDispatchingJobSynchronously()
+    public function testDontStartRecordingWhenDispatchingJobSynchronously(): void
     {
         Telescope::stopRecording();
 
@@ -263,7 +263,7 @@ class TelescopeTest extends FeatureTestCase
         $this->assertFalse(Telescope::isRecording());
     }
 
-    public function testFlushStateClearsShouldListenCallback()
+    public function testFlushStateClearsShouldListenCallback(): void
     {
         Telescope::shouldListenUsing(fn () => false);
 

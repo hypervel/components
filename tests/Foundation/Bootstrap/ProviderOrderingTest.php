@@ -148,7 +148,7 @@ use ReflectionMethod;
 
 class ProviderOrderingTest extends TestCase
 {
-    public function testFrameworkProvidersLoadBeforeApplicationProviders()
+    public function testFrameworkProvidersLoadBeforeApplicationProviders(): void
     {
         $app = $this->createAppWithProviders(
             configProviders: [
@@ -170,7 +170,7 @@ class ProviderOrderingTest extends TestCase
         ], $order);
     }
 
-    public function testDiscoveredProvidersLoadBetweenFrameworkAndApplicationProviders()
+    public function testDiscoveredProvidersLoadBetweenFrameworkAndApplicationProviders(): void
     {
         $app = $this->createAppWithProviders(
             configProviders: [
@@ -191,7 +191,7 @@ class ProviderOrderingTest extends TestCase
         ], $order);
     }
 
-    public function testDiscoveredProvidersAreSortedByPriorityDescending()
+    public function testDiscoveredProvidersAreSortedByPriorityDescending(): void
     {
         $app = $this->createAppWithProviders(
             configProviders: [
@@ -214,7 +214,7 @@ class ProviderOrderingTest extends TestCase
         ], $order);
     }
 
-    public function testNegativePriorityLoadsAfterDefaultPriority()
+    public function testNegativePriorityLoadsAfterDefaultPriority(): void
     {
         $app = $this->createAppWithProviders(
             configProviders: [
@@ -235,7 +235,7 @@ class ProviderOrderingTest extends TestCase
         ], $order);
     }
 
-    public function testSamePriorityPreservesOriginalOrder()
+    public function testSamePriorityPreservesOriginalOrder(): void
     {
         $app = $this->createAppWithProviders(
             configProviders: [
@@ -259,7 +259,7 @@ class ProviderOrderingTest extends TestCase
         ], $order);
     }
 
-    public function testMixedPrioritiesWithAllThreeTiers()
+    public function testMixedPrioritiesWithAllThreeTiers(): void
     {
         $app = $this->createAppWithProviders(
             configProviders: [
@@ -293,7 +293,7 @@ class ProviderOrderingTest extends TestCase
         ], $order);
     }
 
-    public function testDuplicateProviderIsOnlyRegisteredOnce()
+    public function testDuplicateProviderIsOnlyRegisteredOnce(): void
     {
         $app = $this->createAppWithProviders(
             configProviders: [
@@ -317,7 +317,7 @@ class ProviderOrderingTest extends TestCase
         ], $order);
     }
 
-    public function testEmptyDiscoveredProvidersStillOrdersCorrectly()
+    public function testEmptyDiscoveredProvidersStillOrdersCorrectly(): void
     {
         $app = $this->createAppWithProviders(
             configProviders: [
@@ -335,7 +335,7 @@ class ProviderOrderingTest extends TestCase
         ], $order);
     }
 
-    public function testOnlyDiscoveredProviders()
+    public function testOnlyDiscoveredProviders(): void
     {
         $app = $this->createAppWithProviders(
             configProviders: [],
@@ -353,7 +353,7 @@ class ProviderOrderingTest extends TestCase
         ], $order);
     }
 
-    public function testOnlyFrameworkProviders()
+    public function testOnlyFrameworkProviders(): void
     {
         $app = $this->createAppWithProviders(
             configProviders: [
@@ -371,14 +371,14 @@ class ProviderOrderingTest extends TestCase
         ], $order);
     }
 
-    public function testSortByPriorityWithEmptyArray()
+    public function testSortByPriorityWithEmptyArray(): void
     {
         $result = $this->callSortByPriority([]);
 
         $this->assertSame([], $result);
     }
 
-    public function testSortByPriorityWithNonServiceProviderClass()
+    public function testSortByPriorityWithNonServiceProviderClass(): void
     {
         // Non-ServiceProvider classes get priority 0
         $result = $this->callSortByPriority([
@@ -394,7 +394,7 @@ class ProviderOrderingTest extends TestCase
         ], $result);
     }
 
-    public function testDefaultPriorityIsZero()
+    public function testDefaultPriorityIsZero(): void
     {
         $provider = new FrameworkAlphaProvider($this->app);
 

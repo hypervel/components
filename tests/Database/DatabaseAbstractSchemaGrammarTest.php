@@ -13,7 +13,7 @@ use RuntimeException;
 
 class DatabaseAbstractSchemaGrammarTest extends TestCase
 {
-    public function testCreateDatabase()
+    public function testCreateDatabase(): void
     {
         $connection = m::mock(Connection::class);
         $grammar = new class($connection) extends Grammar {
@@ -22,7 +22,7 @@ class DatabaseAbstractSchemaGrammarTest extends TestCase
         $this->assertSame('create database "foo"', $grammar->compileCreateDatabase('foo'));
     }
 
-    public function testDropDatabaseIfExists()
+    public function testDropDatabaseIfExists(): void
     {
         $connection = m::mock(Connection::class);
         $grammar = new class($connection) extends Grammar {

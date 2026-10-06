@@ -11,14 +11,14 @@ use Hypervel\Tests\TestCase;
 
 class ForwardsCallsTest extends TestCase
 {
-    public function testForwardsCalls()
+    public function testForwardsCalls(): void
     {
         $results = (new ForwardsCallsOne)->forwardedTwo('foo', 'bar');
 
         $this->assertEquals(['foo', 'bar'], $results);
     }
 
-    public function testNestedForwardCalls()
+    public function testNestedForwardCalls(): void
     {
         $results = (new ForwardsCallsOne)->forwardedBase('foo', 'bar');
 

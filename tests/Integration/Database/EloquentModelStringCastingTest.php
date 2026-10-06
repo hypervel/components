@@ -25,7 +25,7 @@ class EloquentModelStringCastingTest extends DatabaseTestCase
     /**
      * Tests...
      */
-    public function testSavingCastedAttributesToDatabase()
+    public function testSavingCastedAttributesToDatabase(): void
     {
         /** @var StringCasts $model */
         $model = StringCasts::create([
@@ -45,7 +45,7 @@ class EloquentModelStringCastingTest extends DatabaseTestCase
         $this->assertEquals($stdClass, $model->getAttribute('object_attributes'));
     }
 
-    public function testSavingCastedEmptyAttributesToDatabase()
+    public function testSavingCastedEmptyAttributesToDatabase(): void
     {
         /** @var StringCasts $model */
         $model = StringCasts::create([

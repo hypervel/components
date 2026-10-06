@@ -10,7 +10,7 @@ use Hypervel\Tests\TestCase;
 
 class ContextualBindingTest extends TestCase
 {
-    public function testContainerCanInjectDifferentImplementationsDependingOnContext()
+    public function testContainerCanInjectDifferentImplementationsDependingOnContext(): void
     {
         $container = new Container;
 
@@ -55,7 +55,7 @@ class ContextualBindingTest extends TestCase
         $this->assertInstanceOf(ContainerContextImplementationStub::class, $one->impl);
     }
 
-    public function testContextualBindingWorksForExistingInstancedBindings()
+    public function testContextualBindingWorksForExistingInstancedBindings(): void
     {
         $container = new Container;
 
@@ -66,7 +66,7 @@ class ContextualBindingTest extends TestCase
         $this->assertInstanceOf(ContainerContextImplementationStubTwo::class, $container->make(ContainerTestContextInjectOne::class)->impl);
     }
 
-    public function testContextualBindingWorksForNewlyInstancedBindings()
+    public function testContextualBindingWorksForNewlyInstancedBindings(): void
     {
         $container = new Container;
 
@@ -80,7 +80,7 @@ class ContextualBindingTest extends TestCase
         );
     }
 
-    public function testContextualBindingWorksOnExistingAliasedInstances()
+    public function testContextualBindingWorksOnExistingAliasedInstances(): void
     {
         $container = new Container;
 
@@ -95,7 +95,7 @@ class ContextualBindingTest extends TestCase
         );
     }
 
-    public function testContextualBindingWorksOnNewAliasedInstances()
+    public function testContextualBindingWorksOnNewAliasedInstances(): void
     {
         $container = new Container;
 
@@ -110,7 +110,7 @@ class ContextualBindingTest extends TestCase
         );
     }
 
-    public function testContextualBindingWorksOnNewAliasedBindings()
+    public function testContextualBindingWorksOnNewAliasedBindings(): void
     {
         $container = new Container;
 
@@ -125,7 +125,7 @@ class ContextualBindingTest extends TestCase
         );
     }
 
-    public function testContextualBindingDoesNotFollowStaleAliases()
+    public function testContextualBindingDoesNotFollowStaleAliases(): void
     {
         $container = new Container;
 
@@ -142,7 +142,7 @@ class ContextualBindingTest extends TestCase
         );
     }
 
-    public function testContextualBindingWorksForMultipleClasses()
+    public function testContextualBindingWorksForMultipleClasses(): void
     {
         $container = new Container;
 
@@ -166,7 +166,7 @@ class ContextualBindingTest extends TestCase
         );
     }
 
-    public function testContextualBindingDoesntOverrideNonContextualResolution()
+    public function testContextualBindingDoesntOverrideNonContextualResolution(): void
     {
         $container = new Container;
 
@@ -186,7 +186,7 @@ class ContextualBindingTest extends TestCase
         );
     }
 
-    public function testContextuallyBoundInstancesAreNotUnnecessarilyRecreated()
+    public function testContextuallyBoundInstancesAreNotUnnecessarilyRecreated(): void
     {
         ContainerTestContextInjectInstantiations::$instantiations = 0;
 
@@ -207,7 +207,7 @@ class ContextualBindingTest extends TestCase
         $this->assertEquals(1, ContainerTestContextInjectInstantiations::$instantiations);
     }
 
-    public function testContainerCanInjectSimpleVariable()
+    public function testContainerCanInjectSimpleVariable(): void
     {
         $container = new Container;
         $container->when(ContainerInjectVariableStub::class)->needs('$something')->give(100);
@@ -222,7 +222,7 @@ class ContextualBindingTest extends TestCase
         $this->assertInstanceOf(ContainerConcreteStub::class, $instance->something);
     }
 
-    public function testContextualBindingWorksWithAliasedTargets()
+    public function testContextualBindingWorksWithAliasedTargets(): void
     {
         $container = new Container;
 
@@ -241,7 +241,7 @@ class ContextualBindingTest extends TestCase
         $this->assertInstanceOf(ContainerContextImplementationStubTwo::class, $two->impl);
     }
 
-    public function testContextualBindingWorksForNestedOptionalDependencies()
+    public function testContextualBindingWorksForNestedOptionalDependencies(): void
     {
         $container = new Container;
 
@@ -263,7 +263,7 @@ class ContextualBindingTest extends TestCase
         $this->assertInstanceOf(ContainerContextImplementationStubTwo::class, $resolvedInstance->implTwo->impl);
     }
 
-    public function testContextualBindingWorksForVariadicDependencies()
+    public function testContextualBindingWorksForVariadicDependencies(): void
     {
         $container = new Container;
 
@@ -281,7 +281,7 @@ class ContextualBindingTest extends TestCase
         $this->assertInstanceOf(ContainerContextImplementationStubTwo::class, $resolvedInstance->stubs[1]);
     }
 
-    public function testContextualBindingWorksForVariadicDependenciesWithNothingBound()
+    public function testContextualBindingWorksForVariadicDependenciesWithNothingBound(): void
     {
         $container = new Container;
 
@@ -290,7 +290,7 @@ class ContextualBindingTest extends TestCase
         $this->assertCount(0, $resolvedInstance->stubs);
     }
 
-    public function testContextualBindingWorksForVariadicAfterNonVariadicDependencies()
+    public function testContextualBindingWorksForVariadicAfterNonVariadicDependencies(): void
     {
         $container = new Container;
 
@@ -308,7 +308,7 @@ class ContextualBindingTest extends TestCase
         $this->assertInstanceOf(ContainerContextImplementationStubTwo::class, $resolvedInstance->stubs[1]);
     }
 
-    public function testContextualBindingWorksForVariadicAfterNonVariadicDependenciesWithNothingBound()
+    public function testContextualBindingWorksForVariadicAfterNonVariadicDependenciesWithNothingBound(): void
     {
         $container = new Container;
 
@@ -317,7 +317,7 @@ class ContextualBindingTest extends TestCase
         $this->assertCount(0, $resolvedInstance->stubs);
     }
 
-    public function testContextualBindingWorksForVariadicDependenciesWithoutFactory()
+    public function testContextualBindingWorksForVariadicDependenciesWithoutFactory(): void
     {
         $container = new Container;
 
@@ -333,7 +333,7 @@ class ContextualBindingTest extends TestCase
         $this->assertInstanceOf(ContainerContextImplementationStubTwo::class, $resolvedInstance->stubs[1]);
     }
 
-    public function testContextualBindingGivesTagsForArrayWithNoTagsDefined()
+    public function testContextualBindingGivesTagsForArrayWithNoTagsDefined(): void
     {
         $container = new Container;
 
@@ -344,7 +344,7 @@ class ContextualBindingTest extends TestCase
         $this->assertCount(0, $resolvedInstance->stubs);
     }
 
-    public function testContextualBindingGivesTagsForVariadicWithNoTagsDefined()
+    public function testContextualBindingGivesTagsForVariadicWithNoTagsDefined(): void
     {
         $container = new Container;
 
@@ -355,7 +355,7 @@ class ContextualBindingTest extends TestCase
         $this->assertCount(0, $resolvedInstance->stubs);
     }
 
-    public function testContextualBindingGivesTagsForArray()
+    public function testContextualBindingGivesTagsForArray(): void
     {
         $container = new Container;
 
@@ -373,7 +373,7 @@ class ContextualBindingTest extends TestCase
         $this->assertInstanceOf(ContainerContextImplementationStubTwo::class, $resolvedInstance->stubs[1]);
     }
 
-    public function testContextualBindingGivesTagsForVariadic()
+    public function testContextualBindingGivesTagsForVariadic(): void
     {
         $container = new Container;
 
@@ -391,7 +391,7 @@ class ContextualBindingTest extends TestCase
         $this->assertInstanceOf(ContainerContextImplementationStubTwo::class, $resolvedInstance->stubs[1]);
     }
 
-    public function testContextualBindingGivesValuesFromConfigOptionalValueNull()
+    public function testContextualBindingGivesValuesFromConfigOptionalValueNull(): void
     {
         $container = new Container;
 
@@ -421,7 +421,7 @@ class ContextualBindingTest extends TestCase
         $this->assertNull($resolvedInstance->alias);
     }
 
-    public function testContextualBindingGivesValuesFromConfigOptionalValueSet()
+    public function testContextualBindingGivesValuesFromConfigOptionalValueSet(): void
     {
         $container = new Container;
 
@@ -457,7 +457,7 @@ class ContextualBindingTest extends TestCase
         $this->assertSame('lumen', $resolvedInstance->alias);
     }
 
-    public function testContextualBindingGivesValuesFromConfigWithDefault()
+    public function testContextualBindingGivesValuesFromConfigWithDefault(): void
     {
         $container = new Container;
 
@@ -486,7 +486,7 @@ class ContextualBindingTest extends TestCase
         $this->assertNull($resolvedInstance->alias);
     }
 
-    public function testContextualBindingGivesValuesFromConfigArray()
+    public function testContextualBindingGivesValuesFromConfigArray(): void
     {
         $container = new Container;
 
@@ -512,7 +512,7 @@ class ContextualBindingTest extends TestCase
         $this->assertSame('lumen', $resolvedInstance->settings['alias']);
     }
 
-    public function testContextualBindingWorksForMethodInvocation()
+    public function testContextualBindingWorksForMethodInvocation(): void
     {
         $container = new Container;
 

@@ -6,7 +6,7 @@ namespace Hypervel\Tests\View\Blade;
 
 class BladeBoolTest extends AbstractBladeTestCase
 {
-    public function testBool()
+    public function testBool(): void
     {
         // For Javascript object{'isBool' : true}
         $string = "{'isBool' : @bool(true)}";

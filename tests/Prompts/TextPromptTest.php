@@ -106,7 +106,7 @@ class TextPromptTest extends TestCase
         $this->assertSame('result', $result);
     }
 
-    public function testFallbackWhenIsAdditive()
+    public function testFallbackWhenIsAdditive(): void
     {
         TextPrompt::fallbackUsing(fn () => 'result');
 

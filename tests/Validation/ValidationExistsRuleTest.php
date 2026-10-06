@@ -30,7 +30,7 @@ class ValidationExistsRuleTest extends TestCase
         ];
     }
 
-    public function testItCorrectlyFormatsAStringVersionOfTheRule()
+    public function testItCorrectlyFormatsAStringVersionOfTheRule(): void
     {
         $rule = new Exists('table');
         $rule->where('foo', 'bar');
@@ -69,7 +69,7 @@ class ValidationExistsRuleTest extends TestCase
         $this->assertSame('exists:' . ClassWithRequiredConstructorParameters::class . ',column,foo,"bar"', (string) $rule);
     }
 
-    public function testItChoosesValidRecordsUsingWhereInRule()
+    public function testItChoosesValidRecordsUsingWhereInRule(): void
     {
         $rule = new Exists('table', 'id_column');
         $rule->whereIn('type', ['foo', 'bar']);
@@ -101,7 +101,7 @@ class ValidationExistsRuleTest extends TestCase
         $this->assertFalse($v->passes());
     }
 
-    public function testItChoosesValidRecordsUsingWhereNotInRule()
+    public function testItChoosesValidRecordsUsingWhereNotInRule(): void
     {
         $rule = new Exists('table', 'id_column');
         $rule->whereNotIn('type', ['foo', 'bar']);
@@ -133,7 +133,7 @@ class ValidationExistsRuleTest extends TestCase
         $this->assertTrue($v->passes());
     }
 
-    public function testItChoosesValidRecordsUsingConditionalModifiers()
+    public function testItChoosesValidRecordsUsingConditionalModifiers(): void
     {
         $rule = new Exists('table', 'id_column');
         $rule->when(true, function ($rule) {
@@ -170,7 +170,7 @@ class ValidationExistsRuleTest extends TestCase
         $this->assertTrue($v->passes());
     }
 
-    public function testItChoosesValidRecordsUsingWhereNotInAndWhereNotInRulesTogether()
+    public function testItChoosesValidRecordsUsingWhereNotInAndWhereNotInRulesTogether(): void
     {
         $rule = new Exists('table', 'id_column');
         $rule->whereIn('type', ['foo', 'bar', 'baz'])->whereNotIn('type', ['foo', 'bar']);
@@ -205,7 +205,7 @@ class ValidationExistsRuleTest extends TestCase
         $this->assertTrue($v->passes());
     }
 
-    public function testItChoosesValidRecordsUsingWhereNotRule()
+    public function testItChoosesValidRecordsUsingWhereNotRule(): void
     {
         $rule = new Exists('table', 'id_column');
 
@@ -230,7 +230,7 @@ class ValidationExistsRuleTest extends TestCase
         $this->assertTrue($v->passes());
     }
 
-    public function testItIgnoresSoftDeletes()
+    public function testItIgnoresSoftDeletes(): void
     {
         $rule = new Exists('table');
         $rule->withoutTrashed();
@@ -241,7 +241,7 @@ class ValidationExistsRuleTest extends TestCase
         $this->assertSame('exists:table,NULL,softdeleted_at,"NULL"', (string) $rule);
     }
 
-    public function testItOnlyTrashedSoftDeletes()
+    public function testItOnlyTrashedSoftDeletes(): void
     {
         $rule = new Exists('table');
         $rule->onlyTrashed();
@@ -252,7 +252,7 @@ class ValidationExistsRuleTest extends TestCase
         $this->assertSame('exists:table,NULL,softdeleted_at,"NOT_NULL"', (string) $rule);
     }
 
-    public function testItIsAPartOfListRules()
+    public function testItIsAPartOfListRules(): void
     {
         $rule = new Exists('table', 'id_column');
 

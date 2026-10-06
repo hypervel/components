@@ -17,7 +17,7 @@ use function Hypervel\Coroutine\parallel;
 
 class CallQueuedListenerTest extends TestCase
 {
-    public function testHypervelListenerToleratesUnknownPropertiesOnUnserialization()
+    public function testHypervelListenerToleratesUnknownPropertiesOnUnserialization(): void
     {
         $this->assertListenerToleratesUnknownProperties(
             HypervelCallQueuedListener::class

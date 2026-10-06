@@ -33,7 +33,7 @@ class SimpleConnectionResolverIsolationTest extends TestCase
         parent::tearDown();
     }
 
-    public function testTwoInstancesHaveIndependentDefaults()
+    public function testTwoInstancesHaveIndependentDefaults(): void
     {
         $resolverA = new SimpleConnectionResolver(m::mock(DatabaseManager::class));
         $resolverB = new SimpleConnectionResolver(m::mock(DatabaseManager::class));
@@ -45,7 +45,7 @@ class SimpleConnectionResolverIsolationTest extends TestCase
         $this->assertSame('beta', $resolverB->getDefaultConnection());
     }
 
-    public function testSetDefaultConnectionDoesNotWriteToSharedContext()
+    public function testSetDefaultConnectionDoesNotWriteToSharedContext(): void
     {
         $resolver = new SimpleConnectionResolver(m::mock(DatabaseManager::class));
 

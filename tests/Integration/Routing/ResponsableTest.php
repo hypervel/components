@@ -12,7 +12,7 @@ use Symfony\Component\HttpFoundation\Response;
 
 class ResponsableTest extends RoutingTestCase
 {
-    public function testResponsableObjectsAreRendered()
+    public function testResponsableObjectsAreRendered(): void
     {
         Route::get('/responsable', function () {
             return new TestResponsableResponse;

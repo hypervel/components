@@ -9,7 +9,7 @@ use Hypervel\Tests\TestCase;
 
 class RewindableGeneratorTest extends TestCase
 {
-    public function testCountUsesProvidedValue()
+    public function testCountUsesProvidedValue(): void
     {
         $generator = new RewindableGenerator(function () {
             yield 'foo';
@@ -18,7 +18,7 @@ class RewindableGeneratorTest extends TestCase
         $this->assertCount(999, $generator);
     }
 
-    public function testCountUsesProvidedValueAsCallback()
+    public function testCountUsesProvidedValueAsCallback(): void
     {
         $called = 0;
 

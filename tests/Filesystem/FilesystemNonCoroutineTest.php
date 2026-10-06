@@ -39,7 +39,7 @@ class FilesystemNonCoroutineTest extends TestCase
     }
 
     #[RequiresOperatingSystem('Linux|Darwin')]
-    public function testSharedGet()
+    public function testSharedGet(): void
     {
         $content = str_repeat('123456', 1000000);
         $filePath = $this->tempDir . '/file.txt';
@@ -85,7 +85,7 @@ class FilesystemNonCoroutineTest extends TestCase
         $this->assertTrue($allSucceeded, 'At least one subprocess got a partial or corrupt read');
     }
 
-    public function testLockedPutWithStreamResource()
+    public function testLockedPutWithStreamResource(): void
     {
         $files = new Filesystem;
         $path = $this->tempDir . '/stream.txt';
@@ -100,7 +100,7 @@ class FilesystemNonCoroutineTest extends TestCase
         $this->assertStringEqualsFile($path, 'stream content here');
     }
 
-    public function testLockedPutTruncatesLongerExistingContent()
+    public function testLockedPutTruncatesLongerExistingContent(): void
     {
         $files = new Filesystem;
         $path = $this->tempDir . '/truncate.txt';

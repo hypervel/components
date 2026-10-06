@@ -9,7 +9,7 @@ use Hypervel\Tests\TestCase;
 
 class AstVisitorRegistryTest extends TestCase
 {
-    public function testInsertAndExists()
+    public function testInsertAndExists(): void
     {
         $this->assertFalse(AstVisitorRegistry::exists('FooVisitor'));
 
@@ -18,7 +18,7 @@ class AstVisitorRegistryTest extends TestCase
         $this->assertTrue(AstVisitorRegistry::exists('FooVisitor'));
     }
 
-    public function testInsertWithPriority()
+    public function testInsertWithPriority(): void
     {
         AstVisitorRegistry::insert('LowPriority', 0);
         AstVisitorRegistry::insert('HighPriority', 100);
@@ -33,7 +33,7 @@ class AstVisitorRegistryTest extends TestCase
         $this->assertSame('LowPriority', $items[1]);
     }
 
-    public function testFlushStateResetsAllState()
+    public function testFlushStateResetsAllState(): void
     {
         AstVisitorRegistry::insert('FooVisitor');
         $this->assertTrue(AstVisitorRegistry::exists('FooVisitor'));
@@ -44,7 +44,7 @@ class AstVisitorRegistryTest extends TestCase
         $this->assertTrue(AstVisitorRegistry::getQueue()->isEmpty());
     }
 
-    public function testExistsUsesStrictComparison()
+    public function testExistsUsesStrictComparison(): void
     {
         AstVisitorRegistry::insert('FooVisitor');
 

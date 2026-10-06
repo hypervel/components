@@ -29,7 +29,7 @@ class ValidationImageFileRuleTest extends TestCase
         });
     }
 
-    public function testDimensions()
+    public function testDimensions(): void
     {
         $this->fails(
             File::image()->dimensions(Rule::dimensions()->width(100)->height(100)),
@@ -60,7 +60,7 @@ class ValidationImageFileRuleTest extends TestCase
         );
     }
 
-    public function testDimensionWithTheRatioMethod()
+    public function testDimensionWithTheRatioMethod(): void
     {
         $this->fails(
             File::image()->dimensions(Rule::dimensions()->ratio(1)),

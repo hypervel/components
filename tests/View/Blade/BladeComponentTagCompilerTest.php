@@ -25,7 +25,7 @@ use Stringable;
 
 class BladeComponentTagCompilerTest extends AbstractBladeTestCase
 {
-    public function testSlotsCanBeCompiled()
+    public function testSlotsCanBeCompiled(): void
     {
         $this->mockViewFactory();
         $result = $this->compiler()->compileSlots('<x-slot name="foo">
@@ -49,7 +49,7 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
         );
     }
 
-    public function testInlineSlotsCanBeCompiled()
+    public function testInlineSlotsCanBeCompiled(): void
     {
         $this->mockViewFactory();
         $result = $this->compiler()->compileSlots('<x-slot:foo>
@@ -61,7 +61,7 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
         );
     }
 
-    public function testDynamicSlotsCanBeCompiled()
+    public function testDynamicSlotsCanBeCompiled(): void
     {
         $this->mockViewFactory();
         $result = $this->compiler()->compileSlots('<x-slot :name="$foo">
@@ -73,7 +73,7 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
         );
     }
 
-    public function testDynamicSlotsCanBeCompiledWithKeyOfObjects()
+    public function testDynamicSlotsCanBeCompiledWithKeyOfObjects(): void
     {
         $this->mockViewFactory();
         $result = $this->compiler()->compileSlots('<x-slot :name="$foo->name">
@@ -85,7 +85,7 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
         );
     }
 
-    public function testSlotsWithAttributesCanBeCompiled()
+    public function testSlotsWithAttributesCanBeCompiled(): void
     {
         $this->mockViewFactory();
         $result = $this->compiler()->compileSlots('<x-slot name="foo" class="font-bold">
@@ -97,7 +97,7 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
         );
     }
 
-    public function testInlineSlotsWithAttributesCanBeCompiled()
+    public function testInlineSlotsWithAttributesCanBeCompiled(): void
     {
         $this->mockViewFactory();
         $result = $this->compiler()->compileSlots('<x-slot:foo class="font-bold">
@@ -109,7 +109,7 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
         );
     }
 
-    public function testSlotsWithDynamicAttributesCanBeCompiled()
+    public function testSlotsWithDynamicAttributesCanBeCompiled(): void
     {
         $this->mockViewFactory();
         $result = $this->compiler()->compileSlots('<x-slot name="foo" :class="$classes">
@@ -121,7 +121,7 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
         );
     }
 
-    public function testSlotsWithClassDirectiveCanBeCompiled()
+    public function testSlotsWithClassDirectiveCanBeCompiled(): void
     {
         $this->mockViewFactory();
         $result = $this->compiler()->compileSlots('<x-slot name="foo" @class($classes)>
@@ -133,7 +133,7 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
         );
     }
 
-    public function testSlotsWithStyleDirectiveCanBeCompiled()
+    public function testSlotsWithStyleDirectiveCanBeCompiled(): void
     {
         $this->mockViewFactory();
         $result = $this->compiler()->compileSlots('<x-slot name="foo" @style($styles)>
@@ -145,7 +145,7 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
         );
     }
 
-    public function testBasicComponentParsing()
+    public function testBasicComponentParsing(): void
     {
         $this->mockViewFactory();
 
@@ -199,7 +199,7 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
             . '@endComponentClass##END-COMPONENT-CLASS##</div>', trim($result));
     }
 
-    public function testBasicComponentWithEmptyAttributesParsing()
+    public function testBasicComponentWithEmptyAttributesParsing(): void
     {
         $this->mockViewFactory();
         $result = $this->compiler(['alert' => TestAlertComponent::class])->compileTags('<div><x-alert type="" limit=\'\' @click="" required /></div>');
@@ -212,7 +212,7 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
 . '@endComponentClass##END-COMPONENT-CLASS##</div>', trim($result));
     }
 
-    public function testDataCamelCasing()
+    public function testDataCamelCasing(): void
     {
         $this->mockViewFactory();
         $result = $this->compiler(['profile' => TestProfileComponent::class])->compileTags('<x-profile user-id="1"></x-profile>');
@@ -224,7 +224,7 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
 <?php \$component->withAttributes([]); ?> @endComponentClass##END-COMPONENT-CLASS##", trim($result));
     }
 
-    public function testColonData()
+    public function testColonData(): void
     {
         $this->mockViewFactory();
         $result = $this->compiler(['profile' => TestProfileComponent::class])->compileTags('<x-profile :user-id="1"></x-profile>');
@@ -236,7 +236,7 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
 <?php \$component->withAttributes([]); ?> @endComponentClass##END-COMPONENT-CLASS##", trim($result));
     }
 
-    public function testColonDataShortSyntax()
+    public function testColonDataShortSyntax(): void
     {
         $this->mockViewFactory();
         $result = $this->compiler(['profile' => TestProfileComponent::class])->compileTags('<x-profile :$userId></x-profile>');
@@ -248,7 +248,7 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
 <?php \$component->withAttributes([]); ?> @endComponentClass##END-COMPONENT-CLASS##", trim($result));
     }
 
-    public function testColonDataWithStaticClassProperty()
+    public function testColonDataWithStaticClassProperty(): void
     {
         $this->mockViewFactory();
         $result = $this->compiler(['profile' => TestProfileComponent::class])->compileTags('<x-profile :userId="User::$id"></x-profile>');
@@ -260,7 +260,7 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
 <?php \$component->withAttributes([]); ?> @endComponentClass##END-COMPONENT-CLASS##", trim($result));
     }
 
-    public function testColonDataWithStaticClassPropertyAndMultipleAttributes()
+    public function testColonDataWithStaticClassPropertyAndMultipleAttributes(): void
     {
         $this->mockViewFactory();
         $result = $this->compiler(['input' => TestInputComponent::class])->compileTags('<x-input :label="Input::$label" :$name value="Joe"></x-input>');
@@ -280,7 +280,7 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
 <?php \$component->withAttributes([]); ?> @endComponentClass##END-COMPONENT-CLASS##", trim($result));
     }
 
-    public function testSelfClosingComponentWithColonDataShortSyntax()
+    public function testSelfClosingComponentWithColonDataShortSyntax(): void
     {
         $this->mockViewFactory();
         $result = $this->compiler(['profile' => TestProfileComponent::class])->compileTags('<x-profile :$userId/>');
@@ -293,7 +293,7 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
 . '@endComponentClass##END-COMPONENT-CLASS##', trim($result));
     }
 
-    public function testSelfClosingComponentWithColonDataAndStaticClassPropertyShortSyntax()
+    public function testSelfClosingComponentWithColonDataAndStaticClassPropertyShortSyntax(): void
     {
         $this->mockViewFactory();
         $result = $this->compiler(['profile' => TestProfileComponent::class])->compileTags('<x-profile :userId="User::$id"/>');
@@ -306,7 +306,7 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
 . '@endComponentClass##END-COMPONENT-CLASS##', trim($result));
     }
 
-    public function testSelfClosingComponentWithColonDataMultipleAttributesAndStaticClassPropertyShortSyntax()
+    public function testSelfClosingComponentWithColonDataMultipleAttributesAndStaticClassPropertyShortSyntax(): void
     {
         $this->mockViewFactory();
         $result = $this->compiler(['input' => TestInputComponent::class])->compileTags('<x-input :label="Input::$label" value="Joe" :$name />');
@@ -328,7 +328,7 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
 . '@endComponentClass##END-COMPONENT-CLASS##', trim($result));
     }
 
-    public function testEscapedColonAttribute()
+    public function testEscapedColonAttribute(): void
     {
         $this->mockViewFactory();
         $result = $this->compiler(['profile' => TestProfileComponent::class])->compileTags('<x-profile :user-id="1" ::title="user.name"></x-profile>');
@@ -340,7 +340,7 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
 <?php \$component->withAttributes([':title' => 'user.name']); ?> @endComponentClass##END-COMPONENT-CLASS##", trim($result));
     }
 
-    public function testColonAttributesIsEscapedIfStrings()
+    public function testColonAttributesIsEscapedIfStrings(): void
     {
         $this->mockViewFactory();
         $result = $this->compiler(['profile' => TestProfileComponent::class])->compileTags('<x-profile :src="\'foo\'"></x-profile>');
@@ -352,7 +352,7 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
 <?php \$component->withAttributes(['src' => \\Hypervel\\View\\Compilers\\BladeCompiler::sanitizeComponentAttribute('foo')]); ?> @endComponentClass##END-COMPONENT-CLASS##", trim($result));
     }
 
-    public function testClassDirective()
+    public function testClassDirective(): void
     {
         $this->mockViewFactory();
         $result = $this->compiler(['profile' => TestProfileComponent::class])->compileTags('<x-profile @class(["bar"=>true])></x-profile>');
@@ -364,7 +364,7 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
 <?php \$component->withAttributes(['class' => \\Hypervel\\View\\Compilers\\BladeCompiler::sanitizeComponentAttribute(\\Hypervel\\Support\\Arr::toCssClasses(['bar'=>true]))]); ?> @endComponentClass##END-COMPONENT-CLASS##", trim($result));
     }
 
-    public function testStyleDirective()
+    public function testStyleDirective(): void
     {
         $this->mockViewFactory();
         $result = $this->compiler(['profile' => TestProfileComponent::class])->compileTags('<x-profile @style(["bar"=>true])></x-profile>');
@@ -376,7 +376,7 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
 <?php \$component->withAttributes(['style' => \\Hypervel\\View\\Compilers\\BladeCompiler::sanitizeComponentAttribute(\\Hypervel\\Support\\Arr::toCssStyles(['bar'=>true]))]); ?> @endComponentClass##END-COMPONENT-CLASS##", trim($result));
     }
 
-    public function testColonNestedComponentParsing()
+    public function testColonNestedComponentParsing(): void
     {
         $this->mockViewFactory();
         $result = $this->compiler(['foo:alert' => TestAlertComponent::class])->compileTags('<x-foo:alert></x-foo:alert>');
@@ -388,7 +388,7 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
 <?php \$component->withAttributes([]); ?> @endComponentClass##END-COMPONENT-CLASS##", trim($result));
     }
 
-    public function testColonStartingNestedComponentParsing()
+    public function testColonStartingNestedComponentParsing(): void
     {
         $this->mockViewFactory();
         $result = $this->compiler(['foo:alert' => TestAlertComponent::class])->compileTags('<x:foo:alert></x-foo:alert>');
@@ -400,7 +400,7 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
 <?php \$component->withAttributes([]); ?> @endComponentClass##END-COMPONENT-CLASS##", trim($result));
     }
 
-    public function testSelfClosingComponentsCanBeCompiled()
+    public function testSelfClosingComponentsCanBeCompiled(): void
     {
         $this->mockViewFactory();
         $result = $this->compiler(['alert' => TestAlertComponent::class])->compileTags('<div><x-alert/></div>');
@@ -451,7 +451,7 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
         $this->assertSame('App\View\Components\Base\Alert', trim($result));
     }
 
-    public function testComponentsCanBeCompiledWithHyphenAttributes()
+    public function testComponentsCanBeCompiledWithHyphenAttributes(): void
     {
         $this->mockViewFactory();
 
@@ -465,7 +465,7 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
 . '@endComponentClass##END-COMPONENT-CLASS##', trim($result));
     }
 
-    public function testSelfClosingComponentsCanBeCompiledWithDataAndAttributes()
+    public function testSelfClosingComponentsCanBeCompiledWithDataAndAttributes(): void
     {
         $this->mockViewFactory();
         $result = $this->compiler(['alert' => TestAlertComponent::class])->compileTags('<x-alert title="foo" class="bar" wire:model="foo" />');
@@ -478,7 +478,7 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
 . '@endComponentClass##END-COMPONENT-CLASS##', trim($result));
     }
 
-    public function testComponentCanReceiveAttributeBag()
+    public function testComponentCanReceiveAttributeBag(): void
     {
         $this->mockViewFactory();
 
@@ -491,7 +491,7 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
 <?php \$component->withAttributes(['class' => 'bar','attributes' => \\Hypervel\\View\\Compilers\\BladeCompiler::sanitizeComponentAttribute(\$attributes),'wire:model' => 'foo']); ?> @endComponentClass##END-COMPONENT-CLASS##", trim($result));
     }
 
-    public function testSelfClosingComponentCanReceiveAttributeBag()
+    public function testSelfClosingComponentCanReceiveAttributeBag(): void
     {
         $this->mockViewFactory();
 
@@ -505,7 +505,7 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
             . '@endComponentClass##END-COMPONENT-CLASS##</div>', trim($result));
     }
 
-    public function testComponentsCanHaveAttachedWord()
+    public function testComponentsCanHaveAttachedWord(): void
     {
         $this->mockViewFactory();
         $result = $this->compiler(['profile' => TestProfileComponent::class])->compileTags('<x-profile></x-profile>Words');
@@ -517,7 +517,7 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
 <?php \$component->withAttributes([]); ?> @endComponentClass##END-COMPONENT-CLASS##Words", trim($result));
     }
 
-    public function testSelfClosingComponentsCanHaveAttachedWord()
+    public function testSelfClosingComponentsCanHaveAttachedWord(): void
     {
         $this->mockViewFactory();
         $result = $this->compiler(['alert' => TestAlertComponent::class])->compileTags('<x-alert/>Words');
@@ -530,7 +530,7 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
 . '@endComponentClass##END-COMPONENT-CLASS##Words', trim($result));
     }
 
-    public function testSelfClosingComponentsCanBeCompiledWithBoundData()
+    public function testSelfClosingComponentsCanBeCompiledWithBoundData(): void
     {
         $this->mockViewFactory();
         $result = $this->compiler(['alert' => TestAlertComponent::class])->compileTags('<x-alert :title="$title" class="bar" />');
@@ -543,7 +543,7 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
 . '@endComponentClass##END-COMPONENT-CLASS##', trim($result));
     }
 
-    public function testPairedComponentTags()
+    public function testPairedComponentTags(): void
     {
         $this->mockViewFactory();
         $result = $this->compiler(['alert' => TestAlertComponent::class])->compileTags('<x-alert>
@@ -883,7 +883,7 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
         $this->assertSame($paginator, BladeCompiler::sanitizeComponentAttribute($paginator));
     }
 
-    public function testItThrowsAnExceptionForNonExistingAliases()
+    public function testItThrowsAnExceptionForNonExistingAliases(): void
     {
         $this->mockViewFactory(false);
 

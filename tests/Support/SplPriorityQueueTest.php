@@ -9,7 +9,7 @@ use Hypervel\Tests\TestCase;
 
 class SplPriorityQueueTest extends TestCase
 {
-    public function testQueueWithPriority()
+    public function testQueueWithPriority(): void
     {
         $items = [
             'a' => 1,
@@ -28,7 +28,7 @@ class SplPriorityQueueTest extends TestCase
         $this->assertSame('b,a,d,c', join(',', $result));
     }
 
-    public function testQueueWithSomePriority()
+    public function testQueueWithSomePriority(): void
     {
         $items = ['a', 'b', 'c', 'd' => 1];
         $queue = new SplPriorityQueue;
@@ -45,7 +45,7 @@ class SplPriorityQueueTest extends TestCase
         $this->assertSame('d,a,b,c', join(',', $result));
     }
 
-    public function testQueueWithoutPriority()
+    public function testQueueWithoutPriority(): void
     {
         $items = ['a', 'b', 'c', 'd'];
         $queue = new SplPriorityQueue;
@@ -62,7 +62,7 @@ class SplPriorityQueueTest extends TestCase
         $this->assertSame('a,b,c,d', join(',', $result));
     }
 
-    public function testQueueWithArrayPriority()
+    public function testQueueWithArrayPriority(): void
     {
         $items = [
             'a' => [1, 2],

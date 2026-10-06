@@ -11,13 +11,13 @@ use Hypervel\Testbench\TestCase;
 
 class CoreContainerAliasesTest extends TestCase
 {
-    public function testConnectionResolverInterfaceResolvesToDatabaseManager()
+    public function testConnectionResolverInterfaceResolvesToDatabaseManager(): void
     {
         // ConnectionResolverInterface aliases to 'db' (DatabaseManager), matching Laravel.
         $this->assertInstanceOf(DatabaseManager::class, $this->app->make(ConnectionResolverInterface::class));
     }
 
-    public function testDbResolverResolvesToTestingConnectionResolver()
+    public function testDbResolverResolvesToTestingConnectionResolver(): void
     {
         // The internal 'db.resolver' binding is overridden in tests with the
         // testing resolver that caches connections statically.

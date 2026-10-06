@@ -22,7 +22,7 @@ class ConcurrentForkTest extends TestCase
         Container::setInstance(new Container);
     }
 
-    public function testForkCopiesSpecifiedContextKeys()
+    public function testForkCopiesSpecifiedContextKeys(): void
     {
         CoroutineContext::set('key_a', 'value_a');
         CoroutineContext::set('key_b', 'value_b');
@@ -39,7 +39,7 @@ class ConcurrentForkTest extends TestCase
         $this->assertNull($channel->pop());
     }
 
-    public function testForkDoesNotCopyUnspecifiedKeys()
+    public function testForkDoesNotCopyUnspecifiedKeys(): void
     {
         CoroutineContext::set('included', 'yes');
         CoroutineContext::set('excluded', 'no');
@@ -54,7 +54,7 @@ class ConcurrentForkTest extends TestCase
         $this->assertNull($channel->pop());
     }
 
-    public function testForkWithEmptyKeysCopiesAllContext()
+    public function testForkWithEmptyKeysCopiesAllContext(): void
     {
         CoroutineContext::set('key_x', 'x');
         CoroutineContext::set('key_y', 'y');
@@ -71,7 +71,7 @@ class ConcurrentForkTest extends TestCase
         $this->assertSame('y', $channel->pop());
     }
 
-    public function testForkRespectsConcurrencyLimit()
+    public function testForkRespectsConcurrencyLimit(): void
     {
         $concurrent = new Concurrent($limit = 5);
         $count = 0;
@@ -95,7 +95,7 @@ class ConcurrentForkTest extends TestCase
         $this->assertSame(10, $count);
     }
 
-    public function testForkReleasesChannelSlotOnCompletion()
+    public function testForkReleasesChannelSlotOnCompletion(): void
     {
         $concurrent = new Concurrent(2);
 
@@ -112,7 +112,7 @@ class ConcurrentForkTest extends TestCase
         $this->assertSame(0, $concurrent->getRunningCoroutineCount());
     }
 
-    public function testForkReleasesChannelSlotOnException()
+    public function testForkReleasesChannelSlotOnException(): void
     {
         $concurrent = new Concurrent(2);
 
@@ -129,7 +129,7 @@ class ConcurrentForkTest extends TestCase
         $this->assertSame(0, $concurrent->getRunningCoroutineCount());
     }
 
-    public function testForkChildMutationsDoNotAffectParent()
+    public function testForkChildMutationsDoNotAffectParent(): void
     {
         CoroutineContext::set('shared', 'parent');
 

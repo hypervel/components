@@ -21,7 +21,7 @@ class SchemaBuilderTest extends DatabaseTestCase
         Schema::dropAllViews();
     }
 
-    public function testDropAllTables()
+    public function testDropAllTables(): void
     {
         $this->expectNotToPerformAssertions();
 
@@ -38,7 +38,7 @@ class SchemaBuilderTest extends DatabaseTestCase
         });
     }
 
-    public function testDropAllViews()
+    public function testDropAllViews(): void
     {
         $this->expectNotToPerformAssertions();
 
@@ -50,7 +50,7 @@ class SchemaBuilderTest extends DatabaseTestCase
     }
 
     #[RequiresDatabase('sqlite')]
-    public function testChangeToTinyInteger()
+    public function testChangeToTinyInteger(): void
     {
         Schema::create('test', function (Blueprint $table) {
             $table->string('test_column');
@@ -125,7 +125,7 @@ class SchemaBuilderTest extends DatabaseTestCase
     }
 
     #[RequiresDatabase(['mysql', 'mariadb'])]
-    public function testModifyNullableColumn()
+    public function testModifyNullableColumn(): void
     {
         Schema::create('test', static function (Blueprint $table) {
             $table->string('not_null_column_to_not_null');
@@ -151,7 +151,7 @@ class SchemaBuilderTest extends DatabaseTestCase
         $this->assertEquals($expected, $blueprint->toSql());
     }
 
-    public function testChangeNullableColumn()
+    public function testChangeNullableColumn(): void
     {
         Schema::create('test', function (Blueprint $table) {
             $table->string('not_null_column_to_not_null');
@@ -182,7 +182,7 @@ class SchemaBuilderTest extends DatabaseTestCase
         $this->assertFalse($columns->firstWhere('name', 'nullable_column_to_not_null')['nullable']);
     }
 
-    public function testRenameColumnWithDefault()
+    public function testRenameColumnWithDefault(): void
     {
         Schema::create('test', static function (Blueprint $table) {
             $table->timestamp('foo')->useCurrent();
@@ -203,7 +203,7 @@ class SchemaBuilderTest extends DatabaseTestCase
     }
 
     #[RequiresDatabase('sqlite')]
-    public function testModifyColumnWithZeroDefaultOnSqlite()
+    public function testModifyColumnWithZeroDefaultOnSqlite(): void
     {
         Schema::create('test', static function (Blueprint $table) {
             $table->integer('column_default_zero')->default(new Expression('0'));
@@ -220,7 +220,7 @@ class SchemaBuilderTest extends DatabaseTestCase
         $this->assertSame('0', $columns->firstWhere('name', 'column_to_change')['default']);
     }
 
-    public function testCompoundPrimaryWithAutoIncrement()
+    public function testCompoundPrimaryWithAutoIncrement(): void
     {
         if ($this->driver === 'sqlite') {
             $this->markTestSkipped('Compound primary key with an auto increment column is not supported on SQLite.');
@@ -275,7 +275,7 @@ class SchemaBuilderTest extends DatabaseTestCase
         $this->assertTrue(Schema::hasIndex('test', ['id'], 'primary'));
     }
 
-    public function testAddingAutoIncrementColumn()
+    public function testAddingAutoIncrementColumn(): void
     {
         if ($this->driver === 'sqlite') {
             $this->markTestSkipped('Adding a primary column is not supported on SQLite.');
@@ -293,7 +293,7 @@ class SchemaBuilderTest extends DatabaseTestCase
         $this->assertTrue(Schema::hasIndex('test', ['id'], 'primary'));
     }
 
-    public function testGetTables()
+    public function testGetTables(): void
     {
         Schema::create('foo', function (Blueprint $table) {
             $table->comment('This is a comment');
@@ -349,14 +349,14 @@ class SchemaBuilderTest extends DatabaseTestCase
         $this->assertSame(['medium' => $bytes, 'long' => $bytes], $values);
     }
 
-    public function testHasView()
+    public function testHasView(): void
     {
         DB::statement('create view foo (id) as select 1');
 
         $this->assertTrue(Schema::hasView('foo'));
     }
 
-    public function testGetViews()
+    public function testGetViews(): void
     {
         DB::statement('create view foo (id) as select 1');
         DB::statement('create view bar (name) as select 1');
@@ -368,7 +368,7 @@ class SchemaBuilderTest extends DatabaseTestCase
     }
 
     #[RequiresDatabase('pgsql')]
-    public function testGetAndDropTypes()
+    public function testGetAndDropTypes(): void
     {
         DB::statement('create type pseudo_foo');
         DB::statement('create type comp_foo as (f1 int, f2 text)');
@@ -401,7 +401,7 @@ class SchemaBuilderTest extends DatabaseTestCase
         $this->assertEmpty($types);
     }
 
-    public function testGetColumns()
+    public function testGetColumns(): void
     {
         Schema::create('foo', function (Blueprint $table) {
             $table->id();
@@ -433,7 +433,7 @@ class SchemaBuilderTest extends DatabaseTestCase
         $this->assertSame('bar', $columns[0]['name']);
     }
 
-    public function testGetIndexes()
+    public function testGetIndexes(): void
     {
         Schema::create('foo', function (Blueprint $table) {
             $table->string('bar')->index('my_index');
@@ -509,7 +509,7 @@ class SchemaBuilderTest extends DatabaseTestCase
         $this->assertSame('idx_myindex', Schema::getIndexes('foo')[0]['name']);
     }
 
-    public function testGetUniqueIndexes()
+    public function testGetUniqueIndexes(): void
     {
         Schema::create('foo', function (Blueprint $table) {
             $table->id();
@@ -535,7 +535,7 @@ class SchemaBuilderTest extends DatabaseTestCase
         $this->assertFalse(Schema::hasIndex('foo', ['baz', 'bar'], 'primary'));
     }
 
-    public function testGetIndexesWithCompositeKeys()
+    public function testGetIndexesWithCompositeKeys(): void
     {
         Schema::create('foo', function (Blueprint $table) {
             $table->unsignedBigInteger('key');
@@ -557,7 +557,7 @@ class SchemaBuilderTest extends DatabaseTestCase
     }
 
     #[RequiresDatabase(['mysql', 'mariadb', 'pgsql'])]
-    public function testGetFullTextIndexes()
+    public function testGetFullTextIndexes(): void
     {
         Schema::create('articles', function (Blueprint $table) {
             $table->id();
@@ -574,7 +574,7 @@ class SchemaBuilderTest extends DatabaseTestCase
         $this->assertTrue(collect($indexes)->contains('name', 'articles_body_title_fulltext'));
     }
 
-    public function testHasIndexOrder()
+    public function testHasIndexOrder(): void
     {
         Schema::create('foo', function (Blueprint $table) {
             $table->integer('bar');
@@ -594,7 +594,7 @@ class SchemaBuilderTest extends DatabaseTestCase
         $this->assertFalse(Schema::hasIndex('foo', ['qux', 'baz']));
     }
 
-    public function testGetForeignKeys()
+    public function testGetForeignKeys(): void
     {
         Schema::create('users', function (Blueprint $table) {
             $table->id();
@@ -614,7 +614,7 @@ class SchemaBuilderTest extends DatabaseTestCase
         ));
     }
 
-    public function testGetCompoundForeignKeys()
+    public function testGetCompoundForeignKeys(): void
     {
         Schema::create('parent', function (Blueprint $table) {
             $table->id();
@@ -758,7 +758,7 @@ class SchemaBuilderTest extends DatabaseTestCase
         }
     }
 
-    public function testAlteringTableWithForeignKeyConstraintsEnabled()
+    public function testAlteringTableWithForeignKeyConstraintsEnabled(): void
     {
         Schema::enableForeignKeyConstraints();
 
@@ -788,7 +788,7 @@ class SchemaBuilderTest extends DatabaseTestCase
     }
 
     #[RequiresDatabase('mariadb')]
-    public function testSystemVersionedTables()
+    public function testSystemVersionedTables(): void
     {
         DB::statement('create table `test` (`foo` int) WITH system versioning;');
 
@@ -802,7 +802,7 @@ class SchemaBuilderTest extends DatabaseTestCase
     }
 
     #[RequiresDatabase('sqlite')]
-    public function testAddingStoredColumnOnSqlite()
+    public function testAddingStoredColumnOnSqlite(): void
     {
         Schema::create('test', function (Blueprint $table) {
             $table->integer('price');
@@ -817,7 +817,7 @@ class SchemaBuilderTest extends DatabaseTestCase
     }
 
     #[RequiresDatabase('sqlite')]
-    public function testModifyingStoredColumnOnSqlite()
+    public function testModifyingStoredColumnOnSqlite(): void
     {
         Schema::create('test', function (Blueprint $table) {
             $table->integer('price');
@@ -952,7 +952,7 @@ class SchemaBuilderTest extends DatabaseTestCase
     }
 
     #[RequiresDatabase('sqlite')]
-    public function testAddForeignKeysOnSqlite()
+    public function testAddForeignKeysOnSqlite(): void
     {
         Schema::create('users', function (Blueprint $table) {
             $table->id();
@@ -979,7 +979,7 @@ class SchemaBuilderTest extends DatabaseTestCase
     }
 
     #[RequiresDatabase('sqlite')]
-    public function testDropForeignKeysOnSqlite()
+    public function testDropForeignKeysOnSqlite(): void
     {
         Schema::create('users', function (Blueprint $table) {
             $table->id();
@@ -1018,7 +1018,7 @@ class SchemaBuilderTest extends DatabaseTestCase
     }
 
     #[RequiresDatabase('sqlite')]
-    public function testAddAndDropPrimaryOnSqlite()
+    public function testAddAndDropPrimaryOnSqlite(): void
     {
         Schema::create('users', function (Blueprint $table) {
             $table->id();
@@ -1060,7 +1060,7 @@ class SchemaBuilderTest extends DatabaseTestCase
         $this->assertTrue(Schema::hasIndex('posts', ['user_name'], 'unique'));
     }
 
-    public function testAddingMacros()
+    public function testAddingMacros(): void
     {
         Schema::macro('foo', fn () => 'foo');
 

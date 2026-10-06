@@ -43,7 +43,7 @@ class EncryptCookiesTest extends TestCase
         EncryptCookiesTestMiddleware::except(['globally_unencrypted_cookie']);
     }
 
-    public function testSetCookieEncryption()
+    public function testSetCookieEncryption(): void
     {
         $this->router->get($this->setCookiePath, [
             'middleware' => EncryptCookiesTestMiddleware::class,
@@ -65,7 +65,7 @@ class EncryptCookiesTest extends TestCase
         $this->assertSame('value', $cookies[4]->getValue());
     }
 
-    public function testQueuedCookieEncryption()
+    public function testQueuedCookieEncryption(): void
     {
         $this->router->get($this->queueCookiePath, [
             'middleware' => [EncryptCookiesTestMiddleware::class, AddQueuedCookiesToResponseTestMiddleware::class],
@@ -88,7 +88,7 @@ class EncryptCookiesTest extends TestCase
         $this->assertSame('value', $cookies[4]->getValue());
     }
 
-    public function testCookieDecryption()
+    public function testCookieDecryption(): void
     {
         $cookies = [
             'encrypted_cookie' => $this->getEncryptedCookieValue('encrypted_cookie', 'value'),
@@ -125,7 +125,7 @@ class EncryptCookiesTest extends TestCase
         );
     }
 
-    public function testOnlyEncryptsSpecifiedCookies()
+    public function testOnlyEncryptsSpecifiedCookies(): void
     {
         EncryptCookiesTestMiddleware::flushState();
         EncryptCookiesTestMiddleware::only(['encrypted_cookie']);
@@ -153,7 +153,7 @@ class EncryptCookiesTest extends TestCase
         $this->assertSame('value', $cookies[4]->getValue());
     }
 
-    public function testOnlyDecryptsSpecifiedCookies()
+    public function testOnlyDecryptsSpecifiedCookies(): void
     {
         EncryptCookiesTestMiddleware::flushState();
         EncryptCookiesTestMiddleware::only(['encrypted_cookie']);
@@ -176,7 +176,7 @@ class EncryptCookiesTest extends TestCase
         );
     }
 
-    public function testOnlyTakesPrecedenceOverExcept()
+    public function testOnlyTakesPrecedenceOverExcept(): void
     {
         EncryptCookiesTestMiddleware::flushState();
         // Set up both: except says "don't encrypt unencrypted_cookie",
@@ -197,7 +197,7 @@ class EncryptCookiesTest extends TestCase
         $this->assertTrue($middleware->isDisabled('random_cookie'));
     }
 
-    public function testOnlyTakesPrecedenceOverInstanceExcept()
+    public function testOnlyTakesPrecedenceOverInstanceExcept(): void
     {
         EncryptCookiesTestMiddleware::flushState();
         EncryptCookiesTestMiddleware::only(['session']);
@@ -209,7 +209,7 @@ class EncryptCookiesTest extends TestCase
         $this->assertFalse($middleware->isDisabled('session'));
     }
 
-    public function testOnlyWithMultipleCalls()
+    public function testOnlyWithMultipleCalls(): void
     {
         EncryptCookiesTestMiddleware::flushState();
         EncryptCookiesTestMiddleware::only(['session']);
@@ -222,7 +222,7 @@ class EncryptCookiesTest extends TestCase
         $this->assertTrue($middleware->isDisabled('other_cookie'));
     }
 
-    public function testOnlyWithEmptyArrayDoesNotActivateOptIn()
+    public function testOnlyWithEmptyArrayDoesNotActivateOptIn(): void
     {
         EncryptCookiesTestMiddleware::flushState();
         EncryptCookiesTestMiddleware::except(['unencrypted_cookie']);
@@ -234,7 +234,7 @@ class EncryptCookiesTest extends TestCase
         $this->assertFalse($middleware->isDisabled('encrypted_cookie'));
     }
 
-    public function testFlushStateClearsBothExceptAndOnly()
+    public function testFlushStateClearsBothExceptAndOnly(): void
     {
         EncryptCookiesTestMiddleware::except(['foo']);
         EncryptCookiesTestMiddleware::only(['bar']);
@@ -250,7 +250,7 @@ class EncryptCookiesTest extends TestCase
         $this->assertFalse($middleware->isDisabled('encrypted_cookie'));
     }
 
-    public function testDisableForWorksWithExceptMode()
+    public function testDisableForWorksWithExceptMode(): void
     {
         EncryptCookiesTestMiddleware::flushState();
 
@@ -261,7 +261,7 @@ class EncryptCookiesTest extends TestCase
         $this->assertFalse($middleware->isDisabled('encrypted_cookie'));
     }
 
-    public function testDisableForIsIgnoredWhenOnlyIsActive()
+    public function testDisableForIsIgnoredWhenOnlyIsActive(): void
     {
         EncryptCookiesTestMiddleware::flushState();
         EncryptCookiesTestMiddleware::only(['session']);

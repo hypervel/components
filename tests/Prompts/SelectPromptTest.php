@@ -103,7 +103,7 @@ class SelectPromptTest extends TestCase
         $this->assertSame('Green', $result);
     }
 
-    public function testAcceptsDefaultValuesWhenOptionsAreLabels()
+    public function testAcceptsDefaultValuesWhenOptionsAreLabels(): void
     {
         Prompt::fake([Key::ENTER]);
 
@@ -120,7 +120,7 @@ class SelectPromptTest extends TestCase
         $this->assertSame('Green', $result);
     }
 
-    public function testAcceptsDefaultValuesWhenOptionsAreKeysWithLabels()
+    public function testAcceptsDefaultValuesWhenOptionsAreKeysWithLabels(): void
     {
         Prompt::fake([Key::ENTER]);
 
@@ -137,7 +137,7 @@ class SelectPromptTest extends TestCase
         $this->assertSame('green', $result);
     }
 
-    public function testTransformsValues()
+    public function testTransformsValues(): void
     {
         Prompt::fake([Key::DOWN, Key::ENTER]);
 
@@ -154,7 +154,7 @@ class SelectPromptTest extends TestCase
         $this->assertSame('green', $result);
     }
 
-    public function testValidates()
+    public function testValidates(): void
     {
         Prompt::fake([Key::ENTER, Key::DOWN, Key::ENTER]);
 
@@ -173,7 +173,7 @@ class SelectPromptTest extends TestCase
         Prompt::assertOutputContains('You can\'t choose red.');
     }
 
-    public function testCanFallBack()
+    public function testCanFallBack(): void
     {
         Prompt::fallbackWhen(true);
 
@@ -192,7 +192,7 @@ class SelectPromptTest extends TestCase
         $this->assertSame('Blue', $result);
     }
 
-    public function testCentersDefaultValueWhenNotVisible()
+    public function testCentersDefaultValueWhenNotVisible(): void
     {
         Prompt::fake([Key::ENTER]);
 
@@ -292,7 +292,7 @@ class SelectPromptTest extends TestCase
         $this->assertSame('Green', $result);
     }
 
-    public function testSupportsHomeKey()
+    public function testSupportsHomeKey(): void
     {
         Prompt::fake([Key::HOME[0], Key::ENTER]);
 
@@ -309,7 +309,7 @@ class SelectPromptTest extends TestCase
         $this->assertSame('Red', $result);
     }
 
-    public function testSupportsEndKey()
+    public function testSupportsEndKey(): void
     {
         Prompt::fake([Key::END[0], Key::ENTER]);
 
@@ -325,7 +325,7 @@ class SelectPromptTest extends TestCase
         $this->assertSame('Blue', $result);
     }
 
-    public function testAllowsEmptyStrings()
+    public function testAllowsEmptyStrings(): void
     {
         Prompt::fake([Key::ENTER]);
 
@@ -340,7 +340,7 @@ class SelectPromptTest extends TestCase
         $this->assertSame('', $result);
     }
 
-    public function testFailsWhenNoDefaultInNonInteractiveMode()
+    public function testFailsWhenNoDefaultInNonInteractiveMode(): void
     {
         $this->expectException(NonInteractiveValidationException::class);
         $this->expectExceptionMessage('Required.');
@@ -354,7 +354,7 @@ class SelectPromptTest extends TestCase
         ]);
     }
 
-    public function testReturnsDefaultValueWhenNonInteractive()
+    public function testReturnsDefaultValueWhenNonInteractive(): void
     {
         Prompt::interactive(false);
 
@@ -412,7 +412,7 @@ class SelectPromptTest extends TestCase
         Prompt::validateUsing(fn () => null);
     }
 
-    public function testAllowsRequiredValidationMessageCustomizationWhenNonInteractive()
+    public function testAllowsRequiredValidationMessageCustomizationWhenNonInteractive(): void
     {
         $this->expectException(NonInteractiveValidationException::class);
         $this->expectExceptionMessage('The color is required.');
@@ -430,7 +430,7 @@ class SelectPromptTest extends TestCase
         );
     }
 
-    public function testHandlesFalsyDefault()
+    public function testHandlesFalsyDefault(): void
     {
         Prompt::fake([Key::ENTER]);
 

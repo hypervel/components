@@ -11,7 +11,7 @@ use Hypervel\Validation\Validator;
 
 class ValidatorAfterRuleTest extends TestCase
 {
-    public function testAfterAcceptsArrayOfRules()
+    public function testAfterAcceptsArrayOfRules(): void
     {
         $validator = new Validator(new Translator(new ArrayLoader, 'en'), [], []);
 

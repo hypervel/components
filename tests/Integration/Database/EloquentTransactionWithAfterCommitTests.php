@@ -60,7 +60,7 @@ trait EloquentTransactionWithAfterCommitTests
         }
     }
 
-    public function testObserverIsCalledOnTestsWithAfterCommit()
+    public function testObserverIsCalledOnTestsWithAfterCommit(): void
     {
         User::observe($observer = EloquentTransactionWithAfterCommitTestsUserObserver::resetting());
 
@@ -70,7 +70,7 @@ trait EloquentTransactionWithAfterCommitTests
         $this->assertEquals(1, $observer::$calledTimes, 'Failed to assert the observer was called once.');
     }
 
-    public function testObserverCalledWithAfterCommitWhenInsideTransaction()
+    public function testObserverCalledWithAfterCommitWhenInsideTransaction(): void
     {
         User::observe($observer = EloquentTransactionWithAfterCommitTestsUserObserver::resetting());
 
@@ -80,7 +80,7 @@ trait EloquentTransactionWithAfterCommitTests
         $this->assertEquals(1, $observer::$calledTimes, 'Failed to assert the observer was called once.');
     }
 
-    public function testObserverCalledWithAfterCommitWhenInsideTransactionWithDispatchSync()
+    public function testObserverCalledWithAfterCommitWhenInsideTransactionWithDispatchSync(): void
     {
         User::observe($observer = EloquentTransactionWithAfterCommitTestsUserObserverUsingDispatchSync::resetting());
 
@@ -95,7 +95,7 @@ trait EloquentTransactionWithAfterCommitTests
         ]);
     }
 
-    public function testObserverIsCalledOnTestsWithAfterCommitWhenUsingSavepoint()
+    public function testObserverIsCalledOnTestsWithAfterCommitWhenUsingSavepoint(): void
     {
         User::observe($observer = EloquentTransactionWithAfterCommitTestsUserObserver::resetting());
 
@@ -105,7 +105,7 @@ trait EloquentTransactionWithAfterCommitTests
         $this->assertEquals(1, $observer::$calledTimes, 'Failed to assert the observer was called once.');
     }
 
-    public function testObserverIsCalledOnTestsWithAfterCommitWhenUsingSavepointAndInsideTransaction()
+    public function testObserverIsCalledOnTestsWithAfterCommitWhenUsingSavepointAndInsideTransaction(): void
     {
         User::observe($observer = EloquentTransactionWithAfterCommitTestsUserObserver::resetting());
 
@@ -115,7 +115,7 @@ trait EloquentTransactionWithAfterCommitTests
         $this->assertEquals(1, $observer::$calledTimes, 'Failed to assert the observer was called once.');
     }
 
-    public function testObserverIsCalledEvenWhenDeeplyNestingTransactions()
+    public function testObserverIsCalledEvenWhenDeeplyNestingTransactions(): void
     {
         User::observe($observer = EloquentTransactionWithAfterCommitTestsUserObserver::resetting());
 

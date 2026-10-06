@@ -23,7 +23,7 @@ class ShouldDispatchAfterCommitEventTest extends TestCase
         parent::tearDown();
     }
 
-    public function testEventIsDispatchedIfThereIsNoTransaction()
+    public function testEventIsDispatchedIfThereIsNoTransaction(): void
     {
         Event::listen(ShouldDispatchAfterCommitTestEvent::class, ShouldDispatchAfterCommitListener::class);
 
@@ -32,7 +32,7 @@ class ShouldDispatchAfterCommitEventTest extends TestCase
         $this->assertTrue(ShouldDispatchAfterCommitTestEvent::$ran);
     }
 
-    public function testEventIsNotDispatchedIfTransactionFails()
+    public function testEventIsNotDispatchedIfTransactionFails(): void
     {
         Event::listen(ShouldDispatchAfterCommitTestEvent::class, ShouldDispatchAfterCommitListener::class);
 
@@ -48,7 +48,7 @@ class ShouldDispatchAfterCommitEventTest extends TestCase
         $this->assertFalse(ShouldDispatchAfterCommitTestEvent::$ran);
     }
 
-    public function testEventIsDispatchedIfTransactionSucceeds()
+    public function testEventIsDispatchedIfTransactionSucceeds(): void
     {
         Event::listen(ShouldDispatchAfterCommitTestEvent::class, ShouldDispatchAfterCommitListener::class);
 
@@ -59,7 +59,7 @@ class ShouldDispatchAfterCommitEventTest extends TestCase
         $this->assertTrue(ShouldDispatchAfterCommitTestEvent::$ran);
     }
 
-    public function testItHandlesNestedTransactions()
+    public function testItHandlesNestedTransactions(): void
     {
         // We are going to dispatch 2 different events in 2 different transactions.
         // The parent transaction will succeed, but the nested transaction is going to fail and be rolled back.
@@ -86,7 +86,7 @@ class ShouldDispatchAfterCommitEventTest extends TestCase
         $this->assertTrue(AnotherShouldDispatchAfterCommitTestEvent::$ran);
     }
 
-    public function testItOnlyDispatchesNestedTransactionsEventsAfterTheRootTransactionIsCommitted()
+    public function testItOnlyDispatchesNestedTransactionsEventsAfterTheRootTransactionIsCommitted(): void
     {
         Event::listen(ShouldDispatchAfterCommitTestEvent::class, ShouldDispatchAfterCommitListener::class);
         Event::listen(AnotherShouldDispatchAfterCommitTestEvent::class, AnotherShouldDispatchAfterCommitListener::class);
@@ -110,7 +110,7 @@ class ShouldDispatchAfterCommitEventTest extends TestCase
         $this->assertTrue(AnotherShouldDispatchAfterCommitTestEvent::$ran);
     }
 
-    public function testItOnlyDispatchesNestedTransactionsEventsAfterTheRootTransactionIsCommittedDifferentOrder()
+    public function testItOnlyDispatchesNestedTransactionsEventsAfterTheRootTransactionIsCommittedDifferentOrder(): void
     {
         Event::listen(ShouldDispatchAfterCommitTestEvent::class, ShouldDispatchAfterCommitListener::class);
         Event::listen(AnotherShouldDispatchAfterCommitTestEvent::class, AnotherShouldDispatchAfterCommitListener::class);
@@ -135,7 +135,7 @@ class ShouldDispatchAfterCommitEventTest extends TestCase
         $this->assertTrue(AnotherShouldDispatchAfterCommitTestEvent::$ran);
     }
 
-    public function testItDoesNotDispatchAfterCommitEventsImmediatelyIfASiblingTransactionIsCommittedFirst()
+    public function testItDoesNotDispatchAfterCommitEventsImmediatelyIfASiblingTransactionIsCommittedFirst(): void
     {
         Event::listen(ShouldDispatchAfterCommitTestEvent::class, ShouldDispatchAfterCommitListener::class);
 
@@ -151,7 +151,7 @@ class ShouldDispatchAfterCommitEventTest extends TestCase
         $this->assertTrue(ShouldDispatchAfterCommitTestEvent::$ran);
     }
 
-    public function testChildEventsAreNotDispatchedIfParentTransactionFails()
+    public function testChildEventsAreNotDispatchedIfParentTransactionFails(): void
     {
         Event::listen(ShouldDispatchAfterCommitTestEvent::class, ShouldDispatchAfterCommitListener::class);
 
@@ -174,7 +174,7 @@ class ShouldDispatchAfterCommitEventTest extends TestCase
         $this->assertFalse(ShouldDispatchAfterCommitTestEvent::$ran);
     }
 
-    public function testItHandlesNestedTransactionsWhereTheSecondOneFails()
+    public function testItHandlesNestedTransactionsWhereTheSecondOneFails(): void
     {
         Event::listen(ShouldDispatchAfterCommitTestEvent::class, ShouldDispatchAfterCommitListener::class);
         Event::listen(AnotherShouldDispatchAfterCommitTestEvent::class, AnotherShouldDispatchAfterCommitListener::class);
@@ -198,7 +198,7 @@ class ShouldDispatchAfterCommitEventTest extends TestCase
         $this->assertFalse(AnotherShouldDispatchAfterCommitTestEvent::$ran);
     }
 
-    public function testChildCallbacksShouldNotBeDispatchedIfTheirParentFails()
+    public function testChildCallbacksShouldNotBeDispatchedIfTheirParentFails(): void
     {
         Event::listen(ShouldDispatchAfterCommitTestEvent::class, ShouldDispatchAfterCommitListener::class);
 
@@ -218,7 +218,7 @@ class ShouldDispatchAfterCommitEventTest extends TestCase
         $this->assertFalse(ShouldDispatchAfterCommitTestEvent::$ran);
     }
 
-    public function testItHandlesFailuresWithTransactionsTwoLevelsHigher()
+    public function testItHandlesFailuresWithTransactionsTwoLevelsHigher(): void
     {
         Event::listen(ShouldDispatchAfterCommitTestEvent::class, ShouldDispatchAfterCommitListener::class);
         Event::listen(AnotherShouldDispatchAfterCommitTestEvent::class, AnotherShouldDispatchAfterCommitListener::class);
@@ -243,7 +243,7 @@ class ShouldDispatchAfterCommitEventTest extends TestCase
         $this->assertFalse(AnotherShouldDispatchAfterCommitTestEvent::$ran);
     }
 
-    public function testCommittedTransactionThatWasDeeplyNestedIsRemovedIfTopLevelFails()
+    public function testCommittedTransactionThatWasDeeplyNestedIsRemovedIfTopLevelFails(): void
     {
         Event::listen(ShouldDispatchAfterCommitTestEvent::class, ShouldDispatchAfterCommitListener::class);
 

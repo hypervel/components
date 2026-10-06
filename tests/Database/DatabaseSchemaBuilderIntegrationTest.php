@@ -27,7 +27,7 @@ class DatabaseSchemaBuilderIntegrationTest extends TestCase
         $this->db->setAsGlobal();
     }
 
-    public function testHasColumnWithTablePrefix()
+    public function testHasColumnWithTablePrefix(): void
     {
         $this->db::connection()->setTablePrefix('test_');
 
@@ -39,7 +39,7 @@ class DatabaseSchemaBuilderIntegrationTest extends TestCase
         $this->assertTrue($this->db::connection()->getSchemaBuilder()->hasColumn('table1', 'name'));
     }
 
-    public function testHasColumnAndIndexWithPrefixIndexDisabled()
+    public function testHasColumnAndIndexWithPrefixIndexDisabled(): void
     {
         $this->db->addConnection([
             'driver' => 'sqlite',
@@ -56,7 +56,7 @@ class DatabaseSchemaBuilderIntegrationTest extends TestCase
         $this->assertTrue($this->schemaBuilder()->hasIndex('table1', 'table1_name_index'));
     }
 
-    public function testHasColumnAndIndexWithPrefixIndexEnabled()
+    public function testHasColumnAndIndexWithPrefixIndexEnabled(): void
     {
         $this->db->addConnection([
             'driver' => 'sqlite',
@@ -175,7 +175,7 @@ class DatabaseSchemaBuilderIntegrationTest extends TestCase
         $this->assertFalse($builder->hasForeignKey('posts', ['missing_id']));
     }
 
-    public function testDropColumnWithTablePrefix()
+    public function testDropColumnWithTablePrefix(): void
     {
         $this->db::connection()->setTablePrefix('test_');
 

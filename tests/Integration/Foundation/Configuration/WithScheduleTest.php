@@ -30,7 +30,7 @@ class WithScheduleTest extends TestCase
             ->create();
     }
 
-    public function testDisplaySchedule()
+    public function testDisplaySchedule(): void
     {
         $this->artisan(ScheduleListCommand::class)
             ->assertSuccessful()

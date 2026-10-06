@@ -22,21 +22,21 @@ use Swoole\Constant;
  */
 class RedisServiceProviderTest extends TestCase
 {
-    public function testRedisBindingResolvesToRedisManagerInstance()
+    public function testRedisBindingResolvesToRedisManagerInstance(): void
     {
         $redis = $this->app->make('redis');
 
         $this->assertInstanceOf(RedisManager::class, $redis);
     }
 
-    public function testFactoryContractResolvesToRedisManagerInstance()
+    public function testFactoryContractResolvesToRedisManagerInstance(): void
     {
         $redis = $this->app->make(FactoryContract::class);
 
         $this->assertInstanceOf(RedisManager::class, $redis);
     }
 
-    public function testRedisManagerClassResolvesToSameInstanceAsRedisBinding()
+    public function testRedisManagerClassResolvesToSameInstanceAsRedisBinding(): void
     {
         $byKey = $this->app->make('redis');
         $byClass = $this->app->make(RedisManager::class);
@@ -44,12 +44,12 @@ class RedisServiceProviderTest extends TestCase
         $this->assertSame($byKey, $byClass);
     }
 
-    public function testNativeRedisClassIsNotBoundToRedisManager()
+    public function testNativeRedisClassIsNotBoundToRedisManager(): void
     {
         $this->assertFalse($this->app->bound(Redis::class));
     }
 
-    public function testFactoryContractResolvesToSameInstanceAsRedisBinding()
+    public function testFactoryContractResolvesToSameInstanceAsRedisBinding(): void
     {
         $byKey = $this->app->make('redis');
         $byContract = $this->app->make(FactoryContract::class);
@@ -57,7 +57,7 @@ class RedisServiceProviderTest extends TestCase
         $this->assertSame($byKey, $byContract);
     }
 
-    public function testRedisIsSingleton()
+    public function testRedisIsSingleton(): void
     {
         $first = $this->app->make('redis');
         $second = $this->app->make('redis');
@@ -65,27 +65,27 @@ class RedisServiceProviderTest extends TestCase
         $this->assertSame($first, $second);
     }
 
-    public function testRedisManagerImplementsFactoryContract()
+    public function testRedisManagerImplementsFactoryContract(): void
     {
         $redis = $this->app->make('redis');
 
         $this->assertInstanceOf(FactoryContract::class, $redis);
     }
 
-    public function testRedisManagerImplementsConnectionContract()
+    public function testRedisManagerImplementsConnectionContract(): void
     {
         $redis = $this->app->make('redis');
 
         $this->assertInstanceOf(ConnectionContract::class, $redis);
     }
 
-    public function testRedisProxyImplementsConnectionContract()
+    public function testRedisProxyImplementsConnectionContract(): void
     {
         $this->assertTrue(is_subclass_of(RedisProxy::class, ConnectionContract::class));
         $this->assertFalse(is_subclass_of(RedisProxy::class, RedisManager::class));
     }
 
-    public function testRedisConnectionAliasesAreRegistered()
+    public function testRedisConnectionAliasesAreRegistered(): void
     {
         // Verify the alias table maps the contract to 'redis.connection'
         // Note: RedisProxy is NOT aliased — it's constructed internally by

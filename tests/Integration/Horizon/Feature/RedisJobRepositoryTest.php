@@ -27,7 +27,7 @@ class RedisJobRepositoryTest extends IntegrationTestCase
         $this->assertSame(RedisJobRepository::DEFAULT_MONITORED_JOB_RETENTION, $repository->monitoredJobExpires);
     }
 
-    public function testItCanFindAFailedJobByItsId()
+    public function testItCanFindAFailedJobByItsId(): void
     {
         $repository = $this->app->make(JobRepository::class);
         $payload = new JobPayload(json_encode(['id' => '1', 'displayName' => 'foo']));
@@ -37,7 +37,7 @@ class RedisJobRepositoryTest extends IntegrationTestCase
         $this->assertSame('1', $repository->findFailed('1')->id);
     }
 
-    public function testItWillNotFindAFailedJobIfTheJobHasNotFailed()
+    public function testItWillNotFindAFailedJobIfTheJobHasNotFailed(): void
     {
         $repository = $this->app->make(JobRepository::class);
         $payload = new JobPayload(json_encode(['id' => '1', 'displayName' => 'foo']));
@@ -47,7 +47,7 @@ class RedisJobRepositoryTest extends IntegrationTestCase
         $this->assertNull($repository->findFailed('1'));
     }
 
-    public function testItSavesMicrosecondsAsAFloatAndDisregardsTheLocale()
+    public function testItSavesMicrosecondsAsAFloatAndDisregardsTheLocale(): void
     {
         $originalLocale = setlocale(LC_NUMERIC, '0');
 
@@ -111,7 +111,7 @@ class RedisJobRepositoryTest extends IntegrationTestCase
         $this->assertSame(['other'], $repository->getPending()->pluck('id')->all());
     }
 
-    public function testItWillDeleteAFailedJob()
+    public function testItWillDeleteAFailedJob(): void
     {
         $repository = $this->app->make(JobRepository::class);
         $payload = new JobPayload(json_encode(['id' => '1', 'displayName' => 'foo']));
@@ -126,7 +126,7 @@ class RedisJobRepositoryTest extends IntegrationTestCase
         $this->assertNull($repository->findFailed('1'));
     }
 
-    public function testItWillNotDeleteAJobIfTheJobHasNotFailed()
+    public function testItWillNotDeleteAJobIfTheJobHasNotFailed(): void
     {
         $repository = $this->app->make(JobRepository::class);
         $payload = new JobPayload(json_encode(['id' => '1', 'displayName' => 'foo']));

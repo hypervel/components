@@ -26,7 +26,7 @@ class EloquentWhereTest extends DatabaseTestCase
         });
     }
 
-    public function testWhereAndWhereOrBehavior()
+    public function testWhereAndWhereOrBehavior(): void
     {
         /** @var UserWhereTest $firstUser */
         $firstUser = UserWhereTest::create([
@@ -70,7 +70,7 @@ class EloquentWhereTest extends DatabaseTestCase
         );
     }
 
-    public function testWhereNot()
+    public function testWhereNot(): void
     {
         /** @var UserWhereTest $firstUser */
         $firstUser = UserWhereTest::create([
@@ -97,7 +97,7 @@ class EloquentWhereTest extends DatabaseTestCase
         })->first()));
     }
 
-    public function testWhereIn()
+    public function testWhereIn(): void
     {
         /** @var UserWhereTest $user1 */
         $user1 = UserWhereTest::create([
@@ -144,7 +144,7 @@ class EloquentWhereTest extends DatabaseTestCase
         $this->assertCount(2, $users);
     }
 
-    public function testWhereInCanAcceptQueryable()
+    public function testWhereInCanAcceptQueryable(): void
     {
         $user1 = UserWhereTest::create([
             'name' => 'test-name1',
@@ -189,7 +189,7 @@ class EloquentWhereTest extends DatabaseTestCase
         $this->assertCount(2, $users);
     }
 
-    public function testWhereIntegerInRaw()
+    public function testWhereIntegerInRaw(): void
     {
         /** @var UserWhereTest $user1 */
         $user1 = UserWhereTest::create([
@@ -228,7 +228,7 @@ class EloquentWhereTest extends DatabaseTestCase
         $this->assertCount(2, $users);
     }
 
-    public function testFirstWhere()
+    public function testFirstWhere(): void
     {
         /** @var UserWhereTest $firstUser */
         $firstUser = UserWhereTest::create([
@@ -257,7 +257,7 @@ class EloquentWhereTest extends DatabaseTestCase
         );
     }
 
-    public function testSole()
+    public function testSole(): void
     {
         $expected = UserWhereTest::create([
             'name' => 'test-name',
@@ -268,7 +268,7 @@ class EloquentWhereTest extends DatabaseTestCase
         $this->assertTrue($expected->is(UserWhereTest::where('name', 'test-name')->sole()));
     }
 
-    public function testSoleFailsForMultipleRecords()
+    public function testSoleFailsForMultipleRecords(): void
     {
         UserWhereTest::create([
             'name' => 'test-name',
@@ -287,7 +287,7 @@ class EloquentWhereTest extends DatabaseTestCase
         UserWhereTest::where('name', 'test-name')->sole();
     }
 
-    public function testSoleFailsIfNoRecords()
+    public function testSoleFailsIfNoRecords(): void
     {
         try {
             UserWhereTest::where('name', 'test-name')->sole();
@@ -297,7 +297,7 @@ class EloquentWhereTest extends DatabaseTestCase
         $this->assertSame(UserWhereTest::class, $exception->getModel());
     }
 
-    public function testSoleValue()
+    public function testSoleValue(): void
     {
         $expected = UserWhereTest::create([
             'name' => 'test-name',
@@ -362,7 +362,7 @@ class EloquentWhereTest extends DatabaseTestCase
         $this->assertSame(['Taylor' => 'Total: 3!'], $query->pluck(new Expression('id + 1 as total'), 'name')->all());
     }
 
-    public function testChunkMap()
+    public function testChunkMap(): void
     {
         UserWhereTest::create([
             'name' => 'first-name',

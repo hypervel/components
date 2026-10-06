@@ -11,7 +11,7 @@ use Hypervel\Validation\Validator;
 
 class ValidationWildcardExpansionTest extends TestCase
 {
-    public function testLargeArrayWithSimpleRulesAllPass()
+    public function testLargeArrayWithSimpleRulesAllPass(): void
     {
         $items = [];
         for ($i = 0; $i < 500; ++$i) {
@@ -26,7 +26,7 @@ class ValidationWildcardExpansionTest extends TestCase
         $this->assertTrue($v->passes());
     }
 
-    public function testLargeArrayReportsFailureOnCorrectIndex()
+    public function testLargeArrayReportsFailureOnCorrectIndex(): void
     {
         $items = [];
         for ($i = 0; $i < 500; ++$i) {
@@ -44,7 +44,7 @@ class ValidationWildcardExpansionTest extends TestCase
         $this->assertFalse($v->errors()->has('items.251.name'));
     }
 
-    public function testEmptyArrayValidatesSuccessfully()
+    public function testEmptyArrayValidatesSuccessfully(): void
     {
         $v = $this->makeValidator(
             ['items' => []],
@@ -54,7 +54,7 @@ class ValidationWildcardExpansionTest extends TestCase
         $this->assertTrue($v->passes());
     }
 
-    public function testDeeplyNestedWildcards()
+    public function testDeeplyNestedWildcards(): void
     {
         $data = [
             'orders' => [
@@ -68,7 +68,7 @@ class ValidationWildcardExpansionTest extends TestCase
         $this->assertTrue($v->passes());
     }
 
-    public function testDeeplyNestedWildcardsReportCorrectPath()
+    public function testDeeplyNestedWildcardsReportCorrectPath(): void
     {
         $data = [
             'orders' => [
@@ -83,7 +83,7 @@ class ValidationWildcardExpansionTest extends TestCase
         $this->assertTrue($v->errors()->has('orders.0.items.1.sku'));
     }
 
-    public function testMixedStringAndNumericKeys()
+    public function testMixedStringAndNumericKeys(): void
     {
         $data = [
             'settings' => [
@@ -97,7 +97,7 @@ class ValidationWildcardExpansionTest extends TestCase
         $this->assertTrue($v->passes());
     }
 
-    public function testMixedStringAndNumericKeysReportCorrectPath()
+    public function testMixedStringAndNumericKeysReportCorrectPath(): void
     {
         $data = [
             'settings' => [
@@ -164,7 +164,7 @@ class ValidationWildcardExpansionTest extends TestCase
         $this->assertTrue($validator->errors()->has('items.0.value'));
     }
 
-    public function testWildcardWithMultipleRuleTypes()
+    public function testWildcardWithMultipleRuleTypes(): void
     {
         $items = [];
         for ($i = 0; $i < 100; ++$i) {
@@ -187,7 +187,7 @@ class ValidationWildcardExpansionTest extends TestCase
         $this->assertTrue($v->passes());
     }
 
-    public function testTopLevelWildcard()
+    public function testTopLevelWildcard(): void
     {
         $v = $this->makeValidator(
             ['foo', 'bar', 'baz'],
@@ -197,7 +197,7 @@ class ValidationWildcardExpansionTest extends TestCase
         $this->assertTrue($v->passes());
     }
 
-    public function testValidatedOutputIncludesWildcardExpandedAttributes()
+    public function testValidatedOutputIncludesWildcardExpandedAttributes(): void
     {
         $v = $this->makeValidator(
             ['items' => [['name' => 'A'], ['name' => 'B']]],

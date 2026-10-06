@@ -52,7 +52,7 @@ class ProviderMakeCommandTest extends TestCase
         );
     }
 
-    public function testItCanGenerateServiceProviderFile()
+    public function testItCanGenerateServiceProviderFile(): void
     {
         $this->artisan('make:provider', ['name' => 'FooServiceProvider'])
             ->assertExitCode(0);

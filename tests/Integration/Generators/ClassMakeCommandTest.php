@@ -11,7 +11,7 @@ class ClassMakeCommandTest extends TestCase
         'app/Notification.php',
     ];
 
-    public function testItCanGenerateClassFile()
+    public function testItCanGenerateClassFile(): void
     {
         $this->artisan('make:class', ['name' => 'Reverb'])
             ->assertExitCode(0);
@@ -23,7 +23,7 @@ class ClassMakeCommandTest extends TestCase
         ], 'app/Reverb.php');
     }
 
-    public function testItCanGenerateInvokableClassFile()
+    public function testItCanGenerateInvokableClassFile(): void
     {
         $this->artisan('make:class', ['name' => 'Notification', '--invokable' => true])
             ->assertExitCode(0);

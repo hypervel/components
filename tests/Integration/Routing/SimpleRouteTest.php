@@ -9,7 +9,7 @@ use Hypervel\Tests\Routing\Fixtures\RouteNameEnum;
 
 class SimpleRouteTest extends RoutingTestCase
 {
-    public function testSimpleRouteThroughTheFramework()
+    public function testSimpleRouteThroughTheFramework(): void
     {
         Route::get('/', function () {
             return 'Hello World';
@@ -26,7 +26,7 @@ class SimpleRouteTest extends RoutingTestCase
         $this->assertSame('bar', $response->baseRequest->query('foo'));
     }
 
-    public function testSimpleRouteWitStringBackedEnumRouteNameThroughTheFramework()
+    public function testSimpleRouteWitStringBackedEnumRouteNameThroughTheFramework(): void
     {
         Route::get('/', function () {
             return 'Hello World';

@@ -291,7 +291,7 @@ class FoundationHelpersTest extends TestCase
         $this->assertSame('foo', event('test.event', ['payload'], false));
     }
 
-    public function testEventHelperReturnsArrayForNormalDispatch()
+    public function testEventHelperReturnsArrayForNormalDispatch(): void
     {
         Event::listen('test.event', function () {
             return 'response';
@@ -303,7 +303,7 @@ class FoundationHelpersTest extends TestCase
         $this->assertSame(['response'], $result);
     }
 
-    public function testEventHelperReturnsNonArrayForHaltedDispatch()
+    public function testEventHelperReturnsNonArrayForHaltedDispatch(): void
     {
         Event::listen('test.halted', function () {
             return 42;
@@ -314,14 +314,14 @@ class FoundationHelpersTest extends TestCase
         $this->assertSame(42, $result);
     }
 
-    public function testEventHelperReturnsNullWhenNoListenersAndHalted()
+    public function testEventHelperReturnsNullWhenNoListenersAndHalted(): void
     {
         $result = event('test.no-listeners', [], true);
 
         $this->assertNull($result);
     }
 
-    public function testEventHelperReturnsEmptyArrayWhenNoListeners()
+    public function testEventHelperReturnsEmptyArrayWhenNoListeners(): void
     {
         $result = event('test.no-listeners');
 
@@ -331,7 +331,7 @@ class FoundationHelpersTest extends TestCase
 
     // REMOVED: Mix helper tests; Hypervel uses Vite instead of Laravel Mix.
 
-    public function testAbortReceivesCodeAsSymfonyResponseInstance()
+    public function testAbortReceivesCodeAsSymfonyResponseInstance(): void
     {
         try {
             abort($code = new SymfonyResponse);
@@ -344,7 +344,7 @@ class FoundationHelpersTest extends TestCase
         }
     }
 
-    public function testAbortReceivesCodeAsResponsableImplementation()
+    public function testAbortReceivesCodeAsResponsableImplementation(): void
     {
         $request = \Hypervel\Http\Request::create('/');
         RequestContext::set($request);
@@ -369,7 +369,7 @@ class FoundationHelpersTest extends TestCase
         }
     }
 
-    public function testAbortReceivesCodeAsInteger()
+    public function testAbortReceivesCodeAsInteger(): void
     {
         try {
             abort(400, 'Bad request', ['X-FOO' => 'BAR']);
@@ -382,12 +382,12 @@ class FoundationHelpersTest extends TestCase
         }
     }
 
-    public function testBroadcastIfReturnsFakeOnFalse()
+    public function testBroadcastIfReturnsFakeOnFalse(): void
     {
         $this->assertInstanceOf(FakePendingBroadcast::class, broadcast_if(false, 'foo'));
     }
 
-    public function testBroadcastIfReturnsRealBroadcastOnTrue()
+    public function testBroadcastIfReturnsRealBroadcastOnTrue(): void
     {
         $result = broadcast_if(true, new stdClass);
 
@@ -395,7 +395,7 @@ class FoundationHelpersTest extends TestCase
         $this->assertNotInstanceOf(FakePendingBroadcast::class, $result);
     }
 
-    public function testBroadcastIfEvaluatesEventLazily()
+    public function testBroadcastIfEvaluatesEventLazily(): void
     {
         $evaluated = false;
 
@@ -407,12 +407,12 @@ class FoundationHelpersTest extends TestCase
         $this->assertFalse($evaluated, 'Event closure should not be evaluated when condition is false');
     }
 
-    public function testBroadcastUnlessReturnsFakeOnTrue()
+    public function testBroadcastUnlessReturnsFakeOnTrue(): void
     {
         $this->assertInstanceOf(FakePendingBroadcast::class, broadcast_unless(true, 'foo'));
     }
 
-    public function testBroadcastUnlessReturnsRealBroadcastOnFalse()
+    public function testBroadcastUnlessReturnsRealBroadcastOnFalse(): void
     {
         $result = broadcast_unless(false, new stdClass);
 
@@ -420,7 +420,7 @@ class FoundationHelpersTest extends TestCase
         $this->assertNotInstanceOf(FakePendingBroadcast::class, $result);
     }
 
-    public function testFakePendingBroadcastMethodsAreNoOps()
+    public function testFakePendingBroadcastMethodsAreNoOps(): void
     {
         $fake = new FakePendingBroadcast;
 
@@ -428,19 +428,19 @@ class FoundationHelpersTest extends TestCase
         $this->assertSame($fake, $fake->toOthers());
     }
 
-    public function testDeferReturnsDeferredCallbackWhenCallbackProvided()
+    public function testDeferReturnsDeferredCallbackWhenCallbackProvided(): void
     {
         $deferred = defer(fn () => null);
 
         $this->assertInstanceOf(DeferredCallback::class, $deferred);
     }
 
-    public function testDeferReturnsCollectionWhenCallbackIsNull()
+    public function testDeferReturnsCollectionWhenCallbackIsNull(): void
     {
         $this->assertInstanceOf(DeferredCallbackCollection::class, defer());
     }
 
-    public function testDeferWithoutNameQueuesCallbackUntilCollectionInvoked()
+    public function testDeferWithoutNameQueuesCallbackUntilCollectionInvoked(): void
     {
         $executed = false;
         defer(function () use (&$executed) {
@@ -454,7 +454,7 @@ class FoundationHelpersTest extends TestCase
         $this->assertTrue($executed);
     }
 
-    public function testDeferWithNameDeduplicatesCallbacksWhenCollectionInvoked()
+    public function testDeferWithNameDeduplicatesCallbacksWhenCollectionInvoked(): void
     {
         $results = [];
 
@@ -471,7 +471,7 @@ class FoundationHelpersTest extends TestCase
         $this->assertSame(['second'], $results);
     }
 
-    public function testDeferWithDifferentNamesRunsBothWhenCollectionInvoked()
+    public function testDeferWithDifferentNamesRunsBothWhenCollectionInvoked(): void
     {
         $results = [];
 
@@ -488,7 +488,7 @@ class FoundationHelpersTest extends TestCase
         $this->assertSame(['foo', 'bar'], $results);
     }
 
-    public function testDeferWithNamedAndUnnamedBothExecuteWhenCollectionInvoked()
+    public function testDeferWithNamedAndUnnamedBothExecuteWhenCollectionInvoked(): void
     {
         $results = [];
 
@@ -505,7 +505,7 @@ class FoundationHelpersTest extends TestCase
         $this->assertSame(['unnamed', 'named'], $results);
     }
 
-    public function testDeferStoresAlwaysFlag()
+    public function testDeferStoresAlwaysFlag(): void
     {
         $deferred = defer(fn () => null, always: true);
 

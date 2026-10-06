@@ -22,7 +22,7 @@ use function Hypervel\Coroutine\go;
 
 class CallerTest extends TestCase
 {
-    public function testCallerWithNull()
+    public function testCallerWithNull(): void
     {
         $caller = new Caller(static function () {
             return null;
@@ -41,7 +41,7 @@ class CallerTest extends TestCase
         $this->assertSame(2, $id);
     }
 
-    public function testCaller()
+    public function testCaller(): void
     {
         $obj = new stdClass;
         $obj->id = uniqid();
@@ -60,7 +60,7 @@ class CallerTest extends TestCase
         });
     }
 
-    public function testCallerPopTimeout()
+    public function testCallerPopTimeout(): void
     {
         $obj = new stdClass;
         $obj->id = uniqid();

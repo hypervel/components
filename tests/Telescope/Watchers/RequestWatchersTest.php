@@ -86,7 +86,7 @@ class RequestWatchersTest extends FeatureTestCase
         $this->assertSame(Telescope::PURGED_VALUE, $entry->content['response']);
     }
 
-    public function testRequestWatcherRegisters404()
+    public function testRequestWatcherRegisters404(): void
     {
         $this->get('/whatever');
 
@@ -98,7 +98,7 @@ class RequestWatchersTest extends FeatureTestCase
         $this->assertSame('/whatever', $entry->content['uri']);
     }
 
-    public function testRequestWatcherHidesPassword()
+    public function testRequestWatcherHidesPassword(): void
     {
         Route::post('/auth', fn () => 'success');
 
@@ -117,7 +117,7 @@ class RequestWatchersTest extends FeatureTestCase
         $this->assertSame('********', $entry->content['payload']['password_confirmation']);
     }
 
-    public function testRequestWatcherHidesAuthorization()
+    public function testRequestWatcherHidesAuthorization(): void
     {
         Route::post('/dashboard', fn () => 'success');
 
@@ -134,7 +134,7 @@ class RequestWatchersTest extends FeatureTestCase
         $this->assertSame('********', $entry->content['headers']['authorization']);
     }
 
-    public function testRequestWatcherHidesPhpAuthPw()
+    public function testRequestWatcherHidesPhpAuthPw(): void
     {
         Route::post('/dashboard', fn () => 'success');
 
@@ -225,7 +225,7 @@ class RequestWatchersTest extends FeatureTestCase
         $this->assertFalse($watcher->contentWithinLimits(str_repeat('é', 513)));
     }
 
-    public function testItStoresAndDisplaysArrayOfRequestAndResponseHeaders()
+    public function testItStoresAndDisplaysArrayOfRequestAndResponseHeaders(): void
     {
         Route::post('/dashboard', function () {
             /* @phpstan-ignore-next-line */
@@ -246,7 +246,7 @@ class RequestWatchersTest extends FeatureTestCase
     }
 
     #[RequiresPhpExtension('gd')]
-    public function testRequestWatcherHandlesFileUploads()
+    public function testRequestWatcherHandlesFileUploads(): void
     {
         $image = UploadedFile::fake()->image('avatar.jpg');
 
@@ -262,7 +262,7 @@ class RequestWatchersTest extends FeatureTestCase
     }
 
     #[RequiresPhpExtension('gd')]
-    public function testRequestWatcherHandlesUnlinkedFileUploads()
+    public function testRequestWatcherHandlesUnlinkedFileUploads(): void
     {
         $image = UploadedFile::fake()->image('unlinked-image.jpg');
 
@@ -279,7 +279,7 @@ class RequestWatchersTest extends FeatureTestCase
         $this->assertSame('0', $uploadedImage['size']);
     }
 
-    public function testRequestWatcherPlainTextResponse()
+    public function testRequestWatcherPlainTextResponse(): void
     {
         Route::get('/fake-plain-text', function () {
             return Response::make(
@@ -298,7 +298,7 @@ class RequestWatchersTest extends FeatureTestCase
         $this->assertSame('plain telescope response', $entry->content['response']);
     }
 
-    public function testRequestWatcherRecordsPlainTextPayload()
+    public function testRequestWatcherRecordsPlainTextPayload(): void
     {
         Route::post('/receive-plain-text', function () {
             return response()->json(['ok' => 'yeah']);
@@ -317,7 +317,7 @@ class RequestWatchersTest extends FeatureTestCase
         $this->assertSame('plain-text-content', $entry->content['payload']);
     }
 
-    public function testRequestWatcherCallsFormatForTelescopeMethodIfItExists()
+    public function testRequestWatcherCallsFormatForTelescopeMethodIfItExists(): void
     {
         View::addNamespace('tests', __DIR__ . '/../Fixtures/views');
 
@@ -370,7 +370,7 @@ class RequestWatchersTest extends FeatureTestCase
         $this->assertSame(Telescope::PURGED_VALUE, $data['deep']);
     }
 
-    public function testRequestWatcherStoresFacadeContextWhenPresent()
+    public function testRequestWatcherStoresFacadeContextWhenPresent(): void
     {
         Route::get('/with-context', fn () => 'ok');
 
@@ -399,7 +399,7 @@ class RequestWatchersTest extends FeatureTestCase
         $this->assertCount(0, $this->loadTelescopeEntries());
     }
 
-    public function testRequestWatcherOmitsFacadeContextWhenAbsent()
+    public function testRequestWatcherOmitsFacadeContextWhenAbsent(): void
     {
         Route::get('/no-context', fn () => 'ok');
 
@@ -410,7 +410,7 @@ class RequestWatchersTest extends FeatureTestCase
         $this->assertNull($entry->content['context']);
     }
 
-    public function testRequestWatcherRecordsCoroutineContext()
+    public function testRequestWatcherRecordsCoroutineContext(): void
     {
         Route::get('/coroutine', fn () => 'ok');
 

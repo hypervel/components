@@ -16,7 +16,7 @@ use Throwable;
  */
 class ClientTest extends EngineIntegrationTestCase
 {
-    public function testClientRequest()
+    public function testClientRequest(): void
     {
         $client = new Client($this->getServerHost(), $this->getServerPort());
         $response = $client->request('GET', '/');
@@ -25,7 +25,7 @@ class ClientTest extends EngineIntegrationTestCase
         $this->assertSame('Hello World.', $response->body);
     }
 
-    public function testClientSocketConnectionRefused()
+    public function testClientSocketConnectionRefused(): void
     {
         try {
             // Use a port that definitely has no server running
@@ -39,7 +39,7 @@ class ClientTest extends EngineIntegrationTestCase
         }
     }
 
-    public function testClientJsonRequest()
+    public function testClientJsonRequest(): void
     {
         $client = new Client($this->getServerHost(), $this->getServerPort());
         $response = $client->request(
@@ -53,7 +53,7 @@ class ClientTest extends EngineIntegrationTestCase
         $this->assertSame('Hello World.', $response->body);
     }
 
-    public function testClientSocketConnectionTimeout()
+    public function testClientSocketConnectionTimeout(): void
     {
         try {
             $client = new Client($this->getServerHost(), $this->getServerPort());
@@ -67,7 +67,7 @@ class ClientTest extends EngineIntegrationTestCase
         }
     }
 
-    public function testClientCookies()
+    public function testClientCookies(): void
     {
         $client = new Client($this->getServerHost(), $this->getServerPort());
         $response = $client->request('GET', '/cookies');
@@ -79,7 +79,7 @@ class ClientTest extends EngineIntegrationTestCase
         ], $response->headers['set-cookie']);
     }
 
-    public function testGuzzleClientWithCookies()
+    public function testGuzzleClientWithCookies(): void
     {
         $client = new GuzzleHttp\Client([
             'base_uri' => sprintf('http://%s:%d/', $this->getServerHost(), $this->getServerPort()),
@@ -94,7 +94,7 @@ class ClientTest extends EngineIntegrationTestCase
         $this->assertSame('Hypervel', $cookies->toArray()[1]['Value']);
     }
 
-    public function testServerHeaders()
+    public function testServerHeaders(): void
     {
         $client = new Client($this->getServerHost(), $this->getServerPort());
         $response = $client->request('GET', '/header');
@@ -128,7 +128,7 @@ class ClientTest extends EngineIntegrationTestCase
         }
     }
 
-    public function testClientNotFound()
+    public function testClientNotFound(): void
     {
         $client = new Client($this->getServerHost(), $this->getServerPort());
         $response = $client->request('GET', '/not_found');

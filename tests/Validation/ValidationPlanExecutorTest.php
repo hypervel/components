@@ -18,7 +18,7 @@ use Symfony\Component\HttpFoundation\File\File;
 class ValidationPlanExecutorTest extends TestCase
 {
     #[DataProvider('typeCheckCases')]
-    public function testTypeChecks(CheckType $type, mixed $value, bool $expected)
+    public function testTypeChecks(CheckType $type, mixed $value, bool $expected): void
     {
         $validator = $this->makeValidator();
         $check = new InlineCheck($type);
@@ -46,7 +46,7 @@ class ValidationPlanExecutorTest extends TestCase
     }
 
     #[DataProvider('formatCheckCases')]
-    public function testFormatChecks(CheckType $type, mixed $value, bool $expected)
+    public function testFormatChecks(CheckType $type, mixed $value, bool $expected): void
     {
         $validator = $this->makeValidator();
         $check = new InlineCheck($type);
@@ -231,7 +231,7 @@ class ValidationPlanExecutorTest extends TestCase
     }
 
     #[DataProvider('charClassCases')]
-    public function testCharacterClassChecks(CheckType $type, mixed $value, bool $expected)
+    public function testCharacterClassChecks(CheckType $type, mixed $value, bool $expected): void
     {
         $validator = $this->makeValidator();
         $check = new InlineCheck($type);
@@ -292,7 +292,7 @@ class ValidationPlanExecutorTest extends TestCase
         $this->assertFalse($validator->publicExecuteInline($check, [1, 2, 3, 4], 'field'));
     }
 
-    public function testDigits()
+    public function testDigits(): void
     {
         $validator = $this->makeValidator();
         $check = new InlineCheck(CheckType::Digits, 5);
@@ -302,7 +302,7 @@ class ValidationPlanExecutorTest extends TestCase
         $this->assertFalse($validator->publicExecuteInline($check, '123.5', 'field'));
     }
 
-    public function testDigitsBetween()
+    public function testDigitsBetween(): void
     {
         $validator = $this->makeValidator();
         $check = new InlineCheck(CheckType::DigitsBetween, [3, 5]);
@@ -312,7 +312,7 @@ class ValidationPlanExecutorTest extends TestCase
         $this->assertFalse($validator->publicExecuteInline($check, '123456', 'field'));
     }
 
-    public function testRegex()
+    public function testRegex(): void
     {
         $validator = $this->makeValidator();
         $check = new InlineCheck(CheckType::Regex, '/^[a-z]+$/');
@@ -322,7 +322,7 @@ class ValidationPlanExecutorTest extends TestCase
         $this->assertFalse($validator->publicExecuteInline($check, 123, 'field'));
     }
 
-    public function testStartsEndsWith()
+    public function testStartsEndsWith(): void
     {
         $validator = $this->makeValidator();
 
@@ -426,7 +426,7 @@ class ValidationPlanExecutorTest extends TestCase
         ));
     }
 
-    public function testDateFormatWithMultipleFormats()
+    public function testDateFormatWithMultipleFormats(): void
     {
         $validator = $this->makeValidator();
         $check = new InlineCheck(CheckType::DateFormat, ['Y-m-d H:i:s', 'H:i:s']);
@@ -436,7 +436,7 @@ class ValidationPlanExecutorTest extends TestCase
         $this->assertFalse($validator->publicExecuteInline($check, '2025-01-01', 'field'));
     }
 
-    public function testMultipleOf()
+    public function testMultipleOf(): void
     {
         $validator = $this->makeValidator();
         $check = new InlineCheck(CheckType::MultipleOf, '5');
@@ -446,7 +446,7 @@ class ValidationPlanExecutorTest extends TestCase
         $this->assertFalse($validator->publicExecuteInline($check, 7, 'field'));
     }
 
-    public function testSizeComparisonWithIntegerThreshold()
+    public function testSizeComparisonWithIntegerThreshold(): void
     {
         $validator = $this->makeValidator();
 
@@ -477,7 +477,7 @@ class ValidationPlanExecutorTest extends TestCase
         $this->assertFalse($validator->publicExecuteInline($check, 'abcd', 'field'));
     }
 
-    public function testSizeExactWithDecimalThresholdRejectsIntegerSize()
+    public function testSizeExactWithDecimalThresholdRejectsIntegerSize(): void
     {
         $validator = $this->makeValidator();
 
@@ -488,7 +488,7 @@ class ValidationPlanExecutorTest extends TestCase
         $this->assertFalse($validator->publicExecuteInline($check, 'abc', 'field'));
     }
 
-    public function testSizeBetweenWithIntegerThresholds()
+    public function testSizeBetweenWithIntegerThresholds(): void
     {
         $validator = $this->makeValidator();
 

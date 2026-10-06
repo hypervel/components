@@ -27,7 +27,7 @@ class ValidationNotInRuleTest extends TestCase
         $this->assertSame((string) $inType, (string) $notInType);
     }
 
-    public function testItCorrectlyFormatsAStringVersionOfTheRule()
+    public function testItCorrectlyFormatsAStringVersionOfTheRule(): void
     {
         $rule = new NotIn(['Laravel', 'Framework', 'PHP']);
 
@@ -82,7 +82,7 @@ class ValidationNotInRuleTest extends TestCase
         $this->assertSame('not_in:"one"', (string) $rule);
     }
 
-    public function testNotInRuleValidation()
+    public function testNotInRuleValidation(): void
     {
         $trans = new Translator(new ArrayLoader, 'en');
 

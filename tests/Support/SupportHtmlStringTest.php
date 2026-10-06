@@ -36,7 +36,7 @@ class SupportHtmlStringTest extends TestCase
         $this->assertEquals($str, $html->toHtml());
     }
 
-    public function testToString()
+    public function testToString(): void
     {
         $str = '<h1>foo</h1>';
         $html = new HtmlString('<h1>foo</h1>');
@@ -62,7 +62,7 @@ class SupportHtmlStringTest extends TestCase
         $this->assertFalse((new HtmlString('<p>Hello</p>'))->isEmpty());
     }
 
-    public function testIsNotEmpty()
+    public function testIsNotEmpty(): void
     {
         $this->assertTrue((new HtmlString('foo'))->isNotEmpty());
     }

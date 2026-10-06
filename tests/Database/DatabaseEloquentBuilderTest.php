@@ -943,7 +943,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals(['bar', 'baz'], $builder->pluck('name')->all());
     }
 
-    public function testLocalMacrosAreCalledOnBuilder()
+    public function testLocalMacrosAreCalledOnBuilder(): void
     {
         unset($_SERVER['__test.builder']);
         $builder = new Builder(new BaseBuilder(
@@ -964,7 +964,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         unset($_SERVER['__test.builder']);
     }
 
-    public function testGlobalMacrosAreCalledOnBuilder()
+    public function testGlobalMacrosAreCalledOnBuilder(): void
     {
         Builder::macro('foo', function ($bar) {
             return $bar;
@@ -988,7 +988,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         Builder::missingMacro();
     }
 
-    public function testGetModelsProperlyHydratesModels()
+    public function testGetModelsProperlyHydratesModels(): void
     {
         $builder = m::mock(Builder::class . '[get]', [$this->getMockQueryBuilder()]);
         $records[] = ['name' => 'taylor', 'age' => 26];
@@ -1017,7 +1017,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals(['foo'], $results);
     }
 
-    public function testEagerLoadRelationsCanBeFlushed()
+    public function testEagerLoadRelationsCanBeFlushed(): void
     {
         $builder = m::mock(Builder::class . '[eagerLoadRelation]', [$this->getMockQueryBuilder()]);
 
@@ -1030,7 +1030,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEmpty($builder->getEagerLoads());
     }
 
-    public function testRelationshipEagerLoadProcess()
+    public function testRelationshipEagerLoadProcess(): void
     {
         $builder = m::mock(Builder::class . '[getRelation]', [$this->getMockQueryBuilder()]);
         $builder->setEagerLoads(['orders' => function ($query) {
@@ -1050,7 +1050,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         unset($_SERVER['__eloquent.constrain']);
     }
 
-    public function testRelationshipEagerLoadProcessForImplicitlyEmpty()
+    public function testRelationshipEagerLoadProcessForImplicitlyEmpty(): void
     {
         $queryBuilder = $this->getMockQueryBuilder();
         $builder = m::mock(Builder::class . '[getRelation]', [$queryBuilder]);
@@ -1109,7 +1109,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder->getRelation('ordersGroups');
     }
 
-    public function testGetRelationThrowsException()
+    public function testGetRelationThrowsException(): void
     {
         $this->expectException(RelationNotFoundException::class);
 
@@ -1149,7 +1149,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         }
     }
 
-    public function testEagerLoadParsingSetsProperRelationships()
+    public function testEagerLoadParsingSetsProperRelationships(): void
     {
         $builder = $this->getBuilder();
         $builder->with(['orders', 'orders.lines']);
@@ -1249,7 +1249,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame($expression, $builder->raw('bar'));
     }
 
-    public function testQueryScopes()
+    public function testQueryScopes(): void
     {
         $builder = $this->getBuilder();
         $builder->getQuery()->shouldReceive('from');
@@ -1260,7 +1260,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals($builder, $result);
     }
 
-    public function testQueryDynamicScopes()
+    public function testQueryDynamicScopes(): void
     {
         $builder = $this->getBuilder();
         $builder->getQuery()->shouldReceive('from');
@@ -1271,7 +1271,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals($builder, $result);
     }
 
-    public function testQueryDynamicScopesNamed()
+    public function testQueryDynamicScopesNamed(): void
     {
         $builder = $this->getBuilder();
         $builder->getQuery()->shouldReceive('from');
@@ -1435,7 +1435,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame($bindings, $query->getBindings());
     }
 
-    public function testNestedWhere()
+    public function testNestedWhere(): void
     {
         $nestedQuery = m::mock(Builder::class);
         $nestedRawQuery = $this->getMockQueryBuilder();
@@ -1456,7 +1456,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals($builder, $result);
     }
 
-    public function testRealNestedWhereWithScopes()
+    public function testRealNestedWhereWithScopes(): void
     {
         $model = new NestedStub;
         $this->mockConnectionForModel($model, 'SQLite');
@@ -1467,7 +1467,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals(['bar', 9000], $query->getBindings());
     }
 
-    public function testRealNestedWhereWithScopesMacro()
+    public function testRealNestedWhereWithScopesMacro(): void
     {
         $model = new NestedStub;
         $this->mockConnectionForModel($model, 'SQLite');
@@ -1478,7 +1478,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals(['bar', 9000], $query->getBindings());
     }
 
-    public function testRealNestedWhereWithMultipleScopesAndOneDeadScope()
+    public function testRealNestedWhereWithMultipleScopesAndOneDeadScope(): void
     {
         $model = new NestedStub;
         $this->mockConnectionForModel($model, 'SQLite');
@@ -1489,7 +1489,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals(['bar', 9000], $query->getBindings());
     }
 
-    public function testSimpleWhereNot()
+    public function testSimpleWhereNot(): void
     {
         $model = new Stub;
         $this->mockConnectionForModel($model, 'SQLite');
@@ -1498,7 +1498,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals(['foo', 'bar'], $query->getBindings());
     }
 
-    public function testWhereNot()
+    public function testWhereNot(): void
     {
         $nestedQuery = m::mock(Builder::class);
         $nestedRawQuery = $this->getMockQueryBuilder();
@@ -1519,7 +1519,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals($builder, $result);
     }
 
-    public function testSimpleOrWhereNot()
+    public function testSimpleOrWhereNot(): void
     {
         $model = new Stub;
         $this->mockConnectionForModel($model, 'SQLite');
@@ -1528,7 +1528,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals(['foo', 'bar'], $query->getBindings());
     }
 
-    public function testOrWhereNot()
+    public function testOrWhereNot(): void
     {
         $nestedQuery = m::mock(Builder::class);
         $nestedRawQuery = $this->getMockQueryBuilder();
@@ -1591,7 +1591,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame(11, $result->id);
     }
 
-    public function testRealQueryHigherOrderOrWhereScopes()
+    public function testRealQueryHigherOrderOrWhereScopes(): void
     {
         $model = new HigherOrderWhereScopeStub;
         $this->mockConnectionForModel($model, 'SQLite');
@@ -1599,7 +1599,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame('select * from "table" where ("one" = ?) or (("two" = ?))', $query->toSql());
     }
 
-    public function testRealQueryChainedHigherOrderOrWhereScopes()
+    public function testRealQueryChainedHigherOrderOrWhereScopes(): void
     {
         $model = new HigherOrderWhereScopeStub;
         $this->mockConnectionForModel($model, 'SQLite');
@@ -1607,7 +1607,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame('select * from "table" where ("one" = ?) or (("two" = ?)) or (("three" = ?))', $query->toSql());
     }
 
-    public function testRealQueryHigherOrderWhereNotScopes()
+    public function testRealQueryHigherOrderWhereNotScopes(): void
     {
         $model = new HigherOrderWhereScopeStub;
         $this->mockConnectionForModel($model, 'SQLite');
@@ -1615,7 +1615,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame('select * from "table" where ("one" = ?) and not (("two" = ?))', $query->toSql());
     }
 
-    public function testRealQueryChainedHigherOrderWhereNotScopes()
+    public function testRealQueryChainedHigherOrderWhereNotScopes(): void
     {
         $model = new HigherOrderWhereScopeStub;
         $this->mockConnectionForModel($model, 'SQLite');
@@ -1623,7 +1623,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame('select * from "table" where ("one" = ?) and not (("two" = ?)) and not (("three" = ?))', $query->toSql());
     }
 
-    public function testRealQueryHigherOrderOrWhereNotScopes()
+    public function testRealQueryHigherOrderOrWhereNotScopes(): void
     {
         $model = new HigherOrderWhereScopeStub;
         $this->mockConnectionForModel($model, 'SQLite');
@@ -1631,7 +1631,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame('select * from "table" where ("one" = ?) or not (("two" = ?))', $query->toSql());
     }
 
-    public function testRealQueryChainedHigherOrderOrWhereNotScopes()
+    public function testRealQueryChainedHigherOrderOrWhereNotScopes(): void
     {
         $model = new HigherOrderWhereScopeStub;
         $this->mockConnectionForModel($model, 'SQLite');
@@ -1639,7 +1639,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame('select * from "table" where ("one" = ?) or not (("two" = ?)) or not (("three" = ?))', $query->toSql());
     }
 
-    public function testSimpleWhere()
+    public function testSimpleWhere(): void
     {
         $builder = $this->getBuilder();
         $builder->getQuery()->expects('where')->with('foo', '=', 'bar');
@@ -1647,7 +1647,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals($result, $builder);
     }
 
-    public function testPostgresOperatorsWhere()
+    public function testPostgresOperatorsWhere(): void
     {
         $builder = $this->getBuilder();
         $builder->getQuery()->expects('where')->with('foo', '@>', 'bar');
@@ -1655,7 +1655,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals($result, $builder);
     }
 
-    public function testWhereBelongsTo()
+    public function testWhereBelongsTo(): void
     {
         $related = new WhereBelongsToStub([
             'id' => 1,
@@ -1708,7 +1708,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals($result, $builder);
     }
 
-    public function testWhereAttachedTo()
+    public function testWhereAttachedTo(): void
     {
         $related = new ModelFarRelatedStub;
         $related->id = 49;
@@ -1719,7 +1719,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame('select * from "model_parent_stubs" where exists (select * from "model_far_related_stubs" inner join "user_role" on "model_far_related_stubs"."id" = "user_role"."related_id" where ("model_parent_stubs"."id" = "user_role"."self_id") and ("model_far_related_stubs"."id" in (49)))', $builder->toSql());
     }
 
-    public function testWhereAttachedToCollection()
+    public function testWhereAttachedToCollection(): void
     {
         $model1 = new ModelParentStub;
         $model1->id = 3;
@@ -1734,7 +1734,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame('select * from "model_far_related_stubs" where exists (select * from "model_parent_stubs" inner join "user_role" on "model_parent_stubs"."id" = "user_role"."self_id" where ("model_far_related_stubs"."id" = "user_role"."related_id") and ("model_parent_stubs"."id" in (3, 4)))', $builder->toSql());
     }
 
-    public function testDeleteOverride()
+    public function testDeleteOverride(): void
     {
         $builder = $this->getBuilder();
         $builder->onDelete(function ($builder) {
@@ -1743,7 +1743,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals(['foo' => $builder], $builder->delete());
     }
 
-    public function testWithCount()
+    public function testWithCount(): void
     {
         $model = new ModelParentStub;
 
@@ -1752,7 +1752,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame('select "model_parent_stubs".*, (select count(*) from "model_close_related_stubs" where "model_parent_stubs"."foo_id" = "model_close_related_stubs"."id") as "foo_count" from "model_parent_stubs"', $builder->toSql());
     }
 
-    public function testWithCountAndSelect()
+    public function testWithCountAndSelect(): void
     {
         $model = new ModelParentStub;
 
@@ -1761,7 +1761,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame('select "id", (select count(*) from "model_close_related_stubs" where "model_parent_stubs"."foo_id" = "model_close_related_stubs"."id") as "foo_count" from "model_parent_stubs"', $builder->toSql());
     }
 
-    public function testWithCountSecondRelationWithClosure()
+    public function testWithCountSecondRelationWithClosure(): void
     {
         $model = new ModelParentStub;
 
@@ -1772,7 +1772,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame('select "model_parent_stubs".*, (select count(*) from "model_close_related_stubs" where "model_parent_stubs"."foo_id" = "model_close_related_stubs"."id") as "address_count", (select count(*) from "model_close_related_stubs" where ("model_parent_stubs"."foo_id" = "model_close_related_stubs"."id") and ("active" = ?)) as "foo_count" from "model_parent_stubs"', $builder->toSql());
     }
 
-    public function testWithCountAndMergedWheres()
+    public function testWithCountAndMergedWheres(): void
     {
         $model = new ModelParentStub;
 
@@ -1784,7 +1784,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals(['qux', true], $builder->getBindings());
     }
 
-    public function testWithCountAndGlobalScope()
+    public function testWithCountAndGlobalScope(): void
     {
         $model = new ModelParentStub;
         ModelCloseRelatedStub::addGlobalScope('withCount', function ($query) {
@@ -1800,7 +1800,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame('select "id", (select count(*) from "model_close_related_stubs" where "model_parent_stubs"."foo_id" = "model_close_related_stubs"."id") as "foo_count" from "model_parent_stubs"', $builder->toSql());
     }
 
-    public function testWithMin()
+    public function testWithMin(): void
     {
         $model = new ModelParentStub;
 
@@ -1809,7 +1809,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame('select "model_parent_stubs".*, (select min("model_close_related_stubs"."price") from "model_close_related_stubs" where "model_parent_stubs"."foo_id" = "model_close_related_stubs"."id") as "foo_min_price" from "model_parent_stubs"', $builder->toSql());
     }
 
-    public function testWithMinExpression()
+    public function testWithMinExpression(): void
     {
         $model = new ModelParentStub;
 
@@ -1818,7 +1818,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame('select "model_parent_stubs".*, (select min(price - discount) from "model_close_related_stubs" where "model_parent_stubs"."foo_id" = "model_close_related_stubs"."id") as "foo_min_price_discount" from "model_parent_stubs"', $builder->toSql());
     }
 
-    public function testWithMinOnBelongsToMany()
+    public function testWithMinOnBelongsToMany(): void
     {
         $model = new ModelParentStub;
 
@@ -1827,7 +1827,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame('select "model_parent_stubs".*, (select min("model_far_related_stubs"."id") from "model_far_related_stubs" inner join "user_role" on "model_far_related_stubs"."id" = "user_role"."related_id" where "model_parent_stubs"."id" = "user_role"."self_id") as "roles_min_id" from "model_parent_stubs"', $builder->toSql());
     }
 
-    public function testWithMinOnSelfRelated()
+    public function testWithMinOnSelfRelated(): void
     {
         $model = new ModelSelfRelatedStub;
 
@@ -1842,7 +1842,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame('select "self_related_stubs".*, (select min("self_alias_hash"."created_at") from "self_related_stubs" as "self_alias_hash" where "self_related_stubs"."id" = "self_alias_hash"."parent_id") as "child_foos_min_created_at" from "self_related_stubs"', $sql);
     }
 
-    public function testWithMax()
+    public function testWithMax(): void
     {
         $model = new ModelParentStub;
 
@@ -1851,7 +1851,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame('select "model_parent_stubs".*, (select max("model_close_related_stubs"."price") from "model_close_related_stubs" where "model_parent_stubs"."foo_id" = "model_close_related_stubs"."id") as "foo_max_price" from "model_parent_stubs"', $builder->toSql());
     }
 
-    public function testWithMaxExpression()
+    public function testWithMaxExpression(): void
     {
         $model = new ModelParentStub;
 
@@ -1860,7 +1860,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame('select "model_parent_stubs".*, (select max(price - discount) from "model_close_related_stubs" where "model_parent_stubs"."foo_id" = "model_close_related_stubs"."id") as "foo_max_price_discount" from "model_parent_stubs"', $builder->toSql());
     }
 
-    public function testWithAvg()
+    public function testWithAvg(): void
     {
         $model = new ModelParentStub;
 
@@ -1869,7 +1869,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame('select "model_parent_stubs".*, (select avg("model_close_related_stubs"."price") from "model_close_related_stubs" where "model_parent_stubs"."foo_id" = "model_close_related_stubs"."id") as "foo_avg_price" from "model_parent_stubs"', $builder->toSql());
     }
 
-    public function testWitAvgExpression()
+    public function testWitAvgExpression(): void
     {
         $model = new ModelParentStub;
 
@@ -1878,7 +1878,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame('select "model_parent_stubs".*, (select avg(price - discount) from "model_close_related_stubs" where "model_parent_stubs"."foo_id" = "model_close_related_stubs"."id") as "foo_avg_price_discount" from "model_parent_stubs"', $builder->toSql());
     }
 
-    public function testWithCountAndConstraintsAndHaving()
+    public function testWithCountAndConstraintsAndHaving(): void
     {
         $model = new ModelParentStub;
 
@@ -1891,7 +1891,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals(['qux', 'baz', 1], $builder->getBindings());
     }
 
-    public function testWithCountAndRename()
+    public function testWithCountAndRename(): void
     {
         $model = new ModelParentStub;
 
@@ -1912,7 +1912,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame([true], $builder->getBindings());
     }
 
-    public function testWithCountMultipleAndPartialRename()
+    public function testWithCountMultipleAndPartialRename(): void
     {
         $model = new ModelParentStub;
 
@@ -1921,7 +1921,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame('select "model_parent_stubs".*, (select count(*) from "model_close_related_stubs" where "model_parent_stubs"."foo_id" = "model_close_related_stubs"."id") as "foo_bar", (select count(*) from "model_close_related_stubs" where "model_parent_stubs"."foo_id" = "model_close_related_stubs"."id") as "foo_count" from "model_parent_stubs"', $builder->toSql());
     }
 
-    public function testWithAggregateAlias()
+    public function testWithAggregateAlias(): void
     {
         $model = new ModelParentStub;
 
@@ -1947,7 +1947,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         );
     }
 
-    public function testWithAggregateAndSelfRelationConstrain()
+    public function testWithAggregateAndSelfRelationConstrain(): void
     {
         Stub::resolveRelationUsing('children', function ($model) {
             return $model->hasMany(Stub::class, 'parent_id', 'id')->where('enum_value', new stdClass);
@@ -1962,7 +1962,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame(vsprintf('select "table".*, (select count(*) from "table" as "%s" where "table"."id" = "%s"."parent_id" and "enum_value" = ?) as "children_count" from "table"', [$relationHash, $relationHash]), $builder->toSql());
     }
 
-    public function testWithExists()
+    public function testWithExists(): void
     {
         $model = new ModelParentStub;
 
@@ -1989,7 +1989,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         });
     }
 
-    public function testWithExistsAndSelect()
+    public function testWithExistsAndSelect(): void
     {
         $model = new ModelParentStub;
 
@@ -1998,7 +1998,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame('select "id", exists(select * from "model_close_related_stubs" where "model_parent_stubs"."foo_id" = "model_close_related_stubs"."id") as "foo_exists" from "model_parent_stubs"', $builder->toSql());
     }
 
-    public function testWithExistsAndMergedWheres()
+    public function testWithExistsAndMergedWheres(): void
     {
         $model = new ModelParentStub;
 
@@ -2010,7 +2010,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals(['qux', true], $builder->getBindings());
     }
 
-    public function testWithExistsAndGlobalScope()
+    public function testWithExistsAndGlobalScope(): void
     {
         $model = new ModelParentStub;
         ModelCloseRelatedStub::addGlobalScope('withExists', function ($query) {
@@ -2026,7 +2026,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame('select "id", exists(select * from "model_close_related_stubs" where "model_parent_stubs"."foo_id" = "model_close_related_stubs"."id") as "foo_exists" from "model_parent_stubs"', $builder->toSql());
     }
 
-    public function testWithExistsOnBelongsToMany()
+    public function testWithExistsOnBelongsToMany(): void
     {
         $model = new ModelParentStub;
 
@@ -2035,7 +2035,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame('select "model_parent_stubs".*, exists(select * from "model_far_related_stubs" inner join "user_role" on "model_far_related_stubs"."id" = "user_role"."related_id" where "model_parent_stubs"."id" = "user_role"."self_id") as "roles_exists" from "model_parent_stubs"', $builder->toSql());
     }
 
-    public function testWithExistsOnSelfRelated()
+    public function testWithExistsOnSelfRelated(): void
     {
         $model = new ModelSelfRelatedStub;
 
@@ -2050,7 +2050,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame('select "self_related_stubs".*, exists(select * from "self_related_stubs" as "self_alias_hash" where "self_related_stubs"."id" = "self_alias_hash"."parent_id") as "child_foos_exists" from "self_related_stubs"', $sql);
     }
 
-    public function testWithExistsAndRename()
+    public function testWithExistsAndRename(): void
     {
         $model = new ModelParentStub;
 
@@ -2071,7 +2071,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         }
     }
 
-    public function testWithExistsMultipleAndPartialRename()
+    public function testWithExistsMultipleAndPartialRename(): void
     {
         $model = new ModelParentStub;
 
@@ -2080,7 +2080,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame('select "model_parent_stubs".*, exists(select * from "model_close_related_stubs" where "model_parent_stubs"."foo_id" = "model_close_related_stubs"."id") as "foo_bar", exists(select * from "model_close_related_stubs" where "model_parent_stubs"."foo_id" = "model_close_related_stubs"."id") as "foo_exists" from "model_parent_stubs"', $builder->toSql());
     }
 
-    public function testHasWithConstraintsAndHavingInSubquery()
+    public function testHasWithConstraintsAndHavingInSubquery(): void
     {
         $model = new ModelParentStub;
 
@@ -2093,7 +2093,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals(['baz', 'qux', 'quuux'], $builder->getBindings());
     }
 
-    public function testHasWithConstraintsWithOrWhereAndHavingInSubquery()
+    public function testHasWithConstraintsWithOrWhereAndHavingInSubquery(): void
     {
         $model = new ModelParentStub;
 
@@ -2108,7 +2108,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals(['larry', '90210', '90220', 'fooside dr', 29], $builder->getBindings());
     }
 
-    public function testHasWithConstraintsWithOrWhereAndSubqueryInRelationFromClause()
+    public function testHasWithConstraintsWithOrWhereAndSubqueryInRelationFromClause(): void
     {
         ModelParentStub::resolveRelationUsing('addressAsExpression', function ($model) {
             return $model->address()->fromSub(ModelCloseRelatedStub::query(), 'model_close_related_stubs');
@@ -2127,7 +2127,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals(['larry', '90210', '90220', 'fooside dr', 29], $builder->getBindings());
     }
 
-    public function testHasWithConstraintsAndJoinAndHavingInSubquery()
+    public function testHasWithConstraintsAndJoinAndHavingInSubquery(): void
     {
         $model = new ModelParentStub;
         $builder = $model->where('bar', 'baz');
@@ -2142,7 +2142,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals(['baz', 'quuuuuux', 'qux', 'quuux'], $builder->getBindings());
     }
 
-    public function testHasWithConstraintsAndHavingInSubqueryWithCount()
+    public function testHasWithConstraintsAndHavingInSubqueryWithCount(): void
     {
         $model = new ModelParentStub;
 
@@ -2173,7 +2173,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         });
     }
 
-    public function testWithCountAndConstraintsWithBindingInSelectSub()
+    public function testWithCountAndConstraintsWithBindingInSelectSub(): void
     {
         $model = new ModelParentStub;
 
@@ -2186,7 +2186,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame([], $builder->getBindings());
     }
 
-    public function testWithExistsAndConstraintsWithBindingInSelectSub()
+    public function testWithExistsAndConstraintsWithBindingInSelectSub(): void
     {
         $model = new ModelParentStub;
 
@@ -2199,7 +2199,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame([], $builder->getBindings());
     }
 
-    public function testHasNestedWithConstraints()
+    public function testHasNestedWithConstraints(): void
     {
         $model = new ModelParentStub;
 
@@ -2216,7 +2216,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals($builder, $result);
     }
 
-    public function testHasNested()
+    public function testHasNested(): void
     {
         $model = new ModelParentStub;
 
@@ -2334,7 +2334,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame([true], $query->getBindings());
     }
 
-    public function testOrHasNested()
+    public function testOrHasNested(): void
     {
         $model = new ModelParentStub;
 
@@ -2349,7 +2349,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals($builder->toSql(), $result);
     }
 
-    public function testSelfHasNested()
+    public function testSelfHasNested(): void
     {
         $model = new ModelSelfRelatedStub;
 
@@ -2369,7 +2369,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals($nestedSql, $dotSql);
     }
 
-    public function testSelfHasNestedUsesAlias()
+    public function testSelfHasNestedUsesAlias(): void
     {
         $model = new ModelSelfRelatedStub;
 
@@ -2384,7 +2384,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertStringContainsString('"self_alias_hash"."id" = "self_related_stubs"."parent_id"', $sql);
     }
 
-    public function testDoesntHave()
+    public function testDoesntHave(): void
     {
         $model = new ModelParentStub;
 
@@ -2393,7 +2393,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame('select * from "model_parent_stubs" where not exists (select * from "model_close_related_stubs" where "model_parent_stubs"."foo_id" = "model_close_related_stubs"."id")', $builder->toSql());
     }
 
-    public function testDoesntHaveNested()
+    public function testDoesntHaveNested(): void
     {
         $model = new ModelParentStub;
 
@@ -2402,7 +2402,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame('select * from "model_parent_stubs" where not exists (select * from "model_close_related_stubs" where ("model_parent_stubs"."foo_id" = "model_close_related_stubs"."id") and (exists (select * from "model_far_related_stubs" where "model_close_related_stubs"."id" = "model_far_related_stubs"."model_close_related_stub_id")))', $builder->toSql());
     }
 
-    public function testOrDoesntHave()
+    public function testOrDoesntHave(): void
     {
         $model = new ModelParentStub;
 
@@ -2412,7 +2412,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals(['baz'], $builder->getBindings());
     }
 
-    public function testWhereDoesntHave()
+    public function testWhereDoesntHave(): void
     {
         $model = new ModelParentStub;
 
@@ -2424,7 +2424,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals(['baz'], $builder->getBindings());
     }
 
-    public function testOrWhereDoesntHave()
+    public function testOrWhereDoesntHave(): void
     {
         $model = new ModelParentStub;
 
@@ -2436,7 +2436,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals(['baz', 'quux'], $builder->getBindings());
     }
 
-    public function testWhereMorphedTo()
+    public function testWhereMorphedTo(): void
     {
         $model = new ModelParentStub;
         $this->mockConnectionForModel($model, '');
@@ -2450,7 +2450,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals([$relatedModel->getMorphClass(), $relatedModel->getKey()], $builder->getBindings());
     }
 
-    public function testWhereMorphedToCollection()
+    public function testWhereMorphedToCollection(): void
     {
         $model = new ModelParentStub;
         $this->mockConnectionForModel($model, '');
@@ -2467,7 +2467,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals([$firstRelatedModel->getMorphClass(), $firstRelatedModel->getKey(), $secondRelatedModel->getKey()], $builder->getBindings());
     }
 
-    public function testWhereMorphedToCollectionWithDifferentModels()
+    public function testWhereMorphedToCollectionWithDifferentModels(): void
     {
         $model = new ModelParentStub;
         $this->mockConnectionForModel($model, '');
@@ -2487,7 +2487,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals([$firstRelatedModel->getMorphClass(), $firstRelatedModel->getKey(), $thirdRelatedModel->getKey(), $secondRelatedModel->getMorphClass(), $secondRelatedModel->id], $builder->getBindings());
     }
 
-    public function testWhereMorphedToNull()
+    public function testWhereMorphedToNull(): void
     {
         $model = new ModelParentStub;
         $this->mockConnectionForModel($model, '');
@@ -2507,7 +2507,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame([], $builder->getBindings());
     }
 
-    public function testWhereNotMorphedTo()
+    public function testWhereNotMorphedTo(): void
     {
         $model = new ModelParentStub;
         $this->mockConnectionForModel($model, '');
@@ -2521,7 +2521,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals([$relatedModel->getMorphClass(), $relatedModel->getKey()], $builder->getBindings());
     }
 
-    public function testWhereNotMorphedToCollection()
+    public function testWhereNotMorphedToCollection(): void
     {
         $model = new ModelParentStub;
         $this->mockConnectionForModel($model, '');
@@ -2538,7 +2538,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals([$firstRelatedModel->getMorphClass(), $firstRelatedModel->getKey(), $secondRelatedModel->getKey()], $builder->getBindings());
     }
 
-    public function testWhereNotMorphedToCollectionWithDifferentModels()
+    public function testWhereNotMorphedToCollectionWithDifferentModels(): void
     {
         $model = new ModelParentStub;
         $this->mockConnectionForModel($model, '');
@@ -2558,7 +2558,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals([$firstRelatedModel->getMorphClass(), $firstRelatedModel->getKey(), $thirdRelatedModel->getKey(), $secondRelatedModel->getMorphClass(), $secondRelatedModel->id], $builder->getBindings());
     }
 
-    public function testOrWhereMorphedTo()
+    public function testOrWhereMorphedTo(): void
     {
         $model = new ModelParentStub;
         $this->mockConnectionForModel($model, '');
@@ -2572,7 +2572,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals(['baz', $relatedModel->getMorphClass(), $relatedModel->getKey()], $builder->getBindings());
     }
 
-    public function testOrWhereMorphedToCollection()
+    public function testOrWhereMorphedToCollection(): void
     {
         $model = new ModelParentStub;
         $this->mockConnectionForModel($model, '');
@@ -2589,7 +2589,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals(['baz', $firstRelatedModel->getMorphClass(), $firstRelatedModel->getKey(), $secondRelatedModel->getKey()], $builder->getBindings());
     }
 
-    public function testOrWhereMorphedToCollectionWithDifferentModels()
+    public function testOrWhereMorphedToCollectionWithDifferentModels(): void
     {
         $model = new ModelParentStub;
         $this->mockConnectionForModel($model, '');
@@ -2609,7 +2609,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals(['baz', $firstRelatedModel->getMorphClass(), $firstRelatedModel->getKey(), $thirdRelatedModel->getKey(), $secondRelatedModel->getMorphClass(), $secondRelatedModel->id], $builder->getBindings());
     }
 
-    public function testOrWhereMorphedToNull()
+    public function testOrWhereMorphedToNull(): void
     {
         $model = new ModelParentStub;
         $this->mockConnectionForModel($model, '');
@@ -2620,7 +2620,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals(['baz'], $builder->getBindings());
     }
 
-    public function testOrWhereNotMorphedTo()
+    public function testOrWhereNotMorphedTo(): void
     {
         $model = new ModelParentStub;
         $this->mockConnectionForModel($model, '');
@@ -2634,7 +2634,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals(['baz', $relatedModel->getMorphClass(), $relatedModel->getKey()], $builder->getBindings());
     }
 
-    public function testOrWhereNotMorphedToCollection()
+    public function testOrWhereNotMorphedToCollection(): void
     {
         $model = new ModelParentStub;
         $this->mockConnectionForModel($model, '');
@@ -2651,7 +2651,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals(['baz', $firstRelatedModel->getMorphClass(), $firstRelatedModel->getKey(), $secondRelatedModel->getKey()], $builder->getBindings());
     }
 
-    public function testOrWhereNotMorphedToCollectionWithDifferentModels()
+    public function testOrWhereNotMorphedToCollectionWithDifferentModels(): void
     {
         $model = new ModelParentStub;
         $this->mockConnectionForModel($model, '');
@@ -2671,7 +2671,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals(['baz', $firstRelatedModel->getMorphClass(), $firstRelatedModel->getKey(), $thirdRelatedModel->getKey(), $secondRelatedModel->getMorphClass(), $secondRelatedModel->id], $builder->getBindings());
     }
 
-    public function testWhereMorphedToClass()
+    public function testWhereMorphedToClass(): void
     {
         $model = new ModelParentStub;
         $this->mockConnectionForModel($model, '');
@@ -2682,7 +2682,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals([ModelCloseRelatedStub::class], $builder->getBindings());
     }
 
-    public function testWhereNotMorphedToClass()
+    public function testWhereNotMorphedToClass(): void
     {
         $model = new ModelParentStub;
         $this->mockConnectionForModel($model, '');
@@ -2693,7 +2693,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals([ModelCloseRelatedStub::class], $builder->getBindings());
     }
 
-    public function testOrWhereMorphedToClass()
+    public function testOrWhereMorphedToClass(): void
     {
         $model = new ModelParentStub;
         $this->mockConnectionForModel($model, '');
@@ -2704,7 +2704,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals(['baz', ModelCloseRelatedStub::class], $builder->getBindings());
     }
 
-    public function testOrWhereNotMorphedToClass()
+    public function testOrWhereNotMorphedToClass(): void
     {
         $model = new ModelParentStub;
         $this->mockConnectionForModel($model, '');
@@ -2715,7 +2715,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals(['baz', ModelCloseRelatedStub::class], $builder->getBindings());
     }
 
-    public function testWhereNotMorphedToWithSQLite()
+    public function testWhereNotMorphedToWithSQLite(): void
     {
         $model = new ModelParentStub;
         $this->mockConnectionForModel($model, 'SQLite');
@@ -2730,7 +2730,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals([$relatedModel->getMorphClass(), $relatedModel->getKey()], $builder->getBindings());
     }
 
-    public function testWhereNotMorphedToClassWithSQLite()
+    public function testWhereNotMorphedToClassWithSQLite(): void
     {
         $model = new ModelParentStub;
         $this->mockConnectionForModel($model, 'SQLite');
@@ -3271,7 +3271,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder->except($models);
     }
 
-    public function testWhereIn()
+    public function testWhereIn(): void
     {
         $model = new NestedStub;
         $this->mockConnectionForModel($model, '');
@@ -3302,7 +3302,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder->latest();
     }
 
-    public function testLatestWithColumn()
+    public function testLatestWithColumn(): void
     {
         $model = $this->getMockModel();
         $builder = $this->getBuilder()->setModel($model);
@@ -3360,7 +3360,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder->oldest();
     }
 
-    public function testOldestWithColumn()
+    public function testOldestWithColumn(): void
     {
         $model = $this->getMockModel();
         $builder = $this->getBuilder()->setModel($model);
@@ -3370,7 +3370,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder->oldest('foo');
     }
 
-    public function testUpdate()
+    public function testUpdate(): void
     {
         CarbonImmutable::setTestNow($now = '2017-10-10 10:10:10');
 
@@ -3404,7 +3404,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals(1, $result);
     }
 
-    public function testUpdateWithQualifiedTimestampValue()
+    public function testUpdateWithQualifiedTimestampValue(): void
     {
         $connection = m::mock(Connection::class);
         $connection->shouldReceive('getTablePrefix')->andReturn('');
@@ -3436,7 +3436,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals(1, $result);
     }
 
-    public function testUpdateWithAlias()
+    public function testUpdateWithAlias(): void
     {
         CarbonImmutable::setTestNow($now = '2017-10-10 10:10:10');
 
@@ -3867,7 +3867,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame('select 1', $builder->toRawSQL());
     }
 
-    public function testPassthruArrayElementsMustAllBeLowercase()
+    public function testPassthruArrayElementsMustAllBeLowercase(): void
     {
         $builder = new class(m::mock(BaseBuilder::class)) extends Builder {
             // expose protected member for test
@@ -3891,7 +3891,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         }
     }
 
-    public function testPipeCallback()
+    public function testPipeCallback(): void
     {
         $query = new Builder(new BaseBuilder(
             $connection = new PdoConnection(new PDO('sqlite::memory:')),

@@ -22,7 +22,7 @@ class DatabaseEloquentLocalScopesTest extends TestCase
         ])->bootEloquent();
     }
 
-    public function testCanCheckExistenceOfLocalScope()
+    public function testCanCheckExistenceOfLocalScope(): void
     {
         $model = new ScopedModel;
 
@@ -32,7 +32,7 @@ class DatabaseEloquentLocalScopesTest extends TestCase
         $this->assertFalse($model->hasNamedScope('nonExistentLocalScope'));
     }
 
-    public function testLocalScopeIsApplied()
+    public function testLocalScopeIsApplied(): void
     {
         $model = new ScopedModel;
         $query = $model->newQuery()->active();
@@ -41,7 +41,7 @@ class DatabaseEloquentLocalScopesTest extends TestCase
         $this->assertEquals([true], $query->getBindings());
     }
 
-    public function testDynamicLocalScopeIsApplied()
+    public function testDynamicLocalScopeIsApplied(): void
     {
         $model = new ScopedModel;
         $query = $model->newQuery()->type('foo');
@@ -50,7 +50,7 @@ class DatabaseEloquentLocalScopesTest extends TestCase
         $this->assertEquals(['foo'], $query->getBindings());
     }
 
-    public function testLocalScopesCanChained()
+    public function testLocalScopesCanChained(): void
     {
         $model = new ScopedModel;
         $query = $model->newQuery()->active()->type('foo');
@@ -73,7 +73,7 @@ class DatabaseEloquentLocalScopesTest extends TestCase
         (new ScopedModel)->newQuery()->d();
     }
 
-    public function testLocalScopeNestingDoesntDoubleFirstWhereClauseNegation()
+    public function testLocalScopeNestingDoesntDoubleFirstWhereClauseNegation(): void
     {
         $model = new ScopedModel;
         $query = $model
@@ -86,7 +86,7 @@ class DatabaseEloquentLocalScopesTest extends TestCase
         $this->assertEquals([true, true, true], $query->getBindings());
     }
 
-    public function testLocalScopeNestingGroupsOrNotWhereClause()
+    public function testLocalScopeNestingGroupsOrNotWhereClause(): void
     {
         $model = new ScopedModel;
         $query = $model

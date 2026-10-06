@@ -14,7 +14,7 @@ use function Hypervel\Testbench\remote;
 
 class AboutCommandTest extends TestCase
 {
-    public function testItCanDisplayAboutCommandAsJson()
+    public function testItCanDisplayAboutCommandAsJson(): void
     {
         $process = remote('about --json', ['APP_ENV' => 'local', 'APP_DEBUG' => 'true'])->mustRun();
 
@@ -43,7 +43,7 @@ class AboutCommandTest extends TestCase
     }
 
     #[WithEnv('VIEW_COMPILED_PATH', __DIR__ . '/Fixtures/compiled-views')]
-    public function testItRespectsCustomPathForCompiledViews()
+    public function testItRespectsCustomPathForCompiledViews(): void
     {
         $process = remote('about --json', ['APP_ENV' => 'local'])->mustRun();
 
@@ -54,7 +54,7 @@ class AboutCommandTest extends TestCase
         });
     }
 
-    public function testItReportsCompiledViewsWhenCached()
+    public function testItReportsCompiledViewsWhenCached(): void
     {
         remote('view:cache')->mustRun();
 

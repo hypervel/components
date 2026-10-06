@@ -24,7 +24,7 @@ class EloquentModelDecimalCastingTest extends DatabaseTestCase
         });
     }
 
-    public function testItHandlesExponent()
+    public function testItHandlesExponent(): void
     {
         $model = new class extends Model {
             public bool $timestamps = false;
@@ -41,7 +41,7 @@ class EloquentModelDecimalCastingTest extends DatabaseTestCase
         $this->assertSame('123.45678900000000000000', $model->amount);
     }
 
-    public function testItHandlesIntegersWithUnderscores()
+    public function testItHandlesIntegersWithUnderscores(): void
     {
         $model = new class extends Model {
             public bool $timestamps = false;
@@ -55,7 +55,7 @@ class EloquentModelDecimalCastingTest extends DatabaseTestCase
         $this->assertSame('1234.50', $model->amount);
     }
 
-    public function testItWrapsThrownExceptions()
+    public function testItWrapsThrownExceptions(): void
     {
         $model = new class extends Model {
             public bool $timestamps = false;
@@ -76,7 +76,7 @@ class EloquentModelDecimalCastingTest extends DatabaseTestCase
         }
     }
 
-    public function testItHandlesMissingIntegers()
+    public function testItHandlesMissingIntegers(): void
     {
         $model = new class extends Model {
             public bool $timestamps = false;
@@ -93,7 +93,7 @@ class EloquentModelDecimalCastingTest extends DatabaseTestCase
         $this->assertSame('0.80', $model->amount);
     }
 
-    public function testItHandlesLargeNumbers()
+    public function testItHandlesLargeNumbers(): void
     {
         $model = new class extends Model {
             public bool $timestamps = false;
@@ -110,7 +110,7 @@ class EloquentModelDecimalCastingTest extends DatabaseTestCase
         $this->assertSame('89898989898989898989.00000000000000000000', $model->amount);
     }
 
-    public function testItRounds()
+    public function testItRounds(): void
     {
         $model = new class extends Model {
             public bool $timestamps = false;
@@ -167,7 +167,7 @@ class EloquentModelDecimalCastingTest extends DatabaseTestCase
         ];
     }
 
-    public function testItTrimsLongValues()
+    public function testItTrimsLongValues(): void
     {
         $model = new class extends Model {
             public bool $timestamps = false;
@@ -181,7 +181,7 @@ class EloquentModelDecimalCastingTest extends DatabaseTestCase
         $this->assertSame('0.89898989898989898990', $model->amount);
     }
 
-    public function testItDoesntRoundNumbers()
+    public function testItDoesntRoundNumbers(): void
     {
         $model = new class extends Model {
             public bool $timestamps = false;
@@ -195,7 +195,7 @@ class EloquentModelDecimalCastingTest extends DatabaseTestCase
         $this->assertSame('1.0', $model->amount);
     }
 
-    public function testDecimalsAreCastable()
+    public function testDecimalsAreCastable(): void
     {
         $user = TestModel1::create([
             'decimal_field_2' => '12',
@@ -217,7 +217,7 @@ class EloquentModelDecimalCastingTest extends DatabaseTestCase
         $this->assertTrue($user->isDirty());
     }
 
-    public function testRoundingDirection()
+    public function testRoundingDirection(): void
     {
         $model = new class extends Model {
             protected array $casts = [

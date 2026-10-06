@@ -72,7 +72,7 @@ class DatabaseEloquentPolymorphicRelationsIntegrationTest extends TestCase
         parent::tearDown();
     }
 
-    public function testCreation()
+    public function testCreation(): void
     {
         $post = Post::create();
         $image = Image::create();
@@ -91,7 +91,7 @@ class DatabaseEloquentPolymorphicRelationsIntegrationTest extends TestCase
         $this->assertCount(0, $tag2->images);
     }
 
-    public function testEagerLoading()
+    public function testEagerLoading(): void
     {
         $post = Post::create();
         $tag = Tag::create();
@@ -106,7 +106,7 @@ class DatabaseEloquentPolymorphicRelationsIntegrationTest extends TestCase
         $this->assertEquals($post->id, $tag->posts->first()->id);
     }
 
-    public function testChunkById()
+    public function testChunkById(): void
     {
         $post = Post::create();
         $tag1 = Tag::create();
