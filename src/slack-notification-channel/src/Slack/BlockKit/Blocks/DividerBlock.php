@@ -39,7 +39,7 @@ class DividerBlock implements BlockContract
 
         $optionalFields = array_filter([
             'block_id' => $this->blockId,
-        ]);
+        ], static fn (mixed $value): bool => $value !== null && $value !== '');
 
         return array_merge([
             'type' => 'divider',

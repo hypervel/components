@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Notifications\Slack\Blocks;
+namespace Hypervel\Tests\SlackNotificationChannel\Slack\Unit\Blocks;
 
 use Hypervel\Notifications\Slack\BlockKit\Blocks\DividerBlock;
 use Hypervel\Tests\TestCase;
@@ -28,6 +28,11 @@ class DividerBlockTest extends TestCase
             'type' => 'divider',
             'block_id' => 'divider1',
         ], $block->toArray());
+    }
+
+    public function testZeroBlockIdIsPreserved(): void
+    {
+        $this->assertSame('0', (new DividerBlock)->id('0')->toArray()['block_id']);
     }
 
     public function testBlockIdCantExceedTwoFiveFiveCharacters(): void
