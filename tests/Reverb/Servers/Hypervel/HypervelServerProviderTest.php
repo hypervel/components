@@ -112,7 +112,7 @@ class HypervelServerProviderTest extends ReverbTestCase
         );
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             "Reverb scaling does not support Redis Cluster. Disable 'reverb.servers.reverb.scaling.enabled' or set 'database.redis.reverb.cluster.enabled' to false.",
         );
 
