@@ -341,7 +341,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $provider = $this->providerWithoutDbFetch();
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The auth user cache TTL must be greater than zero.');
+        $this->expectExceptionMessageIs('The auth user cache TTL must be greater than zero.');
 
         $provider->enableCache(null, $ttl);
     }
@@ -552,7 +552,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $provider = $this->providerWithoutDbFetch();
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The auth user cache tags must contain only strings.');
+        $this->expectExceptionMessageIs('The auth user cache tags must contain only strings.');
 
         $provider->enableCache(null, tags: $tags);
     }
