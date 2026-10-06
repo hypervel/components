@@ -68,7 +68,7 @@ class ComposerScriptsTest extends TestCase
         $this->setCachePaths($path, $this->tempDir . '/packages.php');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage("Unable to delete the configuration cache file [{$path}].");
+        $this->expectExceptionMessageIs("Unable to delete the configuration cache file [{$path}].");
 
         TestableComposerScripts::clearCompiled();
     }
@@ -79,7 +79,7 @@ class ComposerScriptsTest extends TestCase
         $this->setCachePaths($this->tempDir . '/config.php', $path);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage("Unable to delete the compiled packages file [{$path}].");
+        $this->expectExceptionMessageIs("Unable to delete the compiled packages file [{$path}].");
 
         TestableComposerScripts::clearCompiled();
     }

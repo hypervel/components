@@ -172,7 +172,7 @@ class FoundationFileBasedMaintenanceModeTest extends TestCase
         file_put_contents(storage_path('framework/down'), 'null');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('The maintenance mode file does not contain a valid payload.');
+        $this->expectExceptionMessageIs('The maintenance mode file does not contain a valid payload.');
 
         (new FileBasedMaintenanceMode)->data();
     }
@@ -212,7 +212,7 @@ class FoundationFileBasedMaintenanceModeTest extends TestCase
         $files->shouldReceive('delete')->once()->with($path)->andReturnFalse();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage("Unable to remove the maintenance mode file [{$path}].");
+        $this->expectExceptionMessageIs("Unable to remove the maintenance mode file [{$path}].");
 
         (new FileBasedMaintenanceMode($files))->deactivate();
     }

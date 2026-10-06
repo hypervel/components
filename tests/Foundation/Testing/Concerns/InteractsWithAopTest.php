@@ -96,7 +96,7 @@ class InteractsWithAopTest extends TestCase
     public function testCallWithAspectsThrowsForAlreadyProxiedInstances(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('already proxied by AOP');
+        $this->expectExceptionMessageIsOrContains('already proxied by AOP');
 
         $this->callWithAspects(new InteractsWithAopProxiedTarget, 'get');
     }

@@ -74,7 +74,7 @@ class ExternalServiceOptInTest extends TestCase
         $harness = new RedisOptInHarness;
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Set REDIS_HOST or REDIS_CLUSTER_HOSTS_AND_PORTS to run Redis integration tests');
+        $this->expectExceptionMessageIsOrContains('Set REDIS_HOST or REDIS_CLUSTER_HOSTS_AND_PORTS to run Redis integration tests');
 
         try {
             $harness->runSetUp();
@@ -114,7 +114,7 @@ class ExternalServiceOptInTest extends TestCase
         $harness = new MeilisearchOptInHarness;
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Set MEILISEARCH_HOST to run Meilisearch integration tests');
+        $this->expectExceptionMessageIsOrContains('Set MEILISEARCH_HOST to run Meilisearch integration tests');
 
         try {
             $harness->runSetUp();
@@ -132,7 +132,7 @@ class ExternalServiceOptInTest extends TestCase
         $harness = new MeilisearchOptInHarness;
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Meilisearch client initialization stopped.');
+        $this->expectExceptionMessageIs('Meilisearch client initialization stopped.');
 
         try {
             $harness->runSetUp();
@@ -149,7 +149,7 @@ class ExternalServiceOptInTest extends TestCase
         $harness = new MeilisearchOptInHarness;
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Meilisearch client initialization stopped.');
+        $this->expectExceptionMessageIs('Meilisearch client initialization stopped.');
 
         try {
             $harness->runSetUp();
@@ -167,7 +167,7 @@ class ExternalServiceOptInTest extends TestCase
         $harness->usePrefix('custom_');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Meilisearch client initialization stopped.');
+        $this->expectExceptionMessageIs('Meilisearch client initialization stopped.');
 
         try {
             $harness->runSetUp();
@@ -217,7 +217,7 @@ class ExternalServiceOptInTest extends TestCase
         $harness->useClient($client);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Document identifier is invalid.');
+        $this->expectExceptionMessageIs('Document identifier is invalid.');
 
         $harness->waitForTasks();
     }
@@ -324,7 +324,7 @@ class ExternalServiceOptInTest extends TestCase
         $harness->useClient($client);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Index deletion failed.');
+        $this->expectExceptionMessageIs('Index deletion failed.');
 
         $harness->runCleanup();
     }
@@ -336,7 +336,7 @@ class ExternalServiceOptInTest extends TestCase
         $harness = new TypesenseOptInHarness;
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Set TYPESENSE_HOST to run Typesense integration tests');
+        $this->expectExceptionMessageIsOrContains('Set TYPESENSE_HOST to run Typesense integration tests');
 
         try {
             $harness->runSetUp();
@@ -354,7 +354,7 @@ class ExternalServiceOptInTest extends TestCase
         $harness = new TypesenseOptInHarness;
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Typesense client initialization stopped.');
+        $this->expectExceptionMessageIs('Typesense client initialization stopped.');
 
         try {
             $harness->runSetUp();
@@ -371,7 +371,7 @@ class ExternalServiceOptInTest extends TestCase
         $harness = new TypesenseOptInHarness;
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Typesense client initialization stopped.');
+        $this->expectExceptionMessageIs('Typesense client initialization stopped.');
 
         try {
             $harness->runSetUp();
@@ -389,7 +389,7 @@ class ExternalServiceOptInTest extends TestCase
         $harness->usePrefix('custom_');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Typesense client initialization stopped.');
+        $this->expectExceptionMessageIs('Typesense client initialization stopped.');
 
         try {
             $harness->runSetUp();
@@ -406,7 +406,7 @@ class ExternalServiceOptInTest extends TestCase
         $harness = new AlgoliaOptInHarness;
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Algolia credentials unavailable. Set ALGOLIA_APP_ID & ALGOLIA_SECRET to enable');
+        $this->expectExceptionMessageIsOrContains('Algolia credentials unavailable. Set ALGOLIA_APP_ID & ALGOLIA_SECRET to enable');
 
         $harness->runSetUp();
     }
@@ -515,7 +515,7 @@ class ExternalServiceOptInTest extends TestCase
         $harness->useClient($client);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Algolia index deletion task [31] for [test_users] did not complete.');
+        $this->expectExceptionMessageIs('Algolia index deletion task [31] for [test_users] did not complete.');
 
         $harness->runCleanup();
     }
@@ -564,7 +564,7 @@ class ExternalServiceOptInTest extends TestCase
         $harness->useClient($client);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Algolia index deletion task [31] for [test_users] did not complete.');
+        $this->expectExceptionMessageIs('Algolia index deletion task [31] for [test_users] did not complete.');
 
         $harness->runCleanup();
     }
@@ -642,7 +642,7 @@ class ExternalServiceOptInTest extends TestCase
         $harness = new ServerOptInHarness;
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Set TEST_SERVER_HOST to run server integration tests');
+        $this->expectExceptionMessageIsOrContains('Set TEST_SERVER_HOST to run server integration tests');
 
         try {
             $harness->runSetUp();
@@ -659,7 +659,7 @@ class ExternalServiceOptInTest extends TestCase
         $harness->canConnect = false;
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Cannot connect to server at 127.0.0.1:19510.');
+        $this->expectExceptionMessageIsOrContains('Cannot connect to server at 127.0.0.1:19510.');
 
         try {
             $harness->runSetUp();
