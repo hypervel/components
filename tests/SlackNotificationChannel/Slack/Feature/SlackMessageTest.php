@@ -2,13 +2,16 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Notifications\Slack;
+namespace Hypervel\Tests\SlackNotificationChannel\Slack\Feature;
 
+use Hypervel\Http\Client\Factory;
 use Hypervel\Notifications\Slack\BlockKit\Blocks\ActionsBlock;
 use Hypervel\Notifications\Slack\BlockKit\Blocks\ContextBlock;
 use Hypervel\Notifications\Slack\BlockKit\Blocks\ImageBlock;
 use Hypervel\Notifications\Slack\BlockKit\Blocks\SectionBlock;
+use Hypervel\Notifications\Slack\SlackChannel;
 use Hypervel\Notifications\Slack\SlackMessage;
+use Hypervel\Tests\SlackNotificationChannel\Slack\TestCase;
 use JsonException;
 use LogicException;
 use RuntimeException;
@@ -39,14 +42,14 @@ class SlackMessageTest extends TestCase
 
     public function testSendBasicMessage(): void
     {
+        $this->sendNotification(function (SlackMessage $message) {
+            $message->text('This is a simple Web API text message. See https://api.slack.com/reference/messaging/payload for more information.');
+        });
+
         $this->assertNotificationSent([
             'channel' => '#ghost-talk',
             'text' => 'This is a simple Web API text message. See https://api.slack.com/reference/messaging/payload for more information.',
         ]);
-
-        $this->sendNotification(function (SlackMessage $message) {
-            $message->text('This is a simple Web API text message. See https://api.slack.com/reference/messaging/payload for more information.');
-        });
     }
 
     public function testExceptionWithInvalidToken(): void
@@ -54,10 +57,10 @@ class SlackMessageTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs('Slack API call failed with error [invalid_auth].');
 
-        $this->assertNotificationSent([
-            'channel' => '#ghost-talk',
-            'text' => 'This is a simple Web API text message. See https://api.slack.com/reference/messaging/payload for more information.',
-        ], ['ok' => false, 'error' => 'invalid_auth']);
+        $http = new Factory;
+        $http->registerConnection(SlackChannel::CONNECTION);
+        $http->fake(['*' => $http::response(['ok' => false, 'error' => 'invalid_auth'])]);
+        $this->slackChannel = new SlackChannel($http);
 
         $this->sendNotification(function (SlackMessage $message) {
             $message->text('This is a simple Web API text message. See https://api.slack.com/reference/messaging/payload for more information.');
@@ -66,47 +69,52 @@ class SlackMessageTest extends TestCase
 
     public function testSetDefaultChannelForMessage(): void
     {
-        $this->assertNotificationSent([
-            'channel' => '#general',
-            'text' => 'See https://api.slack.com/methods/chat.postMessage for more information.',
-        ]);
-
         $this->sendNotification(function (SlackMessage $message) {
             $message->text('See https://api.slack.com/methods/chat.postMessage for more information.');
             $message->to('#general');
         }, null);
+
+        $this->assertNotificationSent([
+            'channel' => '#general',
+            'text' => 'See https://api.slack.com/methods/chat.postMessage for more information.',
+        ]);
     }
 
     public function testEmojiAsIconForMessage(): void
     {
+        $this->sendNotification(function (SlackMessage $message) {
+            $message->text('See https://api.slack.com/methods/chat.postMessage for more information.');
+            $message->image('emoji-overrides-image-url-automatically-according-to-spec')->emoji(':ghost:');
+        });
+
         $this->assertNotificationSent([
             'channel' => '#ghost-talk',
             'text' => 'See https://api.slack.com/methods/chat.postMessage for more information.',
             'icon_emoji' => ':ghost:',
         ]);
-
-        $this->sendNotification(function (SlackMessage $message) {
-            $message->text('See https://api.slack.com/methods/chat.postMessage for more information.');
-            $message->image('emoji-overrides-image-url-automatically-according-to-spec')->emoji(':ghost:');
-        });
     }
 
     public function testImageAsIconForMessage(): void
     {
+        $this->sendNotification(function (SlackMessage $message) {
+            $message->text('See https://api.slack.com/methods/chat.postMessage for more information.');
+            $message->emoji('auto-clearing-as-to-prefer-image-since-its-called-after')->image('http://lorempixel.com/48/48');
+        });
+
         $this->assertNotificationSent([
             'channel' => '#ghost-talk',
             'text' => 'See https://api.slack.com/methods/chat.postMessage for more information.',
             'icon_url' => 'http://lorempixel.com/48/48',
         ]);
-
-        $this->sendNotification(function (SlackMessage $message) {
-            $message->text('See https://api.slack.com/methods/chat.postMessage for more information.');
-            $message->emoji('auto-clearing-as-to-prefer-image-since-its-called-after')->image('http://lorempixel.com/48/48');
-        });
     }
 
     public function testCanIncludeMetadata(): void
     {
+        $this->sendNotification(function (SlackMessage $message) {
+            $message->text('See https://api.slack.com/methods/chat.postMessage for more information.');
+            $message->metadata('task_created', ['id' => '11223', 'title' => 'Redesign Homepage']);
+        });
+
         $this->assertNotificationSent([
             'channel' => '#ghost-talk',
             'text' => 'See https://api.slack.com/methods/chat.postMessage for more information.',
@@ -115,99 +123,99 @@ class SlackMessageTest extends TestCase
                 'event_payload' => ['id' => '11223', 'title' => 'Redesign Homepage'],
             ],
         ]);
-
-        $this->sendNotification(function (SlackMessage $message) {
-            $message->text('See https://api.slack.com/methods/chat.postMessage for more information.');
-            $message->metadata('task_created', ['id' => '11223', 'title' => 'Redesign Homepage']);
-        });
     }
 
     public function testDisableSlackMarkdownParsing(): void
     {
+        $this->sendNotification(function (SlackMessage $message) {
+            $message->text('See https://api.slack.com/methods/chat.postMessage for more information.');
+            $message->disableMarkdownParsing();
+        });
+
         $this->assertNotificationSent([
             'channel' => '#ghost-talk',
             'text' => 'See https://api.slack.com/methods/chat.postMessage for more information.',
             'mrkdwn' => false,
         ]);
-
-        $this->sendNotification(function (SlackMessage $message) {
-            $message->text('See https://api.slack.com/methods/chat.postMessage for more information.');
-            $message->disableMarkdownParsing();
-        });
     }
 
     public function testUnfurlLink(): void
     {
+        $this->sendNotification(function (SlackMessage $message) {
+            $message->text('See https://api.slack.com/methods/chat.postMessage for more information.');
+            $message->unfurlLinks();
+        });
+
         $this->assertNotificationSent([
             'channel' => '#ghost-talk',
             'text' => 'See https://api.slack.com/methods/chat.postMessage for more information.',
             'unfurl_links' => true,
         ]);
-
-        $this->sendNotification(function (SlackMessage $message) {
-            $message->text('See https://api.slack.com/methods/chat.postMessage for more information.');
-            $message->unfurlLinks();
-        });
     }
 
     public function testUnfurlMedia(): void
     {
+        $this->sendNotification(function (SlackMessage $message) {
+            $message->text('See https://api.slack.com/methods/chat.postMessage for more information.');
+            $message->unfurlMedia();
+        });
+
         $this->assertNotificationSent([
             'channel' => '#ghost-talk',
             'text' => 'See https://api.slack.com/methods/chat.postMessage for more information.',
             'unfurl_media' => true,
         ]);
-
-        $this->sendNotification(function (SlackMessage $message) {
-            $message->text('See https://api.slack.com/methods/chat.postMessage for more information.');
-            $message->unfurlMedia();
-        });
     }
 
     public function testCanReplyAsThread(): void
     {
+        $this->sendNotification(function (SlackMessage $message) {
+            $message->text('See https://api.slack.com/methods/chat.postMessage for more information.');
+            $message->threadTimestamp('123456.7890');
+        });
+
         $this->assertNotificationSent([
             'channel' => '#ghost-talk',
             'text' => 'See https://api.slack.com/methods/chat.postMessage for more information.',
             'thread_ts' => '123456.7890',
         ]);
-
-        $this->sendNotification(function (SlackMessage $message) {
-            $message->text('See https://api.slack.com/methods/chat.postMessage for more information.');
-            $message->threadTimestamp('123456.7890');
-        });
     }
 
     public function testSendThreadedReplyAsBroadcastReference(): void
     {
+        $this->sendNotification(function (SlackMessage $message) {
+            $message->text('See https://api.slack.com/methods/chat.postMessage for more information.');
+            $message->broadcastReply(true);
+        });
+
         $this->assertNotificationSent([
             'channel' => '#ghost-talk',
             'text' => 'See https://api.slack.com/methods/chat.postMessage for more information.',
             'reply_broadcast' => true,
         ]);
-
-        $this->sendNotification(function (SlackMessage $message) {
-            $message->text('See https://api.slack.com/methods/chat.postMessage for more information.');
-            $message->broadcastReply(true);
-        });
     }
 
     public function testSetBotUserName(): void
     {
+        $this->sendNotification(function (SlackMessage $message) {
+            $message->text('See https://api.slack.com/methods/chat.postMessage for more information.');
+            $message->username('larabot');
+        });
+
         $this->assertNotificationSent([
             'channel' => '#ghost-talk',
             'text' => 'See https://api.slack.com/methods/chat.postMessage for more information.',
             'username' => 'larabot',
         ]);
-
-        $this->sendNotification(function (SlackMessage $message) {
-            $message->text('See https://api.slack.com/methods/chat.postMessage for more information.');
-            $message->username('larabot');
-        });
     }
 
     public function testContainsBothBlocksAndFallbackTextInNotifications(): void
     {
+        $this->sendNotification(function (SlackMessage $message) {
+            $message->text('This is now a fallback text used in notifications. See https://api.slack.com/methods/chat.postMessage for more information.');
+            $message->dividerBlock();
+        });
+
         $this->assertNotificationSent([
             'channel' => '#ghost-talk',
             'text' => 'This is now a fallback text used in notifications. See https://api.slack.com/methods/chat.postMessage for more information.',
@@ -217,15 +225,16 @@ class SlackMessageTest extends TestCase
                 ],
             ],
         ]);
-
-        $this->sendNotification(function (SlackMessage $message) {
-            $message->text('This is now a fallback text used in notifications. See https://api.slack.com/methods/chat.postMessage for more information.');
-            $message->dividerBlock();
-        });
     }
 
     public function testContainActionBlocks(): void
     {
+        $this->sendNotification(function (SlackMessage $message) {
+            $message->actionsBlock(function (ActionsBlock $actions) {
+                $actions->button('Cancel')->value('cancel')->id('button_1');
+            });
+        });
+
         $this->assertNotificationSent([
             'channel' => '#ghost-talk',
             'blocks' => [
@@ -245,16 +254,16 @@ class SlackMessageTest extends TestCase
                 ],
             ],
         ]);
-
-        $this->sendNotification(function (SlackMessage $message) {
-            $message->actionsBlock(function (ActionsBlock $actions) {
-                $actions->button('Cancel')->value('cancel')->id('button_1');
-            });
-        });
     }
 
     public function testContainContextBlocks(): void
     {
+        $this->sendNotification(function (SlackMessage $message) {
+            $message->contextBlock(function (ContextBlock $context) {
+                $context->image('https://image.freepik.com/free-photo/red-drawing-pin_1156-445.jpg')->alt('images');
+            });
+        });
+
         $this->assertNotificationSent([
             'channel' => '#ghost-talk',
             'blocks' => [
@@ -270,16 +279,14 @@ class SlackMessageTest extends TestCase
                 ],
             ],
         ]);
-
-        $this->sendNotification(function (SlackMessage $message) {
-            $message->contextBlock(function (ContextBlock $context) {
-                $context->image('https://image.freepik.com/free-photo/red-drawing-pin_1156-445.jpg')->alt('images');
-            });
-        });
     }
 
     public function testContainDividerBlocks(): void
     {
+        $this->sendNotification(function (SlackMessage $message) {
+            $message->dividerBlock();
+        });
+
         $this->assertNotificationSent([
             'channel' => '#ghost-talk',
             'blocks' => [
@@ -288,14 +295,14 @@ class SlackMessageTest extends TestCase
                 ],
             ],
         ]);
-
-        $this->sendNotification(function (SlackMessage $message) {
-            $message->dividerBlock();
-        });
     }
 
     public function testContainHeaderBlocks(): void
     {
+        $this->sendNotification(function (SlackMessage $message) {
+            $message->headerBlock('Budget Performance');
+        });
+
         $this->assertNotificationSent([
             'channel' => '#ghost-talk',
             'blocks' => [
@@ -308,14 +315,16 @@ class SlackMessageTest extends TestCase
                 ],
             ],
         ]);
-
-        $this->sendNotification(function (SlackMessage $message) {
-            $message->headerBlock('Budget Performance');
-        });
     }
 
     public function testContainImageBlocks(): void
     {
+        $this->sendNotification(function (SlackMessage $message) {
+            $message->imageBlock('http://placekitten.com/500/500', function (ImageBlock $imageBlock) {
+                $imageBlock->alt('An incredibly cute kitten.');
+            });
+        });
+
         $this->assertNotificationSent([
             'channel' => '#ghost-talk',
             'blocks' => [
@@ -326,16 +335,16 @@ class SlackMessageTest extends TestCase
                 ],
             ],
         ]);
-
-        $this->sendNotification(function (SlackMessage $message) {
-            $message->imageBlock('http://placekitten.com/500/500', function (ImageBlock $imageBlock) {
-                $imageBlock->alt('An incredibly cute kitten.');
-            });
-        });
     }
 
     public function testContainSectionBlocks(): void
     {
+        $this->sendNotification(function (SlackMessage $message) {
+            $message->sectionBlock(function (SectionBlock $sectionBlock) {
+                $sectionBlock->text('A message *with some bold text* and _some italicized text_.')->markdown();
+            });
+        });
+
         $this->assertNotificationSent([
             'channel' => '#ghost-talk',
             'blocks' => [
@@ -348,36 +357,10 @@ class SlackMessageTest extends TestCase
                 ],
             ],
         ]);
-
-        $this->sendNotification(function (SlackMessage $message) {
-            $message->sectionBlock(function (SectionBlock $sectionBlock) {
-                $sectionBlock->text('A message *with some bold text* and _some italicized text_.')->markdown();
-            });
-        });
     }
 
     public function testAddBlocksConditionally(): void
     {
-        $this->assertNotificationSent([
-            'channel' => '#ghost-talk',
-            'blocks' => [
-                [
-                    'type' => 'section',
-                    'text' => [
-                        'type' => 'mrkdwn',
-                        'text' => 'I *will* be included.',
-                    ],
-                ],
-                [
-                    'type' => 'section',
-                    'text' => [
-                        'type' => 'mrkdwn',
-                        'text' => 'But I *will* be included!',
-                    ],
-                ],
-            ],
-        ]);
-
         $this->sendNotification(function (SlackMessage $message) {
             $message->when(true, function (SlackMessage $message) {
                 $message->sectionBlock(function (SectionBlock $sectionBlock) {
@@ -397,10 +380,38 @@ class SlackMessageTest extends TestCase
                 });
             });
         });
+
+        $this->assertNotificationSent([
+            'channel' => '#ghost-talk',
+            'blocks' => [
+                [
+                    'type' => 'section',
+                    'text' => [
+                        'type' => 'mrkdwn',
+                        'text' => 'I *will* be included.',
+                    ],
+                ],
+                [
+                    'type' => 'section',
+                    'text' => [
+                        'type' => 'mrkdwn',
+                        'text' => 'But I *will* be included!',
+                    ],
+                ],
+            ],
+        ]);
     }
 
     public function testBlocksInTheOrder(): void
     {
+        $this->sendNotification(function (SlackMessage $message) {
+            $message->headerBlock('Budget Performance');
+            $message->sectionBlock(function (SectionBlock $sectionBlock) {
+                $sectionBlock->text('A message *with some bold text* and _some italicized text_.')->markdown();
+            });
+            $message->headerBlock('Market Performance');
+        });
+
         $this->assertNotificationSent([
             'channel' => '#ghost-talk',
             'blocks' => [
@@ -427,19 +438,11 @@ class SlackMessageTest extends TestCase
                 ],
             ],
         ]);
-
-        $this->sendNotification(function (SlackMessage $message) {
-            $message->headerBlock('Budget Performance');
-            $message->sectionBlock(function (SectionBlock $sectionBlock) {
-                $sectionBlock->text('A message *with some bold text* and _some italicized text_.')->markdown();
-            });
-            $message->headerBlock('Market Performance');
-        });
     }
 
     public function testCopiedBlockKitTemplate(): void
     {
-        $this->assertNotificationSent([
+        $payload = [
             'channel' => '#ghost-talk',
             'blocks' => [
                 [
@@ -470,7 +473,7 @@ class SlackMessageTest extends TestCase
                     'alt_text' => 'delicious tacos',
                 ],
             ],
-        ]);
+        ];
 
         $this->sendNotification(function (SlackMessage $message) {
             $message->usingBlockKitTemplate(<<<'JSON'
@@ -507,11 +510,13 @@ class SlackMessageTest extends TestCase
                 }
             JSON);
         });
+
+        $this->assertNotificationSent($payload);
     }
 
     public function testCombinedBlockKitTemplateAndBlockContractInOrder(): void
     {
-        $this->assertNotificationSent([
+        $payload = [
             'channel' => '#ghost-talk',
             'blocks' => [
                 [
@@ -531,7 +536,7 @@ class SlackMessageTest extends TestCase
                     'alt_text' => 'delicious tacos',
                 ],
             ],
-        ]);
+        ];
 
         $this->sendNotification(function (SlackMessage $message) {
             $message->usingBlockKitTemplate(<<<'JSON'
@@ -563,6 +568,8 @@ class SlackMessageTest extends TestCase
                 }
             JSON);
         });
+
+        $this->assertNotificationSent($payload);
     }
 
     public function testCanReturnABlockKitBuilderUrl(): void

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Notifications\Slack\Fixtures;
+namespace Hypervel\Tests\SlackNotificationChannel\Slack\Fixtures;
 
 use Hypervel\Notifications\Notifiable;
 use Hypervel\Notifications\Slack\SlackRoute;

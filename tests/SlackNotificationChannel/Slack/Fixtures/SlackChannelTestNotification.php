@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Notifications\Slack\Fixtures;
+namespace Hypervel\Tests\SlackNotificationChannel\Slack\Fixtures;
 
 use Closure;
 use Hypervel\Notifications\Notification;
