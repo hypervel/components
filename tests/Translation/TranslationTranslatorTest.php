@@ -839,7 +839,7 @@ class TranslationTranslatorTest extends TestCase
         $files->shouldReceive('exists')->never();
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Invalid characters present in locale.');
+        $this->expectExceptionMessageIs('Invalid characters present in locale.');
 
         new Translator(new FileLoader($files, __DIR__), '.');
     }
@@ -851,7 +851,7 @@ class TranslationTranslatorTest extends TestCase
         $translator = new Translator(new FileLoader($files, __DIR__), 'en');
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Invalid characters present in locale.');
+        $this->expectExceptionMessageIs('Invalid characters present in locale.');
 
         $translator->get('messages.welcome', [], 'en/US');
     }
@@ -863,7 +863,7 @@ class TranslationTranslatorTest extends TestCase
         $translator = new Translator(new FileLoader($files, __DIR__), 'en');
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Invalid characters present in locale.');
+        $this->expectExceptionMessageIs('Invalid characters present in locale.');
 
         $translator->setFallback('../fr');
     }
@@ -876,7 +876,7 @@ class TranslationTranslatorTest extends TestCase
         $translator->determineLocalesUsing(static fn (array $locales): array => ['en\US']);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Invalid characters present in locale.');
+        $this->expectExceptionMessageIs('Invalid characters present in locale.');
 
         $translator->get('messages.welcome');
     }
