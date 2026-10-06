@@ -60,7 +60,7 @@ class ClaimFactoryTest extends TestCase
     public function testRejectsReservedJwtSubjectClaims(): void
     {
         $this->expectException(JwtException::class);
-        $this->expectExceptionMessage('Custom JWT claims may not override reserved claims: exp, sub.');
+        $this->expectExceptionMessageIs('Custom JWT claims may not override reserved claims: exp, sub.');
 
         $this->factory()->make(
             new ClaimFactoryJwtSubjectUser(42, 'jwt-42', ['sub' => 999, 'exp' => 123]),
@@ -72,7 +72,7 @@ class ClaimFactoryTest extends TestCase
     public function testRejectsReservedInlineClaims(): void
     {
         $this->expectException(JwtException::class);
-        $this->expectExceptionMessage('Custom JWT claims may not override reserved claims: iss, prv.');
+        $this->expectExceptionMessageIs('Custom JWT claims may not override reserved claims: iss, prv.');
 
         $this->factory()->make(
             new ClaimFactoryUser(42),
@@ -187,7 +187,7 @@ class ClaimFactoryTest extends TestCase
     public function testRejectsReservedRefreshClaims(): void
     {
         $this->expectException(JwtException::class);
-        $this->expectExceptionMessage('Custom JWT claims may not override reserved claims: exp, jti.');
+        $this->expectExceptionMessageIs('Custom JWT claims may not override reserved claims: exp, jti.');
 
         $this->factory()->refresh(
             payload: ['sub' => 42, 'iat' => 100],

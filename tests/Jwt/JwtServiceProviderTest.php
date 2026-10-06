@@ -134,7 +134,7 @@ class JwtServiceProviderTest extends TestCase
         ]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'JWT TTL for auth guard [customers] must be an integer or null.'
         );
 
@@ -261,7 +261,7 @@ class JwtServiceProviderTest extends TestCase
     public function testEnabledTaggedCacheBlacklistRequiresTaggableCacheStore(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'The JWT blacklist requires a taggable cache store (all-mode or any-mode). '
             . 'Use a taggable store or configure a custom ' . StorageContract::class
             . ' implementation in jwt.providers.storage.'

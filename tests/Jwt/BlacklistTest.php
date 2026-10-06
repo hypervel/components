@@ -545,7 +545,7 @@ class BlacklistTest extends TestCase
     public function testKeyNotExistsInPayload(): void
     {
         $this->expectException(TokenInvalidException::class);
-        $this->expectExceptionMessage('Claim `jti` is missing or invalid in payload for blacklist');
+        $this->expectExceptionMessageIs('Claim `jti` is missing or invalid in payload for blacklist');
 
         $this->blacklist->getKey([]);
     }
@@ -560,7 +560,7 @@ class BlacklistTest extends TestCase
     public function testInvalidBlacklistKeyShapeIsRejected(mixed $key): void
     {
         $this->expectException(TokenInvalidException::class);
-        $this->expectExceptionMessage('Claim `jti` is missing or invalid in payload for blacklist');
+        $this->expectExceptionMessageIs('Claim `jti` is missing or invalid in payload for blacklist');
 
         $this->blacklist->getKey(['jti' => $key]);
     }

@@ -31,7 +31,7 @@ class ExpiredClaimTest extends TestCase
         CarbonImmutable::setTestNow('2000-01-01T00:00:00.000000Z');
 
         $this->expectException(TokenExpiredException::class);
-        $this->expectExceptionMessage('Token has expired');
+        $this->expectExceptionMessageIs('Token has expired');
 
         (new ExpiredClaim)->validate(['exp' => 0]);
     }
@@ -41,7 +41,7 @@ class ExpiredClaimTest extends TestCase
         CarbonImmutable::setTestNow('2000-01-01T00:00:00.000000Z');
 
         $this->expectException(TokenExpiredException::class);
-        $this->expectExceptionMessage('Token has expired');
+        $this->expectExceptionMessageIs('Token has expired');
 
         $validation = new ExpiredClaim;
 
