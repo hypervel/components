@@ -30,12 +30,21 @@ class PackageMetadataTest extends TestCase
             JSON_THROW_ON_ERROR
         );
 
-        $this->assertSame('*', $composer['require']['ext-mbstring']);
+        $this->assertArrayNotHasKey('ext-mbstring', $composer['require']);
         $this->assertArrayHasKey('nesbot/carbon', $rootComposer['require']);
         $this->assertArrayHasKey('nesbot/carbon', $composer['require']);
         $this->assertSame($rootComposer['require']['nesbot/carbon'], $composer['require']['nesbot/carbon']);
 
-        foreach (['symfony/console', 'hypervel/conditionable', 'hypervel/macroable'] as $dependency) {
+        foreach ([
+            'guzzlehttp/guzzle',
+            'guzzlehttp/psr7',
+            'hypervel/http',
+            'laravel/serializable-closure',
+            'psr/http-message',
+            'symfony/console',
+            'hypervel/conditionable',
+            'hypervel/macroable',
+        ] as $dependency) {
             $this->assertArrayHasKey($dependency, $composer['require']);
             $this->assertIsString($composer['require'][$dependency]);
             $this->assertNotSame('', trim($composer['require'][$dependency]));
