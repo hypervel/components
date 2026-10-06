@@ -113,7 +113,7 @@ class TestResponseMacrosTest extends TestCase
         });
 
         $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('Inertia Flash Data is missing key [other].');
+        $this->expectExceptionMessageIsOrContains('Inertia Flash Data is missing key [other].');
 
         $this->post('/users')->assertInertiaFlash('other');
     }
@@ -127,7 +127,7 @@ class TestResponseMacrosTest extends TestCase
         });
 
         $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('Inertia Flash Data [message] does not match expected value.');
+        $this->expectExceptionMessageIsOrContains('Inertia Flash Data [message] does not match expected value.');
 
         $this->post('/users')->assertInertiaFlash('message', 'Different');
     }
@@ -141,7 +141,7 @@ class TestResponseMacrosTest extends TestCase
         });
 
         $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('Inertia Flash Data has unexpected key [message].');
+        $this->expectExceptionMessageIsOrContains('Inertia Flash Data has unexpected key [message].');
 
         $this->post('/users')->assertInertiaFlashMissing('message');
     }
