@@ -29,7 +29,6 @@
 
 ## Testing
 
-- Replace PHPUnit 13's [soft-deprecated `expectExceptionMessage()`](https://github.com/sebastianbergmann/phpunit/issues/6560) calls across the test suite. Preserve intended matching semantics: use `expectExceptionObject()` for combined class/message/code expectations, `expectExceptionMessageIs()` for exact messages, and `expectExceptionMessageIsOrContains()` for substring matching. Audit each assertion's intent and run its owning test file as it is changed.
 - Lift the PHPUnit `13.3.*` pin in the root, Testbench and dogfood package manifests, and in the `hypervel/hypervel` application skeleton, once ParaTest supports PHPUnit 13.4. PHPUnit 13.4.0 made the internal `PhpHandler` constructor require an event emitter, and ParaTest 7.25.0 and Hypervel's `RunsInParallel` still construct it without one, so parallel runs fail before any test starts. When lifting the pin, pass the emitter to `PhpHandler` in `RunsInParallel`, as PHPUnit 13.4's own `Application` does.
 
 ## Filesystem
