@@ -1,11 +1,12 @@
 {
-    "name": "hypervel/notifications",
-    "description": "The Hypervel Notifications package.",
+    "name": "hypervel/slack-notification-channel",
+    "description": "Slack notification channels for Hypervel.",
     "license": "MIT",
     "type": "library",
     "keywords": [
         "php",
         "notifications",
+        "slack",
         "swoole",
         "hypervel"
     ],
@@ -25,28 +26,15 @@
     },
     "require": {
         "php": "^8.4",
+        "ext-mbstring": "*",
         "guzzlehttp/guzzle": "^7.15.2 || ^8.2",
-        "guzzlehttp/psr7": "^2.13 || ^3.1",
-        "hypervel/broadcasting": "^0.4",
-        "hypervel/bus": "^0.4",
         "hypervel/collections": "^0.4",
         "hypervel/conditionable": "^0.4",
-        "hypervel/config": "^0.4",
-        "hypervel/console": "^0.4",
-        "hypervel/container": "^0.4",
-        "hypervel/context": "^0.4",
         "hypervel/contracts": "^0.4",
-        "hypervel/database": "^0.4",
         "hypervel/http": "^0.4",
-        "hypervel/macroable": "^0.4",
-        "hypervel/mail": "^0.4",
-        "hypervel/queue": "^0.4",
+        "hypervel/notifications": "^0.4",
         "hypervel/support": "^0.4",
-        "laravel/serializable-closure": "^2.0.11",
-        "nesbot/carbon": "^3.13.1",
-        "psr/http-message": "^2.0",
-        "symfony/console": "^8.1.2",
-        "symfony/mailer": "^8.1"
+        "psr/http-message": "^2.0"
     },
     "autoload": {
         "psr-4": {
@@ -62,7 +50,7 @@
         },
         "hypervel": {
             "providers": [
-                "Hypervel\\Notifications\\NotificationServiceProvider"
+                "Hypervel\\Notifications\\SlackChannelServiceProvider"
             ]
         }
     }
