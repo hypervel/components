@@ -185,7 +185,7 @@ class HttpConnectionTest extends TestCase
     public function testRegisteredConnectionsRejectReservedOptions(string $option, mixed $value): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage("The [{$option}] option is not allowed in registered connection configuration.");
+        $this->expectExceptionMessageIsOrContains("The [{$option}] option is not allowed in registered connection configuration.");
 
         (new Factory)->registerConnection('api', [$option => $value]);
     }
@@ -227,7 +227,7 @@ class HttpConnectionTest extends TestCase
         $factory->registerConnection('api');
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage("The [{$option}] option is not allowed in per-call HTTP connection options.");
+        $this->expectExceptionMessageIsOrContains("The [{$option}] option is not allowed in per-call HTTP connection options.");
 
         $factory->connection('api', [$option => $value]);
     }
@@ -236,7 +236,7 @@ class HttpConnectionTest extends TestCase
     public function testFluentOptionsRejectReservedOptions(string $option, mixed $value): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage("The [{$option}] option is not allowed in fluent HTTP request options.");
+        $this->expectExceptionMessageIsOrContains("The [{$option}] option is not allowed in fluent HTTP request options.");
 
         (new PendingRequest)->withOptions([$option => $value]);
     }
@@ -245,7 +245,7 @@ class HttpConnectionTest extends TestCase
     public function testSendOptionsRejectReservedOptions(string $option, mixed $value): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage("The [{$option}] option is not allowed in request options.");
+        $this->expectExceptionMessageIsOrContains("The [{$option}] option is not allowed in request options.");
 
         (new PendingRequest)->send('GET', 'https://example.com', [$option => $value]);
     }

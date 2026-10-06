@@ -54,7 +54,7 @@ class HttpClientDestinationPolicyTest extends TestCase
     public function testRejectsAPrivateAddressLiteralBeforeConnecting(): void
     {
         $this->expectException(DisallowedDestinationException::class);
-        $this->expectExceptionMessage('disallowed address [127.0.0.1]');
+        $this->expectExceptionMessageIsOrContains('disallowed address [127.0.0.1]');
 
         $this->factory()
             ->withDestinationPolicy(new PublicDestinationPolicy)
@@ -163,7 +163,7 @@ class HttpClientDestinationPolicyTest extends TestCase
 
         // The response arrives within the configured timeout, but not within what resolution left of it.
         $this->expectException(ConnectionException::class);
-        $this->expectExceptionMessage('cURL error 28');
+        $this->expectExceptionMessageIsOrContains('cURL error 28');
 
         $this->factory()
             ->withDestinationPolicy($policy)
