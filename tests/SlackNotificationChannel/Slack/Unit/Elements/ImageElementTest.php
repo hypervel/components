@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Notifications\Slack\Elements;
+namespace Hypervel\Tests\SlackNotificationChannel\Slack\Unit\Elements;
 
 use Hypervel\Notifications\Slack\BlockKit\Elements\ImageElement;
 use Hypervel\Tests\TestCase;
