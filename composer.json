@@ -208,6 +208,7 @@
         "hypervel/server-process": "self.version",
         "hypervel/session": "self.version",
         "hypervel/signal": "self.version",
+        "hypervel/slack-notification-channel": "self.version",
         "hypervel/socialite": "self.version",
         "hypervel/support": "self.version",
         "hypervel/telescope": "self.version",
@@ -266,7 +267,10 @@
             "Hypervel\\Log\\": "src/log/src/",
             "Hypervel\\Mail\\": "src/mail/src/",
             "Hypervel\\NestedSet\\": "src/nested-set/src/",
-            "Hypervel\\Notifications\\": "src/notifications/src/",
+            "Hypervel\\Notifications\\": [
+                "src/notifications/src/",
+                "src/slack-notification-channel/src/"
+            ],
             "Hypervel\\ObjectPool\\": "src/object-pool/src/",
             "Hypervel\\OpenTelemetry\\": "src/opentelemetry/src/",
             "Hypervel\\Pagination\\": "src/pagination/src/",
@@ -388,6 +392,7 @@
                 "Hypervel\\Mail\\MailServiceProvider",
                 "Hypervel\\NestedSet\\NestedSetServiceProvider",
                 "Hypervel\\Notifications\\NotificationServiceProvider",
+                "Hypervel\\Notifications\\SlackChannelServiceProvider",
                 "Hypervel\\ObjectPool\\ObjectPoolServiceProvider",
                 "Hypervel\\OpenTelemetry\\OpenTelemetryServiceProvider",
                 "Hypervel\\Pagination\\PaginationServiceProvider",
