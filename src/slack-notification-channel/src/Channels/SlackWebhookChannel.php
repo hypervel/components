@@ -12,7 +12,6 @@ use Hypervel\Notifications\Notification;
 use Hypervel\Notifications\Slack\SlackMessage;
 use Hypervel\Support\Collection;
 use Psr\Http\Message\ResponseInterface;
-use RuntimeException;
 
 class SlackWebhookChannel
 {
@@ -20,7 +19,7 @@ class SlackWebhookChannel
      * Create a new Slack channel instance.
      */
     public function __construct(
-        protected HttpClient $client
+        protected HttpClient $http
     ) {
     }
 
@@ -29,16 +28,12 @@ class SlackWebhookChannel
      */
     public function send(mixed $notifiable, Notification $notification): ?ResponseInterface
     {
-        if (! method_exists($notification, 'toSlack')) {
-            throw new RuntimeException('Notification is missing `toSlack` method.');
-        }
-
         if (! $url = $notifiable->routeNotificationFor('slack', $notification)) {
             return null;
         }
 
-        return $this->client->post($url, $this->buildJsonPayload(
-            $notification->toSlack($notifiable)
+        return $this->http->post($url, $this->buildJsonPayload(
+            $notification->toSlack($notifiable) // @phpstan-ignore method.notFound
         ));
     }
 
@@ -55,11 +50,11 @@ class SlackWebhookChannel
             'channel' => data_get($message, 'channel'),
             'icon_emoji' => data_get($message, 'icon'),
             'icon_url' => data_get($message, 'image'),
-            'link_names' => data_get($message, 'linkNames'),
+            'link_names' => data_get($message, 'linkNames') ?: null,
             'unfurl_links' => data_get($message, 'unfurlLinks'),
             'unfurl_media' => data_get($message, 'unfurlMedia'),
             'username' => data_get($message, 'username'),
-        ]);
+        ], static fn (mixed $value): bool => $value !== null && $value !== '');
 
         return array_merge([
             'json' => array_merge([
@@ -94,7 +89,7 @@ class SlackWebhookChannel
                 'title' => $attachment->title,
                 'title_link' => $attachment->url,
                 'ts' => $attachment->timestamp,
-            ]);
+            ], static fn (mixed $value): bool => $value !== null && $value !== '' && $value !== []);
         })->all();
     }
 

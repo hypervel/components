@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Notifications;
+namespace Hypervel\Tests\SlackNotificationChannel;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\Psr7\Response;
@@ -13,7 +13,7 @@ use Hypervel\Notifications\Messages\SlackMessage as LegacySlackMessage;
 use Hypervel\Notifications\Notification;
 use Hypervel\Notifications\Slack\SlackMessage;
 use Hypervel\Support\CarbonImmutable;
-use Hypervel\Tests\Notifications\Slack\Fixtures\SlackChannelTestNotifiable;
+use Hypervel\Tests\SlackNotificationChannel\Slack\Fixtures\SlackChannelTestNotifiable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -70,6 +70,87 @@ class NotificationSlackChannelTest extends TestCase
         );
 
         $this->assertInstanceOf(Response::class, $response);
+    }
+
+    #[DataProvider('unfurlOptions')]
+    public function testExplicitUnfurlOptionsArePreserved(bool $enabled): void
+    {
+        $message = (new LegacySlackMessage)
+            ->content('Content')
+            ->unfurlLinks($enabled)
+            ->unfurlMedia($enabled);
+
+        $payload = (new SlackWebhookChannel(new Client))->buildJsonPayload($message);
+
+        $this->assertSame($enabled, $payload['json']['unfurl_links']);
+        $this->assertSame($enabled, $payload['json']['unfurl_media']);
+    }
+
+    /**
+     * Provide explicit unfurl options.
+     */
+    public static function unfurlOptions(): array
+    {
+        return ['enabled' => [true], 'disabled' => [false]];
+    }
+
+    public function testUnsetUnfurlOptionsKeepTheDefaultPayload(): void
+    {
+        $message = (new LegacySlackMessage)->content('Content');
+
+        $payload = (new SlackWebhookChannel(new Client))->buildJsonPayload($message);
+
+        $this->assertSame(['text' => 'Content', 'attachments' => []], $payload['json']);
+    }
+
+    public function testClearingTheChannelRemovesTheWebhookOverride(): void
+    {
+        $message = (new LegacySlackMessage)->content('Content')->to('#alerts');
+
+        $this->assertSame($message, $message->to(null));
+
+        $payload = (new SlackWebhookChannel(new Client))->buildJsonPayload($message);
+
+        $this->assertArrayNotHasKey('channel', $payload['json']);
+    }
+
+    public function testZeroAttachmentValuesArePreserved(): void
+    {
+        $message = (new LegacySlackMessage)->content('Content')->attachment(function (SlackAttachment $attachment): void {
+            $attachment->title('0')->content('0')->callbackId('0')
+                ->timestamp(CarbonImmutable::createFromTimestamp(0));
+        });
+
+        $payload = (new SlackWebhookChannel(new Client))->buildJsonPayload($message);
+
+        $this->assertSame([
+            'callback_id' => '0',
+            'text' => '0',
+            'title' => '0',
+            'ts' => 0,
+        ], $payload['json']['attachments'][0]);
+    }
+
+    public function testDisabledWebhookDoesNotRequireASlackMessageMethod(): void
+    {
+        $http = m::mock(Client::class);
+        $http->shouldNotReceive('post');
+
+        $this->assertNull((new SlackWebhookChannel($http))->send(
+            new SlackChannelTestNotifiable,
+            new Notification,
+        ));
+    }
+
+    public function testRawWebhookRequestOptionsArePreserved(): void
+    {
+        $message = (new LegacySlackMessage)->content('Content');
+        $message->http = ['timeout' => 12, 'headers' => ['X-Notification' => 'slack']];
+
+        $payload = (new SlackWebhookChannel(new Client))->buildJsonPayload($message);
+
+        $this->assertSame(12, $payload['timeout']);
+        $this->assertSame(['X-Notification' => 'slack'], $payload['headers']);
     }
 
     protected static function getPayloadWithIcon(): array
