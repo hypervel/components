@@ -38,7 +38,7 @@ class TwoFactorAuthenticationProviderTest extends TestCase
     public function testRejectsInvalidSecretLength(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Two-factor authentication secret length must be greater than zero.');
+        $this->expectExceptionMessageIs('Two-factor authentication secret length must be greater than zero.');
 
         $this->provider()->generateSecretKey(0);
     }
@@ -111,7 +111,7 @@ class TwoFactorAuthenticationProviderTest extends TestCase
         Features::twoFactorAuthentication(['window' => -1]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Two-factor authentication window must be greater than or equal to zero.');
+        $this->expectExceptionMessageIs('Two-factor authentication window must be greater than or equal to zero.');
 
         $this->provider()->verify(self::SECRET, $this->codeAt(self::SECRET, self::TIMESTAMP));
     }
