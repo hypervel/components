@@ -6,6 +6,7 @@ namespace Hypervel\NestedSet\Eloquent;
 
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Query\Builder;
 
 class DescendantsRelation extends BaseRelation
 {
@@ -26,42 +27,70 @@ class DescendantsRelation extends BaseRelation
     }
 
     /**
-     * Add an eager descendant constraint.
+     * Constrain the eager query to descendants of the prepared parents.
      */
-    protected function addEagerConstraint(QueryBuilder $query, Model $model): void
+    protected function constrainEagerModels(Builder $query, array $models): void
     {
-        $query->orWhereDescendantOf($model);
+        $this->addBalancedOrConstraints($query, $models, $this->addEagerConstraint(...));
     }
 
     /**
-     * Remove parent intervals whose descendant queries are already covered.
+     * Add an eager descendant constraint.
+     */
+    protected function addEagerConstraint(Builder $query, Model $model): void
+    {
+        $query->whereNested(function (Builder $query) use ($model): void {
+            $model->applyNestedSetScope($query); /* @phpstan-ignore method.notFound */
+
+            // Validated integer bounds are inlined, as whereIntegerInRaw() does,
+            // so large eager loads do not exhaust the driver's bound parameters.
+            $query->whereRaw(sprintf(
+                '%s between %d and %d',
+                $query->getGrammar()->wrap($this->related->qualifyColumn($this->related->getLftName())), /* @phpstan-ignore method.notFound */
+                $model->getLft() + 1, /* @phpstan-ignore method.notFound */
+                $model->getRgt(), /* @phpstan-ignore method.notFound */
+            ));
+        }, 'or');
+    }
+
+    /**
+     * Remove empty parent intervals and those whose descendant queries are already covered.
      */
     protected function prepareEagerModels(array $models): array
     {
         $groups = [];
 
         foreach (parent::prepareEagerModels($models) as $model) {
+            // Without a bound strictly between the parent's bounds, no node can be its descendant.
+            if ($model->getRgt() /* @phpstan-ignore method.notFound */
+                <= $model->getLft() + 1 /* @phpstan-ignore method.notFound */
+            ) {
+                continue;
+            }
+
             $groups[$this->scopeKey($model)][] = $model;
         }
 
         $result = [];
 
         foreach ($groups as $group) {
-            usort($group, function (Model $left, Model $right): int {
-                $comparison = $left->getLft() /* @phpstan-ignore method.notFound */
-                    <=> $right->getLft(); /* @phpstan-ignore method.notFound */
+            $lfts = [];
+            $rgts = [];
 
-                return $comparison !== 0
-                    ? $comparison
-                    : $right->getRgt() /* @phpstan-ignore method.notFound */
-                        <=> $left->getRgt(); /* @phpstan-ignore method.notFound */
-            });
+            foreach ($group as $model) {
+                $lfts[] = $model->getLft(); /* @phpstan-ignore method.notFound */
+                $rgts[] = $model->getRgt(); /* @phpstan-ignore method.notFound */
+            }
+
+            $positions = array_keys($group);
+
+            // Positions are unique, so ties never compare the models.
+            array_multisort($lfts, $rgts, SORT_DESC, $positions, $group);
 
             $maximumRgt = null;
 
-            foreach ($group as $model) {
-                /** @var int $rgt */
-                $rgt = $model->getRgt();
+            foreach ($group as $offset => $model) {
+                $rgt = $rgts[$offset];
 
                 if ($maximumRgt !== null && $rgt <= $maximumRgt) {
                     continue;
@@ -76,96 +105,61 @@ class DescendantsRelation extends BaseRelation
     }
 
     /**
-     * Determine whether a node is a descendant of the parent.
+     * Match descendants by binary search over each scope's left bounds.
      */
-    protected function matches(Model $model, Model $related): bool
+    protected function matchMany(array $models, Collection $results): array
     {
-        /* @phpstan-ignore method.notFound */
-        return $related->isDescendantOf($model);
-    }
-
-    /**
-     * Index descendants by exact scope and left-bound order.
-     */
-    protected function indexResults(Collection $results): array
-    {
-        /** @var array<string, array{models: list<Model>, lfts: list<int>, monotonic: bool, last_lft: ?int}> $indexed */
-        $indexed = [];
-
-        foreach ($results as $related) {
-            $scope = $this->scopeKey($related);
+        if (count($models) === 1) {
+            $model = $models[0];
+            $scope = $this->scopeKey($model);
+            $key = $this->matchKey($model);
             /** @var int $lft */
-            $lft = $related->getLft(); /* @phpstan-ignore method.notFound */
+            $lft = $model->getLft(); /* @phpstan-ignore method.notFound */
+            /** @var int $rgt */
+            $rgt = $model->getRgt(); /* @phpstan-ignore method.notFound */
+            $found = [];
 
-            if (! isset($indexed[$scope])) {
-                $indexed[$scope] = [
-                    'models' => [],
-                    'lfts' => [],
-                    'monotonic' => true,
-                    'last_lft' => null,
-                ];
+            foreach ($results as $related) {
+                $relatedLft = $related->getLft(); /* @phpstan-ignore method.notFound */
+
+                if ($relatedLft > $lft
+                    && $relatedLft < $rgt
+                    && $this->scopeKey($related) === $scope
+                    && ($key === null || $this->matchKey($related) !== $key)
+                ) {
+                    $found[] = $related;
+                }
             }
 
-            $bucket = &$indexed[$scope];
+            return [spl_object_id($model) => $found];
+        }
 
-            if ($bucket['last_lft'] !== null && $lft < $bucket['last_lft']) {
-                $bucket['monotonic'] = false;
+        $buckets = $this->sortedResultBuckets($results, false);
+        $matches = [];
+
+        foreach ($models as $model) {
+            $bucket = $buckets[$this->scopeKey($model)] ?? null;
+
+            if ($bucket === null) {
+                continue;
             }
 
-            $bucket['models'][] = $related;
-            $bucket['lfts'][] = $lft;
-            $bucket['last_lft'] = $lft;
+            $key = $this->matchKey($model);
+            /** @var int $rgt */
+            $rgt = $model->getRgt(); /* @phpstan-ignore method.notFound */
+            $found = [];
+            $index = static::lowerBound($bucket['lfts'], $model->getLft() + 1); /* @phpstan-ignore method.notFound */
 
-            // Break the reference before the cleanup loop can advance it.
-            unset($bucket);
-        }
-
-        foreach ($indexed as &$bucket) {
-            unset($bucket['last_lft']);
-        }
-
-        return $indexed;
-    }
-
-    /**
-     * Match descendants from an exact scope bucket.
-     */
-    protected function matchFromIndex(Model $model, array $indexed): Collection
-    {
-        $bucket = $indexed[$this->scopeKey($model)] ?? null;
-
-        if ($bucket === null) {
-            return $this->related->newCollection();
-        }
-
-        /** @var int $lft */
-        $lft = $model->getLft(); /* @phpstan-ignore method.notFound */
-        /** @var int $rgt */
-        $rgt = $model->getRgt(); /* @phpstan-ignore method.notFound */
-
-        if (! $bucket['monotonic']) {
-            return $this->matchForModel(
-                $model,
-                $this->related->newCollection($bucket['models']),
-            );
-        }
-
-        $result = $this->related->newCollection();
-        $start = static::lowerBound($bucket['lfts'], $lft + 1);
-
-        for ($index = $start, $count = count($bucket['models']); $index < $count; ++$index) {
-            if ($bucket['lfts'][$index] >= $rgt) {
-                break;
+            for ($count = count($bucket['lfts']); $index < $count && $bucket['lfts'][$index] < $rgt; ++$index) {
+                if ($key === null || $bucket['keys'][$index] !== $key) {
+                    $found[] = $index;
+                }
             }
 
-            $related = $bucket['models'][$index];
-
-            if ($this->matches($model, $related)) {
-                $result->push($related);
-            }
+            $matches[spl_object_id($model)] = $this->bucketModels($bucket, $found);
         }
 
-        return $result;
+        return $matches;
     }
 
     /**

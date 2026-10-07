@@ -10,6 +10,7 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Database\QueryException;
 use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\NestedSet\Eloquent\AncestorsRelation;
 use Hypervel\NestedSet\Eloquent\BaseRelation;
 use Hypervel\NestedSet\Eloquent\Collection;
 use Hypervel\NestedSet\Eloquent\DescendantsRelation;
@@ -1134,6 +1135,20 @@ abstract class NodeTestBase extends TestCase
         $this->assertEquals($this->keys(1, 5, 7), $path);
     }
 
+    public function testGetRelationMethodsQueryFreshRowsWithoutReplacingLoadedRelations(): void
+    {
+        $node = $this->category::with(['ancestors', 'descendants', 'siblings'])->findOrFail($this->key(7));
+
+        DB::table('categories')->whereIn('id', $this->keys(5, 8, 9))->update(['name' => 'renamed']);
+
+        $this->assertContains('renamed', $node->getAncestors()->pluck('name')->all());
+        $this->assertContains('renamed', $node->getDescendants()->pluck('name')->all());
+        $this->assertContains('renamed', $node->getSiblings()->pluck('name')->all());
+        $this->assertNotContains('renamed', $node->ancestors->pluck('name')->all());
+        $this->assertNotContains('renamed', $node->descendants->pluck('name')->all());
+        $this->assertNotContains('renamed', $node->siblings->pluck('name')->all());
+    }
+
     public function testDescendants(): void
     {
         $node = $this->findCategory('mobile');
@@ -1677,33 +1692,6 @@ abstract class NodeTestBase extends TestCase
         $this->assertFalse($galaxy->isSelfOrAncestorOf($mobile));
     }
 
-    public function testSiblingsAreRealLazyLoadableRelations(): void
-    {
-        $node = $this->findCategory('samsung');
-
-        $this->assertEqualsCanonicalizing($this->keys(6, 9, 10), $node->siblings->pluck('id')->all());
-        $this->assertTrue($node->relationLoaded('siblings'));
-
-        $node->unsetRelation('siblings');
-
-        $this->assertEqualsCanonicalizing($this->keys(6, 7, 9, 10), $node->siblingsAndSelf->pluck('id')->all());
-        $this->assertTrue($node->relationLoaded('siblingsAndSelf'));
-    }
-
-    public function testSiblingsEagerLoadWithExactParentBuckets(): void
-    {
-        $nodes = $this->category::whereIn('id', $this->keys(3, 7))
-            ->defaultOrder()
-            ->get();
-
-        $nodes->load(['siblings', 'siblingsAndSelf']);
-
-        $this->assertEquals($this->keys(4), $nodes->find($this->key(3))->siblings->pluck('id')->all());
-        $this->assertEqualsCanonicalizing($this->keys(3, 4), $nodes->find($this->key(3))->siblingsAndSelf->pluck('id')->all());
-        $this->assertEqualsCanonicalizing($this->keys(6, 9, 10), $nodes->find($this->key(7))->siblings->pluck('id')->all());
-        $this->assertEqualsCanonicalizing($this->keys(6, 7, 9, 10), $nodes->find($this->key(7))->siblingsAndSelf->pluck('id')->all());
-    }
-
     public function testStrictSiblingRelationsRequireASelectedParentKey(): void
     {
         $node = $this->category::query()
@@ -1916,35 +1904,6 @@ abstract class NodeTestBase extends TestCase
             'siblings' => ['siblings', 'parent_id'],
             'siblings and self' => ['siblingsAndSelf', 'parent_id'],
         ];
-    }
-
-    public function testRootSiblingsSupportEagerAndExistenceQueries(): void
-    {
-        $nodes = $this->category::whereIn('id', $this->keys(1, 11))
-            ->defaultOrder()
-            ->get();
-
-        $nodes->load('siblings');
-
-        $this->assertEquals($this->keys(11), $nodes->find($this->key(1))->siblings->pluck('id')->all());
-        $this->assertEquals($this->keys(1), $nodes->find($this->key(11))->siblings->pluck('id')->all());
-        $this->assertEquals(
-            $this->keys(1, 11),
-            $this->category::has('siblings')->whereIn('id', $this->keys(1, 11))->orderBy('id')->pluck('id')->all(),
-        );
-    }
-
-    public function testSiblingsSupportExistenceCounts(): void
-    {
-        $this->assertEquals(
-            $this->keys(3),
-            $this->category::has('siblings')->whereIn('id', $this->keys(3, 8))->pluck('id')->all(),
-        );
-
-        $this->assertEquals(
-            $this->keys(6, 7, 9, 10),
-            $this->category::has('siblings', '>', 2)->orderBy('id')->pluck('id')->all(),
-        );
     }
 
     public function testFetchesReversed(): void
@@ -3321,19 +3280,187 @@ abstract class NodeTestBase extends TestCase
         $this->assertTrue($nodes->first()->relationLoaded('descendants'));
     }
 
-    public function testDescendantEagerMatchingPreservesCustomOrder(): void
+    public function testNestedDescendantEagerLoadConstraintsAreDeduplicated(): void
     {
-        $nodes = $this->category::whereIn('id', $this->keys(2, 5))->get();
+        $nodes = $this->category::whereIn('id', $this->keys(1, 5))
+            ->defaultOrder()
+            ->get();
+
+        DB::flushQueryLog();
+
+        $nodes->load('descendants');
+
+        $queries = DB::getQueryLog();
+        $relationQuery = strtolower(end($queries)['query']);
+
+        $this->assertEquals(1, substr_count($relationQuery, ' between '));
+        $this->assertEquals(9, $nodes->find($this->key(1))->descendants->count());
+        $this->assertEquals(5, $nodes->find($this->key(5))->descendants->count());
+        $this->assertTrue($nodes->find($this->key(5))->descendants->contains('id', $this->key(8)));
+    }
+
+    public function testDisjointDescendantEagerLoadConstraintsAreRetained(): void
+    {
+        $nodes = $this->category::whereIn('id', $this->keys(2, 5))
+            ->defaultOrder()
+            ->get();
+
+        DB::flushQueryLog();
+
+        $nodes->load('descendants');
+
+        $queries = DB::getQueryLog();
+        $relationQuery = strtolower(end($queries)['query']);
+
+        $this->assertEquals(2, substr_count($relationQuery, ' between '));
+        $this->assertEqualsCanonicalizing($this->keys(3, 4), $nodes->find($this->key(2))->descendants->pluck('id')->all());
+        $this->assertTrue($nodes->find($this->key(5))->descendants->contains('id', $this->key(8)));
+    }
+
+    #[DataProvider('customOrderedDescendantParents')]
+    public function testIndexedDescendantEagerMatchingPreservesResultOrder(array $parentIds): void
+    {
+        $nodes = $this->category::whereIn('id', $this->keys(...$parentIds))
+            ->defaultOrder()
+            ->get();
 
         $nodes->load(['descendants' => fn (DescendantsRelation $query): DescendantsRelation => $query->orderBy('name')]);
+
+        $expected = [
+            1 => ['apple', 'galaxy', 'lenovo', 'lenovo', 'mobile', 'nokia', 'notebooks', 'samsung', 'sony'],
+            5 => ['galaxy', 'lenovo', 'nokia', 'samsung', 'sony'],
+        ];
+
+        foreach ($parentIds as $parentId) {
+            $this->assertEquals(
+                $expected[$parentId],
+                $nodes->find($this->key($parentId))->descendants->pluck('name')->all(),
+            );
+        }
+    }
+
+    /**
+     * Get parent keys for custom-ordered descendant eager loading.
+     */
+    public static function customOrderedDescendantParents(): array
+    {
+        return [
+            'one parent' => [[5]],
+            'nested parents' => [[1, 5]],
+        ];
+    }
+
+    public function testIndexedDescendantEagerMatchingPreservesDefaultResultOrder(): void
+    {
+        $nodes = $this->category::whereIn('id', $this->keys(2, 5))
+            ->defaultOrder()
+            ->get();
+
+        $nodes->load(['descendants' => fn (DescendantsRelation $query): DescendantsRelation => $query->defaultOrder()]);
 
         $this->assertEquals(
             ['apple', 'lenovo'],
             $nodes->find($this->key(2))->descendants->pluck('name')->all(),
         );
         $this->assertEquals(
-            ['galaxy', 'lenovo', 'nokia', 'samsung', 'sony'],
+            ['nokia', 'samsung', 'galaxy', 'sony', 'lenovo'],
             $nodes->find($this->key(5))->descendants->pluck('name')->all(),
+        );
+    }
+
+    #[DataProvider('customOrderedAncestorParents')]
+    public function testIndexedAncestorEagerMatchingPreservesResultOrder(array $parentIds): void
+    {
+        $nodes = $this->category::whereIn('id', $this->keys(...$parentIds))
+            ->defaultOrder()
+            ->get();
+
+        $nodes->load(['ancestors' => fn (AncestorsRelation $query): AncestorsRelation => $query->reorder('name')]);
+
+        $expected = [
+            3 => ['notebooks', 'store'],
+            8 => ['mobile', 'samsung', 'store'],
+        ];
+
+        foreach ($parentIds as $parentId) {
+            $this->assertEquals(
+                $expected[$parentId],
+                $nodes->find($this->key($parentId))->ancestors->pluck('name')->all(),
+            );
+        }
+    }
+
+    /**
+     * Get parent keys for custom-ordered ancestor eager loading.
+     */
+    public static function customOrderedAncestorParents(): array
+    {
+        return [
+            'one parent' => [[8]],
+            'disjoint parents' => [[3, 8]],
+        ];
+    }
+
+    public function testEagerDescendantsSkipParentsWithoutPossibleDescendants(): void
+    {
+        $leaves = $this->category::whereIn('id', $this->keys(3, 4, 8))->get();
+
+        DB::flushQueryLog();
+
+        $leaves->load('descendants');
+
+        $this->assertSame([], DB::getQueryLog());
+
+        foreach ($leaves as $leaf) {
+            $this->assertTrue($leaf->relationLoaded('descendants'));
+            $this->assertTrue($leaf->descendants->isEmpty());
+        }
+
+        $nodes = $this->category::whereIn('id', $this->keys(2, 3, 8))->get();
+
+        DB::flushQueryLog();
+
+        $nodes->load('descendants');
+
+        $queries = DB::getQueryLog();
+
+        $this->assertCount(1, $queries);
+        $this->assertEquals(1, substr_count(strtolower($queries[0]['query']), ' between '));
+        $this->assertEqualsCanonicalizing($this->keys(3, 4), $nodes->find($this->key(2))->descendants->pluck('id')->all());
+        $this->assertTrue($nodes->find($this->key(3))->descendants->isEmpty());
+        $this->assertTrue($nodes->find($this->key(8))->descendants->isEmpty());
+    }
+
+    public function testEagerRelationsHandleMoreThanAThousandParentIntervals(): void
+    {
+        DB::table('categories')->delete();
+
+        $branches = 1100;
+        $rows = [
+            ['id' => $this->key(1), 'name' => 'root', '_lft' => 1, '_rgt' => $branches * 4 + 2, 'parent_id' => null, 'depth' => 0],
+        ];
+
+        for ($branch = 0; $branch < $branches; ++$branch) {
+            $lft = $branch * 4 + 2;
+            $rows[] = ['id' => $this->key($branch * 2 + 2), 'name' => 'branch', '_lft' => $lft, '_rgt' => $lft + 3, 'parent_id' => $this->key(1), 'depth' => 1];
+            $rows[] = ['id' => $this->key($branch * 2 + 3), 'name' => 'leaf', '_lft' => $lft + 1, '_rgt' => $lft + 2, 'parent_id' => $this->key($branch * 2 + 2), 'depth' => 2];
+        }
+
+        foreach (array_chunk($rows, 500) as $chunk) {
+            DB::table('categories')->insert($chunk);
+        }
+
+        $nodes = $this->category::defaultOrder()->get();
+        $branchNodes = $nodes->where('depth', 1)->values()->load('descendants');
+        $leaves = $nodes->where('depth', 2)->values()->load('ancestors');
+
+        $this->assertSame(
+            array_map(fn (int $branch): array => [$this->key($branch * 2 + 3)], range(0, $branches - 1)),
+            $branchNodes->map(fn (Category $node): array => $node->descendants->modelKeys())->all(),
+        );
+        $this->assertSame(
+            array_map(fn (int $branch): array => [$this->key(1), $this->key($branch * 2 + 2)], range(0, $branches - 1)),
+            $leaves->map(fn (Category $node): array => $node->ancestors->modelKeys())->all(),
         );
     }
 
@@ -3357,6 +3484,146 @@ abstract class NodeTestBase extends TestCase
 
         $this->assertEquals(1, $nodes->count());
         $this->assertEquals($this->key(2), $nodes->first()->getKey());
+    }
+
+    public function testSiblingsRelation(): void
+    {
+        $node = $this->findCategory('samsung');
+        $result = $node->siblings;
+
+        $this->assertEquals(3, $result->count());
+        $this->assertEqualsCanonicalizing($this->keys(6, 9, 10), $result->pluck('id')->all());
+        $this->assertTrue($node->relationLoaded('siblings'));
+    }
+
+    public function testSiblingsAndSelfRelation(): void
+    {
+        $node = $this->findCategory('samsung');
+        $result = $node->siblingsAndSelf;
+
+        $this->assertEquals(4, $result->count());
+        $this->assertEqualsCanonicalizing($this->keys(6, 7, 9, 10), $result->pluck('id')->all());
+        $this->assertTrue($node->relationLoaded('siblingsAndSelf'));
+    }
+
+    public function testSiblingsEagerlyLoaded(): void
+    {
+        $nodes = $this->category::whereIn('id', $this->keys(2, 5))->get();
+
+        $nodes->load('siblings');
+
+        $this->assertEquals(2, $nodes->count());
+        $this->assertTrue($nodes->first()->relationLoaded('siblings'));
+        $this->assertEquals($this->keys(5), $nodes->find($this->key(2))->siblings->pluck('id')->all());
+        $this->assertEquals($this->keys(2), $nodes->find($this->key(5))->siblings->pluck('id')->all());
+    }
+
+    public function testSiblingEagerLoadUsesParentIdSetConstraint(): void
+    {
+        $nodes = $this->category::whereIn('id', $this->keys(3, 7))
+            ->defaultOrder()
+            ->get();
+
+        DB::flushQueryLog();
+
+        $nodes->load('siblings');
+
+        $queries = DB::getQueryLog();
+        $relationQuery = strtolower(end($queries)['query']);
+
+        $this->assertStringContainsString(' in ', $relationQuery);
+        $this->assertStringNotContainsString(' or ', $relationQuery);
+        $this->assertEquals($this->keys(4), $nodes->find($this->key(3))->siblings->pluck('id')->all());
+        $this->assertEqualsCanonicalizing($this->keys(6, 9, 10), $nodes->find($this->key(7))->siblings->pluck('id')->all());
+    }
+
+    public function testRootSiblingEagerLoadUsesNullParentConstraint(): void
+    {
+        $nodes = $this->category::whereIn('id', $this->keys(1, 11))
+            ->defaultOrder()
+            ->get();
+
+        DB::flushQueryLog();
+
+        $nodes->load('siblings');
+
+        $queries = DB::getQueryLog();
+        $relationQuery = strtolower(end($queries)['query']);
+
+        $this->assertMatchesRegularExpression('/parent_id\W+is null/', $relationQuery);
+        $this->assertEquals($this->keys(11), $nodes->find($this->key(1))->siblings->pluck('id')->all());
+        $this->assertEquals($this->keys(1), $nodes->find($this->key(11))->siblings->pluck('id')->all());
+    }
+
+    public function testSiblingsAndSelfEagerlyLoaded(): void
+    {
+        $nodes = $this->category::whereIn('id', $this->keys(3, 7))->get();
+
+        $nodes->load('siblingsAndSelf');
+
+        $this->assertEquals(2, $nodes->count());
+        $this->assertTrue($nodes->first()->relationLoaded('siblingsAndSelf'));
+        $this->assertEqualsCanonicalizing($this->keys(3, 4), $nodes->find($this->key(3))->siblingsAndSelf->pluck('id')->all());
+        $this->assertEqualsCanonicalizing($this->keys(6, 7, 9, 10), $nodes->find($this->key(7))->siblingsAndSelf->pluck('id')->all());
+    }
+
+    #[DataProvider('customOrderedSiblingRelations')]
+    public function testIndexedSiblingEagerMatchingPreservesResultOrder(string $relation, array $expected): void
+    {
+        $nodes = $this->category::whereIn('id', $this->keys(6, 7, 9, 10))
+            ->defaultOrder()
+            ->get();
+
+        $nodes->load([$relation => fn (SiblingsRelation $query): SiblingsRelation => $query->orderBy('name')]);
+
+        $samsung = $nodes->find($this->key(7));
+        $sonySiblings = $nodes->find($this->key(9))->{$relation};
+        $sonyNames = $sonySiblings->pluck('name')->all();
+
+        $this->assertEquals($expected, $samsung->{$relation}->pluck('name')->all());
+
+        // Parents with the same siblings still receive independent collections.
+        $samsung->{$relation}->pop();
+
+        $this->assertEquals($sonyNames, $sonySiblings->pluck('name')->all());
+    }
+
+    /**
+     * Get sibling relations with their expected custom-ordered names.
+     */
+    public static function customOrderedSiblingRelations(): array
+    {
+        return [
+            'siblings' => ['siblings', ['lenovo', 'nokia', 'sony']],
+            'siblings and self' => ['siblingsAndSelf', ['lenovo', 'nokia', 'samsung', 'sony']],
+        ];
+    }
+
+    public function testSiblingsRelationQuery(): void
+    {
+        $this->assertEquals(
+            $this->keys(3),
+            $this->category::has('siblings')->whereIn('id', $this->keys(3, 8))->pluck('id')->all(),
+        );
+
+        $this->assertEquals(
+            $this->keys(6, 7, 9, 10),
+            $this->category::has('siblings', '>', 2)->orderBy('id')->pluck('id')->all(),
+        );
+
+        $this->assertEquals(
+            $this->keys(1, 11),
+            $this->category::has('siblings')->whereIn('id', $this->keys(1, 11))->orderBy('id')->pluck('id')->all(),
+        );
+    }
+
+    public function testSiblingsOfRootNode(): void
+    {
+        $node = $this->findCategory('store');
+        $result = $node->siblings;
+
+        $this->assertEquals(1, $result->count());
+        $this->assertEquals($this->key(11), $result->first()->getKey());
     }
 
     public function testRebuildTree(): void
@@ -3647,6 +3914,43 @@ abstract class NodeTestBase extends TestCase
         $this->assertEquals($expectedShape, $output);
     }
 
+    public function testNestedAncestorEagerLoadConstraintsAreDeduplicated(): void
+    {
+        $nodes = $this->category::whereIn('id', $this->keys(5, 8))
+            ->defaultOrder()
+            ->get();
+
+        DB::flushQueryLog();
+
+        $nodes->load('ancestors');
+
+        $queries = DB::getQueryLog();
+        $relationQuery = strtolower(end($queries)['query']);
+
+        // Only galaxy's bound remains, so no successor search is needed.
+        $this->assertStringNotContainsString('case when', $relationQuery);
+        $this->assertEquals(['store'], $nodes->find($this->key(5))->ancestors->pluck('name')->all());
+        $this->assertEquals(['store', 'mobile', 'samsung'], $nodes->find($this->key(8))->ancestors->pluck('name')->all());
+    }
+
+    public function testDisjointAncestorEagerLoadConstraintsAreRetained(): void
+    {
+        $nodes = $this->category::whereIn('id', $this->keys(3, 8))
+            ->defaultOrder()
+            ->get();
+
+        DB::flushQueryLog();
+
+        $nodes->load('ancestors');
+
+        $queries = DB::getQueryLog();
+        $relationQuery = strtolower(end($queries)['query']);
+
+        $this->assertEquals(1, substr_count($relationQuery, 'case when'));
+        $this->assertEquals(['store', 'notebooks'], $nodes->find($this->key(3))->ancestors->pluck('name')->all());
+        $this->assertEquals(['store', 'mobile', 'samsung'], $nodes->find($this->key(8))->ancestors->pluck('name')->all());
+    }
+
     public function testLazyLoadAncestors(): void
     {
         $queryLogCount = count(DB::getQueryLog());
@@ -3733,18 +4037,36 @@ abstract class NodeTestBase extends TestCase
         );
     }
 
-    public function testAncestorsAreOrderedFromRootToParent(): void
+    public function testGetsAncestorsInHierarchicalOrder(): void
     {
-        $node = $this->category::with('ancestors')->findOrFail($this->key(8));
+        $node = $this->category::find($this->key(8));
 
-        $this->assertEquals(
-            ['store', 'mobile', 'samsung'],
-            $node->ancestors->pluck('name')->all(),
-        );
-        $this->assertStringContainsString(
-            'order by',
-            strtolower($node->ancestors()->toSql()),
-        );
+        // The relation query must be explicitly ordered by _lft (root first),
+        // not left to incidental database order.
+        $sql = strtolower($node->ancestors()->toSql());
+        $this->assertStringContainsString('order by', $sql);
+        $this->assertStringContainsString('_lft', $sql);
+
+        // galaxy's ancestors are store (_lft 1), mobile (_lft 8), samsung (_lft 11)
+        $ancestors = $node->getAncestors();
+        $this->assertEquals([1, 8, 11], $ancestors->pluck('_lft')->all());
+        $this->assertEquals(['store', 'mobile', 'samsung'], $ancestors->pluck('name')->all());
+    }
+
+    public function testEagerLoadsAncestorsInHierarchicalOrder(): void
+    {
+        DB::flushQueryLog();
+
+        $galaxy = $this->category::with('ancestors')->find($this->key(8));
+
+        // The eager-load query for ancestors must also be ordered by _lft.
+        $ancestorQuery = collect(DB::getQueryLog())
+            ->first(fn (array $entry): bool => str_contains(strtolower($entry['query']), 'order by'));
+        $this->assertNotNull($ancestorQuery, 'Eager ancestors query is not ordered.');
+        $this->assertStringContainsString('_lft', strtolower($ancestorQuery['query']));
+
+        $this->assertEquals([1, 8, 11], $galaxy->ancestors->pluck('_lft')->all());
+        $this->assertEquals(['store', 'mobile', 'samsung'], $galaxy->ancestors->pluck('name')->all());
     }
 
     public function testReplication(): void

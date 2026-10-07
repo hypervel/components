@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\NestedSet\Eloquent;
 
+use Closure;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
@@ -15,6 +16,11 @@ use LogicException;
 
 abstract class BaseRelation extends Relation
 {
+    /**
+     * The maximum number of "or" constraints chained in one eager constraint group.
+     */
+    protected const int EAGER_CONSTRAINT_GROUP_SIZE = 64;
+
     /**
      * The nested-set query builder instance.
      *
@@ -35,14 +41,20 @@ abstract class BaseRelation extends Relation
     }
 
     /**
-     * Determine whether a related node matches a parent.
+     * Constrain the eager query to the prepared parent models.
      */
-    abstract protected function matches(Model $model, Model $related): bool;
+    abstract protected function constrainEagerModels(Builder $query, array $models): void;
 
     /**
-     * Add an eager constraint for a parent.
+     * Match eager results to persisted parents on the results' connection and table.
+     *
+     * Aimeos matches one parent at a time through indexResults() and
+     * matchFromIndex(); this hook receives every parent so a relation can
+     * match them together.
+     *
+     * @return array<int, list<Model>> related models keyed by the parent's object ID
      */
-    abstract protected function addEagerConstraint(QueryBuilder $query, Model $model): void;
+    abstract protected function matchMany(array $models, Collection $results): array;
 
     /**
      * Get the relation existence condition.
@@ -152,13 +164,8 @@ abstract class BaseRelation extends Relation
             return;
         }
 
-        $this->query->whereNested(function (Builder $inner) use ($models) {
-            // We will use this query in order to apply constraints to the
-            // base query builder
-            /** @var QueryBuilder $outer */
-            $outer = $this->parent->newQuery()->setQuery($inner);
-
-            $this->constrainEagerModels($outer, $models);
+        $this->query->whereNested(function (Builder $inner) use ($models): void {
+            $this->constrainEagerModels($inner, $models);
         });
     }
 
@@ -175,54 +182,61 @@ abstract class BaseRelation extends Relation
             );
         }
 
-        $persisted = array_values(array_filter(
-            $models,
-            static fn (Model $model): bool => $model->exists,
-        ));
-        $indexed = $this->shouldIndexResults($persisted)
-            ? $this->indexResults($results)
-            : null;
+        $matches = [];
+
+        if ($results->isNotEmpty()) {
+            $identity = NestedSet::structuralIdentity($results->first());
+            $persisted = array_values(array_filter(
+                $models,
+                static fn (Model $model): bool => $model->exists
+                    && NestedSet::structuralIdentity($model) === $identity,
+            ));
+
+            if ($persisted !== []) {
+                $matches = $this->matchMany($persisted, $results);
+            }
+        }
 
         foreach ($models as $model) {
-            if (! $model->exists) {
-                $model->setRelation($relation, $this->related->newCollection());
-
-                continue;
-            }
-
-            $related = $indexed === null
-                ? $this->matchForModel($model, $results)
-                : $this->matchFromIndex($model, $indexed);
-
-            $model->setRelation($relation, $related);
+            $model->setRelation(
+                $relation,
+                $this->related->newCollection($matches[spl_object_id($model)] ?? []),
+            );
         }
 
         return $models;
     }
 
     /**
-     * Match query results for one parent.
+     * Add constraints as balanced nested "or" groups.
+     *
+     * SQLite parses each chained "or" as one more level of expression depth and
+     * rejects expressions deeper than 1,000 levels, so long eager constraint
+     * lists are split into bounded groups instead of one chain. The callback
+     * adds one "or" constraint for an item.
      */
-    protected function matchForModel(Model $model, Collection $results): Collection
+    protected function addBalancedOrConstraints(Builder $query, array $items, Closure $constraint): void
     {
-        $result = $this->related->newCollection();
+        $size = static::EAGER_CONSTRAINT_GROUP_SIZE;
 
-        foreach ($results as $related) {
-            if ($this->matches($model, $related)) {
-                $result->push($related);
+        if (count($items) <= $size) {
+            foreach ($items as $item) {
+                $constraint($query, $item);
             }
+
+            return;
         }
 
-        return $result;
-    }
+        $chunkSize = $size;
 
-    /**
-     * Apply eager constraints for the prepared parent models.
-     */
-    protected function constrainEagerModels(QueryBuilder $query, array $models): void
-    {
-        foreach ($models as $model) {
-            $this->addEagerConstraint($query, $model);
+        while (count($items) > $chunkSize * $size) {
+            $chunkSize *= $size;
+        }
+
+        foreach (array_chunk($items, $chunkSize) as $chunk) {
+            $query->whereNested(function (Builder $query) use ($chunk, $constraint): void {
+                $this->addBalancedOrConstraints($query, $chunk, $constraint);
+            }, 'or');
         }
     }
 
@@ -313,44 +327,79 @@ abstract class BaseRelation extends Relation
     }
 
     /**
-     * Determine whether eager results should be indexed by tree scope.
+     * Group eager results by scope in left-bound order, keeping their query positions.
+     *
+     * @return array<string, array{models: list<Model>, keys: list<null|string>, lfts: list<int>, rgts: list<int>, positions: list<int>, ordered: bool}>
      */
-    protected function shouldIndexResults(array $models): bool
+    protected function sortedResultBuckets(Collection $results, bool $includeRgt): array
     {
-        return count($models) > 1;
-    }
-
-    /**
-     * Index eager results by exact nested-set scope while preserving query order.
-     */
-    protected function indexResults(Collection $results): array
-    {
-        /** @var array<string, array{models: list<Model>}> $indexed */
-        $indexed = [];
+        $buckets = [];
+        $position = 0;
 
         foreach ($results as $related) {
             $scope = $this->scopeKey($related);
+            $buckets[$scope]['models'][] = $related;
+            $buckets[$scope]['keys'][] = $this->matchKey($related);
+            $buckets[$scope]['lfts'][] = $related->getLft(); /* @phpstan-ignore method.notFound */
+            $buckets[$scope]['rgts'] ??= [];
 
-            if (! isset($indexed[$scope])) {
-                $indexed[$scope] = [
-                    'models' => [],
-                ];
+            if ($includeRgt) {
+                $buckets[$scope]['rgts'][] = $related->getRgt(); /* @phpstan-ignore method.notFound */
             }
 
-            $indexed[$scope]['models'][] = $related;
+            $buckets[$scope]['positions'][] = $position++;
         }
 
-        return $indexed;
+        foreach ($buckets as $scope => $bucket) {
+            $bucket['ordered'] = true;
+
+            for ($index = 1, $count = count($bucket['lfts']); $index < $count; ++$index) {
+                if ($bucket['lfts'][$index] < $bucket['lfts'][$index - 1]) {
+                    $bucket['ordered'] = false;
+
+                    break;
+                }
+            }
+
+            if (! $bucket['ordered']) {
+                // Query positions are unique, so ties never compare the models.
+                $includeRgt
+                    ? array_multisort($bucket['lfts'], $bucket['positions'], $bucket['rgts'], $bucket['keys'], $bucket['models'])
+                    : array_multisort($bucket['lfts'], $bucket['positions'], $bucket['keys'], $bucket['models']);
+            }
+
+            $buckets[$scope] = $bucket;
+        }
+
+        return $buckets;
     }
 
     /**
-     * Match a parent from its exact scope bucket.
+     * Restore query order among matched bucket entries when the bucket was re-sorted.
+     *
+     * @param list<int> $matches bucket indexes in left-bound order
+     * @return list<Model>
      */
-    protected function matchFromIndex(Model $model, array $indexed): Collection
+    protected function bucketModels(array $bucket, array $matches): array
     {
-        $bucket = $indexed[$this->scopeKey($model)]['models'] ?? [];
+        if (! $bucket['ordered']) {
+            usort(
+                $matches,
+                static fn (int $left, int $right): int => $bucket['positions'][$left] <=> $bucket['positions'][$right],
+            );
+        }
 
-        return $this->matchForModel($model, $this->related->newCollection($bucket));
+        return array_map(static fn (int $index): Model => $bucket['models'][$index], $matches);
+    }
+
+    /**
+     * Get a model key in the string form used to recognize a parent's own row.
+     */
+    protected function matchKey(Model $model): ?string
+    {
+        $key = $model->getKey();
+
+        return $key === null ? null : (string) $key;
     }
 
     /**

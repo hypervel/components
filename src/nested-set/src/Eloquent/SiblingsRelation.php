@@ -6,6 +6,7 @@ namespace Hypervel\NestedSet\Eloquent;
 
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Query\Builder;
 
 class SiblingsRelation extends BaseRelation
 {
@@ -53,9 +54,9 @@ class SiblingsRelation extends BaseRelation
     /**
      * Apply an eager constraint for one parent model.
      */
-    protected function addEagerConstraint(QueryBuilder $query, Model $model): void
+    protected function addEagerConstraint(Builder $query, Model $model): void
     {
-        $query->orWhere(function (QueryBuilder $query) use ($model) {
+        $query->whereNested(function (Builder $query) use ($model): void {
             $this->whereParentId($query, $model);
 
             $model->applyNestedSetScope($query); /* @phpstan-ignore method.notFound */
@@ -67,13 +68,13 @@ class SiblingsRelation extends BaseRelation
                     $model->getKey(),
                 );
             }
-        });
+        }, 'or');
     }
 
     /**
      * Group eager constraints by exact scope and parent.
      */
-    protected function constrainEagerModels(QueryBuilder $query, array $models): void
+    protected function constrainEagerModels(Builder $query, array $models): void
     {
         if (count($models) === 1) {
             $this->addEagerConstraint($query, $models[0]);
@@ -95,11 +96,11 @@ class SiblingsRelation extends BaseRelation
             }
         }
 
-        foreach ($groups as $group) {
-            $query->orWhere(function (QueryBuilder $query) use ($group) {
+        $this->addBalancedOrConstraints($query, array_values($groups), function (Builder $query, array $group): void {
+            $query->whereNested(function (Builder $query) use ($group): void {
                 $group['model']->applyNestedSetScope($query);
 
-                $query->where(function (QueryBuilder $query) use ($group) {
+                $query->where(function (Builder $query) use ($group): void {
                     $parents = array_values($group['parents'] ?? []);
                     $hasRoot = $group['has_root'] ?? false;
                     $parentIdName = $group['model']->getParentIdName();
@@ -115,42 +116,17 @@ class SiblingsRelation extends BaseRelation
                             : $query->orWhereNull($qualifiedParentIdName);
                     }
                 });
-            });
-        }
+            }, 'or');
+        });
     }
 
     /**
-     * Determine whether a result is a sibling of the parent model.
+     * Match siblings from exact scope-and-parent buckets in query order.
      */
-    protected function matches(Model $model, Model $related): bool
-    {
-        if ($this->scopeKey($model) !== $this->scopeKey($related)) {
-            return false;
-        }
-
-        $parentId = $model->getParentId(); /* @phpstan-ignore method.notFound */
-        $relatedParentId = $related->getParentId(); /* @phpstan-ignore method.notFound */
-        $sameParent = $parentId === null || $relatedParentId === null
-            ? $parentId === $relatedParentId
-            : (string) $parentId === (string) $relatedParentId;
-
-        if (! $sameParent || $this->andSelf) {
-            return $sameParent;
-        }
-
-        $key = $model->getKey();
-        $relatedKey = $related->getKey();
-
-        // Strict parent and related keys are validated before matching.
-        return (string) $key !== (string) $relatedKey;
-    }
-
-    /**
-     * Index eager results by exact scope and parent while preserving query order.
-     */
-    protected function indexResults(Collection $results): array
+    protected function matchMany(array $models, Collection $results): array
     {
         $index = [];
+        $keys = [];
 
         foreach ($results as $related) {
             $scope = $this->scopeKey($related);
@@ -161,43 +137,44 @@ class SiblingsRelation extends BaseRelation
             } else {
                 $index[$scope]['parents'][$parentId][] = $related;
             }
-        }
 
-        return $index;
-    }
-
-    /**
-     * Match siblings from an exact scope-and-parent bucket.
-     */
-    protected function matchFromIndex(Model $model, array $indexed): Collection
-    {
-        $scope = $indexed[$this->scopeKey($model)] ?? null;
-
-        if ($scope === null) {
-            return $this->related->newCollection();
-        }
-
-        $parentId = $model->getParentId(); /* @phpstan-ignore method.notFound */
-        $candidates = $parentId === null
-            ? ($scope['roots'] ?? [])
-            : ($scope['parents'][$parentId] ?? []);
-
-        if ($this->andSelf) {
-            return $this->related->newCollection($candidates);
-        }
-
-        $key = $model->getKey();
-        $matches = [];
-
-        foreach ($candidates as $candidate) {
-            $candidateKey = $candidate->getKey();
-
-            if ((string) $candidateKey !== (string) $key) {
-                $matches[] = $candidate;
+            if (! $this->andSelf) {
+                $keys[spl_object_id($related)] = $this->matchKey($related);
             }
         }
 
-        return $this->related->newCollection($matches);
+        $matches = [];
+
+        foreach ($models as $model) {
+            $scope = $index[$this->scopeKey($model)] ?? null;
+
+            if ($scope === null) {
+                continue;
+            }
+
+            $parentId = $model->getParentId(); /* @phpstan-ignore method.notFound */
+            $siblings = $parentId === null ? ($scope['roots'] ?? []) : ($scope['parents'][$parentId] ?? []);
+
+            if ($this->andSelf) {
+                // Parents in one bucket share its array until a collection modifies it.
+                $matches[spl_object_id($model)] = $siblings;
+
+                continue;
+            }
+
+            $key = $this->matchKey($model);
+            $found = [];
+
+            foreach ($siblings as $candidate) {
+                if ($key === null || $keys[spl_object_id($candidate)] !== $key) {
+                    $found[] = $candidate;
+                }
+            }
+
+            $matches[spl_object_id($model)] = $found;
+        }
+
+        return $matches;
     }
 
     /**
@@ -253,7 +230,7 @@ class SiblingsRelation extends BaseRelation
     /**
      * Constrain a query to the model's parent ID.
      */
-    protected function whereParentId(QueryBuilder $query, Model $model): void
+    protected function whereParentId(Builder|QueryBuilder $query, Model $model): void
     {
         $parentIdName = $model->getParentIdName(); /* @phpstan-ignore method.notFound */
         $qualifiedParentIdName = $model->qualifyColumn($parentIdName);

@@ -444,6 +444,30 @@ abstract class ScopedNodeTestBase extends TestCase
         $this->assertEquals($this->keys(3, 4), $nodes->find($this->key(3))->siblingsAndSelf->pluck('id')->sort()->values()->all());
     }
 
+    public function testEagerSiblingsHandleMoreThanAThousandScopes(): void
+    {
+        DB::table('menu_items')->delete();
+
+        $menus = 1100;
+        $rows = [];
+
+        for ($menu = 1; $menu <= $menus; ++$menu) {
+            $rows[] = ['id' => $this->key($menu * 2), 'menu_id' => $menu, '_lft' => 1, '_rgt' => 2, 'parent_id' => null, 'title' => 'first', 'depth' => 0];
+            $rows[] = ['id' => $this->key($menu * 2 + 1), 'menu_id' => $menu, '_lft' => 3, '_rgt' => 4, 'parent_id' => null, 'title' => 'second', 'depth' => 0];
+        }
+
+        foreach (array_chunk($rows, 500) as $chunk) {
+            DB::table('menu_items')->insert($chunk);
+        }
+
+        $nodes = $this->menuItem::where('_lft', 1)->orderBy('menu_id')->get()->load('siblings');
+
+        $this->assertSame(
+            array_map(fn (int $menu): array => [$this->key($menu * 2 + 1)], range(1, $menus)),
+            $nodes->map(fn (MenuItem $node): array => $node->siblings->modelKeys())->all(),
+        );
+    }
+
     #[DataProvider('scopedRelationParents')]
     public function testRelationsRequireSelectedScopeAndParentage(
         string $relation,

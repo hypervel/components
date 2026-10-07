@@ -15,4 +15,8 @@ Only a `null` parent ID makes a node a root. Upstream also treats `0` and an emp
 
 The query builder's `getDepth($position)` is `depthForPosition($position)`, which returns the depth of a node inserted at that position within the selected tree. Upstream's method returns the enclosing node's depth, so it cannot tell a position inside a root from one outside every node.
 
+`getAncestors()`, `getDescendants()` and `getSiblings()` always run a fresh query and leave loaded relations unchanged. When all columns are requested, upstream returns the loaded `ancestors`, `descendants` or `siblings` relation, or stores the query result as that relation. Use the relation properties, such as `$node->ancestors`, to reuse loaded results.
+
+Eager loading constrains and matches all parents together, so eager-loaded ancestors are matched in one pass over the sorted results instead of a scan of the earlier results for each parent. Relation subclasses implement `constrainEagerModels()`, which receives the base query builder and the prepared parent models, and `matchMany()`. These replace upstream's per-parent hooks: `addEagerConstraint()` is no longer abstract, and `matches()`, `matchForModel()`, `indexResults()`, `matchFromIndex()`, `preservesResultOrder()` and `getEagerModelKey()` are not available.
+
 Ported from: https://github.com/aimeos/laravel-nestedset
