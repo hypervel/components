@@ -732,13 +732,15 @@ class Container implements ContainerContract
             $this->autoSingletons[$abstract] = $closure($this->autoSingletons[$abstract], $this);
 
             $this->rebound($abstract);
-        } elseif ($this->isScoped($abstract) && CoroutineContext::has(self::SCOPED_CONTEXT_PREFIX . $abstract)) {
+        } elseif ($this->isScoped($abstract)
+            && ($instance = CoroutineContext::get(self::SCOPED_CONTEXT_PREFIX . $abstract)) !== null
+        ) {
             // Apply the extender to the current cached scoped instance immediately.
             // Also queue it in $this->extenders for future resolutions — unlike singletons
             // (which persist for the worker lifetime), scoped instances are destroyed each
             // request by forgetScopedInstances() and must re-apply extenders on rebuild.
             $contextKey = self::SCOPED_CONTEXT_PREFIX . $abstract;
-            CoroutineContext::set($contextKey, $closure(CoroutineContext::get($contextKey), $this));
+            CoroutineContext::set($contextKey, $closure($instance, $this));
 
             $this->extenders[$abstract][] = $closure;
 
@@ -1191,8 +1193,10 @@ class Container implements ContainerContract
             && ! $needsContextualBuild
         ) {
             $contextKey = self::SCOPED_CONTEXT_PREFIX . $abstract;
-            if (CoroutineContext::has($contextKey)) {
-                return CoroutineContext::get($contextKey);
+            $instance = CoroutineContext::get($contextKey);
+
+            if ($instance !== null) {
+                return $instance;
             }
         }
 
@@ -1338,7 +1342,7 @@ class Container implements ContainerContract
             if ($publishedCache === 'scoped') {
                 $contextKey = self::SCOPED_CONTEXT_PREFIX . $abstract;
 
-                if (CoroutineContext::has($contextKey)
+                if ($publishedValue !== null
                     && CoroutineContext::get($contextKey) === $publishedValue
                 ) {
                     CoroutineContext::forget($contextKey);
