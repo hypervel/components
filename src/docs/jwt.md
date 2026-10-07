@@ -309,13 +309,7 @@ Request input parsing is available but is not enabled by default because URL tok
 /api/user?token=eyJhbGciOi...
 ```
 
-The input key defaults to `token`:
-
-```php
-'token' => env('JWT_TOKEN', 'token'),
-```
-
-You may customize the parser chain:
+Cookie parsing is also available but is not enabled by default. You may customize the parser chain:
 
 ```php
 use Hypervel\Jwt\Http\Parser\AuthHeaders;
@@ -329,9 +323,34 @@ use Hypervel\Jwt\Http\Parser\InputSource;
 ],
 ```
 
-Cookie parsing is also available but is not enabled by default. If you add the `InputSource` or `Cookie` parser, it reads the same key configured by `jwt.token`.
+The parsers run in order, and the first token found is used. The `InputSource` parser reads the input key named by `token` from the query string and request body. When both contain a token, the body wins, just like the request's `input` method. The `Cookie` parser reads the cookie named by `cookie_key_name`:
 
-For a non-standard header or token scheme, implement `Hypervel\Jwt\Contracts\TokenExtractor` and add that class to `jwt.parser`.
+```php
+'token' => env('JWT_TOKEN', 'token'),
+
+'cookie_key_name' => env('JWT_COOKIE_KEY_NAME', 'token'),
+```
+
+Hypervel [encrypts cookies](/docs/{{version}}/responses#cookies-and-encryption) by default, so the `EncryptCookies` middleware must decrypt the token cookie before the guard reads it. The `web` middleware group includes this middleware and runs it before the `auth` middleware, but the `api` group does not. Cookies that cannot be decrypted are ignored. You may instead exclude the token cookie from encryption using the `encryptCookies` method's `except` argument. This only configures the middleware; it does not add the middleware to any routes. The token is still signed, so leaving the cookie unencrypted only exposes its claims.
+
+Since browsers send cookies automatically, cookie authentication also needs [CSRF protection](/docs/{{version}}/csrf), even though the token is signed and the cookie may be encrypted. The `web` middleware group includes CSRF protection, but the `api` group does not.
+
+For another header, token scheme, or a route parameter, implement `Hypervel\Jwt\Contracts\TokenExtractor` and add that class to `jwt.parser`:
+
+```php
+use Hypervel\Http\Request;
+use Hypervel\Jwt\Contracts\TokenExtractor;
+
+class AccessTokenHeader implements TokenExtractor
+{
+    public function parseToken(Request $request): ?string
+    {
+        return $request->headers->get('X-Access-Token');
+    }
+}
+```
+
+Custom parsers are resolved from the container once and shared by every request, so they must only read the request they are given and never store request or token state.
 
 <a name="validations-and-leeway"></a>
 ### Validations and Leeway
@@ -469,6 +488,8 @@ Route::middleware('auth:api')->get('/profile', function () {
     return Auth::guard('api')->user();
 });
 ```
+
+Routes that allow guests don't need any middleware. Calling `Auth::guard('api')->user()` reads the token when it is first needed, and returns `null` when the request has no usable token.
 
 <a name="reading-the-authenticated-user"></a>
 ### Reading the Authenticated User

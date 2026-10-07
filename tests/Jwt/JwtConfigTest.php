@@ -150,6 +150,7 @@ class JwtConfigTest extends TestCase
             'JWT_REFRESH_IAT' => '1',
             'JWT_LOCK_SUBJECT' => '0',
             'JWT_TOKEN' => 'api_token',
+            'JWT_COOKIE_KEY_NAME' => 'jwt_cookie',
         ]);
 
         try {
@@ -163,18 +164,21 @@ class JwtConfigTest extends TestCase
             $this->assertTrue($config['refresh_iat']);
             $this->assertFalse($config['lock_subject']);
             $this->assertSame('api_token', $config['token']);
+            $this->assertSame('jwt_cookie', $config['cookie_key_name']);
         } finally {
             $this->restoreEnvironmentVariables($originalValues);
             Env::flushRepository();
         }
     }
 
-    public function testDefaultParserOnlyIncludesAuthorizationHeaders(): void
+    public function testDefaultTokenSourcesOnlyIncludeAuthorizationHeaders(): void
     {
         $config = require dirname(__DIR__, 2) . '/src/jwt/config/jwt.php';
 
         $this->assertSame([AuthHeaders::class], $config['parser']);
         $this->assertNotContains(InputSource::class, $config['parser']);
+        $this->assertSame('token', $config['token']);
+        $this->assertSame('token', $config['cookie_key_name']);
     }
 
     public function testNotBeforeClaimClassIsUsedInConfiguration(): void

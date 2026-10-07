@@ -14,7 +14,10 @@ use Hypervel\Jwt\Blacklist;
 use Hypervel\Jwt\Contracts\BlacklistContract;
 use Hypervel\Jwt\Contracts\ManagerContract;
 use Hypervel\Jwt\Contracts\StorageContract;
+use Hypervel\Jwt\Contracts\TokenExtractor;
+use Hypervel\Jwt\Http\Parser\AuthHeaders;
 use Hypervel\Jwt\Http\Parser\Cookie;
+use Hypervel\Jwt\Http\Parser\InputSource;
 use Hypervel\Jwt\Http\Parser\Parser;
 use Hypervel\Jwt\JwtGuard;
 use Hypervel\Jwt\JwtServiceProvider;
@@ -37,17 +40,39 @@ class JwtServiceProviderTest extends TestCase
         ];
     }
 
-    public function testParserUsesConfiguredTokenKeyAndExtractorChain(): void
+    public function testParserUsesSeparateInputAndCookieNames(): void
     {
-        $this->app->make('config')->set('jwt.token', 'api_token');
-        $this->app->make('config')->set('jwt.parser', [Cookie::class]);
+        config([
+            'jwt.token' => 'api_token',
+            'jwt.cookie_key_name' => 'jwt_cookie',
+            'jwt.parser' => [InputSource::class, Cookie::class],
+        ]);
 
         /** @var Parser $parser */
         $parser = $this->app->make(Parser::class);
 
+        $this->assertSame('input-token', $parser->parseToken(Request::create('/?api_token=input-token')));
         $this->assertSame('cookie-token', $parser->parseToken(Request::create('/', 'GET', cookies: [
+            'jwt_cookie' => 'cookie-token',
+        ])));
+        $this->assertNull($parser->parseToken(Request::create('/?jwt_cookie=input-token', 'GET', cookies: [
             'api_token' => 'cookie-token',
         ])));
+    }
+
+    public function testParserResolvesCustomExtractorsFromTheContainer(): void
+    {
+        config([
+            'jwt.parser' => [AuthHeaders::class, JwtServiceProviderAccessTokenHeader::class],
+        ]);
+
+        /** @var Parser $parser */
+        $parser = $this->app->make(Parser::class);
+
+        $this->assertSame('custom-token', $parser->parseToken(Request::create('/', 'GET', server: [
+            'HTTP_X_ACCESS_TOKEN' => 'custom-token',
+        ])));
+        $this->assertNull($parser->parseToken(Request::create('/')));
     }
 
     public function testJwtMiddlewareAliasesAreNotRegistered(): void
@@ -292,5 +317,16 @@ class JwtServiceProviderCustomStorage implements StorageContract
     public function flush(): bool
     {
         return true;
+    }
+}
+
+class JwtServiceProviderAccessTokenHeader implements TokenExtractor
+{
+    /**
+     * Read the token from the custom header.
+     */
+    public function parseToken(Request $request): ?string
+    {
+        return $request->headers->get('X-Access-Token');
     }
 }

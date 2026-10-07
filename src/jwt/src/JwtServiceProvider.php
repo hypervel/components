@@ -9,6 +9,7 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Jwt\Console\JwtGenerateCertsCommand;
 use Hypervel\Jwt\Console\JwtSecretCommand;
 use Hypervel\Jwt\Contracts\BlacklistContract;
+use Hypervel\Jwt\Contracts\TokenExtractor;
 use Hypervel\Jwt\Http\Parser\Cookie;
 use Hypervel\Jwt\Http\Parser\InputSource;
 use Hypervel\Jwt\Http\Parser\Parser;
@@ -33,13 +34,13 @@ class JwtServiceProvider extends ServiceProvider
             $app->make(ClaimFactory::class),
         ));
 
-        $this->app->singleton(Parser::class, function ($app) {
+        $this->app->singleton(Parser::class, function (Container $app): Parser {
             $config = $app->make('config');
-            $tokenKey = $config->string('jwt.token');
 
             $chain = array_map(
-                fn (string $extractor) => match ($extractor) {
-                    InputSource::class, Cookie::class => new $extractor($tokenKey),
+                fn (string $extractor): TokenExtractor => match ($extractor) {
+                    InputSource::class => new InputSource($config->string('jwt.token')),
+                    Cookie::class => new Cookie($config->string('jwt.cookie_key_name')),
                     default => $app->make($extractor),
                 },
                 $config->array('jwt.parser'),

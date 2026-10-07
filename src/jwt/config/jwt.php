@@ -279,12 +279,14 @@ return [
     | Token Parser
     |--------------------------------------------------------------------------
     |
-    | Configure the request input key and ordered parser chain used to extract
-    | JWT tokens from incoming requests.
+    | Configure the request input key, cookie name and ordered parser chain
+    | used to extract JWT tokens from incoming requests.
     |
     */
 
     'token' => env('JWT_TOKEN', 'token'),
+
+    'cookie_key_name' => env('JWT_COOKIE_KEY_NAME', 'token'),
 
     'parser' => [
         \Hypervel\Jwt\Http\Parser\AuthHeaders::class,
