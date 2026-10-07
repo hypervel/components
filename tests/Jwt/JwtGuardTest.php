@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Jwt;
 
+use Carbon\CarbonInterval;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Auth\AuthServiceProvider;
 use Hypervel\Config\Repository;
@@ -17,6 +18,7 @@ use Hypervel\Jwt\Contracts\ManagerContract;
 use Hypervel\Jwt\Exceptions\JwtException;
 use Hypervel\Jwt\Exceptions\SecretMissingException;
 use Hypervel\Jwt\Exceptions\TokenBlacklistedException;
+use Hypervel\Jwt\Exceptions\TokenExpiredException;
 use Hypervel\Jwt\Exceptions\TokenInvalidException;
 use Hypervel\Jwt\Exceptions\UserNotDefinedException;
 use Hypervel\Jwt\Http\Parser\AuthHeaders;
@@ -24,9 +26,11 @@ use Hypervel\Jwt\Http\Parser\InputSource;
 use Hypervel\Jwt\Http\Parser\Parser;
 use Hypervel\Jwt\JwtGuard;
 use Hypervel\Jwt\JwtServiceProvider;
+use Hypervel\Support\Sleep;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use Mockery\MockInterface;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class JwtGuardTest extends TestCase
 {
@@ -59,6 +63,8 @@ class JwtGuardTest extends TestCase
     public function testUserReturnsUserFromJwtPayload(): void
     {
         $user = m::mock(Authenticatable::class);
+        $user->shouldReceive('getAuthIdentifier')->andReturn(42);
+
         $provider = m::mock(UserProvider::class);
         $provider->shouldReceive('retrieveById')->with(42)->once()->andReturn($user);
 
@@ -72,6 +78,8 @@ class JwtGuardTest extends TestCase
         );
 
         $this->assertSame($user, $guard->user());
+        $this->assertTrue($guard->check());
+        $this->assertSame(42, $guard->id());
     }
 
     public function testUserReturnsNullWhenNoToken(): void
@@ -80,6 +88,7 @@ class JwtGuardTest extends TestCase
         RequestContext::forget();
 
         $this->assertNull($guard->user());
+        $this->assertFalse($guard->check());
     }
 
     public function testUserCachesResultInContext(): void
@@ -101,7 +110,7 @@ class JwtGuardTest extends TestCase
         $this->assertSame($user, $guard->user()); // Should not call decode again
     }
 
-    public function testUserCachesNullViaSentinel(): void
+    public function testMissingTokenUserIsCachedAsUnauthenticated(): void
     {
         $provider = m::mock(UserProvider::class);
         $provider->shouldReceive('retrieveById')->with(42)->once()->andReturn(null);
@@ -116,7 +125,48 @@ class JwtGuardTest extends TestCase
         );
 
         $this->assertNull($guard->user());
-        $this->assertNull($guard->user()); // Should not call decode again
+        $this->assertNull($guard->user());
+        $this->assertFalse($guard->check());
+        $this->assertNull($guard->id());
+        $this->assertSame(42, $guard->getUserId());
+    }
+
+    #[DataProvider('unusableTokenExceptionProvider')]
+    public function testUnusableTokenIsCachedAsUnauthenticated(JwtException $exception): void
+    {
+        $provider = m::mock(UserProvider::class);
+        $provider->shouldNotReceive('retrieveById');
+
+        $jwtManager = m::mock(ManagerContract::class);
+        $jwtManager->shouldReceive('decode')->with('unusable-token')->once()->andThrow($exception);
+
+        $guard = $this->createGuard(
+            provider: $provider,
+            jwtManager: $jwtManager,
+            request: $this->createRequestWithBearer('unusable-token'),
+        );
+
+        $this->assertNull($guard->user());
+        $this->assertFalse($guard->check());
+        $this->assertNull($guard->id());
+
+        $this->expectException(UserNotDefinedException::class);
+
+        $guard->userOrFail();
+    }
+
+    /**
+     * Provide the token exceptions that leave the guard unauthenticated.
+     *
+     * @return array<string, array{JwtException}>
+     */
+    public static function unusableTokenExceptionProvider(): array
+    {
+        return [
+            'invalid' => [new TokenInvalidException],
+            'expired' => [new TokenExpiredException],
+            'blacklisted' => [new TokenBlacklistedException],
+        ];
     }
 
     public function testAttemptReturnsTokenOnValidCredentials(): void
@@ -124,11 +174,12 @@ class JwtGuardTest extends TestCase
         $user = m::mock(Authenticatable::class);
         $user->shouldReceive('getAuthIdentifier')->andReturn(1);
 
+        $credentials = ['email' => 'foo@bar.com', 'password' => 'secret'];
+
         $provider = m::mock(UserProvider::class);
-        $provider->shouldReceive('retrieveByCredentials')
-            ->with(['email' => 'foo@bar.com', 'password' => 'secret'])
-            ->andReturn($user);
-        $provider->shouldReceive('validateCredentials')->with($user, m::type('array'))->andReturnTrue();
+        $provider->shouldReceive('retrieveByCredentials')->with($credentials)->andReturn($user);
+        $provider->shouldReceive('validateCredentials')->with($user, $credentials)->andReturnTrue();
+        $provider->shouldReceive('rehashPasswordIfRequired')->with($user, $credentials)->once();
 
         $jwtManager = m::mock(ManagerContract::class);
         $jwtManager->shouldReceive('encode')->once()->andReturn('new-token');
@@ -139,7 +190,8 @@ class JwtGuardTest extends TestCase
             request: $this->createRequestWithBearer(null),
         );
 
-        $this->assertSame('new-token', $guard->attempt(['email' => 'foo@bar.com', 'password' => 'secret']));
+        $this->assertSame('new-token', $guard->attempt($credentials));
+        $this->assertSame($user, $guard->getLastAttempted());
     }
 
     public function testAttemptReturnsFalseOnInvalidCredentials(): void
@@ -161,6 +213,7 @@ class JwtGuardTest extends TestCase
         $provider = m::mock(UserProvider::class);
         $provider->shouldReceive('retrieveByCredentials')->andReturn($user);
         $provider->shouldReceive('validateCredentials')->andReturnTrue();
+        $provider->shouldNotReceive('rehashPasswordIfRequired');
 
         $jwtManager = m::mock(ManagerContract::class);
         $jwtManager->shouldNotReceive('encode');
@@ -180,6 +233,7 @@ class JwtGuardTest extends TestCase
         $provider = m::mock(UserProvider::class);
         $provider->shouldReceive('retrieveByCredentials')->once()->andReturn($user);
         $provider->shouldReceive('validateCredentials')->once()->andReturnTrue();
+        $provider->shouldNotReceive('rehashPasswordIfRequired');
 
         $jwtManager = m::mock(ManagerContract::class);
         $jwtManager->shouldNotReceive('encode');
@@ -585,14 +639,16 @@ class JwtGuardTest extends TestCase
         $this->assertNull($guard->refresh());
     }
 
-    public function testLogoutInvalidatesTokenAndClearsContext(): void
+    public function testLogoutInvalidatesTheRequestTokenAndStopsUsingIt(): void
     {
         $user = m::mock(Authenticatable::class);
         $provider = m::mock(UserProvider::class);
-        $provider->shouldReceive('retrieveById')->with(1)->andReturn($user);
+        $provider->shouldReceive('retrieveById')->with(1)->twice()->andReturn($user);
 
+        // The grace period keeps the revoked token decodable during this request.
         $jwtManager = m::mock(ManagerContract::class);
-        $jwtManager->shouldReceive('decode')->with('valid-token')->andReturn(['sub' => 1]);
+        $jwtManager->shouldReceive('decode')->with('valid-token')->twice()->andReturn(['sub' => 1]);
+        $jwtManager->shouldReceive('hasBlacklistEnabled')->once()->andReturnTrue();
         $jwtManager->shouldReceive('invalidate')->with('valid-token', false)->once()->andReturnTrue();
 
         $guard = $this->createGuard(
@@ -601,24 +657,93 @@ class JwtGuardTest extends TestCase
             request: $this->createRequestWithBearer('valid-token'),
         );
 
-        // Resolve user first
         $this->assertSame($user, $guard->user());
 
         $guard->logout();
 
-        // After logout, hasUser should be false
+        $this->assertNull($guard->getToken());
         $this->assertFalse($guard->hasUser());
+        $this->assertNull($guard->user());
+        $this->assertFalse($guard->check());
+        $this->assertNull($guard->id());
+
+        $this->assertSame($user, $guard->setToken('valid-token')->user());
     }
 
-    public function testLogoutWithBlacklistDisabledPropagatesAndRetainsContext(): void
+    public function testLogoutWithBlacklistDisabledStopsUsingTheRequestTokenWithoutInvalidating(): void
+    {
+        $user = m::mock(Authenticatable::class);
+        $nextUser = m::mock(Authenticatable::class);
+        $nextUser->shouldReceive('getAuthIdentifier')->andReturn(2);
+
+        $provider = m::mock(UserProvider::class);
+        $provider->shouldReceive('retrieveById')->with(1)->once()->andReturn($user);
+
+        $jwtManager = m::mock(ManagerContract::class);
+        $jwtManager->shouldReceive('decode')->with('valid-token')->once()->andReturn(['sub' => 1]);
+        $jwtManager->shouldReceive('hasBlacklistEnabled')->once()->andReturnFalse();
+        $jwtManager->shouldNotReceive('invalidate');
+        $jwtManager->shouldReceive('encode')->once()->andReturn('next-token');
+
+        $guard = $this->createGuard(
+            provider: $provider,
+            jwtManager: $jwtManager,
+            request: $this->createRequestWithBearer('valid-token'),
+        );
+
+        $this->assertSame($user, $guard->user());
+
+        $guard->logout();
+
+        $this->assertNull($guard->getToken());
+        $this->assertSame([], $guard->getPayload());
+        $this->assertNull($guard->user());
+        $this->assertFalse($guard->check());
+        $this->assertNull($guard->id());
+
+        $this->assertSame('next-token', $guard->login($nextUser));
+        $this->assertSame('next-token', $guard->getToken());
+        $this->assertSame($nextUser, $guard->user());
+    }
+
+    public function testLogoutClearsDecodedPayloadCache(): void
+    {
+        $user = m::mock(Authenticatable::class);
+        $provider = m::mock(UserProvider::class);
+        $provider->shouldReceive('retrieveById')->with(1)->once()->andReturn($user);
+
+        $jwtManager = m::mock(ManagerContract::class);
+        $this->stubDecodeThenBlacklisted($jwtManager, 'valid-token', ['sub' => 1]);
+        $jwtManager->shouldReceive('hasBlacklistEnabled')->once()->andReturnTrue();
+        $jwtManager->shouldReceive('invalidate')->with('valid-token', false)->once()->andReturnTrue();
+
+        $guard = $this->createGuard(
+            provider: $provider,
+            jwtManager: $jwtManager,
+            request: $this->createRequestWithBearer('valid-token'),
+        );
+
+        $this->assertSame(['sub' => 1], $guard->getPayload());
+
+        $guard->logout();
+
+        $this->assertSame([], $guard->getPayload());
+
+        $this->expectException(TokenBlacklistedException::class);
+
+        $guard->setToken('valid-token')->getPayload();
+    }
+
+    public function testLogoutFailureRetainsTheTokenAndUser(): void
     {
         $user = m::mock(Authenticatable::class);
         $jwtManager = m::mock(ManagerContract::class);
         $jwtManager->shouldReceive('decode')->with('valid-token')->once()->andReturn(['sub' => 1]);
+        $jwtManager->shouldReceive('hasBlacklistEnabled')->once()->andReturnTrue();
         $jwtManager->shouldReceive('invalidate')
             ->with('valid-token', false)
             ->once()
-            ->andThrow(new JwtException('You must have the blacklist enabled to invalidate a token.'));
+            ->andThrow(new JwtException('blacklist write failed'));
 
         $guard = $this->createGuard(jwtManager: $jwtManager, request: null)
             ->setToken('valid-token')
@@ -629,42 +754,29 @@ class JwtGuardTest extends TestCase
         try {
             $guard->logout();
 
-            $this->fail('Expected logout to fail when blacklisting is disabled.');
+            $this->fail('Expected logout to fail when the blacklist write fails.');
         } catch (JwtException $exception) {
-            $this->assertSame('You must have the blacklist enabled to invalidate a token.', $exception->getMessage());
+            $this->assertSame('blacklist write failed', $exception->getMessage());
         }
 
         $this->assertSame('valid-token', $guard->getToken());
-        $this->assertTrue($guard->hasUser());
+        $this->assertSame($user, $guard->user());
         $this->assertSame(['sub' => 1], $guard->getPayload());
-    }
-
-    public function testLogoutClearsDecodedPayloadCache(): void
-    {
-        $jwtManager = m::mock(ManagerContract::class);
-        $this->stubDecodeThenBlacklisted($jwtManager, 'valid-token', ['sub' => 1]);
-        $jwtManager->shouldReceive('invalidate')->with('valid-token', false)->once()->andReturnTrue();
-
-        $guard = $this->createGuard(
-            jwtManager: $jwtManager,
-            request: $this->createRequestWithBearer('valid-token'),
-        );
-
-        $this->assertSame(['sub' => 1], $guard->getPayload());
-
-        $guard->logout();
-
-        $this->expectException(TokenBlacklistedException::class);
-
-        $guard->getPayload();
     }
 
     public function testLogoutPassesForceForeverFlag(): void
     {
+        $user = m::mock(Authenticatable::class);
+        $provider = m::mock(UserProvider::class);
+        $provider->shouldReceive('retrieveById')->with(1)->once()->andReturn($user);
+
         $jwtManager = m::mock(ManagerContract::class);
+        $jwtManager->shouldReceive('decode')->with('valid-token')->once()->andReturn(['sub' => 1]);
+        $jwtManager->shouldReceive('hasBlacklistEnabled')->once()->andReturnTrue();
         $jwtManager->shouldReceive('invalidate')->with('valid-token', true)->once()->andReturnTrue();
 
         $guard = $this->createGuard(
+            provider: $provider,
             jwtManager: $jwtManager,
             request: $this->createRequestWithBearer('valid-token'),
         );
@@ -688,7 +800,7 @@ class JwtGuardTest extends TestCase
         $this->assertFalse($guard->hasUser());
     }
 
-    public function testHasUserReturnsTrueAfterUserResolved(): void
+    public function testGetUserReturnsTheResolvedUser(): void
     {
         $user = m::mock(Authenticatable::class);
         $provider = m::mock(UserProvider::class);
@@ -705,15 +817,21 @@ class JwtGuardTest extends TestCase
 
         $guard->user();
 
+        $this->assertSame($user, $guard->getUser());
         $this->assertTrue($guard->hasUser());
     }
 
-    public function testHasUserReturnsFalseBeforeResolution(): void
+    public function testGetUserDoesNotResolveTheTokenUser(): void
     {
+        $jwtManager = m::mock(ManagerContract::class);
+        $jwtManager->shouldNotReceive('decode');
+
         $guard = $this->createGuard(
+            jwtManager: $jwtManager,
             request: $this->createRequestWithBearer('valid-token'),
         );
 
+        $this->assertNull($guard->getUser());
         $this->assertFalse($guard->hasUser());
     }
 
@@ -732,6 +850,32 @@ class JwtGuardTest extends TestCase
         $guard->setUser($user);
 
         $this->assertSame(42, $guard->getUserId());
+    }
+
+    public function testGetUserIdReadsTheTokenSubjectWithoutLoadingTheUser(): void
+    {
+        $provider = m::mock(UserProvider::class);
+        $provider->shouldNotReceive('retrieveById');
+
+        $jwtManager = m::mock(ManagerContract::class);
+        $jwtManager->shouldReceive('decode')->with('valid-token')->once()->andReturn(['sub' => 42]);
+
+        $guard = $this->createGuard(
+            provider: $provider,
+            jwtManager: $jwtManager,
+            request: $this->createRequestWithBearer('valid-token'),
+        );
+
+        $this->assertSame(42, $guard->getUserId());
+        $this->assertFalse($guard->hasUser());
+    }
+
+    public function testGetUserIdReturnsNullWithoutToken(): void
+    {
+        $guard = $this->createGuard(request: null);
+        RequestContext::forget();
+
+        $this->assertNull($guard->getUserId());
     }
 
     public function testExplicitUserOverridesAnUnrelatedTokenUntilForgotten(): void
@@ -821,6 +965,7 @@ class JwtGuardTest extends TestCase
         $user = m::mock(Authenticatable::class);
 
         $jwtManager = m::mock(ManagerContract::class);
+        $jwtManager->shouldReceive('hasBlacklistEnabled')->once()->andReturnTrue();
         $jwtManager->shouldReceive('invalidate')->with('active-token', false)->once()->andReturnTrue();
 
         $guard = $this->createGuard(
@@ -863,11 +1008,11 @@ class JwtGuardTest extends TestCase
         $this->assertSame($firstUser, $guard->setToken('first-token')->user());
     }
 
-    public function testOnceUsingIdReturnsUserWhenUserExists(): void
+    public function testOnceUsingIdAndByIdReturnUserWhenUserExists(): void
     {
         $user = m::mock(Authenticatable::class);
         $provider = m::mock(UserProvider::class);
-        $provider->shouldReceive('retrieveById')->with(1)->andReturn($user);
+        $provider->shouldReceive('retrieveById')->with(1)->twice()->andReturn($user);
 
         $jwtManager = m::mock(ManagerContract::class);
         $jwtManager->shouldNotReceive('encode');
@@ -879,15 +1024,19 @@ class JwtGuardTest extends TestCase
         );
 
         $this->assertSame($user, $guard->onceUsingId(1));
+        $this->assertSame($user, $guard->byId(1));
+        $this->assertSame($user, $guard->user());
     }
 
     public function testOnceDoesNotMintTokenAndSetsUser(): void
     {
         $user = m::mock(Authenticatable::class);
+        $credentials = ['email' => 'foo@bar.com', 'password' => 'secret'];
 
         $provider = m::mock(UserProvider::class);
         $provider->shouldReceive('retrieveByCredentials')->once()->andReturn($user);
         $provider->shouldReceive('validateCredentials')->once()->andReturnTrue();
+        $provider->shouldReceive('rehashPasswordIfRequired')->with($user, $credentials)->once();
 
         $jwtManager = m::mock(ManagerContract::class);
         $jwtManager->shouldNotReceive('encode');
@@ -898,14 +1047,101 @@ class JwtGuardTest extends TestCase
             request: $this->createRequestWithBearer(null),
         );
 
-        $this->assertTrue($guard->once(['email' => 'foo@bar.com', 'password' => 'secret']));
+        $this->assertTrue($guard->once($credentials));
         $this->assertSame($user, $guard->user());
     }
 
-    public function testOnceUsingIdReturnsFalseWhenUserNotFound(): void
+    public function testOnceReturnsFalseForInvalidCredentials(): void
+    {
+        $user = m::mock(Authenticatable::class);
+
+        $provider = m::mock(UserProvider::class);
+        $provider->shouldReceive('retrieveByCredentials')->once()->andReturn($user);
+        $provider->shouldReceive('validateCredentials')->once()->andReturnFalse();
+        $provider->shouldNotReceive('rehashPasswordIfRequired');
+
+        $guard = $this->createGuard(provider: $provider, request: $this->createRequestWithBearer(null));
+
+        $this->assertFalse($guard->once(['email' => 'foo@bar.com', 'password' => 'wrong']));
+        $this->assertFalse($guard->hasUser());
+    }
+
+    public function testDisabledRehashOnLoginNeverRehashesPasswords(): void
+    {
+        $user = m::mock(Authenticatable::class);
+        $user->shouldReceive('getAuthIdentifier')->andReturn(1);
+
+        $provider = m::mock(UserProvider::class);
+        $provider->shouldReceive('retrieveByCredentials')->twice()->andReturn($user);
+        $provider->shouldReceive('validateCredentials')->twice()->andReturnTrue();
+        $provider->shouldNotReceive('rehashPasswordIfRequired');
+
+        $jwtManager = m::mock(ManagerContract::class);
+        $jwtManager->shouldReceive('encode')->once()->andReturn('new-token');
+
+        $guard = $this->createGuard(
+            provider: $provider,
+            jwtManager: $jwtManager,
+            request: $this->createRequestWithBearer(null),
+            rehashOnLogin: false,
+        );
+
+        $this->assertSame('new-token', $guard->attempt(['email' => 'foo@bar.com', 'password' => 'secret']));
+        $this->assertTrue($guard->once(['email' => 'foo@bar.com', 'password' => 'secret']));
+    }
+
+    public function testFailedAttemptWaitsForTheTimebox(): void
+    {
+        Sleep::fake();
+
+        $provider = m::mock(UserProvider::class);
+        $provider->shouldReceive('retrieveByCredentials')->once()->andReturnNull();
+
+        $guard = $this->createGuard(
+            provider: $provider,
+            request: $this->createRequestWithBearer(null),
+            timeboxDuration: 200000,
+        );
+
+        $this->assertFalse($guard->attempt(['email' => 'missing@bar.com', 'password' => 'secret']));
+
+        Sleep::assertSlept(
+            static fn (CarbonInterval $duration): bool => $duration->totalMicroseconds > 0
+                && $duration->totalMicroseconds <= 200000
+        );
+    }
+
+    public function testSuccessfulAttemptReturnsWithoutWaitingForTheTimebox(): void
+    {
+        Sleep::fake();
+
+        $user = m::mock(Authenticatable::class);
+        $user->shouldReceive('getAuthIdentifier')->andReturn(1);
+
+        $provider = m::mock(UserProvider::class);
+        $provider->shouldReceive('retrieveByCredentials')->once()->andReturn($user);
+        $provider->shouldReceive('validateCredentials')->once()->andReturnTrue();
+        $provider->shouldReceive('rehashPasswordIfRequired')->once();
+
+        $jwtManager = m::mock(ManagerContract::class);
+        $jwtManager->shouldReceive('encode')->once()->andReturn('new-token');
+
+        $guard = $this->createGuard(
+            provider: $provider,
+            jwtManager: $jwtManager,
+            request: $this->createRequestWithBearer(null),
+            timeboxDuration: 200000,
+        );
+
+        $this->assertSame('new-token', $guard->attempt(['email' => 'foo@bar.com', 'password' => 'secret']));
+
+        Sleep::assertNeverSlept();
+    }
+
+    public function testOnceUsingIdAndByIdReturnFalseWhenUserNotFound(): void
     {
         $provider = m::mock(UserProvider::class);
-        $provider->shouldReceive('retrieveById')->with(999)->andReturn(null);
+        $provider->shouldReceive('retrieveById')->with(999)->twice()->andReturn(null);
 
         $guard = $this->createGuard(
             provider: $provider,
@@ -913,6 +1149,7 @@ class JwtGuardTest extends TestCase
         );
 
         $this->assertFalse($guard->onceUsingId(999));
+        $this->assertFalse($guard->byId(999));
     }
 
     public function testTokenByIdReturnsTokenWithoutSettingCurrentUserOrToken(): void
@@ -934,6 +1171,42 @@ class JwtGuardTest extends TestCase
         RequestContext::forget();
 
         $this->assertSame('token-by-id', $guard->tokenById(1));
+        $this->assertNull($guard->getToken());
+        $this->assertFalse($guard->hasUser());
+    }
+
+    public function testTokenByIdReturnsNullWhenUserIsNotFound(): void
+    {
+        $provider = m::mock(UserProvider::class);
+        $provider->shouldReceive('retrieveById')->with(1)->once()->andReturnNull();
+
+        $jwtManager = m::mock(ManagerContract::class);
+        $jwtManager->shouldNotReceive('encode');
+
+        $guard = $this->createGuard(provider: $provider, jwtManager: $jwtManager, request: null);
+
+        $this->assertNull($guard->tokenById(1));
+    }
+
+    public function testFromUserReturnsTokenWithoutSettingCurrentUserOrToken(): void
+    {
+        $user = m::mock(Authenticatable::class);
+        $user->shouldReceive('getAuthIdentifier')->andReturn(1);
+
+        $capturedPayload = null;
+        $jwtManager = m::mock(ManagerContract::class);
+        $jwtManager->shouldReceive('encode')->once()->andReturnUsing(function (array $payload) use (&$capturedPayload): string {
+            $capturedPayload = $payload;
+
+            return 'token-for-user';
+        });
+
+        $guard = $this->createGuard(jwtManager: $jwtManager, request: null);
+        RequestContext::forget();
+
+        $this->assertSame('token-for-user', $guard->claims(['role' => 'admin'])->fromUser($user));
+        $this->assertSame(1, $capturedPayload['sub']);
+        $this->assertSame('admin', $capturedPayload['role']);
         $this->assertNull($guard->getToken());
         $this->assertFalse($guard->hasUser());
     }
@@ -1144,6 +1417,13 @@ class JwtGuardTest extends TestCase
         $this->assertSame(1, $payload['sub']);
     }
 
+    public function testGuardIsMacroable(): void
+    {
+        JwtGuard::macro('foo', static fn (): string => 'bar');
+
+        $this->assertSame('bar', $this->createGuard()->foo());
+    }
+
     public function testServiceProviderRegistersJwtGuardWhenAuthManagerResolvesAfterBoot(): void
     {
         $provider = m::mock(UserProvider::class);
@@ -1179,6 +1459,46 @@ class JwtGuardTest extends TestCase
         $this->assertInstanceOf(JwtGuard::class, $authManager->guard('jwt'));
     }
 
+    public function testRegisteredGuardUsesTheTimeboxAndRehashSettings(): void
+    {
+        Sleep::fake();
+
+        $user = m::mock(Authenticatable::class);
+        $user->shouldReceive('getAuthIdentifier')->andReturn(1);
+
+        $provider = m::mock(UserProvider::class);
+        $provider->shouldReceive('retrieveByCredentials')->with(['email' => 'missing@bar.com'])->once()->andReturnNull();
+        $provider->shouldReceive('retrieveByCredentials')->with(['email' => 'foo@bar.com'])->once()->andReturn($user);
+        $provider->shouldReceive('validateCredentials')->once()->andReturnTrue();
+        $provider->shouldNotReceive('rehashPasswordIfRequired');
+
+        $jwtManager = m::mock(ManagerContract::class);
+        $jwtManager->shouldReceive('encode')->once()->andReturn('new-token');
+
+        $container = $this->createAuthTestContainer(rehashOnLogin: false, timeboxDuration: 300000);
+        $jwtServiceProvider = new JwtServiceProvider($container);
+        $jwtServiceProvider->register();
+        $container->instance('jwt', $jwtManager);
+        $jwtServiceProvider->boot();
+
+        /** @var AuthManager $authManager */
+        $authManager = $container->make(AuthManager::class);
+        $authManager->provider('jwt-test-provider', static fn (): UserProvider => $provider);
+        $guard = $authManager->guard('jwt');
+
+        // Succeeding first shows a later failure on the same guard still waits.
+        $this->assertSame('new-token', $guard->attempt(['email' => 'foo@bar.com']));
+        Sleep::assertNeverSlept();
+
+        $this->assertFalse($guard->attempt(['email' => 'missing@bar.com']));
+
+        // A wait above the framework's 200000 microsecond default shows the configured duration is used.
+        Sleep::assertSlept(
+            static fn (CarbonInterval $duration): bool => $duration->totalMicroseconds > 200000
+                && $duration->totalMicroseconds <= 300000
+        );
+    }
+
     /**
      * Stub decoding to succeed once and then report a blacklisted token.
      *
@@ -1211,24 +1531,28 @@ class JwtGuardTest extends TestCase
         ?ManagerContract $jwtManager = null,
         ?Request $request = null,
         ?int $ttl = 120,
+        bool $rehashOnLogin = true,
+        int $timeboxDuration = 0,
     ): JwtGuard {
         if ($request !== null) {
             RequestContext::set($request);
         }
 
         return new JwtGuard(
-            'jwt',
-            $provider ?? m::mock(UserProvider::class),
-            $jwtManager ?? m::mock(ManagerContract::class),
-            new ClaimFactory(new Repository([
+            name: 'jwt',
+            provider: $provider ?? m::mock(UserProvider::class),
+            jwtManager: $jwtManager ?? m::mock(ManagerContract::class),
+            claimFactory: new ClaimFactory(new Repository([
                 'jwt' => [
                     'issuer' => null,
                     'lock_subject' => true,
                 ],
             ])),
-            new Parser([new AuthHeaders, new InputSource]),
-            $this->app,
-            $ttl,
+            parser: new Parser([new AuthHeaders, new InputSource]),
+            app: $this->app,
+            rehashOnLogin: $rehashOnLogin,
+            timeboxDuration: $timeboxDuration,
+            ttl: $ttl,
         );
     }
 
@@ -1244,7 +1568,10 @@ class JwtGuardTest extends TestCase
         );
     }
 
-    protected function createAuthTestContainer(): Application
+    /**
+     * Create an application container for guard registration tests.
+     */
+    protected function createAuthTestContainer(bool $rehashOnLogin = true, int $timeboxDuration = 200000): Application
     {
         $container = new Application;
         $container->instance('config', new Repository([
@@ -1264,6 +1591,10 @@ class JwtGuardTest extends TestCase
                         'driver' => 'jwt-test-provider',
                     ],
                 ],
+                'timebox_duration' => $timeboxDuration,
+            ],
+            'hashing' => [
+                'rehash_on_login' => $rehashOnLogin,
             ],
             'jwt' => [
                 'ttl' => 120,

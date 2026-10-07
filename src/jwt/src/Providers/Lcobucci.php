@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Jwt\Providers;
 
+use DateInterval;
 use DateTimeImmutable;
 use DateTimeInterface;
 use Exception;
@@ -11,17 +12,19 @@ use Hypervel\Jwt\Contracts\ProviderContract;
 use Hypervel\Jwt\Exceptions\JwtException;
 use Hypervel\Jwt\Exceptions\SecretMissingException;
 use Hypervel\Jwt\Exceptions\TokenInvalidException;
-use Hypervel\Support\Collection;
+use Hypervel\Support\Facades\Date;
 use Lcobucci\JWT\Builder;
 use Lcobucci\JWT\Configuration;
 use Lcobucci\JWT\Signer;
 use Lcobucci\JWT\Signer\Ecdsa;
+use Lcobucci\JWT\Signer\Ecdsa\ConversionFailed;
 use Lcobucci\JWT\Signer\Key;
 use Lcobucci\JWT\Signer\Key\InMemory;
 use Lcobucci\JWT\Signer\Rsa;
 use Lcobucci\JWT\Token\Plain;
 use Lcobucci\JWT\Token\RegisteredClaims;
 use Lcobucci\JWT\Validation\Constraint\SignedWith;
+use SensitiveParameter;
 use Throwable;
 
 class Lcobucci extends Provider implements ProviderContract
@@ -32,19 +35,31 @@ class Lcobucci extends Provider implements ProviderContract
     protected Signer $signer;
 
     /**
-     * \Lcobucci\JWT\Configuration.
+     * The configuration that signs and verifies tokens.
      */
     protected Configuration $config;
 
     /**
-     * Create the Lcobucci provider.
+     * Whether the provider has no private key, so it can only verify tokens.
      */
-    public function __construct(string $secret, string $algo, array $keys, ?Configuration $config = null)
-    {
+    protected bool $verifiesOnly = false;
+
+    /**
+     * Create the Lcobucci provider.
+     *
+     * A given configuration signs and verifies tokens instead of one built from the secret and keys.
+     */
+    public function __construct(
+        #[SensitiveParameter]
+        string $secret,
+        string $algo,
+        #[SensitiveParameter]
+        array $keys,
+        ?Configuration $config = null,
+    ) {
         parent::__construct($secret, $algo, $keys);
 
-        $this->signer = $this->getSigner();
-        $this->config = $config ?: $this->buildConfig();
+        $this->configure($config);
     }
 
     /**
@@ -69,6 +84,10 @@ class Lcobucci extends Provider implements ProviderContract
      */
     public function encode(array $payload): string
     {
+        if ($this->verifiesOnly) {
+            throw new JwtException('Private key is not set.');
+        }
+
         $builder = $this->getBuilderFromClaims($payload);
 
         try {
@@ -85,7 +104,7 @@ class Lcobucci extends Provider implements ProviderContract
      *
      * @throws JwtException
      */
-    public function decode(string $token): array
+    public function decode(#[SensitiveParameter] string $token): array
     {
         try {
             /** @var Plain */
@@ -98,21 +117,21 @@ class Lcobucci extends Provider implements ProviderContract
             );
         }
 
-        if (! $this->config->validator()->validate($token, ...$this->config->validationConstraints())) {
+        try {
+            $verified = $this->config->validator()->validate($token, ...$this->config->validationConstraints());
+        } catch (ConversionFailed) {
+            // ECDSA verification rejects a signature of the wrong length before comparing it.
+            $verified = false;
+        }
+
+        if (! $verified) {
             throw new TokenInvalidException('Token Signature could not be verified.');
         }
 
-        return Collection::wrap($token->claims()->all())
-            ->map(function ($claim) {
-                if ($claim instanceof DateTimeInterface) {
-                    return $claim->getTimestamp();
-                }
-
-                return is_object($claim) && method_exists($claim, 'getValue')
-                    ? $claim->getValue()
-                    : $claim;
-            })
-            ->toArray();
+        return array_map(
+            static fn (mixed $claim): mixed => $claim instanceof DateTimeInterface ? $claim->getTimestamp() : $claim,
+            $token->claims()->all(),
+        );
     }
 
     /**
@@ -128,13 +147,13 @@ class Lcobucci extends Provider implements ProviderContract
                     $builder = $builder->identifiedBy($value);
                     break;
                 case RegisteredClaims::EXPIRATION_TIME:
-                    $builder = $builder->expiresAt(DateTimeImmutable::createFromFormat('U', (string) $value));
+                    $builder = $builder->expiresAt($this->getDateFromClaim($value));
                     break;
                 case RegisteredClaims::NOT_BEFORE:
-                    $builder = $builder->canOnlyBeUsedAfter(DateTimeImmutable::createFromFormat('U', (string) $value));
+                    $builder = $builder->canOnlyBeUsedAfter($this->getDateFromClaim($value));
                     break;
                 case RegisteredClaims::ISSUED_AT:
-                    $builder = $builder->issuedAt(DateTimeImmutable::createFromFormat('U', (string) $value));
+                    $builder = $builder->issuedAt($this->getDateFromClaim($value));
                     break;
                 case RegisteredClaims::ISSUER:
                     $builder = $builder->issuedBy($value);
@@ -156,6 +175,22 @@ class Lcobucci extends Provider implements ProviderContract
     }
 
     /**
+     * Convert a date claim value to a date with whole-second precision.
+     */
+    protected function getDateFromClaim(int|string|DateTimeInterface|DateInterval $value): DateTimeImmutable
+    {
+        if ($value instanceof DateInterval) {
+            $value = Date::now()->add($value);
+        }
+
+        if ($value instanceof DateTimeInterface) {
+            $value = $value->getTimestamp();
+        }
+
+        return DateTimeImmutable::createFromFormat('U', (string) $value);
+    }
+
+    /**
      * Build the configuration.
      */
     protected function buildConfig(): Configuration
@@ -163,7 +198,9 @@ class Lcobucci extends Provider implements ProviderContract
         $config = $this->isAsymmetric()
             ? Configuration::forAsymmetricSigner(
                 $this->signer,
-                $this->getSigningKey(),
+                // lcobucci needs a signing key even to verify, so a provider without a private
+                // key fills the slot with the public key, and encode() refuses to sign.
+                $this->verifiesOnly ? $this->getVerificationKey() : $this->getSigningKey(),
                 $this->getVerificationKey()
             )
             : Configuration::forSymmetricSigner($this->signer, $this->getSigningKey());
@@ -174,16 +211,28 @@ class Lcobucci extends Provider implements ProviderContract
     }
 
     /**
-     * Rebuild cached derived state after a configuration change.
+     * Build the signer, and the configuration unless one is given.
      *
-     * Signer is rebuilt before config because buildConfig() reads $this->signer.
+     * @throws JwtException
+     */
+    protected function configure(?Configuration $config = null): void
+    {
+        // buildConfig() reads the signer and the verification-only flag.
+        $this->signer = $this->getSigner();
+        $this->verifiesOnly = $config === null && $this->isAsymmetric() && ! $this->getPrivateKey();
+        $this->config = $config ?? $this->buildConfig();
+    }
+
+    /**
+     * Rebuild the signer and configuration after a setting changes.
+     *
+     * A configuration given to the constructor is replaced by one built from the new settings.
      *
      * @throws JwtException
      */
     protected function onConfigurationChanged(): void
     {
-        $this->signer = $this->getSigner();
-        $this->config = $this->buildConfig();
+        $this->configure();
     }
 
     /**
@@ -202,6 +251,9 @@ class Lcobucci extends Provider implements ProviderContract
         return new $signer;
     }
 
+    /**
+     * Determine if the algorithm is asymmetric, and thus requires a public/private key combo.
+     */
     protected function isAsymmetric(): bool
     {
         return is_subclass_of($this->signer, Rsa::class)
@@ -255,7 +307,7 @@ class Lcobucci extends Provider implements ProviderContract
     /**
      * Get the signing key instance.
      */
-    protected function getKey(string $contents, string $passphrase = ''): Key
+    protected function getKey(#[SensitiveParameter] string $contents, #[SensitiveParameter] string $passphrase = ''): Key
     {
         if (str_starts_with($contents, 'file://')) {
             return InMemory::file($contents, $passphrase);

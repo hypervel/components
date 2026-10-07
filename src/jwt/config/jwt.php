@@ -11,9 +11,9 @@ return [
     | JWT Driver
     |--------------------------------------------------------------------------
     |
-    | The driver you are using to encode, decode and sign your
-    | JWT token, all the drivers must implement:
-    | Hypervel\Jwt\Contracts\ProviderContract::class
+    | The driver used to sign, encode and decode tokens. The "lcobucci"
+    | driver is built in. Register other drivers with `Jwt::extend()`;
+    | they must implement Hypervel\Jwt\Contracts\ProviderContract.
     |
     */
 
@@ -99,10 +99,10 @@ return [
     | Defaults to 2 hours.
     |
     | You can also set this to null, to yield a never expiring token.
-    | Some people may want this behaviour for e.g. a mobile app.
+    | Some people may want this behavior for e.g. a mobile app.
     | This is not particularly recommended, so make sure you have appropriate
     | systems in place to revoke the token if necessary.
-    | Notice: If you set this to null you should remove 'exp' element from 'required_claims' list.
+    | Notice: If you set this to null, 'exp' must not be listed in 'required_claims'.
     |
     */
 
@@ -193,9 +193,10 @@ return [
     | Persistent Claims
     |--------------------------------------------------------------------------
     |
-    | Specify the claim keys to be persisted when refreshing a token.
-    | `sub` and `iat` will automatically be persisted, in
-    | addition to the these claims.
+    | Specify the claim keys to keep when a token is refreshed with reset
+    | claims. On every refresh, `sub` and `prv` are kept, `nbf`, `exp` and
+    | `jti` are rebuilt, and `iat` is kept unless `refresh_iat` is enabled.
+    | Without a reset, other claims are kept too.
     |
     | Note: If a claim does not exist then it will be ignored.
     |
@@ -215,7 +216,8 @@ return [
     | Meaning that if you have any unavoidable slight clock skew on
     | any of your servers then this will afford you some level of cushioning.
     |
-    | This applies to the claims `iat`, `nbf` and `exp`.
+    | This applies to the claims `iat`, `nbf` and `exp`, and to the end of
+    | the refresh window.
     |
     | Specify in seconds - only if you know you need it.
     |
@@ -233,7 +235,20 @@ return [
     |
     */
 
-    'blacklist_enabled' => (bool) env('JWT_BLACKLIST_ENABLED', false),
+    'blacklist_enabled' => (bool) env('JWT_BLACKLIST_ENABLED', true),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Blacklist Cache Store
+    |--------------------------------------------------------------------------
+    |
+    | The cache store used by the default blacklist storage. Use a store that
+    | is shared by every server, such as Redis, so revocations apply on all
+    | of them. Set it to null to use the default cache store.
+    |
+    */
+
+    'blacklist_store' => env('JWT_BLACKLIST_STORE'),
 
     /*
     |--------------------------------------------------------------------------
@@ -264,12 +279,14 @@ return [
     | Token Parser
     |--------------------------------------------------------------------------
     |
-    | Configure the request input key and ordered parser chain used to extract
-    | JWT tokens from incoming requests.
+    | Configure the request input key, cookie name and ordered parser chain
+    | used to extract JWT tokens from incoming requests.
     |
     */
 
     'token' => env('JWT_TOKEN', 'token'),
+
+    'cookie_key_name' => env('JWT_COOKIE_KEY_NAME', 'token'),
 
     'parser' => [
         \Hypervel\Jwt\Http\Parser\AuthHeaders::class,
@@ -280,11 +297,9 @@ return [
     | Blacklist Grace Period
     | -------------------------------------------------------------------------
     |
-    | When multiple concurrent requests are made with the same JWT,
-    | it is possible that some of them fail, due to token regeneration
-    | on every request.
-    |
-    | Set grace period in seconds to prevent parallel request failure.
+    | A revoked token remains usable for this many seconds, allowing
+    | concurrent requests that use it to finish. Tokens invalidated with
+    | `forceForever` are revoked immediately.
     |
     */
 
@@ -303,27 +318,14 @@ return [
     'providers' => [
         /*
         |--------------------------------------------------------------------------
-        | JWT Provider
-        |--------------------------------------------------------------------------
-        |
-        | Specify the provider that is used to create and decode the tokens.
-        |
-        */
-
-        'jwt' => Hypervel\Jwt\Providers\Lcobucci::class,
-
-        /*
-        |--------------------------------------------------------------------------
         | Storage Provider
         |--------------------------------------------------------------------------
         |
         | Specify the provider that is used to store tokens in the blacklist.
-        | The default tagged-cache storage requires a taggable default cache
-        | store; with node-local stack tiers, blacklist visibility is bounded
-        | by the upper tier's TTL.
+        | The default cache storage uses the `blacklist_store` cache store.
         |
         */
 
-        'storage' => Hypervel\Jwt\Storage\TaggedCache::class,
+        'storage' => Hypervel\Jwt\Storage\CacheStorage::class,
     ],
 ];

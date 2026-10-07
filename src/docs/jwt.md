@@ -21,9 +21,9 @@
     - [Reading the Authenticated User](#reading-the-authenticated-user)
     - [Refreshing Tokens](#refreshing-tokens)
     - [Logging Out and Invalidating Tokens](#logging-out-and-invalidating-tokens)
+    - [Managing Revocations](#managing-revocations)
 - [Guard Methods](#guard-methods)
 - [Exceptions](#exceptions)
-- [Differences From php-open-source-saver/jwt-auth](#differences-from-php-open-source-saver-jwt-auth)
 - [Credits](#credits)
 
 <a name="introduction"></a>
@@ -72,7 +72,7 @@ You may display a generated secret without writing to `.env`:
 php artisan jwt:secret --show
 ```
 
-If a secret already exists, the command asks before replacing it. You may skip the prompt with `--force`, or skip generation when a secret exists using `--always-no`.
+If a secret already exists, the command asks before replacing it. You may skip the prompt with `--force`, or keep an existing secret using `--always-no`, which takes precedence over `--force`. Like new certificates, a new secret requires [restarting the server and other long-running processes](#generating-certificates).
 
 <a name="generating-certificates"></a>
 ### Generating Certificates
@@ -93,12 +93,12 @@ You may customize the algorithm and key options:
 ```shell
 php artisan jwt:generate-certs --force --algo=rsa --bits=4096 --sha=512
 
-php artisan jwt:generate-certs --force --algo=ec --curve=prime256v1 --sha=256
+php artisan jwt:generate-certs --force --algo=ec --sha=256
 ```
 
-RSA keys must be at least 2048 bits.
+RSA keys must be at least 2048 bits. EC keys use the curve their SHA variant requires: `prime256v1` for 256, `secp384r1` for 384, and `secp521r1` for 512. Passing a different curve with `--curve` fails.
 
-You may change the output directory using `--dir`. The directory may be absolute or relative to your application's base path.
+You may change the output directory using `--dir`. The directory may be absolute or relative to your application's base path. The command writes absolute `file://` paths to `.env`, so if each deployment uses a new release directory, choose a `--dir` that is shared between releases.
 
 You may protect the private key with a passphrase using `--passphrase`, or prompt for it interactively using `--ask-passphrase`:
 
@@ -123,6 +123,12 @@ To use JWT authentication, configure an auth guard that uses the `jwt` driver:
 ],
 ```
 
+If JWT is your application's main way of authenticating users, you may make this guard the default by setting the `AUTH_GUARD` environment variable. Calls such as `Auth::user()` and the `auth` middleware then use it without naming the guard:
+
+```ini
+AUTH_GUARD=api
+```
+
 You may then protect routes using Hypervel's normal authentication middleware:
 
 ```php
@@ -141,10 +147,10 @@ JWT can authenticate any model supported by your configured user provider. If yo
 
 namespace App\Models;
 
-use Hypervel\Database\Eloquent\Model;
+use Hypervel\Foundation\Auth\User as Authenticatable;
 use Hypervel\Jwt\Contracts\JwtSubject;
 
-class User extends Model implements JwtSubject
+class User extends Authenticatable implements JwtSubject
 {
     /**
      * Get the identifier that will be stored in the subject claim.
@@ -165,6 +171,19 @@ class User extends Model implements JwtSubject
 ```
 
 Inline claims passed with the guard's `claims` method override model-defined custom claims for the next token.
+
+Custom claims may also set the registered `exp`, `nbf`, `iat`, `iss`, and `jti` claims, replacing the values the package would otherwise add. An explicit `exp` takes precedence over the configured TTL. Date claims accept a Unix timestamp as an integer or string, a `DateTimeInterface` instance such as a Carbon date, or a `DateInterval` that is added to the current time:
+
+```php
+use Hypervel\Support\Facades\Auth;
+use Hypervel\Support\Facades\Date;
+
+$token = Auth::guard('api')
+    ->claims(['exp' => Date::now()->addDays(7)])
+    ->login($user);
+```
+
+If you provide your own `jti`, your application is responsible for keeping it unique. The `sub` and `prv` claims always come from the user and its provider, so passing them as custom claims throws a `JwtException`.
 
 <a name="signing-keys-and-algorithms"></a>
 ### Signing Keys and Algorithms
@@ -195,6 +214,8 @@ For RSA and EC algorithms, configure `JWT_PRIVATE_KEY`, `JWT_PUBLIC_KEY`, and `J
 
 The key values may be key contents or a `file://` URI.
 
+An application that only verifies tokens issued by another service, such as an API behind a separate authentication server, only needs the public key. Without a private key, tokens are still verified, but issuing or refreshing a token throws a `JwtException`.
+
 <a name="custom-drivers"></a>
 ### Custom Drivers
 
@@ -217,6 +238,8 @@ After registering the driver, you may select it using the `driver` configuration
 ```php
 'driver' => 'custom',
 ```
+
+To customize the bundled provider, such as with your own subclass of `Hypervel\Jwt\Providers\Lcobucci`, register it under the `lcobucci` name instead. The JWT manager creates each driver once and reuses it, so register drivers before the first token is encoded or decoded. Calling `extend` after a driver has been created does not replace it.
 
 <a name="token-lifetime"></a>
 ### Token Lifetime
@@ -294,13 +317,7 @@ Request input parsing is available but is not enabled by default because URL tok
 /api/user?token=eyJhbGciOi...
 ```
 
-The input key defaults to `token`:
-
-```php
-'token' => env('JWT_TOKEN', 'token'),
-```
-
-You may customize the parser chain:
+Cookie parsing is also available but is not enabled by default. You may customize the parser chain:
 
 ```php
 use Hypervel\Jwt\Http\Parser\AuthHeaders;
@@ -314,9 +331,34 @@ use Hypervel\Jwt\Http\Parser\InputSource;
 ],
 ```
 
-Cookie parsing is also available but is not enabled by default. If you add the `InputSource` or `Cookie` parser, it reads the same key configured by `jwt.token`.
+The parsers run in order, and the first token found is used. The `InputSource` parser reads the input key named by `token` from the query string and request body. When both contain a token, the body wins, just like the request's `input` method. The `Cookie` parser reads the cookie named by `cookie_key_name`:
 
-For a non-standard header or token scheme, implement `Hypervel\Jwt\Contracts\TokenExtractor` and add that class to `jwt.parser`.
+```php
+'token' => env('JWT_TOKEN', 'token'),
+
+'cookie_key_name' => env('JWT_COOKIE_KEY_NAME', 'token'),
+```
+
+Hypervel [encrypts cookies](/docs/{{version}}/responses#cookies-and-encryption) by default, so the `EncryptCookies` middleware must decrypt the token cookie before the guard reads it. The `web` middleware group includes this middleware and runs it before the `auth` middleware, but the `api` group does not. Cookies that cannot be decrypted are ignored. You may instead exclude the token cookie from encryption using the `encryptCookies` method's `except` argument. This only configures the middleware; it does not add the middleware to any routes. The token is still signed, so leaving the cookie unencrypted only exposes its claims.
+
+Since browsers send cookies automatically, cookie authentication also needs [CSRF protection](/docs/{{version}}/csrf), even though the token is signed and the cookie may be encrypted. The `web` middleware group includes CSRF protection, but the `api` group does not.
+
+For another header, token scheme, or a route parameter, implement `Hypervel\Jwt\Contracts\TokenExtractor` and add that class to `jwt.parser`:
+
+```php
+use Hypervel\Http\Request;
+use Hypervel\Jwt\Contracts\TokenExtractor;
+
+class AccessTokenHeader implements TokenExtractor
+{
+    public function parseToken(Request $request): ?string
+    {
+        return $request->headers->get('X-Access-Token');
+    }
+}
+```
+
+Custom parsers are resolved from the container once and shared by every request, so they must only read the request they are given and never store request or token state.
 
 <a name="validations-and-leeway"></a>
 ### Validations and Leeway
@@ -348,11 +390,42 @@ The `required_claims` option controls which claims must exist in every token:
 ],
 ```
 
-If your application uses timestamp validations and your servers have small clock differences, configure `leeway` in seconds:
+If your application uses timestamp validations and your servers have small clock differences, configure `leeway` in seconds. The leeway applies to the `exp`, `nbf`, and `iat` claims and to the end of the refresh window:
 
 ```php
 'leeway' => (int) env('JWT_LEEWAY', 0),
 ```
+
+You may add your own validation classes to the `validations` option. A validation implements the `Hypervel\Jwt\Contracts\ValidationContract` contract and throws a `TokenInvalidException` to reject a token:
+
+```php
+<?php
+
+namespace App\Auth;
+
+use Hypervel\Jwt\Contracts\ValidationContract;
+use Hypervel\Jwt\Exceptions\TokenInvalidException;
+
+class CurrentTokenVersion implements ValidationContract
+{
+    public function __construct(
+        protected TokenVersions $versions,
+    ) {
+    }
+
+    /**
+     * Validate the payload.
+     */
+    public function validate(array $payload): void
+    {
+        if (($payload['ver'] ?? null) !== $this->versions->current($payload['sub'])) {
+            throw new TokenInvalidException('Token version is outdated.');
+        }
+    }
+}
+```
+
+Validations are resolved from the container once and shared by every request, so their dependencies must be safe to share, like a repository or cache that looks up the current value inside `validate`. Never keep the current request, tenant, or other per-request state in a validation. A constructor that accepts a `$config` argument receives the `jwt` configuration array. Refreshing skips validations that also implement `Hypervel\Jwt\Contracts\TemporalValidation`, as it does the expiration check, since the refresh window replaces them.
 
 <a name="blacklist"></a>
 ### Blacklist
@@ -360,28 +433,32 @@ If your application uses timestamp validations and your servers have small clock
 The JWT blacklist lets the package invalidate tokens before they naturally expire:
 
 ```php
-'blacklist_enabled' => (bool) env('JWT_BLACKLIST_ENABLED', false),
+'blacklist_enabled' => (bool) env('JWT_BLACKLIST_ENABLED', true),
 ```
 
-Blacklisting is disabled by default. When enabled, newly issued tokens include a `jti` claim and authenticated blacklist checks require cache access. Enable it when your application needs server-side token invalidation.
+Blacklisting is enabled by default, so logging out or refreshing revokes the old token. Newly issued tokens include a `jti` claim, and each authenticated request checks the blacklist in the cache. While the blacklist is enabled, tokens must include a `jti` claim so they can be revoked. Enabling it rejects existing or externally issued tokens that lack this claim. If your application doesn't need to revoke tokens before they expire, you may set `JWT_BLACKLIST_ENABLED` to `false`; tokens then remain valid until they expire, even after logout.
+
+Blacklist entries are kept in your default cache store. You may choose another store using the `blacklist_store` option:
+
+```php
+'blacklist_store' => env('JWT_BLACKLIST_STORE'),
+```
+
+Use a store that all of your servers share, such as Redis, so a revoked token is rejected everywhere. Stores that are not shared between servers, such as `file` or `swoole`, only see revocations made on the same server, and the `session` store only sees revocations made within the same session. If the blacklist store is a cache stack with a node-local tier, other servers may accept a revoked token until their local entry expires, so keep that tier's TTL short.
+
+The blacklist works with any cache store. Removing every revocation at once requires a store that supports tags, as described in [managing revocations](#managing-revocations).
 
 The blacklist uses the configured storage provider:
 
 ```php
 'providers' => [
-    'storage' => Hypervel\Jwt\Storage\TaggedCache::class,
+    'storage' => Hypervel\Jwt\Storage\CacheStorage::class,
 ],
 ```
 
-If the provider members are omitted, Hypervel uses `Lcobucci` for token encoding and decoding and `TaggedCache` for blacklist storage.
+If the storage provider is omitted, Hypervel uses `CacheStorage`. To keep blacklist entries somewhere other than the cache, implement `Hypervel\Jwt\Contracts\StorageContract` and configure your implementation using `jwt.providers.storage`. The `blacklist_store` option only applies to `CacheStorage`.
 
-The default tagged-cache storage requires your default cache store to support tags. Both all-mode and any-mode tagged stores are supported. When using any-mode tags, blacklist entries are written through tags but read and removed by a private plain-key prefix.
-
-If your cache store does not support tags, implement `Hypervel\Jwt\Contracts\StorageContract` and configure your implementation using `jwt.providers.storage`.
-
-If the blacklist store uses a cache stack or any node-local tier, a revoked token may still validate on another node until that node's local cache entry expires. Keep the upper-tier TTL short, or use a fully shared store such as Redis when revocation must be visible immediately across all nodes.
-
-You may configure a grace period for concurrent requests that are using the same token while a refresh is in progress:
+A grace period keeps a revoked token usable for a number of seconds, allowing concurrent requests that use it to finish. Tokens invalidated with `forceForever` are revoked immediately:
 
 ```php
 'blacklist_grace_period' => (int) env('JWT_BLACKLIST_GRACE_PERIOD', 0),
@@ -424,15 +501,19 @@ return response()->json([
 ]);
 ```
 
+Like Hypervel's session guard, the `attempt` and `once` methods [rehash the user's password](/docs/{{version}}/authentication#automatic-password-rehashing) when it was hashed with outdated settings.
+
 You may issue a token for an existing user model using `login`:
 
 ```php
 $token = Auth::guard('api')->login($user);
 ```
 
-You may issue a token by user ID without setting the current guard user:
+To issue a token for a user without making them the current guard user, use `fromUser`, or `tokenById` when you only have the user's ID:
 
 ```php
+$token = Auth::guard('api')->fromUser($user);
+
 $token = Auth::guard('api')->tokenById($userId);
 ```
 
@@ -447,6 +528,8 @@ Route::middleware('auth:api')->get('/profile', function () {
 });
 ```
 
+Routes that allow guests don't need any middleware. Calling `Auth::guard('api')->user()` reads the token when it is first needed, and returns `null` when the request has no usable token.
+
 <a name="reading-the-authenticated-user"></a>
 ### Reading the Authenticated User
 
@@ -458,16 +541,30 @@ $user = Auth::guard('api')->user();
 $userId = Auth::guard('api')->id();
 ```
 
-The `getUserId` method reads the token subject without loading the user model when no user is already cached:
+The `id` method loads the user, like the other guards. When you only need the ID, the `getUserId` method reads the token subject without loading the user model, so it does not check that the user still exists:
 
 ```php
 $userId = Auth::guard('api')->getUserId();
 ```
 
-Use `userOrFail` when a missing user should throw:
+The `userOrFail` method throws a `UserNotDefinedException` when there is no authenticated user:
 
 ```php
 $user = Auth::guard('api')->userOrFail();
+```
+
+The `payload` method returns the current token's claims as an array, or an empty array when the request has no token:
+
+```php
+$payload = Auth::guard('api')->payload();
+
+$tenantId = $payload['tenant_id'] ?? null;
+```
+
+To authenticate a token that is not in the current request, pass it to the `setToken` method. The guard uses that token for the rest of the request:
+
+```php
+$user = Auth::guard('api')->setToken($token)->user();
 ```
 
 <a name="refreshing-tokens"></a>
@@ -539,30 +636,49 @@ Claims listed in `persistent_claims` are preserved during refresh when they are 
 ],
 ```
 
-Managed claims such as `nbf`, `exp`, `iss`, and `jti` are rebuilt by the package. The `iat` claim is rebuilt only when `refresh_iat` is enabled.
+Every refreshed token receives a new `nbf` claim. It also receives a new `exp` claim unless the TTL is `null`, a new `jti` claim when the blacklist is enabled, and a new `iat` claim when `refresh_iat` is enabled. Other claims, including `iss`, are kept unless you reset claims. Claims passed with the `claims` method before refreshing take precedence over all of these, but may not set `sub` or `prv`. Before any new claims apply, the old token must still be refreshable. An explicit `iat` then becomes the starting point of the new token's refresh window.
 
 <a name="logging-out-and-invalidating-tokens"></a>
 ### Logging Out and Invalidating Tokens
 
-The `logout` method invalidates the current token and then clears the guard's user, token, and decoded payload:
+The `logout` method invalidates the current token when the blacklist is enabled, then clears the guard's user, token, and decoded payload. For the rest of the request, the guard no longer reads the token from the request:
 
 ```php
 Auth::guard('api')->logout();
 ```
 
-Logout requires blacklisting when a current token exists. If blacklisting is disabled or the blacklist write fails, a `JwtException` is thrown. The guard keeps its current state and does not dispatch the `Logout` event. Calling `logout` without a current token remains harmless and clears local guard state.
+Without the blacklist, tokens cannot be revoked, so a logged out token remains valid until it expires. If the blacklist write fails, a `JwtException` is thrown, the guard keeps its current state, and the `Logout` event is not dispatched.
 
-To invalidate a token directly, enable the blacklist and call `invalidate`:
+While the blacklist is enabled, you may invalidate a token directly using the `invalidate` method:
 
 ```php
 Auth::guard('api')->invalidate();
 ```
 
-You may pass `true` to blacklist the token forever. This also bypasses the configured grace period, so the revocation takes effect immediately:
+You may pass `true` to blacklist the token forever. This also bypasses the configured grace period, so the revocation takes effect immediately. The `logout` method accepts the same argument:
 
 ```php
 Auth::guard('api')->invalidate(true);
+
+Auth::guard('api')->logout(true);
 ```
+
+<a name="managing-revocations"></a>
+### Managing Revocations
+
+The `Jwt` facade's `blacklist` method gives you access to the blacklist. Its `remove` method removes a single token's revocation, while the `clear` method removes every revocation:
+
+```php
+use Hypervel\Support\Facades\Jwt;
+
+$payload = Jwt::decode($token, validate: false, checkBlacklist: false);
+
+Jwt::blacklist()->remove($payload);
+
+Jwt::blacklist()->clear();
+```
+
+A token whose revocation is removed can authenticate again until it expires. The `clear` method requires a cache store that supports tags, such as Redis, and only removes blacklist entries. On other stores, it throws an exception instead.
 
 <a name="guard-methods"></a>
 ## Guard Methods
@@ -575,14 +691,18 @@ Auth::guard('api')->validate($credentials);     // bool
 Auth::guard('api')->once($credentials);         // bool
 Auth::guard('api')->onceUsingId($id);           // Authenticatable|false
 Auth::guard('api')->login($user);               // string
+Auth::guard('api')->fromUser($user);            // string
 Auth::guard('api')->tokenById($id);             // string|null
 Auth::guard('api')->byId($id);                  // Authenticatable|false
 Auth::guard('api')->user();                     // Authenticatable|null
+Auth::guard('api')->getUser();                  // Authenticatable|null
 Auth::guard('api')->userOrFail();               // Authenticatable
+Auth::guard('api')->check();                    // bool
 Auth::guard('api')->id();                       // int|string|null
 Auth::guard('api')->getUserId();                // int|string|null
 Auth::guard('api')->claims(['role' => 'admin']);
 Auth::guard('api')->setTTL(15);
+Auth::guard('api')->getTTL();                   // int|null
 Auth::guard('api')->setToken($token);
 Auth::guard('api')->getToken();
 Auth::guard('api')->payload();                  // array
@@ -591,7 +711,7 @@ Auth::guard('api')->logout();
 Auth::guard('api')->invalidate();
 ```
 
-The `claims` and `setTTL` methods affect only the next token-producing operation.
+The `claims` and `setTTL` methods affect only the next token-producing operation. The `getUser` method returns the user the guard has already resolved, without decoding the token or loading the user.
 
 <a name="exceptions"></a>
 ## Exceptions
@@ -610,24 +730,9 @@ Common exceptions include:
 
 </div>
 
-<a name="differences-from-php-open-source-saver-jwt-auth"></a>
-## Differences From php-open-source-saver/jwt-auth
-
-Hypervel JWT differs from `php-open-source-saver/jwt-auth` in several ways:
-
-<div class="content-list" markdown="1">
-
-- Hypervel uses array payloads instead of upstream `Payload`, `Token`, and claim DTO objects.
-- Hypervel keeps the `Jwt` facade mapped to the array-based `JwtManager`, but does not include upstream `JwtAuth`, `JwtFactory`, or `JwtProvider` facades.
-- Cookie token parsing is available but not enabled by default.
-- Upstream route-parameter and Lumen parser shortcuts are not included.
-- Upstream sliding refresh middleware is not included; use an explicit refresh endpoint that calls `Auth::guard(...)->refresh()`.
-- Namshi and Lumen integrations are not included.
-- The `show_black_list_exception` option is not included; JWT exceptions fail normally.
-
-</div>
+The guard's `user`, `check`, and `id` methods treat an invalid, expired, or blacklisted token as unauthenticated instead of throwing. Methods that need the token itself, such as `payload` and `refresh`, throw these exceptions. To keep them out of your logs, ignore them with the [`dontReport`](/docs/{{version}}/errors#ignoring-exceptions-by-type) exception method.
 
 <a name="credits"></a>
 ## Credits
 
-Hypervel JWT began as a port of [PHP Open Source Saver JWT Auth](https://github.com/PHP-Open-Source-Saver/jwt-auth) and has been adapted for Hypervel's framework architecture and coroutine runtime.
+Hypervel JWT draws fixes and improvements from [jwt-auth](https://github.com/tymondesigns/jwt-auth) and its [PHP Open Source Saver fork](https://github.com/PHP-Open-Source-Saver/jwt-auth), adapted for Hypervel's framework architecture and coroutine runtime.
