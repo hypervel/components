@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database;
 
 use Closure;
+use GuzzleHttp\Promise\Create;
+use GuzzleHttp\Promise\PromiseInterface;
+use GuzzleHttp\Psr7\Response;
 use Hypervel\ConnectionPool\Events\ConnectionReleasing;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Foundation\Application;
@@ -20,6 +23,7 @@ use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\SessionConfigurator;
 use Hypervel\Database\SQLiteConnection;
 use Hypervel\Engine\Channel;
+use Hypervel\Http\Client\Factory;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
@@ -27,6 +31,7 @@ use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Swoole\Coroutine\Socket;
 use Throwable;
 use WeakReference;
 
@@ -150,6 +155,88 @@ class DatabaseConnectionLeaseTest extends TestCase
         $this->assertSame(1, $this->pool()->getIdleCount());
     }
 
+    public function testConcurrentHttpRequestsReleaseSessionsBeforeWaitingForHeaders(): void
+    {
+        $server = new Socket(AF_INET, SOCK_STREAM, 0);
+        $this->assertTrue($server->bind('127.0.0.1', 0));
+        $this->assertTrue($server->listen());
+        $url = 'http://127.0.0.1:' . $server->getsockname()['port'];
+        $request = function () use ($url): int {
+            $connection = DB::connection('leases');
+            $value = $connection->selectOne('select 1 as value')->value;
+            $response = (new Factory)->timeout(3)->beforeSending(function () use ($connection): void {
+                $connection->selectOne('select 1');
+                $this->assertSame(0, $this->pool()->getIdleCount());
+            })->get($url);
+            $this->assertSame('OK', $response->body());
+            $this->assertSame($connection, DB::connection('leases'));
+
+            return $value + $connection->selectOne('select 2 as value')->value;
+        };
+
+        try {
+            $results = parallel([
+                $request,
+                $request,
+                function () use ($server): void {
+                    $clients = [];
+
+                    try {
+                        for ($index = 0; $index < 2; ++$index) {
+                            $client = $server->accept(3);
+                            $this->assertInstanceOf(Socket::class, $client);
+                            $clients[] = $client;
+                            $headers = '';
+
+                            while (! str_contains($headers, "\r\n\r\n")) {
+                                $chunk = $client->recv(3);
+                                $this->assertIsString($chunk);
+                                $this->assertNotSame('', $chunk);
+                                $headers .= $chunk;
+                            }
+                        }
+
+                        $this->assertSame(1, $this->pool()->getIdleCount());
+                        $this->assertSame(9, DB::connection('leases')->selectOne('select 9 as value')->value);
+
+                        foreach ($clients as $client) {
+                            $client->sendAll("HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nOK");
+                        }
+                    } finally {
+                        foreach ($clients as $client) {
+                            $client->close();
+                        }
+                    }
+                },
+            ]);
+        } finally {
+            $server->close();
+        }
+
+        $this->assertSame([3, 3, null], $results);
+        $this->assertSame(1, $this->pool()->getIdleCount());
+    }
+
+    public function testHttpRetriesAndRedirectsReleaseSessionsAcquiredByRequestCallbacks(): void
+    {
+        $calls = 0;
+        $response = (new Factory)->retry(2, 0)->beforeSending(function (): void {
+            DB::connection('leases')->selectOne('select 1');
+            $this->assertSame(0, $this->pool()->getIdleCount());
+        })->setHandler(function () use (&$calls): PromiseInterface {
+            $this->assertSame(1, $this->pool()->getIdleCount());
+
+            return Create::promiseFor(match (++$calls) {
+                1 => new Response(500),
+                2 => new Response(302, ['Location' => 'http://example.test/redirected']),
+                default => new Response(200, body: 'OK'),
+            });
+        })->get('http://example.test');
+
+        $this->assertSame(3, $calls);
+        $this->assertSame('OK', $response->body());
+    }
+
     #[DataProvider('pinnedScopes')]
     public function testSessionDependentScopesPreventEarlyRelease(string $scope): void
     {
@@ -158,6 +245,11 @@ class DatabaseConnectionLeaseTest extends TestCase
             $this->assertSame(1, $connection->selectOne('select 1 as value')->value);
             DB::releaseIdleConnections();
             $this->assertSame(0, $this->pool()->getIdleCount());
+            (new Factory)->setHandler(function (): PromiseInterface {
+                $this->assertSame(0, $this->pool()->getIdleCount());
+
+                return Create::promiseFor(new Response(200));
+            })->get('http://example.test');
         };
 
         match ($scope) {

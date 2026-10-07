@@ -9,7 +9,7 @@
         - [PostgreSQL Server Options](#postgresql-server-options)
     - [Read and Write Connections](#read-and-write-connections)
     - [Connection Pooling](#connection-pooling)
-        - [Releasing Idle Connections](#releasing-idle-connections)
+        - [Releasing and Pinning Connections](#releasing-and-pinning-connections)
     - [Configuring Database Session State](#configuring-database-session-state)
     - [Extending Database Connections](#extending-database-connections)
     - [Static Analysis](#static-analysis)
@@ -281,28 +281,54 @@ You may use `migrations_connection` on any database connection to instruct migra
 
 When you need a direct connection for migrations or schema operations, configure it as a normal connection and reference it with `migrations_connection`. Hypervel does not use Laravel's `::direct` connection suffix.
 
-<a name="releasing-idle-connections"></a>
-#### Releasing Idle Connections
+<a name="releasing-and-pinning-connections"></a>
+#### Releasing and Pinning Connections
 
-A slow external request can keep a database session occupied long after the last query finishes. Before waiting on an external service, you may return the current execution's idle sessions to their pools:
+A request may spend much longer waiting for an external service than running database queries. Holding a database session throughout that wait prevents other requests from using it, even though the database has no work to do.
+
+Hypervel's [HTTP client](/docs/{{version}}/http-client) automatically returns the current execution's idle database sessions to their pools before sending an outgoing request, including retries and redirects. This happens after request callbacks, so connections used by those callbacks can also be released. The next database operation borrows a session automatically. Existing connection objects, builders, query logs and sticky reads remain valid. No database connection is opened merely to release it.
+
+Registered [session configurators](#configuring-database-session-state) apply the current execution's settings before a borrowed PDO is used, updating the physical session only when its desired state changes. Ordinary database queries need no changes to take advantage of early release.
+
+Before other external work, you may release idle sessions explicitly using `DB::releaseIdleConnections()`. This is also useful before starting concurrent work: each child coroutine owns its own connections and cannot release a session held by its parent.
 
 ```php
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Http;
+
+use function Hypervel\Coroutine\parallel;
+
+$order = DB::table('orders')->find($orderId);
+
 DB::releaseIdleConnections();
 
-$response = Http::post($url, $payload);
+$responses = parallel([
+    fn () => Http::get($inventoryUrl),
+    fn () => Http::get($shippingUrl),
+]);
 ```
 
-The next database operation borrows a session automatically. Existing connection objects, builders, query logs and sticky reads remain valid. Registered [session configurators](#configuring-database-session-state) apply the current execution's settings before a borrowed PDO is used. This method does not open a connection when none has been used.
+Automatic release occurs before sending a request, not on every read of a streamed response. If your stream consumer performs database work between chunks, you may call `releaseIdleConnections()` before waiting for more data. Faked HTTP requests do not release connections. If you provide your own Guzzle client using `setClient`, call `DB::releaseIdleConnections()` yourself before sending requests.
 
-Active queries, transactions, open cursors and `Schema::withoutForeignKeyConstraints` callbacks retain their sessions automatically. Completed `chunk` or `lazy` query batches may release between batches. If your own code needs the same physical session across a release boundary, wrap that work in `withPinnedSession`:
+Active queries, transactions, open cursors and `Schema::withoutForeignKeyConstraints` callbacks retain their sessions automatically. In particular, an HTTP call inside `DB::transaction()` keeps the transaction's connection. Completed `chunk` or `lazy` query batches may release between batches.
+
+If your code requires the same physical session across an external call, wrap the entire operation in `DB::withPinnedSession()`. For a named connection, call `withPinnedSession()` on that connection. For example, a PostgreSQL session-level advisory lock must be released on the session that acquired it:
 
 ```php
-DB::connection()->withPinnedSession(function () {
-    // Work that must retain the same physical database session...
+$connection = DB::connection('pgsql');
+
+$response = $connection->withPinnedSession(function () use ($connection, $accountId, $paymentUrl, $payload) {
+    $connection->selectFromWriteConnection('select pg_advisory_lock(?)', [$accountId]);
+
+    try {
+        return Http::post($paymentUrl, $payload);
+    } finally {
+        $connection->selectFromWriteConnection('select pg_advisory_unlock(?)', [$accountId]);
+    }
 });
 ```
 
-This is needed for temporary tables, session-level locks, retained raw PDOs or statements, and manual session changes spanning a release boundary. It also applies to a manual `disableForeignKeyConstraints` / `enableForeignKeyConstraints` pair; prefer the scoped `withoutForeignKeyConstraints` method. Pinning prevents early release but does not prevent replacing a broken connection during the normal lost-connection retry.
+Pinning is also needed for temporary tables, retained raw PDOs or statements, and manual session changes spanning a release boundary. It applies to a manual `disableForeignKeyConstraints` / `enableForeignKeyConstraints` pair; prefer the scoped `withoutForeignKeyConstraints` method. Each pin protects its connection until the callback returns or throws, and pins may be nested. Complete any lazy work inside the callback rather than returning it for later execution. Pinning prevents early release but does not prevent replacing a broken connection during the normal lost-connection retry.
 
 Connections registered through `DB::extend` retain their complete driver object until execution ends; early release leaves them alone. The same applies when selectable write records (or read records in an explicit `::read` pool) specify different database names or table prefixes. PDO drivers registered through `Connection::resolverFor` participate in early release when those values agree.
 

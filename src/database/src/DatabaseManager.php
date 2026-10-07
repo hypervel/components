@@ -297,11 +297,7 @@ class DatabaseManager implements ConnectionResolverInterface
      */
     public function releaseIdleConnections(): void
     {
-        $resolver = $this->app->make('db.resolver');
-
-        if ($resolver instanceof ConnectionResolver) {
-            $resolver->releaseIdleConnections();
-        }
+        ConnectionResolver::releaseIdleConnections();
     }
 
     /**

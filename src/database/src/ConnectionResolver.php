@@ -170,7 +170,7 @@ class ConnectionResolver implements ConnectionResolverInterface
     /**
      * Return idle physical sessions owned by the current execution.
      */
-    public function releaseIdleConnections(): void
+    public static function releaseIdleConnections(): void
     {
         foreach (CoroutineContext::getContainer() ?? [] as $value) {
             if ($value instanceof ConnectionLease) {

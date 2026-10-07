@@ -23,6 +23,7 @@ use GuzzleHttp\UriTemplate\UriTemplate;
 use GuzzleHttp\Utils;
 use Hypervel\Contracts\Container\Transient;
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Database\ConnectionResolver;
 use Hypervel\Http\Client\Destinations\CurlCapabilities;
 use Hypervel\Http\Client\Destinations\DestinationPolicy;
 use Hypervel\Http\Client\Destinations\DestinationPolicyException;
@@ -1764,6 +1765,7 @@ class PendingRequest implements Transient
             $stack->push(Middleware::prepareBody(), 'prepare_body');
             $stack->push($this->buildRecorderHandler());
             $stack->push($this->buildStubHandler());
+            $stack->push($this->buildDatabaseReleaseHandler());
             // Innermost, so it vets every physical request (each redirect included) and never sees faked ones.
             $stack->push($this->buildDestinationPolicyHandler());
         });
@@ -1937,6 +1939,20 @@ class PendingRequest implements Transient
             }
 
             return $psrResponse;
+        };
+    }
+
+    /**
+     * Return idle database sessions before waiting for an external service.
+     */
+    protected function buildDatabaseReleaseHandler(): Closure
+    {
+        return static function (callable $handler): Closure {
+            return static function (RequestInterface $request, array $options) use ($handler): PromiseInterface {
+                ConnectionResolver::releaseIdleConnections();
+
+                return $handler($request, $options);
+            };
         };
     }
 
