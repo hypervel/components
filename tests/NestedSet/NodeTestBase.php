@@ -62,7 +62,7 @@ abstract class NodeTestBase extends TestCase
         $config = $app->make('config');
 
         $config->set(
-            'database.connections.' . $config->get('database.default') . '.prefix',
+            'database.connections.' . $config->string('database.default') . '.prefix',
             'prfx_',
         );
     }

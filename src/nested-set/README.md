@@ -1,8 +1,12 @@
 NestedSet for Hypervel
 ===
 
-Ported from: https://github.com/aimeos/laravel-nestedset
-
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/hypervel/nested-set)
 
 Documentation: https://hypervel.org/docs/nested-set
+
+## Differences From laravel-nestedset
+
+Migrations add the nested set columns and indexes with one Blueprint macro matching the table's primary key: `nestedSet()` for `id()`, `integerNestedSet()` for `increments()`, `uuidNestedSet()` or `ulidNestedSet()`. Each macro includes the `depth` column and accepts the tree's scope columns, which prefix every index; `dropNestedSet()` accepts the same scope columns. The matching `NestedSet` static methods take scope columns instead of a key column name and type. Upstream's `nestedSetDepth()`, `nestedSetIndex()`, `dropNestedSetDepth()` and `dropNestedSetIndex()` macros and their `NestedSet` methods are not available. For a custom index layout, define the columns and indexes with ordinary Blueprint methods.
+
+Ported from: https://github.com/aimeos/laravel-nestedset

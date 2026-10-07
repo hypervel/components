@@ -904,7 +904,7 @@ If a model observer vetoes a mutation and it returns `false`, throw from the tra
 
 Concurrent writers to the same table and nested set scope must also be serialized by your application. The package does not add an implicit distributed lock or network call.
 
-The schema helpers create separate indexes for right-bound scans, left-bound scans, and parent lookups. Scope columns prefix each index, which keeps each scoped tree's reads isolated and substantially reduces ancestor, descendant, child, and sibling query work. These indexes add a bounded cost to structural writes; this favors the read-heavy workloads nested sets are designed for. Add a depth index only when your application frequently filters large trees by depth.
+The schema helpers create indexes on `_rgt`, `[_lft, _rgt]`, and `[parent_id, _lft]`. For scoped trees, each index starts with the scope columns so queries can narrow their search to one tree. Including both bounds in the same index reduces the work needed for ancestor queries. These indexes make structural writes slightly slower in exchange for faster reads, which suits the read-heavy workloads nested sets are designed for. Add a depth index only when your application frequently filters large trees by depth.
 
 <a name="credits"></a>
 ## Credits

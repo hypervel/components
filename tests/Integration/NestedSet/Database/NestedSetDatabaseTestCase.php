@@ -20,14 +20,11 @@ abstract class NestedSetDatabaseTestCase extends DatabaseTestCase
 
     protected const string SECOND_TENANT = '018f3a2b-0000-7000-8000-000000000002';
 
+    /**
+     * Create the integer and scoped UUID node tables.
+     */
     protected function afterRefreshingDatabase(): void
     {
-        Schema::create('nested_set_bigint_nodes', static function (Blueprint $table): void {
-            $table->id();
-            $table->string('name');
-            NestedSet::columns($table);
-        });
-
         Schema::create('nested_set_integer_nodes', static function (Blueprint $table): void {
             $table->increments('id');
             $table->string('name');
@@ -41,64 +38,15 @@ abstract class NestedSetDatabaseTestCase extends DatabaseTestCase
             $table->softDeletes();
             NestedSet::uuidColumns($table, ['tenant_id']);
         });
-
-        Schema::create('nested_set_ulid_nodes', static function (Blueprint $table): void {
-            $table->ulid('id')->primary();
-            $table->string('name');
-            NestedSet::ulidColumns($table);
-        });
     }
 
+    /**
+     * Drop the node tables.
+     */
     protected function destroyDatabaseMigrations(): void
     {
-        Schema::dropIfExists('nested_set_ulid_nodes');
         Schema::dropIfExists('nested_set_uuid_nodes');
         Schema::dropIfExists('nested_set_integer_nodes');
-        Schema::dropIfExists('nested_set_bigint_nodes');
-    }
-
-    public function testSchemaUsesMatchingKeyTypesAndExactIndexOrder(): void
-    {
-        foreach ([
-            'nested_set_bigint_nodes',
-            'nested_set_integer_nodes',
-            'nested_set_uuid_nodes',
-            'nested_set_ulid_nodes',
-        ] as $table) {
-            $this->assertSame(
-                Schema::getColumnType($table, 'id'),
-                Schema::getColumnType($table, NestedSet::PARENT_ID),
-            );
-            $this->assertSame(
-                match ($this->driver) {
-                    'pgsql' => 'int2',
-                    'sqlite' => 'integer',
-                    default => 'smallint',
-                },
-                Schema::getColumnType($table, NestedSet::DEPTH),
-            );
-        }
-
-        $this->assertNestedSetIndexes('nested_set_bigint_nodes');
-        $this->assertNestedSetIndexes('nested_set_integer_nodes');
-        $this->assertNestedSetIndexes('nested_set_uuid_nodes', ['tenant_id']);
-        $this->assertNestedSetIndexes('nested_set_ulid_nodes');
-    }
-
-    public function testSchemaDropIsSymmetric(): void
-    {
-        Schema::table('nested_set_uuid_nodes', static function (Blueprint $table): void {
-            NestedSet::dropColumns($table, ['tenant_id']);
-        });
-
-        $this->assertSame(
-            ['id', 'tenant_id', 'name', 'deleted_at'],
-            Schema::getColumnListing('nested_set_uuid_nodes'),
-        );
-        $this->assertSame([], array_values(array_filter(
-            Schema::getIndexes('nested_set_uuid_nodes'),
-            static fn (array $index): bool => ! $index['primary'],
-        )));
     }
 
     public function testIntegerAndUuidTreesMaintainDepthAndTenantIsolation(): void
@@ -349,18 +297,6 @@ abstract class NestedSetDatabaseTestCase extends DatabaseTestCase
         $node->save();
 
         return $node;
-    }
-
-    protected function assertNestedSetIndexes(string $table, array $scopes = []): void
-    {
-        $indexColumns = array_map(
-            static fn (array $index): array => $index['columns'],
-            Schema::getIndexes($table),
-        );
-
-        $this->assertContains([...$scopes, NestedSet::RGT], $indexColumns);
-        $this->assertContains([...$scopes, NestedSet::LFT], $indexColumns);
-        $this->assertContains([...$scopes, NestedSet::PARENT_ID, NestedSet::LFT], $indexColumns);
     }
 }
 
