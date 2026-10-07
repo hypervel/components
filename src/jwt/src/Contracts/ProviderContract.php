@@ -6,7 +6,13 @@ namespace Hypervel\Jwt\Contracts;
 
 interface ProviderContract
 {
+    /**
+     * Create a JSON Web Token.
+     */
     public function encode(array $payload): string;
 
+    /**
+     * Decode a JSON Web Token.
+     */
     public function decode(string $token): array;
 }

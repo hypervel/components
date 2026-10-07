@@ -108,6 +108,64 @@ class LcobucciTest extends TestCase
         $this->assertEquals($iat, $claims['iat']);
     }
 
+    public function testEncodeAndDecodeATokenWithNbfJtiAndAudClaims(): void
+    {
+        $payload = [
+            'sub' => 1,
+            'exp' => $exp = $this->testNowTimestamp + 3600,
+            'iat' => $iat = $this->testNowTimestamp,
+            'nbf' => $nbf = $this->testNowTimestamp,
+            'jti' => $jti = 'unique-token-id',
+            'iss' => '/foo',
+            'aud' => $aud = 'my-audience',
+            'custom_claim' => 'foobar',
+        ];
+
+        $provider = $this->getProvider($this->getRandomString(), Provider::ALGO_HS256);
+
+        $token = $provider->encode($payload);
+        $claims = $provider->decode($token);
+
+        $this->assertEquals('1', $claims['sub']);
+        $this->assertEquals('/foo', $claims['iss']);
+        $this->assertEquals('foobar', $claims['custom_claim']);
+        $this->assertEquals($exp, $claims['exp']);
+        $this->assertEquals($iat, $claims['iat']);
+        $this->assertEquals($nbf, $claims['nbf']);
+        $this->assertEquals($jti, $claims['jti']);
+        $this->assertEquals([$aud], $claims['aud']);
+    }
+
+    public function testEncodeAndDecodeATokenUsingAnAsymmetricEs256Key(): void
+    {
+        $payload = [
+            'sub' => 1,
+            'exp' => $exp = $this->testNowTimestamp + 3600,
+            'iat' => $iat = $this->testNowTimestamp,
+            'iss' => '/foo',
+            'custom_claim' => 'foobar',
+        ];
+
+        $provider = $this->getProvider(
+            $this->getRandomString(),
+            Provider::ALGO_ES256,
+            ['private' => $this->getDummyEcPrivateKey(), 'public' => $this->getDummyEcPublicKey()]
+        );
+
+        $token = $provider->encode($payload);
+
+        $header = json_decode(base64_decode(explode('.', $token)[0]), true);
+        $this->assertEquals(Provider::ALGO_ES256, $header['alg']);
+
+        $claims = $provider->decode($token);
+
+        $this->assertEquals('1', $claims['sub']);
+        $this->assertEquals('/foo', $claims['iss']);
+        $this->assertEquals('foobar', $claims['custom_claim']);
+        $this->assertEquals($exp, $claims['exp']);
+        $this->assertEquals($iat, $claims['iat']);
+    }
+
     public function testEncodeAndDecodeATokenWithMultipleAudiences(): void
     {
         $payload = [
@@ -160,12 +218,51 @@ class LcobucciTest extends TestCase
             ->decode('eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiZXhwIjoxNjQ5MjYxMDY1LCJpYXQiOjE2NDkyNTc0NjUsImlzcyI6Ii9mb29iYXIiLCJjdXN0b21fY2xhaW0iOiJmb29iYXIifQ.jamiInQiin-1RUviliPjZxl0MLEnQnVTbr2sGooeXBY');
     }
 
-    public function testShouldThrowATokenInvalidExceptionWhenTheTokenCouldNotBeDecoded(): void
+    public function testShouldThrowATokenInvalidExceptionWhenAnEcdsaSignatureHasTheWrongLength(): void
+    {
+        $provider = $this->getProvider(
+            'does_not_matter',
+            Provider::ALGO_ES256,
+            ['private' => $this->getDummyEcPrivateKey(), 'public' => $this->getDummyEcPublicKey()]
+        );
+
+        [$header, $payload] = explode('.', $provider->encode(['sub' => 1, 'iat' => $this->testNowTimestamp]));
+
+        $this->expectException(TokenInvalidException::class);
+        $this->expectExceptionMessageIs('Token Signature could not be verified.');
+
+        $provider->decode("{$header}.{$payload}." . $this->base64UrlEncode('signature'));
+    }
+
+    #[DataProvider('undecodableTokenProvider')]
+    public function testShouldThrowATokenInvalidExceptionWhenTheTokenCouldNotBeDecoded(string $token): void
     {
         $this->expectException(TokenInvalidException::class);
         $this->expectExceptionMessageIsOrContains('Could not decode token:');
 
-        $this->getProvider('secret', Provider::ALGO_HS256)->decode('foo.bar.baz');
+        $this->getProvider('secret', Provider::ALGO_HS256)->decode($token);
+    }
+
+    /**
+     * Provide tokens that cannot be parsed.
+     *
+     * @return array<string, array{string}>
+     */
+    public static function undecodableTokenProvider(): array
+    {
+        return [
+            'segments that are not encoded JSON' => ['foo.bar.baz'],
+            'missing signature' => ['one.two.'],
+            'missing header and signature' => ['.two.'],
+            'missing header' => ['.two.three'],
+            'missing claims' => ['one..three'],
+            'separators only' => ['..'],
+            'blank segments' => [' . . '],
+            'padded segments' => [' one . two . three '],
+            'two segments' => ['one.two'],
+            'four segments' => ['one.two.three.four'],
+            'five segments' => ['one.two.three.four.five'],
+        ];
     }
 
     #[DataProvider('malformedRegisteredDateProvider')]
@@ -327,6 +424,23 @@ class LcobucciTest extends TestCase
         $this->getProvider($originalSecret, Provider::ALGO_HS256)->decode($token);
     }
 
+    public function testShouldThrowAnExceptionWhenTheSecretHasBeenUpdatedAndAnOldTokenIsUsed(): void
+    {
+        $payload = ['sub' => '1', 'exp' => $this->testNowTimestamp + 3600, 'iat' => $this->testNowTimestamp, 'iss' => '/foo'];
+
+        $provider = $this->getProvider($this->getRandomString(), Provider::ALGO_HS256);
+        $token = $provider->encode($payload);
+
+        $this->assertSame($payload, $provider->decode($token));
+
+        $provider->setSecret($this->getRandomString());
+
+        $this->expectException(TokenInvalidException::class);
+        $this->expectExceptionMessageIs('Token Signature could not be verified.');
+
+        $provider->decode($token);
+    }
+
     public function testSetKeysTakesEffectOnSigning(): void
     {
         $payload = ['sub' => 1, 'iat' => $this->testNowTimestamp];
@@ -402,5 +516,21 @@ class LcobucciTest extends TestCase
     private function getAltPublicKey(): string
     {
         return file_get_contents(__DIR__ . '/../Fixtures/keys/id_rsa_alt.pub');
+    }
+
+    /**
+     * Get the ECDSA private key fixture.
+     */
+    private function getDummyEcPrivateKey(): string
+    {
+        return file_get_contents(__DIR__ . '/../Fixtures/keys/id_ecdsa');
+    }
+
+    /**
+     * Get the ECDSA public key fixture.
+     */
+    private function getDummyEcPublicKey(): string
+    {
+        return file_get_contents(__DIR__ . '/../Fixtures/keys/id_ecdsa.pub');
     }
 }

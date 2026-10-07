@@ -11,11 +11,11 @@ use Hypervel\Jwt\Contracts\ProviderContract;
 use Hypervel\Jwt\Exceptions\JwtException;
 use Hypervel\Jwt\Exceptions\SecretMissingException;
 use Hypervel\Jwt\Exceptions\TokenInvalidException;
-use Hypervel\Support\Collection;
 use Lcobucci\JWT\Builder;
 use Lcobucci\JWT\Configuration;
 use Lcobucci\JWT\Signer;
 use Lcobucci\JWT\Signer\Ecdsa;
+use Lcobucci\JWT\Signer\Ecdsa\ConversionFailed;
 use Lcobucci\JWT\Signer\Key;
 use Lcobucci\JWT\Signer\Key\InMemory;
 use Lcobucci\JWT\Signer\Rsa;
@@ -98,21 +98,21 @@ class Lcobucci extends Provider implements ProviderContract
             );
         }
 
-        if (! $this->config->validator()->validate($token, ...$this->config->validationConstraints())) {
+        try {
+            $verified = $this->config->validator()->validate($token, ...$this->config->validationConstraints());
+        } catch (ConversionFailed) {
+            // ECDSA verification rejects a signature of the wrong length before comparing it.
+            $verified = false;
+        }
+
+        if (! $verified) {
             throw new TokenInvalidException('Token Signature could not be verified.');
         }
 
-        return Collection::wrap($token->claims()->all())
-            ->map(function ($claim) {
-                if ($claim instanceof DateTimeInterface) {
-                    return $claim->getTimestamp();
-                }
-
-                return is_object($claim) && method_exists($claim, 'getValue')
-                    ? $claim->getValue()
-                    : $claim;
-            })
-            ->toArray();
+        return array_map(
+            static fn (mixed $claim): mixed => $claim instanceof DateTimeInterface ? $claim->getTimestamp() : $claim,
+            $token->claims()->all(),
+        );
     }
 
     /**
@@ -202,6 +202,9 @@ class Lcobucci extends Provider implements ProviderContract
         return new $signer;
     }
 
+    /**
+     * Determine if the algorithm is asymmetric, and thus requires a public/private key combo.
+     */
     protected function isAsymmetric(): bool
     {
         return is_subclass_of($this->signer, Rsa::class)
