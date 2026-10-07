@@ -4,8 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Saloon\Feature;
 
+use ArrayObject;
 use Exception;
+use GuzzleHttp\Promise\PromiseInterface;
+use GuzzleHttp\Psr7\NoSeekStream;
+use GuzzleHttp\Psr7\Utils;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Http\Client\Request as HttpRequest;
+use Hypervel\Saloon\Exceptions\BodyException;
 use Hypervel\Saloon\Exceptions\Request\FatalRequestException;
 use Hypervel\Saloon\Exceptions\Request\RequestException;
 use Hypervel\Saloon\Exceptions\Request\Statuses\InternalServerErrorException;
@@ -14,6 +20,7 @@ use Hypervel\Saloon\Http\Faking\MockClient;
 use Hypervel\Saloon\Http\Faking\MockResponse;
 use Hypervel\Saloon\Http\PendingRequest;
 use Hypervel\Saloon\SaloonServiceProvider;
+use Hypervel\Support\Facades\Http;
 use Hypervel\Support\Sleep;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Saloon\Fixtures\Connectors\TestConnector;
@@ -338,6 +345,50 @@ class RetryRequestTest extends TestCase
         $mockClient->assertSentCount(1);
     }
 
+    public function testARetrySendsAResourceBodyAgainFromWhereTheFirstAttemptStarted(): void
+    {
+        $resource = fopen('php://memory', 'rw+');
+        fwrite($resource, 'skipped:payload');
+        fseek($resource, 8);
+        $sent = $this->fakeOneFailedUpload();
+
+        $response = (new TestConnector)->send((new UserRequest)->withBody($resource, 'text/plain')->retry(2));
+
+        $this->assertSame(200, $response->status());
+        $this->assertSame(['payload', 'payload'], $sent->getArrayCopy());
+    }
+
+    public function testARetrySendsAttachedResourcesAgain(): void
+    {
+        $resource = fopen('php://memory', 'rw+');
+        fwrite($resource, 'payload');
+        rewind($resource);
+        $sent = $this->fakeOneFailedUpload();
+
+        $response = (new TestConnector)->send((new UserRequest)->attach('file', $resource, 'file.txt')->retry(2));
+
+        $this->assertSame(200, $response->status());
+        $this->assertCount(2, $sent);
+        $this->assertStringContainsString('name="file"; filename="file.txt"', $sent[0]);
+        $this->assertStringContainsString("\r\n\r\npayload\r\n", $sent[0]);
+        $this->assertSame($sent[0], $sent[1]);
+    }
+
+    public function testANonSeekableBodyIsNotRetried(): void
+    {
+        $sent = $this->fakeOneFailedUpload();
+        $request = (new UserRequest)->withBody(new NoSeekStream(Utils::streamFor('payload')), 'text/plain')->retry(2);
+
+        try {
+            (new TestConnector)->send($request);
+            $this->fail('A non-seekable body was retried.');
+        } catch (BodyException $exception) {
+            $this->assertSame('The request body is not seekable and cannot be retried safely.', $exception->getMessage());
+            $this->assertInstanceOf(InternalServerErrorException::class, $exception->getPrevious());
+            $this->assertSame(['payload'], $sent->getArrayCopy());
+        }
+    }
+
     // Upstream raises negative attempts and intervals to their minimum. Hypervel rejects them; a zero interval is
     // valid and is the default.
     #[DataProvider('invalidRetryPolicies')]
@@ -361,5 +412,23 @@ class RetryRequestTest extends TestCase
             'negative attempts' => [-1, 0, 'Retry attempts must contain at least one attempt.'],
             'negative interval' => [2, -1, 'The retry delay must be a non-negative integer.'],
         ];
+    }
+
+    /**
+     * Fake a transport that reads each request body from its current position and fails the first attempt.
+     *
+     * @return ArrayObject<int, string>
+     */
+    protected function fakeOneFailedUpload(): ArrayObject
+    {
+        $sent = new ArrayObject;
+
+        Http::fake(function (HttpRequest $request) use ($sent): PromiseInterface {
+            $sent[] = $request->toPsrRequest()->getBody()->getContents();
+
+            return Http::response(status: count($sent) === 1 ? 500 : 200);
+        });
+
+        return $sent;
     }
 }

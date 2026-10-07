@@ -177,13 +177,17 @@ class RedisStoreTest extends TestCase
 
         $first = $limiter->consume($policy);
         $second = $limiter->consume($policy);
-        $redisSeconds = (int) $this->redisClient()->time()[0];
+        $redis = $this->redisClient();
+
+        // RedisCluster::time() needs a node, so read the clock of the node that holds the window's key.
+        $redisTime = $this->usingRedisCluster() ? $redis->time($this->physicalKey($policy)) : $redis->time();
+        $redisSeconds = (int) $redisTime[0];
 
         $this->assertTrue($first->allowed());
         $this->assertSame(4, $first->remaining());
         $this->assertSame(3, $second->remaining());
         $this->assertEqualsWithDelta(3_600 - $redisSeconds % 3_600, $second->resetAfter(), 1);
-        $this->assertLessThanOrEqual(3_600_000, $this->redisClient()->pttl($this->physicalKey($policy)));
+        $this->assertLessThanOrEqual(3_600_000, $redis->pttl($this->physicalKey($policy)));
     }
 
     /**
