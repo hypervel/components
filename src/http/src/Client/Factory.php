@@ -649,6 +649,10 @@ class Factory
 
     /**
      * Get the shared low-level transport handler for a connection.
+     *
+     * The handler serves synchronous requests from any coroutine. Send through
+     * it only with the "synchronous" request option: its cURL multi-handler,
+     * which asynchronous requests use, cannot be driven by concurrent coroutines.
      */
     public function getConnectionHandler(string $name): callable
     {
