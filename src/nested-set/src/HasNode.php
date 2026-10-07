@@ -54,10 +54,12 @@ trait HasNode
             ??= $this->resolveCustomBuilderClass();
 
         if ($builderClass === false) {
-            return new QueryBuilder($query);
+            $builderClass = static::$builder === EloquentBuilder::class
+                ? QueryBuilder::class
+                : static::$builder;
         }
 
-        if (! is_subclass_of($builderClass, QueryBuilder::class)) {
+        if (! is_a($builderClass, QueryBuilder::class, true)) {
             throw new LogicException(sprintf(
                 'Nested set model [%s] must use a builder that extends [%s].',
                 static::class,
