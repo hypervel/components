@@ -26,7 +26,9 @@ use Hypervel\Jwt\Exceptions\TokenExpiredException;
 use Hypervel\Jwt\Exceptions\TokenInvalidException;
 use Hypervel\Jwt\Exceptions\UserNotDefinedException;
 use Hypervel\Jwt\Http\Parser\Parser;
+use Hypervel\Support\Timebox;
 use Hypervel\Support\Traits\Macroable;
+use SensitiveParameter;
 use stdClass;
 
 class JwtGuard implements Guard
@@ -53,6 +55,8 @@ class JwtGuard implements Guard
     /**
      * Create a new JWT authentication guard.
      *
+     * @param bool $rehashOnLogin indicates if passwords should be rehashed on login if needed
+     * @param int $timeboxDuration the number of microseconds that the timebox should wait for
      * @param null|int $ttl token time-to-live in minutes, or null for no expiration
      */
     public function __construct(
@@ -62,7 +66,10 @@ class JwtGuard implements Guard
         protected ClaimFactory $claimFactory,
         protected Parser $parser,
         protected Container $app,
+        protected bool $rehashOnLogin,
+        protected int $timeboxDuration,
         protected ?int $ttl = self::DEFAULT_TTL,
+        protected Timebox $timebox = new Timebox,
     ) {
         $this->provider = $provider;
     }
@@ -70,22 +77,34 @@ class JwtGuard implements Guard
     /**
      * Attempt to authenticate a user using the given credentials.
      */
-    public function attempt(array $credentials = [], bool $login = true): string|bool
+    public function attempt(#[SensitiveParameter] array $credentials = [], bool $login = true): string|bool
     {
-        $this->fireAttemptEvent($credentials);
+        return (clone $this->timebox)->call(function (Timebox $timebox) use ($credentials, $login): string|bool {
+            $this->fireAttemptEvent($credentials);
 
-        $user = $this->provider->retrieveByCredentials($credentials);
-        $this->setContextState('lastAttempted', $user);
+            $user = $this->provider->retrieveByCredentials($credentials);
+            $this->setContextState('lastAttempted', $user);
 
-        if ($user !== null && $this->provider->validateCredentials($user, $credentials)) {
-            $this->fireValidatedEvent($user);
+            if ($user !== null && $this->provider->validateCredentials($user, $credentials)) {
+                $this->fireValidatedEvent($user);
 
-            return $login ? $this->login($user) : true;
-        }
+                $result = true;
 
-        $this->fireFailedEvent($user, $credentials);
+                if ($login) {
+                    $this->rehashPasswordIfRequired($user, $credentials);
 
-        return false;
+                    $result = $this->login($user);
+                }
+
+                $timebox->returnEarly();
+
+                return $result;
+            }
+
+            $this->fireFailedEvent($user, $credentials);
+
+            return false;
+        }, $this->timeboxDuration);
     }
 
     /**
@@ -105,7 +124,7 @@ class JwtGuard implements Guard
      */
     public function login(AuthenticatableContract $user): string
     {
-        $token = $this->makeTokenForUser($user);
+        $token = $this->fromUser($user);
 
         $this->setToken($token);
         CoroutineContext::forget($this->getExplicitUserContextKey());
@@ -177,7 +196,7 @@ class JwtGuard implements Guard
     /**
      * Validate a user's credentials.
      */
-    public function validate(array $credentials = []): bool
+    public function validate(#[SensitiveParameter] array $credentials = []): bool
     {
         return (bool) $this->attempt($credentials, false);
     }
@@ -185,9 +204,11 @@ class JwtGuard implements Guard
     /**
      * Log a user into the application using their credentials without persisting.
      */
-    public function once(array $credentials = []): bool
+    public function once(#[SensitiveParameter] array $credentials = []): bool
     {
         if ($this->validate($credentials) && $user = $this->getLastAttempted()) {
+            $this->rehashPasswordIfRequired($user, $credentials);
+
             $this->setUser($user);
 
             return true;
@@ -211,6 +232,25 @@ class JwtGuard implements Guard
     }
 
     /**
+     * Create a new token for the given user without authenticating them.
+     */
+    public function fromUser(AuthenticatableContract $user): string
+    {
+        $ttl = $this->getTTL();
+
+        try {
+            return $this->jwtManager->encode($this->claimFactory->make(
+                user: $user,
+                provider: $this->provider,
+                ttl: $ttl,
+                customClaims: $this->pullCustomClaims(),
+            ));
+        } finally {
+            $this->forgetContextState('ttl');
+        }
+    }
+
+    /**
      * Create a new token by user ID.
      */
     public function tokenById(mixed $id): ?string
@@ -219,7 +259,7 @@ class JwtGuard implements Guard
             return null;
         }
 
-        return $this->makeTokenForUser($user);
+        return $this->fromUser($user);
     }
 
     /**
@@ -245,11 +285,11 @@ class JwtGuard implements Guard
     }
 
     /**
-     * Get the ID for the currently authenticated user.
+     * Get the ID for the current user from the token without loading the user.
      */
     public function getUserId(): int|string|null
     {
-        if ($user = $this->cachedUser()) {
+        if ($user = $this->getUser()) {
             return $user->getAuthIdentifier();
         }
 
@@ -264,14 +304,6 @@ class JwtGuard implements Guard
         }
 
         return $payload['sub'] ?? null;
-    }
-
-    /**
-     * Get the ID for the currently authenticated user.
-     */
-    public function id(): int|string|null
-    {
-        return $this->getUserId();
     }
 
     /**
@@ -325,6 +357,11 @@ class JwtGuard implements Guard
     public function getToken(): ?string
     {
         $token = $this->getContextState('token');
+
+        // Logout stores false so the guard stops reading the request's token.
+        if ($token === false) {
+            return null;
+        }
 
         return is_string($token) && $token !== '' ? $token : $this->parseToken();
     }
@@ -384,23 +421,24 @@ class JwtGuard implements Guard
     }
 
     /**
-     * Log the user out by invalidating the current token.
+     * Log the user out, invalidating the current token when the blacklist is enabled.
      */
     public function logout(bool $forceForever = false): void
     {
-        $user = $this->cachedUser();
+        $user = $this->user();
         $token = $this->getToken();
 
-        if ($token) {
+        if ($token && $this->jwtManager->hasBlacklistEnabled()) {
             $this->jwtManager->invalidate($token, $forceForever);
         }
 
         $this->forgetUser();
-        $this->forgetContextState('token');
 
         if ($token) {
             CoroutineContext::forget($this->getPayloadContextKey($token));
         }
+
+        $this->setContextState('token', false);
 
         $this->fireLogoutEvent($user);
     }
@@ -420,11 +458,30 @@ class JwtGuard implements Guard
     }
 
     /**
+     * Return the currently cached user.
+     */
+    public function getUser(): ?AuthenticatableContract
+    {
+        self::$nullUserSentinel ??= new stdClass;
+
+        /** @var null|AuthenticatableContract $explicitUser */
+        $explicitUser = CoroutineContext::get($this->getExplicitUserContextKey());
+
+        if ($explicitUser !== null) {
+            return $explicitUser;
+        }
+
+        $cached = CoroutineContext::get($this->getUserContextKey());
+
+        return ($cached === null || $cached === self::$nullUserSentinel) ? null : $cached;
+    }
+
+    /**
      * Determine if the guard has a user instance.
      */
     public function hasUser(): bool
     {
-        return $this->cachedUser() !== null;
+        return $this->getUser() !== null;
     }
 
     /**
@@ -501,21 +558,12 @@ class JwtGuard implements Guard
     }
 
     /**
-     * Create a token for the given user.
+     * Rehash the user's password if enabled and required.
      */
-    protected function makeTokenForUser(AuthenticatableContract $user): string
+    protected function rehashPasswordIfRequired(AuthenticatableContract $user, #[SensitiveParameter] array $credentials): void
     {
-        $ttl = $this->getTTL();
-
-        try {
-            return $this->jwtManager->encode($this->claimFactory->make(
-                user: $user,
-                provider: $this->provider,
-                ttl: $ttl,
-                customClaims: $this->pullCustomClaims(),
-            ));
-        } finally {
-            $this->forgetContextState('ttl');
+        if ($this->rehashOnLogin) {
+            $this->provider->rehashPasswordIfRequired($user, $credentials);
         }
     }
 
@@ -528,25 +576,6 @@ class JwtGuard implements Guard
             $this->getPayloadContextKey($token),
             fn () => $this->jwtManager->decode($token)
         );
-    }
-
-    /**
-     * Return the currently cached user.
-     */
-    protected function cachedUser(): ?AuthenticatableContract
-    {
-        self::$nullUserSentinel ??= new stdClass;
-
-        /** @var null|AuthenticatableContract $explicitUser */
-        $explicitUser = CoroutineContext::get($this->getExplicitUserContextKey());
-
-        if ($explicitUser !== null) {
-            return $explicitUser;
-        }
-
-        $cached = CoroutineContext::get($this->getUserContextKey());
-
-        return ($cached === null || $cached === self::$nullUserSentinel) ? null : $cached;
     }
 
     /**

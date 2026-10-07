@@ -7,6 +7,8 @@ Documentation: https://hypervel.org/docs/jwt
 
 - Hypervel uses array payloads instead of upstream `Payload`, `Token`, and claim DTO objects.
 - Hypervel keeps the `Jwt` facade mapped to the array-based `JwtManager`, but does not include upstream `JwtAuth`, `JwtFactory`, or `JwtProvider` facades. Use `Jwt::blacklist()` for the blacklist and `Jwt::driver()` for the JWT provider.
+- The guard does not forward unknown methods to an upstream `JWT` object. Token methods such as `fromUser`, `payload`, `refresh` and `invalidate` are defined on the guard, `check()` reports an authenticated user rather than a valid token, and manager features are available through the `Jwt` facade.
+- The guard's `id()` loads the user like Laravel's guards, while upstream returns the token subject without loading the user. Use `getUserId()` for that.
 - The JWT provider is chosen with the `driver` option and custom drivers are registered with `Jwt::extend()`, following Laravel's driver managers, instead of upstream's `providers.jwt` class setting.
 - Custom claims may set registered claims such as `exp`, `iss` and `jti`, but not `sub` or `prv`, which always come from the user and its provider. Customize the subject with `JwtSubject::getJwtIdentifier()`.
 - Hypervel adds a default `iss` only when `jwt.issuer` is set, rather than using the request URL, and a default `jti` only when the blacklist is enabled.

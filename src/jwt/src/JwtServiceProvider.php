@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Jwt;
 
 use Hypervel\Auth\AuthManager;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Jwt\Console\JwtGenerateCertsCommand;
 use Hypervel\Jwt\Console\JwtSecretCommand;
 use Hypervel\Jwt\Contracts\BlacklistContract;
@@ -100,11 +101,13 @@ class JwtServiceProvider extends ServiceProvider
      */
     protected function registerJwtGuard(): void
     {
-        $this->callAfterResolving(AuthManager::class, function (AuthManager $authManager) {
-            $authManager->extend('jwt', function ($app, $name, $config) use ($authManager) {
+        $this->callAfterResolving(AuthManager::class, function (AuthManager $authManager): void {
+            $authManager->extend('jwt', function (Container $app, string $name, array $config) use ($authManager): JwtGuard {
+                $repository = $app->make('config');
+
                 $ttl = array_key_exists('ttl', $config)
                     ? $config['ttl']
-                    : $app->make('config')->get('jwt.ttl');
+                    : $repository->get('jwt.ttl');
 
                 if (! is_int($ttl) && $ttl !== null) {
                     throw new InvalidArgumentException(
@@ -119,6 +122,8 @@ class JwtServiceProvider extends ServiceProvider
                     claimFactory: $app->make(ClaimFactory::class),
                     parser: $app->make(Parser::class),
                     app: $app,
+                    rehashOnLogin: $repository->boolean('hashing.rehash_on_login'),
+                    timeboxDuration: $repository->integer('auth.timebox_duration'),
                     ttl: $ttl,
                 );
 

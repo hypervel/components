@@ -443,15 +443,19 @@ return response()->json([
 ]);
 ```
 
+Like Hypervel's session guard, the `attempt` and `once` methods [rehash the user's password](/docs/{{version}}/authentication#automatic-password-rehashing) when it was hashed with outdated settings.
+
 You may issue a token for an existing user model using `login`:
 
 ```php
 $token = Auth::guard('api')->login($user);
 ```
 
-You may issue a token by user ID without setting the current guard user:
+To issue a token for a user without making them the current guard user, use `fromUser`, or `tokenById` when you only have the user's ID:
 
 ```php
+$token = Auth::guard('api')->fromUser($user);
+
 $token = Auth::guard('api')->tokenById($userId);
 ```
 
@@ -477,7 +481,7 @@ $user = Auth::guard('api')->user();
 $userId = Auth::guard('api')->id();
 ```
 
-The `getUserId` method reads the token subject without loading the user model when no user is already cached:
+The `id` method loads the user, like the other guards. When you only need the ID, the `getUserId` method reads the token subject without loading the user model, so it does not check that the user still exists:
 
 ```php
 $userId = Auth::guard('api')->getUserId();
@@ -563,13 +567,13 @@ Every refreshed token receives a new `nbf` claim. It also receives a new `exp` c
 <a name="logging-out-and-invalidating-tokens"></a>
 ### Logging Out and Invalidating Tokens
 
-The `logout` method invalidates the current token and then clears the guard's user, token, and decoded payload:
+The `logout` method invalidates the current token when the blacklist is enabled, then clears the guard's user, token, and decoded payload. For the rest of the request, the guard no longer reads the token from the request:
 
 ```php
 Auth::guard('api')->logout();
 ```
 
-Logout requires blacklisting when a current token exists. If blacklisting is disabled or the blacklist write fails, a `JwtException` is thrown. The guard keeps its current state and does not dispatch the `Logout` event. Calling `logout` without a current token remains harmless and clears local guard state.
+Without the blacklist, tokens cannot be revoked, so a logged out token remains valid until it expires. If the blacklist write fails, a `JwtException` is thrown, the guard keeps its current state, and the `Logout` event is not dispatched.
 
 To invalidate a token directly, enable the blacklist and call `invalidate`:
 
@@ -611,9 +615,11 @@ Auth::guard('api')->validate($credentials);     // bool
 Auth::guard('api')->once($credentials);         // bool
 Auth::guard('api')->onceUsingId($id);           // Authenticatable|false
 Auth::guard('api')->login($user);               // string
+Auth::guard('api')->fromUser($user);            // string
 Auth::guard('api')->tokenById($id);             // string|null
 Auth::guard('api')->byId($id);                  // Authenticatable|false
 Auth::guard('api')->user();                     // Authenticatable|null
+Auth::guard('api')->getUser();                  // Authenticatable|null
 Auth::guard('api')->userOrFail();               // Authenticatable
 Auth::guard('api')->id();                       // int|string|null
 Auth::guard('api')->getUserId();                // int|string|null
@@ -627,7 +633,7 @@ Auth::guard('api')->logout();
 Auth::guard('api')->invalidate();
 ```
 
-The `claims` and `setTTL` methods affect only the next token-producing operation.
+The `claims` and `setTTL` methods affect only the next token-producing operation. The `getUser` method returns the user the guard has already resolved, without decoding the token or loading the user.
 
 <a name="exceptions"></a>
 ## Exceptions
