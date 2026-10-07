@@ -15,21 +15,15 @@ use Hypervel\Jwt\Exceptions\TokenInvalidException;
 use Hypervel\Support\Facades\Date;
 use Lcobucci\JWT\Builder;
 use Lcobucci\JWT\Configuration;
-use Lcobucci\JWT\Encoding\JoseEncoder;
-use Lcobucci\JWT\Parser;
 use Lcobucci\JWT\Signer;
 use Lcobucci\JWT\Signer\Ecdsa;
 use Lcobucci\JWT\Signer\Ecdsa\ConversionFailed;
 use Lcobucci\JWT\Signer\Key;
 use Lcobucci\JWT\Signer\Key\InMemory;
 use Lcobucci\JWT\Signer\Rsa;
-use Lcobucci\JWT\Token\Parser as TokenParser;
 use Lcobucci\JWT\Token\Plain;
 use Lcobucci\JWT\Token\RegisteredClaims;
-use Lcobucci\JWT\Validation\Constraint;
 use Lcobucci\JWT\Validation\Constraint\SignedWith;
-use Lcobucci\JWT\Validation\Validator as TokenValidator;
-use Lcobucci\JWT\Validator;
 use SensitiveParameter;
 use Throwable;
 
@@ -41,29 +35,14 @@ class Lcobucci extends Provider implements ProviderContract
     protected Signer $signer;
 
     /**
-     * The configuration used to sign tokens.
-     *
-     * An asymmetric provider without a private key builds it only when asked
-     * to sign a token, so it can still verify tokens with the public key.
+     * The configuration that signs and verifies tokens.
      */
-    protected ?Configuration $config;
+    protected Configuration $config;
 
     /**
-     * The parser that reads tokens.
+     * Whether the provider has no private key, so it can only verify tokens.
      */
-    protected Parser $parser;
-
-    /**
-     * The validator that checks tokens against the validation constraints.
-     */
-    protected Validator $validator;
-
-    /**
-     * The constraints a token must satisfy, including its signature.
-     *
-     * @var array<int, Constraint>
-     */
-    protected array $validationConstraints;
+    protected bool $verifiesOnly = false;
 
     /**
      * Create the Lcobucci provider.
@@ -80,8 +59,7 @@ class Lcobucci extends Provider implements ProviderContract
     ) {
         parent::__construct($secret, $algo, $keys);
 
-        $this->config = $config;
-        $this->configure();
+        $this->configure($config);
     }
 
     /**
@@ -106,12 +84,15 @@ class Lcobucci extends Provider implements ProviderContract
      */
     public function encode(array $payload): string
     {
-        $config = $this->getSigningConfig();
+        if ($this->verifiesOnly) {
+            throw new JwtException('Private key is not set.');
+        }
+
         $builder = $this->getBuilderFromClaims($payload);
 
         try {
             return $builder
-                ->getToken($config->signer(), $config->signingKey())
+                ->getToken($this->config->signer(), $this->config->signingKey())
                 ->toString();
         } catch (Exception $e) {
             throw new JwtException('Could not create token: ' . $e->getMessage(), $e->getCode(), $e);
@@ -127,7 +108,7 @@ class Lcobucci extends Provider implements ProviderContract
     {
         try {
             /** @var Plain */
-            $token = $this->parser->parse($token);
+            $token = $this->config->parser()->parse($token);
         } catch (Throwable $exception) {
             throw new TokenInvalidException(
                 'Could not decode token: ' . $exception->getMessage(),
@@ -137,7 +118,7 @@ class Lcobucci extends Provider implements ProviderContract
         }
 
         try {
-            $verified = $this->validator->validate($token, ...$this->validationConstraints);
+            $verified = $this->config->validator()->validate($token, ...$this->config->validationConstraints());
         } catch (ConversionFailed) {
             // ECDSA verification rejects a signature of the wrong length before comparing it.
             $verified = false;
@@ -158,7 +139,7 @@ class Lcobucci extends Provider implements ProviderContract
      */
     protected function getBuilderFromClaims(array $payload): Builder
     {
-        $builder = $this->getSigningConfig()->builder();
+        $builder = $this->config->builder();
 
         foreach ($payload as $key => $value) {
             switch ($key) {
@@ -217,7 +198,9 @@ class Lcobucci extends Provider implements ProviderContract
         $config = $this->isAsymmetric()
             ? Configuration::forAsymmetricSigner(
                 $this->signer,
-                $this->getSigningKey(),
+                // lcobucci needs a signing key even to verify, so a provider without a private
+                // key fills the slot with the public key, and encode() refuses to sign.
+                $this->verifiesOnly ? $this->getVerificationKey() : $this->getSigningKey(),
                 $this->getVerificationKey()
             )
             : Configuration::forSymmetricSigner($this->signer, $this->getSigningKey());
@@ -228,37 +211,16 @@ class Lcobucci extends Provider implements ProviderContract
     }
 
     /**
-     * Build the signer and the objects that verify tokens.
+     * Build the signer, and the configuration unless one is given.
      *
      * @throws JwtException
      */
-    protected function configure(): void
+    protected function configure(?Configuration $config = null): void
     {
+        // buildConfig() reads the signer and the verification-only flag.
         $this->signer = $this->getSigner();
-
-        // Signing needs the private key, but verifying a token only needs the public key.
-        if ($this->config === null && $this->isAsymmetric() && ! $this->getPrivateKey()) {
-            $this->parser = new TokenParser(new JoseEncoder);
-            $this->validator = new TokenValidator;
-            $this->validationConstraints = [new SignedWith($this->signer, $this->getVerificationKey())];
-
-            return;
-        }
-
-        $this->config ??= $this->buildConfig();
-        $this->parser = $this->config->parser();
-        $this->validator = $this->config->validator();
-        $this->validationConstraints = $this->config->validationConstraints();
-    }
-
-    /**
-     * Get the configuration used to sign tokens.
-     *
-     * @throws JwtException
-     */
-    protected function getSigningConfig(): Configuration
-    {
-        return $this->config ??= $this->buildConfig();
+        $this->verifiesOnly = $config === null && $this->isAsymmetric() && ! $this->getPrivateKey();
+        $this->config = $config ?? $this->buildConfig();
     }
 
     /**
@@ -270,7 +232,6 @@ class Lcobucci extends Provider implements ProviderContract
      */
     protected function onConfigurationChanged(): void
     {
-        $this->config = null;
         $this->configure();
     }
 

@@ -436,7 +436,7 @@ The JWT blacklist lets the package invalidate tokens before they naturally expir
 'blacklist_enabled' => (bool) env('JWT_BLACKLIST_ENABLED', true),
 ```
 
-Blacklisting is enabled by default, so logging out or refreshing revokes the old token. Newly issued tokens include a `jti` claim, and each authenticated request checks the blacklist in the cache. If your application doesn't need to revoke tokens before they expire, you may set `JWT_BLACKLIST_ENABLED` to `false`; tokens then remain valid until they expire, even after logout.
+Blacklisting is enabled by default, so logging out or refreshing revokes the old token. Newly issued tokens include a `jti` claim, and each authenticated request checks the blacklist in the cache. While the blacklist is enabled, tokens must include a `jti` claim so they can be revoked. Enabling it rejects existing or externally issued tokens that lack this claim. If your application doesn't need to revoke tokens before they expire, you may set `JWT_BLACKLIST_ENABLED` to `false`; tokens then remain valid until they expire, even after logout.
 
 Blacklist entries are kept in your default cache store. You may choose another store using the `blacklist_store` option:
 

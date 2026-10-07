@@ -23,6 +23,7 @@ use Hypervel\Tests\TestCase;
 use Lcobucci\JWT\Configuration;
 use Lcobucci\JWT\Signer\Hmac\Sha256;
 use Lcobucci\JWT\Signer\Key\InMemory;
+use Lcobucci\JWT\Signer\Rsa\Sha256 as RsaSha256;
 use Lcobucci\JWT\Validation\Constraint\IssuedBy;
 use Lcobucci\JWT\Validation\Constraint\SignedWith;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -557,6 +558,27 @@ class LcobucciTest extends TestCase
         $this->getProvider('does_not_matter', Provider::ALGO_RS256, $keyPair1)->decode($token);
     }
 
+    public function testSetKeysSwitchesBetweenVerifyingAndSigning(): void
+    {
+        $keyPair = ['private' => $this->getDummyPrivateKey(), 'public' => $this->getDummyPublicKey()];
+
+        $provider = $this->getProvider('does_not_matter', Provider::ALGO_RS256, ['public' => $keyPair['public']]);
+        $provider->setKeys($keyPair);
+
+        $token = $provider->encode(['sub' => 1, 'iat' => $this->testNowTimestamp]);
+
+        $this->assertSame('1', $provider->decode($token)['sub']);
+
+        $provider->setKeys(['public' => $keyPair['public']]);
+
+        $this->assertSame('1', $provider->decode($token)['sub']);
+
+        $this->expectException(JwtException::class);
+        $this->expectExceptionMessageIs('Private key is not set.');
+
+        $provider->encode(['sub' => 1]);
+    }
+
     public function testConstraintsAddedByBuildConfigApplyWhenDecoding(): void
     {
         $provider = new LcobucciWithIssuerConstraint($this->getRandomString(), Provider::ALGO_HS256, []);
@@ -569,6 +591,26 @@ class LcobucciTest extends TestCase
         $this->expectExceptionMessageIs('Token Signature could not be verified.');
 
         $provider->decode($provider->encode(['sub' => 1, 'iss' => 'https://other.example.test']));
+    }
+
+    #[DataProvider('asymmetricKeyPairProvider')]
+    public function testConstraintsAddedByBuildConfigApplyWithOnlyThePublicKey(string $algo, string $privateKeyFile, string $publicKeyFile): void
+    {
+        $publicKey = file_get_contents(__DIR__ . "/../Fixtures/keys/{$publicKeyFile}");
+        $issuer = $this->getProvider('does_not_matter', $algo, [
+            'private' => file_get_contents(__DIR__ . "/../Fixtures/keys/{$privateKeyFile}"),
+            'public' => $publicKey,
+        ]);
+        $verifier = new LcobucciWithIssuerConstraint('does_not_matter', $algo, ['public' => $publicKey]);
+
+        $claims = $verifier->decode($issuer->encode(['sub' => 1, 'iss' => 'https://issuer.example.test']));
+
+        $this->assertSame('https://issuer.example.test', $claims['iss']);
+
+        $this->expectException(TokenInvalidException::class);
+        $this->expectExceptionMessageIs('Token Signature could not be verified.');
+
+        $verifier->decode($issuer->encode(['sub' => 1, 'iss' => 'https://other.example.test']));
     }
 
     public function testAGivenConfigurationSignsAndVerifiesTokensInsteadOfTheSecret(): void
@@ -587,6 +629,18 @@ class LcobucciTest extends TestCase
         $this->expectExceptionMessageIs('Token Signature could not be verified.');
 
         $this->getProvider($secret, Provider::ALGO_HS256)->decode($token);
+    }
+
+    public function testAGivenAsymmetricConfigurationSignsWithoutLocalKeys(): void
+    {
+        $publicKey = InMemory::plainText($this->getDummyPublicKey());
+        $config = Configuration::forAsymmetricSigner(new RsaSha256, InMemory::plainText($this->getDummyPrivateKey()), $publicKey)
+            ->withValidationConstraints(new SignedWith(new RsaSha256, $publicKey));
+
+        $provider = new Lcobucci('does_not_matter', Provider::ALGO_RS256, [], $config);
+        $token = $provider->encode(['sub' => 1, 'iat' => $this->testNowTimestamp]);
+
+        $this->assertSame('1', $provider->decode($token)['sub']);
     }
 
     #[DataProvider('credentialFailureProvider')]
