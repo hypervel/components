@@ -205,6 +205,19 @@ class SQLiteGrammar extends Grammar
     }
 
     /**
+     * Compile an update statement without joins into SQL.
+     *
+     * A forced index applies to the updated table, as SQLite's "indexed by"
+     * clause allows.
+     */
+    protected function compileUpdateWithoutJoins(Builder $query, string $table, string $columns, string $where): string
+    {
+        $hint = $query->indexHint === null ? '' : $this->compileIndexHint($query, $query->indexHint);
+
+        return parent::compileUpdateWithoutJoins($query, $hint === '' ? $table : "{$table} {$hint}", $columns, $where);
+    }
+
+    /**
      * Compile an insert ignore statement into SQL.
      */
     public function compileInsertOrIgnore(Builder $query, array $values): string

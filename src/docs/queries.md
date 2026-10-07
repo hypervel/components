@@ -394,6 +394,17 @@ $users = DB::table('users')
     ->get();
 ```
 
+Index hints apply to update statements as well. For example, MariaDB and MySQL may read a small table in full when an update names many of its rows, locking every row they read inside a transaction. Forcing the primary key keeps such an update to the rows it names:
+
+```php
+DB::table('orders')
+    ->forceIndex('primary')
+    ->whereIn('id', $orderIds)
+    ->update(['status' => 'shipped']);
+```
+
+SQLite treats a forced index as a requirement rather than a preference: a query fails if the index does not exist, or if SQLite cannot use it for the query, such as a partial index whose condition the query's constraints do not imply.
+
 <a name="raw-expressions"></a>
 ## Raw Expressions
 
