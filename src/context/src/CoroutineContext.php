@@ -271,6 +271,21 @@ class CoroutineContext
     }
 
     /**
+     * Store a value in non-coroutine context only.
+     *
+     * Tests only. This writes worker-global storage even from a coroutine,
+     * so request-time use can leak state between concurrent requests.
+     *
+     * @param TKey $id
+     * @param TValue $value
+     * @return TValue
+     */
+    public static function setNonCoroutine(UnitEnum|string $id, mixed $value): mixed
+    {
+        return static::$nonCoroutineContext[is_string($id) ? $id : enum_value($id)] = $value;
+    }
+
+    /**
      * Get a value from non-coroutine context only.
      *
      * Unlike get() which reads from coroutine context when inside a coroutine,
