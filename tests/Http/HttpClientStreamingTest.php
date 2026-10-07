@@ -356,8 +356,16 @@ class HttpClientStreamingTest extends TestCase
                 try {
                     $factory = (new Factory)->registerConnection('provider');
                     $connections = [];
+                    $tokens = ['first-account', 'second-account', 'first-account', null, 'second-account'];
 
-                    foreach (['first-account', 'second-account', 'first-account', null, 'second-account', 'third-account', 'third-account', 'first-account'] as $token) {
+                    for ($index = 3; $index <= CurlStreamingHandler::MAX_IDLE_CONNECTIONS; ++$index) {
+                        $tokens[] = 'account-' . $index;
+                    }
+
+                    $tokens[] = 'account-' . CurlStreamingHandler::MAX_IDLE_CONNECTIONS;
+                    $tokens[] = 'first-account';
+
+                    foreach ($tokens as $token) {
                         $request = $factory->connection('provider')->withOptions(['stream' => true]);
 
                         if ($proxy) {
@@ -387,13 +395,13 @@ class HttpClientStreamingTest extends TestCase
                         }
                     }
 
-                    $this->assertCount($proxy ? 5 : 1, array_unique($connections));
+                    $this->assertCount($proxy ? CurlStreamingHandler::MAX_IDLE_CONNECTIONS + 2 : 1, array_unique($connections));
                     $this->assertSame($connections[0], $connections[2]);
                     $this->assertSame($connections[1], $connections[4]);
-                    $this->assertSame($connections[5], $connections[6]);
+                    $this->assertSame($connections[count($connections) - 3], $connections[count($connections) - 2]);
 
                     if ($proxy) {
-                        $this->assertNotSame($connections[0], $connections[7], 'The least recently used identity was not evicted.');
+                        $this->assertNotSame($connections[0], end($connections), 'The least recently used identity was not evicted.');
                     }
                 } catch (Throwable $exception) {
                     $failure = $exception;

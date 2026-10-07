@@ -181,7 +181,7 @@ For plain text or a custom JSON decoder, you may use the `lines` method instead.
 
 Both methods continue reading from the body's current position. They do not rewind it. Streaming bodies cannot be rewound, so choose between processing their lines and reading the entire body with `body` or `json`. Memory usage grows with the longest line, not the total response size.
 
-Inside a Swoole coroutine with native cURL hooks enabled, the HTTP client receives chunks as they arrive and pauses network reads while your application processes them. [Named connections](#connections) reuse idle connections between requests while keeping request headers, credentials, and cookies separate. Each active stream owns its transport; concurrent streams do not multiplex onto the same connection.
+Inside a Swoole coroutine with native cURL hooks enabled, the HTTP client receives chunks as they arrive, buffers a limited amount, and pauses network reads when your application falls behind. [Named connections](#connections) reuse idle connections between requests while keeping request headers, credentials, and cookies separate. Each active stream owns its transport; concurrent streams do not multiplex onto the same connection.
 
 For streaming requests, `timeout` bounds the wait for response headers. After headers arrive, a long-running stream may continue beyond that timeout. The `read_timeout` option limits idle gaps during headers and body reads, defaults to 60 seconds, and accepts `0` to wait without an idle limit. `connect_timeout` continues to limit connection establishment. Closing a response or canceling its consuming coroutine releases its active transfer.
 
@@ -962,6 +962,8 @@ defer(function () {
 ## Connections
 
 Hypervel's HTTP client supports named connection presets for services your application calls frequently. Synchronous requests on a registered connection share one low-level Guzzle transport handler, which retains reusable cURL handles and keep-alive connection state. Every pending request still receives a fresh Guzzle client and middleware stack, so request-specific middleware, callbacks, and options never become frozen onto the first request. Asynchronous requests use isolated handlers because a worker-lived cURL multi-handler cannot be driven safely by concurrent coroutines.
+
+For streamed responses, each named connection keeps up to 32 idle connections per worker for reuse. Connections are opened as needed; this does not limit how many requests can run at once.
 
 To register a connection, typically in the `boot` method of your application's `AppServiceProvider`, call the `registerConnection` method:
 

@@ -34,7 +34,7 @@ use Throwable;
  */
 class CurlStreamingHandler
 {
-    public const int MAX_IDLE_CONNECTIONS = 3;
+    public const int MAX_IDLE_CONNECTIONS = 32;
 
     protected CurlFactoryInterface $factory;
 
