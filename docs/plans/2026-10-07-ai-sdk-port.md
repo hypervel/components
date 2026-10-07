@@ -4,14 +4,11 @@
 
 Port Laravel AI `1.x` to `hypervel/ai`, retaining its optional MCP adapters. The owner has assigned the MCP package port to a separate session; it is not a prerequisite for this port. Preserve upstream application APIs, named arguments, protected extension points, protocols and test coverage while making execution safe and efficient in long-lived coroutine workers. Ordinary Eloquent/query-builder usage and ordinary agent calls keep their familiar behavior.
 
-Work in the `components-ai` worktree on `feature/ai`, based on `0.4`. Dependencies are independently installed and `.env` is copied. No source implementation has started. Follow the current monorepo instructions and the owner's governing `/home/binaryfire/workspace/contrib/hypervel/components/AGENTS.md`, including its dependency-access guidance even where the worktree copy differs. Maintain a separate remaining-file checklist during implementation rather than expanding this plan into a source inventory. Never stage, commit, push, merge another worktree, or alter historical plans without authorization.
+Work in the `components-ai` worktree on `feature/ai`, based on `0.4`. Dependencies are independently installed and `.env` is copied. No source implementation has started. Follow the current monorepo instructions and the owner's governing `/home/binaryfire/workspace/contrib/hypervel/components/AGENTS.md`, including its dependency-access guidance even where the worktree copy differs. Maintain a separate remaining-file checklist during implementation rather than expanding this plan into a source inventory. The implementer is authorized to commit signed-off checkpoints under the workflow below; pushing, merging another worktree and altering historical plans remain unauthorized.
 
-The public reference is the local `references/laravel/ai` clone on `1.x` and its current tests/config/resources. Recheck upstream changes before copying. Use `src/cache/{composer.json,README.md,LICENSE.md}` as the first-party package skeleton. Copy and adapt files alphabetically, one at a time, including tests and fixtures. Exclude Boost resources only; agent skills remain supported. Real MCP integration execution depends on the separately assigned package, as described in §8. Apply current dependency-injection guidance: retain upstream access patterns in closely ported classes; use injection where a substantive redesign benefits from it.
+The public reference is the local `references/laravel/ai` clone on `1.x` and its current tests/config/resources. Recheck upstream changes before copying. Use `src/cache/{composer.json,README.md,LICENSE.md}` as the first-party package skeleton. Within dependency groups, port files alphabetically, one at a time: `cp` the upstream file, read the entire copy, then make targeted edits. Apply this to source, tests, fixtures and documents; only genuinely new Hypervel-specific files are written fresh. Exclude Boost resources only; agent skills remain supported. Real MCP integration execution depends on the separately assigned package, as described in §8. Apply current dependency-injection guidance: retain upstream access patterns in closely ported classes; use injection where a substantive redesign benefits from it.
 
-Two external dependencies have different treatment:
-
-- The existing native HTTP implementation in the `components-http` worktree supplies the transport selection, named connection and ObjectPool architecture. Reconcile against that implementation when it becomes available on the working base; do not implement competing APIs, silently merge it, or edit its historical plan. This plan owns the additional incremental streaming work and its acceptance tests.
-- A proposed Swoole per-response disconnect notification is **not** a prerequisite. Implement all behavior possible on supported released runtimes. The missing immediate HTTP/2 reset notification is tracked in `docs/todo.md`; no polling workaround, unreleased runtime requirement or speculative native API belongs in this port.
+Implement the database and HTTP changes directly against this worktree's framework code. The proposed Swoole server-level HTTP/2 stream-cancel event is **not** a prerequisite. Implement all behavior possible on supported released runtimes. The missing immediate HTTP/2 reset notification is tracked in `docs/todo.md`; no polling workaround, unreleased runtime requirement or speculative native API belongs in this port.
 
 ## Public behavior and compatibility
 
@@ -27,15 +24,25 @@ Apply these discussed differences and explain them proportionately:
 
 Record deliberate lasting public differences briefly in the relevant package README and link to canonical docs. Explain affected edge cases in feature docs, and put actual migration/adaptation requirements in `src/docs/porting-from-laravel.md`. Do not catalogue internal optimizations or bug fixes as public API redesigns. Any additional compatibility change discovered during implementation needs owner approval.
 
-## Implementation order
+## Implementation checkpoints
 
-1. Audit and wire package/dependency metadata; establish the complete source/test port checklist with the explicit MCP boundary in §8.
-2. Implement database physical-session leasing, incremental HTTP streaming and existing-runtime streamed-response cancellation, plus the small framework contracts below. Their focused tests precede AI integration.
-3. Port AI, applying the ownership, provider, persistence, schema and cancellation designs below. Run each test file immediately after porting/changing it.
-4. Add the opt-in concurrency/broadcast features and bounded caches; validate behavior through public surfaces and realistic local providers.
-5. Port the imported `src/docs/ai-sdk.md` page to the final Hypervel implementation, then update related canonical docs, examples, facades, split-package wiring, CI and cleanup registrations; remove superseded source/comments/docs. Run required suites and the controlled performance checks.
+Establish the source/test checklist and dependency metadata first. Use these review boundaries for the public work:
 
-These are implementation dependencies, not reduced-scope releases. All required work must be complete before implementation signoff.
+| Checkpoint | Completed work to review |
+|---|---|
+| 1 | Database connection ownership: physical leases, early release, pinning and lifecycle tests. |
+| 2 | HTTP streaming and cancellation: incremental transport, response ownership, disconnect handling and tests. |
+| 3 | AI foundations: package wiring, manager, agents, provider configuration, BYOK and coroutine/deferred context. |
+| 4 | Provider implementations: generation gateways across modalities, files/stores and Bedrock. |
+| 5 | Tools and streaming features: tools, skills, schemas, optional MCP adapters, concurrent execution and broadcasting. |
+| 6 | Conversation persistence and approvals: partitioning, atomic turns, claims, failure handling and tests. |
+| 7 | Public package completion: remaining caching/optimizations, in-place port of `src/docs/ai-sdk.md`, related docs, full framework validation and controlled performance checks. |
+
+Boundaries are flexible review groupings, not partial releases or rigid file assignments. Bring dependencies forward and complete them when needed; aim to finish each file in one pass, including its approved optimizations and meaningful tests. Do not create temporary implementations, placeholder methods or deliberately unfinished files to fit a checkpoint. Revisit completed files when integration, evidence or review requires it. Keep only remaining work in the checklist as scope moves, and include all brought-forward changes in the current review.
+
+- **Implementer:** run every new/changed test file immediately, then the affected checks required by this plan and `AGENTS.md`. Keep directly affected docs accurate with each change; checkpoint 7 completes the canonical AI page and overall documentation audit. Request code review from the assigned peer after each completed checkpoint, supplying the full changes since the previous signoff and validation results. Investigate feedback, push back on incorrect or unnecessary suggestions, fix accepted findings, and loop until explicit signoff before committing or starting the next checkpoint.
+- **Reviewer:** review the actual checkpoint scope, including brought-forward dependencies and reported validation. Check correctness, API compatibility, coroutine/resource ownership, performance, Laravel ergonomics and unnecessary code/tests. Request missing verification from the implementer rather than rerunning checks; do not implement or commit in the reviewer role.
+- **Implementer, after signoff:** commit the reviewed work in its owning repository. Use multiple coherent commits when useful, with a detailed body for each explaining the problem, decisions, resulting behavior and relevant validation. Stage whole files only; never split hunks or temporarily rewrite a file to manufacture commit boundaries. Keep inseparable changes together, exclude unrelated work, and do not push. Checkpoint signoff does not replace the final complete-package verification in §10.
 
 ## 1. Database connection ownership
 
@@ -80,13 +87,13 @@ In `tests/Benchmarks/Database`, compare ordinary request database lifecycles aga
 
 The current Guzzle StreamHandler path batches larger reads; simply replacing the SDK's byte reader with `fgets()`, `stream_get_line()` or `read(8192)` delays events. Fix the owning HTTP transport first, then use `Response::lines()`/`jsonLines()` from AI parsers.
 
-Extend the native HTTP transport architecture with a PSR response body that returns available chunks incrementally. Reuse named connection identities and existing ObjectPool/Coroutine ownership; gateways use `Http`, never raw cURL/socket implementations. Select the underlying supported engine using equivalent verified-TLS measurements and lifecycle correctness. Do not reverse the native branch's deliberate refusal of unsafe shared pending async operations merely because Guzzle exposes a promise API.
+Implement incremental streaming in this worktree's existing HTTP client, with a PSR response body that returns available chunks as they arrive. Integrate at `PendingRequest::buildHandlerStack()` and the factory's existing named-connection handler boundary, preserving Guzzle middleware and caller-supplied handlers/clients. Use framework Coroutine/ObjectPool primitives where ownership requires them; AI gateways use `Http`, never package-owned cURL/socket implementations. Validate the streaming implementation with equivalent verified-TLS measurements and lifecycle tests. Pending transfers and promises remain operation-owned rather than shared across coroutines.
 
 Required behavior:
 
 - Bounded admission and buffering; a slow consumer applies backpressure without unbounded queued events. Deadlines account for pool/admission waits as well as network I/O.
 - Per-request headers, credentials, cookies, body and middleware remain operation-owned. Reused physical transports must not retain request secrets/callbacks; dynamic origins must not create an ever-growing worker registry.
-- Correct headers/informational responses, redirects, decompression, TLS verification, timeouts, middleware/fakes, stats and errors. Supported options that cannot use the native path retain a compatible fallback; do not silently ignore them or reject existing usage without approval.
+- Correct headers/informational responses, redirects, decompression, TLS verification, timeouts, middleware/fakes, stats and errors. Preserve supported options through the streaming handler or a compatible fallback; do not silently ignore them or reject existing usage without approval. Update transport capability guards, including the current `allow_url_fopen` check, to reflect the actual handler requirements.
 - EOF, explicit close, exceptions, cancellation and abandoned consumption settle resources once. If an owned producer exists, closing must actively stop and join it even when upstream is silent. Preserve pre-header errors and truncated-body errors instead of translating them to successful EOF.
 - Avoid redundant SDK-level `finally { close(); }` boilerplate where the owning response/generator chain already closes correctly. Test ownership before adding a close path.
 
@@ -102,7 +109,7 @@ Current Swoole `RST_STREAM` handling has no PHP notification. A reset of one HTT
 
 ### Tests
 
-Extend HTTP/client/server suites using isolated loopback origins: paced SSE, split CRLF/UTF-8 lines, JSON lines, trailers, 1xx responses, truncated body, failures before headers, quiet upstream, slow consumer, explicit close and abandoned iteration. Assert cleanup and sibling-request progress under cancellation. Cover ordinary application close callbacks, opt-in boundaries and supported server modes; HTTP/2 reset tests must reflect the documented current limit. Reuse the native transport harness/origin rather than creating another benchmark server.
+Extend the existing `HttpClientStreamingTest`, `HttpClientResponseStreamTest` and related client/server suites using isolated loopback origins: paced SSE, split CRLF/UTF-8 lines, JSON lines, trailers, 1xx responses, truncated body, failures before headers, quiet upstream, slow consumer, explicit close and abandoned iteration. Assert cleanup and sibling-request progress under cancellation. Cover ordinary application close callbacks, opt-in boundaries and supported server modes; HTTP/2 reset tests must reflect the documented current limit. Reuse and extend this worktree's streaming fixtures rather than introducing duplicate test servers.
 
 Explicitly prove that cancelling a response producer interrupts the new streaming transport while it is waiting on a silent provider, both before headers and during a quiet response body. Synchronize the fixture so cancellation happens during the wait, without depending on a later provider chunk or timeout to unblock it. Assert that owned child work finishes, the upstream transfer is closed and its lease is settled, while sibling requests remain usable. Exercise the supported connection-close path through ResponseBridge as well as direct transport cancellation; merely observing a cancellation flag or dropping a generator is insufficient.
 
@@ -302,7 +309,7 @@ Run each changed/new test file immediately, then affected suites. For final broa
 | Public parity | Existing extension subclasses, provider formatting/string conversion, protocols/replay, fakes/macros/commands/jobs, optional split-package installs |
 | Optional concurrency | Maximum active tools, stable results, exact operation context in joined children, child ownership, stream coherence, serial defaults, no title work before consumption, timed batch flush while upstream is quiet |
 
-Maintain `tests/Benchmarks/Ai` for AI-level scenarios and reuse `tests/Benchmarks/HttpTransport` for transport origins. Measure cold/warm verified-TLS separately, paced/unpaced streams, complete start-to-first-event latency (including admission), CPU, RSS/heap, file descriptors, pool waits/hold durations, turn persistence, history/tool payload sizes, tenant/account churn and long-running cleanup. Count actual simultaneous active transfers, not total scheduled requests.
+Add `tests/Benchmarks/Ai` for AI-level scenarios and `tests/Benchmarks/HttpTransport` for transport scenarios, sharing origin fixtures where applicable. Measure cold/warm verified-TLS separately, paced/unpaced streams, complete start-to-first-event latency (including admission), CPU, RSS/heap, file descriptors, pool waits/hold durations, turn persistence, history/tool payload sizes, tenant/account churn and long-running cleanup. Count actual simultaneous active transfers, not total scheduled requests.
 
 Prior probes establish mechanisms, not acceptance thresholds: larger StreamHandler reads delay SSE; named transport reuse avoids repeated TLS setup; shared pending AWS promises are unsafe; old aggregation creates unnecessary passes/allocations; raw vector bytes fail Redis JSON serialization. Measurements mixed different TLS/setup conditions and machine load, so do not publish their ratios as expected gains. Notify the owner before benchmarks requiring an idle machine and wait for an agreed idle window. Functional tests use synchronization, not benchmark throughput assumptions. No brittle timing thresholds in CI.
 
