@@ -34,8 +34,16 @@ trait HasRetryPolicy
     /**
      * Get the request retry policy.
      */
-    public function retryPolicy(): RetryPolicy
+    public function retryPolicy(): ?RetryPolicy
     {
-        return $this->retryPolicy ??= new RetryPolicy;
+        return $this->retryPolicy ?? $this->defaultRetryPolicy();
+    }
+
+    /**
+     * Resolve the default retry policy.
+     */
+    protected function defaultRetryPolicy(): ?RetryPolicy
+    {
+        return null;
     }
 }

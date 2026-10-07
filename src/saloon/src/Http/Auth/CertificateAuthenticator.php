@@ -8,15 +8,15 @@ use Hypervel\Saloon\Contracts\Authenticator;
 use Hypervel\Saloon\Http\PendingRequest;
 use SensitiveParameter;
 
-readonly class CertificateAuthenticator implements Authenticator
+class CertificateAuthenticator implements Authenticator
 {
     /**
      * Create a certificate authenticator.
      */
     public function __construct(
-        public string $path,
+        public readonly string $path,
         #[SensitiveParameter]
-        public ?string $password = null,
+        public readonly ?string $password = null,
     ) {
     }
 

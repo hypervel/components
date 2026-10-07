@@ -5,16 +5,39 @@ declare(strict_types=1);
 namespace Hypervel\Saloon\Http;
 
 use GuzzleHttp\Psr7\Uri;
+use GuzzleHttp\UriTemplate\UriTemplate;
 use Hypervel\Saloon\Exceptions\PendingRequestException;
 use Psr\Http\Message\UriInterface;
 
 final class UrlResolver
 {
     /**
+     * Substitute the URL parameters in the given URL.
+     *
+     * @param array<array-key, mixed> $parameters
+     */
+    public static function expand(string $url, array $parameters): string
+    {
+        if ($parameters === [] || ! str_contains($url, '{')) {
+            return $url;
+        }
+
+        return UriTemplate::expand($url, $parameters);
+    }
+
+    /**
      * Resolve the connector base URL and request endpoint.
      */
     public static function resolve(string $baseUrl, string $endpoint, bool $allowBaseUrlOverride): UriInterface
     {
+        $absolute = preg_match('~^[A-Za-z][A-Za-z0-9+.-]*://~', $endpoint) === 1;
+
+        // Only a scheme followed by "//" names another host. Other endpoints are paths, so they are parsed with one
+        // leading slash: URI parsing would read "documents:batchGet" as a scheme and "//users" as a host.
+        if (! $absolute && $endpoint !== '' && ! str_starts_with($endpoint, '?') && ! str_starts_with($endpoint, '#')) {
+            $endpoint = '/' . ltrim($endpoint, '/');
+        }
+
         $base = new Uri($baseUrl);
         $endpointUri = new Uri($endpoint);
 
@@ -22,11 +45,11 @@ final class UrlResolver
             self::ensureAbsoluteHttpUri($base, 'connector base URL');
         }
 
-        if ($endpointUri->getScheme() !== '' || $endpointUri->getHost() !== '') {
+        if ($absolute) {
             self::ensureAbsoluteHttpUri($endpointUri, 'request endpoint');
 
             if ($baseUrl !== '' && ! $allowBaseUrlOverride) {
-                throw new PendingRequestException('The request endpoint cannot replace the connector base URL.');
+                throw new PendingRequestException('The request endpoint cannot replace the connector base URL. To request a different host, use a connector with that host as its base URL, or return true from allowsBaseUrlOverride() on the connector or request when the endpoint is trusted.');
             }
 
             return $endpointUri;
@@ -69,6 +92,10 @@ final class UrlResolver
         $retained = [];
 
         foreach ($pairs as $pair) {
+            if ($pair === '') {
+                continue;
+            }
+
             $encodedName = explode('=', $pair, 2)[0];
             $name = urldecode($encodedName);
 

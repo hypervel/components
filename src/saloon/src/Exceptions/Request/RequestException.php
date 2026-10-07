@@ -40,6 +40,8 @@ class RequestException extends HttpRequestException
         return $this->response->status();
     }
 
+    // getStatusMessage() is not included: use response()->reason().
+
     /**
      * Get the response body.
      */

@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Saloon\Http;
 
-use Hypervel\Contracts\Container\SelfBuilding;
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\RateLimiter\AdmissionPolicy;
+use Hypervel\RateLimiter\Contracts\Decision;
+use Hypervel\RateLimiter\Cooldown;
 use Hypervel\Saloon\Enums\Method;
 use Hypervel\Saloon\Traits\Auth\AuthenticatesRequests;
 use Hypervel\Saloon\Traits\Body\HasBody;
@@ -24,7 +26,7 @@ use LogicException;
 use UnitEnum;
 
 /** @template-covariant TDto */
-abstract class Request implements SelfBuilding
+abstract class Request implements Transient
 {
     /** @use CreatesDtoFromResponse<TDto> */
     use CreatesDtoFromResponse;
@@ -51,14 +53,6 @@ abstract class Request implements SelfBuilding
      * The caller-supplied absolute URL override.
      */
     protected ?string $url = null;
-
-    /**
-     * Create a fresh request for container resolution.
-     */
-    public static function newInstance(): static
-    {
-        return new static;
-    }
 
     /**
      * Get the HTTP method used by the request.
@@ -153,11 +147,11 @@ abstract class Request implements SelfBuilding
     }
 
     /**
-     * Determine if this request defines rate limits.
+     * Determine if the request's rate limits apply to an operation.
      *
      * @internal
      */
-    public function usesRateLimits(): bool
+    public function usesRateLimits(PendingRequest $pendingRequest): bool
     {
         return false;
     }
@@ -184,11 +178,21 @@ abstract class Request implements SelfBuilding
     }
 
     /**
-     * Determine if request rate limits should be awaited.
+     * Resolve the identity whose limits and cooldowns the request uses.
      *
      * @internal
      */
-    public function shouldWaitForRateLimits(): bool
+    public function rateLimiterName(): string
+    {
+        return static::class;
+    }
+
+    /**
+     * Determine if a denied request rate limit should be awaited.
+     *
+     * @internal
+     */
+    public function shouldWaitForRateLimits(AdmissionPolicy|Cooldown $policy, Decision $result): bool
     {
         return false;
     }
@@ -200,7 +204,7 @@ abstract class Request implements SelfBuilding
      */
     public function resolveRateLimitCooldownKeyFor(PendingRequest $pendingRequest): string
     {
-        return static::class;
+        return '';
     }
 
     /**
@@ -221,7 +225,6 @@ abstract class Request implements SelfBuilding
         $this->headerRepository = $this->headerRepository !== null ? clone $this->headerRepository : null;
         $this->queryRepository = $this->queryRepository !== null ? clone $this->queryRepository : null;
         $this->optionRepository = $this->optionRepository !== null ? clone $this->optionRepository : null;
-        $this->delayRepository = $this->delayRepository !== null ? clone $this->delayRepository : null;
         $this->middlewarePipeline = $this->middlewarePipeline !== null ? clone $this->middlewarePipeline : null;
         $this->bodyRepository = $this->bodyRepository !== null ? clone $this->bodyRepository : null;
     }

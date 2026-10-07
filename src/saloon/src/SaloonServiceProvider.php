@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Saloon;
 
+use Hypervel\Cache\CacheManager;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Http\Client\Factory as HttpFactory;
 use Hypervel\RateLimiter\RateLimiter;
+use Hypervel\Saloon\Cache\Data\CachedResponse;
 use Hypervel\Saloon\Console\Commands\ListCommand;
 use Hypervel\Saloon\Console\Commands\MakeAuthenticator;
 use Hypervel\Saloon\Console\Commands\MakeConnector;
@@ -37,13 +40,23 @@ class SaloonServiceProvider extends ServiceProvider
         ));
 
         $this->app->alias('saloon', SaloonManager::class);
+
+        // Event fakes replace the dispatcher after the manager may already hold the original.
+        $this->app->rebinding('events', function (Container $container, Dispatcher $events): void {
+            if ($container->resolved('saloon')) {
+                $container->make('saloon')->setEventDispatcher($events);
+            }
+        });
     }
 
     /**
      * Bootstrap the package services.
      */
-    public function boot(HttpFactory $httpFactory, ConfigRepository $config): void
+    public function boot(HttpFactory $httpFactory, ConfigRepository $config, CacheManager $cache): void
     {
+        // Cached responses are stored as CachedResponse objects, which serializing stores must be allowed to restore.
+        $cache->allowSerializableClassesUsing(static fn (): array => [CachedResponse::class]);
+
         $connection = $config->string('saloon.connection.name');
         $options = $config->array('saloon.connection.options');
 
@@ -53,6 +66,9 @@ class SaloonServiceProvider extends ServiceProvider
             $connection,
             $options,
         );
+
+        // The plugin's Telescope, Pulse and Nightwatch middleware are not included: Saloon requests go through the
+        // HTTP client, which Telescope's watcher records, and Hypervel has no Pulse or Nightwatch package.
 
         $this->registerConsoleResources();
     }

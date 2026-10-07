@@ -31,7 +31,7 @@ class JwtGenerateCertsCommand extends Command
         {--bits=4096 : RSA key length}
         {--sha=512 : SHA variant}
         {--dir=storage/certs : Directory where certificates should be written}
-        {--curve=prime256v1 : EC curve name}
+        {--curve= : EC curve name, defaults to the curve the SHA variant requires}
         {--passphrase= : Passphrase}
         {--ask-passphrase : Prompt for the passphrase}';
 
@@ -49,7 +49,7 @@ class JwtGenerateCertsCommand extends Command
         $algorithm = strtolower((string) $this->option('algo'));
         $bits = (int) $this->option('bits');
         $sha = (int) $this->option('sha');
-        $curve = (string) $this->option('curve');
+        $curve = $this->option('curve');
         $passphrase = $this->resolvePassphrase();
         $environmentFile = $this->hypervel->environmentFilePath();
 
@@ -72,6 +72,8 @@ class JwtGenerateCertsCommand extends Command
         }
 
         if ($keyType === OPENSSL_KEYTYPE_EC) {
+            $curve = (string) ($curve ?? self::EC_CURVES[$sha]);
+
             $this->validateEcCurve($sha, $curve);
         }
 

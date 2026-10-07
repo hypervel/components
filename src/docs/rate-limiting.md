@@ -8,6 +8,7 @@
 - [Defining Rate Limits](#defining-rate-limits)
     - [Choosing a Rate Limit](#choosing-a-rate-limit)
     - [Fixed Windows](#fixed-windows)
+    - [Calendar Windows](#calendar-windows)
     - [Sliding Windows](#sliding-windows)
     - [Leaky Buckets](#leaky-buckets)
     - [Weighted Operations](#weighted-operations)
@@ -33,6 +34,7 @@ Hypervel includes a powerful rate limiter that you may use to limit HTTP routes,
 The rate limiter supports:
 
 - fixed-window limits;
+- calendar windows that reset at the start of each minute, hour, day, or month;
 - sliding-window limits;
 - continuously replenishing leaky buckets;
 - weighted operations;
@@ -180,6 +182,7 @@ Hypervel provides several rate limits for different kinds of work:
 | Rate Limit | When to Use It |
 |---|---|
 | Fixed window | You want a simple limit that resets all capacity at once. |
+| Calendar window | You want capacity to reset on the clock, such as an API quota that resets at midnight. |
 | Sliding window | You want to smooth the traffic spike that may occur at a fixed-window boundary. |
 | Leaky bucket | You want capacity to replenish continuously or need precise burst control. |
 | Exponential backoff | You want repeated failures to create progressively longer delays. |
@@ -206,6 +209,36 @@ $limit = Limit::perMinute(120, decayMinutes: 2);
 ```
 
 A denied operation does not consume capacity or extend the active window.
+
+<a name="calendar-windows"></a>
+### Calendar Windows
+
+The `CalendarWindow` class resets capacity at the start of each minute, hour, day, or month, rather than a fixed time after the first operation. This matches APIs whose quotas reset on the clock, such as a daily quota that resets at midnight:
+
+```php
+use Hypervel\RateLimiter\CalendarWindow;
+
+$perMinute = CalendarWindow::perMinute(60);
+$perHour = CalendarWindow::perHour(1000);
+$perDay = CalendarWindow::perDay(10_000);
+$perMonth = CalendarWindow::perMonth(100_000);
+```
+
+A daily window may reset at another time of day, given in the 24-hour `HH:MM` or `HH:MM:SS` format:
+
+```php
+$limit = CalendarWindow::perDay(10_000, at: '01:00');
+```
+
+Calendar windows follow your application's timezone. If a provider resets its quota in another timezone, use the `timezone` method:
+
+```php
+$limit = CalendarWindow::perDay(10_000)->timezone('America/Los_Angeles');
+```
+
+Windows follow the local clock when daylight saving time begins or ends, so a daily window may last 23 or 25 hours, and an hour that happens twice is two separate hourly windows. When the clocks go back and a daily reset time happens twice, the window resets the first time. When the clocks go forward past a daily reset time, the window resets later by the same amount that day.
+
+Calendar windows support the same `by`, `cost`, `globally`, `after`, and `response` modifiers as fixed windows. A denied operation does not consume capacity, and `resetAfter()` returns the time until the active window resets, or zero when no window is active.
 
 <a name="sliding-windows"></a>
 ### Sliding Windows
@@ -276,7 +309,7 @@ $limit = Limit::perMinute(100)
     ->by('uploads:'.$user->id);
 ```
 
-The cost may not exceed the fixed-window or sliding-window capacity, or the leaky-bucket burst capacity. A denied weighted operation leaves the current capacity unchanged.
+The cost may not exceed the fixed-window, calendar-window, or sliding-window capacity, or the leaky-bucket burst capacity. A denied weighted operation leaves the current capacity unchanged.
 
 <a name="unlimited"></a>
 ### Unlimited
@@ -547,7 +580,7 @@ interface Store
 }
 ```
 
-A custom store receives validated `Limit`, `SlidingWindow`, and `LeakyBucket` objects through the `AdmissionPolicy` type, while backoff operations receive a `Backoff` instance. The `$key` has already been hashed to a fixed length. The `consume` method must check and consume capacity atomically, while `inspect` must not change state. The `recordFailure` method updates backoff state, and `clear` removes state for a key. Custom stores should return the same decisions and timing values as Hypervel's built-in stores.
+A custom store receives validated `Limit`, `CalendarWindow`, `SlidingWindow`, and `LeakyBucket` objects through the `AdmissionPolicy` type, while backoff operations receive a `Backoff` instance. A calendar window counts like a fixed window, but new state expires at the end of the window that its `window` method returns for the store's current time. Both use epoch microseconds. The `$key` has already been hashed to a fixed length. The `consume` method must check and consume capacity atomically, while `inspect` must not change state. The `recordFailure` method updates backoff state, and `clear` removes state for a key. Custom stores should return the same decisions and timing values as Hypervel's built-in stores.
 
 The `consumeMany` method evaluates entries in order, including repeated keys, and returns results through the first denial. Store all accepted changes together; on denial, leave capacity unchanged and report remaining capacity without the discarded charges. The `block` method extends a cooldown without shortening an existing block.
 

@@ -34,7 +34,7 @@ class BlacklistTest extends TestCase
 
         $this->testNowTimestamp = Date::now()->timestamp;
         $this->storage = m::mock(StorageContract::class);
-        $this->blacklist = new Blacklist($this->storage);
+        $this->blacklist = new Blacklist($this->storage, refreshTTL: 20160);
     }
 
     public function testAddAValidTokenToTheBlacklist(): void
@@ -281,7 +281,7 @@ class BlacklistTest extends TestCase
         ];
         $blacklist = new Blacklist($this->storage, refreshTTL: 0);
 
-        // Model the clock advancing while the tagged-cache lookup is in flight.
+        // Model the clock advancing while the storage lookup is in flight.
         $this->storage->shouldReceive('get')
             ->with('foo')
             ->once()
@@ -316,22 +316,36 @@ class BlacklistTest extends TestCase
         $this->assertTrue($blacklist->add($payload));
     }
 
-    public function testRefreshWindowCanDefineTheBlacklistLifetime(): void
+    #[DataProvider('refreshWindowLifetimeProvider')]
+    public function testRefreshWindowCanDefineTheBlacklistLifetime(int $leeway, int $minutes): void
     {
         $payload = [
             'exp' => $this->testNowTimestamp + 600,
             'iat' => $this->testNowTimestamp,
             'jti' => 'foo',
         ];
-        $blacklist = new Blacklist($this->storage, refreshTTL: 20);
+        $blacklist = new Blacklist($this->storage, refreshTTL: 20, leeway: $leeway);
 
         $this->storage->shouldReceive('get')->with('foo')->once()->andReturnNull();
         $this->storage->shouldReceive('add')
-            ->with('foo', ['valid_until' => $this->testNowTimestamp], 21)
+            ->with('foo', ['valid_until' => $this->testNowTimestamp], $minutes)
             ->once()
             ->andReturnTrue();
 
         $this->assertTrue($blacklist->add($payload));
+    }
+
+    /**
+     * Provide leeways and the blacklist lifetime the refresh window then requires.
+     *
+     * @return array<string, array{int, int}>
+     */
+    public static function refreshWindowLifetimeProvider(): array
+    {
+        return [
+            'no leeway' => [0, 21],
+            'leeway longer than the retention margin' => [120, 23],
+        ];
     }
 
     #[DataProvider('terminalExpirationProvider')]

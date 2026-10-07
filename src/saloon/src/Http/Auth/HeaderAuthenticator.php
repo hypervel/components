@@ -8,15 +8,15 @@ use Hypervel\Saloon\Contracts\Authenticator;
 use Hypervel\Saloon\Http\PendingRequest;
 use SensitiveParameter;
 
-readonly class HeaderAuthenticator implements Authenticator
+class HeaderAuthenticator implements Authenticator
 {
     /**
      * Create a header authenticator.
      */
     public function __construct(
         #[SensitiveParameter]
-        public string $accessToken,
-        public string $headerName = 'Authorization',
+        public readonly string $accessToken,
+        public readonly string $headerName = 'Authorization',
     ) {
     }
 

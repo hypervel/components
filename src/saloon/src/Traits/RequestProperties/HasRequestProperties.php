@@ -13,4 +13,5 @@ trait HasRequestProperties
     use HasOptions;
     use HasQuery;
     use HasRetryPolicy;
+    use HasUrlParameters;
 }

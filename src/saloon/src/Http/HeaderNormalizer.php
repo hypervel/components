@@ -12,20 +12,33 @@ final class HeaderNormalizer
     /**
      * Normalize request header values.
      *
-     * @param array<string, mixed> $headers
+     * @param array<array-key, mixed> $headers
      * @return array<string, list<string>|string>
      */
     public static function normalize(array $headers): array
     {
-        foreach ($headers as $name => $value) {
-            if (! is_string($name)) {
-                throw new InvalidHeaderException('HTTP header names must be strings.');
-            }
+        self::ensureValidNames($headers);
 
+        foreach ($headers as $name => $value) {
             $headers[$name] = self::value($value);
         }
 
         return $headers;
+    }
+
+    /**
+     * Ensure every header is keyed by its name.
+     *
+     * @param array<array-key, mixed> $headers
+     * @phpstan-assert array<string, mixed> $headers
+     */
+    public static function ensureValidNames(array $headers): void
+    {
+        foreach (array_keys($headers) as $name) {
+            if (! is_string($name)) {
+                throw new InvalidHeaderException('One or more of the headers are invalid. Make sure to use the header name as the key. For example: [\'Content-Type\' => \'application/json\'].');
+            }
+        }
     }
 
     /**

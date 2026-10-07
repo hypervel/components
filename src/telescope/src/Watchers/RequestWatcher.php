@@ -189,7 +189,12 @@ class RequestWatcher extends Watcher
                 return Telescope::PURGED_VALUE;
             }
 
-            if (Str::startsWith(strtolower($response->headers->get('Content-Type') ?? ''), 'text/plain')) {
+            $contentType = strtolower($response->headers->get('Content-Type') ?? '');
+
+            // Scalar JSON such as 0, false or null is shown as sent instead of being labeled empty or HTML.
+            if (Str::startsWith($contentType, 'text/plain')
+                || ($jsonError === JSON_ERROR_NONE && Str::contains($contentType, ['/json', '+json']))
+            ) {
                 return $this->contentWithinLimits($content) ? $content : Telescope::PURGED_VALUE;
             }
         }
@@ -205,7 +210,7 @@ class RequestWatcher extends Watcher
             ];
         }
 
-        if (is_string($content) && empty($content)) {
+        if ($content === '') {
             return 'Empty Response';
         }
 
