@@ -211,13 +211,14 @@ class GeneratorCommandsTest extends TestCase
         return [
             'application directory' => ['', 'App\Stripe'],
             'subdirectory' => ['Integrations', 'App\Integrations\Stripe'],
+            'path with dot segments' => ['Http/../Integrations', 'App\Integrations\Stripe'],
         ];
     }
 
-    public function testAnIntegrationsPathOutsideTheAppDirectoryRequiresANamespace(): void
+    #[DataProvider('integrationsPathsOutsideTheAppDirectory')]
+    public function testAnIntegrationsPathOutsideTheAppDirectoryRequiresANamespace(string $relativePath): void
     {
-        // A sibling whose name starts with the app directory's name is still outside it.
-        config()->set('saloon.integrations_path', base_path('app-other/Integrations'));
+        config()->set('saloon.integrations_path', base_path($relativePath));
         $this->generatedDirectories[] = base_path('app-other');
 
         try {
@@ -235,6 +236,19 @@ class GeneratorCommandsTest extends TestCase
         }
 
         $this->assertDirectoryDoesNotExist(base_path('app-other'));
+    }
+
+    /**
+     * Get integrations paths, relative to the base path, that are outside the app directory.
+     *
+     * @return array<string, array{string}>
+     */
+    public static function integrationsPathsOutsideTheAppDirectory(): array
+    {
+        return [
+            'sibling whose name starts with the app directory name' => ['app-other/Integrations'],
+            'dot segments leaving the app directory' => ['app/../app-other/Integrations'],
+        ];
     }
 
     public function testCommandOptionsOverrideConfiguredPathAndNamespace(): void
