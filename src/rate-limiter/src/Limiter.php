@@ -203,6 +203,7 @@ class Limiter
     {
         $duration = match (true) {
             $policy instanceof Limit => $this->validateFixedWindow($policy),
+            $policy instanceof CalendarWindow => $this->validateCalendarWindow($policy),
             $policy instanceof SlidingWindow => $this->validateSlidingWindow($policy),
             $policy instanceof LeakyBucket => $this->validateLeakyBucket($policy),
             default => throw new InvalidRateLimitException(sprintf(
@@ -226,6 +227,22 @@ class Limiter
         }
 
         return $policy->decaySeconds * 1_000_000;
+    }
+
+    /**
+     * Validate a calendar-window policy's capacity.
+     *
+     * Calendar windows vary in length, so this returns no duration and stores range-check each window's end when they create it.
+     */
+    protected function validateCalendarWindow(CalendarWindow $policy): int
+    {
+        if ($policy->cost > $policy->maxAttempts) {
+            throw new InvalidRateLimitException(
+                'The rate limit cost may not exceed the calendar-window capacity.'
+            );
+        }
+
+        return 0;
     }
 
     /**

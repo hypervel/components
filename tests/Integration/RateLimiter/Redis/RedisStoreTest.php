@@ -8,6 +8,7 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\RateLimiter\AdmissionPolicy;
 use Hypervel\RateLimiter\Backoff;
+use Hypervel\RateLimiter\CalendarWindow;
 use Hypervel\RateLimiter\Cooldown;
 use Hypervel\RateLimiter\KeyResolver;
 use Hypervel\RateLimiter\LeakyBucket;
@@ -165,6 +166,51 @@ class RedisStoreTest extends TestCase
 
         $this->assertIsString($storedTat);
         $this->assertGreaterThan(1_700_000_000_000_000, (int) $storedTat);
+    }
+
+    #[DataProvider('calendarClockOffsetProvider')]
+    public function testCalendarWindowsFollowRedisTimeWhenThePhpClockIsInAnotherPeriod(int $offsetSeconds): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds($offsetSeconds));
+        $policy = CalendarWindow::perHour(5)->timezone('UTC')->by('calendar-clock');
+        $limiter = $this->limiter();
+
+        $first = $limiter->consume($policy);
+        $second = $limiter->consume($policy);
+        $redisSeconds = (int) $this->redisClient()->time()[0];
+
+        $this->assertTrue($first->allowed());
+        $this->assertSame(4, $first->remaining());
+        $this->assertSame(3, $second->remaining());
+        $this->assertEqualsWithDelta(3_600 - $redisSeconds % 3_600, $second->resetAfter(), 1);
+        $this->assertLessThanOrEqual(3_600_000, $this->redisClient()->pttl($this->physicalKey($policy)));
+    }
+
+    /**
+     * Get PHP clock offsets that place the PHP calendar window outside Redis's.
+     */
+    public static function calendarClockOffsetProvider(): array
+    {
+        return [
+            'PHP clock behind Redis' => [-7_200],
+            'PHP clock ahead of Redis' => [7_200],
+        ];
+    }
+
+    public function testAStaleCalendarWindowDiscardsTheGroupsTentativeChargesBeforeRetrying(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->subHours(2));
+        $fixed = Limit::perMinute(10)->by('calendar-group');
+        $calendar = CalendarWindow::perHour(10)->timezone('UTC')->by('calendar-group');
+        $limiter = $this->limiter();
+
+        $results = $limiter->consumeMany([$fixed, $calendar]);
+
+        $this->assertCount(2, $results);
+        $this->assertSame(9, $results[0]->remaining());
+        $this->assertSame(9, $results[1]->remaining());
+        $this->assertLessThanOrEqual(3_600, $results[1]->resetAfter());
+        $this->assertSame(9, $limiter->inspect($fixed)->remaining());
     }
 
     public function testExponentialBackoffUsesOneRedisStateEntry(): void

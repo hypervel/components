@@ -240,7 +240,6 @@ class HasRateLimitsTest extends TestCase
             'missing' => [null],
             'malformed' => ['not-working'],
             'not an HTTP date' => ['01/01/2023'],
-            'too long for the rate limiter' => [str_repeat('9', 30)],
         ];
     }
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\RateLimiter;
 
 use Hypervel\RateLimiter\Backoff;
+use Hypervel\RateLimiter\CalendarWindow;
 use Hypervel\RateLimiter\Cooldown;
 use Hypervel\RateLimiter\KeyResolver;
 use Hypervel\RateLimiter\LeakyBucket;
@@ -35,6 +36,13 @@ class KeyResolverTest extends TestCase
         $this->assertSame(
             '72519c9daf2298e61f4ce018cacde4ac',
             $resolver->resolve(LeakyBucket::perSecond(100)->burst(200)->by('user:1'), 'api'),
+        );
+        $this->assertSame(
+            'cb8b42d25a527a30dc32c02806cdee8a',
+            $resolver->resolve(
+                CalendarWindow::perDay(1000, at: '01:00')->timezone('America/New_York')->by('user:1'),
+                'api',
+            ),
         );
         $this->assertSame(
             'c80de4e32af3dae58519b7d54ceb3c12',
@@ -94,6 +102,41 @@ class KeyResolverTest extends TestCase
         $this->assertSame($key, $resolver->resolve($policy->cost(5)));
         $this->assertSame($key, $resolver->resolve($policy->after(static fn (): bool => true)));
         $this->assertSame($key, $resolver->resolve($policy->response(static fn (): string => 'limited')));
+    }
+
+    public function testLeakyBucketIdentityIncludesStablePolicySettings(): void
+    {
+        $resolver = new KeyResolver('app', static fn (): ?string => null);
+        $policy = LeakyBucket::perSecond(10)->burst(20)->by('user:1');
+        $key = $resolver->resolve($policy);
+
+        $this->assertNotSame($key, $resolver->resolve(LeakyBucket::perSecond(11)->burst(20)->by('user:1')));
+        $this->assertNotSame($key, $resolver->resolve(LeakyBucket::perSecond(10, 2)->burst(20)->by('user:1')));
+        $this->assertNotSame($key, $resolver->resolve($policy->burst(21)));
+        $this->assertNotSame($key, $resolver->resolve($policy->globally()));
+        $this->assertSame($key, $resolver->resolve($policy->cost(5)));
+    }
+
+    public function testCalendarWindowIdentityIncludesStablePolicySettings(): void
+    {
+        $resolver = new KeyResolver('app', static fn (): ?string => null);
+        $policy = CalendarWindow::perDay(60, at: '01:00')->timezone('UTC')->by('user:1');
+        $key = $resolver->resolve($policy);
+
+        $this->assertSame($key, $resolver->resolve(
+            CalendarWindow::perDay(60, at: '01:00:00')->timezone('UTC')->by('user:1'),
+        ));
+        $this->assertNotSame($key, $resolver->resolve(
+            CalendarWindow::perDay(61, at: '01:00')->timezone('UTC')->by('user:1'),
+        ));
+        $this->assertNotSame($key, $resolver->resolve(
+            CalendarWindow::perDay(60, at: '02:00')->timezone('UTC')->by('user:1'),
+        ));
+        $this->assertNotSame($key, $resolver->resolve(CalendarWindow::perHour(60)->timezone('UTC')->by('user:1')));
+        $this->assertNotSame($key, $resolver->resolve($policy->timezone('Europe/Berlin')));
+        $this->assertNotSame($key, $resolver->resolve($policy->globally()));
+        $this->assertNotSame($key, $resolver->resolve(Limit::perDay(60)->by('user:1')));
+        $this->assertSame($key, $resolver->resolve($policy->cost(5)));
     }
 
     public function testMissingScopeResolverMatchesAResolverReturningNull(): void

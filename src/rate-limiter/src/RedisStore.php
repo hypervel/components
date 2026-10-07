@@ -8,6 +8,7 @@ use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\RateLimiter\Contracts\Store;
 use Hypervel\RateLimiter\Exceptions\InvalidRateLimitException;
 use Hypervel\Redis\RedisConnection;
+use Hypervel\Support\CarbonImmutable;
 use UnexpectedValueException;
 
 class RedisStore implements Store
@@ -59,6 +60,24 @@ local function persist_fixed(key, state)
     else
         redis.call('INCRBY', key, state.current - state.original)
     end
+end
+LUA;
+
+    // PHP calculates calendar boundaries before the script runs, so a new window
+    // only starts when Redis's clock is inside them. Otherwise calculate_calendar
+    // returns nil, and the script replies with Redis's time before any write so
+    // PHP can recalculate the window.
+    private const string CALENDAR_WINDOW_FUNCTIONS = <<<'LUA'
+local function calculate_calendar(state, policy, consume, now)
+    local duration = 0
+    if consume and state.fresh then
+        local nowMilliseconds = math.floor(now / 1000)
+        if nowMilliseconds < policy[3] or nowMilliseconds >= policy[4] then
+            return nil
+        end
+        duration = policy[4] - nowMilliseconds
+    end
+    return calculate_fixed(state, {policy[1], policy[2], duration}, consume)
 end
 LUA;
 
@@ -206,10 +225,12 @@ end
 LUA;
 
     private const string CONSUME_MANY_SCRIPT = self::FIXED_WINDOW_FUNCTIONS . "\n"
-        . self::SLIDING_WINDOW_FUNCTIONS . "\n" . self::LEAKY_BUCKET_FUNCTIONS . <<<'LUA'
+        . self::CALENDAR_WINDOW_FUNCTIONS . "\n" . self::SLIDING_WINDOW_FUNCTIONS . "\n"
+        . self::LEAKY_BUCKET_FUNCTIONS . <<<'LUA'
 
 local algorithms = {
     fixed = {load_fixed, calculate_fixed, persist_fixed},
+    calendar = {load_fixed, calculate_calendar, persist_fixed},
     sliding = {load_sliding, calculate_sliding, persist_sliding},
     leaky = {load_leaky, calculate_leaky, persist_leaky}
 }
@@ -222,11 +243,11 @@ for index, key in ipairs(KEYS) do
     local policy = {tonumber(ARGV[offset + 2]), tonumber(ARGV[offset + 3]),
         tonumber(ARGV[offset + 4]), tonumber(ARGV[offset + 5])}
     policies[index] = {algorithm, policy}
+    if (kind == 'leaky' or kind == 'calendar') and not now then
+        local time = redis.call('TIME')
+        now = tonumber(time[1]) * 1000000 + tonumber(time[2])
+    end
     if not states[key] then
-        if kind == 'leaky' and not now then
-            local time = redis.call('TIME')
-            now = tonumber(time[1]) * 1000000 + tonumber(time[2])
-        end
         local state = algorithm[1](key, policy, now)
         originals[key] = {}
         for field, value in pairs(state) do
@@ -234,7 +255,10 @@ for index, key in ipairs(KEYS) do
         end
         states[key] = state
     end
-    results[index] = algorithm[2](states[key], policy, true)
+    results[index] = algorithm[2](states[key], policy, true, now)
+    if not results[index] then
+        return {'stale', now}
+    end
     if results[index][1] == 0 then
         -- No writes have happened. Report capacity without the discarded charges.
         for position = 1, index do
@@ -262,7 +286,10 @@ LUA;
 local policy = {tonumber(ARGV[2]), tonumber(ARGV[3]), tonumber(ARGV[4]), tonumber(ARGV[5])}
 local state = load(KEYS[1], policy, now)
 local consume = ARGV[1] == 'consume'
-local result = calculate(state, policy, consume)
+local result = calculate(state, policy, consume, now)
+if not result then
+    return {'stale', now}
+end
 if consume and result[1] == 1 then
     persist(KEYS[1], state)
 end
@@ -271,6 +298,11 @@ LUA;
 
     private const string FIXED_WINDOW_SCRIPT = self::FIXED_WINDOW_FUNCTIONS
         . "\nlocal load, calculate, persist = load_fixed, calculate_fixed, persist_fixed\nlocal now\n"
+        . self::SCALAR_ADMISSION_SCRIPT;
+
+    private const string CALENDAR_WINDOW_SCRIPT = self::FIXED_WINDOW_FUNCTIONS . "\n" . self::CALENDAR_WINDOW_FUNCTIONS
+        . "\nlocal load, calculate, persist = load_fixed, calculate_calendar, persist_fixed\n"
+        . "local time = redis.call('TIME')\nlocal now = tonumber(time[1]) * 1000000 + tonumber(time[2])\n"
         . self::SCALAR_ADMISSION_SCRIPT;
 
     private const string SLIDING_WINDOW_SCRIPT = self::SLIDING_WINDOW_FUNCTIONS
@@ -453,24 +485,28 @@ LUA;
                 return $this->consumeManyOnCluster($connection, $policies);
             }
 
-            $arguments = [];
-            $capacities = [];
+            $now = null;
 
-            foreach ($policies as $entry) {
-                [$kind, $parameters, $capacity] = $this->admissionParameters($entry['policy']);
-                $arguments[] = $kind;
-                $capacities[] = $capacity;
+            do {
+                $arguments = [];
+                $capacities = [];
 
-                foreach ($parameters as $parameter) {
-                    $arguments[] = $parameter;
+                foreach ($policies as $entry) {
+                    [$kind, $parameters, $capacity] = $this->admissionParameters($entry['policy'], $now);
+                    $arguments[] = $kind;
+                    $capacities[] = $capacity;
+
+                    foreach ($parameters as $parameter) {
+                        $arguments[] = $parameter;
+                    }
+
+                    if (count($parameters) === 3) {
+                        $arguments[] = '0';
+                    }
                 }
 
-                if (count($parameters) === 3) {
-                    $arguments[] = '0';
-                }
-            }
-
-            $tuples = $connection->evalWithShaCache(self::CONSUME_MANY_SCRIPT, array_column($policies, 'key'), $arguments);
+                $tuples = $connection->evalWithShaCache(self::CONSUME_MANY_SCRIPT, array_column($policies, 'key'), $arguments);
+            } while (($now = $this->staleCalendarTime($tuples)) !== null);
 
             if (! is_array($tuples) || ! array_is_list($tuples) || $tuples === [] || count($tuples) > count($policies)) {
                 throw new UnexpectedValueException('Redis returned a malformed rate limiter group result.');
@@ -562,17 +598,22 @@ LUA;
         string $mode,
         ?RedisConnection $connection = null,
     ): LimitResult {
-        [$kind, $parameters, $capacity] = $this->admissionParameters($policy);
-        $script = match ($kind) {
-            'fixed' => self::FIXED_WINDOW_SCRIPT,
-            'sliding' => self::SLIDING_WINDOW_SCRIPT,
-            'leaky' => self::LEAKY_BUCKET_SCRIPT,
-        };
-        $arguments = [$mode, ...$parameters];
+        $now = null;
 
-        $result = $connection === null
-            ? $this->execute($script, $key, $arguments)
-            : $connection->evalWithShaCache($script, [$key], $arguments);
+        do {
+            [$kind, $parameters, $capacity] = $this->admissionParameters($policy, $now);
+            $script = match ($kind) {
+                'fixed' => self::FIXED_WINDOW_SCRIPT,
+                'calendar' => self::CALENDAR_WINDOW_SCRIPT,
+                'sliding' => self::SLIDING_WINDOW_SCRIPT,
+                'leaky' => self::LEAKY_BUCKET_SCRIPT,
+            };
+            $arguments = [$mode, ...$parameters];
+
+            $result = $connection === null
+                ? $this->execute($script, $key, $arguments)
+                : $connection->evalWithShaCache($script, [$key], $arguments);
+        } while (($now = $this->staleCalendarTime($result)) !== null);
 
         return $this->limitResult($result, $capacity);
     }
@@ -580,13 +621,23 @@ LUA;
     /**
      * Return the algorithm, script parameters, and capacity for an admission policy.
      *
-     * @return array{'fixed'|'leaky'|'sliding', list<string>, int}
+     * A calendar window is calculated at the given epoch microsecond, or at the current time.
+     *
+     * @return array{'calendar'|'fixed'|'leaky'|'sliding', list<string>, int}
      */
-    protected function admissionParameters(AdmissionPolicy $policy): array
+    protected function admissionParameters(AdmissionPolicy $policy, ?int $nowMicroseconds = null): array
     {
         return match (true) {
             $policy instanceof Limit => ['fixed', [
                 (string) $policy->cost, (string) $policy->maxAttempts, (string) ($policy->decaySeconds * 1000),
+            ], $policy->maxAttempts],
+            $policy instanceof CalendarWindow => ['calendar', [
+                (string) $policy->cost,
+                (string) $policy->maxAttempts,
+                ...array_map(
+                    static fn (int $boundary): string => (string) intdiv($boundary, 1000),
+                    $policy->window($nowMicroseconds ?? (int) CarbonImmutable::now()->getPreciseTimestamp(6)),
+                ),
             ], $policy->maxAttempts],
             $policy instanceof SlidingWindow => ['sliding', [
                 (string) $policy->cost, (string) $policy->maxAttempts, (string) $policy->windowSeconds,
@@ -671,6 +722,22 @@ LUA;
             $values[3],
             $values[4],
         );
+    }
+
+    /**
+     * Get Redis's epoch microseconds from a stale calendar-window reply, or null for any other reply.
+     */
+    protected function staleCalendarTime(mixed $result): ?int
+    {
+        if (! is_array($result) || ($result[0] ?? null) !== 'stale') {
+            return null;
+        }
+
+        if (count($result) !== 2 || ! is_int($result[1]) || $result[1] < 1) {
+            throw new UnexpectedValueException('Redis returned a malformed rate limiter result.');
+        }
+
+        return $result[1];
     }
 
     /**

@@ -6,7 +6,7 @@ Documentation: https://hypervel.org/docs/rate-limiting
 ## Differences From Laravel
 
 - Hypervel provides rate limiting through the dedicated `hypervel/rate-limiter` package and `Hypervel\RateLimiter` namespace instead of Laravel's Cache component.
-- Hypervel uses immutable, typed rate limits. `Limit` defines a fixed window, `SlidingWindow` defines a weighted sliding window, `LeakyBucket` defines a GCRA-backed leaky bucket, `Unlimited` bypasses storage, and `Backoff` defines failure-driven exponential delays. Use `globally()` instead of Laravel's `GlobalLimit` class.
+- Hypervel uses immutable, typed rate limits. `Limit` defines a fixed window, `CalendarWindow` defines a window that resets at the start of each minute, hour, day or month, `SlidingWindow` defines a weighted sliding window, `LeakyBucket` defines a GCRA-backed leaky bucket, `Unlimited` bypasses storage, and `Backoff` defines failure-driven exponential delays. Use `globally()` instead of Laravel's `GlobalLimit` class.
 - The `consume`, `consumeMany`, `inspect`, `attempt`, `recordFailure`, and `clear` methods replace Laravel's split primitive counter API.
 - Rate limit keys are always hashed and include the rate limit type, its stable algorithm settings, and its global scope. Cost and callbacks do not affect identity. Changing identity settings starts new state, and `clear()` must receive the same settings that created the state.
 - Weighted denials report the actual unused capacity. The `attempt()` method consumes before invoking its callback and retains the charge if the callback throws.
