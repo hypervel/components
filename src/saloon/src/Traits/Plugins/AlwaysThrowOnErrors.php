@@ -17,7 +17,7 @@ trait AlwaysThrowOnErrors
     {
         $pendingRequest->middleware()->onResponse(
             static fn (Response $response): Response => $response->throw(),
-            order: PipeOrder::Last,
+            order: PipeOrder::LAST,
         );
     }
 }

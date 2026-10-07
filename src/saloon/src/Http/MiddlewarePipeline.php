@@ -49,7 +49,9 @@ class MiddlewarePipeline
      */
     public function onRequest(callable $callable, ?string $name = null, ?PipeOrder $order = null): static
     {
-        $this->requestPipeline->pipe(function (PendingRequest $pendingRequest) use ($callable): PendingRequest {
+        // The wrapper is static so it does not capture the pipeline, which would form a reference cycle that keeps
+        // the pipeline alive until garbage collection.
+        $this->requestPipeline->pipe(static function (PendingRequest $pendingRequest) use ($callable): PendingRequest {
             $result = $callable($pendingRequest);
 
             if ($result instanceof FakeResponse) {
@@ -70,7 +72,8 @@ class MiddlewarePipeline
      */
     public function onResponse(callable $callable, ?string $name = null, ?PipeOrder $order = null): static
     {
-        $this->responsePipeline->pipe(function (Response $response) use ($callable): Response {
+        // Static for the same reason as the request wrapper.
+        $this->responsePipeline->pipe(static function (Response $response) use ($callable): Response {
             $result = $callable($response);
 
             return $result instanceof Response ? $result : $response;
@@ -87,7 +90,8 @@ class MiddlewarePipeline
      */
     public function onFatalException(callable $callable, ?string $name = null, ?PipeOrder $order = null): static
     {
-        $this->fatalPipeline->pipe(function (FatalRequestException $throwable) use ($callable): FatalRequestException {
+        // Static for the same reason as the request wrapper.
+        $this->fatalPipeline->pipe(static function (FatalRequestException $throwable) use ($callable): FatalRequestException {
             $callable($throwable);
 
             return $throwable;

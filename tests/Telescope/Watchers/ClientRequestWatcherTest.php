@@ -211,6 +211,41 @@ class ClientRequestWatcherTest extends FeatureTestCase
         ];
     }
 
+    #[DataProvider('jsonMediaTypeRequestProvider')]
+    public function testValidJsonMediaTypeRequestIsDecoded(string $contentType, string $body, array $payload): void
+    {
+        $client = $this->makeClient([new Response(204)]);
+
+        $this->executeTransfer(
+            $client,
+            new Request('POST', 'https://hypervel.org/raw', ['Content-Type' => $contentType], $body),
+        );
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame($payload, $entry->content['payload']);
+    }
+
+    /**
+     * Provide JSON media types and payloads.
+     */
+    public static function jsonMediaTypeRequestProvider(): array
+    {
+        return [
+            'hal+json' => [
+                'application/hal+json',
+                '{"_links":{"self":{"href":"/api/users/1"}},"name":"Test"}',
+                ['_links' => ['self' => ['href' => '/api/users/1']], 'name' => 'Test'],
+            ],
+            'hal+json with charset' => ['application/hal+json; charset=utf-8', '{"id":1}', ['id' => 1]],
+            'vnd.api+json' => [
+                'application/vnd.api+json',
+                '{"data":{"type":"users","id":"1"}}',
+                ['data' => ['type' => 'users', 'id' => '1']],
+            ],
+        ];
+    }
+
     public function testHeaderlessJsonRequestIsMaskedAndDeepHeaderlessJsonIsPurged(): void
     {
         Telescope::hideRequestParameters(['password']);
@@ -334,6 +369,58 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $this->assertSame('GET', $entry->content['method']);
         $this->assertSame(200, $entry->content['response_status']);
         $this->assertSame('plain telescope response', $entry->content['response']);
+    }
+
+    #[DataProvider('scalarResponseProvider')]
+    public function testScalarResponseIsRecordedAsSentUnderAJsonMediaType(string $contentType, string $body, string $recorded): void
+    {
+        $client = $this->makeClient([new Response(200, ['Content-Type' => $contentType], $body)]);
+
+        $this->executeTransfer($client, new Request('GET', 'https://hypervel.org/scalar'));
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame($recorded, $entry->content['response']);
+    }
+
+    /**
+     * Provide scalar response bodies and their recorded values.
+     */
+    public static function scalarResponseProvider(): array
+    {
+        return [
+            'zero' => ['application/json', '0', '0'],
+            'false' => ['application/json', 'false', 'false'],
+            'null' => ['application/json', 'null', 'null'],
+            'string' => ['application/json', '"ok"', '"ok"'],
+            '+json with charset' => ['application/problem+json; charset=utf-8', '42', '42'],
+            'malformed json' => ['application/json', '{"id":', 'HTML Response'],
+            'html' => ['text/html', '0', 'HTML Response'],
+        ];
+    }
+
+    public function testHalJsonResponseIsDecodedAndMasked(): void
+    {
+        Telescope::hideResponseParameters(['access_token']);
+        $client = $this->makeClient([
+            new Response(200, ['Content-Type' => 'application/hal+json'], json_encode([
+                '_links' => ['self' => ['href' => '/api/users/1']],
+                'name' => 'Test',
+                'access_token' => 'secret-token-value',
+                'expires_in' => 3600,
+            ])),
+        ]);
+
+        $this->executeTransfer($client, new Request('GET', 'https://hypervel.org/hal'));
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame([
+            '_links' => ['self' => ['href' => '/api/users/1']],
+            'name' => 'Test',
+            'access_token' => '********',
+            'expires_in' => 3600,
+        ], $entry->content['response']);
     }
 
     public function testClientRequestWatcherRegistersServerErrorResponse(): void
@@ -817,6 +904,43 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $entry = $this->loadTelescopeEntries()->first();
 
         $this->assertSame('Purged By Telescope', $entry->content['response']);
+    }
+
+    #[WithConfig('telescope.watchers', [
+        ClientRequestWatcher::class => [
+            'enabled' => true,
+            'response_size_limit' => 1,
+        ],
+    ])]
+    public function testOversizedScalarJsonResponseIsPurgedByDefault(): void
+    {
+        $body = '"' . str_repeat('x', 2000) . '"';
+        $client = $this->makeClient([new Response(200, ['Content-Type' => 'application/json'], $body)]);
+
+        $this->executeTransfer($client, new Request('GET', 'https://hypervel.org/raw'));
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame('Purged By Telescope', $entry->content['response']);
+    }
+
+    #[WithConfig('telescope.watchers', [
+        ClientRequestWatcher::class => [
+            'enabled' => true,
+            'response_size_limit' => 1,
+            'truncate_oversized' => true,
+        ],
+    ])]
+    public function testOversizedPlainTextResponseIsTruncated(): void
+    {
+        $body = str_repeat('x', 2000);
+        $client = $this->makeClient([new Response(200, ['Content-Type' => 'text/plain'], $body)]);
+
+        $this->executeTransfer($client, new Request('GET', 'https://hypervel.org/raw'));
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame(substr($body, 0, 1024) . ' (truncated...)', $entry->content['response']);
     }
 
     #[WithConfig('telescope.watchers', [

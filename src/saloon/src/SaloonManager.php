@@ -14,11 +14,14 @@ use Hypervel\Http\Client\Response as HttpResponse;
 use Hypervel\RateLimiter\AdmissionPolicy;
 use Hypervel\RateLimiter\Contracts\Decision;
 use Hypervel\RateLimiter\Cooldown;
+use Hypervel\RateLimiter\CooldownResult;
 use Hypervel\RateLimiter\Limiter;
+use Hypervel\RateLimiter\LimitResult;
 use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\Saloon\Cache\CacheKey;
 use Hypervel\Saloon\Cache\Data\CachedResponse;
 use Hypervel\Saloon\Data\RecordedResponse;
+use Hypervel\Saloon\Data\RetryPolicy;
 use Hypervel\Saloon\Events\SendingSaloonRequest;
 use Hypervel\Saloon\Events\SentSaloonRequest;
 use Hypervel\Saloon\Exceptions\BodyException;
@@ -95,20 +98,7 @@ class SaloonManager
         while (true) {
             ++$attempt;
 
-            $pendingRequest = new PendingRequest(
-                $connector,
-                $request,
-                $this->cache,
-                $this->rateLimiter,
-            );
-            $pendingRequest
-                ->applyAuthentication()
-                ->bootPlugins();
-            $connector->boot($pendingRequest);
-            $request->boot($pendingRequest);
-            $pendingRequest
-                ->mergeMiddleware($this->middleware)
-                ->executeRequestPipeline();
+            $pendingRequest = $this->createPendingRequest($connector, $request);
 
             if ($this->events->hasListeners(SendingSaloonRequest::class)) {
                 $this->events->dispatch(new SendingSaloonRequest($pendingRequest));
@@ -124,25 +114,17 @@ class SaloonManager
             // its URI, headers, cookies, and prepared body directly.
             $transport = $this->sender->resolveTransport($pendingRequest);
 
-            $fixture = null;
-
-            if ($pendingRequest->fakeResponse() === null && $mockClient !== null) {
-                $matchedResponse = $mockClient->match($pendingRequest);
-
-                if ($matchedResponse instanceof Fixture) {
-                    $fixture = $matchedResponse;
-                    $matchedResponse = $matchedResponse->getMockResponse();
-                }
-
-                $pendingRequest->setFakeResponse($matchedResponse);
-            }
-
             $response = null;
             $responseFromSender = false;
             $cacheRepository = null;
             $cacheKey = null;
+            $fixture = null;
 
-            if ($pendingRequest->fakeResponse() === null && $pendingRequest->isCacheable()) {
+            // The cache is read before the mock client is matched, so a hit consumes no mock response or fixture. A
+            // fake supplied by request middleware bypasses the cache.
+            if ($pendingRequest->fakeResponse() === null
+                && $mockClient?->shouldBypassResponseCache() !== true
+                && $pendingRequest->isCacheable()) {
                 [$cacheRepository, $cacheKey] = $this->resolveCache($pendingRequest, $transport);
 
                 if ($pendingRequest->shouldInvalidateCache()) {
@@ -159,6 +141,17 @@ class SaloonManager
                 }
             }
 
+            if ($response === null && $pendingRequest->fakeResponse() === null && $mockClient !== null) {
+                $matchedResponse = $mockClient->match($pendingRequest);
+
+                if ($matchedResponse instanceof Fixture) {
+                    $fixture = $matchedResponse;
+                    $matchedResponse = $matchedResponse->getMockResponse();
+                }
+
+                $pendingRequest->setFakeResponse($matchedResponse);
+            }
+
             if ($response === null && $pendingRequest->fakeResponse() === null) {
                 $this->enforceRateLimits($pendingRequest);
             }
@@ -167,6 +160,9 @@ class SaloonManager
 
             try {
                 if ($response === null) {
+                    // Fake responses stand in for a send, so they wait for the delay too. Cache hits send nothing.
+                    $this->sleepMilliseconds($pendingRequest->delayMilliseconds() ?? 0);
+
                     if (($fakeResponse = $pendingRequest->fakeResponse()) !== null) {
                         if (($exception = $fakeResponse->getException($pendingRequest)) !== null) {
                             throw $exception;
@@ -178,7 +174,6 @@ class SaloonManager
                             ->setMocked($fakeResponse instanceof MockResponse)
                             ->setFakeResponse($fakeResponse);
                     } else {
-                        $this->sleepMilliseconds($pendingRequest->delayMilliseconds() ?? 0);
                         $response = $this->sender->send($pendingRequest, $transport);
                         $responseFromSender = true;
                     }
@@ -192,10 +187,10 @@ class SaloonManager
                     $this->recordRateLimitCooldowns($pendingRequest, $response);
                 }
 
-                if ($responseFromSender
-                    && $cacheRepository !== null
+                if ($cacheRepository !== null
                     && $cacheKey !== null
-                    && $response->successful()) {
+                    && ! $response->isCached()
+                    && ! $response->failed()) {
                     $cacheRepository->put(
                         $cacheKey,
                         CachedResponse::fromResponse($response),
@@ -203,7 +198,10 @@ class SaloonManager
                     );
                 }
 
-                $mockClient?->recordResponse($response);
+                // A cache hit sends nothing, so mock client assertions do not count it.
+                if (! $response->isCached()) {
+                    $mockClient?->recordResponse($response);
+                }
 
                 if ($this->events->hasListeners(SentSaloonRequest::class)) {
                     $this->events->dispatch(new SentSaloonRequest($pendingRequest, $response));
@@ -215,15 +213,19 @@ class SaloonManager
                 if ($exception === null) {
                     return $response;
                 }
-            } catch (ConnectionException $exception) {
-                $exception = new FatalRequestException($exception, $pendingRequest);
+            } catch (ConnectionException|FatalRequestException $exception) {
+                // A fake response may throw the fatal exception itself to simulate a failed connection.
+                if ($exception instanceof ConnectionException) {
+                    $exception = new FatalRequestException($exception, $pendingRequest);
+                }
+
                 $pendingRequest->executeFatalPipeline($exception);
             } catch (RequestException $exception) {
                 $response = $exception->response();
                 $exceptionWasThrown = true;
             }
 
-            $retryPolicy = $pendingRequest->retryPolicy();
+            $retryPolicy = $pendingRequest->retryPolicy() ?? new RetryPolicy;
             $maximumAttempts = $retryPolicy->maximumAttempts();
             $shouldRetry = $attempt < $maximumAttempts
                 && ($retryPolicy->when === null || ($retryPolicy->when)($exception, $pendingRequest));
@@ -250,27 +252,53 @@ class SaloonManager
     }
 
     /**
-     * Get the Saloon sender.
+     * Prepare a request for sending through a connector.
+     *
+     * The pending request has run its plugins, authenticator, boot hooks and request middleware, in that order. It
+     * has not been finalized, matched against mock responses or sent.
+     *
+     * Middleware is registered on the operation's own pipeline in this order: global middleware, plugin middleware,
+     * middleware added by the connector's boot method, the request's middleware, then middleware added by the
+     * request's boot method. Connectors are read-only, so connector middleware is registered from the boot method and
+     * still runs before the request's.
+     *
+     * @template TDto
+     * @param Request<TDto> $request
+     * @return PendingRequest<TDto>
      */
-    public function sender(): Sender
+    public function createPendingRequest(Connector $connector, Request $request): PendingRequest
     {
-        return $this->sender;
+        $pendingRequest = new PendingRequest($connector, $request);
+        $pendingRequest
+            ->mergeMiddleware($this->middleware)
+            ->bootPlugins()
+            ->applyAuthentication();
+        $connector->boot($pendingRequest);
+        $pendingRequest->mergeMiddleware($request->middleware());
+        $request->boot($pendingRequest);
+
+        return $pendingRequest->executeRequestPipeline();
     }
 
     /**
-     * Get the cache factory.
+     * Inspect a connector or request rate limit without consuming it.
+     *
+     * @return ($policy is Cooldown ? CooldownResult : LimitResult)
      */
-    public function cache(): CacheFactory
+    public function inspectRateLimit(Connector|Request $resource, AdmissionPolicy|Cooldown $policy): LimitResult|CooldownResult
     {
-        return $this->cache;
+        return $this->rateLimiterFor($resource)->inspect($policy, $this->limiterNameFor($resource));
     }
 
     /**
-     * Get the rate limiter manager.
+     * Set the event dispatcher.
+     *
+     * Boot or tests only. The dispatcher persists on the manager for the
+     * worker lifetime and receives every subsequent Saloon request event.
      */
-    public function rateLimiter(): RateLimiter
+    public function setEventDispatcher(Dispatcher $events): void
     {
-        return $this->rateLimiter;
+        $this->events = $events;
     }
 
     /**
@@ -285,7 +313,7 @@ class SaloonManager
     }
 
     /**
-     * Replace the global mock client.
+     * Add responses to the global mock client, or replace it with the given client.
      *
      * Tests only. The client persists on the manager until the test
      * application is destroyed or `clearFake()` is called.
@@ -294,9 +322,13 @@ class SaloonManager
      */
     public function fake(array|MockClient $responses = []): MockClient
     {
-        return $this->mockClient = $responses instanceof MockClient
-            ? $responses
-            : new MockClient($responses);
+        if ($responses instanceof MockClient) {
+            return $this->mockClient = $responses;
+        }
+
+        ($this->mockClient ??= new MockClient)->addResponses($responses);
+
+        return $this->mockClient;
     }
 
     /**
@@ -366,6 +398,10 @@ class SaloonManager
         ($this->mockClient ?? new MockClient)->assertSentCount($count, $requestClass);
     }
 
+    // The plugin's deprecated record(), stopRecording(), isRecording(), recordResponse(), getRecordedResponses() and
+    // getLastRecordedResponse() are not included: recorded() lists the responses recorded by the active mock client,
+    // and the SentSaloonRequest event observes every sent response. See the package README.
+
     /**
      * Register the cache scope resolver.
      *
@@ -389,6 +425,24 @@ class SaloonManager
         return $this->cacheScopeResolver !== null
             ? ($this->cacheScopeResolver)($pendingRequest)
             : null;
+    }
+
+    /**
+     * Clear the cached response for a request without sending it.
+     *
+     * The request is prepared as it is for sending, through its plugins, boot methods and middleware, so the same
+     * store, key and scope are resolved. Sending listeners do not run.
+     */
+    public function clearCache(Connector $connector, Request $request): void
+    {
+        $pendingRequest = $this->createPendingRequest($connector, $request)
+            ->finalizeUri()
+            ->prepareBody()
+            ->validateCachingConfiguration();
+
+        [$repository, $key] = $this->resolveCache($pendingRequest, $this->sender->resolveTransport($pendingRequest));
+
+        $repository->forget($key);
     }
 
     /**
@@ -492,7 +546,7 @@ class SaloonManager
      */
     protected function enforceRateLimitsFor(PendingRequest $pendingRequest, Connector|Request $resource): void
     {
-        if (! $resource->usesRateLimits()) {
+        if (! $resource->usesRateLimits($pendingRequest)) {
             return;
         }
 
@@ -514,7 +568,7 @@ class SaloonManager
         }
 
         $limiter = $this->rateLimiterFor($resource);
-        $limiterName = 'saloon:' . $resource::class;
+        $limiterName = $this->limiterNameFor($resource);
         $cooldown = Cooldown::for($resource->resolveRateLimitCooldownKeyFor($pendingRequest));
 
         while (true) {
@@ -554,7 +608,7 @@ class SaloonManager
         Response $response,
         Connector|Request $resource,
     ): void {
-        if (! $resource->usesRateLimits()
+        if (! $resource->usesRateLimits($pendingRequest)
             || ($seconds = $resource->resolveRateLimitCooldownFor($response)) === null) {
             return;
         }
@@ -562,8 +616,16 @@ class SaloonManager
         $this->rateLimiterFor($resource)->block(
             Cooldown::for($resource->resolveRateLimitCooldownKeyFor($pendingRequest)),
             $seconds,
-            'saloon:' . $resource::class,
+            $this->limiterNameFor($resource),
         );
+    }
+
+    /**
+     * Resolve the limiter name used for a resource's limits and cooldowns.
+     */
+    protected function limiterNameFor(Connector|Request $resource): string
+    {
+        return 'saloon:' . $resource->rateLimiterName();
     }
 
     /**
@@ -587,8 +649,8 @@ class SaloonManager
         AdmissionPolicy|Cooldown $policy,
         Decision $result,
     ): void {
-        if (! $resource->shouldWaitForRateLimits()) {
-            throw new RateLimitReachedException($policy, $result);
+        if (! $resource->shouldWaitForRateLimits($policy, $result)) {
+            throw new RateLimitReachedException($this->limiterNameFor($resource), $policy, $result);
         }
 
         Sleep::sleep($result->retryAfter());

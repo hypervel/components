@@ -4,15 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Saloon\Traits\RequestProperties;
 
-use Hypervel\Saloon\Repositories\IntegerRepository;
 use InvalidArgumentException;
 
 trait HasDelay
 {
     /**
-     * The request delay.
+     * The request delay in milliseconds.
      */
-    protected ?IntegerRepository $delayRepository = null;
+    protected ?int $delay = null;
 
     /**
      * Delay the request by the given milliseconds.
@@ -25,7 +24,7 @@ trait HasDelay
             throw new InvalidArgumentException('The request delay must be a representable non-negative number of milliseconds.');
         }
 
-        $this->delayRepository()->set($milliseconds);
+        $this->delay = $milliseconds;
 
         return $this;
     }
@@ -35,7 +34,7 @@ trait HasDelay
      */
     public function delayMilliseconds(): ?int
     {
-        return $this->delayRepository()->get();
+        return $this->delay ?? $this->defaultDelay();
     }
 
     /**
@@ -44,13 +43,5 @@ trait HasDelay
     protected function defaultDelay(): ?int
     {
         return null;
-    }
-
-    /**
-     * Get the request delay repository.
-     */
-    protected function delayRepository(): IntegerRepository
-    {
-        return $this->delayRepository ??= new IntegerRepository($this->defaultDelay());
     }
 }

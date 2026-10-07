@@ -1840,6 +1840,74 @@ class HttpClientTest extends TestCase
         });
     }
 
+    /**
+     * @param Closure(Factory): PendingRequest $pendingRequest
+     */
+    #[DataProvider('contentTypesWithoutABoundary')]
+    public function testAttachedFilesReplaceAContentTypeWithoutABoundary(Closure $pendingRequest): void
+    {
+        $sent = null;
+
+        $this->factory->fake(function (Request $request) use (&$sent): PromiseInterface {
+            $sent = $request;
+
+            return Factory::response();
+        });
+
+        $pendingRequest($this->factory)->attach('file', 'data', 'file.txt')->post('http://foo.com/file');
+
+        $contentType = $sent->header('Content-Type');
+
+        $this->assertCount(1, $contentType);
+        $this->assertStringStartsWith('multipart/form-data; boundary=', $contentType[0]);
+        $this->assertStringStartsWith(
+            '--' . substr($contentType[0], strlen('multipart/form-data; boundary=')) . "\r\n",
+            $sent->body(),
+        );
+    }
+
+    /**
+     * Get the ways a request can carry a content type without a boundary.
+     *
+     * @return iterable<string, array{Closure(Factory): PendingRequest}>
+     */
+    public static function contentTypesWithoutABoundary(): iterable
+    {
+        yield 'asJson' => [fn (Factory $factory): PendingRequest => $factory->asJson()];
+        yield 'string header' => [fn (Factory $factory): PendingRequest => $factory->withHeaders(['Content-Type' => 'application/json'])];
+        yield 'lowercase list header' => [fn (Factory $factory): PendingRequest => $factory->withHeaders(['content-type' => ['application/json']])];
+        yield 'stringable header' => [fn (Factory $factory): PendingRequest => $factory->withHeaders(['Content-Type' => new Stringable('application/json')])];
+        yield 'connection default' => [fn (Factory $factory): PendingRequest => $factory
+            ->registerConnection('api', ['headers' => ['Content-Type' => 'application/json']])
+            ->connection('api')];
+    }
+
+    #[DataProvider('contentTypesWithABoundary')]
+    public function testAttachedFilesKeepAContentTypeWithABoundary(mixed $contentType): void
+    {
+        $this->factory->fake();
+
+        $this->factory->withHeaders(['Content-Type' => $contentType])
+            ->attach('file', 'data', 'file.txt')
+            ->post('http://foo.com/file');
+
+        $this->factory->assertSent(
+            fn (Request $request): bool => $request->header('Content-Type') === ['multipart/related; boundary=custom'],
+        );
+    }
+
+    /**
+     * Get the supported representations of a content type that declares a boundary.
+     *
+     * @return iterable<string, array{mixed}>
+     */
+    public static function contentTypesWithABoundary(): iterable
+    {
+        yield 'string' => ['multipart/related; boundary=custom'];
+        yield 'list' => [['multipart/related; boundary=custom']];
+        yield 'stringable' => [new Stringable('multipart/related; boundary=custom')];
+    }
+
     public function testAttachPreservesEmptyContents(): void
     {
         $this->factory->fake();

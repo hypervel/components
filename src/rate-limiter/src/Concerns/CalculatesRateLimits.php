@@ -7,6 +7,7 @@ namespace Hypervel\RateLimiter\Concerns;
 use Hypervel\RateLimiter\AdmissionPolicy;
 use Hypervel\RateLimiter\Backoff;
 use Hypervel\RateLimiter\BackoffResult;
+use Hypervel\RateLimiter\CalendarWindow;
 use Hypervel\RateLimiter\Cooldown;
 use Hypervel\RateLimiter\CooldownResult;
 use Hypervel\RateLimiter\Exceptions\InvalidRateLimitException;
@@ -32,7 +33,7 @@ trait CalculatesRateLimits
         int &$expiresAt,
     ): LimitResult {
         return match (true) {
-            $policy instanceof Limit => $this->calculateFixedWindow(
+            $policy instanceof Limit, $policy instanceof CalendarWindow => $this->calculateFixedWindow(
                 $policy,
                 $now,
                 $value,
@@ -123,7 +124,7 @@ trait CalculatesRateLimits
         int $expiresAt,
     ): LimitResult|BackoffResult|CooldownResult {
         return match (true) {
-            $policy instanceof Limit => $this->calculateFixedWindow(
+            $policy instanceof Limit, $policy instanceof CalendarWindow => $this->calculateFixedWindow(
                 $policy,
                 $now,
                 $value,
@@ -220,10 +221,10 @@ trait CalculatesRateLimits
     }
 
     /**
-     * Calculate a fixed-window decision.
+     * Calculate a fixed-window or calendar-window decision.
      */
     private function calculateFixedWindow(
-        Limit $policy,
+        Limit|CalendarWindow $policy,
         int $now,
         int &$value,
         int &$secondaryValue,
@@ -240,10 +241,9 @@ trait CalculatesRateLimits
 
             $value = $policy->cost;
             $secondaryValue = 0;
-            $expiresAt = $this->addExact(
-                $now,
-                $this->secondsToMicroseconds($policy->decaySeconds),
-            );
+            $expiresAt = $policy instanceof CalendarWindow
+                ? $policy->window($now)[1]
+                : $this->addExact($now, $this->secondsToMicroseconds($policy->decaySeconds));
 
             return new LimitResult(
                 true,
@@ -564,10 +564,10 @@ trait CalculatesRateLimits
     }
 
     /**
-     * Validate fixed-window state loaded from a store.
+     * Validate fixed-window or calendar-window state loaded from a store.
      */
     private function validateFixedWindowState(
-        Limit $policy,
+        Limit|CalendarWindow $policy,
         int $value,
         int $secondaryValue,
         int $expiresAt,

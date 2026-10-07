@@ -26,6 +26,7 @@
     - [Scheduling](#scheduling)
     - [Maintenance Mode](#maintenance-mode)
     - [HTTP Client and Concurrency](#http-client-and-concurrency)
+    - [Saloon](#saloon)
     - [Broadcasting](#broadcasting)
     - [JSON:API Resources](#jsonapi-resources)
     - [CSRF Protection](#csrf-protection)
@@ -513,6 +514,13 @@ For concurrent HTTP requests, replace Laravel's `Http::pool` and `Http::batch` p
 `withNtlmAuth()` and Saloon's NTLM authenticator are not provided. Integrations requiring NTLM must supply their own authentication implementation.
 
 Hypervel's `Concurrency` facade provides `coroutine`, `process`, and `sync` drivers. Laravel's `fork` driver is not available because coroutines are Hypervel's native lightweight execution model. Use the default `coroutine` driver for normal concurrent application work and reserve `process` for work that requires operating system process isolation. See the [concurrency documentation](/docs/{{version}}/concurrency#choosing-a-driver).
+
+<a name="saloon"></a>
+### Saloon
+
+Integrations built with `saloonphp/saloon`, its Laravel plugin, and its cache, pagination, and rate limit plugins use the single `hypervel/saloon` package. Replace the `Saloon\` and `Saloon\Laravel\` namespaces with `Hypervel\Saloon\`, and the plugins' `Saloon\CachePlugin\`, `Saloon\PaginationPlugin\`, and `Saloon\RateLimitPlugin\` namespaces with `Hypervel\Saloon\Cache\`, `Hypervel\Saloon\Pagination\`, and `Hypervel\Saloon\RateLimit\`.
+
+Connectors may be shared by concurrent requests, so they are read-only. Move code that changes a connector's headers, query parameters, options, authenticator, delay, middleware, or mock client at runtime to the request, the `send` call, or the connector's `boot` method. Requests use fluent methods such as `withHeaders` and `withQueryParameters` instead of `headers()->add()` and `query()->add()`. Replace `sendAsync` and promises with pools, retry properties with `retry` or `defaultRetryPolicy`, custom senders with HTTP connections, and the rate limit plugin's limits and stores with rate limiter policies. Request exceptions extend the HTTP client's `RequestException`, so `catch (SaloonException $e)` no longer catches failed responses. See [Differences From Saloon](/docs/{{version}}/saloon#differences-from-saloon).
 
 <a name="broadcasting"></a>
 ### Broadcasting
