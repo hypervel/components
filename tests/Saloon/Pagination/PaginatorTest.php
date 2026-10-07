@@ -702,7 +702,7 @@ class PaginatorTest extends TestCase
         $paginator = new BodyLinkPaginatorStub(new PaginationConnectorStub($manager), new PagedRequestStub);
 
         $this->expectException(PaginationException::class);
-        $this->expectExceptionMessage('same scheme, host, and port');
+        $this->expectExceptionMessageIsOrContains('same scheme, host, and port');
 
         $paginator->current();
     }
@@ -745,7 +745,7 @@ class PaginatorTest extends TestCase
         $paginator = new CustomRelationLinkPaginatorStub(new PaginationConnectorStub($manager), new PagedRequestStub);
 
         $this->expectException(PaginationException::class);
-        $this->expectExceptionMessage('Conflicting [finish]');
+        $this->expectExceptionMessageIsOrContains('Conflicting [finish]');
 
         $paginator->current();
     }
@@ -956,7 +956,7 @@ class PaginatorTest extends TestCase
         $paginator = new LinkPaginatorStub(new PaginationConnectorStub($manager), new PagedRequestStub);
 
         $this->expectException(PaginationException::class);
-        $this->expectExceptionMessage('Pooled Link pagination requires a numbered last Link.');
+        $this->expectExceptionMessageIs('Pooled Link pagination requires a numbered last Link.');
 
         $paginator->pool();
     }

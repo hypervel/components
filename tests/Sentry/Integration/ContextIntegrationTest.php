@@ -14,14 +14,14 @@ use function Sentry\captureException;
 
 class ContextIntegrationTest extends SentryTestCase
 {
-    public function testContextIntegrationIsRegistered()
+    public function testContextIntegrationIsRegistered(): void
     {
         $integration = $this->getSentryHubFromContainer()->getIntegration(ContextIntegration::class);
 
         $this->assertInstanceOf(ContextIntegration::class, $integration);
     }
 
-    public function testExceptionIsCapturedWithContext()
+    public function testExceptionIsCapturedWithContext(): void
     {
         $this->setupTestContext();
 
@@ -34,7 +34,7 @@ class ContextIntegrationTest extends SentryTestCase
         $this->assertContextIsCaptured($event->getContexts());
     }
 
-    public function testExceptionIsCapturedWithoutContextIfEmpty()
+    public function testExceptionIsCapturedWithoutContextIfEmpty(): void
     {
         captureException(new Exception('Context test'));
 
@@ -45,7 +45,7 @@ class ContextIntegrationTest extends SentryTestCase
         $this->assertArrayNotHasKey('hypervel', $event->getContexts());
     }
 
-    public function testExceptionIsCapturedWithoutContextIfOnlyHidden()
+    public function testExceptionIsCapturedWithoutContextIfOnlyHidden(): void
     {
         Context::addHidden('hidden', 'value');
 
@@ -58,7 +58,7 @@ class ContextIntegrationTest extends SentryTestCase
         $this->assertArrayNotHasKey('hypervel', $event->getContexts());
     }
 
-    public function testTransactionIsCapturedWithContext()
+    public function testTransactionIsCapturedWithContext(): void
     {
         $this->setupTestContext();
 

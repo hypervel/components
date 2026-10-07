@@ -12,14 +12,14 @@ use Hypervel\Testbench\TestCase;
 
 class LoggingIntegrationTest extends TestCase
 {
-    public function testLoggingCanBeRunWithoutEncounteringExceptions()
+    public function testLoggingCanBeRunWithoutEncounteringExceptions(): void
     {
         $this->expectNotToPerformAssertions();
 
         Log::info('Hello World');
     }
 
-    public function testCallingLoggerDirectlyDispatchesOneEvent()
+    public function testCallingLoggerDirectlyDispatchesOneEvent(): void
     {
         Event::fake([MessageLogged::class]);
 

@@ -126,7 +126,7 @@ class LcobucciTest extends TestCase
     public function testShouldThrowAnInvalidExceptionWhenThePayloadCouldNotBeEncoded(): void
     {
         $this->expectException(JwtException::class);
-        $this->expectExceptionMessage('Could not create token:');
+        $this->expectExceptionMessageIsOrContains('Could not create token:');
 
         $payload = [
             'sub' => 1,
@@ -143,7 +143,7 @@ class LcobucciTest extends TestCase
     public function testShouldThrowATokenInvalidExceptionWhenTheTokenCouldNotBeDecodedDueToABadSignature(): void
     {
         $this->expectException(TokenInvalidException::class);
-        $this->expectExceptionMessage('Token Signature could not be verified.');
+        $this->expectExceptionMessageIs('Token Signature could not be verified.');
 
         // This has a different secret than the one used to encode the token
         $this->getProvider($this->getRandomString(), Provider::ALGO_HS256)
@@ -153,7 +153,7 @@ class LcobucciTest extends TestCase
     public function testShouldThrowATokenInvalidExceptionWhenTheTokenCouldNotBeDecodedDueToTamperedToken(): void
     {
         $this->expectException(TokenInvalidException::class);
-        $this->expectExceptionMessage('Token Signature could not be verified.');
+        $this->expectExceptionMessageIs('Token Signature could not be verified.');
 
         // This sub claim for this token has been tampered with so the signature will not match
         $this->getProvider($this->getRandomString(), Provider::ALGO_HS256)
@@ -163,7 +163,7 @@ class LcobucciTest extends TestCase
     public function testShouldThrowATokenInvalidExceptionWhenTheTokenCouldNotBeDecoded(): void
     {
         $this->expectException(TokenInvalidException::class);
-        $this->expectExceptionMessage('Could not decode token:');
+        $this->expectExceptionMessageIsOrContains('Could not decode token:');
 
         $this->getProvider('secret', Provider::ALGO_HS256)->decode('foo.bar.baz');
     }
@@ -209,7 +209,7 @@ class LcobucciTest extends TestCase
     public function testShouldThrowAnExceptionWhenTheAlgorithmPassedIsInvalid(): void
     {
         $this->expectException(JwtException::class);
-        $this->expectExceptionMessage('The given algorithm could not be found');
+        $this->expectExceptionMessageIs('The given algorithm could not be found');
 
         $this->getProvider('secret', 'INVALID_ALGO')->decode('foo.bar.baz');
     }
@@ -217,7 +217,7 @@ class LcobucciTest extends TestCase
     public function testShouldThrowAnExceptionWhenNoAsymmetricPublicKeyIsProvided(): void
     {
         $this->expectException(JwtException::class);
-        $this->expectExceptionMessage('Public key is not set.');
+        $this->expectExceptionMessageIs('Public key is not set.');
 
         $this->getProvider(
             'does_not_matter',
@@ -229,7 +229,7 @@ class LcobucciTest extends TestCase
     public function testShouldThrowAnExceptionWhenNoAsymmetricPrivateKeyIsProvided(): void
     {
         $this->expectException(JwtException::class);
-        $this->expectExceptionMessage('Private key is not set.');
+        $this->expectExceptionMessageIs('Private key is not set.');
 
         $this->getProvider(
             'does_not_matter',
@@ -241,7 +241,7 @@ class LcobucciTest extends TestCase
     public function testShouldThrowASecretMissingExceptionWhenNoSymmetricSecretIsProvided(): void
     {
         $this->expectException(SecretMissingException::class);
-        $this->expectExceptionMessage('Secret is not set.');
+        $this->expectExceptionMessageIs('Secret is not set.');
 
         $this->getProvider('', Provider::ALGO_HS256);
     }
@@ -323,7 +323,7 @@ class LcobucciTest extends TestCase
 
         // A fresh provider using the old secret cannot verify the signature.
         $this->expectException(TokenInvalidException::class);
-        $this->expectExceptionMessage('Token Signature could not be verified.');
+        $this->expectExceptionMessageIs('Token Signature could not be verified.');
         $this->getProvider($originalSecret, Provider::ALGO_HS256)->decode($token);
     }
 
@@ -345,7 +345,7 @@ class LcobucciTest extends TestCase
 
         // A fresh provider using key pair 1 cannot verify the signature.
         $this->expectException(TokenInvalidException::class);
-        $this->expectExceptionMessage('Token Signature could not be verified.');
+        $this->expectExceptionMessageIs('Token Signature could not be verified.');
         $this->getProvider('does_not_matter', Provider::ALGO_RS256, $keyPair1)->decode($token);
     }
 

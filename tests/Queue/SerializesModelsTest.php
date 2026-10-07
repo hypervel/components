@@ -72,7 +72,7 @@ class SerializesModelsTest extends TestCase
     public function testKeylessEloquentModelCannotPublishAQueueIdentifier(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Model [Hypervel\Tests\Queue\KeylessModelSerializationFixture] has no queueable ID.');
+        $this->expectExceptionMessageIs('Model [Hypervel\Tests\Queue\KeylessModelSerializationFixture] has no queueable ID.');
 
         (new EloquentModelSerializationFixture(new KeylessModelSerializationFixture))->__serialize();
     }

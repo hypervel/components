@@ -252,7 +252,7 @@ class RedisStoreTest extends TestCase
         $redis->set($physicalKey, '1');
 
         $this->expectException(LuaScriptException::class);
-        $this->expectExceptionMessage('Lua script execution failed: ERR corrupt rate limiter counter has no expiry');
+        $this->expectExceptionMessageIsOrContains('Lua script execution failed: ERR corrupt rate limiter counter has no expiry');
 
         $this->limiter()->consume($policy);
     }

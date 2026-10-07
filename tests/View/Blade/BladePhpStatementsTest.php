@@ -6,14 +6,14 @@ namespace Hypervel\Tests\View\Blade;
 
 class BladePhpStatementsTest extends AbstractBladeTestCase
 {
-    public function testPhpStatementsWithExpressionAreCompiled()
+    public function testPhpStatementsWithExpressionAreCompiled(): void
     {
         $string = '@php($set = true)';
         $expected = '<?php ($set = true); ?>';
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
 
-    public function testStringWithParenthesisWithEndPHP()
+    public function testStringWithParenthesisWithEndPHP(): void
     {
         $string = "@php(\$data = ['related_to' => 'issue#45388'];) {{ \$data }} @endphp";
         $expected = "<?php(\$data = ['related_to' => 'issue#45388'];) {{ \$data }} ?>";
@@ -21,7 +21,7 @@ class BladePhpStatementsTest extends AbstractBladeTestCase
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
 
-    public function testPhpStatementsWithoutExpressionAreIgnored()
+    public function testPhpStatementsWithoutExpressionAreIgnored(): void
     {
         $string = '@php';
         $expected = '@php';
@@ -32,14 +32,14 @@ class BladePhpStatementsTest extends AbstractBladeTestCase
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
 
-    public function testPhpStatementsDontParseBladeCode()
+    public function testPhpStatementsDontParseBladeCode(): void
     {
         $string = '@php echo "{{ This is a blade tag }}" @endphp';
         $expected = '<?php echo "{{ This is a blade tag }}" ?>';
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
 
-    public function testVerbatimAndPhpStatementsDontGetMixedUp()
+    public function testVerbatimAndPhpStatementsDontGetMixedUp(): void
     {
         $string = "@verbatim {{ Hello, I'm not blade! }}"
                 . "\n@php echo 'And I'm not PHP!' @endphp"
@@ -54,7 +54,7 @@ class BladePhpStatementsTest extends AbstractBladeTestCase
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
 
-    public function testStringWithOpeningParenthesisCanBeCompiled()
+    public function testStringWithOpeningParenthesisCanBeCompiled(): void
     {
         $string = "@php(\$data = ['single' => ':(('])";
         $expected = "<?php (\$data = ['single' => ':((']); ?>";
@@ -69,7 +69,7 @@ class BladePhpStatementsTest extends AbstractBladeTestCase
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
 
-    public function testStringWithParenthesisCanBeCompiled()
+    public function testStringWithParenthesisCanBeCompiled(): void
     {
         $string = "@php(\$data = ['single' => ')'])";
         $expected = "<?php (\$data = ['single' => ')']); ?>";
@@ -91,7 +91,7 @@ class BladePhpStatementsTest extends AbstractBladeTestCase
         $this->assertSame('( <?php echo $__env->make(\'test_for\', [\'not_too_much))\' => \'(issue#45424))\'], array_diff_key(get_defined_vars(), [\'__data\' => 1, \'__path\' => 1]))->render(); ?>))', $this->compiler->compileString('( @include(\'test_for\', [\'not_too_much))\' => \'(issue#45424))\'])))'));
     }
 
-    public function testStringWithEmptyStringDataValue()
+    public function testStringWithEmptyStringDataValue(): void
     {
         $string = "@php(\$data = ['test' => ''])";
 
@@ -106,7 +106,7 @@ class BladePhpStatementsTest extends AbstractBladeTestCase
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
 
-    public function testStringWithEscapingDataValue()
+    public function testStringWithEscapingDataValue(): void
     {
         $string = "@php(\$data = ['test' => 'won\\'t break'])";
 
@@ -121,7 +121,7 @@ class BladePhpStatementsTest extends AbstractBladeTestCase
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
 
-    public function testUnclosedParenthesisForBladeTags()
+    public function testUnclosedParenthesisForBladeTags(): void
     {
         $string = "<span @class(['(']></span>";
         $expected = "<span class=\"<?php echo \\Hypervel\\Support\\Arr::toCssClasses([]); ?>\"(['(']></span>";
@@ -144,7 +144,7 @@ class BladePhpStatementsTest extends AbstractBladeTestCase
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
 
-    public function testNestedTagCalls()
+    public function testNestedTagCalls(): void
     {
         $string = "<span @class(['k' => @empty(\$v)])></span>";
         $expected = '<span class="<?php echo \Hypervel\Support\Arr::toCssClasses([\'k\' => @empty($v)]); ?>"></span>';
@@ -175,7 +175,7 @@ class BladePhpStatementsTest extends AbstractBladeTestCase
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
 
-    public function testItDoesNotCompileInvalidSyntax()
+    public function testItDoesNotCompileInvalidSyntax(): void
     {
         $template = "<a @class(['k\\' => ()])></a>";
         $this->assertEquals($template, $this->compiler->compileString($template));

@@ -29,7 +29,7 @@ class DatabaseEloquentModelCustomCastingTest extends DatabaseTestCase
         });
     }
 
-    public function testBasicCustomCasting()
+    public function testBasicCustomCasting(): void
     {
         $model = new TestEloquentModelWithCustomCast;
         $model->uppercase = 'taylor';
@@ -118,7 +118,7 @@ class DatabaseEloquentModelCustomCastingTest extends DatabaseTestCase
         $this->assertNotSame('UTC', $model->anniversary_on_without_object_caching->format('e'));
     }
 
-    public function testGetOriginalWithCastValueObjects()
+    public function testGetOriginalWithCastValueObjects(): void
     {
         $model = new TestEloquentModelWithCustomCast([
             'address' => new Address('110 Kingsbrook St.', 'My Childhood House'),
@@ -158,7 +158,7 @@ class DatabaseEloquentModelCustomCastingTest extends DatabaseTestCase
         $this->assertNull($model->address);
     }
 
-    public function testDeviableCasts()
+    public function testDeviableCasts(): void
     {
         $model = new TestEloquentModelWithCustomCast;
         $model->price = '123.456';
@@ -181,7 +181,7 @@ class DatabaseEloquentModelCustomCastingTest extends DatabaseTestCase
         $this->assertSame((new Decimal('220.987'))->getValue(), $model->price->getValue());
     }
 
-    public function testSerializableCasts()
+    public function testSerializableCasts(): void
     {
         $model = new TestEloquentModelWithCustomCast;
         $model->price = '123.456';
@@ -199,7 +199,7 @@ class DatabaseEloquentModelCustomCastingTest extends DatabaseTestCase
         $this->assertSame('123.456', $unserializedModel->toArray()['price']);
     }
 
-    public function testOneWayCasting()
+    public function testOneWayCasting(): void
     {
         // CastsInboundAttributes is used for casting that is unidirectional... only use case I can think of is one-way hashing...
         $model = new TestEloquentModelWithCustomCast;
@@ -219,7 +219,7 @@ class DatabaseEloquentModelCustomCastingTest extends DatabaseTestCase
         $this->assertEquals(hash('sha256', 'secret2'), $model->password);
     }
 
-    public function testSettingRawAttributesClearsTheCastCache()
+    public function testSettingRawAttributesClearsTheCastCache(): void
     {
         $model = new TestEloquentModelWithCustomCast;
 
@@ -238,7 +238,7 @@ class DatabaseEloquentModelCustomCastingTest extends DatabaseTestCase
         $this->assertSame('117 Spencer St.', $model->address->lineOne);
     }
 
-    public function testSettingAttributesUsingArrowClearsTheCastCache()
+    public function testSettingAttributesUsingArrowClearsTheCastCache(): void
     {
         $model = new TestEloquentModelWithCustomCast;
         $model->typed_settings = ['foo' => true];
@@ -250,7 +250,7 @@ class DatabaseEloquentModelCustomCastingTest extends DatabaseTestCase
         $this->assertFalse($model->typed_settings->foo);
     }
 
-    public function testWithCastableInterface()
+    public function testWithCastableInterface(): void
     {
         $model = new TestEloquentModelWithCustomCast;
 
@@ -274,7 +274,7 @@ class DatabaseEloquentModelCustomCastingTest extends DatabaseTestCase
         $this->assertInstanceOf(ValueObject::class, $model->value_object_caster_with_caster_instance);
     }
 
-    public function testGetFromUndefinedCast()
+    public function testGetFromUndefinedCast(): void
     {
         $this->expectException(InvalidCastException::class);
 
@@ -282,7 +282,7 @@ class DatabaseEloquentModelCustomCastingTest extends DatabaseTestCase
         $model->undefined_cast_column;
     }
 
-    public function testSetToUndefinedCast()
+    public function testSetToUndefinedCast(): void
     {
         $this->expectException(InvalidCastException::class);
 

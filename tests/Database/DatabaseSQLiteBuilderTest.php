@@ -82,7 +82,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
         File::shouldReceive('put')->never();
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             "SQLite database management requires a plain filesystem path; [{$name}] is not supported."
         );
 
@@ -99,7 +99,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
         File::shouldReceive('delete')->never();
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             "SQLite database management requires a plain filesystem path; [{$name}] is not supported."
         );
 
@@ -248,7 +248,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
         $connection->shouldReceive('executeSessionStatement')->once()->with('pragma foreign_keys = 1')->ordered();
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('statement failed');
+        $this->expectExceptionMessageIs('statement failed');
 
         (new SQLiteBuilder($connection))->executeBlueprint($blueprint);
     }
@@ -323,7 +323,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
         $connection->shouldReceive('statement')->never();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'SQLite cannot rebuild the populated table [users] while foreign key constraints are enabled within an active transaction.'
         );
 
@@ -411,7 +411,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
         $connection->shouldReceive('statement')->never();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'SQLite foreign key constraints cannot be enabled or disabled within an active transaction.'
         );
 
@@ -612,7 +612,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
         $connection->shouldReceive('statement')->with($grammar->compileRebuild('main'))->never();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Failed to execute schema statement [delete from "main".sqlite_master where type in (\'table\', \'index\', \'trigger\')].'
         );
 
@@ -643,7 +643,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
         $connection->shouldReceive('markCurrentSessionStateUnknown')->once();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Failed to execute schema statement [vacuum "main"].');
+        $this->expectExceptionMessageIs('Failed to execute schema statement [vacuum "main"].');
 
         (new SQLiteBuilder($connection))->dropAllTables();
     }
@@ -672,7 +672,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
         $connection->shouldReceive('markCurrentSessionStateUnknown')->never();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Failed to execute schema statement [vacuum "main"].');
+        $this->expectExceptionMessageIs('Failed to execute schema statement [vacuum "main"].');
 
         (new SQLiteBuilder($connection))->dropAllTables();
     }
@@ -700,7 +700,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
         $connection->shouldReceive('statement')->with($grammar->compileRebuild('main'))->never();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Failed to execute schema statement [pragma writable_schema = RESET].');
+        $this->expectExceptionMessageIs('Failed to execute schema statement [pragma writable_schema = RESET].');
 
         (new SQLiteBuilder($connection))->dropAllTables();
     }
@@ -732,7 +732,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
             ->ordered();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Failed to execute schema statement [pragma writable_schema = 1].');
+        $this->expectExceptionMessageIs('Failed to execute schema statement [pragma writable_schema = 1].');
 
         (new SQLiteBuilder($connection))->dropAllViews();
     }
@@ -746,7 +746,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
         $connection->shouldReceive('statement')->never();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('SQLite cannot drop all tables within an active transaction.');
+        $this->expectExceptionMessageIs('SQLite cannot drop all tables within an active transaction.');
 
         (new SQLiteBuilder($connection))->dropAllTables();
     }
@@ -760,7 +760,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
         $connection->shouldReceive('statement')->never();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('SQLite cannot drop all views within an active transaction.');
+        $this->expectExceptionMessageIs('SQLite cannot drop all views within an active transaction.');
 
         (new SQLiteBuilder($connection))->dropAllViews();
     }
@@ -794,7 +794,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
         File::shouldReceive('put')->never();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'SQLite database files cannot be refreshed through a connection using WAL journal mode. Use dropAllTables() to empty a database while connections are using it.'
         );
 
@@ -811,7 +811,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
         File::shouldReceive('put')->never();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('SQLite cannot refresh the database file within an active transaction.');
+        $this->expectExceptionMessageIs('SQLite cannot refresh the database file within an active transaction.');
 
         (new SQLiteBuilder($connection))->refreshDatabaseFile();
     }
@@ -840,7 +840,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
         File::shouldReceive('put')->never();
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             "SQLite database management requires a plain filesystem path; [{$database}] is not supported."
         );
 
@@ -870,7 +870,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
             ->andReturn(false);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to refresh SQLite database file [/database.sqlite].');
+        $this->expectExceptionMessageIs('Unable to refresh SQLite database file [/database.sqlite].');
 
         (new SQLiteBuilder($connection))->refreshDatabaseFile('/database.sqlite');
     }

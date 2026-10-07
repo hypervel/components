@@ -47,7 +47,7 @@ class DatabaseEloquentWithCastsTest extends TestCase
         });
     }
 
-    public function testWithFirstOrNew()
+    public function testWithFirstOrNew(): void
     {
         $time1 = Time::query()->withCasts(['time' => 'string'])
             ->firstOrNew(['time' => '07:30']);
@@ -61,7 +61,7 @@ class DatabaseEloquentWithCastsTest extends TestCase
         $this->assertSame($time1->time, $time2->time);
     }
 
-    public function testWithFirstOrCreate()
+    public function testWithFirstOrCreate(): void
     {
         $time1 = Time::query()->withCasts(['time' => 'string'])
             ->firstOrCreate(['time' => '07:30']);
@@ -72,7 +72,7 @@ class DatabaseEloquentWithCastsTest extends TestCase
         $this->assertSame($time1->id, $time2->id);
     }
 
-    public function testWithCreateOrFirst()
+    public function testWithCreateOrFirst(): void
     {
         $time1 = UniqueTime::query()->withCasts(['time' => 'string'])
             ->createOrFirst(['time' => '07:30']);
@@ -83,7 +83,7 @@ class DatabaseEloquentWithCastsTest extends TestCase
         $this->assertSame($time1->id, $time2->id);
     }
 
-    public function testWithCastsDoesNotLeakAcrossQueries()
+    public function testWithCastsDoesNotLeakAcrossQueries(): void
     {
         Time::query()->insert(['time' => '07:30']);
 
@@ -95,7 +95,7 @@ class DatabaseEloquentWithCastsTest extends TestCase
         $this->assertInstanceOf(CarbonInterface::class, $default->time);
     }
 
-    public function testWithCastsDoesNotLeakPredicateCacheAcrossQueries()
+    public function testWithCastsDoesNotLeakPredicateCacheAcrossQueries(): void
     {
         Time::query()->insert(['time' => '07:30']);
 

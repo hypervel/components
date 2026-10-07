@@ -69,7 +69,7 @@ class AuthenticatedSessionControllerWithTwoFactorTest extends TestCase
         );
 
         $this->expectException(MissingAttributeException::class);
-        $this->expectExceptionMessage('two_factor_secret');
+        $this->expectExceptionMessageIsOrContains('two_factor_secret');
 
         $this->withoutExceptionHandling()->post('/login', [
             'email' => 'taylor@laravel.com',

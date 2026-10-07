@@ -288,7 +288,7 @@ class DatabaseTransactionsTest extends TestCase
 
         try {
             $this->expectException(RuntimeException::class);
-            $this->expectExceptionMessage('Transactions Manager has not been set.');
+            $this->expectExceptionMessageIs('Transactions Manager has not been set.');
 
             $connection->afterCommitOrNow(static function (): void {
             });
@@ -314,7 +314,7 @@ class DatabaseTransactionsTest extends TestCase
     public function testAfterCommitRequiresATransactionManager(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Transactions Manager has not been set.');
+        $this->expectExceptionMessageIs('Transactions Manager has not been set.');
 
         $this->connection()->afterCommit(static function (): void {
         });
@@ -323,7 +323,7 @@ class DatabaseTransactionsTest extends TestCase
     public function testAfterRollbackRequiresATransactionManager(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Transactions Manager has not been set.');
+        $this->expectExceptionMessageIs('Transactions Manager has not been set.');
 
         $this->connection()->afterRollBack(static function (): void {
         });

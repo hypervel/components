@@ -18,7 +18,7 @@ use PHPUnit\Framework\Attributes\TestWith;
 
 class ValidationInRuleTest extends TestCase
 {
-    public function testItCorrectlyFormatsAStringVersionOfTheRule()
+    public function testItCorrectlyFormatsAStringVersionOfTheRule(): void
     {
         $rule = new In(['Laravel', 'Framework', 'PHP']);
 
@@ -77,7 +77,7 @@ class ValidationInRuleTest extends TestCase
         $this->assertSame('in:"one"', (string) $rule);
     }
 
-    public function testInRuleValidation()
+    public function testInRuleValidation(): void
     {
         $trans = new Translator(new ArrayLoader, 'en');
 

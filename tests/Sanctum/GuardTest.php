@@ -241,7 +241,7 @@ class GuardTest extends TestCase
     protected function expectInvalidSessionGuardsConfiguration(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Auth guard [sanctum] uses the sanctum driver but does not declare a valid session guards list. '
             . 'Set auth.guards.sanctum.session_guards to an array of session guard names, or [] to disable stateful session authentication.'
         );
@@ -650,7 +650,7 @@ class GuardTest extends TestCase
         $this->app->make('auth')->forgetGuards();
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Auth guard [sanctum] lists [other-sanctum] in session_guards, but that guard is not a stateful guard.');
+        $this->expectExceptionMessageIs('Auth guard [sanctum] lists [other-sanctum] in session_guards, but that guard is not a stateful guard.');
 
         $this->withoutExceptionHandling()->getJson('/test/user');
     }

@@ -276,7 +276,7 @@ class AuthServiceProviderTest extends TestCase
         $startup = $this->bootAndCaptureStartupValidation($manager, $config);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Authentication provider [users] model must be an Eloquent authenticatable class.');
+        $this->expectExceptionMessageIs('Authentication provider [users] model must be an Eloquent authenticatable class.');
 
         $startup();
     }
@@ -296,7 +296,7 @@ class AuthServiceProviderTest extends TestCase
         $startup = $this->bootAndCaptureStartupValidation($manager, $config);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Authentication provider [users] cache store must be a string or null.');
+        $this->expectExceptionMessageIs('Authentication provider [users] cache store must be a string or null.');
 
         $startup();
     }
@@ -317,7 +317,7 @@ class AuthServiceProviderTest extends TestCase
         $startup = $this->bootAndCaptureStartupValidation($manager, $config);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Authentication provider [users] cache TTL must be a positive integer.');
+        $this->expectExceptionMessageIs('Authentication provider [users] cache TTL must be a positive integer.');
 
         $startup();
     }
@@ -348,7 +348,7 @@ class AuthServiceProviderTest extends TestCase
         $startup = $this->bootAndCaptureStartupValidation($manager, $config);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Authentication provider [users] cache tags must be an array of strings or null.');
+        $this->expectExceptionMessageIs('Authentication provider [users] cache tags must be an array of strings or null.');
 
         $startup();
     }
@@ -386,7 +386,7 @@ class AuthServiceProviderTest extends TestCase
         $startup = $this->bootAndCaptureStartupValidation($manager, $config, $validator);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('TagMode::Any is required.');
+        $this->expectExceptionMessageIs('TagMode::Any is required.');
 
         $startup();
     }

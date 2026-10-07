@@ -656,7 +656,7 @@ class MercureBroadcasterTest extends TestCase
         $broadcaster = $this->broadcasterForHub($publicUrl, $cookieName);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIsOrContains($message);
 
         $broadcaster->auth($this->requestFor(['news'], null));
     }

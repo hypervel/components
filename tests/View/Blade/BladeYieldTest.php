@@ -6,7 +6,7 @@ namespace Hypervel\Tests\View\Blade;
 
 class BladeYieldTest extends AbstractBladeTestCase
 {
-    public function testYieldsAreCompiled()
+    public function testYieldsAreCompiled(): void
     {
         $this->assertSame('<?php echo $__env->yieldContent(\'foo\'); ?>', $this->compiler->compileString('@yield(\'foo\')'));
         $this->assertSame('<?php echo $__env->yieldContent(\'foo\', \'bar\'); ?>', $this->compiler->compileString('@yield(\'foo\', \'bar\')'));

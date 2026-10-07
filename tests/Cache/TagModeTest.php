@@ -25,7 +25,7 @@ class TagModeTest extends TestCase
     public function testFromConfigRejectsInvalidModes(string $mode): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             "Invalid cache tag mode [{$mode}]. Supported modes are [any, all]."
         );
 

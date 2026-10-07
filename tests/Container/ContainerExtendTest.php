@@ -38,7 +38,7 @@ class ContainerExtendTest extends TestCase
         $this->assertSame($result, $container->make('foo'));
     }
 
-    public function testExtendInstancesArePreserved()
+    public function testExtendInstancesArePreserved(): void
     {
         $container = new Container;
         $container->bind('foo', function () {
@@ -67,7 +67,7 @@ class ContainerExtendTest extends TestCase
         $this->assertSame('foo', $container->make('foo')->baz);
     }
 
-    public function testExtendIsLazyInitialized()
+    public function testExtendIsLazyInitialized(): void
     {
         ContainerLazyExtendStub::$initialized = false;
 
@@ -94,7 +94,7 @@ class ContainerExtendTest extends TestCase
         $this->assertSame('foobar', $container->make('foo'));
     }
 
-    public function testExtendInstanceRebindingCallback()
+    public function testExtendInstanceRebindingCallback(): void
     {
         $_SERVER['_test_rebind'] = false;
 
@@ -113,7 +113,7 @@ class ContainerExtendTest extends TestCase
         $this->assertTrue($_SERVER['_test_rebind']);
     }
 
-    public function testExtendBindRebindingCallback()
+    public function testExtendBindRebindingCallback(): void
     {
         $_SERVER['_test_rebind'] = false;
 
@@ -136,7 +136,7 @@ class ContainerExtendTest extends TestCase
         $this->assertTrue($_SERVER['_test_rebind']);
     }
 
-    public function testExtensionWorksOnAliasedBindings()
+    public function testExtensionWorksOnAliasedBindings(): void
     {
         $container = new Container;
         $container->singleton('something', function () {
@@ -207,7 +207,7 @@ class ContainerExtendTest extends TestCase
         $this->assertSame('bar', $container->make(ContainerExtendConsumesInterfaceStub::class)->stub->value);
     }
 
-    public function testExtendOnResolvedScopedInstanceAppliesImmediately()
+    public function testExtendOnResolvedScopedInstanceAppliesImmediately(): void
     {
         $container = new Container;
         $container->scoped('foo', function () {
@@ -233,7 +233,7 @@ class ContainerExtendTest extends TestCase
         $this->assertTrue($second->extended);
     }
 
-    public function testExtendOnResolvedScopedInstanceAppliesAfterScopedReset()
+    public function testExtendOnResolvedScopedInstanceAppliesAfterScopedReset(): void
     {
         $container = new Container;
         $container->scoped('foo', function () {

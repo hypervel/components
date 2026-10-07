@@ -152,7 +152,7 @@ class FixtureTest extends TestCase
         (new Fixture('scalar', $this->files))->store(new RecordedResponse(200, [], '0'));
 
         $this->expectException(FixtureException::class);
-        $this->expectExceptionMessage('Fixture merge and through transforms require a JSON array or object body.');
+        $this->expectExceptionMessageIs('Fixture merge and through transforms require a JSON array or object body.');
 
         (new Fixture('scalar', $this->files))->merge(['name' => 'Taylor'])->getMockResponse();
     }

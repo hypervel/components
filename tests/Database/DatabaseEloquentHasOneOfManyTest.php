@@ -74,19 +74,19 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
         parent::tearDown();
     }
 
-    public function testItGuessesRelationName()
+    public function testItGuessesRelationName(): void
     {
         $user = User::make();
         $this->assertSame('latest_login', $user->latest_login()->getRelationName());
     }
 
-    public function testItGuessesRelationNameAndAddsOfManyWhenTableNameIsRelationName()
+    public function testItGuessesRelationNameAndAddsOfManyWhenTableNameIsRelationName(): void
     {
         $model = TestModel::make();
         $this->assertSame('logins_of_many', $model->logins()->getRelationName());
     }
 
-    public function testRelationNameCanBeSet()
+    public function testRelationNameCanBeSet(): void
     {
         $user = User::create();
 
@@ -110,7 +110,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
         $this->assertSame('select "logins".* from "logins" inner join (select MAX("logins"."id") as "id_aggregate", "logins"."user_id" from "logins" where "logins"."user_id" = ? and "logins"."user_id" is not null group by "logins"."user_id") as "latest_login" on "latest_login"."id_aggregate" = "logins"."id" and "latest_login"."user_id" = "logins"."user_id" where "logins"."user_id" = ? and "logins"."user_id" is not null', $relation->getQuery()->toSql());
     }
 
-    public function testEagerLoadingAppliesConstraintsToInnerJoinSubQuery()
+    public function testEagerLoadingAppliesConstraintsToInnerJoinSubQuery(): void
     {
         $user = User::create();
         $relation = $user->latest_login();
@@ -118,7 +118,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
         $this->assertSame('select MAX("logins"."id") as "id_aggregate", "logins"."user_id" from "logins" where "logins"."user_id" = ? and "logins"."user_id" is not null and "logins"."user_id" in (1) group by "logins"."user_id"', $relation->getOneOfManySubQuery()->toSql());
     }
 
-    public function testGlobalScopeIsNotAppliedWhenRelationIsDefinedWithoutGlobalScope()
+    public function testGlobalScopeIsNotAppliedWhenRelationIsDefinedWithoutGlobalScope(): void
     {
         Login::addGlobalScope('test', function ($query) {
             $query->orderBy('id');
@@ -133,7 +133,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
         });
     }
 
-    public function testGlobalScopeIsNotAppliedWhenRelationIsDefinedWithoutGlobalScopeWithComplexQuery()
+    public function testGlobalScopeIsNotAppliedWhenRelationIsDefinedWithoutGlobalScopeWithComplexQuery(): void
     {
         Price::addGlobalScope('test', function ($query) {
             $query->orderBy('id');
@@ -147,7 +147,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
         });
     }
 
-    public function testQualifyingSubSelectColumn()
+    public function testQualifyingSubSelectColumn(): void
     {
         $user = User::create();
         $this->assertSame('latest_login.id', $user->latest_login()->qualifySubSelectColumn('id'));
@@ -160,7 +160,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
         $user->latest_login_with_invalid_aggregate();
     }
 
-    public function testItGetsCorrectResults()
+    public function testItGetsCorrectResults(): void
     {
         $user = User::create();
         $previousLogin = $user->logins()->create();
@@ -171,7 +171,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
         $this->assertSame($latestLogin->id, $result->id);
     }
 
-    public function testResultDoesNotHaveAggregateColumn()
+    public function testResultDoesNotHaveAggregateColumn(): void
     {
         $user = User::create();
         $user->logins()->create();
@@ -181,7 +181,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
         $this->assertFalse(isset($result->id_aggregate));
     }
 
-    public function testItGetsCorrectResultsUsingShortcutMethod()
+    public function testItGetsCorrectResultsUsingShortcutMethod(): void
     {
         $user = User::create();
         $previousLogin = $user->logins()->create();
@@ -192,7 +192,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
         $this->assertSame($latestLogin->id, $result->id);
     }
 
-    public function testItGetsCorrectResultsUsingShortcutReceivingMultipleColumnsMethod()
+    public function testItGetsCorrectResultsUsingShortcutReceivingMultipleColumnsMethod(): void
     {
         $user = User::create();
         $user->prices()->create([
@@ -207,7 +207,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
         $this->assertSame($price->id, $result->id);
     }
 
-    public function testKeyIsAddedToAggregatesWhenMissing()
+    public function testKeyIsAddedToAggregatesWhenMissing(): void
     {
         $user = User::create();
         $user->prices()->create([
@@ -222,7 +222,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
         $this->assertSame($price->id, $result->id);
     }
 
-    public function testItGetsWithConstraintsCorrectResults()
+    public function testItGetsWithConstraintsCorrectResults(): void
     {
         $user = User::create();
         $previousLogin = $user->logins()->create();
@@ -232,7 +232,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
         $this->assertNull($result);
     }
 
-    public function testItEagerLoadsCorrectModels()
+    public function testItEagerLoadsCorrectModels(): void
     {
         $user = User::create();
         $user->logins()->create();
@@ -244,7 +244,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
         $this->assertSame($latestLogin->id, $user->latest_login->id);
     }
 
-    public function testItJoinsOtherTableInSubQuery()
+    public function testItJoinsOtherTableInSubQuery(): void
     {
         $user = User::create();
         $user->logins()->create();
@@ -260,7 +260,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
         $this->assertNotNull($user->latest_login_with_foo_state);
     }
 
-    public function testHasNested()
+    public function testHasNested(): void
     {
         $user = User::create();
         $previousLogin = $user->logins()->create();
@@ -277,7 +277,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
         $this->assertFalse($found);
     }
 
-    public function testWithHasNested()
+    public function testWithHasNested(): void
     {
         $user = User::create();
         $previousLogin = $user->logins()->create();
@@ -298,7 +298,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
         $this->assertFalse($found);
     }
 
-    public function testHasCount()
+    public function testHasCount(): void
     {
         $user = User::create();
         $user->logins()->create();
@@ -308,7 +308,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
         $this->assertEquals(1, $user->latest_login_count);
     }
 
-    public function testExists()
+    public function testExists(): void
     {
         $user = User::create();
         $previousLogin = $user->logins()->create();
@@ -318,7 +318,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
         $this->assertTrue($user->latest_login()->whereKey($latestLogin->getKey())->exists());
     }
 
-    public function testIsMethod()
+    public function testIsMethod(): void
     {
         $user = User::create();
         $login1 = $user->latest_login()->create();
@@ -328,7 +328,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
         $this->assertTrue($user->latest_login()->is($login2));
     }
 
-    public function testIsNotMethod()
+    public function testIsNotMethod(): void
     {
         $user = User::create();
         $login1 = $user->latest_login()->create();
@@ -338,7 +338,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
         $this->assertFalse($user->latest_login()->isNot($login2));
     }
 
-    public function testGet()
+    public function testGet(): void
     {
         $user = User::create();
         $previousLogin = $user->logins()->create();
@@ -352,7 +352,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
         $this->assertCount(0, $latestLogins);
     }
 
-    public function testCount()
+    public function testCount(): void
     {
         $user = User::create();
         $user->logins()->create();
@@ -361,7 +361,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
         $this->assertSame(1, $user->latest_login()->count());
     }
 
-    public function testAggregate()
+    public function testAggregate(): void
     {
         $user = User::create();
         $firstLogin = $user->logins()->create();
@@ -371,7 +371,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
         $this->assertSame($firstLogin->id, $user->first_login->id);
     }
 
-    public function testJoinConstraints()
+    public function testJoinConstraints(): void
     {
         $user = User::create();
         $user->states()->create([
@@ -391,7 +391,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
         $this->assertSame($currentForState->id, $user->foo_state->id);
     }
 
-    public function testMultipleAggregates()
+    public function testMultipleAggregates(): void
     {
         $user = User::create();
 
@@ -406,7 +406,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
         $this->assertSame($price->id, $user->price->id);
     }
 
-    public function testEagerLoadingWithMultipleAggregates()
+    public function testEagerLoadingWithMultipleAggregates(): void
     {
         $user1 = User::create();
         $user2 = User::create();
@@ -437,7 +437,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
         $this->assertSame($user2Price->id, $users[1]->price->id);
     }
 
-    public function testWithExists()
+    public function testWithExists(): void
     {
         $user = User::create();
 
@@ -449,7 +449,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
         $this->assertTrue($user->latest_login_exists);
     }
 
-    public function testWithExistsWithConstraintsInJoinSubSelect()
+    public function testWithExistsWithConstraintsInJoinSubSelect(): void
     {
         $user = User::create();
 
@@ -465,7 +465,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
         $this->assertTrue($user->foo_state_exists);
     }
 
-    public function testWithSoftDeletes()
+    public function testWithSoftDeletes(): void
     {
         $user = User::create();
         $user->logins()->create();
@@ -473,7 +473,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
         $this->assertNotNull($user->latest_login_with_soft_deletes);
     }
 
-    public function testWithConstraintNotInAggregate()
+    public function testWithConstraintNotInAggregate(): void
     {
         $user = User::create();
 
@@ -496,7 +496,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
         $this->assertSame($newFoo->id, $user->last_updated_foo_state->id);
     }
 
-    public function testItGetsCorrectResultUsingAtLeastTwoAggregatesDistinctFromId()
+    public function testItGetsCorrectResultUsingAtLeastTwoAggregatesDistinctFromId(): void
     {
         $user = User::create();
 

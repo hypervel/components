@@ -54,7 +54,7 @@ class HealthProtocolSyncScriptTest extends TestCase
     public function testItRejectsAnUpstreamPhpNamespace(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('The upstream gRPC health protocol already declares a PHP namespace.');
+        $this->expectExceptionMessageIs('The upstream gRPC health protocol already declares a PHP namespace.');
 
         addHypervelPhpNamespaces(<<<'PROTO'
 syntax = "proto3";

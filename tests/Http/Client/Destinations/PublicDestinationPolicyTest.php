@@ -44,7 +44,7 @@ class PublicDestinationPolicyTest extends TestCase
         $policy = new FakeDestinationPolicy(['example.com' => [$address]]);
 
         $this->expectException(DisallowedDestinationException::class);
-        $this->expectExceptionMessage('disallowed address');
+        $this->expectExceptionMessageIsOrContains('disallowed address');
 
         $policy->resolve('https://example.com', self::TIMEOUT_SECONDS);
     }
@@ -82,7 +82,7 @@ class PublicDestinationPolicyTest extends TestCase
         ]);
 
         $this->expectException(DisallowedDestinationException::class);
-        $this->expectExceptionMessage('disallowed address');
+        $this->expectExceptionMessageIsOrContains('disallowed address');
 
         $policy->resolve('https://example.com', self::TIMEOUT_SECONDS);
     }
@@ -120,7 +120,7 @@ class PublicDestinationPolicyTest extends TestCase
         $this->assertSame(['10.0.0.9', 'fd00::9'], $destination->addresses);
 
         $this->expectException(DisallowedDestinationException::class);
-        $this->expectExceptionMessage('disallowed address [192.168.0.9]');
+        $this->expectExceptionMessageIsOrContains('disallowed address [192.168.0.9]');
 
         $policy->resolve('https://other.example', self::TIMEOUT_SECONDS);
     }
@@ -324,7 +324,7 @@ class PublicDestinationPolicyTest extends TestCase
         $policy = new FakeDestinationPolicy(proxy: 'https://proxy.example/egress');
 
         $this->expectException(DisallowedDestinationException::class);
-        $this->expectExceptionMessage('Proxy URLs cannot contain a path or query string.');
+        $this->expectExceptionMessageIs('Proxy URLs cannot contain a path or query string.');
 
         $policy->resolve('https://target.example', self::TIMEOUT_SECONDS);
     }
@@ -334,7 +334,7 @@ class PublicDestinationPolicyTest extends TestCase
         $policy = new FakeDestinationPolicy(['example.com' => ['not-an-ip']]);
 
         $this->expectException(DestinationResolutionException::class);
-        $this->expectExceptionMessage('invalid address');
+        $this->expectExceptionMessageIsOrContains('invalid address');
 
         $policy->resolve('https://example.com', self::TIMEOUT_SECONDS);
     }
@@ -364,7 +364,7 @@ class PublicDestinationPolicyTest extends TestCase
         ]);
 
         $this->expectException(DestinationResolutionException::class);
-        $this->expectExceptionMessage('The host [example.com] did not resolve to an address.');
+        $this->expectExceptionMessageIs('The host [example.com] did not resolve to an address.');
 
         $policy->resolve('https://example.com', self::TIMEOUT_SECONDS);
     }
@@ -372,7 +372,7 @@ class PublicDestinationPolicyTest extends TestCase
     public function testProductionResolverRejectsEveryLocalhostAddress(): void
     {
         $this->expectException(DisallowedDestinationException::class);
-        $this->expectExceptionMessage('disallowed address');
+        $this->expectExceptionMessageIsOrContains('disallowed address');
 
         (new PublicDestinationPolicy)->resolve(
             'http://localhost',

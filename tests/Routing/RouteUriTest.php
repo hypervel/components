@@ -10,7 +10,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 class RouteUriTest extends RoutingTestCase
 {
     #[DataProvider('uriProvider')]
-    public function testRouteUrisAreProperlyParsed($uri, $expectedParsedUri, $expectedBindingFields)
+    public function testRouteUrisAreProperlyParsed($uri, $expectedParsedUri, $expectedBindingFields): void
     {
         $parsed = RouteUri::parse($uri);
         $this->assertSame($expectedParsedUri, $parsed->uri);

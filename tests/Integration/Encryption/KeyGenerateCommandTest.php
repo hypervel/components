@@ -251,7 +251,7 @@ class KeyGenerateCommandTest extends TestCase
         $this->app->make('config')->set('app.key', '');
 
         $this->expectException(FileNotFoundException::class);
-        $this->expectExceptionMessage('File does not exist at path');
+        $this->expectExceptionMessageIsOrContains('File does not exist at path');
 
         $this->artisan('key:generate')->run();
     }
@@ -266,7 +266,7 @@ class KeyGenerateCommandTest extends TestCase
         $this->app->instance(Filesystem::class, $filesystem);
 
         $this->expectException(FileNotFoundException::class);
-        $this->expectExceptionMessage("Unable to read file at path {$path}.");
+        $this->expectExceptionMessageIs("Unable to read file at path {$path}.");
 
         $this->artisan('key:generate')->run();
     }

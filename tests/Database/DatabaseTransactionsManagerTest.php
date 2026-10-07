@@ -12,7 +12,7 @@ use Swoole\Coroutine\CanceledException;
 
 class DatabaseTransactionsManagerTest extends TestCase
 {
-    public function testBeginningTransactions()
+    public function testBeginningTransactions(): void
     {
         $manager = new DatabaseTransactionsManager;
 
@@ -29,7 +29,7 @@ class DatabaseTransactionsManagerTest extends TestCase
         $this->assertEquals(1, $manager->getPendingTransactions()[2]->level);
     }
 
-    public function testRollingBackTransactions()
+    public function testRollingBackTransactions(): void
     {
         $manager = new DatabaseTransactionsManager;
 
@@ -48,7 +48,7 @@ class DatabaseTransactionsManagerTest extends TestCase
         $this->assertEquals(1, $manager->getPendingTransactions()[1]->level);
     }
 
-    public function testRollingBackTransactionsAllTheWay()
+    public function testRollingBackTransactionsAllTheWay(): void
     {
         $manager = new DatabaseTransactionsManager;
 
@@ -64,7 +64,7 @@ class DatabaseTransactionsManagerTest extends TestCase
         $this->assertEquals(1, $manager->getPendingTransactions()[0]->level);
     }
 
-    public function testCommittingTransactions()
+    public function testCommittingTransactions(): void
     {
         $manager = new DatabaseTransactionsManager;
 
@@ -91,7 +91,7 @@ class DatabaseTransactionsManagerTest extends TestCase
         $this->assertEquals(1, $manager->getPendingTransactions()[0]->level);
     }
 
-    public function testCallbacksAreAddedToTheCurrentTransaction()
+    public function testCallbacksAreAddedToTheCurrentTransaction(): void
     {
         $callbacks = [];
 
@@ -139,7 +139,7 @@ class DatabaseTransactionsManagerTest extends TestCase
         $this->assertSame(['default'], $callbacks);
     }
 
-    public function testCallbacksRunInFifoOrder()
+    public function testCallbacksRunInFifoOrder(): void
     {
         $manager = new DatabaseTransactionsManager;
 
@@ -164,7 +164,7 @@ class DatabaseTransactionsManagerTest extends TestCase
         $this->assertSame([1, 2, 3], $order);
     }
 
-    public function testCommittingTransactionsExecutesCallbacks()
+    public function testCommittingTransactionsExecutesCallbacks(): void
     {
         $callbacks = [];
 
@@ -192,7 +192,7 @@ class DatabaseTransactionsManagerTest extends TestCase
         $this->assertEquals(['default', 1], $callbacks[1]);
     }
 
-    public function testCommittingExecutesOnlyCallbacksOfTheConnection()
+    public function testCommittingExecutesOnlyCallbacksOfTheConnection(): void
     {
         $callbacks = [];
 
@@ -218,7 +218,7 @@ class DatabaseTransactionsManagerTest extends TestCase
         $this->assertEquals(['default', 1], $callbacks[0]);
     }
 
-    public function testCallbackIsExecutedIfNoTransactions()
+    public function testCallbackIsExecutedIfNoTransactions(): void
     {
         $callbacks = [];
 
@@ -246,7 +246,7 @@ class DatabaseTransactionsManagerTest extends TestCase
         $this->assertCount(0, $manager->getPendingTransactions()[0]->getCallbacks());
     }
 
-    public function testCallbacksForRollbackAreAddedToTheCurrentTransaction()
+    public function testCallbacksForRollbackAreAddedToTheCurrentTransaction(): void
     {
         $callbacks = [];
 
@@ -308,7 +308,7 @@ class DatabaseTransactionsManagerTest extends TestCase
         $this->assertSame([], $callbacks);
     }
 
-    public function testRollbackTransactionsExecutesCallbacks()
+    public function testRollbackTransactionsExecutesCallbacks(): void
     {
         $callbacks = [];
 
@@ -336,7 +336,7 @@ class DatabaseTransactionsManagerTest extends TestCase
         $this->assertEquals(['default', 1], $callbacks[1]);
     }
 
-    public function testRollbackExecutesOnlyCallbacksOfTheConnection()
+    public function testRollbackExecutesOnlyCallbacksOfTheConnection(): void
     {
         $callbacks = [];
 
@@ -708,7 +708,7 @@ class DatabaseTransactionsManagerTest extends TestCase
         $this->assertCount(0, $manager->getCommittedTransactions());
     }
 
-    public function testCallbackForRollbackIsNotExecutedIfNoTransactions()
+    public function testCallbackForRollbackIsNotExecutedIfNoTransactions(): void
     {
         $callbacks = [];
 
@@ -721,7 +721,7 @@ class DatabaseTransactionsManagerTest extends TestCase
         $this->assertCount(0, $callbacks);
     }
 
-    public function testStageTransactions()
+    public function testStageTransactions(): void
     {
         $manager = new DatabaseTransactionsManager;
 
@@ -750,7 +750,7 @@ class DatabaseTransactionsManagerTest extends TestCase
         $this->assertSame('admin', $manager->getCommittedTransactions()[1]->connection);
     }
 
-    public function testStageTransactionsOnlyStagesTheTransactionsAtOrAboveTheGivenLevel()
+    public function testStageTransactionsOnlyStagesTheTransactionsAtOrAboveTheGivenLevel(): void
     {
         $manager = new DatabaseTransactionsManager;
 

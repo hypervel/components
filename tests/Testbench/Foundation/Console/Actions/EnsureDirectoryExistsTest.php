@@ -76,7 +76,7 @@ class EnsureDirectoryExistsTest extends TestCase
         $components->shouldNotReceive('task');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to create placeholder file [a/.gitkeep].');
+        $this->expectExceptionMessageIs('Unable to create placeholder file [a/.gitkeep].');
 
         (new EnsureDirectoryExists(
             filesystem: $filesystem,

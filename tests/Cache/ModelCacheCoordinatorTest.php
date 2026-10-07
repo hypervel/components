@@ -606,7 +606,7 @@ class ModelCacheCoordinatorTest extends TestCase
         $missRepository->shouldReceive('get')->once()->with('key')->andReturnNull();
         $missRepository->shouldReceive('getStore')->once()->andReturn($unsupportedStore);
 
-        $this->expectExceptionMessage('does not provide atomic locks');
+        $this->expectExceptionMessageIsOrContains('does not provide atomic locks');
 
         $coordinator->fill($missRepository, 'key', 300, fn (): string => 'database');
     }
@@ -664,7 +664,7 @@ class ModelCacheCoordinatorTest extends TestCase
         $store->shouldReceive('lock')->once()->with(m::type('string'), 10)->andReturn($lock);
         $lock->shouldNotReceive('get');
 
-        $this->expectExceptionMessage('does not provide refreshable atomic locks');
+        $this->expectExceptionMessageIsOrContains('does not provide refreshable atomic locks');
 
         $coordinator->fill($repository, 'key', 300, fn (): string => 'database');
     }

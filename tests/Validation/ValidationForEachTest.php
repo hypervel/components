@@ -14,7 +14,7 @@ use RuntimeException;
 
 class ValidationForEachTest extends TestCase
 {
-    public function testForEachCallbacksCanProperlySegmentRules()
+    public function testForEachCallbacksCanProperlySegmentRules(): void
     {
         $data = [
             'items' => [
@@ -42,7 +42,7 @@ class ValidationForEachTest extends TestCase
         ], $v->getMessageBag()->toArray());
     }
 
-    public function testForEachCallbacksCanBeRecursivelyNested()
+    public function testForEachCallbacksCanBeRecursivelyNested(): void
     {
         $data = [
             'items' => [
@@ -74,7 +74,7 @@ class ValidationForEachTest extends TestCase
         ], $v->getMessageBag()->toArray());
     }
 
-    public function testForEachCallbacksCanReturnMultipleValidationRules()
+    public function testForEachCallbacksCanReturnMultipleValidationRules(): void
     {
         $data = [
             'items' => [
@@ -127,7 +127,7 @@ class ValidationForEachTest extends TestCase
         ], $v->getMessageBag()->toArray());
     }
 
-    public function testForEachCallbacksCanReturnArraysOfValidationRules()
+    public function testForEachCallbacksCanReturnArraysOfValidationRules(): void
     {
         $data = [
             'items' => [
@@ -156,7 +156,7 @@ class ValidationForEachTest extends TestCase
         ], $v->getMessageBag()->toArray());
     }
 
-    public function testForEachCallbacksCanReturnDifferentRules()
+    public function testForEachCallbacksCanReturnDifferentRules(): void
     {
         $data = [
             'items' => [
@@ -204,7 +204,7 @@ class ValidationForEachTest extends TestCase
         ], $v->getMessageBag()->toArray());
     }
 
-    public function testForEachCallbacksDoNotBreakRegexRules()
+    public function testForEachCallbacksDoNotBreakRegexRules(): void
     {
         $data = [
             'items' => [
@@ -229,7 +229,7 @@ class ValidationForEachTest extends TestCase
         ], $v->getMessageBag()->toArray());
     }
 
-    public function testForEachCallbacksCanContainMultipleRegexRules()
+    public function testForEachCallbacksCanContainMultipleRegexRules(): void
     {
         $data = [
             'items' => [
@@ -260,7 +260,7 @@ class ValidationForEachTest extends TestCase
         ], $v->getMessageBag()->toArray());
     }
 
-    public function testConditionalRulesCanBeAddedToForEachWithAssociativeArray()
+    public function testConditionalRulesCanBeAddedToForEachWithAssociativeArray(): void
     {
         $v = new Validator(
             $this->getArrayTranslator(),
@@ -282,7 +282,7 @@ class ValidationForEachTest extends TestCase
         ], $v->getMessageBag()->toArray());
     }
 
-    public function testConditionalRulesCanBeAddedToForEachWithList()
+    public function testConditionalRulesCanBeAddedToForEachWithList(): void
     {
         $v = new Validator(
             $this->getArrayTranslator(),
@@ -304,7 +304,7 @@ class ValidationForEachTest extends TestCase
         ], $v->getMessageBag()->toArray());
     }
 
-    public function testConditionalRulesCanBeAddedToForEachWithObject()
+    public function testConditionalRulesCanBeAddedToForEachWithObject(): void
     {
         $v = new Validator(
             $this->getArrayTranslator(),
@@ -326,7 +326,7 @@ class ValidationForEachTest extends TestCase
         ], $v->getMessageBag()->toArray());
     }
 
-    public function testForEachWithEmptyAndNullValues()
+    public function testForEachWithEmptyAndNullValues(): void
     {
         $data = [
             'items' => [
@@ -379,7 +379,7 @@ class ValidationForEachTest extends TestCase
         );
     }
 
-    public function testForEachMixedWithNormalRulesInArray()
+    public function testForEachMixedWithNormalRulesInArray(): void
     {
         $v = new Validator(
             $this->getArrayTranslator(),
@@ -392,7 +392,7 @@ class ValidationForEachTest extends TestCase
         $this->assertTrue($v->passes());
     }
 
-    public function testForEachMixedWithNormalRulesInArrayFails()
+    public function testForEachMixedWithNormalRulesInArrayFails(): void
     {
         $v = new Validator(
             $this->getArrayTranslator(),
@@ -405,7 +405,7 @@ class ValidationForEachTest extends TestCase
         $this->assertFalse($v->passes());
     }
 
-    public function testForEachMixedWithArrayFormRule()
+    public function testForEachMixedWithArrayFormRule(): void
     {
         $v = new Validator(
             $this->getArrayTranslator(),
@@ -418,7 +418,7 @@ class ValidationForEachTest extends TestCase
         $this->assertTrue($v->passes());
     }
 
-    public function testForEachMixedWithArrayFormRuleFails()
+    public function testForEachMixedWithArrayFormRuleFails(): void
     {
         $v = new Validator(
             $this->getArrayTranslator(),
@@ -433,7 +433,7 @@ class ValidationForEachTest extends TestCase
 
     // --- Undot cache tests (CoroutineContext) ---
 
-    public function testForEachWithLargeArrayProducesCorrectResults()
+    public function testForEachWithLargeArrayProducesCorrectResults(): void
     {
         $items = [];
         for ($i = 0; $i < 100; ++$i) {
@@ -451,7 +451,7 @@ class ValidationForEachTest extends TestCase
         $this->assertTrue($v->passes());
     }
 
-    public function testForEachWithDifferentDataDoesNotReturnStaleResults()
+    public function testForEachWithDifferentDataDoesNotReturnStaleResults(): void
     {
         $v1 = new Validator(
             $this->getArrayTranslator(),
@@ -474,7 +474,7 @@ class ValidationForEachTest extends TestCase
         $this->assertFalse($v2->passes());
     }
 
-    public function testForEachCacheCleanedUpAfterValidation()
+    public function testForEachCacheCleanedUpAfterValidation(): void
     {
         $v = new Validator(
             $this->getArrayTranslator(),
@@ -489,7 +489,7 @@ class ValidationForEachTest extends TestCase
         $this->assertFalse(CoroutineContext::has(Rule::UNDOTTED_DATA_CONTEXT_KEY));
     }
 
-    public function testForEachExceptionCleansUpCacheContext()
+    public function testForEachExceptionCleansUpCacheContext(): void
     {
         try {
             new Validator(
@@ -507,7 +507,7 @@ class ValidationForEachTest extends TestCase
         }
     }
 
-    public function testNestedForEachRestoresOuterCache()
+    public function testNestedForEachRestoresOuterCache(): void
     {
         $data = [
             'items' => [
@@ -532,7 +532,7 @@ class ValidationForEachTest extends TestCase
         $this->assertFalse(CoroutineContext::has(Rule::UNDOTTED_DATA_CONTEXT_KEY));
     }
 
-    public function testNestedForEachExceptionRestoresPreviousCacheContext()
+    public function testNestedForEachExceptionRestoresPreviousCacheContext(): void
     {
         $previous = [
             'input' => ['existing' => 'flattened'],

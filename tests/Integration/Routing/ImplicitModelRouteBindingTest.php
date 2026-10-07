@@ -62,7 +62,7 @@ class ImplicitModelRouteBindingTest extends RoutingTestCase
         });
     }
 
-    public function testWithRouteCachingEnabled()
+    public function testWithRouteCachingEnabled(): void
     {
         $this->defineCacheRoutes(<<<'PHP'
 <?php
@@ -84,7 +84,7 @@ PHP);
         ]);
     }
 
-    public function testWithoutRouteCachingEnabled()
+    public function testWithoutRouteCachingEnabled(): void
     {
         $user = ImplicitBindingUser::create(['name' => 'Dries']);
 
@@ -104,7 +104,7 @@ PHP);
         $this->assertTrue($user->is($response->baseRequest->route('user')));
     }
 
-    public function testSoftDeletedModelsAreNotRetrieved()
+    public function testSoftDeletedModelsAreNotRetrieved(): void
     {
         $user = ImplicitBindingUser::create(['name' => 'Dries']);
 
@@ -121,7 +121,7 @@ PHP);
         $response->assertStatus(404);
     }
 
-    public function testSoftDeletedModelsCanBeRetrievedUsingWithTrashedMethod()
+    public function testSoftDeletedModelsCanBeRetrievedUsingWithTrashedMethod(): void
     {
         $user = ImplicitBindingUser::create(['name' => 'Dries']);
 
@@ -143,7 +143,7 @@ PHP);
         $this->assertTrue($user->is($response->baseRequest->route('user')));
     }
 
-    public function testEnforceScopingImplicitRouteBindings()
+    public function testEnforceScopingImplicitRouteBindings(): void
     {
         $user = ImplicitBindingUser::create(['name' => 'Dries']);
         $post = ImplicitBindingPost::create(['user_id' => 2]);
@@ -162,7 +162,7 @@ PHP);
         $response->assertNotFound();
     }
 
-    public function testEnforceScopingImplicitRouteBindingsWithTrashedAndChildWithNoSoftDeleteTrait()
+    public function testEnforceScopingImplicitRouteBindingsWithTrashedAndChildWithNoSoftDeleteTrait(): void
     {
         $user = ImplicitBindingUser::create(['name' => 'Dries']);
 
@@ -191,7 +191,7 @@ PHP);
         ]);
     }
 
-    public function testEnforceScopingImplicitRouteBindingsWithRouteCachingEnabled()
+    public function testEnforceScopingImplicitRouteBindingsWithRouteCachingEnabled(): void
     {
         $user = ImplicitBindingUser::create(['name' => 'Dries']);
         $post = ImplicitBindingPost::create(['user_id' => 2]);
@@ -215,7 +215,7 @@ PHP);
         $response->assertNotFound();
     }
 
-    public function testWithoutEnforceScopingImplicitRouteBindings()
+    public function testWithoutEnforceScopingImplicitRouteBindings(): void
     {
         $user = ImplicitBindingUser::create(['name' => 'Dries']);
         $post = ImplicitBindingPost::create(['user_id' => 2]);
@@ -243,7 +243,7 @@ PHP);
         ]);
     }
 
-    public function testImplicitRouteBindingChildHasUuids()
+    public function testImplicitRouteBindingChildHasUuids(): void
     {
         $user = ImplicitBindingUser::create(['name' => 'Dries']);
         $comment = ImplicitBindingComment::create([
@@ -273,7 +273,7 @@ PHP);
         $response->assertJsonFragment(['id' => $comment->id]);
     }
 
-    public function testImplicitRouteBindingChildHasUlids()
+    public function testImplicitRouteBindingChildHasUlids(): void
     {
         $user = ImplicitBindingUser::create(['name' => 'Michael Nabil']);
         $post = ImplicitBindingPost::create(['user_id' => $user->id]);

@@ -72,7 +72,7 @@ class EloquentMultiDimensionalArrayEagerLoadingTest extends DatabaseTestCase
         $comments->map->tags()->each->create();
     }
 
-    public function testItCanEagerLoad()
+    public function testItCanEagerLoad(): void
     {
         DB::enableQueryLog();
 
@@ -104,7 +104,7 @@ class EloquentMultiDimensionalArrayEagerLoadingTest extends DatabaseTestCase
         $this->assertCount(6, $users[0]->posts->flatMap->comments->flatMap->tags);
     }
 
-    public function testItAppliesConstraintsViaClosuresAndCanContinueEagerLoading()
+    public function testItAppliesConstraintsViaClosuresAndCanContinueEagerLoading(): void
     {
         DB::enableQueryLog();
 
@@ -128,7 +128,7 @@ class EloquentMultiDimensionalArrayEagerLoadingTest extends DatabaseTestCase
         $this->assertTrue($users[0]->posts->flatMap->comments->every->relationLoaded('tags'));
     }
 
-    public function testItCanSpecifyAttributesToSelectInKeys()
+    public function testItCanSpecifyAttributesToSelectInKeys(): void
     {
         DB::enableQueryLog();
 
@@ -154,7 +154,7 @@ class EloquentMultiDimensionalArrayEagerLoadingTest extends DatabaseTestCase
         $this->assertCount(6, $users[0]->posts->flatMap->comments->flatMap->tags);
     }
 
-    public function testItMixesWithDotNotation()
+    public function testItMixesWithDotNotation(): void
     {
         DB::enableQueryLog();
 
@@ -177,7 +177,7 @@ class EloquentMultiDimensionalArrayEagerLoadingTest extends DatabaseTestCase
         $this->assertCount(2, $users[0]->posts->map->image);
     }
 
-    public function testItMixesConstraintsFromDotNotation()
+    public function testItMixesConstraintsFromDotNotation(): void
     {
         DB::enableQueryLog();
 

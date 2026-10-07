@@ -33,7 +33,7 @@ class EloquentWithCountTest extends DatabaseTestCase
         });
     }
 
-    public function testItBasic()
+    public function testItBasic(): void
     {
         $one = Model1::create();
         $two = $one->twos()->Create();
@@ -66,7 +66,7 @@ class EloquentWithCountTest extends DatabaseTestCase
         ], $results->toArray());
     }
 
-    public function testGlobalScopes()
+    public function testGlobalScopes(): void
     {
         $one = Model1::create();
         $one->fours()->create();
@@ -78,7 +78,7 @@ class EloquentWithCountTest extends DatabaseTestCase
         $this->assertEquals(1, $result->all_fours_count);
     }
 
-    public function testSortingScopes()
+    public function testSortingScopes(): void
     {
         $one = Model1::create();
         $one->twos()->create();

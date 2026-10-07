@@ -213,7 +213,7 @@ class RedisCacheLockTest extends TestCase
         $this->assertTrue($lock->get());
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Refresh requires a positive TTL.');
+        $this->expectExceptionMessageIs('Refresh requires a positive TTL.');
 
         try {
             $lock->refresh(0);

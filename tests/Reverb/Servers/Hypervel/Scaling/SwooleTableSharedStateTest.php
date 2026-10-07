@@ -184,7 +184,7 @@ class SwooleTableSharedStateTest extends ReverbTestCase
         $state = $this->createState(4, 4);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('reverb.servers.reverb.swoole_shared_state.rows');
+        $this->expectExceptionMessageIsOrContains('reverb.servers.reverb.swoole_shared_state.rows');
 
         // Fill the table beyond capacity
         for ($i = 0; $i < 100; ++$i) {

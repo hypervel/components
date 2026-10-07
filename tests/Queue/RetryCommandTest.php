@@ -291,7 +291,7 @@ class RetryCommandTest extends TestCase
         $this->app->instance('queue.failer', $failedJobs);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Sync retry failed.');
+        $this->expectExceptionMessageIs('Sync retry failed.');
 
         $this->runRetryCommand();
     }

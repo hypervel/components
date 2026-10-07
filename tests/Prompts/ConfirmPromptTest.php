@@ -14,7 +14,7 @@ use function Hypervel\Prompts\confirm;
 
 class ConfirmPromptTest extends TestCase
 {
-    public function testConfirm()
+    public function testConfirm(): void
     {
         Prompt::fake([Key::ENTER]);
 
@@ -23,7 +23,7 @@ class ConfirmPromptTest extends TestCase
         $this->assertTrue($result);
     }
 
-    public function testArrowKeysChangeTheValue()
+    public function testArrowKeysChangeTheValue(): void
     {
         Prompt::fake([Key::DOWN, Key::ENTER]);
 
@@ -32,7 +32,7 @@ class ConfirmPromptTest extends TestCase
         $this->assertFalse($result);
     }
 
-    public function testTheYSelectsYes()
+    public function testTheYSelectsYes(): void
     {
         Prompt::fake(['y', Key::ENTER]);
 
@@ -41,7 +41,7 @@ class ConfirmPromptTest extends TestCase
         $this->assertTrue($result);
     }
 
-    public function testTheNSelectsNo()
+    public function testTheNSelectsNo(): void
     {
         Prompt::fake(['n', Key::ENTER]);
 
@@ -50,7 +50,7 @@ class ConfirmPromptTest extends TestCase
         $this->assertFalse($result);
     }
 
-    public function testAcceptsADefaultValue()
+    public function testAcceptsADefaultValue(): void
     {
         Prompt::fake([Key::ENTER]);
 
@@ -62,7 +62,7 @@ class ConfirmPromptTest extends TestCase
         $this->assertFalse($result);
     }
 
-    public function testAllowsTheLabelsToBeChanged()
+    public function testAllowsTheLabelsToBeChanged(): void
     {
         Prompt::fake([Key::ENTER]);
 
@@ -78,7 +78,7 @@ class ConfirmPromptTest extends TestCase
         Prompt::assertOutputContains('No, gracias');
     }
 
-    public function testTransformsValues()
+    public function testTransformsValues(): void
     {
         Prompt::fake([Key::ENTER]);
 
@@ -90,7 +90,7 @@ class ConfirmPromptTest extends TestCase
         $this->assertFalse($result);
     }
 
-    public function testValidates()
+    public function testValidates(): void
     {
         Prompt::fake([Key::ENTER, 'y', Key::ENTER]);
 
@@ -105,7 +105,7 @@ class ConfirmPromptTest extends TestCase
         Prompt::assertOutputContains('You must choose yes.');
     }
 
-    public function testSupportEmacsStyleKeyBinding()
+    public function testSupportEmacsStyleKeyBinding(): void
     {
         Prompt::fake([Key::CTRL_N, Key::ENTER]);
 
@@ -114,7 +114,7 @@ class ConfirmPromptTest extends TestCase
         $this->assertFalse($result);
     }
 
-    public function testReturnsTheDefaultValueWhenNonInteractive()
+    public function testReturnsTheDefaultValueWhenNonInteractive(): void
     {
         Prompt::interactive(false);
 
@@ -123,12 +123,12 @@ class ConfirmPromptTest extends TestCase
         $this->assertFalse($result);
     }
 
-    public function testValidatesTheDefaultValueWhenNonInteractive()
+    public function testValidatesTheDefaultValueWhenNonInteractive(): void
     {
         Prompt::interactive(false);
 
         $this->expectException(NonInteractiveValidationException::class);
-        $this->expectExceptionMessage('Required.');
+        $this->expectExceptionMessageIs('Required.');
 
         confirm(
             'Would you like to continue?',

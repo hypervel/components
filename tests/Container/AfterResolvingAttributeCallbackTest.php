@@ -10,7 +10,7 @@ use Hypervel\Tests\TestCase;
 
 class AfterResolvingAttributeCallbackTest extends TestCase
 {
-    public function testCallbackIsCalledAfterDependencyResolutionWithAttribute()
+    public function testCallbackIsCalledAfterDependencyResolutionWithAttribute(): void
     {
         $container = new Container;
 
@@ -27,7 +27,7 @@ class AfterResolvingAttributeCallbackTest extends TestCase
         $this->assertEquals(Tenant::TenantB, $hasTenantB->property->tenant);
     }
 
-    public function testCallbackIsCalledAfterClassWithAttributeIsResolved()
+    public function testCallbackIsCalledAfterClassWithAttributeIsResolved(): void
     {
         $container = new Container;
 
@@ -42,7 +42,7 @@ class AfterResolvingAttributeCallbackTest extends TestCase
         $this->assertTrue($instance->hasBooted);
     }
 
-    public function testCallbackIsCalledAfterClassWithConstructorAndAttributeIsResolved()
+    public function testCallbackIsCalledAfterClassWithConstructorAndAttributeIsResolved(): void
     {
         $container = new Container;
 
@@ -60,7 +60,7 @@ class AfterResolvingAttributeCallbackTest extends TestCase
         $this->assertSame('the-right-value', $instance->value);
     }
 
-    public function testCallbackIsCalledOnAppCall()
+    public function testCallbackIsCalledOnAppCall(): void
     {
         $container = new Container;
 
@@ -75,7 +75,7 @@ class AfterResolvingAttributeCallbackTest extends TestCase
         $this->assertEquals(Tenant::TenantA, $tenant);
     }
 
-    public function testCallbackDoesNotFireWhenNoAttributesOnBuildPath()
+    public function testCallbackDoesNotFireWhenNoAttributesOnBuildPath(): void
     {
         $container = new Container;
         $callCount = 0;
@@ -93,7 +93,7 @@ class AfterResolvingAttributeCallbackTest extends TestCase
         $this->assertSame(0, $callCount);
     }
 
-    public function testCallbackDoesNotFireWhenNoAttributesOnCallPath()
+    public function testCallbackDoesNotFireWhenNoAttributesOnCallPath(): void
     {
         $container = new Container;
         $callCount = 0;
@@ -112,7 +112,7 @@ class AfterResolvingAttributeCallbackTest extends TestCase
         $this->assertSame(0, $callCount);
     }
 
-    public function testCallbackFiresForAnnotatedParameterButNotUnannotatedInSameCall()
+    public function testCallbackFiresForAnnotatedParameterButNotUnannotatedInSameCall(): void
     {
         $container = new Container;
         $invocations = [];

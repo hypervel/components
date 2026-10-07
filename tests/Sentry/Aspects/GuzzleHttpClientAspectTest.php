@@ -25,7 +25,7 @@ class GuzzleHttpClientAspectTest extends SentryTestCase
         'sentry.traces_sample_rate' => 1.0,
     ];
 
-    public function testBreadcrumbIsRecorded()
+    public function testBreadcrumbIsRecorded(): void
     {
         $client = $this->makeClient([
             new Response(200, [], 'OK'),
@@ -45,7 +45,7 @@ class GuzzleHttpClientAspectTest extends SentryTestCase
         $this->assertEquals(200, $metadata['http.response.status_code']);
     }
 
-    public function testBreadcrumbIsNotRecordedWhenDisabled()
+    public function testBreadcrumbIsNotRecordedWhenDisabled(): void
     {
         $this->resetApplicationWithConfig([
             'sentry' => $this->sentryConfigWith([
@@ -62,7 +62,7 @@ class GuzzleHttpClientAspectTest extends SentryTestCase
         $this->assertEmpty($this->getCurrentSentryBreadcrumbs());
     }
 
-    public function testBreadcrumbLevelReflectsHttpStatus()
+    public function testBreadcrumbLevelReflectsHttpStatus(): void
     {
         $client = $this->makeClient([
             new Response(200, [], 'OK'),
@@ -80,7 +80,7 @@ class GuzzleHttpClientAspectTest extends SentryTestCase
         $this->assertEquals('error', $this->getLastSentryBreadcrumb()->getLevel());
     }
 
-    public function testSpanIsRecorded()
+    public function testSpanIsRecorded(): void
     {
         $transaction = $this->startTransaction();
 
@@ -98,7 +98,7 @@ class GuzzleHttpClientAspectTest extends SentryTestCase
         $this->assertEquals(SpanStatus::ok(), $span->getStatus());
     }
 
-    public function testSpanIsRecordedWithCorrectStatus()
+    public function testSpanIsRecordedWithCorrectStatus(): void
     {
         $transaction = $this->startTransaction();
 
@@ -154,7 +154,7 @@ class GuzzleHttpClientAspectTest extends SentryTestCase
         $this->assertSame($transaction, SentrySdk::getCurrentHub()->getSpan());
     }
 
-    public function testSpanIsNotRecordedWhenDisabled()
+    public function testSpanIsNotRecordedWhenDisabled(): void
     {
         $this->resetApplicationWithConfig([
             'sentry' => $this->sentryConfigWith([
@@ -175,7 +175,7 @@ class GuzzleHttpClientAspectTest extends SentryTestCase
         $this->assertNotEquals('http.client', $span->getOp());
     }
 
-    public function testTracingHeadersAreAttached()
+    public function testTracingHeadersAreAttached(): void
     {
         $this->resetApplicationWithConfig([
             'sentry.trace_propagation_targets' => ['example.com'],
@@ -263,7 +263,7 @@ class GuzzleHttpClientAspectTest extends SentryTestCase
         $this->assertSame('http.client', $span->getOp());
     }
 
-    public function testPerRequestOptOut()
+    public function testPerRequestOptOut(): void
     {
         $client = $this->makeClient([
             new Response(200, [], 'OK'),
@@ -274,7 +274,7 @@ class GuzzleHttpClientAspectTest extends SentryTestCase
         $this->assertEmpty($this->getCurrentSentryBreadcrumbs());
     }
 
-    public function testPerClientOptOut()
+    public function testPerClientOptOut(): void
     {
         $mock = new MockHandler([new Response(200, [], 'OK')]);
         $client = new Client([
@@ -287,7 +287,7 @@ class GuzzleHttpClientAspectTest extends SentryTestCase
         $this->assertEmpty($this->getCurrentSentryBreadcrumbs());
     }
 
-    public function testExistingOnStatsCallbackIsPreserved()
+    public function testExistingOnStatsCallbackIsPreserved(): void
     {
         $callbackFired = false;
 

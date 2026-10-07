@@ -28,7 +28,7 @@ class ImportCommandTest extends ScoutTestCase
     public function testItThrowsScoutExceptionForNonExistentModelClass(): void
     {
         $this->expectException(ScoutException::class);
-        $this->expectExceptionMessage('Model [NonExistentModel] not found.');
+        $this->expectExceptionMessageIs('Model [NonExistentModel] not found.');
 
         $this->artisan('scout:import', ['model' => 'NonExistentModel'])->run();
     }

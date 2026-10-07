@@ -108,7 +108,7 @@ class ValidationUniqueRuleTest extends TestCase
         $this->assertSame('unique:mysql.table,column,NULL,id,foo,"bar"', (string) $rule);
     }
 
-    public function testItIgnoresSoftDeletes()
+    public function testItIgnoresSoftDeletes(): void
     {
         $rule = new Unique('table');
         $rule->withoutTrashed();
@@ -119,7 +119,7 @@ class ValidationUniqueRuleTest extends TestCase
         $this->assertSame('unique:table,NULL,NULL,id,softdeleted_at,"NULL"', (string) $rule);
     }
 
-    public function testItOnlyTrashedSoftDeletes()
+    public function testItOnlyTrashedSoftDeletes(): void
     {
         $rule = new Unique('table');
         $rule->onlyTrashed();
@@ -130,7 +130,7 @@ class ValidationUniqueRuleTest extends TestCase
         $this->assertSame('unique:table,NULL,NULL,id,softdeleted_at,"NOT_NULL"', (string) $rule);
     }
 
-    public function testItHandlesNullPrimaryKeyInIgnoreModel()
+    public function testItHandlesNullPrimaryKeyInIgnoreModel(): void
     {
         $model = new EloquentModelStub(['id_column' => null]);
 
@@ -173,7 +173,7 @@ class ValidationUniqueRuleTest extends TestCase
         );
     }
 
-    public function testItHandlesWhereWithSpecialValues()
+    public function testItHandlesWhereWithSpecialValues(): void
     {
         $rule = new Unique('table', 'column');
         $rule->where('foo', null);
@@ -196,7 +196,7 @@ class ValidationUniqueRuleTest extends TestCase
         $this->assertSame('unique:table,column,NULL,id,foo,"0"', (string) $rule);
     }
 
-    public function testItValidatesUniqueRuleWithWhereInAndWhereNotIn()
+    public function testItValidatesUniqueRuleWithWhereInAndWhereNotIn(): void
     {
         EloquentModelStub::create(['id_column' => 1, 'type' => 'admin']);
         EloquentModelStub::create(['id_column' => 2, 'type' => 'moderator']);

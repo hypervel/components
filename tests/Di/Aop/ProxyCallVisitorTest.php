@@ -257,7 +257,7 @@ PHP,
         $this->assertSame(2, $value);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('stopped');
+        $this->expectExceptionMessageIs('stopped');
         $instance->stop();
     }
 
@@ -503,7 +503,7 @@ PHP);
 
         $this->assertInstanceOf(Closure::class, $callback);
         $this->expectException(Error::class);
-        $this->expectExceptionMessage('Cannot call func_num_args() dynamically');
+        $this->expectExceptionMessageIsOrContains('Cannot call func_num_args() dynamically');
         $callback();
     }
 
@@ -599,7 +599,7 @@ PHP;
         $source = $this->classSource($className, $method);
 
         $this->expectException(InvalidDefinitionException::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIsOrContains($message);
 
         $this->generate($className, '/original/Unsupported.php', $source);
     }
@@ -677,7 +677,7 @@ PHP,
 PHP) . "\nclass AnotherNamedClass {}\n";
 
         $this->expectException(InvalidDefinitionException::class);
-        $this->expectExceptionMessage('contains multiple named classes, interfaces, traits, or enums');
+        $this->expectExceptionMessageIsOrContains('contains multiple named classes, interfaces, traits, or enums');
 
         $this->generate($className, '/original/Multiple.php', $source);
     }

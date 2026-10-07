@@ -46,7 +46,7 @@ class EloquentModelEncryptedCastingTest extends DatabaseTestCase
         });
     }
 
-    public function testStringsAreCastable()
+    public function testStringsAreCastable(): void
     {
         $this->encrypter->expects('encrypt')
             ->with('this is a secret string', false)
@@ -67,7 +67,7 @@ class EloquentModelEncryptedCastingTest extends DatabaseTestCase
         ]);
     }
 
-    public function testArraysAreCastable()
+    public function testArraysAreCastable(): void
     {
         $this->encrypter->expects('encrypt')
             ->with('{"key1":"value1"}', false)
@@ -88,7 +88,7 @@ class EloquentModelEncryptedCastingTest extends DatabaseTestCase
         ]);
     }
 
-    public function testJsonIsCastable()
+    public function testJsonIsCastable(): void
     {
         $this->encrypter->expects('encrypt')
             ->with('{"key1":"value1"}', false)
@@ -109,7 +109,7 @@ class EloquentModelEncryptedCastingTest extends DatabaseTestCase
         ]);
     }
 
-    public function testJsonAttributeIsCastable()
+    public function testJsonAttributeIsCastable(): void
     {
         $this->encrypter->expects('encrypt')
             ->with('{"key1":"value1"}', false)
@@ -139,7 +139,7 @@ class EloquentModelEncryptedCastingTest extends DatabaseTestCase
         ]);
     }
 
-    public function testObjectIsCastable()
+    public function testObjectIsCastable(): void
     {
         $object = new stdClass;
         $object->key1 = 'value1';
@@ -165,7 +165,7 @@ class EloquentModelEncryptedCastingTest extends DatabaseTestCase
         ]);
     }
 
-    public function testCollectionIsCastable()
+    public function testCollectionIsCastable(): void
     {
         $this->encrypter->expects('encrypt')
             ->with('{"key1":"value1"}', false)
@@ -188,7 +188,7 @@ class EloquentModelEncryptedCastingTest extends DatabaseTestCase
         ]);
     }
 
-    public function testAsEncryptedCollection()
+    public function testAsEncryptedCollection(): void
     {
         $this->encrypter->expects('encryptString')
             ->twice()
@@ -238,7 +238,7 @@ class EloquentModelEncryptedCastingTest extends DatabaseTestCase
         $this->assertNull($subject->fresh()->secret_collection);
     }
 
-    public function testAsEncryptedCollectionMap()
+    public function testAsEncryptedCollectionMap(): void
     {
         $this->encrypter->expects('encryptString')
             ->twice()
@@ -290,7 +290,7 @@ class EloquentModelEncryptedCastingTest extends DatabaseTestCase
         $this->assertNull($subject->fresh()->secret_collection);
     }
 
-    public function testAsEncryptedArrayObject()
+    public function testAsEncryptedArrayObject(): void
     {
         $this->encrypter->expects('encryptString')
             ->once()
@@ -439,7 +439,7 @@ class EloquentModelEncryptedCastingTest extends DatabaseTestCase
         );
     }
 
-    public function testCustomEncrypterCanBeSpecified()
+    public function testCustomEncrypterCanBeSpecified(): void
     {
         $customEncrypter = $this->mock(Encrypter::class);
 

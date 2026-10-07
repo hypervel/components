@@ -91,7 +91,7 @@ class ServerCallContextTest extends TestCase
         $store->forget();
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('No gRPC server call is active in the current coroutine.');
+        $this->expectExceptionMessageIs('No gRPC server call is active in the current coroutine.');
 
         $store->get();
     }

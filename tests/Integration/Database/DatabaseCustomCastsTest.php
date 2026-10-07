@@ -39,7 +39,7 @@ class DatabaseCustomCastsTest extends DatabaseTestCase
         });
     }
 
-    public function testCustomCasting()
+    public function testCustomCasting(): void
     {
         $model = new TestEloquentModelWithCustomCasts;
 
@@ -88,7 +88,7 @@ class DatabaseCustomCastsTest extends DatabaseTestCase
         );
     }
 
-    public function testCustomCastingUsingCreate()
+    public function testCustomCastingUsingCreate(): void
     {
         $model = TestEloquentModelWithCustomCasts::create([
             'array_object' => ['name' => 'Taylor'],
@@ -109,7 +109,7 @@ class DatabaseCustomCastsTest extends DatabaseTestCase
         $this->assertTrue(Hash::check('secret', $model->password));
     }
 
-    public function testCustomCastingNullableValues()
+    public function testCustomCastingNullableValues(): void
     {
         $model = new TestEloquentModelWithCustomCastsNullable;
 
@@ -218,7 +218,7 @@ class DatabaseCustomCastsTest extends DatabaseTestCase
         $this->assertSame('bar', $collection->first());
     }
 
-    public function testAsCollectionWithMapInto()
+    public function testAsCollectionWithMapInto(): void
     {
         $model = new TestEloquentModelWithCustomCasts;
         $model->mergeCasts([
@@ -233,7 +233,7 @@ class DatabaseCustomCastsTest extends DatabaseTestCase
         $this->assertSame('bar', $model->collection->first()->foo);
     }
 
-    public function testAsCustomCollectionWithMapInto()
+    public function testAsCustomCollectionWithMapInto(): void
     {
         $model = new TestEloquentModelWithCustomCasts;
         $model->mergeCasts([

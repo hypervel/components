@@ -10,7 +10,7 @@ use Hypervel\Tests\TestCase;
 
 class ConsoleStaticStateTest extends TestCase
 {
-    public function testCommandFlushStateClearsMacrosRegisteredOnSubclasses()
+    public function testCommandFlushStateClearsMacrosRegisteredOnSubclasses(): void
     {
         ConsoleStaticStateTestCommand::macro('testingStaticStateProbe', static fn (): string => 'ok');
 
@@ -21,7 +21,7 @@ class ConsoleStaticStateTest extends TestCase
         $this->assertFalse(ConsoleStaticStateTestCommand::hasMacro('testingStaticStateProbe'));
     }
 
-    public function testScheduleFlushStateClearsMacros()
+    public function testScheduleFlushStateClearsMacros(): void
     {
         Schedule::macro('testingStaticStateProbe', static fn (): string => 'ok');
 

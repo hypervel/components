@@ -186,7 +186,7 @@ class PooledConnectionTest extends DatabaseTestCase
         ]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Database connection [memory_read_pool_test::read] cannot use a derived read pool for in-memory SQLite.'
         );
 
@@ -218,7 +218,7 @@ class PooledConnectionTest extends DatabaseTestCase
             ]);
 
             $this->expectException(InvalidArgumentException::class);
-            $this->expectExceptionMessage(
+            $this->expectExceptionMessageIs(
                 'Database connection [memory_read_url_pool_test::read] cannot use a derived read pool for in-memory SQLite.'
             );
 

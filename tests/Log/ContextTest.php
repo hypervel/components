@@ -34,7 +34,7 @@ class ContextTest extends TestCase
     // Basic data operations
     // =========================================================================
 
-    public function testItCanAddAndGetValues()
+    public function testItCanAddAndGetValues(): void
     {
         $this->context->add('string', 'hello');
         $this->context->add('int', 42);
@@ -52,7 +52,7 @@ class ContextTest extends TestCase
         $this->assertSame($object, $this->context->get('object'));
     }
 
-    public function testItCanAddMultipleValuesAtOnce()
+    public function testItCanAddMultipleValuesAtOnce(): void
     {
         $this->context->add(['key1' => 'val1', 'key2' => 'val2']);
 
@@ -70,7 +70,7 @@ class ContextTest extends TestCase
         $this->assertSame([123 => 'updated', 456 => 'second'], $this->context->all());
     }
 
-    public function testItCanAddValuesWhenNotAlreadyPresent()
+    public function testItCanAddValuesWhenNotAlreadyPresent(): void
     {
         $this->context->addIf('key', 'first');
         $this->assertSame('first', $this->context->get('key'));
@@ -79,7 +79,7 @@ class ContextTest extends TestCase
         $this->assertSame('first', $this->context->get('key'));
     }
 
-    public function testItCanCheckIfKeyExists()
+    public function testItCanCheckIfKeyExists(): void
     {
         $this->assertFalse($this->context->has('key'));
         $this->assertTrue($this->context->missing('key'));
@@ -90,35 +90,35 @@ class ContextTest extends TestCase
         $this->assertFalse($this->context->missing('key'));
     }
 
-    public function testItCanCheckIfKeyExistsWithNullValue()
+    public function testItCanCheckIfKeyExistsWithNullValue(): void
     {
         $this->context->add('key', null);
 
         $this->assertTrue($this->context->has('key'));
     }
 
-    public function testItCanGetAllValues()
+    public function testItCanGetAllValues(): void
     {
         $this->context->add(['a' => 1, 'b' => 2]);
 
         $this->assertSame(['a' => 1, 'b' => 2], $this->context->all());
     }
 
-    public function testItCanGetSubsetOfValues()
+    public function testItCanGetSubsetOfValues(): void
     {
         $this->context->add(['a' => 1, 'b' => 2, 'c' => 3]);
 
         $this->assertSame(['a' => 1, 'c' => 3], $this->context->only(['a', 'c']));
     }
 
-    public function testItCanExcludeSubsetOfValues()
+    public function testItCanExcludeSubsetOfValues(): void
     {
         $this->context->add(['a' => 1, 'b' => 2, 'c' => 3]);
 
         $this->assertSame(['b' => 2, 'c' => 3], $this->context->except(['a']));
     }
 
-    public function testItCanForgetAKey()
+    public function testItCanForgetAKey(): void
     {
         $this->context->add('key', 'value');
         $this->assertTrue($this->context->has('key'));
@@ -127,7 +127,7 @@ class ContextTest extends TestCase
         $this->assertFalse($this->context->has('key'));
     }
 
-    public function testItCanForgetMultipleKeys()
+    public function testItCanForgetMultipleKeys(): void
     {
         $this->context->add(['key1' => 'val1', 'key2' => 'val2', 'key3' => 'val3']);
 
@@ -138,7 +138,7 @@ class ContextTest extends TestCase
         $this->assertTrue($this->context->has('key3'));
     }
 
-    public function testItCanPullAValue()
+    public function testItCanPullAValue(): void
     {
         $this->context->add('key', 'value');
 
@@ -146,18 +146,18 @@ class ContextTest extends TestCase
         $this->assertFalse($this->context->has('key'));
     }
 
-    public function testItSilentlyIgnoresUnsetValues()
+    public function testItSilentlyIgnoresUnsetValues(): void
     {
         $this->assertNull($this->context->get('nonexistent'));
         $this->assertFalse($this->context->has('nonexistent'));
     }
 
-    public function testGetReturnsDefaultForMissingKey()
+    public function testGetReturnsDefaultForMissingKey(): void
     {
         $this->assertSame('fallback', $this->context->get('missing', 'fallback'));
     }
 
-    public function testItIsSimpleKeyValueSystem()
+    public function testItIsSimpleKeyValueSystem(): void
     {
         $this->context->add('parent.child', 5);
 
@@ -165,7 +165,7 @@ class ContextTest extends TestCase
         $this->assertSame(5, $this->context->get('parent.child'));
     }
 
-    public function testItCanRememberAValue()
+    public function testItCanRememberAValue(): void
     {
         $callCount = 0;
 
@@ -186,7 +186,7 @@ class ContextTest extends TestCase
         $this->assertSame(1, $callCount);
     }
 
-    public function testItCanRememberANonClosureValue()
+    public function testItCanRememberANonClosureValue(): void
     {
         $result = $this->context->remember('key', 42);
         $this->assertSame(42, $result);
@@ -199,7 +199,7 @@ class ContextTest extends TestCase
     // Stack operations
     // =========================================================================
 
-    public function testItCanPushToList()
+    public function testItCanPushToList(): void
     {
         $this->context->push('breadcrumbs', 'foo');
         $this->context->push('breadcrumbs', 'bar', 'baz');
@@ -207,7 +207,7 @@ class ContextTest extends TestCase
         $this->assertSame(['foo', 'bar', 'baz'], $this->context->get('breadcrumbs'));
     }
 
-    public function testItThrowsWhenPushingToNonArray()
+    public function testItThrowsWhenPushingToNonArray(): void
     {
         $this->context->add('key', 'string');
 
@@ -215,7 +215,7 @@ class ContextTest extends TestCase
         $this->context->push('key', 'val');
     }
 
-    public function testItThrowsWhenPushingToNonListArray()
+    public function testItThrowsWhenPushingToNonListArray(): void
     {
         $this->context->add('key', ['foo' => 'bar']);
 
@@ -223,7 +223,7 @@ class ContextTest extends TestCase
         $this->context->push('key', 'val');
     }
 
-    public function testItCanPopFromList()
+    public function testItCanPopFromList(): void
     {
         $this->context->push('key', 'a', 'b');
 
@@ -231,7 +231,7 @@ class ContextTest extends TestCase
         $this->assertSame('a', $this->context->pop('key'));
     }
 
-    public function testItThrowsWhenPoppingFromEmptyList()
+    public function testItThrowsWhenPoppingFromEmptyList(): void
     {
         $this->context->push('key', 'a');
         $this->context->pop('key');
@@ -240,7 +240,7 @@ class ContextTest extends TestCase
         $this->context->pop('key');
     }
 
-    public function testItThrowsWhenPoppingFromNonListArray()
+    public function testItThrowsWhenPoppingFromNonListArray(): void
     {
         $this->context->add('key', ['foo' => 'bar']);
 
@@ -248,7 +248,7 @@ class ContextTest extends TestCase
         $this->context->pop('key');
     }
 
-    public function testItCanCheckIfValueIsInStack()
+    public function testItCanCheckIfValueIsInStack(): void
     {
         $this->context->push('key', 'a', 'b', 'c');
 
@@ -256,7 +256,7 @@ class ContextTest extends TestCase
         $this->assertFalse($this->context->stackContains('key', 'z'));
     }
 
-    public function testItCanCheckIfValueIsInStackWithClosure()
+    public function testItCanCheckIfValueIsInStackWithClosure(): void
     {
         $this->context->push('key', 1, 2, 3);
 
@@ -268,7 +268,7 @@ class ContextTest extends TestCase
     // Counter operations
     // =========================================================================
 
-    public function testItCanIncrementACounter()
+    public function testItCanIncrementACounter(): void
     {
         $this->context->increment('foo');
         $this->assertSame(1, $this->context->get('foo'));
@@ -277,20 +277,20 @@ class ContextTest extends TestCase
         $this->assertSame(2, $this->context->get('foo'));
     }
 
-    public function testItCanIncrementWithCustomAmount()
+    public function testItCanIncrementWithCustomAmount(): void
     {
         $this->context->increment('foo', 5);
         $this->assertSame(5, $this->context->get('foo'));
     }
 
-    public function testItCanDecrementACounter()
+    public function testItCanDecrementACounter(): void
     {
         $this->context->increment('foo');
         $this->context->decrement('foo');
         $this->assertSame(0, $this->context->get('foo'));
     }
 
-    public function testItCanDecrementWithCustomAmount()
+    public function testItCanDecrementWithCustomAmount(): void
     {
         $this->context->increment('foo', 10);
         $this->context->decrement('foo', 3);
@@ -301,7 +301,7 @@ class ContextTest extends TestCase
     // Hidden data operations
     // =========================================================================
 
-    public function testItCanAddAndGetHiddenValues()
+    public function testItCanAddAndGetHiddenValues(): void
     {
         $this->context->addHidden('secret', 'data');
 
@@ -319,7 +319,7 @@ class ContextTest extends TestCase
         $this->assertSame([123 => 'updated', 456 => 'second'], $this->context->allHidden());
     }
 
-    public function testItCanAddHiddenValuesWhenNotAlreadyPresent()
+    public function testItCanAddHiddenValuesWhenNotAlreadyPresent(): void
     {
         $this->context->addHiddenIf('key', 'first');
         $this->assertSame('first', $this->context->getHidden('key'));
@@ -328,7 +328,7 @@ class ContextTest extends TestCase
         $this->assertSame('first', $this->context->getHidden('key'));
     }
 
-    public function testItCanCheckIfHiddenKeyExists()
+    public function testItCanCheckIfHiddenKeyExists(): void
     {
         $this->assertFalse($this->context->hasHidden('key'));
         $this->assertTrue($this->context->missingHidden('key'));
@@ -339,14 +339,14 @@ class ContextTest extends TestCase
         $this->assertFalse($this->context->missingHidden('key'));
     }
 
-    public function testItCanGetAllHiddenValues()
+    public function testItCanGetAllHiddenValues(): void
     {
         $this->context->addHidden(['a' => 1, 'b' => 2]);
 
         $this->assertSame(['a' => 1, 'b' => 2], $this->context->allHidden());
     }
 
-    public function testItCanGetHiddenSubset()
+    public function testItCanGetHiddenSubset(): void
     {
         $this->context->addHidden(['a' => 1, 'b' => 2, 'c' => 3]);
 
@@ -354,7 +354,7 @@ class ContextTest extends TestCase
         $this->assertSame(['b' => 2, 'c' => 3], $this->context->exceptHidden(['a']));
     }
 
-    public function testItCanForgetHiddenKey()
+    public function testItCanForgetHiddenKey(): void
     {
         $this->context->addHidden('key', 'value');
         $this->context->forgetHidden('key');
@@ -362,7 +362,7 @@ class ContextTest extends TestCase
         $this->assertFalse($this->context->hasHidden('key'));
     }
 
-    public function testItCanPullHiddenValue()
+    public function testItCanPullHiddenValue(): void
     {
         $this->context->addHidden('key', 'value');
 
@@ -370,7 +370,7 @@ class ContextTest extends TestCase
         $this->assertFalse($this->context->hasHidden('key'));
     }
 
-    public function testItCanRememberHiddenValue()
+    public function testItCanRememberHiddenValue(): void
     {
         $result = $this->context->rememberHidden('key', fn () => 'secret');
         $this->assertSame('secret', $result);
@@ -379,7 +379,7 @@ class ContextTest extends TestCase
         $this->assertSame('secret', $result);
     }
 
-    public function testItCanPushAndPopHiddenStack()
+    public function testItCanPushAndPopHiddenStack(): void
     {
         $this->context->pushHidden('key', 'a', 'b');
 
@@ -387,7 +387,7 @@ class ContextTest extends TestCase
         $this->assertSame('a', $this->context->popHidden('key'));
     }
 
-    public function testItThrowsWhenPushingToNonListHidden()
+    public function testItThrowsWhenPushingToNonListHidden(): void
     {
         $this->context->addHidden('key', ['foo' => 'bar']);
 
@@ -395,7 +395,7 @@ class ContextTest extends TestCase
         $this->context->pushHidden('key', 'val');
     }
 
-    public function testItThrowsWhenPoppingFromEmptyHiddenList()
+    public function testItThrowsWhenPoppingFromEmptyHiddenList(): void
     {
         $this->context->pushHidden('key', 'a');
         $this->context->popHidden('key');
@@ -404,7 +404,7 @@ class ContextTest extends TestCase
         $this->context->popHidden('key');
     }
 
-    public function testItCanCheckHiddenStackContains()
+    public function testItCanCheckHiddenStackContains(): void
     {
         $this->context->pushHidden('key', 'a', 'b', 'c');
 
@@ -412,7 +412,7 @@ class ContextTest extends TestCase
         $this->assertFalse($this->context->hiddenStackContains('key', 'z'));
     }
 
-    public function testItCanCheckHiddenStackContainsWithClosure()
+    public function testItCanCheckHiddenStackContainsWithClosure(): void
     {
         $this->context->pushHidden('key', 1, 2, 3);
 
@@ -420,14 +420,14 @@ class ContextTest extends TestCase
         $this->assertFalse($this->context->hiddenStackContains('key', fn ($value) => $value === 99));
     }
 
-    public function testItCannotCheckIfHiddenValueIsInNonHiddenContextStack()
+    public function testItCannotCheckIfHiddenValueIsInNonHiddenContextStack(): void
     {
         $this->context->pushHidden('key', 'a', 'b');
 
         $this->assertFalse($this->context->stackContains('key', 'a'));
     }
 
-    public function testHiddenDataIsSeparateFromVisibleData()
+    public function testHiddenDataIsSeparateFromVisibleData(): void
     {
         $this->context->add('key', 'visible');
         $this->context->addHidden('key', 'hidden');
@@ -440,7 +440,7 @@ class ContextTest extends TestCase
     // Scope
     // =========================================================================
 
-    public function testScopeAddsTemporaryContextAndRestores()
+    public function testScopeAddsTemporaryContextAndRestores(): void
     {
         $this->context->add('existing', 'original');
 
@@ -455,7 +455,7 @@ class ContextTest extends TestCase
         $this->assertSame('original', $this->context->get('existing'));
     }
 
-    public function testScopeRestoresOnException()
+    public function testScopeRestoresOnException(): void
     {
         $this->context->add('existing', 'original');
         $expectedException = new RuntimeException('test');
@@ -474,7 +474,7 @@ class ContextTest extends TestCase
         $this->assertSame('original', $this->context->get('existing'));
     }
 
-    public function testScopeAddsHiddenContextAndRestores()
+    public function testScopeAddsHiddenContextAndRestores(): void
     {
         $this->context->addHidden('existing', 'original');
 
@@ -491,7 +491,7 @@ class ContextTest extends TestCase
     // Lifecycle
     // =========================================================================
 
-    public function testIsEmptyWhenNoData()
+    public function testIsEmptyWhenNoData(): void
     {
         $this->assertTrue($this->context->isEmpty());
 
@@ -502,7 +502,7 @@ class ContextTest extends TestCase
         $this->assertTrue($this->context->isEmpty());
     }
 
-    public function testFlushClearsAllData()
+    public function testFlushClearsAllData(): void
     {
         $this->context->add('key', 'value');
         $this->context->addHidden('secret', 'data');
@@ -517,7 +517,7 @@ class ContextTest extends TestCase
     // Serialization (dehydrate / hydrate)
     // =========================================================================
 
-    public function testItCanSerializeAndDeserializeValues()
+    public function testItCanSerializeAndDeserializeValues(): void
     {
         $this->context->add([
             'string' => 'hello',
@@ -557,12 +557,12 @@ class ContextTest extends TestCase
         $this->assertSame(StringBackedSuit::Clubs, $fresh->get('backed_enum'));
     }
 
-    public function testDehydrateReturnsNullWhenEmpty()
+    public function testDehydrateReturnsNullWhenEmpty(): void
     {
         $this->assertNull($this->context->dehydrate());
     }
 
-    public function testDehydrateIncludesHiddenData()
+    public function testDehydrateIncludesHiddenData(): void
     {
         $this->context->addHidden('secret', 'token');
         $this->events->shouldReceive('dispatch')
@@ -576,7 +576,7 @@ class ContextTest extends TestCase
         $this->assertArrayHasKey('secret', $payload['hidden']);
     }
 
-    public function testHydratingNullTriggersHydratedEvent()
+    public function testHydratingNullTriggersHydratedEvent(): void
     {
         $this->events->shouldReceive('dispatch')
             ->once()
@@ -585,7 +585,7 @@ class ContextTest extends TestCase
         $this->context->hydrate(null);
     }
 
-    public function testHydrateFlushesExistingDataBeforeRestoring()
+    public function testHydrateFlushesExistingDataBeforeRestoring(): void
     {
         $this->context->add('old', 'data');
 
@@ -606,7 +606,7 @@ class ContextTest extends TestCase
         $this->assertSame('data', $this->context->get('new'));
     }
 
-    public function testDehydratingCallbackCanModifyWithoutAffectingOriginal()
+    public function testDehydratingCallbackCanModifyWithoutAffectingOriginal(): void
     {
         $this->context->add('key', 'original');
 
@@ -629,7 +629,7 @@ class ContextTest extends TestCase
         $this->assertSame('added', unserialize($payload['data']['extra']));
     }
 
-    public function testHydratedCallbackFiresAfterHydration()
+    public function testHydratedCallbackFiresAfterHydration(): void
     {
         $callbackContext = null;
 
@@ -657,7 +657,7 @@ class ContextTest extends TestCase
     // Events
     // =========================================================================
 
-    public function testContextDehydratingEventIsDispatched()
+    public function testContextDehydratingEventIsDispatched(): void
     {
         $this->context->add('key', 'value');
 
@@ -668,7 +668,7 @@ class ContextTest extends TestCase
         $this->context->dehydrate();
     }
 
-    public function testContextHydratedEventIsDispatched()
+    public function testContextHydratedEventIsDispatched(): void
     {
         $this->events->shouldReceive('dispatch')
             ->once()
@@ -677,7 +677,7 @@ class ContextTest extends TestCase
         $this->context->hydrate(null);
     }
 
-    public function testContextDehydratingEventIsSkippedWhenNoListenersAreRegistered()
+    public function testContextDehydratingEventIsSkippedWhenNoListenersAreRegistered(): void
     {
         $events = m::mock(Dispatcher::class);
         $events->shouldReceive('hasListeners')->once()->with(ContextDehydrating::class)->andReturn(false);
@@ -692,7 +692,7 @@ class ContextTest extends TestCase
         $this->assertArrayHasKey('key', $payload['data']);
     }
 
-    public function testContextHydratedEventIsSkippedWhenNoListenersAreRegistered()
+    public function testContextHydratedEventIsSkippedWhenNoListenersAreRegistered(): void
     {
         $events = m::mock(Dispatcher::class);
         $events->shouldReceive('hasListeners')->once()->with(ContextHydrated::class)->andReturn(false);
@@ -706,7 +706,7 @@ class ContextTest extends TestCase
         $this->assertSame('value', $context->get('key'));
     }
 
-    public function testDehydratingEventReceivesCloneNotOriginal()
+    public function testDehydratingEventReceivesCloneNotOriginal(): void
     {
         $this->context->add('key', 'value');
 

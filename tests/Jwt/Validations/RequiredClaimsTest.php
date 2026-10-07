@@ -21,7 +21,7 @@ class RequiredClaimsTest extends TestCase
     public function testInvalid(): void
     {
         $this->expectException(TokenInvalidException::class);
-        $this->expectExceptionMessage('Claims are missing: ["sub"]');
+        $this->expectExceptionMessageIs('Claims are missing: ["sub"]');
 
         (new RequiredClaims(['required_claims' => ['sub']]))->validate([]);
     }

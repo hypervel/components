@@ -91,7 +91,7 @@ class RequiresDatabaseTest extends TestCase
     public function testThrowsWhenArrayWithDefaultTrue(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Unable to validate default connection when given an array of database drivers');
+        $this->expectExceptionMessageIs('Unable to validate default connection when given an array of database drivers');
 
         new RequiresDatabase(['sqlite', 'pgsql'], default: true);
     }

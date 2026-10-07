@@ -38,21 +38,21 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->connection = m::mock(Connection::class);
     }
 
-    public function testSeeInDatabaseFindsResults()
+    public function testSeeInDatabaseFindsResults(): void
     {
         $this->mockCountBuilder(true);
 
         $this->assertDatabaseHas($this->table, $this->data);
     }
 
-    public function testAssertDatabaseHasSupportsModelClass()
+    public function testAssertDatabaseHasSupportsModelClass(): void
     {
         $this->mockCountBuilder(true);
 
         $this->assertDatabaseHas(ProductStub::class, $this->data);
     }
 
-    public function testAssertDatabaseHasConstrainsToModel()
+    public function testAssertDatabaseHasConstrainsToModel(): void
     {
         $data = $this->data;
 
@@ -133,21 +133,21 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         ]);
     }
 
-    public function testDontSeeInDatabaseDoesNotFindResults()
+    public function testDontSeeInDatabaseDoesNotFindResults(): void
     {
         $this->mockCountBuilder(false);
 
         $this->assertDatabaseMissing($this->table, $this->data);
     }
 
-    public function testAssertDatabaseMissingSupportsModelClass()
+    public function testAssertDatabaseMissingSupportsModelClass(): void
     {
         $this->mockCountBuilder(false);
 
         $this->assertDatabaseMissing(ProductStub::class, $this->data);
     }
 
-    public function testAssertDatabaseMissingConstrainsToModel()
+    public function testAssertDatabaseMissingConstrainsToModel(): void
     {
         $data = $this->data;
 
@@ -161,7 +161,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->assertDatabaseMissing(new ProductStub(['id' => 1]), $data);
     }
 
-    public function testDontSeeInDatabaseFindsResults()
+    public function testDontSeeInDatabaseFindsResults(): void
     {
         $this->expectException(ExpectationFailedException::class);
 
@@ -173,14 +173,14 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->assertDatabaseMissing($this->table, $this->data);
     }
 
-    public function testAssertTableEntriesCount()
+    public function testAssertTableEntriesCount(): void
     {
         $this->mockCountBuilder(true);
 
         $this->assertDatabaseCount($this->table, 1);
     }
 
-    public function testAssertDatabaseCountSupportModels()
+    public function testAssertDatabaseCountSupportModels(): void
     {
         $this->mockCountBuilder(true);
 
@@ -188,7 +188,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->assertDatabaseCount(new ProductStub, 1);
     }
 
-    public function testAssertDatabaseEmpty()
+    public function testAssertDatabaseEmpty(): void
     {
         $this->mockCountBuilder(false);
 
@@ -305,14 +305,14 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->assertNotSoftDeleted(['products', 'orders'], $this->data, deletedAtColumn: 'removed_at');
     }
 
-    public function testAssertDatabaseMissingPassesWhenDoesNotFindResults()
+    public function testAssertDatabaseMissingPassesWhenDoesNotFindResults(): void
     {
         $this->mockCountBuilder(false);
 
         $this->assertDatabaseMissing($this->table, $this->data);
     }
 
-    public function testAssertDatabaseMissingFailsWhenFindsResults()
+    public function testAssertDatabaseMissingFailsWhenFindsResults(): void
     {
         $this->expectException(ExpectationFailedException::class);
 
@@ -323,7 +323,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->assertDatabaseMissing($this->table, $this->data);
     }
 
-    public function testAssertModelMissingPassesWhenDoesNotFindModelResults()
+    public function testAssertModelMissingPassesWhenDoesNotFindModelResults(): void
     {
         $this->data = ['id' => 1];
 
@@ -360,7 +360,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->assertModelExists(new ProductStub($this->data));
     }
 
-    public function testAssertSoftDeletedInDatabaseFindsResults()
+    public function testAssertSoftDeletedInDatabaseFindsResults(): void
     {
         $this->mockCountBuilder(true);
 
@@ -427,7 +427,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->assertSoftDeleted(CustomProductStub::class, ['id' => $model->id]);
     }
 
-    public function testAssertNotSoftDeletedInDatabaseFindsResults()
+    public function testAssertNotSoftDeletedInDatabaseFindsResults(): void
     {
         $this->mockCountBuilder(true);
 
@@ -505,7 +505,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->assertNotSoftDeleted(CustomProductStub::class, ['id' => $model->id]);
     }
 
-    public function testAssertExistsPassesWhenFindsResults()
+    public function testAssertExistsPassesWhenFindsResults(): void
     {
         $this->data = ['id' => 1];
 
@@ -516,7 +516,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->assertModelExists(new ProductStub($this->data));
     }
 
-    public function testGetTableNameFromModel()
+    public function testGetTableNameFromModel(): void
     {
         $this->assertEquals($this->table, $this->getTable(ProductStub::class));
         $this->assertEquals($this->table, $this->getTable(new ProductStub));
@@ -531,18 +531,18 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->assertSame('mysql', $this->getTableConnection((new ProductStub)->setConnection('mysql')));
     }
 
-    public function testGetTableCustomizedDeletedAtColumnName()
+    public function testGetTableCustomizedDeletedAtColumnName(): void
     {
         $this->assertSame('trashed_at', $this->getDeletedAtColumn(CustomProductStub::class));
         $this->assertSame('trashed_at', $this->getDeletedAtColumn(new CustomProductStub));
     }
 
-    public function testExpectsDatabaseQueryCount()
+    public function testExpectsDatabaseQueryCount(): void
     {
         $case = new class('foo') extends TestingTestCase {
             use CreatesApplication;
 
-            public function testExpectsDatabaseQueryCount()
+            public function testExpectsDatabaseQueryCount(): void
             {
                 $this->expectsDatabaseQueryCount(0);
             }
@@ -555,7 +555,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $case = new class('foo') extends TestingTestCase {
             use CreatesApplication;
 
-            public function testExpectsDatabaseQueryCount()
+            public function testExpectsDatabaseQueryCount(): void
             {
                 $this->expectsDatabaseQueryCount(3);
             }
@@ -574,7 +574,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $case = new class('foo') extends TestingTestCase {
             use CreatesApplication;
 
-            public function testExpectsDatabaseQueryCount()
+            public function testExpectsDatabaseQueryCount(): void
             {
                 $this->expectsDatabaseQueryCount(3);
 
@@ -600,7 +600,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $case = new class('foo') extends TestingTestCase {
             use CreatesApplication;
 
-            public function testExpectsDatabaseQueryCount()
+            public function testExpectsDatabaseQueryCount(): void
             {
                 $this->expectsDatabaseQueryCount(4);
                 $this->expectsDatabaseQueryCount(1, 'mysql');

@@ -46,7 +46,7 @@ class FlushByPatternTest extends TestCase
         $connection->shouldNotReceive('unlink');
 
         $this->expectException(InvalidRedisConnectionException::class);
-        $this->expectExceptionMessage('SafeScan requires a raw Redis connection.');
+        $this->expectExceptionMessageIsOrContains('SafeScan requires a raw Redis connection.');
 
         (new FlushByPattern($connection))->execute('cache:test:*');
     }
@@ -209,7 +209,7 @@ class FlushByPatternTest extends TestCase
             });
 
         $this->expectException(RedisException::class);
-        $this->expectExceptionMessage('UNLINK is not permitted');
+        $this->expectExceptionMessageIs('UNLINK is not permitted');
 
         (new FlushByPattern($connection))->execute('cache:test:*');
     }
@@ -239,7 +239,7 @@ class FlushByPatternTest extends TestCase
             });
 
         $this->expectException(RedisException::class);
-        $this->expectExceptionMessage('Redis UNLINK failed while deleting keys by pattern.');
+        $this->expectExceptionMessageIs('Redis UNLINK failed while deleting keys by pattern.');
 
         (new FlushByPattern($connection))->execute('cache:test:*');
     }

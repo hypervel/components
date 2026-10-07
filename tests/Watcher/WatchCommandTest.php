@@ -43,7 +43,7 @@ class WatchCommandTest extends TestCase
         $command->setHypervel($this->app);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Error: APP_RUNNING_IN_CONSOLE is true. Your artisan binary may be outdated. Please update it so the serve and watch commands set APP_RUNNING_IN_CONSOLE=false before the server starts.');
+        $this->expectExceptionMessageIs('Error: APP_RUNNING_IN_CONSOLE is true. Your artisan binary may be outdated. Please update it so the serve and watch commands set APP_RUNNING_IN_CONSOLE=false before the server starts.');
 
         $command->run(new ArrayInput([]), new NullOutput);
     }
@@ -208,7 +208,7 @@ class WatchCommandTest extends TestCase
         $input = new StringInput('--path');
 
         $this->expectException(ConsoleRuntimeException::class);
-        $this->expectExceptionMessage('The "--path" option requires a value.');
+        $this->expectExceptionMessageIs('The "--path" option requires a value.');
 
         $input->bind($command->getDefinition());
     }

@@ -62,7 +62,7 @@ class DatabaseEloquentInverseRelationHasManyTest extends TestCase
         parent::tearDown();
     }
 
-    public function testHasManyInverseRelationIsProperlySetToParentWhenLazyLoaded()
+    public function testHasManyInverseRelationIsProperlySetToParentWhenLazyLoaded(): void
     {
         HasManyInverseUserModel::factory()->count(3)->withPosts()->create();
         $users = HasManyInverseUserModel::all();
@@ -76,7 +76,7 @@ class DatabaseEloquentInverseRelationHasManyTest extends TestCase
         }
     }
 
-    public function testHasManyInverseRelationIsProperlySetToParentWhenEagerLoaded()
+    public function testHasManyInverseRelationIsProperlySetToParentWhenEagerLoaded(): void
     {
         HasManyInverseUserModel::factory()->count(3)->withPosts()->create();
         $users = HasManyInverseUserModel::with('posts')->get();
@@ -91,7 +91,7 @@ class DatabaseEloquentInverseRelationHasManyTest extends TestCase
         }
     }
 
-    public function testHasLatestOfManyInverseRelationIsProperlySetToParentWhenLazyLoaded()
+    public function testHasLatestOfManyInverseRelationIsProperlySetToParentWhenLazyLoaded(): void
     {
         HasManyInverseUserModel::factory()->count(3)->withPosts()->create();
         $users = HasManyInverseUserModel::all();
@@ -105,7 +105,7 @@ class DatabaseEloquentInverseRelationHasManyTest extends TestCase
         }
     }
 
-    public function testHasLatestOfManyInverseRelationIsProperlySetToParentWhenEagerLoaded()
+    public function testHasLatestOfManyInverseRelationIsProperlySetToParentWhenEagerLoaded(): void
     {
         HasManyInverseUserModel::factory()->count(3)->withPosts()->create();
         $users = HasManyInverseUserModel::with('lastPost')->get();
@@ -118,7 +118,7 @@ class DatabaseEloquentInverseRelationHasManyTest extends TestCase
         }
     }
 
-    public function testOneOfManyInverseRelationIsProperlySetToParentWhenLazyLoaded()
+    public function testOneOfManyInverseRelationIsProperlySetToParentWhenLazyLoaded(): void
     {
         HasManyInverseUserModel::factory()->count(3)->withPosts()->create();
         $users = HasManyInverseUserModel::all();
@@ -132,7 +132,7 @@ class DatabaseEloquentInverseRelationHasManyTest extends TestCase
         }
     }
 
-    public function testOneOfManyInverseRelationIsProperlySetToParentWhenEagerLoaded()
+    public function testOneOfManyInverseRelationIsProperlySetToParentWhenEagerLoaded(): void
     {
         HasManyInverseUserModel::factory()->count(3)->withPosts()->create();
         $users = HasManyInverseUserModel::with('firstPost')->get();
@@ -145,7 +145,7 @@ class DatabaseEloquentInverseRelationHasManyTest extends TestCase
         }
     }
 
-    public function testHasManyInverseRelationIsProperlySetToParentWhenMakingMany()
+    public function testHasManyInverseRelationIsProperlySetToParentWhenMakingMany(): void
     {
         $user = HasManyInverseUserModel::create();
 
@@ -161,7 +161,7 @@ class DatabaseEloquentInverseRelationHasManyTest extends TestCase
         }
     }
 
-    public function testHasManyInverseRelationIsProperlySetToParentWhenCreatingMany()
+    public function testHasManyInverseRelationIsProperlySetToParentWhenCreatingMany(): void
     {
         $user = HasManyInverseUserModel::create();
 
@@ -177,7 +177,7 @@ class DatabaseEloquentInverseRelationHasManyTest extends TestCase
         }
     }
 
-    public function testHasManyInverseRelationIsProperlySetToParentWhenCreatingManyQuietly()
+    public function testHasManyInverseRelationIsProperlySetToParentWhenCreatingManyQuietly(): void
     {
         $user = HasManyInverseUserModel::create();
 
@@ -189,7 +189,7 @@ class DatabaseEloquentInverseRelationHasManyTest extends TestCase
         }
     }
 
-    public function testHasManyInverseRelationIsProperlySetToParentWhenSavingMany()
+    public function testHasManyInverseRelationIsProperlySetToParentWhenSavingMany(): void
     {
         $user = HasManyInverseUserModel::create();
 
@@ -203,7 +203,7 @@ class DatabaseEloquentInverseRelationHasManyTest extends TestCase
         }
     }
 
-    public function testHasManyInverseRelationIsProperlySetToParentWhenUpdatingMany()
+    public function testHasManyInverseRelationIsProperlySetToParentWhenUpdatingMany(): void
     {
         $user = HasManyInverseUserModel::create();
 

@@ -6,7 +6,7 @@ namespace Hypervel\Tests\View\Blade;
 
 class BladeForStatementsTest extends AbstractBladeTestCase
 {
-    public function testForStatementsAreCompiled()
+    public function testForStatementsAreCompiled(): void
     {
         $string = '@for ($i = 0; $i < 10; $i++)
 test
@@ -17,7 +17,7 @@ test
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
 
-    public function testNestedForStatementsAreCompiled()
+    public function testNestedForStatementsAreCompiled(): void
     {
         $string = '@for ($i = 0; $i < 10; $i++)
 @for ($j = 0; $j < 20; $j++)

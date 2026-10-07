@@ -90,7 +90,7 @@ class DatabaseEloquentHasOneTest extends TestCase
         $this->assertSame(1, $result->getAttribute('foreign_key'));
     }
 
-    public function testRelationIsProperlyInitialized()
+    public function testRelationIsProperlyInitialized(): void
     {
         $relation = $this->getRelation();
         $model = m::mock(Model::class);
@@ -100,7 +100,7 @@ class DatabaseEloquentHasOneTest extends TestCase
         $this->assertEquals([$model], $models);
     }
 
-    public function testEagerConstraintsAreProperlyAdded()
+    public function testEagerConstraintsAreProperlyAdded(): void
     {
         $relation = $this->getRelation();
         $relation->getParent()->expects('getKeyName')->andReturn('id');
@@ -113,7 +113,7 @@ class DatabaseEloquentHasOneTest extends TestCase
         $relation->addEagerConstraints([$model1, $model2]);
     }
 
-    public function testModelsAreProperlyMatchedToParents()
+    public function testModelsAreProperlyMatchedToParents(): void
     {
         $relation = $this->getRelation();
 

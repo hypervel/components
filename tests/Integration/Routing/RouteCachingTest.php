@@ -43,7 +43,7 @@ class RouteCachingTest extends RoutingTestCase
         ]);
     }
 
-    public function testSetContainerInvalidatesControllerDispatcherCache()
+    public function testSetContainerInvalidatesControllerDispatcherCache(): void
     {
         $container1 = new Container;
         $dispatcher1 = m::mock(ControllerDispatcherContract::class);
@@ -67,7 +67,7 @@ class RouteCachingTest extends RoutingTestCase
         $this->assertNotSame($result1, $result2);
     }
 
-    public function testSetContainerInvalidatesCallableDispatcherCache()
+    public function testSetContainerInvalidatesCallableDispatcherCache(): void
     {
         $dispatcher1 = m::mock(CallableDispatcherContract::class);
         $dispatcher1->shouldReceive('dispatch')->once()->andReturn('result1');
@@ -99,7 +99,7 @@ class RouteCachingTest extends RoutingTestCase
         $this->assertSame($dispatcher2, $cached2);
     }
 
-    public function testSerializedCallableIsCachedAcrossCalls()
+    public function testSerializedCallableIsCachedAcrossCalls(): void
     {
         $closure = fn () => 'result';
         $serialized = serialize(SerializableClosure::unsigned($closure));
@@ -128,7 +128,7 @@ class RouteCachingTest extends RoutingTestCase
         $this->assertSame($cachedCallable, $this->getProtectedProperty($route, 'callable'));
     }
 
-    public function testSetActionInvalidatesCallableCache()
+    public function testSetActionInvalidatesCallableCache(): void
     {
         $dispatcher = m::mock(CallableDispatcherContract::class);
         $dispatcher->shouldReceive('dispatch')->once()->andReturn('result');
@@ -148,7 +148,7 @@ class RouteCachingTest extends RoutingTestCase
         $this->assertNull($this->getProtectedProperty($route, 'callable'));
     }
 
-    public function testSerializedMissingHandlerIsCachedAcrossCalls()
+    public function testSerializedMissingHandlerIsCachedAcrossCalls(): void
     {
         $closure = fn () => 'missing handler';
         $serialized = serialize(SerializableClosure::unsigned($closure));
@@ -163,7 +163,7 @@ class RouteCachingTest extends RoutingTestCase
         $this->assertSame($first, $second);
     }
 
-    public function testMissingSetterInvalidatesMissingCache()
+    public function testMissingSetterInvalidatesMissingCache(): void
     {
         $closure = fn () => 'original';
         $serialized = serialize(SerializableClosure::unsigned($closure));
@@ -183,7 +183,7 @@ class RouteCachingTest extends RoutingTestCase
         $this->assertNotSame($first, $second);
     }
 
-    public function testSetActionInvalidatesMissingCache()
+    public function testSetActionInvalidatesMissingCache(): void
     {
         $closure = fn () => 'missing handler';
         $serialized = serialize(SerializableClosure::unsigned($closure));
@@ -200,7 +200,7 @@ class RouteCachingTest extends RoutingTestCase
         $this->assertNull($this->getProtectedProperty($route, 'missing'));
     }
 
-    public function testPrepareForSerializationClearsAllCaches()
+    public function testPrepareForSerializationClearsAllCaches(): void
     {
         $dispatcher = m::mock(CallableDispatcherContract::class);
         $dispatcher->shouldReceive('dispatch')->once()->andReturn('result');
@@ -238,7 +238,7 @@ class RouteCachingTest extends RoutingTestCase
         $this->assertNull($this->getProtectedProperty($route, 'controllerDispatcher'));
     }
 
-    public function testFlushControllerClearsComputedMiddleware()
+    public function testFlushControllerClearsComputedMiddleware(): void
     {
         $route = new Route('GET', '/test', ['uses' => 'FooController@bar', 'middleware' => ['auth']]);
 
@@ -250,7 +250,7 @@ class RouteCachingTest extends RoutingTestCase
         $this->assertNull($route->computedMiddleware);
     }
 
-    public function testCompiledRouteIsCachedOnInstance()
+    public function testCompiledRouteIsCachedOnInstance(): void
     {
         $route = new Route('GET', '/users/{id}', ['uses' => fn () => null]);
 
@@ -267,7 +267,7 @@ class RouteCachingTest extends RoutingTestCase
         $this->assertSame($compiled, $route->compiled);
     }
 
-    public function testParameterNamesAreCachedOnInstance()
+    public function testParameterNamesAreCachedOnInstance(): void
     {
         $route = new Route('GET', '/users/{id}/posts/{post}', ['uses' => fn () => null]);
 

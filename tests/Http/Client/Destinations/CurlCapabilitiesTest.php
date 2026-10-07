@@ -22,8 +22,9 @@ class CurlCapabilitiesTest extends TestCase
         FakeCurlCapabilities::useVersionInfo(false);
 
         $this->expectException(DestinationPolicyException::class);
-        $this->expectExceptionMessage('usable cURL extension and curl_version() result');
-        $this->expectExceptionMessage('libcurl version is [unavailable]');
+        $this->expectExceptionMessageIs(
+            'Destination-restricted HTTP requests require a usable cURL extension and curl_version() result; the observed libcurl version is [unavailable].'
+        );
 
         CurlCapabilities::ensurePinningSupported();
     }
@@ -48,8 +49,9 @@ class CurlCapabilitiesTest extends TestCase
         ]);
 
         $this->expectException(DestinationPolicyException::class);
-        $this->expectExceptionMessage('libcurl 7.75.0 or newer');
-        $this->expectExceptionMessage('libcurl version is [7.74.0]');
+        $this->expectExceptionMessageIs(
+            'Destination-restricted HTTP requests require libcurl 7.75.0 or newer; the observed libcurl version is [7.74.0].'
+        );
 
         CurlCapabilities::ensurePinningSupported();
     }
@@ -62,8 +64,9 @@ class CurlCapabilitiesTest extends TestCase
         ]);
 
         $this->expectException(DestinationPolicyException::class);
-        $this->expectExceptionMessage('cURL SSL support');
-        $this->expectExceptionMessage('libcurl version is [8.5.0]');
+        $this->expectExceptionMessageIs(
+            'Destination-restricted HTTP requests require cURL SSL support; the observed libcurl version is [8.5.0].'
+        );
 
         CurlCapabilities::ensurePinningSupported();
     }
@@ -86,8 +89,9 @@ class CurlCapabilitiesTest extends TestCase
         ]);
 
         $this->expectException(DestinationPolicyException::class);
-        $this->expectExceptionMessage('HTTPS proxy support for [https://proxy.example:8443]');
-        $this->expectExceptionMessage('libcurl version is [7.51.0]');
+        $this->expectExceptionMessageIs(
+            'Destination-restricted HTTP requests require HTTPS proxy support for [https://proxy.example:8443]; the observed libcurl version is [7.51.0].'
+        );
 
         CurlCapabilities::ensureHttpsProxySupported('proxy.example', 8443);
     }
@@ -100,8 +104,9 @@ class CurlCapabilitiesTest extends TestCase
         ]);
 
         $this->expectException(DestinationPolicyException::class);
-        $this->expectExceptionMessage('HTTPS proxy support for [https://[2001:db8::10]:443]');
-        $this->expectExceptionMessage('libcurl version is [8.5.0]');
+        $this->expectExceptionMessageIs(
+            'Destination-restricted HTTP requests require HTTPS proxy support for [https://[2001:db8::10]:443]; the observed libcurl version is [8.5.0].'
+        );
 
         CurlCapabilities::ensureHttpsProxySupported('[2001:db8::10]', 443);
     }

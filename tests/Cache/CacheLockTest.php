@@ -32,7 +32,7 @@ class CacheLockTest extends TestCase
         $lock = new FailingReleaseLock;
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('release failure');
+        $this->expectExceptionMessageIs('release failure');
 
         $lock->get(fn () => 'result');
     }
@@ -85,7 +85,7 @@ class CacheLockTest extends TestCase
         $lock = new FailingReleaseLock;
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('release failure');
+        $this->expectExceptionMessageIs('release failure');
 
         $lock->block(0, fn () => 'result');
     }

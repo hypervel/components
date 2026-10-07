@@ -16,21 +16,21 @@ class OptimizeClearCommandTest extends TestCase
         return [ServiceProviderWithOptimizeClear::class];
     }
 
-    public function testCanRunOptimizeClearWithPackageRegisteredCommand()
+    public function testCanRunOptimizeClearWithPackageRegisteredCommand(): void
     {
         $this->artisan('optimize:clear')
             ->assertSuccessful()
             ->expectsOutputToContain('ServiceProviderWithOptimizeClear');
     }
 
-    public function testCanExcludeCommandsByKey()
+    public function testCanExcludeCommandsByKey(): void
     {
         $this->artisan('optimize:clear', ['--except' => 'my package'])
             ->assertSuccessful()
             ->doesntExpectOutputToContain('my package');
     }
 
-    public function testCanExcludeCommandsByCommand()
+    public function testCanExcludeCommandsByCommand(): void
     {
         $this->artisan('optimize:clear', ['--except' => 'my_package:clear'])
             ->assertSuccessful()

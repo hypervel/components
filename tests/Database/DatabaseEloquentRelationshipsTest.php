@@ -25,7 +25,7 @@ use Mockery as m;
 
 class DatabaseEloquentRelationshipsTest extends TestCase
 {
-    public function testStandardRelationships()
+    public function testStandardRelationships(): void
     {
         $post = new Post;
 
@@ -41,7 +41,7 @@ class DatabaseEloquentRelationshipsTest extends TestCase
         $this->assertInstanceOf(MorphTo::class, $post->postable());
     }
 
-    public function testOverriddenRelationships()
+    public function testOverriddenRelationships(): void
     {
         $post = new CustomPost;
 
@@ -57,7 +57,7 @@ class DatabaseEloquentRelationshipsTest extends TestCase
         $this->assertInstanceOf(CustomMorphTo::class, $post->postable());
     }
 
-    public function testAlwaysUnsetBelongsToRelationWhenReceivedModelId()
+    public function testAlwaysUnsetBelongsToRelationWhenReceivedModelId(): void
     {
         // create users
         $user1 = (new FakeRelationship)->forceFill(['id' => 1]);
@@ -82,7 +82,7 @@ class DatabaseEloquentRelationshipsTest extends TestCase
         $this->assertFalse($post->relationLoaded('author'));
     }
 
-    public function testPendingHasThroughRelationship()
+    public function testPendingHasThroughRelationship(): void
     {
         $fluent = (new FluentMechanic)->owner();
         $classic = (new ClassicMechanic)->owner();
@@ -139,7 +139,7 @@ class DatabaseEloquentRelationshipsTest extends TestCase
         $this->assertSame('environments.pro_id', $classic->getQualifiedFirstKeyName());
     }
 
-    public function testStringyHasThroughApi()
+    public function testStringyHasThroughApi(): void
     {
         $fluent = (new FluentMechanic)->owner();
         $stringy = (new class extends FluentMechanic {
@@ -198,7 +198,7 @@ class DatabaseEloquentRelationshipsTest extends TestCase
         $this->assertSame('environments.pro_id', $fluent->getQualifiedFirstKeyName());
     }
 
-    public function testHigherOrderHasThroughApi()
+    public function testHigherOrderHasThroughApi(): void
     {
         $fluent = (new FluentMechanic)->owner();
         $higher = (new class extends FluentMechanic {

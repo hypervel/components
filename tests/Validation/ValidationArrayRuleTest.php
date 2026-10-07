@@ -70,7 +70,7 @@ class ValidationArrayRuleTest extends TestCase
         $this->assertTrue($validator->fails());
     }
 
-    public function testArrayValidation()
+    public function testArrayValidation(): void
     {
         $trans = new Translator(new ArrayLoader, 'en');
 

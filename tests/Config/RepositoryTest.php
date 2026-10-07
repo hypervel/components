@@ -45,7 +45,7 @@ class RepositoryTest extends TestCase
         parent::setUp();
     }
 
-    public function testGetValueWhenKeyContainDot()
+    public function testGetValueWhenKeyContainDot(): void
     {
         $this->assertSame(
             'c',
@@ -59,41 +59,41 @@ class RepositoryTest extends TestCase
         $this->assertNull($this->repository->get('.'));
     }
 
-    public function testGetBooleanValue()
+    public function testGetBooleanValue(): void
     {
         $this->assertTrue(
             $this->repository->get('boolean')
         );
     }
 
-    public function testGetNullValue()
+    public function testGetNullValue(): void
     {
         $this->assertNull(
             $this->repository->get('null')
         );
     }
 
-    public function testConstruct()
+    public function testConstruct(): void
     {
         $this->assertInstanceOf(Repository::class, $this->repository);
     }
 
-    public function testHasIsTrue()
+    public function testHasIsTrue(): void
     {
         $this->assertTrue($this->repository->has('foo'));
     }
 
-    public function testHasIsFalse()
+    public function testHasIsFalse(): void
     {
         $this->assertFalse($this->repository->has('not-exist'));
     }
 
-    public function testGet()
+    public function testGet(): void
     {
         $this->assertSame('bar', $this->repository->get('foo'));
     }
 
-    public function testGetWithArrayOfKeys()
+    public function testGetWithArrayOfKeys(): void
     {
         $this->assertSame([
             'foo' => 'bar',
@@ -118,7 +118,7 @@ class RepositoryTest extends TestCase
         ]));
     }
 
-    public function testGetMany()
+    public function testGetMany(): void
     {
         $this->assertSame([
             'foo' => 'bar',
@@ -143,18 +143,18 @@ class RepositoryTest extends TestCase
         ]));
     }
 
-    public function testGetWithDefault()
+    public function testGetWithDefault(): void
     {
         $this->assertSame('default', $this->repository->get('not-exist', 'default'));
     }
 
-    public function testSet()
+    public function testSet(): void
     {
         $this->repository->set('key', 'value');
         $this->assertSame('value', $this->repository->get('key'));
     }
 
-    public function testSetArray()
+    public function testSetArray(): void
     {
         $this->repository->set([
             'key1' => 'value1',
@@ -175,7 +175,7 @@ class RepositoryTest extends TestCase
         $this->assertNull($this->repository->get('key5'));
     }
 
-    public function testMutationObserver()
+    public function testMutationObserver(): void
     {
         $result = null;
         $this->repository->setMutationObserver(function (array $values) use (&$result) {
@@ -195,7 +195,7 @@ class RepositoryTest extends TestCase
         $this->assertSame(['replacement' => true], $this->repository->all());
     }
 
-    public function testPrepend()
+    public function testPrepend(): void
     {
         $this->assertSame('aaa', $this->repository->get('array.0'));
         $this->assertSame('zzz', $this->repository->get('array.1'));
@@ -208,7 +208,7 @@ class RepositoryTest extends TestCase
         $this->assertCount(3, $this->repository->get('array'));
     }
 
-    public function testPush()
+    public function testPush(): void
     {
         $this->assertSame('aaa', $this->repository->get('array.0'));
         $this->assertSame('zzz', $this->repository->get('array.1'));
@@ -220,24 +220,24 @@ class RepositoryTest extends TestCase
         $this->assertCount(3, $this->repository->get('array'));
     }
 
-    public function testPrependWithNewKey()
+    public function testPrependWithNewKey(): void
     {
         $this->repository->prepend('new_key', 'xxx');
         $this->assertSame(['xxx'], $this->repository->get('new_key'));
     }
 
-    public function testPushWithNewKey()
+    public function testPushWithNewKey(): void
     {
         $this->repository->push('new_key', 'xxx');
         $this->assertSame(['xxx'], $this->repository->get('new_key'));
     }
 
-    public function testAll()
+    public function testAll(): void
     {
         $this->assertSame($this->config, $this->repository->all());
     }
 
-    public function testOffsetExists()
+    public function testOffsetExists(): void
     {
         $data = [
             'foo' => 'bar',
@@ -256,7 +256,7 @@ class RepositoryTest extends TestCase
         $this->assertFalse(isset($this->repository[-1]));
     }
 
-    public function testOffsetGet()
+    public function testOffsetGet(): void
     {
         $this->assertNull($this->repository['not-exist']);
         $this->assertSame('bar', $this->repository['foo']);
@@ -270,7 +270,7 @@ class RepositoryTest extends TestCase
         $this->assertSame('negative', $this->repository[-1]);
     }
 
-    public function testOffsetSet()
+    public function testOffsetSet(): void
     {
         $this->assertNull($this->repository['key']);
 
@@ -291,7 +291,7 @@ class RepositoryTest extends TestCase
         $this->assertSame('123', $this->repository[123]);
     }
 
-    public function testOffsetUnset()
+    public function testOffsetUnset(): void
     {
         $this->assertArrayHasKey('associate', $this->repository->all());
         $this->assertSame($this->config['associate'], $this->repository->get('associate'));
@@ -308,7 +308,7 @@ class RepositoryTest extends TestCase
         $this->assertNull($this->repository[-1]);
     }
 
-    public function testsItIsMacroable()
+    public function testsItIsMacroable(): void
     {
         $this->repository->macro('foo', function () {
             return 'macroable';

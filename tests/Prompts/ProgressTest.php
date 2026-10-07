@@ -43,7 +43,7 @@ class ProgressTest extends TestCase
     public function testRejectsNonPositiveTotals(int|iterable $steps): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Progress bar must have at least one item.');
+        $this->expectExceptionMessageIs('Progress bar must have at least one item.');
 
         new Progress('Working', $steps);
     }

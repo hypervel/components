@@ -40,7 +40,7 @@ use Throwable;
 ])]
 class JobWatcherTest extends FeatureTestCase
 {
-    public function testJobRegistersEntry()
+    public function testJobRegistersEntry(): void
     {
         $this->app->make(Dispatcher::class)->dispatch(new MyDatabaseJob('Awesome Laravel'));
 
@@ -60,7 +60,7 @@ class JobWatcherTest extends FeatureTestCase
         $this->assertSame('Awesome Laravel', $entry->content['data']['payload']);
     }
 
-    public function testJobRegistersEntryWithBatchIdInPayload()
+    public function testJobRegistersEntryWithBatchIdInPayload(): void
     {
         $this->app->make(Dispatcher::class)->dispatch(new MockedBatchableJob($batchId = (string) Str::orderedUuid()));
 
@@ -80,7 +80,7 @@ class JobWatcherTest extends FeatureTestCase
         $this->assertSame($batchId, $entry->content['data']['batchId']);
     }
 
-    public function testFailedJobsRegisterEntry()
+    public function testFailedJobsRegisterEntry(): void
     {
         $this->app->make(Dispatcher::class)->dispatch(
             new MyFailedDatabaseJob('I never watched Star Wars.')
@@ -149,7 +149,7 @@ class JobWatcherTest extends FeatureTestCase
         $this->assertFalse($hasFailedTag, 'The "failed" tag must be removed once the job is processed.');
     }
 
-    public function testItHandlesPushedJobs()
+    public function testItHandlesPushedJobs(): void
     {
         $queueExceptions = [];
         $this->app->make(ExceptionHandler::class)->reportable(function (Throwable $e) use (&$queueExceptions) {
@@ -175,7 +175,7 @@ class JobWatcherTest extends FeatureTestCase
         $this->assertSame(['framework' => 'Laravel'], $entry->content['data']);
     }
 
-    public function testJobCanHandleDeletedSerializedModel()
+    public function testJobCanHandleDeletedSerializedModel(): void
     {
         $user = UserFactory::new()->create();
 
@@ -199,7 +199,7 @@ class JobWatcherTest extends FeatureTestCase
         $this->assertSame(sprintf('%s:%s', get_class($user), $user->getKey()), $entry->content['data']['user']);
     }
 
-    public function testJobRegistersProcessingEntryWithBatchFamilyHash()
+    public function testJobRegistersProcessingEntryWithBatchFamilyHash(): void
     {
         $batch = m::mock(Batch::class);
         $batch->shouldReceive('toArray')
@@ -225,7 +225,7 @@ class JobWatcherTest extends FeatureTestCase
         $this->assertSame(MockedSyncBatchableJob::class, $entry->content['name']);
     }
 
-    public function testJobRecordsDispatchTimeContextInDataHiddenShape()
+    public function testJobRecordsDispatchTimeContextInDataHiddenShape(): void
     {
         ContextRepository::getInstance()->add('trace_id', 'abc-123');
         ContextRepository::getInstance()->addHidden('api_key', 'secret');
@@ -239,7 +239,7 @@ class JobWatcherTest extends FeatureTestCase
         $this->assertSame(['api_key' => 'secret'], $entry->content['context']['hidden']);
     }
 
-    public function testJobProcessedUpdateOverwritesDispatchTimeContext()
+    public function testJobProcessedUpdateOverwritesDispatchTimeContext(): void
     {
         ContextRepository::getInstance()->add('dispatch_key', 'dispatch_value');
 
@@ -256,7 +256,7 @@ class JobWatcherTest extends FeatureTestCase
         $this->assertArrayNotHasKey('dispatch_key', $entry->content['context']['data']);
     }
 
-    public function testJobEmptyRuntimeContextClearsDispatchTimeContext()
+    public function testJobEmptyRuntimeContextClearsDispatchTimeContext(): void
     {
         ContextRepository::getInstance()->add('dispatch_key', 'dispatch_value');
 
@@ -271,7 +271,7 @@ class JobWatcherTest extends FeatureTestCase
         $this->assertNull($entry->content['context']);
     }
 
-    public function testJobHiddenOnlyContextIsPreserved()
+    public function testJobHiddenOnlyContextIsPreserved(): void
     {
         ContextRepository::getInstance()->addHidden('secret_key', 'secret_value');
 
@@ -284,7 +284,7 @@ class JobWatcherTest extends FeatureTestCase
         $this->assertSame(['secret_key' => 'secret_value'], $entry->content['context']['hidden']);
     }
 
-    public function testJobPreservesFalsyFields()
+    public function testJobPreservesFalsyFields(): void
     {
         MockedZeroValuesJob::dispatch();
 

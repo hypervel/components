@@ -59,7 +59,7 @@ class DatabaseServiceProviderTest extends TestCase
         $this->app->forgetInstance('migration.repository');
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('database.migrations.table');
+        $this->expectExceptionMessageIsOrContains('database.migrations.table');
 
         $this->app->make('migration.repository');
     }

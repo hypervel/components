@@ -406,7 +406,7 @@ class SupportNumberTest extends TestCase
     public function testPairsThrowsWhenByIsZero(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The $by argument must not be zero.');
+        $this->expectExceptionMessageIs('The $by argument must not be zero.');
 
         Number::pairs(100, 0);
     }

@@ -56,7 +56,7 @@ class GateWatcherTest extends FeatureTestCase
         });
     }
 
-    public function testGateWatcherRegistersAllowedEntries()
+    public function testGateWatcherRegistersAllowedEntries(): void
     {
         $this->app->setBasePath(dirname(__FILE__, 4));
 
@@ -74,7 +74,7 @@ class GateWatcherTest extends FeatureTestCase
         $this->assertEmpty($entry->content['arguments']);
     }
 
-    public function testGateWatcherRegistersDeniedEntries()
+    public function testGateWatcherRegistersDeniedEntries(): void
     {
         $this->app->setBasePath(dirname(__FILE__, 4));
 
@@ -92,7 +92,7 @@ class GateWatcherTest extends FeatureTestCase
         $this->assertSame(['banana'], $entry->content['arguments']);
     }
 
-    public function testGateWatcherRegistersAllowedGuestEntries()
+    public function testGateWatcherRegistersAllowedGuestEntries(): void
     {
         $this->app->setBasePath(dirname(__FILE__, 4));
 
@@ -110,7 +110,7 @@ class GateWatcherTest extends FeatureTestCase
         $this->assertEmpty($entry->content['arguments']);
     }
 
-    public function testGateWatcherRegistersAllowedEntriesWithMessage()
+    public function testGateWatcherRegistersAllowedEntriesWithMessage(): void
     {
         $this->app->setBasePath(dirname(__FILE__, 4));
 
@@ -128,7 +128,7 @@ class GateWatcherTest extends FeatureTestCase
         $this->assertEmpty($entry->content['arguments']);
     }
 
-    public function testGateWatcherRegistersDeniedEntriesWithMessage()
+    public function testGateWatcherRegistersDeniedEntriesWithMessage(): void
     {
         $this->app->setBasePath(dirname(__FILE__, 4));
 
@@ -146,7 +146,7 @@ class GateWatcherTest extends FeatureTestCase
         $this->assertSame(['banana'], $entry->content['arguments']);
     }
 
-    public function testGateWatcherRegistersAllowedGuestEntriesWithMessage()
+    public function testGateWatcherRegistersAllowedGuestEntriesWithMessage(): void
     {
         $this->app->setBasePath(dirname(__FILE__, 4));
 
@@ -164,7 +164,7 @@ class GateWatcherTest extends FeatureTestCase
         $this->assertEmpty($entry->content['arguments']);
     }
 
-    public function testGateWatcherRegistersDeniedGuestEntries()
+    public function testGateWatcherRegistersDeniedGuestEntries(): void
     {
         $this->app->setBasePath(dirname(__FILE__, 4));
 
@@ -182,7 +182,7 @@ class GateWatcherTest extends FeatureTestCase
         $this->assertSame(['gelato'], $entry->content['arguments']);
     }
 
-    public function testGateWatcherRegistersAllowedPolicyEntries()
+    public function testGateWatcherRegistersAllowedPolicyEntries(): void
     {
         $this->app->setBasePath(dirname(__FILE__, 4));
 
@@ -201,7 +201,7 @@ class GateWatcherTest extends FeatureTestCase
         $this->assertNull($entry->content['message']);
     }
 
-    public function testGateWatcherRegistersAfterChecks()
+    public function testGateWatcherRegistersAfterChecks(): void
     {
         $this->app->setBasePath(dirname(__FILE__, 4));
 
@@ -223,7 +223,7 @@ class GateWatcherTest extends FeatureTestCase
         $this->assertEmpty($entry->content['arguments']);
     }
 
-    public function testGateWatcherRegistersDeniedPolicyEntries()
+    public function testGateWatcherRegistersDeniedPolicyEntries(): void
     {
         $this->app->setBasePath(dirname(__FILE__, 4));
 
@@ -246,7 +246,7 @@ class GateWatcherTest extends FeatureTestCase
         $this->assertNull($entry->content['message']);
     }
 
-    public function testGateWatcherCallsFormatForTelescopeMethodIfItExists()
+    public function testGateWatcherCallsFormatForTelescopeMethodIfItExists(): void
     {
         $this->app->setBasePath(dirname(__FILE__, 4));
 
@@ -268,7 +268,7 @@ class GateWatcherTest extends FeatureTestCase
         $this->assertSame([['Telescope', 'Laravel', 'PHP']], $entry->content['arguments']);
     }
 
-    public function testGateWatcherRegistersAllowedResponsePolicyEntries()
+    public function testGateWatcherRegistersAllowedResponsePolicyEntries(): void
     {
         $this->app->setBasePath(dirname(__FILE__, 4));
 
@@ -291,7 +291,7 @@ class GateWatcherTest extends FeatureTestCase
         $this->assertSame('this action is allowed', $entry->content['message']);
     }
 
-    public function testGateWatcherRegistersDeniedResponsePolicyEntries()
+    public function testGateWatcherRegistersDeniedResponsePolicyEntries(): void
     {
         $this->app->setBasePath(dirname(__FILE__, 4));
 

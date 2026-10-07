@@ -52,7 +52,7 @@ class FswatchDriverTest extends TestCase
     public function testConstructorUsesTheProbeExitCode(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The FswatchDriver requires the `fswatch` executable.');
+        $this->expectExceptionMessageIs('The FswatchDriver requires the `fswatch` executable.');
 
         new InspectableFswatchDriver(
             $this->option(),

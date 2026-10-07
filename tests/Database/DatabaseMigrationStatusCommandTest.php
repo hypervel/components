@@ -16,7 +16,7 @@ use Symfony\Component\Console\Output\NullOutput;
 
 class DatabaseMigrationStatusCommandTest extends TestCase
 {
-    public function testPendingOptionReturnsConfiguredExitCodeAsInteger()
+    public function testPendingOptionReturnsConfiguredExitCodeAsInteger(): void
     {
         $app = new ApplicationDatabaseStatusStub(['path.database' => __DIR__]);
         $app->useDatabasePath(__DIR__);

@@ -69,7 +69,7 @@ class EloquentCollectionLoadMissingTest extends DatabaseTestCase
         PostSubSubRelation::create(['post_sub_relation_id' => 1]);
     }
 
-    public function testLoadMissing()
+    public function testLoadMissing(): void
     {
         $posts = Post::with('comments', 'user')->get();
 
@@ -83,7 +83,7 @@ class EloquentCollectionLoadMissingTest extends DatabaseTestCase
         $this->assertArrayNotHasKey('id', $posts[0]->comments[1]->parent->revisions[0]->getAttributes());
     }
 
-    public function testLoadMissingWithClosure()
+    public function testLoadMissingWithClosure(): void
     {
         $posts = Post::with('comments')->get();
 
@@ -98,7 +98,7 @@ class EloquentCollectionLoadMissingTest extends DatabaseTestCase
         $this->assertArrayNotHasKey('post_id', $posts[0]->comments[1]->parent->getAttributes());
     }
 
-    public function testLoadMissingWithDuplicateRelationName()
+    public function testLoadMissingWithDuplicateRelationName(): void
     {
         $posts = Post::with('comments')->get();
 
@@ -111,7 +111,7 @@ class EloquentCollectionLoadMissingTest extends DatabaseTestCase
         $this->assertTrue($posts[0]->comments[1]->parent->relationLoaded('parent'));
     }
 
-    public function testLoadMissingWithoutInitialLoad()
+    public function testLoadMissingWithoutInitialLoad(): void
     {
         $user = User::first();
         $user->loadMissing('posts.postRelation.postSubRelations.postSubSubRelations');
@@ -125,7 +125,7 @@ class EloquentCollectionLoadMissingTest extends DatabaseTestCase
         $this->assertInstanceOf(PostSubSubRelation::class, $user->posts[1]->postRelation->postSubRelations[0]->postSubSubRelations[0]);
     }
 
-    public function testLoadMissingWithNestedArraySyntax()
+    public function testLoadMissingWithNestedArraySyntax(): void
     {
         $posts = Post::with('user')->get();
 
@@ -141,7 +141,7 @@ class EloquentCollectionLoadMissingTest extends DatabaseTestCase
         $this->assertTrue($posts[0]->relationLoaded('user'));
     }
 
-    public function testLoadMissingWithMultipleDotNotationRelations()
+    public function testLoadMissingWithMultipleDotNotationRelations(): void
     {
         $posts = Post::with('comments')->get();
 
@@ -158,7 +158,7 @@ class EloquentCollectionLoadMissingTest extends DatabaseTestCase
         $this->assertTrue($posts[0]->user->relationLoaded('posts'));
     }
 
-    public function testLoadMissingWithNestedArrayWithColon()
+    public function testLoadMissingWithNestedArrayWithColon(): void
     {
         $posts = Post::with('comments')->get();
 
@@ -171,7 +171,7 @@ class EloquentCollectionLoadMissingTest extends DatabaseTestCase
         $this->assertArrayNotHasKey('post_id', $posts[0]->comments[1]->parent->getAttributes());
     }
 
-    public function testLoadMissingWithNestedArray()
+    public function testLoadMissingWithNestedArray(): void
     {
         $posts = Post::with('comments')->get();
 
@@ -183,7 +183,7 @@ class EloquentCollectionLoadMissingTest extends DatabaseTestCase
         $this->assertTrue($posts[0]->comments[0]->relationLoaded('parent'));
     }
 
-    public function testLoadMissingWithNestedArrayWithClosure()
+    public function testLoadMissingWithNestedArrayWithClosure(): void
     {
         $posts = Post::with('comments')->get();
 
@@ -198,7 +198,7 @@ class EloquentCollectionLoadMissingTest extends DatabaseTestCase
         $this->assertArrayNotHasKey('post_id', $posts[0]->comments[1]->parent->getAttributes());
     }
 
-    public function testLoadMissingWithMultipleNestedArrays()
+    public function testLoadMissingWithMultipleNestedArrays(): void
     {
         $users = User::get();
         $users->loadMissing([
@@ -221,7 +221,7 @@ class EloquentCollectionLoadMissingTest extends DatabaseTestCase
         $this->assertInstanceOf(PostSubSubRelation::class, $user->posts[1]->postRelation->postSubRelations[0]->postSubSubRelations[0]);
     }
 
-    public function testLoadMissingWithMultipleNestedArraysCombinedWithDotNotation()
+    public function testLoadMissingWithMultipleNestedArraysCombinedWithDotNotation(): void
     {
         $users = User::get();
         $users->loadMissing([

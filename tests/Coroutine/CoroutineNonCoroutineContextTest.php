@@ -19,14 +19,14 @@ class CoroutineNonCoroutineContextTest extends TestCase
 {
     protected bool $runTestsInCoroutine = false;
 
-    public function testCoroutineInTopCoroutine()
+    public function testCoroutineInTopCoroutine(): void
     {
         run(function () {
             $this->assertSame(0, Coroutine::parentId());
         });
     }
 
-    public function testRun()
+    public function testRun(): void
     {
         $asserts = [
             SWOOLE_HOOK_ALL,

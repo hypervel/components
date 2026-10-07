@@ -6,7 +6,7 @@ namespace Hypervel\Tests\View\Blade;
 
 class BladeIfGuestStatementsTest extends AbstractBladeTestCase
 {
-    public function testIfStatementsAreCompiled()
+    public function testIfStatementsAreCompiled(): void
     {
         $string = '@guest("api")
 breeze

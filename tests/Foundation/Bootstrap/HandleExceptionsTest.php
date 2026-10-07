@@ -71,7 +71,7 @@ class HandleExceptionsTest extends TestCase
         parent::tearDown();
     }
 
-    public function testPhpDeprecations()
+    public function testPhpDeprecations(): void
     {
         $logger = m::mock(LogManager::class);
         $this->app->instance(LogManager::class, $logger);
@@ -148,7 +148,7 @@ class HandleExceptionsTest extends TestCase
         );
     }
 
-    public function testEnsuresDeprecationsDriver()
+    public function testEnsuresDeprecationsDriver(): void
     {
         $logger = m::mock(LogManager::class);
         $this->app->instance(LogManager::class, $logger);
@@ -190,7 +190,7 @@ class HandleExceptionsTest extends TestCase
         );
     }
 
-    public function testNullValueAsChannelUsesNullDriver()
+    public function testNullValueAsChannelUsesNullDriver(): void
     {
         $logger = m::mock(LogManager::class);
         $this->app->instance(LogManager::class, $logger);
@@ -286,7 +286,7 @@ class HandleExceptionsTest extends TestCase
         ];
     }
 
-    public function testUserDeprecations()
+    public function testUserDeprecations(): void
     {
         $logger = m::mock(LogManager::class);
         $this->app->instance(LogManager::class, $logger);
@@ -343,7 +343,7 @@ class HandleExceptionsTest extends TestCase
         );
     }
 
-    public function testEnsuresNullDeprecationsDriver()
+    public function testEnsuresNullDeprecationsDriver(): void
     {
         $logger = m::mock(LogManager::class);
         $this->app->instance(LogManager::class, $logger);
@@ -366,7 +366,7 @@ class HandleExceptionsTest extends TestCase
         );
     }
 
-    public function testEnsuresNullLogDriver()
+    public function testEnsuresNullLogDriver(): void
     {
         $logger = m::mock(LogManager::class);
         $this->app->instance(LogManager::class, $logger);
@@ -390,7 +390,7 @@ class HandleExceptionsTest extends TestCase
         );
     }
 
-    public function testDoNotOverrideExistingNullLogDriver()
+    public function testDoNotOverrideExistingNullLogDriver(): void
     {
         $logger = m::mock(LogManager::class);
         $this->app->instance(LogManager::class, $logger);
@@ -573,7 +573,7 @@ class HandleExceptionsTest extends TestCase
         }
     }
 
-    public function testItIgnoreDeprecationLoggingWhenRunningUnitTests()
+    public function testItIgnoreDeprecationLoggingWhenRunningUnitTests(): void
     {
         $resolved = false;
         $this->app->bind(LogManager::class, function () use (&$resolved) {
@@ -594,7 +594,7 @@ class HandleExceptionsTest extends TestCase
         $this->assertFalse($resolved);
     }
 
-    public function testItCanForceViaConfigDeprecationLoggingWhenRunningUnitTests()
+    public function testItCanForceViaConfigDeprecationLoggingWhenRunningUnitTests(): void
     {
         $logger = m::mock(LogManager::class);
         $logger->expects('channel')->with('deprecations')->andReturnSelf();
@@ -614,7 +614,7 @@ class HandleExceptionsTest extends TestCase
     }
 
     // REMOVED: forgetApp() is deprecated; flushState() owns application cleanup.
-    public function testHandlerForgetsPreviousApp()
+    public function testHandlerForgetsPreviousApp(): void
     {
         $instance = $this->handleExceptions();
 

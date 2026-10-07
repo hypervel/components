@@ -116,7 +116,7 @@ class StorageCommandTest extends TestCase
         $this->app->instance('files', $files);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage("Unable to delete the existing link [{$link}].");
+        $this->expectExceptionMessageIs("Unable to delete the existing link [{$link}].");
 
         $this->artisan('storage:link', ['--force' => true]);
     }
@@ -152,7 +152,7 @@ class StorageCommandTest extends TestCase
         $this->app->instance('files', $files);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage("Unable to create a link from [{$link}] to [{$target}].");
+        $this->expectExceptionMessageIs("Unable to create a link from [{$link}] to [{$target}].");
 
         $this->artisan('storage:link');
     }
@@ -188,7 +188,7 @@ class StorageCommandTest extends TestCase
         $this->app->instance('files', $files);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage("Unable to create a link from [{$link}] to [{$target}].");
+        $this->expectExceptionMessageIs("Unable to create a link from [{$link}] to [{$target}].");
 
         $this->artisan('storage:link');
     }
@@ -229,7 +229,7 @@ class StorageCommandTest extends TestCase
         $this->app->instance('files', $files);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage("Unable to delete the link [{$link}].");
+        $this->expectExceptionMessageIs("Unable to delete the link [{$link}].");
 
         $this->artisan('storage:unlink');
     }

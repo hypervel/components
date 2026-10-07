@@ -87,7 +87,7 @@ class PostgresSchemaBuilderTest extends PostgresTestCase
         parent::destroyDatabaseMigrations();
     }
 
-    public function testDropAllTablesOnAllSchemas()
+    public function testDropAllTablesOnAllSchemas(): void
     {
         Schema::create('public.table', function (Blueprint $table) {
             $table->increments('id');
@@ -144,7 +144,7 @@ class PostgresSchemaBuilderTest extends PostgresTestCase
         $this->assertTrue($schema->hasTable('private.table'));
     }
 
-    public function testDropAllViewsOnAllSchemas()
+    public function testDropAllViewsOnAllSchemas(): void
     {
         DB::statement('create view public.foo (id) as select 1');
         DB::statement('create view private.foo (id) as select 1');
@@ -158,7 +158,7 @@ class PostgresSchemaBuilderTest extends PostgresTestCase
         $this->assertFalse(Schema::hasView('private.foo'));
     }
 
-    public function testAddTableCommentOnNewTable()
+    public function testAddTableCommentOnNewTable(): void
     {
         Schema::create('public.posts', function (Blueprint $table) {
             $table->comment('This is a comment');
@@ -167,7 +167,7 @@ class PostgresSchemaBuilderTest extends PostgresTestCase
         $this->assertSame('This is a comment', DB::selectOne("select obj_description('public.posts'::regclass, 'pg_class')")->obj_description);
     }
 
-    public function testAddTableCommentOnExistingTable()
+    public function testAddTableCommentOnExistingTable(): void
     {
         Schema::create('public.posts', function (Blueprint $table) {
             $table->id();
@@ -283,7 +283,7 @@ class PostgresSchemaBuilderTest extends PostgresTestCase
 
         $this->assertSame(20, DB::table('generated_records')->value('value'));
         $this->expectException(QueryException::class);
-        $this->expectExceptionMessage('violates check constraint');
+        $this->expectExceptionMessageIsOrContains('violates check constraint');
         DB::table('generated_records')->insert(['source' => -1]);
     }
 
@@ -302,7 +302,7 @@ class PostgresSchemaBuilderTest extends PostgresTestCase
         });
 
         $this->expectException(QueryException::class);
-        $this->expectExceptionMessage($generated ? 'is a generated column' : 'is not a generated column');
+        $this->expectExceptionMessageIsOrContains($generated ? 'is a generated column' : 'is not a generated column');
 
         Schema::table('generated_records', function (Blueprint $table) use ($generated): void {
             $column = $table->integer('value')->storedAs('source * 10')->change();
@@ -350,7 +350,7 @@ class PostgresSchemaBuilderTest extends PostgresTestCase
         $this->assertSame(2, $connection->table('constraint_children')->count());
     }
 
-    public function testGetTables()
+    public function testGetTables(): void
     {
         Schema::create('public.table', function (Blueprint $table) {
             $table->string('name');
@@ -393,7 +393,7 @@ class PostgresSchemaBuilderTest extends PostgresTestCase
         $this->assertSame($defaultSchema['name'], $currentSchema);
     }
 
-    public function testGetViews()
+    public function testGetViews(): void
     {
         DB::statement('create view public.foo (id) as select 1');
         DB::statement('create view private.foo (id) as select 1');
@@ -409,7 +409,7 @@ class PostgresSchemaBuilderTest extends PostgresTestCase
     }
 
     #[RequiresDatabase('pgsql', '>=11.0')]
-    public function testDropPartitionedTables()
+    public function testDropPartitionedTables(): void
     {
         DB::statement('create table groups (id bigserial, tenant_id bigint, name varchar, primary key (id, tenant_id)) partition by hash (tenant_id)');
         DB::statement('create table groups_1 partition of groups for values with (modulus 2, remainder 0)');
@@ -432,7 +432,7 @@ class PostgresSchemaBuilderTest extends PostgresTestCase
         $this->assertNotContains('groups_2', $tables);
     }
 
-    public function testGetRawIndex()
+    public function testGetRawIndex(): void
     {
         Schema::create('public.table', function (Blueprint $table) {
             $table->id();
@@ -445,7 +445,7 @@ class PostgresSchemaBuilderTest extends PostgresTestCase
         $this->assertSame([], collect($indexes)->firstWhere('name', 'table_raw_index')['columns']);
     }
 
-    public function testCreateIndexesOnline()
+    public function testCreateIndexesOnline(): void
     {
         Schema::create('public.table', function (Blueprint $table) {
             $table->id();

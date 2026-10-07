@@ -8,7 +8,7 @@ use Hypervel\Support\Facades\Route;
 
 class MethodOverrideTest extends RoutingTestCase
 {
-    public function testPostBodyMethodOverrideDispatchesToPutRoute()
+    public function testPostBodyMethodOverrideDispatchesToPutRoute(): void
     {
         Route::put('/widgets/{widget}', fn (string $widget) => "updated-{$widget}");
 
@@ -17,7 +17,7 @@ class MethodOverrideTest extends RoutingTestCase
             ->assertContent('updated-42');
     }
 
-    public function testQueryStringMethodOverrideDispatchesToPutRoute()
+    public function testQueryStringMethodOverrideDispatchesToPutRoute(): void
     {
         Route::put('/widgets/{widget}', fn (string $widget) => "updated-{$widget}");
 

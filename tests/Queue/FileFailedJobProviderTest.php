@@ -245,7 +245,7 @@ class FileFailedJobProviderTest extends TestCase
         file_put_contents($this->path, '{"id":"job"}');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage("The failed jobs file [{$this->path}] does not contain a JSON array.");
+        $this->expectExceptionMessageIs("The failed jobs file [{$this->path}] does not contain a JSON array.");
 
         $this->provider->all();
     }

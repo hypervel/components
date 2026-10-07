@@ -54,7 +54,7 @@ class EloquentPivotSerializationTest extends DatabaseTestCase
         });
     }
 
-    public function testPivotCanBeSerializedAndRestored()
+    public function testPivotCanBeSerializedAndRestored(): void
     {
         $user = PivotSerializationTestUser::forceCreate(['email' => 'taylor@laravel.com']);
         $project = PivotSerializationTestProject::forceCreate(['name' => 'Test Project']);
@@ -71,7 +71,7 @@ class EloquentPivotSerializationTest extends DatabaseTestCase
         $class->pivot->save();
     }
 
-    public function testMorphPivotCanBeSerializedAndRestored()
+    public function testMorphPivotCanBeSerializedAndRestored(): void
     {
         $project = PivotSerializationTestProject::forceCreate(['name' => 'Test Project']);
         $tag = PivotSerializationTestTag::forceCreate(['name' => 'Test Tag']);
@@ -165,7 +165,7 @@ class EloquentPivotSerializationTest extends DatabaseTestCase
         $pivot->setRawAttributes($attributes, true);
 
         $this->expectException(MissingAttributeException::class);
-        $this->expectExceptionMessage("The attribute [{$missingColumn}]");
+        $this->expectExceptionMessageIsOrContains("The attribute [{$missingColumn}]");
 
         $pivot->getQueueableId();
     }

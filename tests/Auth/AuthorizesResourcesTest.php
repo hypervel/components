@@ -14,7 +14,7 @@ use Hypervel\Tests\TestCase;
 
 class AuthorizesResourcesTest extends TestCase
 {
-    public function testCreateMethod()
+    public function testCreateMethod(): void
     {
         $controller = new AuthorizesResourcesController;
 
@@ -25,7 +25,7 @@ class AuthorizesResourcesTest extends TestCase
         $this->assertHasMiddleware($controller, 'create', 'can:create,App\User,App\Post');
     }
 
-    public function testStoreMethod()
+    public function testStoreMethod(): void
     {
         $controller = new AuthorizesResourcesController;
 
@@ -36,7 +36,7 @@ class AuthorizesResourcesTest extends TestCase
         $this->assertHasMiddleware($controller, 'store', 'can:create,App\User,App\Post');
     }
 
-    public function testShowMethod()
+    public function testShowMethod(): void
     {
         $controller = new AuthorizesResourcesController;
 
@@ -47,7 +47,7 @@ class AuthorizesResourcesTest extends TestCase
         $this->assertHasMiddleware($controller, 'show', 'can:view,user,post');
     }
 
-    public function testEditMethod()
+    public function testEditMethod(): void
     {
         $controller = new AuthorizesResourcesController;
 
@@ -58,7 +58,7 @@ class AuthorizesResourcesTest extends TestCase
         $this->assertHasMiddleware($controller, 'edit', 'can:update,user,post');
     }
 
-    public function testUpdateMethod()
+    public function testUpdateMethod(): void
     {
         $controller = new AuthorizesResourcesController;
 
@@ -69,7 +69,7 @@ class AuthorizesResourcesTest extends TestCase
         $this->assertHasMiddleware($controller, 'update', 'can:update,user,post');
     }
 
-    public function testDestroyMethod()
+    public function testDestroyMethod(): void
     {
         $controller = new AuthorizesResourcesController;
 

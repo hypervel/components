@@ -484,7 +484,7 @@ class QueueSqsQueueTest extends TestCase
         $this->assertArrayHasKey('MessageDeduplicationId', $options);
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('SQS FIFO queues do not support per-message delays.');
+        $this->expectExceptionMessageIs('SQS FIFO queues do not support per-message delays.');
 
         $queue->later(10, 'job', '', IntegerQueueName::Zero);
     }
@@ -938,7 +938,7 @@ class QueueSqsQueueTest extends TestCase
         $this->sqs->shouldNotReceive('sendMessage');
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('SQS FIFO queues do not support per-message delays.');
+        $this->expectExceptionMessageIs('SQS FIFO queues do not support per-message delays.');
 
         $queue->later($this->mockedDelay, $this->mockedJob, $this->mockedData, $this->fifoQueueName);
     }
@@ -1237,7 +1237,7 @@ class QueueSqsQueueTest extends TestCase
         $this->sqs->shouldNotReceive('sendMessage');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to store the SQS overflow payload');
+        $this->expectExceptionMessageIsOrContains('Unable to store the SQS overflow payload');
 
         $queue->pushRaw($payload, $this->queueName);
     }
@@ -1301,7 +1301,7 @@ class QueueSqsQueueTest extends TestCase
         $this->sqs->expects('sendMessage')->andThrow(new RuntimeException('transport failed'));
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('transport failed');
+        $this->expectExceptionMessageIs('transport failed');
 
         $queue->pushRaw($payload, $this->queueName);
     }
@@ -1405,7 +1405,7 @@ class QueueSqsQueueTest extends TestCase
         $this->sqs->expects('purgeQueue')->with(['QueueUrl' => $this->queueUrl]);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to clear the SQS overflow payload store.');
+        $this->expectExceptionMessageIs('Unable to clear the SQS overflow payload store.');
 
         $queue->clear($this->queueName);
     }

@@ -79,7 +79,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         parent::tearDown();
     }
 
-    public function testItLoadsAHasManyThroughRelationWithCustomKeys()
+    public function testItLoadsAHasManyThroughRelationWithCustomKeys(): void
     {
         $this->seedData();
         $posts = Country::first()->posts;
@@ -88,7 +88,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         $this->assertCount(2, $posts);
     }
 
-    public function testItLoadsADefaultHasManyThroughRelation()
+    public function testItLoadsADefaultHasManyThroughRelation(): void
     {
         $this->migrateDefault();
         $this->seedDefaultData();
@@ -100,7 +100,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         $this->resetDefault();
     }
 
-    public function testItLoadsARelationWithCustomIntermediateAndLocalKey()
+    public function testItLoadsARelationWithCustomIntermediateAndLocalKey(): void
     {
         $this->seedData();
         $posts = IntermediateCountry::first()->posts;
@@ -109,7 +109,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         $this->assertCount(2, $posts);
     }
 
-    public function testEagerLoadingARelationWithCustomIntermediateAndLocalKey()
+    public function testEagerLoadingARelationWithCustomIntermediateAndLocalKey(): void
     {
         $this->seedData();
         $posts = IntermediateCountry::with('posts')->first()->posts;
@@ -118,7 +118,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         $this->assertCount(2, $posts);
     }
 
-    public function testWhereHasOnARelationWithCustomIntermediateAndLocalKey()
+    public function testWhereHasOnARelationWithCustomIntermediateAndLocalKey(): void
     {
         $this->seedData();
         $country = IntermediateCountry::whereHas('posts', function ($query) {
@@ -128,7 +128,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         $this->assertCount(1, $country);
     }
 
-    public function testWithWhereHasOnARelationWithCustomIntermediateAndLocalKey()
+    public function testWithWhereHasOnARelationWithCustomIntermediateAndLocalKey(): void
     {
         $this->seedData();
         $country = IntermediateCountry::withWhereHas('posts', function ($query) {
@@ -165,7 +165,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         $this->assertSame(1, $country->posts()->findOr($post, fn (): string => 'missing')->id);
     }
 
-    public function testFindManyMethod()
+    public function testFindManyMethod(): void
     {
         Country::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
             ->users()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com', 'country_short' => 'us'])
@@ -249,7 +249,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         ));
     }
 
-    public function testFindOrMethodWithMany()
+    public function testFindOrMethodWithMany(): void
     {
         Country::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
             ->users()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com', 'country_short' => 'us'])
@@ -276,7 +276,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         $this->assertSame('callback result', $result);
     }
 
-    public function testFindOrMethodWithManyUsingCollection()
+    public function testFindOrMethodWithManyUsingCollection(): void
     {
         Country::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
             ->users()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com', 'country_short' => 'us'])
@@ -303,7 +303,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         $this->assertSame('callback result', $result);
     }
 
-    public function testFirstRetrievesFirstRecord()
+    public function testFirstRetrievesFirstRecord(): void
     {
         $this->seedData();
         $post = Country::first()->posts()->first();
@@ -312,7 +312,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         $this->assertSame('A title', $post->title);
     }
 
-    public function testAllColumnsAreRetrievedByDefault()
+    public function testAllColumnsAreRetrievedByDefault(): void
     {
         $this->seedData();
         $post = Country::first()->posts()->first();
@@ -328,7 +328,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         ], array_keys($post->getAttributes()));
     }
 
-    public function testOnlyProperColumnsAreSelectedIfProvided()
+    public function testOnlyProperColumnsAreSelectedIfProvided(): void
     {
         $this->seedData();
         $post = Country::first()->posts()->first(['title', 'body']);
@@ -340,7 +340,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         ], array_keys($post->getAttributes()));
     }
 
-    public function testChunkReturnsCorrectModels()
+    public function testChunkReturnsCorrectModels(): void
     {
         $this->seedData();
         $this->seedDataExtended();
@@ -361,7 +361,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         });
     }
 
-    public function testChunkById()
+    public function testChunkById(): void
     {
         $this->seedData();
         $this->seedDataExtended();
@@ -379,7 +379,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         $this->assertEquals(6, $count);
     }
 
-    public function testCursorReturnsCorrectModels()
+    public function testCursorReturnsCorrectModels(): void
     {
         $this->seedData();
         $this->seedDataExtended();
@@ -403,7 +403,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         }
     }
 
-    public function testEachReturnsCorrectModels()
+    public function testEachReturnsCorrectModels(): void
     {
         $this->seedData();
         $this->seedDataExtended();
@@ -423,7 +423,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         });
     }
 
-    public function testEachByIdReturnsCorrectModels()
+    public function testEachByIdReturnsCorrectModels(): void
     {
         $this->seedData();
         $this->seedDataExtended();
@@ -443,7 +443,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         });
     }
 
-    public function testLazyReturnsCorrectModels()
+    public function testLazyReturnsCorrectModels(): void
     {
         $this->seedData();
         $this->seedDataExtended();
@@ -463,7 +463,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         });
     }
 
-    public function testLazyById()
+    public function testLazyById(): void
     {
         $this->seedData();
         $this->seedDataExtended();
@@ -489,7 +489,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         $this->assertEquals(6, $i);
     }
 
-    public function testIntermediateSoftDeletesAreIgnored()
+    public function testIntermediateSoftDeletesAreIgnored(): void
     {
         $this->seedData();
         SoftDeletesUser::first()->delete();
@@ -500,7 +500,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         $this->assertCount(2, $posts);
     }
 
-    public function testEagerLoadingLoadsRelatedModelsCorrectly()
+    public function testEagerLoadingLoadsRelatedModelsCorrectly(): void
     {
         $this->seedData();
         $country = SoftDeletesCountry::with('posts')->first();

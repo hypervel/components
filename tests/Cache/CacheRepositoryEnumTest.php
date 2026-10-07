@@ -122,7 +122,7 @@ class CacheRepositoryEnumTest extends TestCase
         $repo->put(CacheRepositoryEnumTestKeyIntBackedEnum::Counter, new stdClass, 60);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Cache value for key [1] must be a string, object given.');
+        $this->expectExceptionMessageIs('Cache value for key [1] must be a string, object given.');
 
         $repo->string(CacheRepositoryEnumTestKeyIntBackedEnum::Counter);
     }

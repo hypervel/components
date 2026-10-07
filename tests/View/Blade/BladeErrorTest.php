@@ -6,7 +6,7 @@ namespace Hypervel\Tests\View\Blade;
 
 class BladeErrorTest extends AbstractBladeTestCase
 {
-    public function testErrorsAreCompiled()
+    public function testErrorsAreCompiled(): void
     {
         $string = '
 @error(\'email\')
@@ -27,7 +27,7 @@ unset($__errorArgs, $__bag); ?>';
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
 
-    public function testErrorsWithBagsAreCompiled()
+    public function testErrorsWithBagsAreCompiled(): void
     {
         $string = '
 @error(\'email\', \'customBag\')

@@ -31,7 +31,7 @@ class PhpUnit10DeprecationsTest extends TestCase
     public function handlePhp81DeprecationsUsingTestbenchException(): void
     {
         $this->expectException(DeprecatedException::class);
-        $this->expectExceptionMessage('zzz');
+        $this->expectExceptionMessageIs('zzz');
 
         trigger_error('zzz', E_USER_DEPRECATED);
     }

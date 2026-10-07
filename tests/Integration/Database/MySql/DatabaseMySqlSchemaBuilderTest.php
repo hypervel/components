@@ -76,7 +76,7 @@ class DatabaseMySqlSchemaBuilderTest extends MySqlTestCase
     }
 
     #[RequiresDatabase('mysql', '>=8.0.13')]
-    public function testGetRawIndex()
+    public function testGetRawIndex(): void
     {
         Schema::create('table', function (Blueprint $table) {
             $table->id();

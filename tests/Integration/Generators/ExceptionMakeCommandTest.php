@@ -10,7 +10,7 @@ class ExceptionMakeCommandTest extends TestCase
         'app/Exceptions/FooException.php',
     ];
 
-    public function testItCanGenerateExceptionFile()
+    public function testItCanGenerateExceptionFile(): void
     {
         $this->artisan('make:exception', ['name' => 'FooException'])
             ->assertExitCode(0);
@@ -27,7 +27,7 @@ class ExceptionMakeCommandTest extends TestCase
         ], 'app/Exceptions/FooException.php');
     }
 
-    public function testItCanGenerateExceptionFileWithReportOption()
+    public function testItCanGenerateExceptionFileWithReportOption(): void
     {
         $this->artisan('make:exception', ['name' => 'FooException', '--report' => true])
             ->assertExitCode(0);
@@ -44,7 +44,7 @@ class ExceptionMakeCommandTest extends TestCase
         ], 'app/Exceptions/FooException.php');
     }
 
-    public function testItCanGenerateExceptionFileWithRenderOption()
+    public function testItCanGenerateExceptionFileWithRenderOption(): void
     {
         $this->artisan('make:exception', ['name' => 'FooException', '--render' => true])
             ->assertExitCode(0);
@@ -61,7 +61,7 @@ class ExceptionMakeCommandTest extends TestCase
         ], 'app/Exceptions/FooException.php');
     }
 
-    public function testItCanGenerateExceptionFileWithReportAndRenderOption()
+    public function testItCanGenerateExceptionFileWithReportAndRenderOption(): void
     {
         $this->artisan('make:exception', ['name' => 'FooException', '--report' => true, '--render' => true])
             ->assertExitCode(0);

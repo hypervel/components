@@ -14,7 +14,7 @@ use Mockery as m;
 
 class WaitTimeCalculatorTest extends IntegrationTestCase
 {
-    public function testTimeToClearIsCalculatedPerQueue()
+    public function testTimeToClearIsCalculatedPerQueue(): void
     {
         $calculator = $this->with_scenario([
             'test-supervisor' => (object) [
@@ -40,7 +40,7 @@ class WaitTimeCalculatorTest extends IntegrationTestCase
         );
     }
 
-    public function testMultipleQueuesAreSupported()
+    public function testMultipleQueuesAreSupported(): void
     {
         $calculator = $this->with_scenario([
             'test-supervisor' => (object) [
@@ -76,7 +76,7 @@ class WaitTimeCalculatorTest extends IntegrationTestCase
         );
     }
 
-    public function testSingleQueueCanBeRetrievedForMultipleQueues()
+    public function testSingleQueueCanBeRetrievedForMultipleQueues(): void
     {
         $calculator = $this->with_scenario([
             'test-supervisor' => (object) [
@@ -165,7 +165,7 @@ class WaitTimeCalculatorTest extends IntegrationTestCase
         $this->assertSame(['redis:test-queue' => 10.0], $calculator->calculate(''));
     }
 
-    public function testTimeToClearCanBeZero()
+    public function testTimeToClearCanBeZero(): void
     {
         $calculator = $this->with_scenario([
             'test-supervisor' => (object) [
@@ -186,7 +186,7 @@ class WaitTimeCalculatorTest extends IntegrationTestCase
         );
     }
 
-    public function testTotalProcessesCanBeZero()
+    public function testTotalProcessesCanBeZero(): void
     {
         $calculator = $this->with_scenario([
             'test-supervisor' => (object) [

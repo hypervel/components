@@ -40,7 +40,7 @@ class JobEncryptionTest extends QueueTestCase
         parent::tearDown();
     }
 
-    public function testEncryptedJobPayloadIsStoredEncrypted()
+    public function testEncryptedJobPayloadIsStoredEncrypted(): void
     {
         Bus::dispatch(new JobEncryptionTestEncryptedJob);
 
@@ -63,7 +63,7 @@ class JobEncryptionTest extends QueueTestCase
         decrypt(json_decode(DB::table('jobs')->first()->payload)->data->command);
     }
 
-    public function testQueueCanProcessEncryptedJob()
+    public function testQueueCanProcessEncryptedJob(): void
     {
         Bus::dispatch(new JobEncryptionTestEncryptedJob);
 
@@ -72,7 +72,7 @@ class JobEncryptionTest extends QueueTestCase
         $this->assertTrue(JobEncryptionTestEncryptedJob::$ran);
     }
 
-    public function testQueueCanProcessUnEncryptedJob()
+    public function testQueueCanProcessUnEncryptedJob(): void
     {
         Bus::dispatch(new JobEncryptionTestNonEncryptedJob);
 

@@ -18,7 +18,7 @@ use Symfony\Component\HttpFoundation\Response;
 
 class AuthenticateWithBasicAuthMiddlewareTest extends TestCase
 {
-    public function testUsingGeneratesCorrectMiddlewareString()
+    public function testUsingGeneratesCorrectMiddlewareString(): void
     {
         $this->assertSame(
             AuthenticateWithBasicAuth::class . ':',
@@ -36,7 +36,7 @@ class AuthenticateWithBasicAuthMiddlewareTest extends TestCase
         );
     }
 
-    public function testItCallsBasicWithDefaultField()
+    public function testItCallsBasicWithDefaultField(): void
     {
         $guard = m::mock(Guard::class);
         $guard->shouldReceive('basic')->with('email')->once()->andReturnNull();
@@ -53,7 +53,7 @@ class AuthenticateWithBasicAuthMiddlewareTest extends TestCase
         $this->assertSame($expectedResponse, $result);
     }
 
-    public function testItCallsBasicWithCustomField()
+    public function testItCallsBasicWithCustomField(): void
     {
         $guard = m::mock(Guard::class);
         $guard->shouldReceive('basic')->with('username')->once()->andReturnNull();
@@ -70,7 +70,7 @@ class AuthenticateWithBasicAuthMiddlewareTest extends TestCase
         $this->assertSame($expectedResponse, $result);
     }
 
-    public function testItUsesSpecifiedGuard()
+    public function testItUsesSpecifiedGuard(): void
     {
         $guard = m::mock(Guard::class);
         $guard->shouldReceive('basic')->with('email')->once()->andReturnNull();

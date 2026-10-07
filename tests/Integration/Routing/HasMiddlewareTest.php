@@ -11,7 +11,7 @@ use Hypervel\Tests\Integration\Routing\RoutingTestCase;
 
 class HasMiddlewareTest extends RoutingTestCase
 {
-    public function testHasMiddlewareIsRespected()
+    public function testHasMiddlewareIsRespected(): void
     {
         $route = Route::get('/', [HasMiddlewareTestController::class, 'index']);
         $this->assertEquals(['all', 'only-index'], $route->controllerMiddleware());

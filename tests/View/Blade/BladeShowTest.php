@@ -6,7 +6,7 @@ namespace Hypervel\Tests\View\Blade;
 
 class BladeShowTest extends AbstractBladeTestCase
 {
-    public function testShowsAreCompiled()
+    public function testShowsAreCompiled(): void
     {
         $this->assertSame('<?php echo $__env->yieldSection(); ?>', $this->compiler->compileString('@show'));
     }

@@ -357,7 +357,7 @@ class ResponseFactoryTest extends TestCase
     public function testRejectsAMetadataLimitThatCannotEmitTheCompactFallback(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'The gRPC metadata limit is too small to emit a protocol error response.',
         );
 

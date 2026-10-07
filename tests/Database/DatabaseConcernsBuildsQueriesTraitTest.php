@@ -9,7 +9,7 @@ use Hypervel\Tests\TestCase;
 
 class DatabaseConcernsBuildsQueriesTraitTest extends TestCase
 {
-    public function testTapCallbackInstance()
+    public function testTapCallbackInstance(): void
     {
         $mock = new class {
             use BuildsQueries;

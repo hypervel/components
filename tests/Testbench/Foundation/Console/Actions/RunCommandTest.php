@@ -53,7 +53,7 @@ class RunCommandTest extends TestCase
         $console->shouldReceive('call')->once()->with('config:clear', [])->andReturn(Command::FAILURE);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to run command [config:clear].');
+        $this->expectExceptionMessageIs('Unable to run command [config:clear].');
 
         (new RunCommand($console))->handle('config:clear');
     }

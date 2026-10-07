@@ -16,7 +16,7 @@ use Monolog\Processor\ProcessorInterface;
 
 class ContextLogProcessorTest extends TestCase
 {
-    public function testContextIsAddedToLogRecords()
+    public function testContextIsAddedToLogRecords(): void
     {
         Repository::getInstance()->add('trace_id', 'abc-123');
         Repository::getInstance()->add('user_id', 42);
@@ -48,7 +48,7 @@ class ContextLogProcessorTest extends TestCase
         $this->assertSame([123 => 'new', 456 => 'kept'], $record->extra);
     }
 
-    public function testHiddenContextIsNotAddedToLogRecords()
+    public function testHiddenContextIsNotAddedToLogRecords(): void
     {
         Repository::getInstance()->addHidden('secret', 'sensitive-data');
 
@@ -61,7 +61,7 @@ class ContextLogProcessorTest extends TestCase
         $this->assertArrayNotHasKey('secret', $record->extra);
     }
 
-    public function testContextDoesNotOverrideLogMessageContext()
+    public function testContextDoesNotOverrideLogMessageContext(): void
     {
         Repository::getInstance()->add('request_id', 'propagated-value');
 
@@ -76,7 +76,7 @@ class ContextLogProcessorTest extends TestCase
         $this->assertSame('propagated-value', $record->extra['request_id']);
     }
 
-    public function testLogProcessorSkipsWhenNoContextExists()
+    public function testLogProcessorSkipsWhenNoContextExists(): void
     {
         $processor = new ContextLogProcessor;
 
@@ -94,7 +94,7 @@ class ContextLogProcessorTest extends TestCase
         $this->assertFalse(Repository::hasInstance());
     }
 
-    public function testLogProcessorSkipsWhenContextIsEmpty()
+    public function testLogProcessorSkipsWhenContextIsEmpty(): void
     {
         // Access context but don't add anything
         Repository::getInstance();
@@ -115,7 +115,7 @@ class ContextLogProcessorTest extends TestCase
         $this->assertSame($record, $result);
     }
 
-    public function testCustomLogProcessorCanBeBound()
+    public function testCustomLogProcessorCanBeBound(): void
     {
         $custom = new class implements ProcessorInterface {
             public bool $called = false;

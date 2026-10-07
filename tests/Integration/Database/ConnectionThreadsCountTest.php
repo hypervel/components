@@ -8,7 +8,7 @@ use Hypervel\Support\Facades\DB;
 
 class ConnectionThreadsCountTest extends DatabaseTestCase
 {
-    public function testGetThreadsCount()
+    public function testGetThreadsCount(): void
     {
         $count = DB::connection()->threadCount();
 

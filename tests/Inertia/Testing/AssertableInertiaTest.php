@@ -32,7 +32,7 @@ class AssertableInertiaTest extends TestCase
         $response->assertOk(); // Make sure we can render the built-in Orchestra 'welcome' view..
 
         $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('Not a valid Inertia response.');
+        $this->expectExceptionMessageIs('Not a valid Inertia response.');
 
         $response->assertInertia();
     }
@@ -56,7 +56,7 @@ class AssertableInertiaTest extends TestCase
         $response = $this->get('/invalid-inertia-response');
 
         $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('Not a valid Inertia response.');
+        $this->expectExceptionMessageIs('Not a valid Inertia response.');
 
         $response->assertInertia();
     }
@@ -107,7 +107,7 @@ class AssertableInertiaTest extends TestCase
         );
 
         $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('Unexpected Inertia page component.');
+        $this->expectExceptionMessageIsOrContains('Unexpected Inertia page component.');
 
         $response->assertInertia(function ($inertia) {
             $inertia->component('bar');
@@ -157,7 +157,7 @@ class AssertableInertiaTest extends TestCase
 
         config()->set('inertia.testing.ensure_pages_exist', true);
         $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('Inertia page component file [foo] does not exist.');
+        $this->expectExceptionMessageIs('Inertia page component file [foo] does not exist.');
 
         $response->assertInertia(function ($inertia) {
             $inertia->component('foo');
@@ -172,7 +172,7 @@ class AssertableInertiaTest extends TestCase
 
         config()->set('inertia.testing.ensure_pages_exist', false);
         $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('Inertia page component file [foo] does not exist.');
+        $this->expectExceptionMessageIs('Inertia page component file [foo] does not exist.');
 
         $response->assertInertia(function ($inertia) {
             $inertia->component('foo', true);
@@ -201,7 +201,7 @@ class AssertableInertiaTest extends TestCase
         config()->set('inertia.testing.ensure_pages_exist', true);
         config()->set('inertia.pages.paths', [realpath(__DIR__)]);
         $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('Inertia page component file [fixtures/ExamplePage] does not exist.');
+        $this->expectExceptionMessageIs('Inertia page component file [fixtures/ExamplePage] does not exist.');
 
         $response->assertInertia(function ($inertia) {
             $inertia->component('fixtures/ExamplePage');
@@ -217,7 +217,7 @@ class AssertableInertiaTest extends TestCase
         config()->set('inertia.testing.ensure_pages_exist', true);
         config()->set('inertia.pages.extensions', ['bin', 'exe', 'svg']);
         $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('Inertia page component file [fixtures/ExamplePage] does not exist.');
+        $this->expectExceptionMessageIs('Inertia page component file [fixtures/ExamplePage] does not exist.');
 
         $response->assertInertia(function ($inertia) {
             $inertia->component('fixtures/ExamplePage');
@@ -242,7 +242,7 @@ class AssertableInertiaTest extends TestCase
         );
 
         $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('Unexpected Inertia page url.');
+        $this->expectExceptionMessageIsOrContains('Unexpected Inertia page url.');
 
         $response->assertInertia(function ($inertia) {
             $inertia->url('/invalid-page');
@@ -271,7 +271,7 @@ class AssertableInertiaTest extends TestCase
         );
 
         $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('Unexpected Inertia asset version.');
+        $this->expectExceptionMessageIsOrContains('Unexpected Inertia asset version.');
 
         $response->assertInertia(function ($inertia) {
             $inertia->version('different-version');
@@ -521,7 +521,7 @@ class AssertableInertiaTest extends TestCase
         $response = $this->makeMockRequest(Inertia::render('foo'));
 
         $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('Inertia Flash Data is missing key [message].');
+        $this->expectExceptionMessageIsOrContains('Inertia Flash Data is missing key [message].');
 
         $response->assertInertia(fn (AssertableInertia $inertia) => $inertia->hasFlash('message'));
     }
@@ -534,7 +534,7 @@ class AssertableInertiaTest extends TestCase
         );
 
         $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('Inertia Flash Data [message] does not match expected value.');
+        $this->expectExceptionMessageIsOrContains('Inertia Flash Data [message] does not match expected value.');
 
         $response->assertInertia(fn (AssertableInertia $inertia) => $inertia->hasFlash('message', 'Different'));
     }
@@ -547,7 +547,7 @@ class AssertableInertiaTest extends TestCase
         );
 
         $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('Inertia Flash Data has unexpected key [message].');
+        $this->expectExceptionMessageIsOrContains('Inertia Flash Data has unexpected key [message].');
 
         $response->assertInertia(fn (AssertableInertia $inertia) => $inertia->missingFlash('message'));
     }

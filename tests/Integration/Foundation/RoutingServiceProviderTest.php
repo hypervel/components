@@ -11,7 +11,7 @@ use Psr\Http\Message\ServerRequestInterface;
 
 class RoutingServiceProviderTest extends TestCase
 {
-    public function testItIncludesMergedDataInServerRequestInterfaceInstancesUsingGetRequests()
+    public function testItIncludesMergedDataInServerRequestInterfaceInstancesUsingGetRequests(): void
     {
         Route::get('test-route', function (ServerRequestInterface $request) {
             return $request->getParsedBody();
@@ -28,7 +28,7 @@ class RoutingServiceProviderTest extends TestCase
         ]);
     }
 
-    public function testItWorksNormallyWithoutMergeDataMiddlewareWithEmptyRequests()
+    public function testItWorksNormallyWithoutMergeDataMiddlewareWithEmptyRequests(): void
     {
         Route::get('test-route', function (ServerRequestInterface $request) {
             return $request->getParsedBody();
@@ -42,7 +42,7 @@ class RoutingServiceProviderTest extends TestCase
         $response->assertExactJson([]);
     }
 
-    public function testItIncludesMergedDataInServerRequestInterfaceInstancesUsingGetJsonRequestsWithContentTypeHeader()
+    public function testItIncludesMergedDataInServerRequestInterfaceInstancesUsingGetJsonRequestsWithContentTypeHeader(): void
     {
         Route::get('test-route', function (ServerRequestInterface $request) {
             return $request->getParsedBody();
@@ -64,7 +64,7 @@ class RoutingServiceProviderTest extends TestCase
         ]);
     }
 
-    public function testItIncludesMergedDataInServerRequestInterfaceInstancesUsingGetJsonRequests()
+    public function testItIncludesMergedDataInServerRequestInterfaceInstancesUsingGetJsonRequests(): void
     {
         Route::get('test-route', function (ServerRequestInterface $request) {
             return $request->getParsedBody();
@@ -84,7 +84,7 @@ class RoutingServiceProviderTest extends TestCase
         ]);
     }
 
-    public function testItIncludesMergedDataInServerRequestInterfaceInstancesUsingPostRequests()
+    public function testItIncludesMergedDataInServerRequestInterfaceInstancesUsingPostRequests(): void
     {
         Route::post('test-route', function (ServerRequestInterface $request) {
             return $request->getParsedBody();
@@ -104,7 +104,7 @@ class RoutingServiceProviderTest extends TestCase
         ]);
     }
 
-    public function testItIncludesMergedDataInServerRequestInterfaceInstancesUsingPostJsonRequests()
+    public function testItIncludesMergedDataInServerRequestInterfaceInstancesUsingPostJsonRequests(): void
     {
         Route::post('test-route', function (ServerRequestInterface $request) {
             return $request->getParsedBody();
@@ -125,7 +125,7 @@ class RoutingServiceProviderTest extends TestCase
         ]);
     }
 
-    public function testItHandlesGzippedBodyPayloadsWhenCreatingServerRequestInterfaceInstances()
+    public function testItHandlesGzippedBodyPayloadsWhenCreatingServerRequestInterfaceInstances(): void
     {
         Route::post('test-route', function (ServerRequestInterface $request) {
             return gzdecode((string) $request->getBody());

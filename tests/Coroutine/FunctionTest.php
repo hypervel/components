@@ -31,7 +31,7 @@ class FunctionTest extends TestCase
         $this->assertGreaterThan(0, co(static fn (): null => null));
     }
 
-    public function testDefer()
+    public function testDefer(): void
     {
         $channel = new Channel(10);
         parallel([function () use ($channel) {
@@ -61,7 +61,7 @@ class FunctionTest extends TestCase
         $this->assertSame(0, $channel->pop(0.001));
     }
 
-    public function testCoDoesNotCopyContextByDefault()
+    public function testCoDoesNotCopyContextByDefault(): void
     {
         CoroutineContext::set('parent_only', 'value');
 
@@ -73,7 +73,7 @@ class FunctionTest extends TestCase
         $this->assertNull($channel->pop());
     }
 
-    public function testCoCopyContextTrueCopiesAllKeys()
+    public function testCoCopyContextTrueCopiesAllKeys(): void
     {
         CoroutineContext::set('key_a', 'value_a');
         CoroutineContext::set('key_b', 'value_b');
@@ -88,7 +88,7 @@ class FunctionTest extends TestCase
         $this->assertSame('value_b', $channel->pop());
     }
 
-    public function testCoCopyContextArrayCopiesSpecifiedKeysOnly()
+    public function testCoCopyContextArrayCopiesSpecifiedKeysOnly(): void
     {
         CoroutineContext::set('key_a', 'value_a');
         CoroutineContext::set('key_b', 'value_b');
@@ -103,7 +103,7 @@ class FunctionTest extends TestCase
         $this->assertNull($channel->pop());
     }
 
-    public function testGoDoesNotCopyContextByDefault()
+    public function testGoDoesNotCopyContextByDefault(): void
     {
         CoroutineContext::set('parent_only', 'value');
 
@@ -115,7 +115,7 @@ class FunctionTest extends TestCase
         $this->assertNull($channel->pop());
     }
 
-    public function testGoCopyContextTrueCopiesAllKeys()
+    public function testGoCopyContextTrueCopiesAllKeys(): void
     {
         CoroutineContext::set('key_a', 'value_a');
         CoroutineContext::set('key_b', 'value_b');
@@ -130,7 +130,7 @@ class FunctionTest extends TestCase
         $this->assertSame('value_b', $channel->pop());
     }
 
-    public function testGoCopyContextArrayCopiesSpecifiedKeysOnly()
+    public function testGoCopyContextArrayCopiesSpecifiedKeysOnly(): void
     {
         CoroutineContext::set('key_a', 'value_a');
         CoroutineContext::set('key_b', 'value_b');

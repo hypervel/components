@@ -54,7 +54,7 @@ class SwooleTableManagerTest extends TestCase
         $this->assertSame($first, $manager->get('first'));
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('was not initialized before the server fork');
+        $this->expectExceptionMessageIsOrContains('was not initialized before the server fork');
 
         $manager->get('second');
     }
@@ -62,7 +62,7 @@ class SwooleTableManagerTest extends TestCase
     public function testRejectsAnUndefinedSwooleStore(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Swoole rate limiter store [missing] is not defined.');
+        $this->expectExceptionMessageIs('Swoole rate limiter store [missing] is not defined.');
 
         $this->manager([])->get('missing');
     }

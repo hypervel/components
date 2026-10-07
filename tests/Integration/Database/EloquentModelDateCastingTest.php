@@ -47,7 +47,7 @@ class EloquentModelDateCastingTest extends DatabaseTestCase
         $this->assertSame(CarbonImmutable::class, $user->datetime_field::class);
     }
 
-    public function testDatesFormattedAttributeBindings()
+    public function testDatesFormattedAttributeBindings(): void
     {
         $bindings = [];
 
@@ -65,7 +65,7 @@ class EloquentModelDateCastingTest extends DatabaseTestCase
         $this->assertSame(['2019-10-01', '2019-10-01 10:15:20', '2019-10-01', '2019-10-01 10:15'], $bindings);
     }
 
-    public function testDatesFormattedArrayAndJson()
+    public function testDatesFormattedArrayAndJson(): void
     {
         $user = TestModel1::create([
             'date_field' => '2019-10-01',
@@ -106,7 +106,7 @@ class EloquentModelDateCastingTest extends DatabaseTestCase
         $this->assertArrayNotHasKey('immutable_datetime_field', $user->getDirty());
     }
 
-    public function testCustomDateCastsAreComparedAsDatesForStringValues()
+    public function testCustomDateCastsAreComparedAsDatesForStringValues(): void
     {
         $user = TestModel1::create([
             'date_field' => '2019-10-01',
@@ -126,7 +126,7 @@ class EloquentModelDateCastingTest extends DatabaseTestCase
         $this->assertArrayNotHasKey('immutable_datetime_field', $user->getDirty());
     }
 
-    public function testDatesCanBeSerializedToArray()
+    public function testDatesCanBeSerializedToArray(): void
     {
         $this->freezeSecond(function ($now) {
             $user = TestModel2::create([

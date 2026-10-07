@@ -12,7 +12,7 @@ use Psr\Http\Message\RequestFactoryInterface;
 
 class GuzzlePsr18StrategyTest extends TestCase
 {
-    public function testReturnsGuzzleForPsr18ClientInterface()
+    public function testReturnsGuzzleForPsr18ClientInterface(): void
     {
         $candidates = GuzzlePsr18Strategy::getCandidates(ClientInterface::class);
 
@@ -21,7 +21,7 @@ class GuzzlePsr18StrategyTest extends TestCase
         $this->assertSame(GuzzleClient::class, $candidates[0]['condition']);
     }
 
-    public function testReturnsEmptyArrayForOtherTypes()
+    public function testReturnsEmptyArrayForOtherTypes(): void
     {
         $this->assertSame([], GuzzlePsr18Strategy::getCandidates(RequestFactoryInterface::class));
         $this->assertSame([], GuzzlePsr18Strategy::getCandidates('SomeRandomClass'));

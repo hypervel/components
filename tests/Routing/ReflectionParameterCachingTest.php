@@ -24,7 +24,7 @@ use WeakMap;
 
 class ReflectionParameterCachingTest extends RoutingTestCase
 {
-    public function testClosureParametersAreCached()
+    public function testClosureParametersAreCached(): void
     {
         $router = $this->getRouter();
 
@@ -41,7 +41,7 @@ class ReflectionParameterCachingTest extends RoutingTestCase
         $this->assertContainsOnlyInstancesOf(ReflectionParameter::class, $parameters);
     }
 
-    public function testClosureParameterCacheReturnsSameArrayOnRepeatDispatch()
+    public function testClosureParameterCacheReturnsSameArrayOnRepeatDispatch(): void
     {
         $router = $this->getRouter();
 
@@ -77,7 +77,7 @@ class ReflectionParameterCachingTest extends RoutingTestCase
         $this->assertContainsOnlyInstancesOf(ReflectionParameter::class, $cacheAfterSecond);
     }
 
-    public function testControllerParametersAreCachedByClassAndMethod()
+    public function testControllerParametersAreCachedByClassAndMethod(): void
     {
         $router = $this->getRouter();
         $router->get('foo/{name}', ParameterCachingController::class . '@show');
@@ -92,7 +92,7 @@ class ReflectionParameterCachingTest extends RoutingTestCase
         $this->assertContainsOnlyInstancesOf(ReflectionParameter::class, $cache[$key]);
     }
 
-    public function testControllerParameterCacheReturnsSameArrayOnRepeatDispatch()
+    public function testControllerParameterCacheReturnsSameArrayOnRepeatDispatch(): void
     {
         $router = $this->getRouter();
         $router->get('foo/{name}', ParameterCachingController::class . '@show');
@@ -107,7 +107,7 @@ class ReflectionParameterCachingTest extends RoutingTestCase
         $this->assertSame($cacheAfterFirst[$key], $cacheAfterSecond[$key]);
     }
 
-    public function testWarmReflectionCachesParameters()
+    public function testWarmReflectionCachesParameters(): void
     {
         ControllerDispatcher::warmReflection(ParameterCachingController::class, 'show');
 
@@ -121,7 +121,7 @@ class ReflectionParameterCachingTest extends RoutingTestCase
         $this->assertSame('name', $cache[$key][0]->getName());
     }
 
-    public function testFlushCacheClearsCallableDispatcherCache()
+    public function testFlushCacheClearsCallableDispatcherCache(): void
     {
         $router = $this->getRouter();
         $router->get('foo', function () {
@@ -138,7 +138,7 @@ class ReflectionParameterCachingTest extends RoutingTestCase
         $this->assertEmpty($cache);
     }
 
-    public function testFlushCacheClearsControllerDispatcherCache()
+    public function testFlushCacheClearsControllerDispatcherCache(): void
     {
         ControllerDispatcher::warmReflection(ParameterCachingController::class, 'show');
 
@@ -151,7 +151,7 @@ class ReflectionParameterCachingTest extends RoutingTestCase
         $this->assertEmpty($cache);
     }
 
-    public function testControllerDispatchCorrectlyResolvesParameters()
+    public function testControllerDispatchCorrectlyResolvesParameters(): void
     {
         $router = $this->getRouter();
         $router->get('foo/{name}', ParameterCachingController::class . '@show');
@@ -165,7 +165,7 @@ class ReflectionParameterCachingTest extends RoutingTestCase
         $this->assertSame('dayle', $response->getContent());
     }
 
-    public function testClosureDispatchCorrectlyResolvesParameters()
+    public function testClosureDispatchCorrectlyResolvesParameters(): void
     {
         $router = $this->getRouter();
         $router->get('foo/{name}', function (string $name) {
@@ -195,7 +195,7 @@ class ReflectionParameterCachingTest extends RoutingTestCase
         $this->assertSame('taylor', $response->getContent());
     }
 
-    public function testClosureDispatchDoesNotReuseStaleParametersWhenClosureObjectIdIsReused()
+    public function testClosureDispatchDoesNotReuseStaleParametersWhenClosureObjectIdIsReused(): void
     {
         $router = $this->getRouter();
 

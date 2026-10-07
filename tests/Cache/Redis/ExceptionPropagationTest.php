@@ -30,7 +30,7 @@ class ExceptionPropagationTest extends RedisCacheTestCase
         $store = $this->createStore($connection);
 
         $this->expectException(RedisException::class);
-        $this->expectExceptionMessage('Connection refused');
+        $this->expectExceptionMessageIs('Connection refused');
 
         $store->put('key', 'value', 60);
     }
@@ -44,7 +44,7 @@ class ExceptionPropagationTest extends RedisCacheTestCase
         $store = $this->createStore($connection);
 
         $this->expectException(RedisException::class);
-        $this->expectExceptionMessage('Connection timed out');
+        $this->expectExceptionMessageIs('Connection timed out');
 
         $store->get('key');
     }
@@ -58,7 +58,7 @@ class ExceptionPropagationTest extends RedisCacheTestCase
         $store = $this->createStore($connection);
 
         $this->expectException(RedisException::class);
-        $this->expectExceptionMessage('READONLY');
+        $this->expectExceptionMessageIsOrContains('READONLY');
 
         $store->forget('key');
     }
@@ -72,7 +72,7 @@ class ExceptionPropagationTest extends RedisCacheTestCase
         $store = $this->createStore($connection);
 
         $this->expectException(RedisException::class);
-        $this->expectExceptionMessage('OOM');
+        $this->expectExceptionMessageIsOrContains('OOM');
 
         $store->increment('counter', 1);
     }
@@ -86,7 +86,7 @@ class ExceptionPropagationTest extends RedisCacheTestCase
         $store = $this->createStore($connection);
 
         $this->expectException(RedisException::class);
-        $this->expectExceptionMessage('NOAUTH');
+        $this->expectExceptionMessageIsOrContains('NOAUTH');
 
         $store->decrement('counter', 1);
     }
@@ -100,7 +100,7 @@ class ExceptionPropagationTest extends RedisCacheTestCase
         $store = $this->createStore($connection);
 
         $this->expectException(RedisException::class);
-        $this->expectExceptionMessage('ERR invalid DB index');
+        $this->expectExceptionMessageIs('ERR invalid DB index');
 
         $store->forever('key', 'value');
     }
@@ -121,7 +121,7 @@ class ExceptionPropagationTest extends RedisCacheTestCase
         $taggedCache = new AnyTaggedCache($store, new AnyTagSet($store, ['test-tag']));
 
         $this->expectException(RedisException::class);
-        $this->expectExceptionMessage('Connection lost');
+        $this->expectExceptionMessageIs('Connection lost');
 
         $taggedCache->put('key', 'value', 60);
     }
@@ -138,7 +138,7 @@ class ExceptionPropagationTest extends RedisCacheTestCase
         $taggedCache = new AnyTaggedCache($store, new AnyTagSet($store, ['test-tag']));
 
         $this->expectException(RedisException::class);
-        $this->expectExceptionMessage('Connection reset by peer');
+        $this->expectExceptionMessageIs('Connection reset by peer');
 
         $taggedCache->increment('counter', 1);
     }
@@ -155,7 +155,7 @@ class ExceptionPropagationTest extends RedisCacheTestCase
         $taggedCache = new AnyTaggedCache($store, new AnyTagSet($store, ['test-tag']));
 
         $this->expectException(RedisException::class);
-        $this->expectExceptionMessage('ERR unknown command');
+        $this->expectExceptionMessageIs('ERR unknown command');
 
         $taggedCache->flush();
     }
@@ -175,7 +175,7 @@ class ExceptionPropagationTest extends RedisCacheTestCase
         $store = $this->createStore($connection);
 
         $this->expectException(RedisException::class);
-        $this->expectExceptionMessage('CLUSTERDOWN');
+        $this->expectExceptionMessageIsOrContains('CLUSTERDOWN');
 
         $store->putMany(['key1' => 'value1', 'key2' => 'value2'], 60);
     }
@@ -189,7 +189,7 @@ class ExceptionPropagationTest extends RedisCacheTestCase
         $store = $this->createStore($connection);
 
         $this->expectException(RedisException::class);
-        $this->expectExceptionMessage('LOADING');
+        $this->expectExceptionMessageIsOrContains('LOADING');
 
         $store->many(['key1', 'key2']);
     }
@@ -207,7 +207,7 @@ class ExceptionPropagationTest extends RedisCacheTestCase
         $store = $this->createStore($connection);
 
         $this->expectException(RedisException::class);
-        $this->expectExceptionMessage('MISCONF');
+        $this->expectExceptionMessageIsOrContains('MISCONF');
 
         $store->flush();
     }

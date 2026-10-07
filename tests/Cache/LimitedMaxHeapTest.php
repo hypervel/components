@@ -15,7 +15,7 @@ class LimitedMaxHeapTest extends TestCase
     public function testLimitMustBeAtLeastOne(int $limit): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Heap limit must be at least 1.');
+        $this->expectExceptionMessageIs('Heap limit must be at least 1.');
 
         new LimitedMaxHeap($limit);
     }

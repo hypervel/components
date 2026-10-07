@@ -73,7 +73,7 @@ class LoadEnvironmentVariablesTest extends TestCase
         parent::tearDown();
     }
 
-    public function testCanLoad()
+    public function testCanLoad(): void
     {
         $this->expectOutputString('');
 
@@ -88,7 +88,7 @@ class LoadEnvironmentVariablesTest extends TestCase
         $this->assertSame('BAR', $_SERVER['FOO']);
     }
 
-    public function testCanFailSilent()
+    public function testCanFailSilent(): void
     {
         $this->expectOutputString('');
 
@@ -99,7 +99,7 @@ class LoadEnvironmentVariablesTest extends TestCase
         (new LoadEnvironmentVariables)->bootstrap($app);
     }
 
-    public function testLoadsDefaultEnvFile()
+    public function testLoadsDefaultEnvFile(): void
     {
         $app = $this->createApp();
 
@@ -109,7 +109,7 @@ class LoadEnvironmentVariablesTest extends TestCase
         $this->assertSame('default_value', env('TEST_KEY'));
     }
 
-    public function testSkipsWhenConfigIsCached()
+    public function testSkipsWhenConfigIsCached(): void
     {
         $tempDir = ParallelTesting::tempDir('LoadEnvVarsTest');
         $filesystem = new Filesystem;
@@ -142,7 +142,7 @@ class LoadEnvironmentVariablesTest extends TestCase
         }
     }
 
-    public function testLoadsPerEnvironmentFile()
+    public function testLoadsPerEnvironmentFile(): void
     {
         // Set APP_ENV so the bootstrapper finds .env.testing.
         $_SERVER['APP_ENV'] = 'testing';
@@ -157,7 +157,7 @@ class LoadEnvironmentVariablesTest extends TestCase
         $this->assertSame('testing_value', env('TEST_KEY'));
     }
 
-    public function testFallsBackToDefaultWhenPerEnvironmentFileMissing()
+    public function testFallsBackToDefaultWhenPerEnvironmentFileMissing(): void
     {
         $_SERVER['APP_ENV'] = 'nonexistent';
         $_ENV['APP_ENV'] = 'nonexistent';
@@ -172,7 +172,7 @@ class LoadEnvironmentVariablesTest extends TestCase
         $this->assertSame('default_value', env('TEST_KEY'));
     }
 
-    public function testPopulatesDotenvManagerCachedValues()
+    public function testPopulatesDotenvManagerCachedValues(): void
     {
         $app = $this->createApp();
 
@@ -190,7 +190,7 @@ class LoadEnvironmentVariablesTest extends TestCase
         $this->assertSame('testing_value', env('TEST_KEY'));
     }
 
-    public function testNoErrorWhenEnvFileMissing()
+    public function testNoErrorWhenEnvFileMissing(): void
     {
         $app = new Application(__DIR__ . '/../Fixtures/envs/nonexistent');
 
@@ -200,7 +200,7 @@ class LoadEnvironmentVariablesTest extends TestCase
         $this->assertNull(env('APP_NAME'));
     }
 
-    public function testEnvCliOptionOverridesEnvironmentFile()
+    public function testEnvCliOptionOverridesEnvironmentFile(): void
     {
         // Simulate `php artisan --env=testing`.
         $_SERVER['argv'] = ['artisan', '--env=testing'];
@@ -215,7 +215,7 @@ class LoadEnvironmentVariablesTest extends TestCase
         $this->assertSame('.env.testing', $app->environmentFile());
     }
 
-    public function testMalformedEnvFileTriggersErrorHandler()
+    public function testMalformedEnvFileTriggersErrorHandler(): void
     {
         $app = $this->createApp();
         $app->loadEnvironmentFrom('.env.malformed');

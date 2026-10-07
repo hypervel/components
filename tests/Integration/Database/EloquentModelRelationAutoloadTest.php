@@ -44,7 +44,7 @@ class EloquentModelRelationAutoloadTest extends DatabaseTestCase
         });
     }
 
-    public function testRelationAutoloadForCollection()
+    public function testRelationAutoloadForCollection(): void
     {
         $post1 = Post::create();
         $comment1 = $post1->comments()->create(['parent_id' => null]);
@@ -77,7 +77,7 @@ class EloquentModelRelationAutoloadTest extends DatabaseTestCase
         DB::disableQueryLog();
     }
 
-    public function testRelationAutoloadForSingleModel()
+    public function testRelationAutoloadForSingleModel(): void
     {
         $post = Post::create();
         $comment1 = $post->comments()->create(['parent_id' => null]);
@@ -102,7 +102,7 @@ class EloquentModelRelationAutoloadTest extends DatabaseTestCase
         DB::disableQueryLog();
     }
 
-    public function testRelationAutoloadWithSerialization()
+    public function testRelationAutoloadWithSerialization(): void
     {
         Model::automaticallyEagerLoadRelationships();
 
@@ -174,7 +174,7 @@ class EloquentModelRelationAutoloadTest extends DatabaseTestCase
         $this->assertFalse($paginator->items()[0]->relationLoaded('likes'));
     }
 
-    public function testRelationAutoloadWithCircularRelations()
+    public function testRelationAutoloadWithCircularRelations(): void
     {
         $post = Post::create();
         $comment1 = $post->comments()->create(['parent_id' => null]);
@@ -194,7 +194,7 @@ class EloquentModelRelationAutoloadTest extends DatabaseTestCase
         DB::disableQueryLog();
     }
 
-    public function testRelationAutoloadWithChaperoneRelations()
+    public function testRelationAutoloadWithChaperoneRelations(): void
     {
         Model::automaticallyEagerLoadRelationships();
 
@@ -216,7 +216,7 @@ class EloquentModelRelationAutoloadTest extends DatabaseTestCase
         DB::disableQueryLog();
     }
 
-    public function testRelationAutoloadVariousNestedMorphRelations()
+    public function testRelationAutoloadVariousNestedMorphRelations(): void
     {
         tap(Post::create(), function ($post) {
             $post->likes()->create();
@@ -272,7 +272,7 @@ class EloquentModelRelationAutoloadTest extends DatabaseTestCase
         DB::disableQueryLog();
     }
 
-    public function testRelationAutoloadWorksOnFactoryMake()
+    public function testRelationAutoloadWorksOnFactoryMake(): void
     {
         Model::automaticallyEagerLoadRelationships();
 

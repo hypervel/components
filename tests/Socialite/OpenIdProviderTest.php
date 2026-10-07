@@ -557,7 +557,7 @@ class OpenIdProviderTest extends TestCase
         ]);
 
         $this->expectException(UnexpectedValueException::class);
-        $this->expectExceptionMessage('"kid" empty');
+        $this->expectExceptionMessageIsOrContains('"kid" empty');
 
         $provider->verifyToken($this->createSignedToken($key, includeKid: false));
     }
@@ -805,7 +805,7 @@ class OpenIdProviderTest extends TestCase
         }
 
         $this->expectException(UnexpectedValueException::class);
-        $this->expectExceptionMessage('"kid" invalid');
+        $this->expectExceptionMessageIsOrContains('"kid" invalid');
 
         $provider->verifyToken($token);
     }

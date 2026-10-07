@@ -89,7 +89,7 @@ class BootstrapperTest extends TestCase
         $filesystem = new RuntimeDirectoryStillPresentFilesystem;
 
         $this->expectException(UnexpectedValueException::class);
-        $this->expectExceptionMessage('runtime directory still present');
+        $this->expectExceptionMessageIs('runtime directory still present');
 
         try {
             $this->deleteRuntimeDirectoryWithFilesystem($filesystem);
@@ -304,7 +304,7 @@ class BootstrapperTest extends TestCase
 
                 $this->withBootstrapperFilesystem($filesystem, function () use ($filesystem, $sourcePath, $packagePath, $runtimePath): void {
                     $this->expectException(RuntimeException::class);
-                    $this->expectExceptionMessage('Unable to create the Testbench runtime copy');
+                    $this->expectExceptionMessageIsOrContains('Unable to create the Testbench runtime copy');
 
                     try {
                         $this->createRuntimeCopy($sourcePath, $packagePath);
@@ -494,7 +494,7 @@ class BootstrapperTest extends TestCase
             $this->withRuntimeCopyEnvironment('bootstrapper-failed-package-env', true, function () use ($filesystem, $sourcePath, $packagePath): void {
                 $this->withBootstrapperFilesystem($filesystem, function () use ($filesystem, $sourcePath, $packagePath): void {
                     $this->expectException(RuntimeException::class);
-                    $this->expectExceptionMessage('Unable to copy the Testbench environment file.');
+                    $this->expectExceptionMessageIs('Unable to copy the Testbench environment file.');
 
                     try {
                         $this->createRuntimeCopy($sourcePath, $packagePath);
