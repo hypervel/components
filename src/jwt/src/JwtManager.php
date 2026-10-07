@@ -17,6 +17,7 @@ use Hypervel\Jwt\Providers\Lcobucci;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Manager;
 use Hypervel\Support\Str;
+use SensitiveParameter;
 
 class JwtManager extends Manager implements ManagerContract
 {
@@ -73,7 +74,7 @@ class JwtManager extends Manager implements ManagerContract
     /**
      * Decode a token into its payload.
      */
-    public function decode(string $token, bool $validate = true, bool $checkBlacklist = true): array
+    public function decode(#[SensitiveParameter] string $token, bool $validate = true, bool $checkBlacklist = true): array
     {
         $payload = $this->driver()->decode($token);
 
@@ -113,13 +114,14 @@ class JwtManager extends Manager implements ManagerContract
             return $validation;
         }
 
-        return $this->validations[$class] = new $class($this->config->array('jwt'));
+        return $this->validations[$class] = $this->container->make($class, ['config' => $this->config->array('jwt')]);
     }
 
     /**
      * Refresh a token.
      */
     public function refresh(
+        #[SensitiveParameter]
         string $token,
         bool $forceForever = false,
         bool $resetClaims = false,
@@ -155,7 +157,7 @@ class JwtManager extends Manager implements ManagerContract
     /**
      * Decode a token for refresh.
      */
-    protected function decodeForRefresh(string $token): array
+    protected function decodeForRefresh(#[SensitiveParameter] string $token): array
     {
         $payload = $this->driver()->decode($token);
 
@@ -171,7 +173,7 @@ class JwtManager extends Manager implements ManagerContract
     /**
      * Invalidate a token.
      */
-    public function invalidate(string $token, bool $forceForever = false): bool
+    public function invalidate(#[SensitiveParameter] string $token, bool $forceForever = false): bool
     {
         if (! $this->blacklistEnabled) {
             throw new JwtException('You must have the blacklist enabled to invalidate a token.');

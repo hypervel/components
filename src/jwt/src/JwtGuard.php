@@ -570,7 +570,7 @@ class JwtGuard implements Guard
     /**
      * Decode a JWT token, caching the result per coroutine.
      */
-    protected function decodeToken(string $token): array
+    protected function decodeToken(#[SensitiveParameter] string $token): array
     {
         return CoroutineContext::getOrSet(
             $this->getPayloadContextKey($token),

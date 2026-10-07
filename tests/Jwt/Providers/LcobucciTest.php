@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Jwt\Providers;
 
+use Closure;
 use DateInterval;
 use DateTime;
 use DateTimeImmutable;
 use DateTimeInterface;
+use Exception;
 use Hypervel\Jwt\Exceptions\JwtException;
 use Hypervel\Jwt\Exceptions\SecretMissingException;
 use Hypervel\Jwt\Exceptions\TokenExpiredException;
@@ -18,7 +20,13 @@ use Hypervel\Jwt\Validations\ExpiredClaim;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Tests\TestCase;
+use Lcobucci\JWT\Configuration;
+use Lcobucci\JWT\Signer\Hmac\Sha256;
+use Lcobucci\JWT\Signer\Key\InMemory;
+use Lcobucci\JWT\Validation\Constraint\IssuedBy;
+use Lcobucci\JWT\Validation\Constraint\SignedWith;
 use PHPUnit\Framework\Attributes\DataProvider;
+use SensitiveParameterValue;
 use TypeError;
 
 class LcobucciTest extends TestCase
@@ -387,6 +395,40 @@ class LcobucciTest extends TestCase
         )->encode(['sub' => 1]);
     }
 
+    #[DataProvider('asymmetricKeyPairProvider')]
+    public function testThePublicKeyAloneVerifiesTokens(string $algo, string $privateKeyFile, string $publicKeyFile): void
+    {
+        $publicKey = file_get_contents(__DIR__ . "/../Fixtures/keys/{$publicKeyFile}");
+        $token = $this->getProvider('does_not_matter', $algo, [
+            'private' => file_get_contents(__DIR__ . "/../Fixtures/keys/{$privateKeyFile}"),
+            'public' => $publicKey,
+        ])->encode(['sub' => 1, 'iat' => $this->testNowTimestamp]);
+
+        $verifier = $this->getProvider('does_not_matter', $algo, ['public' => $publicKey]);
+
+        $this->assertSame('1', $verifier->decode($token)['sub']);
+
+        [$header, , $signature] = explode('.', $token);
+
+        $this->expectException(TokenInvalidException::class);
+        $this->expectExceptionMessageIs('Token Signature could not be verified.');
+
+        $verifier->decode("{$header}." . $this->base64UrlEncode('{"sub":"2"}') . ".{$signature}");
+    }
+
+    /**
+     * Provide asymmetric algorithms with their key pair fixtures.
+     *
+     * @return array<string, array{string, string, string}>
+     */
+    public static function asymmetricKeyPairProvider(): array
+    {
+        return [
+            'RSA' => [Provider::ALGO_RS256, 'id_rsa', 'id_rsa.pub'],
+            'ECDSA' => [Provider::ALGO_ES256, 'id_ecdsa', 'id_ecdsa.pub'],
+        ];
+    }
+
     public function testShouldThrowASecretMissingExceptionWhenNoSymmetricSecretIsProvided(): void
     {
         $this->expectException(SecretMissingException::class);
@@ -515,6 +557,100 @@ class LcobucciTest extends TestCase
         $this->getProvider('does_not_matter', Provider::ALGO_RS256, $keyPair1)->decode($token);
     }
 
+    public function testConstraintsAddedByBuildConfigApplyWhenDecoding(): void
+    {
+        $provider = new LcobucciWithIssuerConstraint($this->getRandomString(), Provider::ALGO_HS256, []);
+
+        $claims = $provider->decode($provider->encode(['sub' => 1, 'iss' => 'https://issuer.example.test']));
+
+        $this->assertSame('https://issuer.example.test', $claims['iss']);
+
+        $this->expectException(TokenInvalidException::class);
+        $this->expectExceptionMessageIs('Token Signature could not be verified.');
+
+        $provider->decode($provider->encode(['sub' => 1, 'iss' => 'https://other.example.test']));
+    }
+
+    public function testAGivenConfigurationSignsAndVerifiesTokensInsteadOfTheSecret(): void
+    {
+        $secret = $this->getRandomString();
+        $key = InMemory::plainText($this->getRandomString());
+        $config = Configuration::forSymmetricSigner(new Sha256, $key)
+            ->withValidationConstraints(new SignedWith(new Sha256, $key));
+
+        $provider = new Lcobucci($secret, Provider::ALGO_HS256, [], $config);
+        $token = $provider->encode(['sub' => 1, 'iat' => $this->testNowTimestamp]);
+
+        $this->assertSame('1', $provider->decode($token)['sub']);
+
+        $this->expectException(TokenInvalidException::class);
+        $this->expectExceptionMessageIs('Token Signature could not be verified.');
+
+        $this->getProvider($secret, Provider::ALGO_HS256)->decode($token);
+    }
+
+    #[DataProvider('credentialFailureProvider')]
+    public function testSigningCredentialsAreKeptOutOfExceptionTraces(Closure $configure, string $function, array $positions): void
+    {
+        $exception = null;
+        $ignoreArguments = ini_set('zend.exception_ignore_args', '0');
+
+        try {
+            $configure();
+        } catch (Exception $exception) {
+        } finally {
+            ini_set('zend.exception_ignore_args', $ignoreArguments);
+        }
+
+        $this->assertInstanceOf(Exception::class, $exception);
+
+        $frames = array_values(array_filter(
+            $exception->getTrace(),
+            static fn (array $frame): bool => is_a($frame['class'] ?? '', Provider::class, true) && $frame['function'] === $function,
+        ));
+
+        $this->assertCount(1, $frames);
+
+        foreach ($positions as $position) {
+            $this->assertInstanceOf(SensitiveParameterValue::class, $frames[0]['args'][$position]);
+        }
+    }
+
+    /**
+     * Provide failures that happen while the given credentials are function arguments.
+     *
+     * @return array<string, array{Closure, string, array<int, int>}>
+     */
+    public static function credentialFailureProvider(): array
+    {
+        $keys = __DIR__ . '/../Fixtures/keys';
+
+        return [
+            'constructor' => [
+                static fn (): Lcobucci => new Lcobucci('signing-secret', 'INVALID_ALGO', ['private' => 'private-key']),
+                '__construct',
+                [0, 2],
+            ],
+            'new keys' => [
+                static fn (): Lcobucci => (new Lcobucci('does_not_matter', Provider::ALGO_RS256, [
+                    'private' => file_get_contents("{$keys}/id_rsa"),
+                    'public' => file_get_contents("{$keys}/id_rsa.pub"),
+                ]))->setKeys(['private' => file_get_contents("{$keys}/id_rsa_alt")]),
+                'setKeys',
+                [0],
+            ],
+            'key file' => [
+                static fn (): Lcobucci => new Lcobucci('does_not_matter', Provider::ALGO_RS256, [
+                    'private' => "file://{$keys}/missing",
+                    'public' => file_get_contents("{$keys}/id_rsa.pub"),
+                    'passphrase' => 'key-passphrase',
+                ]),
+                'getKey',
+                [0, 1],
+            ],
+        ];
+    }
+
     private function getProvider(string $secret, string $algo, array $keys = []): Lcobucci
     {
         return new Lcobucci($secret, $algo, $keys);
@@ -584,5 +720,20 @@ class LcobucciTest extends TestCase
     private function getDummyEcPublicKey(): string
     {
         return file_get_contents(__DIR__ . '/../Fixtures/keys/id_ecdsa.pub');
+    }
+}
+
+class LcobucciWithIssuerConstraint extends Lcobucci
+{
+    /**
+     * Build the configuration, also requiring the expected issuer.
+     */
+    protected function buildConfig(): Configuration
+    {
+        $config = parent::buildConfig();
+
+        return $config->withValidationConstraints(
+            ...[...$config->validationConstraints(), new IssuedBy('https://issuer.example.test')],
+        );
     }
 }

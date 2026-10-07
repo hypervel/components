@@ -208,6 +208,8 @@ For RSA and EC algorithms, configure `JWT_PRIVATE_KEY`, `JWT_PUBLIC_KEY`, and `J
 
 The key values may be key contents or a `file://` URI.
 
+An application that only verifies tokens issued by another service, such as an API behind a separate authentication server, only needs the public key. Without a private key, tokens are still verified, but issuing or refreshing a token throws a `JwtException`.
+
 <a name="custom-drivers"></a>
 ### Custom Drivers
 
@@ -387,6 +389,37 @@ If your application uses timestamp validations and your servers have small clock
 ```php
 'leeway' => (int) env('JWT_LEEWAY', 0),
 ```
+
+You may add your own validation classes to the `validations` option. A validation implements the `Hypervel\Jwt\Contracts\ValidationContract` contract and throws a `TokenInvalidException` to reject a token:
+
+```php
+<?php
+
+namespace App\Auth;
+
+use Hypervel\Jwt\Contracts\ValidationContract;
+use Hypervel\Jwt\Exceptions\TokenInvalidException;
+
+class CurrentTokenVersion implements ValidationContract
+{
+    public function __construct(
+        protected TokenVersions $versions,
+    ) {
+    }
+
+    /**
+     * Validate the payload.
+     */
+    public function validate(array $payload): void
+    {
+        if (($payload['ver'] ?? null) !== $this->versions->current($payload['sub'])) {
+            throw new TokenInvalidException('Token version is outdated.');
+        }
+    }
+}
+```
+
+Validations are resolved from the container once and shared by every request, so their dependencies must be safe to share, like a repository or cache that looks up the current value inside `validate`. Never keep the current request, tenant, or other per-request state in a validation. A constructor that accepts a `$config` argument receives the `jwt` configuration array. Refreshing skips validations that also implement `Hypervel\Jwt\Contracts\TemporalValidation`, as it does the expiration check, since the refresh window replaces them.
 
 <a name="blacklist"></a>
 ### Blacklist

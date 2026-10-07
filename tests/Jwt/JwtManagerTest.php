@@ -9,6 +9,7 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Foundation\Application;
 use Hypervel\Jwt\ClaimFactory;
 use Hypervel\Jwt\Contracts\BlacklistContract;
+use Hypervel\Jwt\Contracts\ValidationContract;
 use Hypervel\Jwt\Exceptions\JwtException;
 use Hypervel\Jwt\Exceptions\TokenBlacklistedException;
 use Hypervel\Jwt\Exceptions\TokenExpiredException;
@@ -29,6 +30,7 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Mockery\MockInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
+use SensitiveParameterValue;
 use Symfony\Component\Uid\Uuid;
 
 class JwtManagerTest extends TestCase
@@ -369,6 +371,44 @@ class JwtManagerTest extends TestCase
         $this->provider->shouldReceive('decode')->once()->with('foo.bar.baz')->andReturn($payload);
 
         $this->createManager()->decode('foo.bar.baz');
+    }
+
+    public function testCustomValidationsAreResolvedFromTheContainerOnceAndReused(): void
+    {
+        $token = 'foo.bar.baz';
+        $payload = ['sub' => 1, 'ver' => 1];
+        $versions = new JwtManagerTokenVersions([1 => 1]);
+        $resolutions = 0;
+
+        $application = new Application;
+        $application->instance('config', new Repository([
+            'jwt' => [
+                'blacklist_enabled' => false,
+                'driver' => 'dummy',
+                'validations' => [JwtManagerTokenVersionValidation::class],
+            ],
+        ]));
+        $application->instance(JwtManagerTokenVersions::class, $versions);
+        $application->resolving(JwtManagerTokenVersionValidation::class, function () use (&$resolutions): void {
+            ++$resolutions;
+        });
+
+        $provider = $this->provider;
+        $provider->shouldReceive('decode')->times(3)->with($token)->andReturn($payload);
+
+        $manager = new JwtManager($application, $this->claimFactory);
+        $manager->extend('dummy', static fn (): Lcobucci => $provider);
+
+        $this->assertSame($payload, $manager->decode($token));
+        $this->assertSame($payload, $manager->decode($token));
+        $this->assertSame(1, $resolutions);
+
+        $versions->current[1] = 2;
+
+        $this->expectException(TokenInvalidException::class);
+        $this->expectExceptionMessageIs('Token version is outdated.');
+
+        $manager->decode($token);
     }
 
     public function testRefreshSkipsTemporalValidationsInsideRefreshWindow(): void
@@ -804,6 +844,38 @@ class JwtManagerTest extends TestCase
         ];
     }
 
+    public function testFailedInvalidationKeepsTheTokenOutOfTheExceptionTrace(): void
+    {
+        $token = 'header.payload.signature';
+        $payload = ['sub' => 1, 'iat' => $this->testNowTimestamp, 'jti' => 'foo'];
+        $exception = null;
+
+        $this->config->shouldReceive('boolean')->with('jwt.blacklist_enabled')->andReturnTrue();
+        $this->provider->shouldReceive('decode')->once()->with($token)->andReturn($payload);
+        $this->blacklist->shouldReceive('add')->once()->with($payload)->andReturnFalse();
+
+        $manager = $this->createManager();
+        $ignoreArguments = ini_set('zend.exception_ignore_args', '0');
+
+        try {
+            $manager->invalidate($token);
+        } catch (JwtException $exception) {
+        } finally {
+            ini_set('zend.exception_ignore_args', $ignoreArguments);
+        }
+
+        $this->assertInstanceOf(JwtException::class, $exception);
+
+        $frames = array_values(array_filter(
+            $exception->getTrace(),
+            static fn (array $frame): bool => ($frame['class'] ?? null) === JwtManager::class && $frame['function'] === 'invalidate',
+        ));
+
+        $this->assertCount(1, $frames);
+        $this->assertInstanceOf(SensitiveParameterValue::class, $frames[0]['args'][0]);
+        $this->assertSame($token, $frames[0]['args'][0]->getValue());
+    }
+
     public function testInvalidateDoesNotReadTheBlacklistBeforeWriting(): void
     {
         $token = 'foo.bar.baz';
@@ -860,6 +932,10 @@ class JwtManagerTest extends TestCase
     private function mockContainer(): void
     {
         $this->container = m::mock(Container::class);
+
+        $this->container->shouldReceive('make')
+            ->with(m::type('string'), m::hasKey('config'))
+            ->andReturnUsing(static fn (string $class, array $parameters): object => new $class($parameters['config']));
     }
 
     private function mockConfig(): void
@@ -902,5 +978,39 @@ class JwtManagerTest extends TestCase
     private function mockUuid(string $value): void
     {
         Str::createUuidsUsing(fn () => Uuid::fromString($value));
+    }
+}
+
+class JwtManagerTokenVersions
+{
+    /**
+     * Create a new token version store.
+     *
+     * @param array<int, int> $current
+     */
+    public function __construct(
+        public array $current = [],
+    ) {
+    }
+}
+
+class JwtManagerTokenVersionValidation implements ValidationContract
+{
+    /**
+     * Create a new token version validation.
+     */
+    public function __construct(
+        protected JwtManagerTokenVersions $versions,
+    ) {
+    }
+
+    /**
+     * Validate that the token carries the user's current token version.
+     */
+    public function validate(array $payload): void
+    {
+        if ($payload['ver'] !== $this->versions->current[$payload['sub']]) {
+            throw new TokenInvalidException('Token version is outdated.');
+        }
     }
 }

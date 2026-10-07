@@ -176,6 +176,14 @@ PHP-Open-Source-Saver/jwt-auth:
   checked_through: null
   last_reviewed_pr: null
   sync_date: null
+  notes: Primary reference for the first-party hypervel/jwt package, which tracks useful capabilities, fixes and tested behavior rather than an exact API; tymondesigns/jwt-auth below is processed after it. Source mapping into src/jwt/src - JWT, JWTAuth, JWTGuard and Providers/Auth to JwtGuard; Manager to JwtManager and the Jwt facade; Factory, Claims, Payload and Support to ClaimFactory and array payloads; Validators/PayloadValidator and claim checks to Validations, which JwtManager runs; Validators/TokenValidator to the Lcobucci provider's parsing; Providers/JWT to Providers; Providers/Storage to Storage/CacheStorage; Http/Parser to Http/Parser and TokenExtractor; the service providers to JwtServiceProvider; Console and EnvHelperTrait to Console and Hypervel\Support\Env; config/config.php to config/jwt.php. Upstream middleware has no class. Tests map to tests/Jwt by owning class - Providers/JWT, TokenTest and Validators/TokenValidatorTest to Providers; Claims, FactoryTest, PayloadTest and Validators/PayloadValidatorTest to ClaimFactoryTest, JwtManagerTest and Validations; BlacklistTest and Providers/Storage to BlacklistTest and Storage/CacheStorageTest; ManagerTest to JwtManagerTest; JWTGuardTest, JWTAuthTest and Providers/Auth to the JwtGuard*Test files; Http/ParserTest and Middleware to Http/ParserTest, JwtServiceProviderTest and JwtGuardContextTest; LaravelServiceProviderTest to JwtServiceProviderTest; DefaultConfigValuesTest to JwtConfigTest; Console/EnvHelperTraitTest to tests/Support/EnvFileTest and Console. Upstream docs map to src/docs/jwt.md. Adapt changes to array payloads, configuration in place of runtime setters on shared services, and per-request guard state in CoroutineContext. src/jwt/README.md lists the deliberate differences and their equivalents; check them before applying an upstream change they affect, and keep it current.
+
+tymondesigns/jwt-auth:
+  branch: 2.x
+  checked_through: null
+  last_reviewed_pr: null
+  sync_date: null
+  notes: Original package behind hypervel/jwt, processed after PHP-Open-Source-Saver/jwt-auth with the same source, test and docs mapping. It still receives independent fixes; compare each change with the fork's version and the Hypervel code before adapting it, without duplicating the fork's tests.
 
 saloonphp/saloon:
   branch: v4
