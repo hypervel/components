@@ -83,9 +83,25 @@ trait FilesystemDecorator
     }
 
     /**
-     * Determine if a file exists.
+     * Determine if a file or directory exists.
      */
     public function exists(string $path): bool
+    {
+        return $this->withSentry(__FUNCTION__, func_get_args(), $path, compact('path'));
+    }
+
+    /**
+     * Determine if a file exists.
+     */
+    public function fileExists(string $path): bool
+    {
+        return $this->withSentry(__FUNCTION__, func_get_args(), $path, compact('path'));
+    }
+
+    /**
+     * Determine if a directory exists.
+     */
+    public function directoryExists(string $path): bool
     {
         return $this->withSentry(__FUNCTION__, func_get_args(), $path, compact('path'));
     }

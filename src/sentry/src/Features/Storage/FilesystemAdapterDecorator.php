@@ -49,22 +49,6 @@ trait FilesystemAdapterDecorator
     }
 
     /**
-     * Determine if a file exists.
-     */
-    public function fileExists(string $path): bool
-    {
-        return $this->withSentry(__FUNCTION__, func_get_args(), $path, compact('path'));
-    }
-
-    /**
-     * Determine if a directory exists.
-     */
-    public function directoryExists(string $path): bool
-    {
-        return $this->withSentry(__FUNCTION__, func_get_args(), $path, compact('path'));
-    }
-
-    /**
      * Get the checksum for a file.
      */
     public function checksum(string $path, array $options = []): false|string
