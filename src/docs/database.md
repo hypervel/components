@@ -235,6 +235,8 @@ The `sticky` option is an *optional* value that can be used to allow the immedia
 
 Hypervel uses connection pools to keep database access efficient within long-lived Swoole workers. When a coroutine resolves a database connection, Hypervel borrows a physical session from the worker's pool. The coroutine keeps its own connection object, including query logs, callbacks and read / write routing state. Query and schema builders retain that object even if its idle session is returned to the pool and another session is borrowed later. When the coroutine ends, Hypervel rolls back unfinished transactions and returns its remaining borrowed sessions.
 
+A connection and the query builders created from it belong to the coroutine that resolved them. Build queries inside each child coroutine instead of passing builders or connections between coroutines, and do not keep them after their coroutine ends.
+
 Each connection may define its own `pool` configuration:
 
 ```php

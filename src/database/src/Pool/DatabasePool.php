@@ -148,7 +148,7 @@ class DatabasePool extends ConnectionPool
             $endpoint = $role === 'read'
                 ? $factory->configForRead($candidate)
                 : $factory->configForWrite($candidate);
-            $candidateIdentity = [$endpoint['database'], $endpoint['prefix']];
+            $candidateIdentity = [$endpoint['driver'], $endpoint['database'], $endpoint['prefix']];
 
             if ($identity !== null && $identity !== $candidateIdentity) {
                 return false;

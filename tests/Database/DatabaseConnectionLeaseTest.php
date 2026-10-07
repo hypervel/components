@@ -68,8 +68,6 @@ class DatabaseConnectionLeaseTest extends TestCase
         $app->make('config')->set('database.connections.identity_leases', [
             'driver' => 'pgsql',
             'database' => 'app',
-            'read' => [['prefix' => 'first_'], ['prefix' => 'second_']],
-            'write' => [['prefix' => 'first_'], ['prefix' => 'second_']],
             'sticky' => true,
             'pool' => ['testing_enabled' => true, 'max_connections' => 1],
         ]);
@@ -80,6 +78,7 @@ class DatabaseConnectionLeaseTest extends TestCase
         ]);
         $app->instance('db.connector.pgsql', new LeasePdoConnector);
         $app->instance('db.connector.mysql', new LeasePdoConnector);
+        $app->instance('db.connector.mariadb', new LeasePdoConnector);
     }
 
     public function testRetainedBuildersAndCallerStateSurviveAnotherBorrower(): void
@@ -335,9 +334,12 @@ class DatabaseConnectionLeaseTest extends TestCase
         $this->assertSame(2, $connection->selectOne('select 2 as value')->value);
     }
 
-    #[DataProvider('differentConfiguredPrefixesProvider')]
-    public function testDifferentConfiguredPrefixesRetainWholeConnectionOwnership(string $name): void
+    #[DataProvider('differentConfiguredIdentities')]
+    public function testDifferentConfiguredIdentitiesRetainWholeConnectionOwnership(string $name, string $role, array $records): void
     {
+        config()->set('database.connections.identity_leases.read', ['host' => 'replica']);
+        config()->set('database.connections.identity_leases.write', ['host' => 'primary']);
+        config()->set("database.connections.identity_leases.{$role}", $records);
         $connection = DB::connection($name);
         $pool = $this->app->make(PoolManager::class)->pool($name);
         $connection->statement('create table ' . $connection->getTablePrefix() . 'records (id integer)');
@@ -352,14 +354,63 @@ class DatabaseConnectionLeaseTest extends TestCase
     }
 
     /**
-     * Provide pools whose selectable endpoints use different table prefixes.
+     * Provide pools whose selectable endpoints need different logical connections.
      */
-    public static function differentConfiguredPrefixesProvider(): array
+    public static function differentConfiguredIdentities(): array
     {
+        $prefixes = [['prefix' => 'first_'], ['prefix' => 'second_']];
+        $drivers = [['driver' => 'mysql'], ['driver' => 'mariadb']];
+
         return [
-            'read records' => ['identity_leases::read'],
-            'write records' => ['identity_leases'],
+            'read prefixes' => ['identity_leases::read', 'read', $prefixes],
+            'write prefixes' => ['identity_leases', 'write', $prefixes],
+            'read drivers' => ['identity_leases::read', 'read', $drivers],
+            'write drivers' => ['identity_leases', 'write', $drivers],
         ];
+    }
+
+    #[DataProvider('reconnectedPdoRoles')]
+    public function testConnectionListenerReconnectKeepsTheReplacementPdo(bool $read): void
+    {
+        $connection = DB::connection('physical_leases');
+        $connection->disconnect();
+        DB::releaseIdleConnections();
+        $replacement = null;
+        $original = null;
+        $reconnected = false;
+
+        Event::listen(ConnectionEstablished::class, static function (ConnectionEstablished $event) use ($read, &$original, &$replacement, &$reconnected): void {
+            if ($event->connection->getName() === 'physical_leases' && ! $reconnected) {
+                $reconnected = true;
+                $original = $read ? $event->connection->getRawReadPdo() : $event->connection->getRawPdo();
+                $event->connection->reconnect();
+
+                if (! $read) {
+                    $replacement = $event->connection->getPdo();
+                }
+            }
+        });
+
+        $resolved = $read ? $connection->getReadPdo() : $connection->getPdo();
+
+        $this->assertInstanceOf(PDO::class, $original);
+        $this->assertNotSame($original, $resolved);
+
+        if (! $read) {
+            $this->assertSame($replacement, $resolved);
+        }
+
+        $this->assertSame(1, $this->app->make(PoolManager::class)->pool('physical_leases')->getBorrowedCount());
+        DB::releaseIdleConnections();
+        $this->assertSame(1, $this->app->make(PoolManager::class)->pool('physical_leases')->getIdleCount());
+    }
+
+    /**
+     * Provide the physical handle resolved when a connection listener reconnects.
+     */
+    public static function reconnectedPdoRoles(): array
+    {
+        return ['write' => [false], 'read' => [true]];
     }
 
     public function testDisconnectDropsThePhysicalPdoAndReusesTheLogicalConnection(): void
