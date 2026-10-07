@@ -9,6 +9,7 @@
         - [PostgreSQL Server Options](#postgresql-server-options)
     - [Read and Write Connections](#read-and-write-connections)
     - [Connection Pooling](#connection-pooling)
+        - [Releasing Idle Connections](#releasing-idle-connections)
     - [Configuring Database Session State](#configuring-database-session-state)
     - [Extending Database Connections](#extending-database-connections)
     - [Static Analysis](#static-analysis)
@@ -227,12 +228,12 @@ Eloquent models created or retrieved through `::write` retain that connection fo
 <a name="the-sticky-option"></a>
 #### The `sticky` Option
 
-The `sticky` option is an *optional* value that can be used to allow the immediate reading of records that have been written to the database during the current request cycle. If the `sticky` option is enabled and a "write" operation has been performed against the database during the current request cycle, any further "read" operations will use the "write" connection. This ensures that any data written during the request cycle can be immediately read back from the database during that same request. In Hypervel, sticky state is reset when the coroutine's connection is returned to the pool, so it will not leak into another request. It is up to you to decide if this is the desired behavior for your application.
+The `sticky` option is an *optional* value that can be used to allow the immediate reading of records that have been written to the database during the current request cycle. If the `sticky` option is enabled and a "write" operation has been performed against the database during the current request cycle, any further "read" operations will use the "write" connection. This ensures that any data written during the request cycle can be immediately read back from the database during that same request. In Hypervel, sticky state belongs to the coroutine's connection and survives an early release of its physical session. Other coroutines have independent routing state. It is up to you to decide if this is the desired behavior for your application.
 
 <a name="connection-pooling"></a>
 ### Connection Pooling
 
-Hypervel uses connection pools to keep database access efficient within long-lived Swoole workers. When a coroutine needs a database connection, Hypervel borrows a connection from the worker's pool, stores it for the current coroutine, and returns it to the pool when the coroutine ends. Before a connection is returned to the pool, Hypervel resets per-request state such as query logs, query duration tracking, transaction callbacks, read / write routing state, and uncommitted transactions.
+Hypervel uses connection pools to keep database access efficient within long-lived Swoole workers. When a coroutine resolves a database connection, Hypervel borrows a physical session from the worker's pool. The coroutine keeps its own connection object, including query logs, callbacks and read / write routing state. Query and schema builders retain that object even if its idle session is returned to the pool and another session is borrowed later. When the coroutine ends, Hypervel rolls back unfinished transactions and returns its remaining borrowed sessions.
 
 Each connection may define its own `pool` configuration:
 
@@ -270,6 +271,8 @@ For a connection with separate read and write hosts, each base pool slot may laz
 
 When a read side is configured, explicit `::read` connections use a separate read-side pool built from the merged read configuration, including the base `pool` settings unless the read configuration overrides them. Drivers registered through `DB::extend` still receive the complete connection configuration so they can select their own endpoints; the pool's options come from the merged read configuration. Without a read side, `::read` uses the base pool. Explicit `::write` connections do not create a separate pool, but a coroutine that uses both `mysql` and `mysql::write` at the same time may borrow two slots from the base pool. Most applications do not need these suffixes in normal query paths because Hypervel already routes reads, writes, transactions, and sticky reads automatically.
 
+If your `read` configuration contains a list of connection records, Hypervel chooses a record for each new physical connection and chooses again when reconnecting. All records in an explicit `::read` pool must have the same effective `pool` options, including inherited defaults. Conflicting options throw an exception when the pool is created, since the records share one pool capacity and lifecycle policy. Derived read pools cannot use in-memory SQLite databases.
+
 Heartbeat and max lifetime recycling apply to Hypervel's worker pool whether the connection points directly at the database or through a proxy / pooler. They help long-running workers avoid stale sockets and rotate old idle connection generations before those connections are used by a request.
 
 Hypervel's default database configuration also includes a `pgsql-pooled` connection. This connection is intended for PostgreSQL transaction poolers such as PgBouncer and uses separate `DB_POOLED_*` environment variables. It also sets `migrations_connection` to `pgsql`, allowing your application to use the pooled connection at runtime while migration commands use the direct PostgreSQL connection.
@@ -277,6 +280,31 @@ Hypervel's default database configuration also includes a `pgsql-pooled` connect
 You may use `migrations_connection` on any database connection to instruct migration commands to run against another configured connection. This is useful when a runtime connection points at a database pooler that does not support every operation required by migrations.
 
 When you need a direct connection for migrations or schema operations, configure it as a normal connection and reference it with `migrations_connection`. Hypervel does not use Laravel's `::direct` connection suffix.
+
+<a name="releasing-idle-connections"></a>
+#### Releasing Idle Connections
+
+A slow external request can keep a database session occupied long after the last query finishes. Before waiting on an external service, you may return the current execution's idle sessions to their pools:
+
+```php
+DB::releaseIdleConnections();
+
+$response = Http::post($url, $payload);
+```
+
+The next database operation borrows a session automatically. Existing connection objects, builders, query logs and sticky reads remain valid. Registered [session configurators](#configuring-database-session-state) apply the current execution's settings before a borrowed PDO is used. This method does not open a connection when none has been used.
+
+Active queries, transactions, open cursors and `Schema::withoutForeignKeyConstraints` callbacks retain their sessions automatically. Completed `chunk` or `lazy` query batches may release between batches. If your own code needs the same physical session across a release boundary, wrap that work in `withPinnedSession`:
+
+```php
+DB::connection()->withPinnedSession(function () {
+    // Work that must retain the same physical database session...
+});
+```
+
+This is needed for temporary tables, session-level locks, retained raw PDOs or statements, and manual session changes spanning a release boundary. It also applies to a manual `disableForeignKeyConstraints` / `enableForeignKeyConstraints` pair; prefer the scoped `withoutForeignKeyConstraints` method. Pinning prevents early release but does not prevent replacing a broken connection during the normal lost-connection retry.
+
+Connections registered through `DB::extend` retain their complete driver object until execution ends; early release leaves them alone. The same applies when selectable write records (or read records in an explicit `::read` pool) specify different database names or table prefixes. PDO drivers registered through `Connection::resolverFor` participate in early release when those values agree.
 
 <a name="configuring-database-session-state"></a>
 ### Configuring Database Session State
@@ -379,6 +407,8 @@ Connection::resolverFor('mysql', function (
     );
 });
 ```
+
+For a custom PDO driver name, also bind `db.connector.{driver}` in your service provider. The connector must implement `Hypervel\Database\Connectors\ConnectorInterface`; its `connect` method receives the configuration and returns a PDO instance. Existing driver names use Hypervel's built-in connectors unless you replace their binding.
 
 If your driver uses an HTTP client, native extension, or another non-PDO transport, extend the driver-neutral `Connection` class and register it during application boot using the `DB::extend` method:
 

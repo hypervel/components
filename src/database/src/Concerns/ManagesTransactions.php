@@ -408,9 +408,10 @@ trait ManagesTransactions
     protected function forgetLostConnection(): void
     {
         try {
-            $this->resetTransactionState();
-        } finally {
             $this->forgetDriverResources();
+        } finally {
+            // Rollback callbacks may reconnect; only forget the failed session.
+            $this->resetTransactionState();
         }
     }
 

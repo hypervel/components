@@ -4,7 +4,9 @@
 
 Port Laravel AI `1.x` to `hypervel/ai`, retaining its optional MCP adapters. The owner has assigned the MCP package port to a separate session; it is not a prerequisite for this port. Preserve upstream application APIs, named arguments, protected extension points, protocols and test coverage while making execution safe and efficient in long-lived coroutine workers. Ordinary Eloquent/query-builder usage and ordinary agent calls keep their familiar behavior.
 
-Work in the `components-ai` worktree on `feature/ai`, based on `0.4`. Dependencies are independently installed and `.env` is copied. No source implementation has started. Follow the current monorepo instructions and the owner's governing `/home/binaryfire/workspace/contrib/hypervel/components/AGENTS.md`, including its dependency-access guidance even where the worktree copy differs. Maintain a separate remaining-file checklist during implementation rather than expanding this plan into a source inventory. The implementer is authorized to commit signed-off checkpoints under the workflow below; pushing, merging another worktree and altering historical plans remain unauthorized.
+Work in the `components-ai` worktree on `feature/ai`, based on `0.4`. Dependencies are independently installed and `.env` is copied. Follow the current monorepo instructions and the owner's governing `/home/binaryfire/workspace/contrib/hypervel/components/AGENTS.md`, including its dependency-access guidance even where the worktree copy differs. Maintain a separate remaining-file checklist during implementation rather than expanding this plan into a source inventory. The implementer is authorized to commit signed-off checkpoints under the workflow below; pushing, merging another worktree and altering historical plans remain unauthorized.
+
+**Current delivery boundary:** complete all changes to existing framework packages before starting the AI package, so they can form a separate framework PR. Bring forward filesystem, JSON schema, reflection metadata, watcher and other supporting framework changes from later checkpoints. Finish checks, self-review and peer code-review loops for that entire framework scope, commit signed-off work, then notify the owner and stop. Do not begin AI source porting or create/push the PR until instructed to continue.
 
 The public reference is the local `references/laravel/ai` clone on `1.x` and its current tests/config/resources. Recheck upstream changes before copying. Use `src/cache/{composer.json,README.md,LICENSE.md}` as the first-party package skeleton. Within dependency groups, port files alphabetically, one at a time: `cp` the upstream file, read the entire copy, then make targeted edits. Apply this to source, tests, fixtures and documents; only genuinely new Hypervel-specific files are written fresh. Exclude Boost resources only; agent skills remain supported. Real MCP integration execution depends on the separately assigned package, as described in §8. Apply current dependency-injection guidance: retain upstream access patterns in closely ported classes; use injection where a substantive redesign benefits from it.
 
@@ -44,22 +46,15 @@ Boundaries are flexible review groupings, not partial releases or rigid file ass
 - **Reviewer:** review the actual checkpoint scope, including brought-forward dependencies and reported validation. Check correctness, API compatibility, coroutine/resource ownership, performance, Laravel ergonomics and unnecessary code/tests. Request missing verification from the implementer rather than rerunning checks; do not implement or commit in the reviewer role.
 - **Implementer, after signoff:** commit the reviewed work in its owning repository. Use multiple coherent commits when useful, with a detailed body for each explaining the problem, decisions, resulting behavior and relevant validation. Stage whole files only; never split hunks or temporarily rewrite a file to manufacture commit boundaries. Keep inseparable changes together, exclude unrelated work, and do not push. Checkpoint signoff does not replace the final complete-package verification in §10.
 
+Code-reviewed checkpoints may be committed and subsequent work may proceed before performance measurements. Benchmarks remain mandatory before opening the framework PR; obtain peer review of the results and make any required improvements in additional reviewed commits. Use an owner-confirmed idle window.
+
 ## 1. Database connection ownership
 
-### Evidence and design
+### Completed framework surface and downstream requirements
 
-`ConnectionResolver::connection()` borrows a `Pool\PooledConnection`, puts its mutable `Connection` in coroutine context, and releases it only in a coroutine-end defer. Query and schema builders retain that same object. `PooledConnection::release()` calls `resetForPool()`, clearing logical state such as callbacks, logs and sticky routing. Returning that wrapper early would allow another coroutine to mutate an object still held by the first caller.
+Logical connections now remain owned by their execution while physical PDO sessions can return to the pool between operations. Retained builders, sticky routing, logs and callbacks survive early release. Initial resolution still borrows a slot; later use reacquires lazily. Lifecycle, read-endpoint selection, physical-handle cleanup and transaction-context isolation fixes are implemented with regression coverage. See the source and database documentation for their internal details.
 
-Split logical connection ownership from physical resource ownership:
-
-- One logical connection per coroutine and requested connection identity, of the existing concrete driver class, created through the existing factory/resolver extension paths. Builders retain this object through repeated borrow/release cycles.
-- Pool PDO session slots: a write PDO and lazily opened read PDO with existing pool health/lifetime/generation ownership. Preserve the current meaning of pool size and read/write aliases; do not accidentally double the configured pool capacity.
-- Logical PDO resolvers acquire a slot on first actual use and reacquire after early release. Keep sticky writes, selected read/write role, query listeners/logging/durations, transaction manager and reconnector on the logical object.
-- Each held lease settles exactly once. Coroutine-end cleanup settles the current owned lease, not a stale captured borrow. Early release must remove all references that let the logical object accidentally use a returned PDO.
-- PDO-backed subclasses participate through `PdoConnection`; non-PDO custom drivers retain their existing whole-connection ownership and early release is a no-op. Do not add new abstract methods to third-party drivers or replace concrete driver identities with a generic proxy.
-- Preserve non-coroutine task cleanup, connection-established events, custom connectors/resolvers, disconnect/purge/reconnect behavior, pooled SQLite's single shared in-memory database, and alias ownership. Repeated release/reborrow must not accumulate listeners or defers.
-
-Expose the additive operation:
+Use the additive operations:
 
 ```php
 DB::releaseIdleConnections();
@@ -69,17 +64,17 @@ DB::connection()->withPinnedSession(function () {
 });
 ```
 
-`releaseIdleConnections()` acts on the current execution's connections. Skip transactions, active cursor/stream iteration, an in-progress driver operation and explicit nested pin scopes. Increment/decrement pin ownership in `try/finally`; do not expose a manual pin/unpin pair. `cursor()` stays pinned while suspended; `lazy()`/`chunk()` can release between completed query batches. A retained logical builder remains valid after release; deliberately retaining a raw PDO or PDOStatement across a release boundary requires the explicit scope.
+`releaseIdleConnections()` acts only on the current execution's existing connections. Transactions, cursors, complete query/event callbacks, scoped FK suppression and explicit pin scopes prevent voluntary release. Pins do not prevent replacing a broken session. `lazy()`/`chunk()` may release between completed batches. Retained raw PDO/statements or manually changed SQL session state spanning release require `withPinnedSession()`; ordinary builders do not. Existing session configurators synchronize on acquired physical sessions; this does not add transaction-pooler support.
 
-Keep physical session state in the existing `PdoConnection::$physicalSessionStates` WeakMap. `getPdo()`/`getReadPdo()` must synchronize configurators on every acquired physical session, applying only changed state and discarding unknown/failed sessions. Do not change session configurators to transaction-local SQL or claim new transaction-pooler support.
+`DB::extend()` drivers retain whole-connection ownership and early release is a no-op. The same applies when selectable records differ in database or table prefix: write records for base pools, read records for `::read` pools. PDO-first custom drivers participate through `Connection::resolverFor()` and, when needed, `db.connector.{driver}`. Preserve concrete connection identities and these extension boundaries.
+
+Child coroutines own separate connections and transaction records. `DatabaseTransactionState` is non-copyable; Testbench explicitly transfers the same bag across setup/test/teardown. Do not copy transaction ownership into AI child work.
 
 Place AI release boundaries before each actual provider wait: text steps and stream startup, embeddings, images, audio, transcription, reranking, classification, files/stores and Bedrock credential/network operations. Include built-in network tools where they own the wait; custom tools can use the same DB API. No per-token release calls and no transactions around network operations. Avoid acquiring an otherwise unused database connection merely to release it.
 
-### Tests
+### Remaining performance acceptance
 
-Extend database pool/lifecycle tests with retained query/schema builders across release and reacquisition; read/write aliases and sticky reads; custom PDO/non-PDO drivers; SQLite memory ownership; transactions, nested pins and abandoned cursors; cancellation/reconnect/setup failure; non-coroutine cleanup; and session-state changes between borrowers. Use a deliberately small pool with more concurrent fake-provider waits than slots to prove that completed history/auth queries do not monopolize the pool. Assert logical state preservation and exact lease settlement, not private storage layout.
-
-In `tests/Benchmarks/Database`, compare ordinary request database lifecycles against the unchanged baseline: logical construction, first query, acquisition/settlement and coroutine-end cleanup, at realistic concurrency. This redesign affects every database-using application. Require no unexplained throughput or allocation regression; optimize measured construction costs before considering any bounded wrapper recycling. Never recycle a logical object still retained by a builder/caller. Use the owner-arranged idle window required in §10.
+In `tests/Benchmarks/Database`, compare ordinary request database lifecycles against the unchanged baseline: logical construction, first query, query pinning, acquisition/settlement and coroutine-end cleanup, at realistic concurrency. Include GC runs/collected/roots, heap growth between collections and worker peak memory alongside concurrency and request counts. This redesign affects every database-using application. Require no unexplained throughput or allocation regression; optimize measured construction costs before considering any bounded wrapper recycling. Never recycle a logical object still retained by a builder/caller. Use the owner-arranged idle window required in §10.
 
 ## 2. HTTP streaming and response cancellation
 
@@ -128,7 +123,7 @@ Explicitly prove that cancelling a response producer interrupts the new streamin
 
 Make the Agent contract extend `Transient`. Classify tools by real resolution paths: `FilesystemTool`, `AgentTool` and mutable approval/provider-tool families have caller-owned fluent configuration. Do not mark all tools or factory-created objects transient simply because they have mutable properties. Preserve worker-shared stateless middleware/services; document scoped/Transient alternatives for application middleware with operation-owned state.
 
-Move `ParentInvocation` and `TextGenerationLoop` repair settings into scoped context, with nested `finally` restoration behind the existing method signatures. The interleaved save/restore pattern on a shared property can leave the final shared value permanently wrong, not merely wrong during overlap.
+Move `ParentInvocation` and `TextGenerationLoop` repair settings into separate scoped context entries, using the parent-ID pair and boolean values with nested `finally` restoration behind the existing method signatures. They have different owners and are rarely read together, so no shared mutable invocation bag is needed. The interleaved save/restore pattern on a shared property can leave the final shared value permanently wrong, not merely wrong during overlap.
 
 Accept `Provider` objects throughout prompt/stream/queue, pending generation, files/stores, macros and related contracts. Preserve the objects through failover and encrypted on-demand serialization rather than reducing them to names. Keep the public name/model formatting utility unchanged and introduce an internal object-preserving iterator. Explicit named lookups of `Ai::build()` results retain a coroutine-local registry; internal flows pass objects directly. Never cache resolver-backed instances merely by name for an entire coroutine: nested scopes can change identity within the same coroutine.
 
