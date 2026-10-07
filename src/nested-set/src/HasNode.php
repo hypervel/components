@@ -793,6 +793,7 @@ trait HasNode
         ) > 0;
 
         if ($updated) {
+            // Compute post-move position from pre-move values
             if ($position > $lft) {
                 $this->setLft($position - $height);
                 $this->setRgt($position - 1);
@@ -807,6 +808,7 @@ trait HasNode
                 $this->refreshNode();
             }
 
+            // Sync originals: mass UPDATE already set these in DB, avoid redundant Eloquent write
             $this->syncOriginalAttributes([
                 $this->getLftName(),
                 $this->getRgtName(),
@@ -1190,7 +1192,10 @@ trait HasNode
             $relation->add(static::create($child, $instance));
         }
 
-        $instance->refreshNode();
+        // Each append refreshes this node, but descendants of the last child widen it afterwards.
+        if ($relation->isNotEmpty()) {
+            $instance->refreshNode();
+        }
 
         $relationParent = clone $instance;
         $relationParent->setRelations([]);

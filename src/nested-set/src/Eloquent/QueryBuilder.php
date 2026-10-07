@@ -28,13 +28,12 @@ class QueryBuilder extends EloquentBuilder
         $rgtName = $this->model->getRgtName(); /* @phpstan-ignore method.notFound */
         $depthName = $this->model->getDepthName(); /* @phpstan-ignore method.notFound */
 
+        // first() ignores its columns once a global scope has selected some,
+        // so select() replaces any scope projection with the structural columns.
         $data = $this->toBase()
-            ->where($this->model->getKeyName(), '=', $id)
-            ->first([
-                $lftName,
-                $rgtName,
-                $depthName,
-            ]);
+            ->select($this->model->qualifyColumns([$lftName, $rgtName, $depthName]))
+            ->where($this->model->getQualifiedKeyName(), '=', $id)
+            ->first();
 
         if (! $data && $required) {
             throw (new ModelNotFoundException)->setModel($this->model::class, [$id]);
@@ -508,6 +507,8 @@ class QueryBuilder extends EloquentBuilder
 
     /**
      * Get the depth of a node inserted at the given position.
+     *
+     * This replaces upstream's getDepth($position), which returns the enclosing node's depth.
      */
     public function depthForPosition(int $position): int
     {
@@ -601,7 +602,7 @@ class QueryBuilder extends EloquentBuilder
     {
         $height = (int) $params['height'];
 
-        if ($height > 0) {
+        if ($height >= 0) {
             $height = " + {$height}";
         }
 
@@ -617,7 +618,7 @@ class QueryBuilder extends EloquentBuilder
         $from = (int) $params['from'];
         $to = (int) $params['to'];
 
-        if ($distance > 0) {
+        if ($distance >= 0) {
             $distance = " + {$distance}";
         }
 

@@ -7,11 +7,13 @@ namespace Hypervel\Tests\NestedSet;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\NestedSet\Eloquent\Collection;
+use Hypervel\NestedSet\Eloquent\QueryBuilder;
 use Hypervel\NestedSet\HasNode;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\Attributes\RequiresDatabase;
 use Hypervel\Tests\NestedSet\Fixtures\Models\Category;
 use LogicException;
+use ReflectionMethod;
 
 class NodeTest extends NodeTestBase
 {
@@ -283,6 +285,59 @@ class NodeTest extends NodeTestBase
         );
     }
 
+    public function testColumnPatchRendersZeroHeightAsAddition(): void
+    {
+        $this->assertSame(
+            'case when "_lft" >= 5 then "_lft" + 0 else "_lft" end',
+            $this->renderColumnPatch('"_lft"', ['height' => 0, 'cut' => 5]),
+        );
+    }
+
+    public function testColumnPatchRendersZeroDistanceAsAddition(): void
+    {
+        $this->assertSame(
+            'case when "_lft" between 1 and 2 then "_lft" + 0 '
+                . 'when "_lft" between 1 and 2 then "_lft" + 0 else "_lft" end',
+            $this->renderColumnPatch('"_lft"', [
+                'distance' => 0,
+                'height' => 0,
+                'lft' => 1,
+                'rgt' => 2,
+                'from' => 1,
+                'to' => 2,
+            ]),
+        );
+    }
+
+    /**
+     * Render a column patch for the given parameters.
+     */
+    private function renderColumnPatch(string $column, array $params): string
+    {
+        $builder = Category::query();
+        $expression = (new ReflectionMethod(QueryBuilder::class, 'columnPatch'))->invoke($builder, $column, $params);
+
+        return (string) $expression->getValue($builder->getQuery()->getGrammar());
+    }
+
+    public function testNodeDataIsRobustAgainstSelectAddingGlobalScope(): void
+    {
+        $data = SelectScopedCategoryModel::query()->getNodeData(3);
+
+        $this->assertSame(['_lft', '_rgt', 'depth'], array_keys($data));
+        $this->assertEquals([3, 4, 2], array_values($data));
+    }
+
+    public function testMovingNodeWithSelectAddingGlobalScope(): void
+    {
+        $node = SelectScopedCategoryModel::query()->findOrFail(3);
+
+        $this->assertTrue($node->down());
+
+        $this->assertTreeNotBroken();
+        $this->assertSame(5, $node->fresh()->getLft());
+    }
+
     public function testFixTreeIgnoresVisibilityGlobalScopes(): void
     {
         $this->assertNull(GloballyScopedCategoryModel::find(8));
@@ -353,6 +408,22 @@ class GloballyScopedCategoryModel extends Category
         static::addGlobalScope(
             'visible',
             fn (EloquentBuilder $query): EloquentBuilder => $query->where('name', '<>', 'galaxy'),
+        );
+    }
+}
+
+class SelectScopedCategoryModel extends Category
+{
+    protected ?string $table = 'categories';
+
+    /**
+     * Register a scope that selects an extra column.
+     */
+    protected static function booted(): void
+    {
+        static::addGlobalScope(
+            'with_extra_select',
+            fn (EloquentBuilder $query): EloquentBuilder => $query->addSelect('*')->selectRaw('1 as extra_attribute'),
         );
     }
 }

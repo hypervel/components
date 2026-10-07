@@ -8,7 +8,6 @@ use Hypervel\Foundation\Testing\DatabaseTruncation;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\NestedSet\Fixtures\Models\Category;
-use RuntimeException;
 
 use function Hypervel\Coroutine\parallel;
 
@@ -42,31 +41,6 @@ class NestedSetMutationLifecycleTest extends TestCase
             ['id' => 4, 'name' => 'third child', '_lft' => 6, '_rgt' => 7, 'parent_id' => 1, 'depth' => 1],
             ['id' => 5, 'name' => 'second root', '_lft' => 9, '_rgt' => 10, 'parent_id' => null, 'depth' => 0],
         ]);
-    }
-
-    public function testTransactionRetryPreparesParticipantsFromTheRolledBackTree(): void
-    {
-        $source = Category::findOrFail(2);
-        $target = Category::findOrFail(5);
-        $attempts = 0;
-        $retry = new RuntimeException('database is locked');
-
-        DB::transaction(function () use ($source, $target, &$attempts, $retry): void {
-            ++$attempts;
-            $source->appendToNode($target)->save();
-
-            if ($attempts === 1) {
-                throw $retry;
-            }
-        }, 2);
-
-        $persistedSource = Category::findOrFail($source->getKey());
-
-        $this->assertSame(2, $attempts);
-        $this->assertSame($target->getKey(), $persistedSource->getParentId());
-        $this->assertSame([8, 9], $persistedSource->getBounds());
-        $this->assertSame($persistedSource->getBounds(), $source->getBounds());
-        $this->assertTreeNotBroken();
     }
 
     public function testCompletedParentChildMutationsRemainCorrectAcrossFreshCoroutines(): void

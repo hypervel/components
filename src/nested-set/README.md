@@ -11,4 +11,6 @@ Migrations add the nested set columns and indexes with one Blueprint macro match
 
 Only a `null` parent ID makes a node a root. Upstream also treats `0` and an empty string as root parent IDs; here they are ordinary parent keys, so a node whose key is `0` can have children.
 
+The query builder's `getDepth($position)` is `depthForPosition($position)`, which returns the depth of a node inserted at that position within the selected tree. Upstream's method returns the enclosing node's depth, so it cannot tell a position inside a root from one outside every node.
+
 Ported from: https://github.com/aimeos/laravel-nestedset

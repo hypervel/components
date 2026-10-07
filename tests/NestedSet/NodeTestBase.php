@@ -314,6 +314,35 @@ abstract class NodeTestBase extends TestCase
         $this->assertTreeNotBroken();
     }
 
+    public function testMoveRolledBackAfterSavingCanBeQueuedAgain(): void
+    {
+        $node = $this->category::findOrFail($this->key(3));
+        $parent = $this->category::findOrFail($this->key(5));
+        $rollback = new LogicException('Roll back the saved move.');
+        $caught = null;
+
+        try {
+            DB::transaction(function () use ($node, $parent, $rollback): never {
+                $this->assertTrue($node->appendToNode($parent)->save());
+
+                throw $rollback;
+            });
+        } catch (LogicException $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($rollback, $caught);
+        $this->assertSame($this->key(2), $this->category::findOrFail($this->key(3))->getParentId());
+
+        $this->assertTrue($node->appendToNode($parent)->save());
+
+        $persisted = $this->category::findOrFail($this->key(3));
+
+        $this->assertSame($this->key(5), $persisted->getParentId());
+        $this->assertSame($persisted->getBounds(), $node->getBounds());
+        $this->assertTreeNotBroken();
+    }
+
     public function testSavingAgainFromTheCreatedListenerDoesNotReplayTheAction(): void
     {
         $listened = false;
@@ -509,28 +538,112 @@ abstract class NodeTestBase extends TestCase
         $this->assertTreeNotBroken();
     }
 
-    public function testCategoryMovesDown(): void
+    public function testCategoryMoveLevelUp(): void
     {
-        $node = $this->findCategory('apple');
-        $target = $this->findCategory('mobile');
-
-        $target->appendNode($node);
-
-        $this->assertTrue($node->hasMoved());
-        $this->assertNodeReceivesValidValues($node);
-        $this->assertTreeNotBroken();
-    }
-
-    public function testCategoryMovesUp(): void
-    {
-        $node = $this->findCategory('samsung');
+        $node = $this->findCategory('galaxy');
         $target = $this->findCategory('notebooks');
 
+        $this->assertSame(1, $target->getDepth());
+        $this->assertSame(3, $node->getDepth());
+
+        $target->appendNode($node);
+
+        $this->assertTrue($node->hasMoved());
+        $this->assertNodeReceivesValidValues($node);
+        $this->assertTreeNotBroken();
+
+        $this->assertSame(1, $target->getDepth());
+        $this->assertSame(2, $node->getDepth());
+    }
+
+    public function testCategoryMoveLevelSame(): void
+    {
+        $node = $this->findCategory('apple');
+        $target = $this->findCategory('notebooks');
+
+        $this->assertSame(1, $target->getDepth());
+        $this->assertSame(2, $node->getDepth());
+
         $target->appendNode($node);
 
         $this->assertTrue($node->hasMoved());
         $this->assertTreeNotBroken();
         $this->assertNodeReceivesValidValues($node);
+
+        $this->assertSame(1, $target->getDepth());
+        $this->assertSame(2, $node->getDepth());
+    }
+
+    public function testCategoryMoveLevelDown(): void
+    {
+        $node = $this->findCategory('apple');
+        $target = $this->findCategory('samsung');
+
+        $this->assertSame(2, $target->getDepth());
+        $this->assertSame(2, $node->getDepth());
+
+        $target->appendNode($node);
+
+        $this->assertTrue($node->hasMoved());
+        $this->assertTreeNotBroken();
+        $this->assertNodeReceivesValidValues($node);
+
+        $this->assertSame(2, $target->getDepth());
+        $this->assertSame(3, $node->getDepth());
+    }
+
+    public function testCategoryMoveBeforeUp(): void
+    {
+        $node = $this->findCategory('galaxy');
+        $target = $this->findCategory('apple');
+
+        $this->assertSame(2, $target->getDepth());
+        $this->assertSame(3, $node->getDepth());
+
+        $node->insertBeforeNode($target);
+
+        $this->assertTrue($node->hasMoved());
+        $this->assertTreeNotBroken();
+        $this->assertNodeReceivesValidValues($node);
+
+        $this->assertSame(2, $target->getDepth());
+        $this->assertSame(2, $node->getDepth());
+    }
+
+    public function testCategoryMoveBeforeSame(): void
+    {
+        $node = $this->findCategory('apple');
+        $target = $this->findCategory('samsung');
+
+        $this->assertSame(2, $target->getDepth());
+        $this->assertSame(2, $node->getDepth());
+
+        $node->insertBeforeNode($target);
+
+        $this->assertTrue($node->hasMoved());
+        $this->assertTreeNotBroken();
+        $this->assertNodeReceivesValidValues($node);
+
+        $this->assertSame(2, $target->getDepth());
+        $this->assertSame(2, $node->getDepth());
+    }
+
+    public function testCategoryMoveBeforeDown(): void
+    {
+        $node = $this->findCategory('apple');
+        $target = $this->findCategory('galaxy');
+
+        $this->assertSame(3, $target->getDepth());
+        $this->assertSame(2, $node->getDepth());
+
+        $node->insertBeforeNode($target);
+
+        $this->assertTrue($node->hasMoved());
+        $this->assertTreeNotBroken();
+        $this->assertNodeReceivesValidValues($node);
+
+        $this->assertSame(3, $target->getDepth());
+        $this->assertSame(3, $node->getDepth());
     }
 
     #[DataProvider('staleSiblingMovements')]
@@ -567,7 +680,7 @@ abstract class NodeTestBase extends TestCase
         string $nodeName,
         string $targetName,
         int $expectedDepth,
-        ?string $childName,
+        string $childName,
     ): void {
         $node = $this->findCategory($nodeName);
         $target = $this->findCategory($targetName);
@@ -579,11 +692,8 @@ abstract class NodeTestBase extends TestCase
         }
 
         $this->assertSame($expectedDepth, $node->getDepth());
-
-        if ($childName !== null) {
-            $this->assertSame($expectedDepth + 1, $this->findCategory($childName)->getDepth());
-        }
-
+        $this->assertSame($expectedDepth, $this->findCategory($nodeName)->getDepth());
+        $this->assertSame($expectedDepth + 1, $this->findCategory($childName)->getDepth());
         $this->assertTreeNotBroken();
     }
 
@@ -924,6 +1034,11 @@ abstract class NodeTestBase extends TestCase
             $this->keys(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11),
             (clone $query)->defaultOrder()->pluck('id')->all(),
         );
+        $this->assertSame(
+            ['_lft' => 3, '_rgt' => 4, 'depth' => 2],
+            (clone $query)->getNodeData($this->key(3)),
+        );
+        $this->assertSame([3, 4], (clone $query)->getPlainNodeData($this->key(3)));
 
         $node = $this->category::findOrFail($this->key(5));
 
@@ -2367,7 +2482,22 @@ abstract class NodeTestBase extends TestCase
             ],
         ]);
 
-        $this->assertSame(13, $this->countStructuralIdentityReloads());
+        $this->assertSame(9, $this->countStructuralIdentityReloads());
+        $this->assertTreeNotBroken();
+    }
+
+    public function testCreateReturnsBoundsWidenedByTheLastChildsDescendants(): void
+    {
+        $node = $this->category::create([
+            'name' => 'test',
+            'children' => [
+                ['name' => 'first'],
+                ['name' => 'last', 'children' => [['name' => 'grandchild']]],
+            ],
+        ]);
+
+        $this->assertSame([23, 30], $node->getBounds());
+        $this->assertSame($node->getBounds(), $this->findCategory('test')->getBounds());
         $this->assertTreeNotBroken();
     }
 
