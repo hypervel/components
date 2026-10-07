@@ -218,12 +218,13 @@ class JwtServiceProviderTest extends TestCase
         $this->assertInstanceOf(Blacklist::class, $blacklist);
     }
 
-    public function testBlacklistReceivesFiniteRefreshTtlAndLeeway(): void
+    public function testBlacklistReceivesGracePeriodFiniteRefreshTtlAndLeeway(): void
     {
         CarbonImmutable::setTestNow('2000-01-01T00:00:00.000000Z');
 
         $config = $this->app->make('config');
         $config->set('jwt.providers.storage', JwtServiceProviderCustomStorage::class);
+        $config->set('jwt.blacklist_grace_period', 30);
         $config->set('jwt.refresh_ttl', 5);
         $config->set('jwt.leeway', 120);
 
@@ -234,6 +235,7 @@ class JwtServiceProviderTest extends TestCase
         $storage = $this->app->make(JwtServiceProviderCustomStorage::class);
         $now = Date::now()->timestamp;
 
+        $this->assertSame(30, $blacklist->getGracePeriod());
         $this->assertSame(5, $blacklist->getRefreshTTL());
         $this->assertTrue($blacklist->add([
             'exp' => $now + 600,
@@ -262,6 +264,24 @@ class JwtServiceProviderTest extends TestCase
             'jti' => 'foo',
         ]));
         $this->assertTrue($storage->foreverCalled);
+    }
+
+    public function testLcobucciDriverReceivesTheConfiguredSecretAlgorithmAndKeys(): void
+    {
+        $keys = ['public' => 'public-key', 'private' => 'private-key', 'passphrase' => 'passphrase'];
+
+        config([
+            'jwt.secret' => 'some-secret',
+            'jwt.algo' => 'ES512',
+            'jwt.keys' => $keys,
+        ]);
+
+        $driver = $this->app->make('jwt')->driver();
+
+        $this->assertInstanceOf(Lcobucci::class, $driver);
+        $this->assertSame('some-secret', $driver->getSecret());
+        $this->assertSame('ES512', $driver->getAlgo());
+        $this->assertSame($keys, $driver->getKeys());
     }
 
     public function testProviderImplementationsUsePackageDefaultsWhenOmitted(): void

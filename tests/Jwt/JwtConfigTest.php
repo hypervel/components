@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Jwt;
 
 use Hypervel\Jwt\Http\Parser\AuthHeaders;
-use Hypervel\Jwt\Http\Parser\InputSource;
 use Hypervel\Jwt\JwtGuard;
+use Hypervel\Jwt\Storage\CacheStorage;
 use Hypervel\Jwt\Validations\ExpiredClaim;
 use Hypervel\Jwt\Validations\IssuedAtClaim;
 use Hypervel\Jwt\Validations\IssuerClaim;
@@ -16,11 +16,56 @@ use Hypervel\Tests\TestCase;
 
 class JwtConfigTest extends TestCase
 {
-    public function testTtlMatchesTheGuardDefault(): void
+    public function testDefaultConfigurationValues(): void
     {
-        $config = require dirname(__DIR__, 2) . '/src/jwt/config/jwt.php';
+        $originalValues = $this->setEnvironmentVariables(array_fill_keys([
+            'JWT_DRIVER',
+            'JWT_SECRET',
+            'JWT_PUBLIC_KEY',
+            'JWT_PRIVATE_KEY',
+            'JWT_PASSPHRASE',
+            'JWT_TTL',
+            'JWT_REFRESH_TTL',
+            'JWT_ISSUER',
+            'JWT_ALGO',
+            'JWT_LEEWAY',
+            'JWT_BLACKLIST_ENABLED',
+            'JWT_BLACKLIST_STORE',
+            'JWT_REFRESH_IAT',
+            'JWT_LOCK_SUBJECT',
+            'JWT_TOKEN',
+            'JWT_COOKIE_KEY_NAME',
+            'JWT_BLACKLIST_GRACE_PERIOD',
+        ], null));
 
-        $this->assertSame(JwtGuard::DEFAULT_TTL, $config['ttl']);
+        try {
+            Env::flushRepository();
+
+            $config = require dirname(__DIR__, 2) . '/src/jwt/config/jwt.php';
+
+            $this->assertSame('lcobucci', $config['driver']);
+            $this->assertNull($config['secret']);
+            $this->assertSame(['public' => null, 'private' => null, 'passphrase' => null], $config['keys']);
+            $this->assertSame(JwtGuard::DEFAULT_TTL, $config['ttl']);
+            $this->assertSame(20160, $config['refresh_ttl']);
+            $this->assertNull($config['issuer']);
+            $this->assertSame('HS256', $config['algo']);
+            $this->assertSame(['iat', 'sub'], $config['required_claims']);
+            $this->assertSame([], $config['persistent_claims']);
+            $this->assertSame(0, $config['leeway']);
+            $this->assertTrue($config['blacklist_enabled']);
+            $this->assertNull($config['blacklist_store']);
+            $this->assertFalse($config['refresh_iat']);
+            $this->assertTrue($config['lock_subject']);
+            $this->assertSame('token', $config['token']);
+            $this->assertSame('token', $config['cookie_key_name']);
+            $this->assertSame([AuthHeaders::class], $config['parser']);
+            $this->assertSame(0, $config['blacklist_grace_period']);
+            $this->assertSame(['storage' => CacheStorage::class], $config['providers']);
+        } finally {
+            $this->restoreEnvironmentVariables($originalValues);
+            Env::flushRepository();
+        }
     }
 
     public function testBlacklistGracePeriodIsLoadedAsIntegerFromEnvironment(): void
@@ -145,7 +190,7 @@ class JwtConfigTest extends TestCase
     {
         $originalValues = $this->setEnvironmentVariables([
             'JWT_ISSUER' => 'https://api.example.test',
-            'JWT_BLACKLIST_ENABLED' => '1',
+            'JWT_BLACKLIST_ENABLED' => '0',
             'JWT_BLACKLIST_STORE' => 'redis',
             'JWT_REFRESH_IAT' => '1',
             'JWT_LOCK_SUBJECT' => '0',
@@ -159,7 +204,7 @@ class JwtConfigTest extends TestCase
             $config = require dirname(__DIR__, 2) . '/src/jwt/config/jwt.php';
 
             $this->assertSame('https://api.example.test', $config['issuer']);
-            $this->assertTrue($config['blacklist_enabled']);
+            $this->assertFalse($config['blacklist_enabled']);
             $this->assertSame('redis', $config['blacklist_store']);
             $this->assertTrue($config['refresh_iat']);
             $this->assertFalse($config['lock_subject']);
@@ -169,16 +214,6 @@ class JwtConfigTest extends TestCase
             $this->restoreEnvironmentVariables($originalValues);
             Env::flushRepository();
         }
-    }
-
-    public function testDefaultTokenSourcesOnlyIncludeAuthorizationHeaders(): void
-    {
-        $config = require dirname(__DIR__, 2) . '/src/jwt/config/jwt.php';
-
-        $this->assertSame([AuthHeaders::class], $config['parser']);
-        $this->assertNotContains(InputSource::class, $config['parser']);
-        $this->assertSame('token', $config['token']);
-        $this->assertSame('token', $config['cookie_key_name']);
     }
 
     public function testNotBeforeClaimClassIsUsedInConfiguration(): void
@@ -202,9 +237,9 @@ class JwtConfigTest extends TestCase
     }
 
     /**
-     * Set the given environment variables.
+     * Set the given environment variables, unsetting those given a null value.
      *
-     * @param array<string, string> $values
+     * @param array<string, null|string> $values
      * @return array<string, array{putenv: false|string, server_exists: bool, server: mixed, env_exists: bool, env: mixed}>
      */
     private function setEnvironmentVariables(array $values): array
@@ -221,7 +256,7 @@ class JwtConfigTest extends TestCase
             ];
 
             unset($_SERVER[$key], $_ENV[$key]);
-            putenv("{$key}={$value}");
+            putenv($value === null ? $key : "{$key}={$value}");
         }
 
         return $originalValues;

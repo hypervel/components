@@ -29,7 +29,7 @@ class JwtServiceProvider extends ServiceProvider
         // Hypervel intentionally keeps JWT as an array-based manager/guard package.
         // Upstream object/facade bindings hold mutable request state that does not
         // fit worker-lifetime singleton guards.
-        $this->app->singleton('jwt', fn ($app) => new JwtManager(
+        $this->app->singleton('jwt', fn (Container $app): JwtManager => new JwtManager(
             $app,
             $app->make(ClaimFactory::class),
         ));
@@ -51,7 +51,7 @@ class JwtServiceProvider extends ServiceProvider
             return new Parser($chain);
         });
 
-        $this->app->singleton(BlacklistContract::class, function ($app) {
+        $this->app->singleton(BlacklistContract::class, function (Container $app): Blacklist {
             $config = $app->make('config');
 
             $storageClass = $config->string('jwt.providers.storage', CacheStorage::class);

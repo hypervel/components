@@ -72,7 +72,7 @@ You may display a generated secret without writing to `.env`:
 php artisan jwt:secret --show
 ```
 
-If a secret already exists, the command asks before replacing it. You may skip the prompt with `--force`, or skip generation when a secret exists using `--always-no`.
+If a secret already exists, the command asks before replacing it. You may skip the prompt with `--force`, or keep an existing secret using `--always-no`, which takes precedence over `--force`. Like new certificates, a new secret requires [restarting the server and other long-running processes](#generating-certificates).
 
 <a name="generating-certificates"></a>
 ### Generating Certificates
@@ -93,12 +93,12 @@ You may customize the algorithm and key options:
 ```shell
 php artisan jwt:generate-certs --force --algo=rsa --bits=4096 --sha=512
 
-php artisan jwt:generate-certs --force --algo=ec --curve=prime256v1 --sha=256
+php artisan jwt:generate-certs --force --algo=ec --sha=256
 ```
 
-RSA keys must be at least 2048 bits.
+RSA keys must be at least 2048 bits. EC keys use the curve their SHA variant requires: `prime256v1` for 256, `secp384r1` for 384, and `secp521r1` for 512.
 
-You may change the output directory using `--dir`. The directory may be absolute or relative to your application's base path.
+You may change the output directory using `--dir`. The directory may be absolute or relative to your application's base path. The command writes absolute `file://` paths to `.env`, so if each deployment uses a new release directory, choose a `--dir` that is shared between releases.
 
 You may protect the private key with a passphrase using `--passphrase`, or prompt for it interactively using `--ask-passphrase`:
 
@@ -394,10 +394,10 @@ If your application uses timestamp validations and your servers have small clock
 The JWT blacklist lets the package invalidate tokens before they naturally expire:
 
 ```php
-'blacklist_enabled' => (bool) env('JWT_BLACKLIST_ENABLED', false),
+'blacklist_enabled' => (bool) env('JWT_BLACKLIST_ENABLED', true),
 ```
 
-Blacklisting is disabled by default. When enabled, newly issued tokens include a `jti` claim and authenticated blacklist checks require cache access. Enable it when your application needs server-side token invalidation.
+Blacklisting is enabled by default, so logging out or refreshing revokes the old token. Newly issued tokens include a `jti` claim, and each authenticated request checks the blacklist in the cache. If your application doesn't need to revoke tokens before they expire, you may set `JWT_BLACKLIST_ENABLED` to `false`; tokens then remain valid until they expire, even after logout.
 
 Blacklist entries are kept in your default cache store. You may choose another store using the `blacklist_store` option:
 
@@ -596,7 +596,7 @@ Auth::guard('api')->logout();
 
 Without the blacklist, tokens cannot be revoked, so a logged out token remains valid until it expires. If the blacklist write fails, a `JwtException` is thrown, the guard keeps its current state, and the `Logout` event is not dispatched.
 
-To invalidate a token directly, enable the blacklist and call `invalidate`:
+While the blacklist is enabled, you may invalidate a token directly using the `invalidate` method:
 
 ```php
 Auth::guard('api')->invalidate();

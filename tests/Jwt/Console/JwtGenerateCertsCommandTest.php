@@ -138,7 +138,7 @@ class JwtGenerateCertsCommandTest extends TestCase
         $this->assertStringContainsString('JWT_PUBLIC_KEY="file://' . $publicKeyPath . '"', $contents);
     }
 
-    public function testGeneratesAllEcCertificateVariantsWithMatchingCurves(): void
+    public function testEcCurveDefaultsToTheCurveTheShaVariantRequires(): void
     {
         foreach ([256 => 'prime256v1', 384 => 'secp384r1', 512 => 'secp521r1'] as $sha => $curve) {
             $directory = $this->temporaryDirectory("ec-{$sha}");
@@ -148,13 +148,26 @@ class JwtGenerateCertsCommandTest extends TestCase
                 '--algo' => 'ec',
                 '--sha' => $sha,
                 '--dir' => $directory,
-                '--curve' => $curve,
             ])->assertSuccessful();
 
             $this->assertFileExists($directory . "/jwt-ec-{$curve}-private.pem");
             $this->assertFileExists($directory . "/jwt-ec-{$curve}-public.pem");
             $this->assertStringContainsString("JWT_ALGO=ES{$sha}", file_get_contents($this->app->environmentFilePath()));
         }
+    }
+
+    public function testEcDefaultsGenerateEs512Certificates(): void
+    {
+        $directory = $this->temporaryDirectory('ec-defaults');
+
+        $this->artisan('jwt:generate-certs', [
+            '--algo' => 'ec',
+            '--dir' => $directory,
+        ])->assertSuccessful();
+
+        $this->assertFileExists($directory . '/jwt-ec-secp521r1-private.pem');
+        $this->assertFileExists($directory . '/jwt-ec-secp521r1-public.pem');
+        $this->assertStringContainsString('JWT_ALGO=ES512', file_get_contents($this->app->environmentFilePath()));
     }
 
     public function testRejectsMismatchedEcCurve(): void

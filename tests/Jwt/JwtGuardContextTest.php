@@ -38,7 +38,7 @@ class JwtGuardContextTest extends TestCase
             fn (): UserProvider => $this->provider,
         );
 
-        Route::get('/jwt-context/user', static function () {
+        Route::get('/jwt-context/user', static function (): JsonResponse {
             return response()->json([
                 'id' => auth('jwt')->user()?->getAuthIdentifier(),
             ]);
