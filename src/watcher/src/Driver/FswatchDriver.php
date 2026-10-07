@@ -128,18 +128,20 @@ class FswatchDriver extends AbstractDriver
 
             $matched = false;
             foreach ($watchTargets as $watchTarget) {
-                if (! str_starts_with($file, $watchTarget['prefix'])) {
+                if ($file === rtrim($watchTarget['prefix'], '/')) {
+                    $relativePath = $watchTarget['base'];
+                } elseif (str_starts_with($file, $watchTarget['prefix'])) {
+                    $remainder = substr($file, strlen($watchTarget['prefix']));
+                    $relativePath = $watchTarget['base'] === '.'
+                        ? $remainder
+                        : $watchTarget['base'] . '/' . $remainder;
+                } else {
                     continue;
                 }
 
-                $remainder = substr($file, strlen($watchTarget['prefix']));
-                $relativePath = $watchTarget['base'] === '.'
-                    ? $remainder
-                    : $watchTarget['base'] . '/' . $remainder;
-
                 // A recursive operand can observe a path whose configured base did not exist at startup.
                 foreach ($watchPaths as $watchPath) {
-                    if ($watchPath->matches($relativePath)) {
+                    if ($watchPath->matches($relativePath) || $this->matchesDirectoryChange($watchPath, $relativePath, $file)) {
                         $matched = true;
                         break 2;
                     }
@@ -154,6 +156,28 @@ class FswatchDriver extends AbstractDriver
         if ($offset > 0) {
             $buffer = substr($buffer, $offset);
         }
+    }
+
+    /**
+     * Match directory arrivals that may contain files omitted from native events.
+     */
+    protected function matchesDirectoryChange(WatchPath $watchPath, string $relativePath, string $file): bool
+    {
+        $root = $watchPath->type === WatchPathType::File
+            ? dirname($watchPath->path)
+            : (rtrim($watchPath->path, '/') ?: '.');
+
+        if (
+            $relativePath !== $root
+            && ! str_starts_with($root, $relativePath . '/')
+            && ! ($watchPath->recursive && ($root === '.' || str_starts_with($relativePath, $root . '/')))
+        ) {
+            return false;
+        }
+
+        clearstatcache(true, $file);
+
+        return is_dir($file);
     }
 
     /**
@@ -262,25 +286,42 @@ class FswatchDriver extends AbstractDriver
                 ? dirname($watchPath->path)
                 : rtrim($watchPath->path, '/');
             $base = $base === '' ? '.' : $base;
-            $literalPath = $base === '.' ? base_path() : base_path($base);
-            $canonicalPath = realpath($literalPath);
-            // A missing root keeps one literal operand/prefix because fswatch may activate it
-            // as a symlink that a recursive parent process does not follow.
-            $operand = $canonicalPath === false ? $literalPath : $canonicalPath;
+            $bases = [$base];
 
-            if (! isset($targets[$operand])) {
-                $targets[$operand] = [
-                    'operand' => $operand,
-                    'recursive' => false,
-                    'canonical' => $canonicalPath === false ? null : $canonicalPath,
-                ];
+            if (! $this->isDarwin() && ($watchPath->type === WatchPathType::Directory || ! is_dir(base_path($base)))) {
+                // Shallow ancestor watches report root arrivals without recursively watching the project.
+                $ancestor = $base;
+
+                while (($parent = dirname($ancestor)) !== $ancestor) {
+                    $bases[] = $parent;
+                    $ancestor = $parent;
+
+                    if (is_dir(base_path($ancestor))) {
+                        break;
+                    }
+                }
             }
 
-            $targets[$operand]['recursive'] = $targets[$operand]['recursive'] || $watchPath->recursive;
+            foreach ($bases as $index => $targetBase) {
+                $literalPath = $targetBase === '.' ? base_path() : base_path($targetBase);
+                $canonicalPath = realpath($literalPath);
+                // Keep missing roots as explicit operands for activation through symlinked ancestors.
+                $operand = $canonicalPath === false ? $literalPath : $canonicalPath;
 
-            $prefix = rtrim($operand, '/') . '/';
-            $entryKey = $prefix . "\0" . $base;
-            $entries[$entryKey] ??= ['prefix' => $prefix, 'base' => $base];
+                if (! isset($targets[$operand])) {
+                    $targets[$operand] = [
+                        'operand' => $operand,
+                        'recursive' => false,
+                        'canonical' => $canonicalPath === false ? null : $canonicalPath,
+                    ];
+                }
+
+                $targets[$operand]['recursive'] = $targets[$operand]['recursive'] || ($index === 0 && $watchPath->recursive);
+
+                $prefix = rtrim($operand, '/') . '/';
+                $entryKey = $prefix . "\0" . $targetBase;
+                $entries[$entryKey] ??= ['prefix' => $prefix, 'base' => $targetBase];
+            }
         }
 
         return [
