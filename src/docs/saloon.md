@@ -255,6 +255,7 @@ public function boot(PendingRequest $pendingRequest): void
 A connector may serve as an SDK's entry point by offering methods that send its requests:
 
 ```php
+use App\Http\Integrations\GitHub\Requests\GetUser;
 use Hypervel\Saloon\Http\Response;
 
 public function user(string $username): Response
@@ -266,6 +267,8 @@ public function user(string $username): Response
 When an integration contains many endpoints, you may group related requests into resource classes. Extend `BaseResource` and use the `@extends` annotation to specify your connector type:
 
 ```php
+use App\Http\Integrations\GitHub\GitHubConnector;
+use App\Http\Integrations\GitHub\Requests\GetRepository;
 use Hypervel\Saloon\Http\BaseResource;
 use Hypervel\Saloon\Http\Response;
 
@@ -440,6 +443,7 @@ Standalone requests define their headers, query parameters, options, authenticat
 A request that always uses the same connector may send itself with the `HasConnector` trait. Define the connector class in a `$connector` property:
 
 ```php
+use App\Http\Integrations\GitHub\GitHubConnector;
 use Hypervel\Saloon\Traits\Request\HasConnector;
 
 class GetUser extends Request
