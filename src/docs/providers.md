@@ -151,6 +151,24 @@ public function register(): void
 }
 ```
 
+When a configuration value is computed from other configuration values, set it using the `configureUsing` method. Each worker rebuilds its configuration when it starts, so the callback runs again against the rebuilt configuration instead of keeping the value it first computed. When your application's configuration is cached, the cached file already holds the value, so the callback does not run:
+
+```php
+use Hypervel\Contracts\Config\Repository;
+
+/**
+ * Register any application services.
+ */
+public function register(): void
+{
+    $this->mergeConfigFrom(__DIR__.'/../config/riak.php', 'riak');
+
+    $this->configureUsing(function (Repository $config) {
+        $config->set('riak.buffer_bytes', $config->integer('riak.record_bytes') * 4);
+    });
+}
+```
+
 <a name="the-boot-method"></a>
 ### The Boot Method
 
