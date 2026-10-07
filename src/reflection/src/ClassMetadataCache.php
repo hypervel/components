@@ -33,6 +33,11 @@ class ClassMetadataCache
     protected static array $properties = [];
 
     /**
+     * @var array<class-string, array<class-string, true>>
+     */
+    protected static array $traits = [];
+
+    /**
      * @var array<class-string, array<class-string, ?CachedClassAttribute>>
      */
     protected static array $attributes = [];
@@ -107,6 +112,22 @@ class ClassMetadataCache
 
         return static::$properties[$class]
             ??= static::reflectClass($class)->getProperties();
+    }
+
+    /**
+     * Determine if the class uses a trait directly, through another trait or through a parent.
+     *
+     * @param class-string|object $target
+     * @param class-string $trait
+     *
+     * @throws ReflectionException
+     */
+    public static function usesTrait(object|string $target, string $trait): bool
+    {
+        $class = static::className($target);
+        static::$traits[$class] ??= static::resolveTraits(static::reflectClass($class));
+
+        return isset(static::$traits[$class][$trait]);
     }
 
     /**
@@ -188,6 +209,26 @@ class ClassMetadataCache
     }
 
     /**
+     * Collect the traits used by a class and its parents.
+     *
+     * @param ReflectionClass<object> $reflection
+     * @return array<class-string, true>
+     */
+    protected static function resolveTraits(ReflectionClass $reflection): array
+    {
+        $traits = [];
+
+        do {
+            foreach ($reflection->getTraits() as $name => $trait) {
+                $traits[$name] = true;
+                $traits += static::resolveTraits($trait);
+            }
+        } while (($reflection = $reflection->getParentClass()) !== false);
+
+        return $traits;
+    }
+
+    /**
      * Resolve the class attribute metadata for the given class.
      *
      * @param class-string $class
@@ -244,6 +285,7 @@ class ClassMetadataCache
         static::$methods = [];
         static::$defaultProperties = [];
         static::$properties = [];
+        static::$traits = [];
         static::$attributes = [];
         static::$classAttributePresence = [];
         static::$propertyAttributePresence = [];
