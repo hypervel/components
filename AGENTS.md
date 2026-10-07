@@ -723,15 +723,7 @@ When adding integration tests for a new service type that has no trait yet, crea
 
 #### GH workflows
 
-Each integration group has its own workflow file in `.github/workflows/`:
-
-| Workflow | Runs | Directory |
-|----------|------|-----------|
-| `engine.yml` | HTTP test servers | `tests/Integration/Engine`, `tests/Integration/HttpServer` |
-| `databases.yml` | MySQL, MariaDB, PostgreSQL, SQLite | `tests/Integration/Database`, `tests/Integration/*/Database/*` |
-| `redis.yml` | Redis, Redis Cluster, Valkey | `tests/Integration/Auth/Redis`, `tests/Integration/Broadcasting/Redis`, `tests/Integration/Cache`, `tests/Integration/Horizon`, `tests/Integration/Http/Redis`, `tests/Integration/OpenTelemetry/Redis`, `tests/Integration/Queue`, `tests/Integration/RateLimiter/Redis`, `tests/Integration/Redis`, `tests/Integration/Session/Redis`; Cache and Queue run with Redis selected, and it also reruns the listed topology-neutral Reverb state tests with Cluster and Reverb state recovery with Valkey |
-| `reverb.yml` | Redis-backed Reverb servers and state | `tests/Integration/Reverb` |
-| `scout.yml` | Meilisearch, Typesense | `tests/Integration/Scout/*` |
+Check `.github/workflows/` to determine which workflow runs the affected integration tests. When adding a test directory, update the appropriate workflow so CI actually runs it.
 
 When adding integration tests that need a new service, either add them to an existing workflow or create a new one. The workflow must start the service and set the appropriate env vars.
 
