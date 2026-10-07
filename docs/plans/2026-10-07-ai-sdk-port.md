@@ -19,7 +19,7 @@ Keep `Provider::__toString()`, `Provider::formatProviderAndModelList()`'s `name 
 Apply these discussed differences and explain them proportionately:
 
 - `broadcast()` defaults to immediate delivery (`now: true`); retain `now: false` and queued generation. The default change and Filesystem contract additions are explicitly approved.
-- Release idle database leases before AI network waits. Transactions/cursors remain pinned automatically; deliberately session-dependent code spanning such a wait uses `withPinnedSession()`. This affects temporary tables, retained raw PDO/statements and session locks, not ordinary queries or framework session configurators.
+- Framework Http releases idle database leases before real outgoing requests by default. Transactions/cursors remain pinned automatically; deliberately session-dependent code spanning such a wait uses `withPinnedSession()`. This affects temporary tables, retained raw PDO/statements and session locks, not ordinary queries or framework session configurators.
 - Store-backed approval resumption requires `ClaimsPendingApprovals`. Custom stores without it still serve ordinary conversations but fail clearly before approved tools execute. Stateless resumption from caller-supplied history has no server record to claim; the application owns duplicate-submission prevention there.
 - Cache discovery only for configured fixed skill paths, with explicit flush/reload behavior and development watcher coverage.
 - Shipped migration types/indexes and new claim/replay columns differ from Laravel's schema; document migration of existing data rather than implying Laravel tables can be reused unchanged.
@@ -48,6 +48,8 @@ Boundaries are flexible review groupings, not partial releases or rigid file ass
 
 Code-reviewed checkpoints may be committed and subsequent work may proceed before performance measurements. Benchmarks remain mandatory before opening the framework PR; obtain peer review of the results and make any required improvements in additional reviewed commits. Use an owner-confirmed idle window.
 
+The framework PR body needs separate sections for each fix/improvement. Explain database ownership comprehensively: rationale for long external waits (AI as one example), benchmark conditions, throughput, CPU cost and compatibility/pinning. Keep lifecycle CPU cost distinct from the pool-constrained throughput gain; 10 µs/request at 10,000 requests/second is 0.1 core, not 0.1% of a core. Preserve raw reports outside the repository and verify the integrated automatic-release path before publishing its results.
+
 ## 1. Database connection ownership
 
 ### Completed framework surface and downstream requirements
@@ -59,7 +61,7 @@ Use the additive operations:
 ```php
 DB::releaseIdleConnections();
 
-DB::connection()->withPinnedSession(function () {
+DB::withPinnedSession(function () {
     // Explicitly session-dependent operations may span external I/O here.
 });
 ```
@@ -70,11 +72,15 @@ DB::connection()->withPinnedSession(function () {
 
 Child coroutines own separate connections and transaction records. `DatabaseTransactionState` is non-copyable; Testbench explicitly transfers the same bag across setup/test/teardown. Do not copy transaction ownership into AI child work.
 
-Place AI release boundaries before each actual provider wait: text steps and stream startup, embeddings, images, audio, transcription, reranking, classification, files/stores and Bedrock credential/network operations. Include built-in network tools where they own the wait; custom tools can use the same DB API. No per-token release calls and no transactions around network operations. Avoid acquiring an otherwise unused database connection merely to release it.
+Make `ConnectionResolver::releaseIdleConnections()` a static current-context operation and have DatabaseManager delegate directly. The built-in Http handler releases after application request callbacks and fake selection, before destination-policy DNS or transport I/O, including retries and redirects. No container resolution or DB initialization on this path. Caller-supplied clients bypass the framework handler stack and own their release boundary. Keep `withPinnedSession()` as the scoped opt-out; do not add an HTTP toggle or worker-global flag.
+
+AI provider requests inherit this behavior through Http. Release explicitly before AI-owned parallel work (including concurrent tools/title generation) and non-HTTP external waits. Children cannot release the parent's non-copyable lease. Document manual release before application `parallel()` calls; do not add DB awareness to the coroutine package. No per-token/read release calls or transactions around network operations.
+
+Expand the database Connection Pooling subsection to “Releasing and Pinning Connections,” updating its anchor and links. Cover the default, manual release, named/default pinning, transactions, fan-out and a session-lock example with writer routing and finally cleanup. Cross-link Http docs and record the actual compatibility adaptation in the database README and porting guide. Test real automatic release while a loopback provider is silent, sibling pool access, lazy reacquisition, callback/retry/redirect boundaries, isolation and pin preservation; reuse existing ownership tests rather than duplicating their matrix.
 
 ### Remaining performance acceptance
 
-In `tests/Benchmarks/Database`, compare ordinary request database lifecycles against the unchanged baseline: logical construction, first query, query pinning, acquisition/settlement and coroutine-end cleanup, at realistic concurrency. Include GC runs/collected/roots, heap growth between collections and worker peak memory alongside concurrency and request counts. This redesign affects every database-using application. Require no unexplained throughput or allocation regression; optimize measured construction costs before considering any bounded wrapper recycling. Never recycle a logical object still retained by a builder/caller. Use the owner-arranged idle window required in §10.
+In `tests/Benchmarks/Database`, compare ordinary request database lifecycles against the unchanged baseline: logical construction, first query, query pinning, acquisition/settlement and coroutine-end cleanup, at realistic concurrency. Include GC runs/collected/roots, heap growth between collections and worker peak memory alongside concurrency and request counts. Use alternating paired samples with identical runtime settings, reporting spread and medians. Measure pool waits and session hold times with a pool smaller than request concurrency, including early release and transaction-pinned cases. This redesign affects every database-using application. Require no unexplained throughput or allocation regression and optimize measured construction costs. Keep logical connections caller-owned: grammar cycles prevent weak references from distinguishing retained objects from uncollected garbage, so they cannot safely gate recycling. Use the owner-arranged idle window required in §10.
 
 ## 2. HTTP streaming and response cancellation
 
@@ -82,11 +88,13 @@ In `tests/Benchmarks/Database`, compare ordinary request database lifecycles aga
 
 The PHP stream path has two delivery problems: Swoole's buffered-read defect (fixed upstream in #6235 but absent from stable 6.2.x), and blocking chunked-response filtering when body data arrives after headers, reproduced with Swoole hooks disabled. Its default `Connection: close` also prevents keep-alive reuse. Add an incremental cURL route in the owning HTTP transport, then use `Response::lines()`/`jsonLines()` from AI parsers. Retain fallback StreamHandler tests and their applicable runtime skips.
 
-Implement a pull-driven PSR response body using Guzzle's CurlFactory and one exclusively owned multi handle per active transfer. Pause receives after accepting bounded data; resume when the caller consumes it, without selecting while buffered bytes remain. This needs no producer coroutine and keeps callbacks in the calling execution. Integrate at `PendingRequest::buildHandlerStack()` and the factory's named-handler boundary, preserving middleware and caller-supplied handlers/clients. AI gateways use `Http`, never package-owned cURL/socket implementations. Preserve compatible fallback behavior for stream-only options or runtimes the new route cannot serve.
+Implement a pull-driven PSR response body using Guzzle's CurlFactory and one exclusively owned multi handle per active transfer. Pause receives at BufferStream's existing high-water mark and resume after draining, without selecting while buffered bytes remain. Share only the operation's scalar pause flag between sink and body; clear it before resuming because the sink can pause again synchronously. Reads return available bytes immediately, without waiting to fill the buffer. Retain this optimization only after before/after bulk, slow-consumer and paced measurements. This needs no producer coroutine and keeps callbacks in the calling execution. Integrate at `PendingRequest::buildHandlerStack()` and the factory's named-handler boundary, preserving middleware and caller-supplied handlers/clients. AI gateways use `Http`, never package-owned cURL/socket implementations. Preserve compatible fallback behavior for stream-only options or runtimes the new route cannot serve.
 
 Named handlers retain at most three idle transports, each with `CURLMOPT_MAXCONNECTS = 1`, without capping active requests or adding admission configuration. Reuse exact proxy-ownership signatures and evict the least recently used idle transport when full. Unnamed and asynchronous streams use operation-owned transports without worker caching. Honor configured transport-sharing modes and Guzzle's proxy-tunnel ownership signatures when reusing native connection caches; never retain per-request credentials or callbacks on idle handles. Validate equivalent verified-TLS performance and new-connection counts under bursty arrivals before the PR.
 
-Support both declared Guzzle branches through their common factory/handle interfaces. Expose a final response after headers, ignoring informational responses except 101. When final cURL options enable origin/proxy authentication negotiation, wait for the first body write or transfer completion: intermediate 401 and even 2xx headers can precede an internally retried POST. Keep the header deadline through this decision. The retry callable passed to `CurlFactory::finish()` may restart only before exposure; never replay a published response. Invoke streaming statistics once at handler return, preserving callbacks in the caller's execution.
+**Unresolved native dependency:** Swoole's hooked `curl_multi_select()` can consume ready data through `curl_multi_socket_all()` and then wait for another event or its timeout. Completion stalls and lost mid-stream readiness are reproduced on the cURL route. High-water acceptance and interpretation of paced results await the owner's Swoole decision; add no polling, shorter select cap or pause-frequency workaround.
+
+Support both declared Guzzle branches through their common factory/handle interfaces. Expose a final response after headers, ignoring informational responses except 101. When final cURL options enable origin/proxy authentication negotiation, wait for the first body write or transfer completion: intermediate 401 and even 2xx headers can precede an internally retried POST. Keep the header deadline through this decision. The retry callable passed to `CurlFactory::finish()` may restart only before exposure; never replay a published response. Invoke streaming statistics once at handler return, preserving callbacks in the caller's execution. A transfer completed before exposure delivers its trailers after successful `on_headers` processing and before statistics; preserve original callbacks across pre-header retries.
 
 Required behavior:
 
@@ -111,6 +119,10 @@ Current Swoole `RST_STREAM` handling has no PHP notification. A reset of one HTT
 Extend the existing `HttpClientStreamingTest`, `HttpClientResponseStreamTest` and related client/server suites using isolated loopback origins: paced SSE, split CRLF/UTF-8 lines, JSON lines, trailers, 1xx responses, truncated body, failures before headers, quiet upstream, slow consumer, explicit close and abandoned iteration. Assert cleanup and sibling-request progress under cancellation. Cover ordinary application close callbacks, opt-in boundaries and supported server modes; HTTP/2 reset tests must reflect the documented current limit. Reuse and extend this worktree's streaming fixtures rather than introducing duplicate test servers.
 
 Explicitly prove that cancelling response production interrupts the new transport while waiting on a silent provider, both before headers and during a quiet body. Synchronize the fixture without depending on a later provider chunk or timeout to unblock it. Assert that the transfer closes and settles while sibling requests remain usable. Cover creator-to-consumer coroutine handoff, bounded backpressure, idle reuse, proxy credential isolation, digest POST negotiation, and body reads continuing past the header timeout. Exercise connection-close cancellation through ResponseBridge as well as direct transport cancellation; merely observing a flag or dropping a generator is insufficient.
+
+Add deterministic PHP-stream fallback regressions for Swoole's concurrent response-header retention and Guzzle's shared request deadline. Demonstrate failures before applying the owner's skips: `SWOOLE_VERSION_ID <= 60203` for Swoole, Guzzle major version >= 8 for the deadline defect (run on 7). Mark the pending upstream fixes with concise TODOs and add exact test names to the dependency handoffs. Use synchronized loopback fixtures and an isolated subprocess for retained-memory measurement; no dependency patches or production workarounds.
+
+The native cURL regression `CurlStreamingHandlerTest::testNativeWaitReportsDataArrivingBetweenPerformAndSelect` synchronizes a loopback origin with the transport's exec/select sequence. Keep the same owner-selected Swoole version gate and TODO, and its exact name in the native dependency handoff; this test covers the cURL route, not the PHP-stream fallback.
 
 ## 3. AI lifetimes, providers and deferred execution
 
