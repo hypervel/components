@@ -175,7 +175,7 @@ class DelayRequestTest extends TestCase
     public function testItRejectsNegativeDelays(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('representable non-negative');
+        $this->expectExceptionMessageIsOrContains('representable non-negative');
 
         $this->request()->delay(-1);
     }
@@ -183,7 +183,7 @@ class DelayRequestTest extends TestCase
     public function testItRejectsDelaysThatOverflowMicroseconds(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('representable non-negative');
+        $this->expectExceptionMessageIsOrContains('representable non-negative');
 
         $this->request()->delay(intdiv(PHP_INT_MAX, 1000) + 1);
     }

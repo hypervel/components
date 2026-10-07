@@ -51,7 +51,7 @@ class MultipartValueTest extends TestCase
     public function testItWillThrowAnExceptionOnInvalidValues(mixed $value): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The value property must be either a Psr\Http\Message\StreamInterface, resource, string, finite number, boolean, null, or array.');
+        $this->expectExceptionMessageIs('The value property must be either a Psr\Http\Message\StreamInterface, resource, string, finite number, boolean, null, or array.');
 
         new MultipartValue('test', $value);
     }
@@ -72,7 +72,7 @@ class MultipartValueTest extends TestCase
     public function testAnArrayValueCannotHaveAFilenameOrHeaders(?string $filename, array $headers): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('An array value cannot have a filename or headers.');
+        $this->expectExceptionMessageIs('An array value cannot have a filename or headers.');
 
         new MultipartValue('roles', ['admin'], $filename, $headers);
     }

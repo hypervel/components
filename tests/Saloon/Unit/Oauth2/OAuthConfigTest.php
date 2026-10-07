@@ -58,7 +58,7 @@ class OAuthConfigTest extends TestCase
         $config = new OAuthConfig('', 'client-secret', 'https://my-app.saloon.dev/auth/callback');
 
         $this->expectException(OAuthConfigValidationException::class);
-        $this->expectExceptionMessage('The Client ID is empty or has not been provided.');
+        $this->expectExceptionMessageIs('The Client ID is empty or has not been provided.');
 
         $config->validate();
     }
@@ -68,7 +68,7 @@ class OAuthConfigTest extends TestCase
         $config = new OAuthConfig('client-id', '', 'https://my-app.saloon.dev/auth/callback');
 
         $this->expectException(OAuthConfigValidationException::class);
-        $this->expectExceptionMessage('The Client Secret is empty or has not been provided.');
+        $this->expectExceptionMessageIs('The Client Secret is empty or has not been provided.');
 
         $config->validate();
     }
@@ -78,7 +78,7 @@ class OAuthConfigTest extends TestCase
         $config = new OAuthConfig('client-id', 'client-secret');
 
         $this->expectException(OAuthConfigValidationException::class);
-        $this->expectExceptionMessage('The Redirect URI is empty or has not been provided.');
+        $this->expectExceptionMessageIs('The Redirect URI is empty or has not been provided.');
 
         $config->validate();
     }

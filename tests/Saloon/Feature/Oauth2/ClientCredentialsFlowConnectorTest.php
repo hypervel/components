@@ -229,7 +229,7 @@ class ClientCredentialsFlowConnectorTest extends TestCase
         Saloon::fake($mockClient);
 
         $this->expectException(OAuthConfigValidationException::class);
-        $this->expectExceptionMessage('The Client ID is empty or has not been provided.');
+        $this->expectExceptionMessageIs('The Client ID is empty or has not been provided.');
 
         $connector->getAccessToken();
     }
@@ -244,7 +244,7 @@ class ClientCredentialsFlowConnectorTest extends TestCase
         Saloon::fake($mockClient);
 
         $this->expectException(OAuthConfigValidationException::class);
-        $this->expectExceptionMessage('The Client Secret is empty or has not been provided.');
+        $this->expectExceptionMessageIs('The Client Secret is empty or has not been provided.');
 
         $connector->getAccessToken();
     }

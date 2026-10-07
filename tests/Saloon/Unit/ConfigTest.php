@@ -83,7 +83,7 @@ class ConfigTest extends TestCase
         Http::preventStrayRequests();
 
         $this->expectException(StrayRequestException::class);
-        $this->expectExceptionMessage('Attempted request to [https://tests.saloon.dev/api/user] without a matching fake.');
+        $this->expectExceptionMessageIs('Attempted request to [https://tests.saloon.dev/api/user] without a matching fake.');
 
         TestConnector::make()->send(new UserRequest);
     }

@@ -58,7 +58,7 @@ class URLHelperTest extends TestCase
         $attackerUrl = 'https://attacker.example.com/steal';
 
         $this->expectException(PendingRequestException::class);
-        $this->expectExceptionMessage('The request endpoint cannot replace the connector base URL.');
+        $this->expectExceptionMessageIsOrContains('The request endpoint cannot replace the connector base URL.');
 
         UrlResolver::resolve($trustedBaseUrl, $attackerUrl, false);
     }
@@ -85,7 +85,7 @@ class URLHelperTest extends TestCase
         $request = new AbsoluteEndpointRequest('https://attacker.example.com/callback');
 
         $this->expectException(PendingRequestException::class);
-        $this->expectExceptionMessage('The request endpoint cannot replace the connector base URL.');
+        $this->expectExceptionMessageIsOrContains('The request endpoint cannot replace the connector base URL.');
 
         // The URL is resolved when it is first read rather than when the pending request is created.
         $connector->createPendingRequest($request)->uri();
@@ -204,7 +204,7 @@ class URLHelperTest extends TestCase
     public function testEmptyBaseUrlRequiresAnAbsoluteHttpEndpoint(): void
     {
         $this->expectException(PendingRequestException::class);
-        $this->expectExceptionMessage('A request without a connector base URL must use an absolute HTTP or HTTPS endpoint.');
+        $this->expectExceptionMessageIs('A request without a connector base URL must use an absolute HTTP or HTTPS endpoint.');
 
         UrlResolver::resolve('', 'google.com/search', true);
     }
@@ -213,7 +213,7 @@ class URLHelperTest extends TestCase
     public function testAlternateSchemesAreRejected(string $baseUrl): void
     {
         $this->expectException(PendingRequestException::class);
-        $this->expectExceptionMessage('The request endpoint must be an absolute HTTP or HTTPS URI.');
+        $this->expectExceptionMessageIs('The request endpoint must be an absolute HTTP or HTTPS URI.');
 
         UrlResolver::resolve($baseUrl, 'file:///etc/passwd', true);
     }

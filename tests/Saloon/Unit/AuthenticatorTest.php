@@ -79,7 +79,7 @@ class AuthenticatorTest extends TestCase
         ]);
 
         $this->expectException(MissingAuthenticatorException::class);
-        $this->expectExceptionMessage('The "Hypervel\Tests\Saloon\Fixtures\Requests\RequiresAuthRequest" request requires authentication.');
+        $this->expectExceptionMessageIs('The "Hypervel\Tests\Saloon\Fixtures\Requests\RequiresAuthRequest" request requires authentication.');
 
         $request = new RequiresAuthRequest;
 

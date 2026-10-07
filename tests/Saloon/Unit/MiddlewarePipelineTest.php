@@ -84,7 +84,7 @@ class MiddlewarePipelineTest extends TestCase
         );
 
         $this->expectException(DuplicatePipeNameException::class);
-        $this->expectExceptionMessage('The "YeeHawPipe" pipe already exists on the pipeline');
+        $this->expectExceptionMessageIs('The "YeeHawPipe" pipe already exists on the pipeline.');
 
         $pipeline->onRequest(
             callable: function (PendingRequest $request): void {
@@ -208,7 +208,7 @@ class MiddlewarePipelineTest extends TestCase
         }, 'ResponsePipe');
 
         $this->expectException(DuplicatePipeNameException::class);
-        $this->expectExceptionMessage('The "ResponsePipe" pipe already exists on the pipeline');
+        $this->expectExceptionMessageIs('The "ResponsePipe" pipe already exists on the pipeline.');
 
         $pipeline->onResponse(function (): void {
         }, 'ResponsePipe');
@@ -363,7 +363,7 @@ class MiddlewarePipelineTest extends TestCase
         );
 
         $this->expectException(DuplicatePipeNameException::class);
-        $this->expectExceptionMessage('The "YeeHawPipe" pipe already exists on the pipeline');
+        $this->expectExceptionMessageIs('The "YeeHawPipe" pipe already exists on the pipeline.');
 
         $pipeline->onFatalException(
             callable: function (): void {
@@ -476,7 +476,7 @@ class MiddlewarePipelineTest extends TestCase
         $pipelineB->onRequest(fn (): null => null, 'howdy');
 
         $this->expectException(DuplicatePipeNameException::class);
-        $this->expectExceptionMessage('The "howdy" pipe already exists on the pipeline');
+        $this->expectExceptionMessageIs('The "howdy" pipe already exists on the pipeline.');
 
         $pipelineA->merge($pipelineB);
     }

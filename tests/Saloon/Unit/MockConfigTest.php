@@ -76,7 +76,7 @@ class MockConfigTest extends TestCase
         ]);
 
         $this->expectException(FixtureMissingException::class);
-        $this->expectExceptionMessage('example.json" could not be found in storage.');
+        $this->expectExceptionMessageIsOrContains('example.json" could not be found in storage.');
 
         (new TestConnector)->send(new UserRequest, $mockClient);
     }

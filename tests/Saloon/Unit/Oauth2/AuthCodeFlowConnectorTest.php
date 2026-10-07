@@ -45,7 +45,7 @@ class AuthCodeFlowConnectorTest extends TestCase
         $connector = new OAuth2Connector(['clientId' => '']);
 
         $this->expectException(OAuthConfigValidationException::class);
-        $this->expectExceptionMessage('The Client ID is empty or has not been provided.');
+        $this->expectExceptionMessageIs('The Client ID is empty or has not been provided.');
 
         $connector->authorizationUrl();
     }
@@ -55,7 +55,7 @@ class AuthCodeFlowConnectorTest extends TestCase
         $connector = new OAuth2Connector(['clientId' => '']);
 
         $this->expectException(OAuthConfigValidationException::class);
-        $this->expectExceptionMessage('The Client ID is empty or has not been provided.');
+        $this->expectExceptionMessageIs('The Client ID is empty or has not been provided.');
 
         $connector->getAccessToken('code');
     }
@@ -65,7 +65,7 @@ class AuthCodeFlowConnectorTest extends TestCase
         $connector = new OAuth2Connector(['clientId' => '']);
 
         $this->expectException(OAuthConfigValidationException::class);
-        $this->expectExceptionMessage('The Client ID is empty or has not been provided.');
+        $this->expectExceptionMessageIs('The Client ID is empty or has not been provided.');
 
         $connector->refreshAccessToken('');
     }

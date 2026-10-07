@@ -91,7 +91,7 @@ class AsyncPaginationTest extends PaginationTestCase
         $paginator = $connector->paginate($request);
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Implement [getTotalPages] to use pooled pagination.');
+        $this->expectExceptionMessageIs('Implement [getTotalPages] to use pooled pagination.');
 
         $paginator->pool();
     }

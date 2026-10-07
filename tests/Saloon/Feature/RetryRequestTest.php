@@ -205,7 +205,7 @@ class RetryRequestTest extends TestCase
         ]);
 
         $this->expectException(InternalServerErrorException::class);
-        $this->expectExceptionMessage("HTTP request returned status code 500:\n{\"name\":\"Gareth\"}\n");
+        $this->expectExceptionMessageIs("HTTP request returned status code 500:\n{\"name\":\"Gareth\"}\n");
 
         (new TestConnector)->send(new RetryUserRequest(3, when: function (RequestException $exception): bool {
             return $exception->response()->json() !== ['name' => 'Gareth'];
@@ -221,7 +221,7 @@ class RetryRequestTest extends TestCase
         ]);
 
         $this->expectException(InternalServerErrorException::class);
-        $this->expectExceptionMessage("HTTP request returned status code 500:\n{\"name\":\"Sam\"}\n");
+        $this->expectExceptionMessageIs("HTTP request returned status code 500:\n{\"name\":\"Sam\"}\n");
 
         (new TestConnector)->send(new RetryUserRequest(3, when: fn (): bool => false), $mockClient);
     }
@@ -344,7 +344,7 @@ class RetryRequestTest extends TestCase
     public function testInvalidAttemptsOrIntervalsAreRejected(int $times, int $sleepMilliseconds, string $message): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIs($message);
 
         (new UserRequest)->retry($times, $sleepMilliseconds);
     }

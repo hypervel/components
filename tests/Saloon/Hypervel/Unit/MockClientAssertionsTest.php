@@ -151,7 +151,7 @@ class MockClientAssertionsTest extends TestCase
         $this->assertSame(['name' => 'Sam'], $okResponse->json());
 
         $this->expectException(Exception::class);
-        $this->expectExceptionMessage('Unable to connect!');
+        $this->expectExceptionMessageIs('Unable to connect!');
 
         TestConnector::make()->send(new UserRequest);
     }
@@ -163,7 +163,7 @@ class MockClientAssertionsTest extends TestCase
         ]);
 
         $this->expectException(Exception::class);
-        $this->expectExceptionMessage('Custom Exception!');
+        $this->expectExceptionMessageIs('Custom Exception!');
 
         TestConnector::make()->send(new UserRequest);
     }

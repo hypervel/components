@@ -342,7 +342,7 @@ class AuthCodeFlowConnectorTest extends TestCase
         Saloon::fake([MockResponse::make(['access_token' => 'access', 'refresh_token' => []])]);
 
         $this->expectException(UnexpectedValueException::class);
-        $this->expectExceptionMessage('The OAuth token response contains an invalid refresh token.');
+        $this->expectExceptionMessageIs('The OAuth token response contains an invalid refresh token.');
 
         (new OAuth2Connector)->getAccessToken('code');
     }
@@ -355,7 +355,7 @@ class AuthCodeFlowConnectorTest extends TestCase
         $connector->authorizationUrl(['scope-1', 'scope-2'], $state);
 
         $this->expectException(InvalidStateException::class);
-        $this->expectExceptionMessage('Invalid state.');
+        $this->expectExceptionMessageIs('Invalid state.');
 
         $connector->getAccessToken('code', 'invalid', $state);
     }
@@ -445,7 +445,7 @@ class AuthCodeFlowConnectorTest extends TestCase
         $authenticator = new AccessTokenAuthenticator('access', null, Date::now()->addSeconds(3600)->toDateTimeImmutable());
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The provided OAuthAuthenticator does not contain a refresh token.');
+        $this->expectExceptionMessageIs('The provided OAuthAuthenticator does not contain a refresh token.');
 
         $connector->refreshAccessToken($authenticator);
     }
@@ -523,7 +523,7 @@ class AuthCodeFlowConnectorTest extends TestCase
         $connector = new OAuth2Connector(['refreshEndpoint' => 'https://oauth.example.net/refresh']);
 
         $this->expectException(PendingRequestException::class);
-        $this->expectExceptionMessage('The request endpoint cannot replace the connector base URL.');
+        $this->expectExceptionMessageIsOrContains('The request endpoint cannot replace the connector base URL.');
 
         try {
             $connector->refreshAccessToken('refresh');
@@ -665,7 +665,7 @@ class AuthCodeFlowConnectorTest extends TestCase
         Saloon::fake($mockClient);
 
         $this->expectException(OAuthConfigValidationException::class);
-        $this->expectExceptionMessage('The Client ID is empty or has not been provided.');
+        $this->expectExceptionMessageIs('The Client ID is empty or has not been provided.');
 
         $connector->getAccessToken('code');
     }
@@ -680,7 +680,7 @@ class AuthCodeFlowConnectorTest extends TestCase
         Saloon::fake($mockClient);
 
         $this->expectException(OAuthConfigValidationException::class);
-        $this->expectExceptionMessage('The Client Secret is empty or has not been provided.');
+        $this->expectExceptionMessageIs('The Client Secret is empty or has not been provided.');
 
         $connector->getAccessToken('code');
     }
@@ -695,7 +695,7 @@ class AuthCodeFlowConnectorTest extends TestCase
         Saloon::fake($mockClient);
 
         $this->expectException(OAuthConfigValidationException::class);
-        $this->expectExceptionMessage('The Redirect URI is empty or has not been provided.');
+        $this->expectExceptionMessageIs('The Redirect URI is empty or has not been provided.');
 
         $connector->getAccessToken('code');
     }

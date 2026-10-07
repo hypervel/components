@@ -150,7 +150,7 @@ class RetryConnectorTest extends TestCase
         });
 
         $this->expectException(InternalServerErrorException::class);
-        $this->expectExceptionMessage("HTTP request returned status code 500:\n{\"name\":\"Gareth\"}\n");
+        $this->expectExceptionMessageIs("HTTP request returned status code 500:\n{\"name\":\"Gareth\"}\n");
 
         $connector->send(new UserRequest, $mockClient);
     }
@@ -164,7 +164,7 @@ class RetryConnectorTest extends TestCase
         ]);
 
         $this->expectException(InternalServerErrorException::class);
-        $this->expectExceptionMessage("HTTP request returned status code 500:\n{\"name\":\"Sam\"}\n");
+        $this->expectExceptionMessageIs("HTTP request returned status code 500:\n{\"name\":\"Sam\"}\n");
 
         (new RetryConnector(3, when: fn (): bool => false))->send(new UserRequest, $mockClient);
     }

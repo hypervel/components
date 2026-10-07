@@ -172,7 +172,7 @@ class RequestTest extends TestCase
         $pendingRequest = (new CustomBaseUrlConnector)->createPendingRequest($request);
 
         $this->expectException(PendingRequestException::class);
-        $this->expectExceptionMessage('A request without a connector base URL must use an absolute HTTP or HTTPS endpoint.');
+        $this->expectExceptionMessageIs('A request without a connector base URL must use an absolute HTTP or HTTPS endpoint.');
 
         $pendingRequest->uri();
     }
@@ -183,7 +183,7 @@ class RequestTest extends TestCase
         $request = new MissingMethodRequest;
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Your request is missing an HTTP method. Add a method property such as [protected Method $method = Method::GET].');
+        $this->expectExceptionMessageIs('Your request is missing an HTTP method. Add a method property such as [protected Method $method = Method::GET].');
 
         $connector->send($request);
     }
@@ -208,7 +208,7 @@ class RequestTest extends TestCase
     public function testWithCookieRejectsInvalidCookies(array $cookie, string $message): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIs($message);
 
         (new UserRequest)->withCookie(new SetCookie($cookie));
     }

@@ -45,7 +45,7 @@ class ArrayBodyRepositoryTest extends TestCase
     public function testItWillThrowAnExceptionIfYouSetANonArray(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The body value must be an array.');
+        $this->expectExceptionMessageIs('The body value must be an array.');
 
         $body = new FormBodyRepository;
         $body->set('Sam');

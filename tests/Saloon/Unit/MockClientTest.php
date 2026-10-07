@@ -161,7 +161,7 @@ class MockClientTest extends TestCase
         $this->assertSame($responseB, $mockClient->match($connectorA->createPendingRequest($requestB)));
 
         $this->expectException(NoMockResponseFoundException::class);
-        $this->expectExceptionMessage('Saloon was unable to guess a mock response for your request [https://google.com/user], consider using a wildcard url mock or a connector mock.');
+        $this->expectExceptionMessageIs('Saloon was unable to guess a mock response for your request [https://google.com/user], consider using a wildcard url mock or a connector mock.');
 
         $mockClient->match($connectorB->createPendingRequest($requestC));
     }
@@ -336,7 +336,7 @@ class MockClientTest extends TestCase
         $this->assertSame(['name' => 'Sam'], $okResponse->json());
 
         $this->expectException(TestResponseException::class);
-        $this->expectExceptionMessage('Unable to connect!');
+        $this->expectExceptionMessageIs('Unable to connect!');
 
         (new TestConnector)->send(new UserRequest, $mockClient);
     }
@@ -348,7 +348,7 @@ class MockClientTest extends TestCase
         ]);
 
         $this->expectException(Exception::class);
-        $this->expectExceptionMessage('Custom Exception!');
+        $this->expectExceptionMessageIs('Custom Exception!');
 
         (new TestConnector)->send(new UserRequest, $mockClient);
     }

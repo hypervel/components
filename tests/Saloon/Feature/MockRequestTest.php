@@ -148,7 +148,7 @@ class MockRequestTest extends TestCase
         $this->assertInstanceOf(MockResponse::class, $responseC->fakeResponse());
 
         $this->expectException(NoMockResponseFoundException::class);
-        $this->expectExceptionMessage('Saloon was unable to guess a mock response for your request [https://tests.saloon.dev/api/user], consider using a wildcard url mock or a connector mock.');
+        $this->expectExceptionMessageIs('Saloon was unable to guess a mock response for your request [https://tests.saloon.dev/api/user], consider using a wildcard url mock or a connector mock.');
 
         $connector->send(new UserRequest);
     }
@@ -598,7 +598,7 @@ class MockRequestTest extends TestCase
         ]);
 
         $this->expectException(FixtureException::class);
-        $this->expectExceptionMessage('The fixture must have a name');
+        $this->expectExceptionMessageIs('The fixture must have a name.');
 
         (new TestConnector)->send(new UserRequest, $mockClient);
     }

@@ -197,7 +197,7 @@ class CalendarWindowTest extends TestCase
     public function testWindowsEndingBeyondTheSupportedRangeAreRejected(): void
     {
         $this->expectException(InvalidRateLimitException::class);
-        $this->expectExceptionMessage('The rate limiter timestamp exceeds the supported integer range.');
+        $this->expectExceptionMessageIs('The rate limiter timestamp exceeds the supported integer range.');
 
         CalendarWindow::perMonth(1)->timezone('UTC')->window(AdmissionPolicy::MAX_INTEGER - 1);
     }

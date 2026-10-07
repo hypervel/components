@@ -79,7 +79,7 @@ class PendingRequestTest extends TestCase
         ]);
 
         $this->expectException(InvalidHeaderException::class);
-        $this->expectExceptionMessage('One or more of the headers are invalid. Make sure to use the header name as the key. For example: [\'Content-Type\' => \'application/json\'].');
+        $this->expectExceptionMessageIs('One or more of the headers are invalid. Make sure to use the header name as the key. For example: [\'Content-Type\' => \'application/json\'].');
 
         (new TestConnector)->createPendingRequest($request);
     }
@@ -123,7 +123,7 @@ class PendingRequestTest extends TestCase
         );
 
         $this->expectException(InvalidHeaderException::class);
-        $this->expectExceptionMessage('HTTP header values must be scalar, null, Hypervel Stringable, or arrays of those values.');
+        $this->expectExceptionMessageIs('HTTP header values must be scalar, null, Hypervel Stringable, or arrays of those values.');
 
         $pendingRequest->toPsrRequest();
     }

@@ -441,7 +441,7 @@ class CacheTest extends TestCase
         $request = new CachedUserRequestWithoutCacheable;
 
         $this->expectException(CachingException::class);
-        $this->expectExceptionMessage('The request or connector must implement [Hypervel\Saloon\Cache\Contracts\Cacheable] when using request cache controls.');
+        $this->expectExceptionMessageIs('The request or connector must implement [Hypervel\Saloon\Cache\Contracts\Cacheable] when using request cache controls.');
 
         $connector->send($request, $mockClient);
     }

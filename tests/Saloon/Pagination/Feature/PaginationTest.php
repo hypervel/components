@@ -160,7 +160,7 @@ class PaginationTest extends PaginationTestCase
         $request = new UserRequest;
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The request must implement [' . Paginatable::class . '] to be used with a paginator.');
+        $this->expectExceptionMessageIs('The request must implement [' . Paginatable::class . '] to be used with a paginator.');
 
         $connector->paginate($request);
     }

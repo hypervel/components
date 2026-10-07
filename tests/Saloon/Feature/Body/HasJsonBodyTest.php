@@ -104,7 +104,7 @@ class HasJsonBodyTest extends TestCase
     public function testIfTheConnectorAndRequestImplementDifferentBodyRepositoriesThenAnExceptionIsThrown(): void
     {
         $this->expectException(PendingRequestException::class);
-        $this->expectExceptionMessage('Connector and request body types must be the same.');
+        $this->expectExceptionMessageIs('Connector and request body types must be the same.');
 
         $this->pendingRequest(new HasJsonBodyConnector, new HasMultipartBodyRequest);
     }

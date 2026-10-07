@@ -35,7 +35,7 @@ class MultipartBodyRepositoryTest extends TestCase
     public function testTheStoreWillThrowAnExceptionIfSetValueIsNotAnArray(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The multipart body value must be an array.');
+        $this->expectExceptionMessageIs('The multipart body value must be an array.');
 
         $body = new MultipartBodyRepository;
         $body->set('123');
@@ -44,7 +44,7 @@ class MultipartBodyRepositoryTest extends TestCase
     public function testTheStoreWillThrowAnExceptionIfTheArrayDoesNotContainMultipartValues(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The value array must only contain Hypervel\Saloon\Data\MultipartValue objects.');
+        $this->expectExceptionMessageIs('The value array must only contain Hypervel\Saloon\Data\MultipartValue objects.');
 
         new MultipartBodyRepository([
             'name' => 'Sam',
@@ -173,7 +173,7 @@ class MultipartBodyRepositoryTest extends TestCase
         $body = new MultipartBodyRepository;
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The value array must only contain Hypervel\Saloon\Data\MultipartValue objects.');
+        $this->expectExceptionMessageIs('The value array must only contain Hypervel\Saloon\Data\MultipartValue objects.');
 
         $body->merge([new MultipartValue('sidekick', 'Gareth')], ['superhero' => 'Black Widow']);
     }
