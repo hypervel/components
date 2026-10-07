@@ -13,11 +13,10 @@ return new class extends Migration {
      */
     public function up(): void
     {
-        Schema::create('menu_items', function (Blueprint $table): void {
+        Schema::create('nullable_menu_items', function (Blueprint $table): void {
             $table->id();
-            $table->unsignedInteger('menu_id');
+            $table->unsignedInteger('menu_id')->nullable();
             $table->string('title')->nullable();
-            $table->softDeletes();
             NestedSet::columns($table, ['menu_id']);
         });
     }
@@ -27,6 +26,6 @@ return new class extends Migration {
      */
     public function down(): void
     {
-        Schema::dropIfExists('menu_items');
+        Schema::dropIfExists('nullable_menu_items');
     }
 };
