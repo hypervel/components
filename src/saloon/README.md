@@ -2,7 +2,7 @@
 
 Documentation: https://hypervel.org/docs/saloon
 
-## Differences From Laravel
+## Differences From Saloon
 
 Requests and pending requests use fluent methods in the style of Hypervel's HTTP client, such as `withHeaders`, `withoutHeader`, `withQueryParameters`, `withOptions` and `delay`, and their getters return plain values. Upstream's `ArrayStore` and `IntegerStore` objects (`headers()->add()`, `query()->remove()`, `delay()->set()`) are not available: `headers()` returns an array, `queryParameters()` and `delayMilliseconds()` replace the `query()` and `delay()` getters, and upstream's `config()` and `defaultConfig()` are `options()` and `defaultOptions()`. Getters drop upstream's `get` prefix, so requests have `method()` and `mockClient()`, and pending requests have `connector()`, `request()`, `method()` and `fakeResponse()`; compare `fakeResponse()` with `null` in place of `hasFakeResponse()`. Pending requests change the method and URL with `withMethod` and `withUrl` instead of `setMethod` and `setUrl`, `uri()` replaces `getUrl()`, including the query string, and `resolveResponseClass($response)` returns the custom response class, or `null` for the default, in place of `getResponseClass()`.
 
@@ -44,4 +44,10 @@ The upstream NTLM authenticator is omitted. Integrations requiring NTLM must sup
 
 OAuth 2 configuration is an immutable `Data\OAuthConfig` built from constructor arguments and read through public properties, replacing upstream's `Helpers\OAuth2\OAuthConfig` setters and getters, so connectors define `defaultOAuthConfig()` and per-call changes use the grant methods' `requestModifier`. `invokeRequestModifier()` is `modify()`. `authorizationUrl()` returns an `AuthorizationUrl` holding the URL and its state, instead of `getAuthorizationUrl()` storing the state on the shared connector for `getState()`. Additional authorization parameters cannot replace that state, and if `getAccessToken()` receives either state, both must be non-empty and equal. `getUser()` applies the configuration's request modifier before the per-call one, as the token methods do, and its request sends no form `Content-Type`. See [OAuth 2](https://hypervel.org/docs/saloon#oauth2).
 
-Ported from: https://github.com/saloonphp/saloon
+Ported from:
+
+- https://github.com/saloonphp/saloon
+- https://github.com/saloonphp/laravel-plugin
+- https://github.com/saloonphp/cache-plugin
+- https://github.com/saloonphp/pagination-plugin
+- https://github.com/saloonphp/rate-limit-plugin

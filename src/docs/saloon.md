@@ -301,7 +301,7 @@ Your resource may access the connector through its protected, readonly `$connect
 
 Saloon registers one named Hypervel [HTTP connection](/docs/{{version}}/http-client#connections), named `saloon` by default. Synchronous requests through this connection reuse the low-level transport, allowing cURL to retain keep-alive sockets, DNS information, and TLS sessions. Each operation still receives its own pending request, client, middleware stack, and cookie jar.
 
-The `saloon` connection uses a 10-second connection timeout and a 30-second request timeout. You may [publish the configuration file](#publishing-configuration-and-stubs) to change its options. A connector may also select another connection that your application registers during worker boot:
+The `saloon` connection uses a 10-second connection timeout and a 30-second request timeout. Like other HTTP client requests, Saloon requests require TLS 1.2 or later unless the connection sets another `crypto_method` option. You may [publish the configuration file](#publishing-configuration-and-stubs) to change its options. A connector may also select another connection that your application registers during worker boot:
 
 ```php
 use Hypervel\Support\Facades\Http;
@@ -726,6 +726,28 @@ class GetPrivateReport extends Request
 ```
 
 You may also add the trait to a connector to require authentication for every request in that integration. Saloon throws `MissingAuthenticatorException` before sending an unauthenticated request. You may override `getRequiresAuthMessage(PendingRequest $pendingRequest): string` when the integration needs a more specific message.
+
+Some APIs require you to request a token before calling other endpoints. A connector's `boot` method may send that request and authenticate the pending request with the result:
+
+```php
+use Hypervel\Saloon\Http\Auth\TokenAuthenticator;
+use Hypervel\Saloon\Http\PendingRequest;
+
+public function boot(PendingRequest $pendingRequest): void
+{
+    if ($pendingRequest->request() instanceof GetAccessToken) {
+        return;
+    }
+
+    $token = $this->send(new GetAccessToken($this->username, $this->password))
+        ->throw()
+        ->json('token');
+
+    $pendingRequest->authenticate(new TokenAuthenticator($token));
+}
+```
+
+The early return stops the token request from requesting a token itself. Don't combine this with `RequiresAuth`, which checks for an authenticator before `boot` runs. When the API's tokens last longer than one request, you may store the token in your application's [cache](/docs/{{version}}/cache) until it expires.
 
 <a name="request-bodies"></a>
 ### Request Bodies
@@ -1154,7 +1176,7 @@ The connector hook runs before the request hook. Each hook runs once on the fina
 <a name="plugins"></a>
 ### Plugins
 
-Plugins are traits with a boot method named after the trait. They allow connector and request behavior to be shared without another service layer:
+Plugins are traits with a public boot method named after the trait. They allow connector and request behavior to be shared without another service layer:
 
 ```php
 use Hypervel\Saloon\Http\PendingRequest;
@@ -1169,7 +1191,7 @@ trait AddsRequestId
 }
 ```
 
-Use the trait on any connector or request. Saloon discovers plugin boot methods once per concrete class and invokes them for each operation.
+Use the trait on any connector or request. Saloon discovers plugin boot methods once per concrete class and invokes them for each operation. Change the pending request in a plugin rather than the connector or request, since a connector may be shared by concurrent operations. A plugin used by both a connector and its request boots twice.
 
 Connector plugins boot before request plugins, and the request is authenticated once every plugin has booted. This lets an authenticator use the URL and headers set by plugins, such as an [API version](#api-versions) in the host. A plugin may select the authenticator by calling `authenticate` on the pending request; Saloon applies it after the remaining plugins boot. The connector and request `boot` methods and request middleware run after authentication, so calling `authenticate` there applies the authenticator immediately.
 
@@ -1809,7 +1831,18 @@ A null store uses `saloon.cache.store`, which itself falls back to Hypervel's de
 
 An integer cache duration is measured in seconds. You may also return a `DateInterval` or `DateTimeInterface` instance.
 
-GET, HEAD, OPTIONS, and QUERY requests are cacheable by default. A response is written unless it failed, including failures defined by a request or connector's [failure check](#error-handling). Mock responses and fixtures are cached like network responses, so a cached response is returned before the mock client is consulted. See [Fixtures](#fixtures) for keeping tests out of the cache.
+GET, HEAD, OPTIONS, and QUERY requests are cacheable by default. To change which methods are eligible, override `cacheableMethods` on the connector, or on a request using the [`HasCaching` trait](#request-cache-controls). A request's list takes precedence over its connector's:
+
+```php
+use Hypervel\Saloon\Enums\Method;
+
+protected function cacheableMethods(): array
+{
+    return [Method::GET, Method::POST];
+}
+```
+
+A response is written unless it failed, including failures defined by a request or connector's [failure check](#error-handling). Mock responses and fixtures are cached like network responses, so a cached response is returned before the mock client is consulted. See [Fixtures](#fixtures) for keeping tests out of the cache.
 
 The default cache key includes the connector and request classes, method, final URI, headers, cookies, authentication and certificate state, prepared body, and response-affecting transport options. This means a QUERY request's body is part of its identity. Responses cached from streaming bodies are buffered because the cache must retain their bytes.
 
@@ -1876,8 +1909,6 @@ protected function cacheKey(PendingRequest $pendingRequest): ?string
 
 Saloon hashes custom keys before passing them to the cache backend, so raw credentials and tenant identifiers are not exposed in backend key names. A custom key must include every value that can change the successful response. It is required when a non-seekable request body is cached or when lower-level PSR or HTTP middleware changes response identity after Saloon finalizes the operation.
 
-You may override `cacheableMethods` to change which methods are eligible. A request override takes precedence over the connector's list.
-
 <a name="cache-scopes"></a>
 ### Cache Scopes
 
@@ -1914,7 +1945,7 @@ Authentication state already separates tenant-owned credentials, and the final U
 
 Saloon pagination iterates through pages returned by a remote API. It is separate from Hypervel's [application pagination](/docs/{{version}}/pagination), which prepares local data for views and JSON responses.
 
-A paginated request must implement the `Paginatable` marker contract. Create a paginator class for the remote API's pagination format.
+A paginated request must implement the `Paginatable` marker contract. Create a paginator class for the remote API's pagination format. Saloon includes page, offset, cursor, link, and link header paginators. For another format, extend `Paginator` and implement `applyPagination`, `isLastPage`, and `getPageItems`, using the protected `$pageNumber` and `$perPageLimit` properties to build each page's request.
 
 <a name="page-pagination"></a>
 ### Page Pagination
@@ -1988,9 +2019,9 @@ $users = $paginator->collect();
 
 The `HasPagination` contract provides the conventional connector entry point. A request that needs its own paginator may implement `HasRequestPagination` and define `paginate(Connector $connector): Paginator`; the connector can delegate to it as shown above. Declare the request's item type with `@implements HasRequestPagination<UserData>` and `@return Paginator<UserData>` on its `paginate` method.
 
-The `collect(false)` method returns a lazy collection of page responses instead of items. Declare the paginator's item type with `@extends PagedPaginator<UserData>` (or the matching base class) to preserve it through `items` and `collect`. You may also inspect `totalResults`, `request`, and the zero-based iterator position returned by `currentPage`. Use `startPage` to configure the first remote page number.
+Iterating the paginator itself yields each page's response, and only the current page is kept in memory. A page response that would [throw](#error-handling) stops iteration with its request exception. The `collect(false)` method returns a lazy collection of page responses instead of items. To return data objects, map them in `getPageItems` and declare the paginator's item type with `@extends PagedPaginator<UserData>` (or the matching base class) to preserve it through `items` and `collect`. You may also inspect `totalResults`, `request`, and the zero-based iterator position returned by `currentPage`. Use `startPage` to configure the first remote page number.
 
-Calling `count($paginator)` counts remote pages by requesting each page. It is not a metadata-only operation.
+Calling `count($paginator)` counts remote pages by requesting each page. It is not a metadata-only operation. Do not use `iterator_count`, which never loads a page and so cannot find the last one.
 
 Override the protected query-name properties when an API uses different names:
 
@@ -2000,7 +2031,7 @@ protected string $pageName = 'currentPage';
 protected string $perPageName = 'pageSize';
 ```
 
-`PagedPaginator` defaults to `page` and `per_page`. `OffsetPaginator` provides `$limitName` and `$offsetName`, defaulting to `limit` and `offset`; `CursorPaginator` provides `$cursorName` and `$perPageName`, defaulting to `cursor` and `per_page`. Override `applyPagination(Request $request): Request` for a protocol that needs a different request structure.
+`PagedPaginator` defaults to `page` and `per_page`, and sends a page size only when a per-page limit is set. To send one by default, declare `protected ?int $perPageLimit = 100;` on your paginator. `OffsetPaginator` provides `$limitName` and `$offsetName`, defaulting to `limit` and `offset`; `CursorPaginator` provides `$cursorName` and `$perPageName`, defaulting to `cursor` and `per_page`. Override `applyPagination(Request $request): Request` for a protocol that needs a different request structure.
 
 During sequential pagination, Saloon throws a `PaginationException` if five consecutive pages return the same response body. Check that your paginator correctly identifies the last page. Retrying the current page does not count as another page. If your API legitimately returns identical pages, you may disable this check by declaring `protected bool $detectInfiniteLoop = false;` on your paginator.
 
@@ -2018,7 +2049,7 @@ If a request implements `MapPaginatedResponseItems`, its `mapPaginatedResponseIt
 <a name="offset-and-cursor-pagination"></a>
 ### Offset and Cursor Pagination
 
-Extend `OffsetPaginator` for APIs that use `limit` and `offset`. A per-page limit must be configured before iteration. Extend `CursorPaginator` for APIs where each response supplies the next cursor, and implement `getNextCursor`.
+Extend `OffsetPaginator` for APIs that use `limit` and `offset`. A per-page limit must be configured before iteration, and the protected `getOffset` method returns the current page's offset, such as for comparison with a total in `isLastPage`. Extend `CursorPaginator` for APIs where each response supplies the next cursor, and implement `getNextCursor`.
 
 Cursors may be strings, numbers, booleans, or null. The default query encoding omits null and sends booleans as `1` or `0`. Override `applyPagination` when your API requires another encoding, and use `isLastPage` to determine when pagination ends.
 
@@ -2136,7 +2167,9 @@ class GitHubConnector extends Connector
 }
 ```
 
-By default, a denied policy throws `RateLimitReachedException` before reaching the network. Override `waitForRateLimits` to sleep until capacity is available instead. It receives the denied policy and its decision, so you may wait out a short burst limit while still throwing for a daily quota:
+A policy may be a [fixed, calendar or sliding window, or a leaky bucket](/docs/{{version}}/rate-limiting#choosing-a-rate-limit). For example, a quota that resets at the end of each minute or day suits a calendar window, while an API that refills capacity continuously suits a leaky bucket. Give each user or API key its own limit with a distinct `by` key.
+
+By default, a denied policy throws `RateLimitReachedException` before reaching the network. The exception's `policy` and `result` methods return the denied policy and its decision, so `$exception->result()->retryAfter()` gives the number of seconds to wait. Override `waitForRateLimits` to sleep until capacity is available instead. It receives the denied policy and its decision, so you may wait out a short burst limit while still throwing for a daily quota:
 
 ```php
 use Hypervel\RateLimiter\AdmissionPolicy;
@@ -2149,7 +2182,7 @@ protected function waitForRateLimits(AdmissionPolicy|Cooldown $policy, Decision 
 }
 ```
 
-You may select another configured rate-limiter store by overriding `resolveRateLimitStore`. Fakes and cache hits do not consume capacity.
+Limits are stored in the rate-limiter store named by the `saloon.rate_limiter.store` configuration value, or the rate limiter's default store when it is `null`. A connector or request may return another configured [store](/docs/{{version}}/rate-limiting#available-stores) name from `resolveRateLimitStore`. Fakes and cache hits do not consume capacity.
 
 Saloon [consumes each resource's policies together](/docs/{{version}}/rate-limiting#consuming-multiple-limits), subject to the documented Redis Cluster limitation. Connector and request limits are separate: the connector is admitted first, so its charge remains if the request's limits deny the operation. After waiting for capacity, Saloon checks the resource's cooldown again before retrying its policies.
 
@@ -2208,7 +2241,7 @@ protected function resolveRateLimitCooldownKey(PendingRequest $pendingRequest): 
 
 Do not infer this key from a hostname or assume every provider limits by token. Use the boundary documented by the provider.
 
-You may override `resolveRateLimitCooldown` to support a provider-specific response or clamp a provider-defined maximum:
+You may override `resolveRateLimitCooldown` to support a provider-specific response or clamp a provider-defined maximum. Returning `null` records no cooldown:
 
 ```php
 use Hypervel\RateLimiter\AdmissionPolicy;
