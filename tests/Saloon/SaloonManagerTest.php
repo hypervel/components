@@ -225,12 +225,7 @@ class SaloonManagerTest extends TestCase
         });
         $request = (new BodyManagerRequestStub)->withData(['name' => 'Taylor']);
         $request->middleware()->onRequest(function (): PendingRequest {
-            return new PendingRequest(
-                new ManagerConnectorStub,
-                new ManagerRequestStub,
-                m::mock(CacheFactory::class),
-                m::mock(RateLimiter::class),
-            );
+            return new PendingRequest(new ManagerConnectorStub, new ManagerRequestStub);
         });
 
         $this->manager($http)->send(new ManagerConnectorStub, $request);
@@ -245,12 +240,7 @@ class SaloonManagerTest extends TestCase
         $request = new ManagerRequestStub;
         $request->middleware()
             ->onRequest(function (): PendingRequest {
-                return new PendingRequest(
-                    new ManagerConnectorStub,
-                    new ManagerRequestStub,
-                    m::mock(CacheFactory::class),
-                    m::mock(RateLimiter::class),
-                );
+                return new PendingRequest(new ManagerConnectorStub, new ManagerRequestStub);
             })
             ->onRequest(static fn (): FakeResponse => new MockResponse('middleware'));
 

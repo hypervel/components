@@ -8,9 +8,7 @@ use Closure;
 use DateInterval;
 use DateTimeInterface;
 use GuzzleHttp\Psr7\Request as PsrRequest;
-use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Http\Client\Response as HttpResponse;
-use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\Saloon\Cache\Contracts\Cacheable;
 use Hypervel\Saloon\Cache\Exceptions\CachingException;
 use Hypervel\Saloon\Contracts\Authenticator;
@@ -126,8 +124,6 @@ class PendingRequest
     public function __construct(
         protected Connector $connector,
         protected Request $request,
-        protected CacheFactory $cache,
-        protected RateLimiter $rateLimiter,
     ) {
         $this->method = $request->method();
         $this->url = $request->url();
@@ -267,6 +263,8 @@ class PendingRequest
 
     /**
      * Finalize the request URI after ordinary request middleware.
+     *
+     * @internal
      */
     public function finalizeUri(): static
     {
@@ -339,6 +337,8 @@ class PendingRequest
 
     /**
      * Apply the selected authenticator.
+     *
+     * @internal
      */
     public function applyAuthentication(): static
     {
@@ -349,6 +349,8 @@ class PendingRequest
 
     /**
      * Boot the connector and request plugins.
+     *
+     * @internal
      */
     public function bootPlugins(): static
     {
@@ -365,6 +367,8 @@ class PendingRequest
 
     /**
      * Merge global or request middleware into this operation's own pipeline.
+     *
+     * @internal
      */
     public function mergeMiddleware(MiddlewarePipeline $middleware): static
     {
@@ -375,6 +379,8 @@ class PendingRequest
 
     /**
      * Execute the request middleware pipeline.
+     *
+     * @internal
      */
     public function executeRequestPipeline(): static
     {
@@ -401,6 +407,8 @@ class PendingRequest
 
     /**
      * Prepare the request body after ordinary request middleware.
+     *
+     * @internal
      */
     public function prepareBody(): static
     {
@@ -421,6 +429,8 @@ class PendingRequest
 
     /**
      * Get the prepared request body.
+     *
+     * @internal
      */
     public function preparedBody(): ?StreamInterface
     {
@@ -477,6 +487,7 @@ class PendingRequest
      *
      * @param callable(RequestInterface, PendingRequest): void $observer
      * @return $this
+     * @internal
      */
     public function observePsrRequest(callable $observer): static
     {
@@ -497,6 +508,8 @@ class PendingRequest
 
     /**
      * Notify the final PSR request observers.
+     *
+     * @internal
      */
     public function notifyPsrRequestObservers(RequestInterface $request): void
     {
@@ -535,6 +548,7 @@ class PendingRequest
      * Set the final application-owned PSR request.
      *
      * @return $this
+     * @internal
      */
     public function setPsrRequest(RequestInterface $request): static
     {
@@ -579,6 +593,8 @@ class PendingRequest
 
     /**
      * Restore the attempt body before another attempt.
+     *
+     * @internal
      */
     public function restoreAttemptBody(): bool
     {
@@ -596,6 +612,9 @@ class PendingRequest
 
         return true;
     }
+
+    // setBody() is not included: the body methods change the body, and defaultBodyRepository() supplies a custom
+    // repository. See the package README.
 
     /**
      * Set the fake response.
@@ -617,11 +636,15 @@ class PendingRequest
         return $this->fakeResponse;
     }
 
+    // hasFakeResponse() is not included: compare fakeResponse() with null.
+
     // isAsynchronous() and setAsynchronous() are not included: every pending request is sent synchronously, and pools
     // send concurrently through coroutines. See the package README.
 
     /**
      * Validate the request's caching configuration.
+     *
+     * @internal
      */
     public function validateCachingConfiguration(): static
     {
@@ -637,6 +660,8 @@ class PendingRequest
 
     /**
      * Determine if this operation is cacheable.
+     *
+     * @internal
      */
     public function isCacheable(): bool
     {
@@ -650,6 +675,8 @@ class PendingRequest
 
     /**
      * Determine if the matching cache entry should be invalidated.
+     *
+     * @internal
      */
     public function shouldInvalidateCache(): bool
     {
@@ -658,6 +685,8 @@ class PendingRequest
 
     /**
      * Get the cache duration.
+     *
+     * @internal
      */
     public function cacheFor(): DateInterval|DateTimeInterface|int
     {
@@ -667,6 +696,8 @@ class PendingRequest
 
     /**
      * Get the selected cache store.
+     *
+     * @internal
      */
     public function cacheStore(): UnitEnum|string|null
     {
@@ -681,27 +712,13 @@ class PendingRequest
 
     /**
      * Resolve the custom cache key.
+     *
+     * @internal
      */
     public function resolveCacheKey(): ?string
     {
         return $this->request->resolveCacheKey($this)
             ?? $this->connector->resolveCacheKey($this);
-    }
-
-    /**
-     * Get the cache factory.
-     */
-    public function cache(): CacheFactory
-    {
-        return $this->cache;
-    }
-
-    /**
-     * Get the rate limiter manager.
-     */
-    public function rateLimiter(): RateLimiter
-    {
-        return $this->rateLimiter;
     }
 
     /**
@@ -720,6 +737,7 @@ class PendingRequest
      * Create the response selected by this operation.
      *
      * @return Response<TDto>
+     * @internal
      */
     public function createResponse(HttpResponse $response, RequestInterface $request): Response
     {

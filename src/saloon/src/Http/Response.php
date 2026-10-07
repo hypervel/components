@@ -116,6 +116,9 @@ class Response extends HttpResponse
         return $this->response->getBody();
     }
 
+    // withBufferedBody() is not included: body() buffers a stream that can't be rewound. getSenderException() is not
+    // included either, since an error status never throws in the transport. See the package README.
+
     /**
      * Get the pending request.
      *

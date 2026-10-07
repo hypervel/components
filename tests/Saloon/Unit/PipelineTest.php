@@ -27,8 +27,8 @@ class PipelineTest extends TestCase
     {
         $pipeline = (new Pipeline)
             ->pipe(fn (array $values): array => [...$values, 'default-one'], 'default-one')
-            ->pipe(fn (array $values): array => [...$values, 'last'], 'last', PipeOrder::Last)
-            ->pipe(fn (array $values): array => [...$values, 'first'], 'first', PipeOrder::First)
+            ->pipe(fn (array $values): array => [...$values, 'last'], 'last', PipeOrder::LAST)
+            ->pipe(fn (array $values): array => [...$values, 'first'], 'first', PipeOrder::FIRST)
             ->pipe(fn (array $values): array => [...$values, 'default-two'], 'default-two');
 
         $this->assertSame(
@@ -43,18 +43,18 @@ class PipelineTest extends TestCase
 
     public function testDuplicateNamedPipeIsRejectedAcrossBuckets(): void
     {
-        $pipeline = (new Pipeline)->pipe(fn (mixed $payload): mixed => $payload, 'duplicate', PipeOrder::First);
+        $pipeline = (new Pipeline)->pipe(fn (mixed $payload): mixed => $payload, 'duplicate', PipeOrder::FIRST);
 
         $this->expectException(DuplicatePipeNameException::class);
 
-        $pipeline->pipe(fn (mixed $payload): mixed => $payload, 'duplicate', PipeOrder::Last);
+        $pipeline->pipe(fn (mixed $payload): mixed => $payload, 'duplicate', PipeOrder::LAST);
     }
 
     public function testPipesCanBeCopiedIntoAnotherPipeline(): void
     {
         $source = (new Pipeline)
-            ->pipe(fn (array $values): array => [...$values, 'last'], 'last', PipeOrder::Last)
-            ->pipe(fn (array $values): array => [...$values, 'first'], 'first', PipeOrder::First);
+            ->pipe(fn (array $values): array => [...$values, 'last'], 'last', PipeOrder::LAST)
+            ->pipe(fn (array $values): array => [...$values, 'first'], 'first', PipeOrder::FIRST);
 
         $target = (new Pipeline)->setPipes($source->pipes());
 

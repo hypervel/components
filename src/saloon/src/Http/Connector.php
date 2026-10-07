@@ -114,6 +114,9 @@ abstract class Connector
         return null;
     }
 
+    // sender() and defaultSender() are not included: requests are sent through the HTTP client connection. See the
+    // package README.
+
     /**
      * Resolve whether requests may replace this connector's base URL.
      */

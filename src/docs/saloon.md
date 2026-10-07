@@ -340,7 +340,7 @@ Requests are mutable while you prepare one operation. You may create them with `
 $request = GetUser::make('hypervel');
 ```
 
-No-argument requests may also be resolved from the service container and are created fresh on each resolution. Requests that require caller-supplied values should be constructed directly, created with `make`, or given an explicit transient container binding.
+Requests may also be resolved from the service container, which creates a fresh request on each resolution and injects its constructor dependencies. Pass any other constructor values as parameters to the container's `make` method.
 
 <a name="request-methods"></a>
 ### Request Methods
@@ -959,7 +959,7 @@ class AddRequestId implements RequestMiddleware
 
 Register the class in the same way as a closure: `$pendingRequest->middleware()->onRequest(new AddRequestId)`.
 
-Middleware runs in registration order. Saloon registers [global middleware](#global-middleware) first, followed by plugin middleware, middleware added by the connector's `boot` method, the request's own middleware, and middleware added by the request's `boot` method. You may pass `PipeOrder::First` or `PipeOrder::Last` using the `order` argument when a middleware must run before or after the normal group. Named middleware must have a unique name within its pipeline.
+Middleware runs in registration order. Saloon registers [global middleware](#global-middleware) first, followed by plugin middleware, middleware added by the connector's `boot` method, the request's own middleware, and middleware added by the request's `boot` method. You may pass `PipeOrder::FIRST` or `PipeOrder::LAST` using the `order` argument when a middleware must run before or after the normal group. Named middleware must have a unique name within its pipeline.
 
 <a name="response-middleware"></a>
 ### Response Middleware

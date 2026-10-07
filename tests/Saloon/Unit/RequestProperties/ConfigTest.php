@@ -5,17 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Saloon\Unit\RequestProperties;
 
 use ErrorException;
-use Hypervel\Contracts\Cache\Factory as CacheFactory;
-use Hypervel\RateLimiter\RateLimiter;
-use Hypervel\Saloon\Http\Connector;
 use Hypervel\Saloon\Http\PendingRequest;
-use Hypervel\Saloon\Http\Request;
 use Hypervel\Saloon\Traits\RequestProperties\HasOptions;
 use Hypervel\Tests\Saloon\Fixtures\Connectors\ConfigConnector;
 use Hypervel\Tests\Saloon\Fixtures\Requests\ConfigRequest;
 use Hypervel\Tests\Saloon\Fixtures\Requests\UserRequest;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
 
 class ConfigTest extends TestCase
 {
@@ -53,7 +48,7 @@ class ConfigTest extends TestCase
         // Connectors are read-only and may be shared between coroutines, so their default options are managed on
         // the pending request that merges them.
         $connector = new ConfigConnector;
-        $pendingRequest = $this->pendingRequest($connector, new UserRequest);
+        $pendingRequest = new PendingRequest($connector, new UserRequest);
 
         $pendingRequest->withOptions(['timeout' => 60]);
         $pendingRequest->withOptions(['name' => 'Sam', 'category' => 'Cowboy', 'connect_timeout' => 200]);
@@ -126,6 +121,15 @@ class ConfigTest extends TestCase
         $this->assertSame(['max' => 3], $request->options()['allow_redirects']);
     }
 
+    public function testWithoutVerifyingReplacesACertificateBundle(): void
+    {
+        $request = $this->request()
+            ->withOptions(['verify' => '/etc/ssl/certs/api.pem'])
+            ->withoutVerifying();
+
+        $this->assertFalse($request->options()['verify']);
+    }
+
     /**
      * Create an object with operation-owned request options.
      */
@@ -134,18 +138,5 @@ class ConfigTest extends TestCase
         return new class {
             use HasOptions;
         };
-    }
-
-    /**
-     * Create a pending request with isolated framework dependencies.
-     */
-    protected function pendingRequest(Connector $connector, Request $request): PendingRequest
-    {
-        return new PendingRequest(
-            $connector,
-            $request,
-            m::mock(CacheFactory::class),
-            m::mock(RateLimiter::class),
-        );
     }
 }

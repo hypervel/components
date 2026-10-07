@@ -7,10 +7,8 @@ namespace Hypervel\Tests\Saloon\Feature;
 use DateInterval;
 use DateTimeInterface;
 use Exception;
-use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Http\Client\Factory;
-use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\Saloon\Cache\Contracts\Cacheable;
 use Hypervel\Saloon\Cache\Traits\HasCaching;
 use Hypervel\Saloon\Enums\Method;
@@ -27,7 +25,6 @@ use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Saloon\Fixtures\Connectors\TestConnector;
 use Hypervel\Tests\Saloon\Fixtures\Requests\UserRequest;
 use InvalidArgumentException;
-use Mockery as m;
 
 // REMOVED: upstream Unit/Body/IntegerBodyRepositoryTest. Delays are nullable integers, so there is no
 // public integer store; the empty, default, set, and zero cases below cover the same delay semantics.
@@ -206,12 +203,7 @@ class DelayRequestTest extends TestCase
      */
     protected function pendingRequest(Request $request): PendingRequest
     {
-        return new PendingRequest(
-            new DelayConnectorStub,
-            $request,
-            m::mock(CacheFactory::class),
-            m::mock(RateLimiter::class),
-        );
+        return new PendingRequest(new DelayConnectorStub, $request);
     }
 }
 

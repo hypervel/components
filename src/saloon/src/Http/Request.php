@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Saloon\Http;
 
-use Hypervel\Contracts\Container\SelfBuilding;
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\RateLimiter\AdmissionPolicy;
 use Hypervel\RateLimiter\Contracts\Decision;
 use Hypervel\RateLimiter\Cooldown;
@@ -26,7 +26,7 @@ use LogicException;
 use UnitEnum;
 
 /** @template-covariant TDto */
-abstract class Request implements SelfBuilding
+abstract class Request implements Transient
 {
     /** @use CreatesDtoFromResponse<TDto> */
     use CreatesDtoFromResponse;
@@ -53,14 +53,6 @@ abstract class Request implements SelfBuilding
      * The caller-supplied absolute URL override.
      */
     protected ?string $url = null;
-
-    /**
-     * Create a fresh request for container resolution.
-     */
-    public static function newInstance(): static
-    {
-        return new static;
-    }
 
     /**
      * Get the HTTP method used by the request.

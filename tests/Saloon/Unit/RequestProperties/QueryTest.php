@@ -4,10 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Saloon\Unit\RequestProperties;
 
-use Hypervel\Contracts\Cache\Factory as CacheFactory;
-use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\Saloon\Enums\Method;
-use Hypervel\Saloon\Http\Connector;
 use Hypervel\Saloon\Http\PendingRequest;
 use Hypervel\Saloon\Http\Request;
 use Hypervel\Tests\Saloon\Fixtures\Connectors\QueryParameterConnector;
@@ -15,7 +12,6 @@ use Hypervel\Tests\Saloon\Fixtures\Requests\QueryParameterConnectorBlankRequest;
 use Hypervel\Tests\Saloon\Fixtures\Requests\QueryParameterConnectorRequest;
 use Hypervel\Tests\Saloon\Fixtures\Requests\QueryParameterRequest;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
 
 class QueryTest extends TestCase
 {
@@ -52,7 +48,7 @@ class QueryTest extends TestCase
         // Connectors are read-only and may be shared between coroutines, so their default query parameters are
         // managed on the pending request that merges them.
         $connector = new QueryParameterConnector;
-        $pendingRequest = $this->pendingRequest($connector, new QueryParameterConnectorBlankRequest);
+        $pendingRequest = new PendingRequest($connector, new QueryParameterConnectorBlankRequest);
 
         $pendingRequest->withQueryParameters(['page' => 1]);
         $pendingRequest->withQueryParameters(['search' => 'Sam', 'category' => 'Cowboy', 'sort' => 'last_name']);
@@ -76,7 +72,7 @@ class QueryTest extends TestCase
     public function testRemovingAQueryParameterFromARequestDoesNotRemoveConnectorDefaults(): void
     {
         $request = (new QueryParameterConnectorRequest)->withoutQueryParameters('sort');
-        $pendingRequest = $this->pendingRequest(new QueryParameterConnector, $request);
+        $pendingRequest = new PendingRequest(new QueryParameterConnector, $request);
 
         $this->assertSame(['sort' => 'first_name', 'include' => 'user'], $pendingRequest->queryParameters());
 
@@ -87,7 +83,7 @@ class QueryTest extends TestCase
 
     public function testRemovingAQueryParameterInvalidatesTheFinalizedUri(): void
     {
-        $pendingRequest = $this->pendingRequest(new QueryParameterConnector, new QueryParameterConnectorRequest)
+        $pendingRequest = (new PendingRequest(new QueryParameterConnector, new QueryParameterConnectorRequest))
             ->finalizeUri();
 
         $this->assertSame('sort=first_name&include=user', $pendingRequest->uri()->getQuery());
@@ -103,7 +99,7 @@ class QueryTest extends TestCase
 
     public function testRemovingAQueryParameterKeepsValuesWrittenInTheEndpointOrQueryString(): void
     {
-        $pendingRequest = $this->pendingRequest(
+        $pendingRequest = new PendingRequest(
             new QueryParameterConnector,
             new QueryParameterRequest('/user?sort=endpoint'),
         );
@@ -131,19 +127,6 @@ class QueryTest extends TestCase
         $this->assertSame('', $clone->queryString());
         $this->assertSame('cursor=a%2Fb', $request->queryString());
         $this->assertSame(['limit' => 10], $clone->queryParameters());
-    }
-
-    /**
-     * Create a pending request with isolated framework dependencies.
-     */
-    protected function pendingRequest(Connector $connector, Request $request): PendingRequest
-    {
-        return new PendingRequest(
-            $connector,
-            $request,
-            m::mock(CacheFactory::class),
-            m::mock(RateLimiter::class),
-        );
     }
 }
 

@@ -830,12 +830,7 @@ class CacheTest extends TestCase
      */
     protected function pending(Connector $connector, Request $request): PendingRequest
     {
-        return (new PendingRequest(
-            $connector,
-            $request,
-            m::mock(CacheFactory::class),
-            m::mock(RateLimiter::class),
-        ))->applyAuthentication()->finalizeUri()->prepareBody();
+        return (new PendingRequest($connector, $request))->applyAuthentication()->finalizeUri()->prepareBody();
     }
 }
 

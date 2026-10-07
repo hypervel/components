@@ -268,7 +268,7 @@ class SaloonManager
      */
     public function createPendingRequest(Connector $connector, Request $request): PendingRequest
     {
-        $pendingRequest = new PendingRequest($connector, $request, $this->cache, $this->rateLimiter);
+        $pendingRequest = new PendingRequest($connector, $request);
         $pendingRequest
             ->mergeMiddleware($this->middleware)
             ->bootPlugins()

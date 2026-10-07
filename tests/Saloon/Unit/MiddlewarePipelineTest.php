@@ -149,7 +149,7 @@ class MiddlewarePipelineTest extends TestCase
             })
             ->onRequest(function () use (&$names): void {
                 $names[] = 'Taylor';
-            }, order: PipeOrder::First)
+            }, order: PipeOrder::FIRST)
             ->onRequest(function () use (&$names): void {
                 $names[] = 'Andrew';
             });
@@ -170,7 +170,7 @@ class MiddlewarePipelineTest extends TestCase
             })
             ->onRequest(function () use (&$names): void {
                 $names[] = 'Taylor';
-            }, order: PipeOrder::Last)
+            }, order: PipeOrder::LAST)
             ->onRequest(function () use (&$names): void {
                 $names[] = 'Andrew';
             });
@@ -280,7 +280,7 @@ class MiddlewarePipelineTest extends TestCase
             })
             ->onResponse(function () use (&$names): void {
                 $names[] = 'Taylor';
-            }, order: PipeOrder::First)
+            }, order: PipeOrder::FIRST)
             ->onResponse(function () use (&$names): void {
                 $names[] = 'Andrew';
             });
@@ -301,7 +301,7 @@ class MiddlewarePipelineTest extends TestCase
             })
             ->onResponse(function () use (&$names): void {
                 $names[] = 'Taylor';
-            }, order: PipeOrder::Last)
+            }, order: PipeOrder::LAST)
             ->onResponse(function () use (&$names): void {
                 $names[] = 'Andrew';
             });
@@ -401,7 +401,7 @@ class MiddlewarePipelineTest extends TestCase
             })
             ->onFatalException(function () use (&$names): void {
                 $names[] = 'Taylor';
-            }, order: PipeOrder::First)
+            }, order: PipeOrder::FIRST)
             ->onFatalException(function () use (&$names): void {
                 $names[] = 'Andrew';
             });
@@ -422,7 +422,7 @@ class MiddlewarePipelineTest extends TestCase
             })
             ->onFatalException(function () use (&$names): void {
                 $names[] = 'Taylor';
-            }, order: PipeOrder::Last)
+            }, order: PipeOrder::LAST)
             ->onFatalException(function () use (&$names): void {
                 $names[] = 'Andrew';
             });
@@ -490,7 +490,7 @@ class MiddlewarePipelineTest extends TestCase
             ->onRequest(function (): void {
             })
             ->onResponse(function (): void {
-            }, order: PipeOrder::Last)
+            }, order: PipeOrder::LAST)
             ->onResponse(function (): void {
             })
             ->onFatalException(function (): void {

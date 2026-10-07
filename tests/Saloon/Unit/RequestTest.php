@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Saloon\Unit;
 
-use ArgumentCountError;
 use GuzzleHttp\Cookie\SetCookie;
-use Hypervel\Container\Container;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Saloon\Enums\Method;
 use Hypervel\Saloon\Exceptions\InvalidResponseClassException;
@@ -189,23 +188,20 @@ class RequestTest extends TestCase
         $connector->send($request);
     }
 
-    public function testContainerResolutionAlwaysReturnsAFreshRequest(): void
+    public function testContainerResolutionAlwaysReturnsAFreshRequestWithItsDependencies(): void
     {
-        $container = new Container;
-
-        $first = $container->make(ContainerRequestStub::class);
-        $second = $container->make(ContainerRequestStub::class);
+        $first = $this->app->make(ContainerRequestStub::class);
+        $second = $this->app->make(ContainerRequestStub::class);
 
         $this->assertNotSame($first, $second);
+        $this->assertSame($this->app->make('config'), $first->config);
     }
 
-    public function testContainerResolutionOfRequiredArgumentRequestFailsNaturally(): void
+    public function testContainerResolutionPassesRequestParameters(): void
     {
-        $container = new Container;
+        $request = $this->app->make(RequiredArgumentRequestStub::class, ['endpoint' => 'users/1']);
 
-        $this->expectException(ArgumentCountError::class);
-
-        $container->make(RequiredArgumentRequestStub::class);
+        $this->assertSame('users/1', $request->resolveEndpoint());
     }
 
     #[DataProvider('invalidCookies')]
@@ -214,7 +210,7 @@ class RequestTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage($message);
 
-        (new ContainerRequestStub)->withCookie(new SetCookie($cookie));
+        (new UserRequest)->withCookie(new SetCookie($cookie));
     }
 
     /**
@@ -259,6 +255,13 @@ class RequestTest extends TestCase
 class ContainerRequestStub extends Request
 {
     protected Method $method = Method::GET;
+
+    /**
+     * Create a new request instance.
+     */
+    public function __construct(public readonly Repository $config)
+    {
+    }
 
     /**
      * Resolve the request endpoint.

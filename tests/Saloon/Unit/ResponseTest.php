@@ -8,11 +8,9 @@ use GuzzleHttp\Psr7\NoSeekStream;
 use GuzzleHttp\Psr7\Request as PsrRequest;
 use GuzzleHttp\Psr7\Response as PsrResponse;
 use GuzzleHttp\Psr7\Utils;
-use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Http\Client\Response as HttpResponse;
-use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\Saloon\Enums\Method;
 use Hypervel\Saloon\Exceptions\Request\ClientException;
 use Hypervel\Saloon\Exceptions\Request\RequestException;
@@ -770,12 +768,7 @@ class ResponseTest extends TestCase
      */
     protected function pendingRequest(Connector $connector, Request $request): PendingRequest
     {
-        return new PendingRequest(
-            $connector,
-            $request,
-            m::mock(CacheFactory::class),
-            m::mock(RateLimiter::class),
-        );
+        return new PendingRequest($connector, $request);
     }
 }
 

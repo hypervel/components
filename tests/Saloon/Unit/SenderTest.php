@@ -6,13 +6,11 @@ namespace Hypervel\Tests\Saloon\Unit;
 
 use GuzzleHttp\Cookie\CookieJarInterface;
 use GuzzleHttp\Promise\PromiseInterface;
-use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Telescope\TelescopeTag;
 use Hypervel\Http\Client\Factory;
 use Hypervel\Http\Client\Request as HttpRequest;
-use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\Saloon\Enums\Method;
 use Hypervel\Saloon\Facades\Saloon;
 use Hypervel\Saloon\Http\Auth\BasicAuthenticator;
@@ -169,12 +167,7 @@ class SenderTest extends TestCase
      */
     protected function pendingRequest(Connector $connector, Request $request): PendingRequest
     {
-        return new PendingRequest(
-            $connector,
-            $request,
-            m::mock(CacheFactory::class),
-            m::mock(RateLimiter::class),
-        );
+        return new PendingRequest($connector, $request);
     }
 
     /**

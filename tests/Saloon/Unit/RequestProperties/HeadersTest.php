@@ -4,16 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Saloon\Unit\RequestProperties;
 
-use Hypervel\Contracts\Cache\Factory as CacheFactory;
-use Hypervel\RateLimiter\RateLimiter;
-use Hypervel\Saloon\Http\Connector;
 use Hypervel\Saloon\Http\PendingRequest;
-use Hypervel\Saloon\Http\Request;
 use Hypervel\Tests\Saloon\Fixtures\Connectors\HeaderConnector;
 use Hypervel\Tests\Saloon\Fixtures\Requests\HeaderRequest;
 use Hypervel\Tests\Saloon\Fixtures\Requests\UserRequest;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
 
 class HeadersTest extends TestCase
 {
@@ -60,7 +55,7 @@ class HeadersTest extends TestCase
         // Connectors are read-only and may be shared between coroutines, so their default headers are managed on
         // the pending request that merges them.
         $connector = new HeaderConnector;
-        $pendingRequest = $this->pendingRequest($connector, new UserRequest);
+        $pendingRequest = new PendingRequest($connector, new UserRequest);
 
         $pendingRequest->withHeader('Content-Type', 'custom/saloon');
         $pendingRequest->replaceHeaders([
@@ -89,7 +84,7 @@ class HeadersTest extends TestCase
     public function testRemovingAHeaderFromARequestDoesNotRemoveConnectorDefaults(): void
     {
         $request = (new HeaderRequest)->withoutHeader('X-Connector-Header');
-        $pendingRequest = $this->pendingRequest(new HeaderConnector, $request);
+        $pendingRequest = new PendingRequest(new HeaderConnector, $request);
 
         $this->assertSame('Sam', $pendingRequest->headers()['X-Connector-Header']);
 
@@ -159,16 +154,13 @@ class HeadersTest extends TestCase
         $this->assertSame('application/json', $request->headers()['Accept']);
     }
 
-    /**
-     * Create a pending request with isolated framework dependencies.
-     */
-    protected function pendingRequest(Connector $connector, Request $request): PendingRequest
+    public function testWithUserAgentReplacesTheExistingUserAgentHeader(): void
     {
-        return new PendingRequest(
-            $connector,
-            $request,
-            m::mock(CacheFactory::class),
-            m::mock(RateLimiter::class),
-        );
+        $request = (new UserRequest)
+            ->withHeaders(['user-agent' => 'Legacy'])
+            ->withUserAgent(' Hypervel ');
+
+        $this->assertSame(['User-Agent' => 'Hypervel'], $request->headers());
+        $this->assertSame('', $request->withUserAgent(false)->headers()['User-Agent']);
     }
 }

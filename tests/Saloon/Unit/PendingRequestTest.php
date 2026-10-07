@@ -4,10 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Saloon\Unit;
 
-use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Http\Client\Request as HttpRequest;
-use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\Saloon\Contracts\Body\BodyRepository;
 use Hypervel\Saloon\Enums\Method;
 use Hypervel\Saloon\Events\SendingSaloonRequest;
@@ -33,7 +31,6 @@ use Hypervel\Support\Stringable;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Saloon\Fixtures\Connectors\TestConnector;
 use Hypervel\Tests\Saloon\Fixtures\Requests\UserRequest;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Http\Message\StreamInterface;
 use stdClass;
@@ -393,12 +390,7 @@ class PendingRequestTest extends TestCase
      */
     protected function pendingRequest(Connector $connector, Request $request): PendingRequest
     {
-        return new PendingRequest(
-            $connector,
-            $request,
-            m::mock(CacheFactory::class),
-            m::mock(RateLimiter::class),
-        );
+        return new PendingRequest($connector, $request);
     }
 }
 
