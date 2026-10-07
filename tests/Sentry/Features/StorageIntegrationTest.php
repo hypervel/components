@@ -218,6 +218,41 @@ class StorageIntegrationTest extends SentryTestCase
         $disk->deleteDirectory('empty');
     }
 
+    public function testPlainFilesystemExistenceChecksRemainInstrumented(): void
+    {
+        $root = ParallelTesting::tempDir('SentryFilesystemExistence');
+        $files = new Filesystem;
+        $files->deleteDirectory($root);
+        $files->ensureDirectoryExists($root);
+
+        try {
+            $adapter = new LocalFilesystemAdapter($root);
+            $filesystem = new FilesystemAdapter(new Flysystem($adapter), $adapter);
+            $filesystem->put('file.txt', 'contents');
+            $filesystem->makeDirectory('empty');
+            $disk = new SentryFilesystem($filesystem, ['disk' => 'plain'], true, false);
+            $transaction = $this->startTransaction();
+
+            $this->assertTrue($disk->fileExists('file.txt'));
+            $this->assertFalse($disk->fileExists('empty'));
+            $this->assertTrue($disk->directoryExists('empty'));
+            $this->assertFalse($disk->directoryExists('file.txt'));
+            $this->assertTrue($disk->exists('empty'));
+
+            $spans = array_slice($transaction->getSpanRecorder()->getSpans(), 1);
+            $this->assertSame([
+                'file.fileExists',
+                'file.fileExists',
+                'file.directoryExists',
+                'file.directoryExists',
+                'file.exists',
+            ], array_map(static fn ($span): ?string => $span->getOp(), $spans));
+            $this->assertSame(['path' => 'file.txt', 'disk' => 'plain'], $spans[0]->getData());
+        } finally {
+            $files->deleteDirectory($root);
+        }
+    }
+
     public function testTemporaryUrlCapabilitiesAndCallbacksDelegateToWrappedAdapter(): void
     {
         $disks = config('filesystems.disks');

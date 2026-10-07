@@ -30,6 +30,7 @@ function testCallbackWrappersPreserveCallbackReturns(Connection $connection): vo
 {
     assertType("'foo'", $connection->withoutPretending(fn () => 'foo'));
     assertType("'foo'", $connection->withoutTablePrefix(fn () => 'foo'));
+    assertType("'foo'", $connection->withPinnedSession(fn () => 'foo'));
 }
 
 function testTransactionPreservesCallbackReturn(ConnectionInterface $connection): void

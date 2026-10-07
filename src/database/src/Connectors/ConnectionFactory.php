@@ -66,6 +66,25 @@ class ConnectionFactory
     }
 
     /**
+     * Create a logical connection from selected endpoint configuration and PDO resolvers.
+     *
+     * @param Closure(): PDO $pdo
+     * @param null|Closure(): PDO $readPdo
+     *
+     * @internal
+     */
+    public function makeWithPdoResolvers(array $config, Closure $pdo, ?Closure $readPdo = null): PdoConnection
+    {
+        return $this->createConnection(
+            $config['driver'],
+            $pdo,
+            $config['database'],
+            $config['prefix'],
+            $config,
+        )->setReadPdo($readPdo);
+    }
+
+    /**
      * Get the extension resolver for a connection configuration.
      */
     public function getExtension(array $config, ?string $name): ?callable
@@ -179,6 +198,16 @@ class ConnectionFactory
     }
 
     /**
+     * Get the write configuration for a read / write connection.
+     *
+     * @internal
+     */
+    public function configForWrite(array $config): array
+    {
+        return $this->getWriteConfig($this->parseConfig($config, $config['name'] ?? null));
+    }
+
+    /**
      * Create a PDO-backed connection from its configuration.
      */
     protected function createPdoConnectionFromConfig(array $config): PdoConnection
@@ -212,6 +241,9 @@ class ConnectionFactory
     protected function createReadWriteConnection(array $config): PdoConnection
     {
         $connection = $this->createSingleConnection($this->getWriteConfig($config));
+
+        // The PDO resolver and its metadata must describe the same selected endpoint.
+        $config['read'] = $this->getReadWriteConfig($config, 'read');
 
         return $connection
             ->setReadPdo($this->createReadPdo($config))

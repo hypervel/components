@@ -19,6 +19,7 @@ use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Macroable;
 use ReflectionFunction;
 use SplFileInfo;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\StreamedJsonResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -93,10 +94,13 @@ class ResponseFactory implements FactoryContract
 
     /**
      * Create a new event stream response.
+     *
+     * @return IterableStreamedResponse
      */
     public function eventStream(Closure $callback, array $headers = [], StreamedEvent|string|null $endStreamWith = '</stream>'): StreamedResponse
     {
-        return $this->stream(function () use ($callback, $endStreamWith) {
+        /** @var IterableStreamedResponse $response */
+        $response = $this->stream(function () use ($callback, $endStreamWith) {
             try {
                 foreach ($callback() as $message) {
                     yield $this->formatStreamedEvent($message);
@@ -105,6 +109,8 @@ class ResponseFactory implements FactoryContract
                 if (filled($endStreamWith)) {
                     yield $this->formatStreamedEvent($endStreamWith);
                 }
+            } catch (CanceledException $e) {
+                throw $e;
             } catch (Throwable $e) {
                 report($e);
             }
@@ -113,6 +119,8 @@ class ResponseFactory implements FactoryContract
             'Cache-Control' => 'no-cache',
             'X-Accel-Buffering' => 'no',
         ]));
+
+        return $response;
     }
 
     /**
@@ -183,6 +191,8 @@ class ResponseFactory implements FactoryContract
         $withWrappedException = function () use ($callback) {
             try {
                 $callback();
+            } catch (CanceledException $e) {
+                throw $e;
             } catch (Throwable $e) {
                 throw new StreamedResponseException($e);
             }

@@ -48,6 +48,7 @@ return [
     'watch' => [
         'app/**/*.php',
         'config/**/*.php',
+        'resources/skills/**',
         '.env',
     ],
 

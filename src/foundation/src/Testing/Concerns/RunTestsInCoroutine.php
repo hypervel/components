@@ -53,6 +53,7 @@ trait RunTestsInCoroutine
 
             if ($this->copyNonCoroutineContext) {
                 CoroutineContext::copyFromNonCoroutine();
+                DatabaseTransactionsManager::copyFromNonCoroutineState();
             }
 
             $shouldBootFramework = $this->shouldBootFrameworkForTest();

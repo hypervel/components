@@ -652,6 +652,8 @@ Hypervel's `Str::orderedUuid()` returns a UUIDv7, while Laravel returns a timest
 
 Hypervel's `Filesystem::hash()` method uses `xxh128` by default. Pass `md5` explicitly when a port requires Laravel-compatible digests.
 
+Custom filesystem contract implementations must also provide `fileExists()` and `directoryExists()`. The existing `exists()` method continues to accept either a file or a directory. See [retrieving files](/docs/{{version}}/filesystem#retrieving-files).
+
 Unlike Laravel, Hypervel honors `read-only` on scoped disk records. Remove that option from any scoped disk that must accept writes.
 
 Rename any configured disk called `ondemand`; Hypervel reserves that name for [on-demand disk fakes](/docs/{{version}}/filesystem#on-demand-disks).
@@ -676,6 +678,8 @@ MySQL and MariaDB connection configs must specify `strict` or `modes`; they cann
 SQLite JSON-path updates replace assigned objects and retain JSON null. Review any reliance on Laravel's object merging or null-key deletion when [updating JSON columns](/docs/{{version}}/queries#updating-json-columns).
 
 Database connections are persistent, pooled worker resources. Define every connection in `config/database.php` before the application boots. Dynamic connection creation through `DB::build()` and `DB::connectUsing()` is not supported. Review pool sizing and any database session state against the [database documentation](/docs/{{version}}/database#connection-pooling).
+
+Outgoing framework HTTP requests release idle database sessions automatically. Wrap code that depends on the same session across an HTTP call, such as temporary tables, session locks or retained raw PDOs, in `DB::withPinnedSession()`. Active transactions remain pinned automatically. See [releasing and pinning connections](/docs/{{version}}/database#releasing-and-pinning-connections).
 
 When a package constructs `DatabaseStore`, `DatabaseSessionHandler`, `DatabaseQueue`, or `DatabaseBatchRepository` directly, pass the database connection resolver and configured connection name instead of retaining a resolved connection. Framework-configured drivers already use this form.
 

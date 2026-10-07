@@ -199,7 +199,7 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
             }
 
             try {
-                ResponseBridge::send($httpResponse, $response, request: $httpRequest);
+                ResponseBridge::send($httpResponse, $response, request: $httpRequest, streamId: $request->streamId ?? 0);
             } catch (CanceledException $exception) {
                 throw $exception;
             } catch (Throwable $throwable) {

@@ -208,13 +208,9 @@ class PublicDestinationPolicyTest extends TestCase
             CURLOPT_PROXY => '',
         ] + $destination->curlOptions());
 
-        try {
-            $this->assertSame('OK', curl_exec($curl));
-            $this->assertSame(0, curl_errno($curl));
-            $this->assertStringContainsString("Host: target.invalid:{$server->port}\r\n", (string) $server->request());
-        } finally {
-            curl_close($curl);
-        }
+        $this->assertSame('OK', curl_exec($curl));
+        $this->assertSame(0, curl_errno($curl));
+        $this->assertStringContainsString("Host: target.invalid:{$server->port}\r\n", (string) $server->request());
     }
 
     public function testDirectPinningPreservesTheHostWithoutSharedDnsResidue(): void
@@ -239,29 +235,20 @@ class PublicDestinationPolicyTest extends TestCase
             CURLOPT_SHARE => $share,
         ] + $destination->curlOptions());
 
-        try {
-            $this->assertSame('OK', curl_exec($first));
-            $this->assertSame(0, curl_errno($first));
-            $this->assertStringContainsString("Host: target.invalid:{$port}\r\n", (string) $server->request());
+        $this->assertSame('OK', curl_exec($first));
+        $this->assertSame(0, curl_errno($first));
+        $this->assertStringContainsString("Host: target.invalid:{$port}\r\n", (string) $server->request());
 
-            $followUp = curl_init((string) $destination->uri);
-            curl_setopt_array($followUp, [
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_TIMEOUT => 2,
-                CURLOPT_PROXY => '',
-                CURLOPT_SHARE => $share,
-            ]);
+        $followUp = curl_init((string) $destination->uri);
+        curl_setopt_array($followUp, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 2,
+            CURLOPT_PROXY => '',
+            CURLOPT_SHARE => $share,
+        ]);
 
-            try {
-                $this->assertFalse(curl_exec($followUp));
-                $this->assertSame(CURLE_COULDNT_RESOLVE_HOST, curl_errno($followUp));
-            } finally {
-                curl_close($followUp);
-            }
-        } finally {
-            curl_close($first);
-            curl_share_close($share);
-        }
+        $this->assertFalse(curl_exec($followUp));
+        $this->assertSame(CURLE_COULDNT_RESOLVE_HOST, curl_errno($followUp));
     }
 
     public function testProxyPinningPreservesTheProxyAndTargetHosts(): void
@@ -283,18 +270,14 @@ class PublicDestinationPolicyTest extends TestCase
             CURLOPT_PROXY => $destination->proxy,
         ] + $destination->curlOptions());
 
-        try {
-            $this->assertSame('OK', curl_exec($curl));
-            $this->assertSame(0, curl_errno($curl));
-            $request = (string) $server->request();
-            $this->assertStringStartsWith(
-                "GET http://target.invalid/probe HTTP/1.1\r\n",
-                $request,
-            );
-            $this->assertStringContainsString("Host: target.invalid\r\n", $request);
-        } finally {
-            curl_close($curl);
-        }
+        $this->assertSame('OK', curl_exec($curl));
+        $this->assertSame(0, curl_errno($curl));
+        $request = (string) $server->request();
+        $this->assertStringStartsWith(
+            "GET http://target.invalid/probe HTTP/1.1\r\n",
+            $request,
+        );
+        $this->assertStringContainsString("Host: target.invalid\r\n", $request);
     }
 
     #[DataProvider('invalidUrls')]

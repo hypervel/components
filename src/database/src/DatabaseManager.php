@@ -293,11 +293,20 @@ class DatabaseManager implements ConnectionResolverInterface
     }
 
     /**
+     * Return the current execution's idle database sessions to their pools.
+     */
+    public function releaseIdleConnections(): void
+    {
+        ConnectionResolver::releaseIdleConnections();
+    }
+
+    /**
      * Disconnect from the given database.
      *
-     * In pooled mode, this disconnects the current coroutine's driver resources
-     * (if one exists), forcing a reconnect on the next query. Does not clear
-     * context or affect the pool - the connection is still released at coroutine end.
+     * In pooled mode, close the current execution's driver resources and retain
+     * its logical connection, which reconnects on next use. Session leases
+     * invalidate their physical holder and settle the slot at the next release.
+     * Whole-connection pools retain their wrapper until execution ends.
      *
      * In non-pooled mode, disconnects the connection stored in the manager's cache
      * for SimpleConnectionResolver or in a CachedConnectionResolver's cache.

@@ -6,6 +6,7 @@ namespace Hypervel\Database\Pool;
 
 use Hypervel\ConnectionPool\BorrowRateTracker;
 use Hypervel\ConnectionPool\ConnectionPool;
+use Hypervel\ConnectionPool\PoolOptions;
 use Hypervel\Contracts\ConnectionPool\Connection as PoolConnection;
 use Hypervel\Contracts\ConnectionPool\UsageTracker;
 use Hypervel\Contracts\Container\Container;
@@ -30,6 +31,8 @@ use Throwable;
 class DatabasePool extends ConnectionPool
 {
     protected array $config;
+
+    protected bool $usesSessionLeases;
 
     protected ?Timer $heartbeatTimer = null;
 
@@ -64,19 +67,13 @@ class DatabasePool extends ConnectionPool
         $poolConfig = $config;
 
         if ($connectionName->isRead() && $factory->hasReadConfig($config)) {
-            $poolConfig = $factory->configForRead($config);
-            $this->ensureNotDerivedInMemorySqlitePool($connectionName, $poolConfig);
-
-            if ($factory->getExtension($config, $connectionName->base) === null) {
-                $config = $poolConfig;
-            } else {
-                // Extensions own endpoint selection, but the pool still uses
-                // the selected read record's pool options and SQLite metadata.
-                $config[Connection::READ_WRITE_TYPE_CONFIG_KEY] = ConnectionName::READ;
-            }
+            $poolConfig = $this->readPoolConfig($factory, $connectionName, $config);
+            $config[Connection::READ_WRITE_TYPE_CONFIG_KEY] = ConnectionName::READ;
         }
 
         $this->config = $config;
+        $this->usesSessionLeases = $factory->getExtension($config, $connectionName->base) === null
+            && $this->hasConsistentLogicalIdentity($factory, $connectionName, $config);
 
         $poolOptions = Arr::except(
             Arr::get($poolConfig, 'pool', []),
@@ -126,6 +123,44 @@ class DatabasePool extends ConnectionPool
     }
 
     /**
+     * Determine whether callers can return physical sessions before execution ends.
+     */
+    public function usesSessionLeases(): bool
+    {
+        return $this->usesSessionLeases;
+    }
+
+    /**
+     * Determine whether selectable endpoints share the same logical database identity.
+     */
+    protected function hasConsistentLogicalIdentity(ConnectionFactory $factory, ConnectionName $name, array $config): bool
+    {
+        $role = $name->isRead() && $factory->hasReadConfig($config) ? 'read' : 'write';
+
+        if (! isset($config[$role][0])) {
+            return true;
+        }
+
+        $identity = null;
+
+        foreach ($config[$role] as $record) {
+            $candidate = array_replace($config, [$role => $record]);
+            $endpoint = $role === 'read'
+                ? $factory->configForRead($candidate)
+                : $factory->configForWrite($candidate);
+            $candidateIdentity = [$endpoint['driver'], $endpoint['database'], $endpoint['prefix']];
+
+            if ($identity !== null && $identity !== $candidateIdentity) {
+                return false;
+            }
+
+            $identity = $candidateIdentity;
+        }
+
+        return true;
+    }
+
+    /**
      * Create a new pooled connection.
      */
     protected function createConnection(): PoolConnection
@@ -152,7 +187,12 @@ class DatabasePool extends ConnectionPool
         $factory = $this->container->make('db.factory');
         $connection = $factory->makeSharedInMemorySqliteConnection($this->config, $this->name);
 
-        return $connection->getPdo();
+        try {
+            return $connection->resolveRawPdo();
+        } finally {
+            // Only the pool should retain this PDO after its bootstrap holder is discarded.
+            $connection->setPdo(null)->setReadPdo(null);
+        }
     }
 
     /**
@@ -175,6 +215,33 @@ class DatabasePool extends ConnectionPool
         $database = $config['database'] ?? '';
 
         return SQLiteDatabase::isInMemory($database);
+    }
+
+    /**
+     * Resolve consistent pool settings without choosing a physical read endpoint.
+     */
+    protected function readPoolConfig(ConnectionFactory $factory, ConnectionName $name, array $config): array
+    {
+        $records = isset($config['read'][0]) ? $config['read'] : [$config['read']];
+        $poolConfig = null;
+        $poolOptions = null;
+
+        foreach ($records as $record) {
+            $readConfig = $factory->configForRead(array_replace($config, ['read' => $record]));
+            $this->ensureNotDerivedInMemorySqlitePool($name, $readConfig);
+            $options = PoolOptions::fromArray(Arr::except($readConfig['pool'] ?? [], ['testing_enabled']));
+
+            if ($poolOptions !== null && $poolOptions != $options) {
+                throw new InvalidArgumentException(
+                    "Read records for database connection [{$name->requested}] must use the same effective pool options."
+                );
+            }
+
+            $poolConfig ??= $readConfig;
+            $poolOptions ??= $options;
+        }
+
+        return $poolConfig;
     }
 
     /**

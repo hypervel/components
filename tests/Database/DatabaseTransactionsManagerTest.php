@@ -4,14 +4,107 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database;
 
+use Hypervel\Context\CoroutineContext;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\DatabaseTransactionRecord;
 use Hypervel\Database\DatabaseTransactionsManager;
+use Hypervel\Engine\Channel;
 use Hypervel\Tests\TestCase;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
+
+use function Hypervel\Coroutine\parallel;
 
 class DatabaseTransactionsManagerTest extends TestCase
 {
+    public function testForkedTransactionsCannotRunOrCaptureParentCallbacks(): void
+    {
+        $manager = new DatabaseTransactionsManager;
+        $events = [];
+        $manager->begin('default', 1);
+        $manager->addCallback(static function () use (&$events): void {
+            $events[] = 'parent-before';
+        });
+        $ready = new Channel(1);
+        $resume = new Channel(1);
+        $finished = new Channel(1);
+        $failure = null;
+
+        $child = Coroutine::fork(function () use ($manager, &$events, $ready, $resume, $finished, &$failure): void {
+            try {
+                $manager->begin('default', 1);
+                $manager->addCallback(static function () use (&$events): void {
+                    $events[] = 'child';
+                });
+                $ready->push(true);
+                $this->assertTrue($resume->pop(1));
+                $manager->commit('default', 1, 0);
+            } catch (Throwable $exception) {
+                $failure = $exception;
+            } finally {
+                $finished->push(true);
+            }
+        });
+
+        try {
+            $this->assertTrue($ready->pop(1));
+            $manager->addCallback(static function () use (&$events): void {
+                $events[] = 'parent-after';
+            });
+        } finally {
+            $resume->push(true, 0);
+            $completed = $finished->pop(1);
+
+            if ($completed !== true && Coroutine::exists($child)) {
+                Coroutine::cancelById($child, throwException: true);
+                $finished->pop(1);
+            }
+        }
+
+        $this->assertTrue($completed);
+
+        if ($failure !== null) {
+            throw $failure;
+        }
+
+        $this->assertSame(['child'], $events);
+        $manager->commit('default', 1, 0);
+        $this->assertSame(['child', 'parent-before', 'parent-after'], $events);
+    }
+
+    public function testExplicitTestLifecycleTransferPreservesCurrentTransactionOwnership(): void
+    {
+        $manager = new DatabaseTransactionsManager;
+        $events = [];
+        $manager->begin('default', 1);
+        DatabaseTransactionsManager::copyToNonCoroutineState();
+
+        try {
+            parallel([function () use ($manager, &$events): void {
+                CoroutineContext::copyFromNonCoroutine();
+                $this->assertCount(0, $manager->getPendingTransactions());
+
+                DatabaseTransactionsManager::copyFromNonCoroutineState();
+                $manager->begin('default', 2);
+                $manager->addCallback(static function () use (&$events): void {
+                    $events[] = 'nested';
+                });
+                $manager->commit('default', 2, 1);
+            }]);
+
+            $this->assertSame([], $events);
+            $manager->addCallback(static function () use (&$events): void {
+                $events[] = 'outer';
+            });
+            $manager->commit('default', 1, 0);
+            $this->assertSame(['nested', 'outer'], $events);
+            $this->assertFalse(DatabaseTransactionsManager::hasNonCoroutinePendingTransactions());
+        } finally {
+            DatabaseTransactionsManager::clearNonCoroutineState();
+        }
+    }
+
     public function testBeginningTransactions(): void
     {
         $manager = new DatabaseTransactionsManager;

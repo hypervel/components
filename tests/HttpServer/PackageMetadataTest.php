@@ -30,6 +30,7 @@ class PackageMetadataTest extends TestCase
             'hypervel/coordinator',
             'hypervel/coroutine',
             'hypervel/http',
+            'hypervel/server',
             'symfony/http-foundation',
         ] as $dependency) {
             $this->assertArrayHasKey($dependency, $composer['require']);
@@ -38,6 +39,5 @@ class PackageMetadataTest extends TestCase
         }
 
         $this->assertArrayNotHasKey('hypervel/engine', $composer['require']);
-        $this->assertArrayNotHasKey('hypervel/server', $composer['require']);
     }
 }

@@ -35,6 +35,10 @@ class PackageMetadataTest extends TestCase
             $this->assertSame($rootComposer['require'][$dependency], $composer['require'][$dependency]);
         }
 
+        foreach (['hypervel/coroutine', 'hypervel/engine'] as $dependency) {
+            $this->assertArrayHasKey($dependency, $composer['require']);
+        }
+
         $this->assertSame('*', $composer['require']['ext-filter']);
         $this->assertSame(
             'Required to use Hypervel\Http\Testing\FileFactory::image().',

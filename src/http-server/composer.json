@@ -37,6 +37,7 @@
         "hypervel/coordinator": "^0.4",
         "hypervel/coroutine": "^0.4",
         "hypervel/http": "^0.4",
+        "hypervel/server": "^0.4",
         "symfony/http-foundation": "^8.1"
     },
     "config": {
