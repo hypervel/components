@@ -79,9 +79,9 @@ abstract class BaseRelation extends Relation
         $query->select($columns);
 
         $table = $query->getModel()->getTable();
+        $hash = $this->getRelationCountHash();
 
-        $query->from($table . ' as ' . $hash = $this->getRelationCountHash());
-
+        $query->from($table . ' as ' . $hash);
         $query->getModel()->setTable($hash);
 
         $grammar = $query->getQuery()->getGrammar();

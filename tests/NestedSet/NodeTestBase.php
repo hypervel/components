@@ -1967,6 +1967,16 @@ abstract class NodeTestBase extends TestCase
         $this->assertSame($this->keys(6, 7, 9, 10), $root->children->modelKeys());
     }
 
+    public function testToTreeKeepsEmptyChildrenRelationOnLeaves(): void
+    {
+        $tree = $this->category::defaultOrder()->get()->toTree();
+        $notebooks = $tree->first()->children->firstWhere('name', 'notebooks');
+        $apple = $notebooks->children->firstWhere('name', 'apple');
+
+        $this->assertTrue($apple->relationLoaded('children'));
+        $this->assertCount(0, $apple->children);
+    }
+
     public function testToTreeBuildsWithCustomOrder(): void
     {
         $tree = $this->category::whereBetween('_lft', [8, 17])
@@ -1981,8 +1991,21 @@ abstract class NodeTestBase extends TestCase
         $this->assertEquals(4, count($root->children));
         $this->assertSame($this->keys(10, 6, 7, 9), $root->children->modelKeys());
         $this->assertNotSame($root, $root->children->first()->parent);
-        $this->assertSame($root->getKey(), $root->children->first()->parent->getKey());
+        $this->assertSame($root->getAttributes(), $root->children->first()->parent->getAttributes());
         $this->assertSame([], $root->children->first()->parent->getRelations());
+    }
+
+    public function testLinkNodesKeepsCollectionOrderForChildren(): void
+    {
+        $nodes = $this->category::whereIn('id', $this->keys(5, 6, 9, 10))->orderBy('name')->get();
+
+        $nodes->linkNodes();
+
+        $mobile = $nodes->find($this->key(5));
+        $lenovo = $nodes->find($this->key(10));
+
+        $this->assertSame(['lenovo', 'nokia', 'sony'], $mobile->children->pluck('name')->all());
+        $this->assertSame($mobile->getAttributes(), $lenovo->parent->getAttributes());
     }
 
     #[DataProvider('treeBuildingProjectionRequirements')]
@@ -2124,7 +2147,22 @@ abstract class NodeTestBase extends TestCase
         }
     }
 
-    public function testLinkedTreeSerializesWithoutParentChildCycles(): void
+    public function testLinkNodesKeepsLoadedParentsOutsideTheCollection(): void
+    {
+        $nodes = $this->category::with('parent')
+            ->whereDescendantOf($this->key(5))
+            ->defaultOrder()
+            ->get();
+
+        $nodes->linkNodes();
+
+        $nokia = $nodes->find($this->key(6));
+
+        $this->assertTrue($nokia->relationLoaded('parent'));
+        $this->assertSame($this->key(5), $nokia->parent->getKey());
+    }
+
+    public function testLinkedTreeIsJsonSerializable(): void
     {
         $tree = $this->category::defaultOrder()->get()->toTree();
         $decoded = json_decode($tree->toJson(), true, flags: JSON_THROW_ON_ERROR);
@@ -2134,7 +2172,7 @@ abstract class NodeTestBase extends TestCase
         $this->assertArrayNotHasKey('children', $decoded[0]['children'][0]['parent']);
     }
 
-    public function testFlatTreeHandlesDeepCollectionsIteratively(): void
+    public function testToFlatTreeHandlesDeepTreeIteratively(): void
     {
         $nodes = [];
 
@@ -2149,12 +2187,10 @@ abstract class NodeTestBase extends TestCase
 
         $flat = (new Collection($nodes))->toFlatTree();
 
-        $this->assertCount(2000, $flat);
-        $this->assertSame($this->key(1), $flat->first()->getKey());
-        $this->assertSame($this->key(2000), $flat->last()->getKey());
+        $this->assertSame($this->keys(...range(1, 2000)), $flat->modelKeys());
     }
 
-    public function testToTreeBuildsMultipleRootNodes(): void
+    public function testToTreeBuildsWithDefaultOrderAndMultipleRootNodes(): void
     {
         $tree = $this->category::withoutRoot()->defaultOrder()->get()->toTree();
 
