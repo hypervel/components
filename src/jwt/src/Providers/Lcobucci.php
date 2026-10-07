@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Jwt\Providers;
 
+use DateInterval;
 use DateTimeImmutable;
 use DateTimeInterface;
 use Exception;
@@ -11,6 +12,7 @@ use Hypervel\Jwt\Contracts\ProviderContract;
 use Hypervel\Jwt\Exceptions\JwtException;
 use Hypervel\Jwt\Exceptions\SecretMissingException;
 use Hypervel\Jwt\Exceptions\TokenInvalidException;
+use Hypervel\Support\Facades\Date;
 use Lcobucci\JWT\Builder;
 use Lcobucci\JWT\Configuration;
 use Lcobucci\JWT\Signer;
@@ -128,13 +130,13 @@ class Lcobucci extends Provider implements ProviderContract
                     $builder = $builder->identifiedBy($value);
                     break;
                 case RegisteredClaims::EXPIRATION_TIME:
-                    $builder = $builder->expiresAt(DateTimeImmutable::createFromFormat('U', (string) $value));
+                    $builder = $builder->expiresAt($this->getDateFromClaim($value));
                     break;
                 case RegisteredClaims::NOT_BEFORE:
-                    $builder = $builder->canOnlyBeUsedAfter(DateTimeImmutable::createFromFormat('U', (string) $value));
+                    $builder = $builder->canOnlyBeUsedAfter($this->getDateFromClaim($value));
                     break;
                 case RegisteredClaims::ISSUED_AT:
-                    $builder = $builder->issuedAt(DateTimeImmutable::createFromFormat('U', (string) $value));
+                    $builder = $builder->issuedAt($this->getDateFromClaim($value));
                     break;
                 case RegisteredClaims::ISSUER:
                     $builder = $builder->issuedBy($value);
@@ -153,6 +155,22 @@ class Lcobucci extends Provider implements ProviderContract
         }
 
         return $builder;
+    }
+
+    /**
+     * Convert a date claim value to a date with whole-second precision.
+     */
+    protected function getDateFromClaim(int|string|DateTimeInterface|DateInterval $value): DateTimeImmutable
+    {
+        if ($value instanceof DateInterval) {
+            $value = Date::now()->add($value);
+        }
+
+        if ($value instanceof DateTimeInterface) {
+            $value = $value->getTimestamp();
+        }
+
+        return DateTimeImmutable::createFromFormat('U', (string) $value);
     }
 
     /**

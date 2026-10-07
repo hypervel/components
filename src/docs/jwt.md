@@ -166,6 +166,19 @@ class User extends Model implements JwtSubject
 
 Inline claims passed with the guard's `claims` method override model-defined custom claims for the next token.
 
+Custom claims may also set the registered `exp`, `nbf`, `iat`, `iss`, and `jti` claims, replacing the values the package would otherwise add. An explicit `exp` takes precedence over the configured TTL. Date claims accept a Unix timestamp as an integer or string, a `DateTimeInterface` instance such as a Carbon date, or a `DateInterval` that is added to the current time:
+
+```php
+use Hypervel\Support\Facades\Auth;
+use Hypervel\Support\Facades\Date;
+
+$token = Auth::guard('api')
+    ->claims(['exp' => Date::now()->addDays(7)])
+    ->login($user);
+```
+
+If you provide your own `jti`, your application is responsible for keeping it unique. The `sub` and `prv` claims always come from the user and its provider, so passing them as custom claims throws a `JwtException`.
+
 <a name="signing-keys-and-algorithms"></a>
 ### Signing Keys and Algorithms
 
@@ -348,7 +361,7 @@ The `required_claims` option controls which claims must exist in every token:
 ],
 ```
 
-If your application uses timestamp validations and your servers have small clock differences, configure `leeway` in seconds:
+If your application uses timestamp validations and your servers have small clock differences, configure `leeway` in seconds. The leeway applies to the `exp`, `nbf`, and `iat` claims and to the end of the refresh window:
 
 ```php
 'leeway' => (int) env('JWT_LEEWAY', 0),
@@ -539,7 +552,7 @@ Claims listed in `persistent_claims` are preserved during refresh when they are 
 ],
 ```
 
-Managed claims such as `nbf`, `exp`, `iss`, and `jti` are rebuilt by the package. The `iat` claim is rebuilt only when `refresh_iat` is enabled.
+Every refreshed token receives a new `nbf` claim. It also receives a new `exp` claim unless the TTL is `null`, a new `jti` claim when the blacklist is enabled, and a new `iat` claim when `refresh_iat` is enabled. Other claims, including `iss`, are kept unless you reset claims. Claims passed with the `claims` method before refreshing take precedence over all of these, but may not set `sub` or `prv`. Before any new claims apply, the old token must still be refreshable. An explicit `iat` then becomes the starting point of the new token's refresh window.
 
 <a name="logging-out-and-invalidating-tokens"></a>
 ### Logging Out and Invalidating Tokens

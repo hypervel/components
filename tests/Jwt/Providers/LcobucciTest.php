@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Jwt\Providers;
 
+use DateInterval;
+use DateTime;
+use DateTimeImmutable;
+use DateTimeInterface;
 use Hypervel\Jwt\Exceptions\JwtException;
 use Hypervel\Jwt\Exceptions\SecretMissingException;
 use Hypervel\Jwt\Exceptions\TokenExpiredException;
@@ -64,6 +68,7 @@ class LcobucciTest extends TestCase
             'iat' => $iat = $this->testNowTimestamp,
             'iss' => '/foo',
             'custom_claim' => 'foobar',
+            'nested_claim' => ['bar' => [0, 0, 0]],
         ];
 
         $provider = $this->getProvider($this->getRandomString(), Provider::ALGO_HS256);
@@ -74,6 +79,7 @@ class LcobucciTest extends TestCase
         $this->assertEquals('1', $claims['sub']);
         $this->assertEquals('/foo', $claims['iss']);
         $this->assertEquals('foobar', $claims['custom_claim']);
+        $this->assertSame(['bar' => [0, 0, 0]], $claims['nested_claim']);
         $this->assertEquals($exp, $claims['exp']);
         $this->assertEquals($iat, $claims['iat']);
     }
@@ -179,6 +185,52 @@ class LcobucciTest extends TestCase
         $claims = $provider->decode($provider->encode($payload));
 
         $this->assertSame(['https://first.example.test', 'https://second.example.test'], $claims['aud']);
+    }
+
+    #[DataProvider('dateClaimFormProvider')]
+    public function testEncodeAndDecodeSupportedDateClaimForms(
+        int|string|DateTimeInterface|DateInterval $exp,
+        int|string|DateTimeInterface|DateInterval $nbf,
+        int|string|DateTimeInterface|DateInterval $iat,
+    ): void {
+        $provider = $this->getProvider($this->getRandomString(), Provider::ALGO_HS256);
+
+        $token = $provider->encode(['sub' => 1, 'exp' => $exp, 'nbf' => $nbf, 'iat' => $iat]);
+        $encodedClaims = json_decode(base64_decode(strtr(explode('.', $token)[1], '-_', '+/')), true);
+        $claims = $provider->decode($token);
+
+        foreach ([$encodedClaims, $claims] as $dates) {
+            $this->assertSame($this->testNowTimestamp + 3600, $dates['exp']);
+            $this->assertSame($this->testNowTimestamp, $dates['nbf']);
+            $this->assertSame($this->testNowTimestamp, $dates['iat']);
+        }
+    }
+
+    /**
+     * Provide expiration, not-before and issued-at values that represent the same dates.
+     *
+     * @return array<string, array{DateInterval|DateTimeInterface|int|string, DateInterval|DateTimeInterface|int|string, DateInterval|DateTimeInterface|int|string}>
+     */
+    public static function dateClaimFormProvider(): array
+    {
+        $now = 946684800;
+
+        return [
+            'integer timestamps' => [$now + 3600, $now, $now],
+            'integer string timestamps' => [(string) ($now + 3600), (string) $now, (string) $now],
+            'Carbon dates with microseconds' => [
+                CarbonImmutable::createFromTimestamp($now + 3600.5),
+                CarbonImmutable::createFromTimestamp($now + 0.5),
+                CarbonImmutable::createFromTimestamp($now),
+            ],
+            'DateTime dates' => [new DateTime('@' . ($now + 3600)), new DateTime('@' . $now), new DateTime('@' . $now)],
+            'DateTimeImmutable dates' => [
+                new DateTimeImmutable('@' . ($now + 3600)),
+                new DateTimeImmutable('@' . $now),
+                new DateTimeImmutable('@' . $now),
+            ],
+            'intervals from now' => [new DateInterval('PT1H'), new DateInterval('PT0S'), new DateInterval('PT0S')],
+        ];
     }
 
     public function testShouldThrowAnInvalidExceptionWhenThePayloadCouldNotBeEncoded(): void

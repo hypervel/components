@@ -7,6 +7,8 @@ Documentation: https://hypervel.org/docs/jwt
 
 - Hypervel uses array payloads instead of upstream `Payload`, `Token`, and claim DTO objects.
 - Hypervel keeps the `Jwt` facade mapped to the array-based `JwtManager`, but does not include upstream `JwtAuth`, `JwtFactory`, or `JwtProvider` facades.
+- Custom claims may set registered claims such as `exp`, `iss` and `jti`, but not `sub` or `prv`, which always come from the user and its provider. Customize the subject with `JwtSubject::getJwtIdentifier()`.
+- Hypervel adds a default `iss` only when `jwt.issuer` is set, rather than using the request URL, and a default `jti` only when the blacklist is enabled.
 - Cookie token parsing is available but not enabled by default.
 - Upstream route-parameter and Lumen parser shortcuts are not included.
 - Upstream sliding refresh middleware is not included; use an explicit refresh endpoint that calls `Auth::guard(...)->refresh()`.

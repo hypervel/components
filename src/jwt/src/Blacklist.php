@@ -43,15 +43,15 @@ class Blacklist implements BlacklistContract
             }
 
             $expiresAt = $expiresAt->max(
-                $this->timestamp($issuedAt)->addMinutes($this->refreshTTL)
+                $this->timestamp($issuedAt)->addMinutes($this->refreshTTL)->addSeconds($this->leeway)
             );
         }
 
         $expiresAt = $expiresAt->addMinute();
         $now = Date::now();
 
-        // The unified boundary covers expiration acceptance, including leeway, and
-        // the refresh window, so terminal tokens need no cache I/O.
+        // The unified boundary covers expiration acceptance and the refresh window,
+        // each including leeway, so terminal tokens need no cache I/O.
         if ($expiresAt <= $now) {
             return true;
         }

@@ -98,6 +98,9 @@ class JwtManager extends Manager implements ManagerContract
         return $payload;
     }
 
+    /**
+     * Run the configured validations against a decoded payload.
+     */
     protected function validatePayload(array $payload, bool $refresh = false): void
     {
         foreach ($this->config->array('jwt.validations') as $validation) {
@@ -111,6 +114,9 @@ class JwtManager extends Manager implements ManagerContract
         }
     }
 
+    /**
+     * Get the cached validation instance for the given class.
+     */
     protected function getValidation(string $class): ValidationContract
     {
         if ($validation = ($this->validations[$class] ?? null)) {
@@ -213,7 +219,13 @@ class JwtManager extends Manager implements ManagerContract
             return;
         }
 
-        if (Date::now() > Date::createFromTimestamp($issuedAt)->addMinutes($refreshTtl)) {
+        // Blacklist retention adds the same leeway to this deadline, so revocations
+        // outlive every refresh attempt they must block.
+        $refreshableUntil = Date::createFromTimestamp($issuedAt)
+            ->addMinutes($refreshTtl)
+            ->addSeconds($this->config->integer('jwt.leeway'));
+
+        if (Date::now() > $refreshableUntil) {
             throw new TokenExpiredException('Token has expired and can no longer be refreshed');
         }
     }
