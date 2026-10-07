@@ -90,10 +90,10 @@ class Server implements ServerInterface
             if (! $this->server instanceof SwooleServer) {
                 $this->server = $this->makeServer($type, $host, $port, $config->getMode(), $sockType);
                 $callbacks = array_replace($this->defaultCallbacks(), $config->getCallbacks(), $callbacks);
-                $this->registerSwooleEvents($this->server, $callbacks, $name);
                 if ($this->server->set(array_replace($config->getSettings(), $server->getSettings())) === false) {
                     throw new ServerException("Failed to configure server [{$name}].");
                 }
+                $this->registerSwooleEvents($this->server, $callbacks, $name);
                 ServerManager::add($name, [$type, current($this->server->ports)]);
 
                 // Trigger BeforeMainServerStart event, this event only triggers once before main server start.
@@ -182,6 +182,18 @@ class Server implements ServerInterface
      */
     protected function registerSwooleEvents(SwoolePort|SwooleServer $server, array $events, string $serverName): void
     {
+        $mainServer = $server instanceof SwooleServer ? $server : $this->getServer();
+        $settings = $mainServer->setting ?? [];
+        // These dispatch modes keep connection events in the response's worker.
+        $cancelResponses = (isset($events[Event::ON_REQUEST]) || isset($events[Event::ON_HANDSHAKE]))
+            && ($settings['enable_coroutine'] ?? true)
+            && ($mainServer->mode === SWOOLE_BASE
+                || ($mainServer->mode === SWOOLE_PROCESS && in_array((int) ($settings['dispatch_mode'] ?? 2), [2, 4, 8], true)));
+
+        if ($cancelResponses) {
+            $events[Event::ON_CLOSE] ??= null;
+        }
+
         foreach ($events as $event => $callback) {
             if (! Event::isSwooleEvent($event)) {
                 continue;
@@ -202,6 +214,18 @@ class Server implements ServerInterface
                     $class->bootstrapForServer($serverName);
                 }
                 $callback = [$class, $method];
+            }
+
+            if ($cancelResponses && $event === Event::ON_CLOSE) {
+                $callback = static function (SwooleServer $server, int $connection, int $reactor) use ($callback): void {
+                    try {
+                        ResponseCancellation::cancel($connection);
+                    } finally {
+                        if ($callback !== null) {
+                            $callback($server, $connection, $reactor);
+                        }
+                    }
+                };
             }
 
             if (

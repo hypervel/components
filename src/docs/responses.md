@@ -16,6 +16,7 @@
     - [File Downloads](#file-downloads)
     - [File Responses](#file-responses)
 - [Streamed Responses](#streamed-responses)
+    - [Canceling Disconnected Streams](#canceling-disconnected-streams)
     - [Consuming Streamed Responses](#consuming-streamed-responses)
     - [Streamed JSON Responses](#streamed-json-responses)
     - [Event Streams (SSE)](#event-streams)
@@ -462,6 +463,23 @@ Route::post('/chat', function () {
     });
 });
 ```
+
+<a name="canceling-disconnected-streams"></a>
+### Canceling Disconnected Streams
+
+An iterable response may stop producing data when its client connection closes. This is useful when producing the next chunk waits on an external service:
+
+```php
+use Hypervel\Http\IterableStreamedResponse;
+
+return (new IterableStreamedResponse($chunks))->cancelOnDisconnect();
+```
+
+The `stream` method returns an `IterableStreamedResponse` for generator callbacks, and `eventStream` uses this response type as well. Cancellation is opt-in and applies while the response is being produced. Other requests and work after response production are unaffected. Use `finally` to release resources owned by your generator, and allow `Swoole\Coroutine\CanceledException` to propagate.
+
+Connection-close cancellation works with coroutines enabled in Swoole base mode and in process mode with connection-stable dispatch modes (`2`, `4`, or `8`). The default process-mode settings support it. Your application's close callback continues to run.
+
+Current Swoole releases do not notify PHP when a client cancels one HTTP/2 stream while keeping its connection open. During a quiet upstream wait, that cancellation is detected only when a write fails or the operation finishes or times out. Closing the entire HTTP/2 connection cancels its opted-in producers. Configure appropriate upstream timeouts for quiet streams.
 
 <a name="consuming-streamed-responses"></a>
 ### Consuming Streamed Responses

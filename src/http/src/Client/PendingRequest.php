@@ -20,6 +20,7 @@ use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\TransferStats;
 use GuzzleHttp\UriTemplate\UriTemplate;
+use GuzzleHttp\Utils;
 use Hypervel\Contracts\Container\Transient;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Http\Client\Destinations\CurlCapabilities;
@@ -1051,6 +1052,11 @@ class PendingRequest implements Transient
                     }
                 );
             } catch (TransferException $e) {
+                // Guzzle wraps failures raised by transport callbacks.
+                if ($e->getPrevious() instanceof CanceledException) {
+                    throw $e->getPrevious();
+                }
+
                 if (($response = $this->responseFromException($e)) !== null) {
                     $this->marshalTransportExceptionWithResponse($e, $response);
                 } elseif (method_exists($e, 'getRequest')) {
@@ -1170,6 +1176,10 @@ class PendingRequest implements Transient
                 return $this->runAfterResponseCallbacks($response);
             })
             ->otherwise(function (Throwable $e) {
+                if ($e instanceof TransferException && $e->getPrevious() instanceof CanceledException) {
+                    throw $e->getPrevious();
+                }
+
                 if ($e instanceof CanceledException) {
                     throw $e;
                 }
@@ -1715,12 +1725,14 @@ class PendingRequest implements Transient
             $handler = $this->factory->getConnectionHandler($this->connection);
         }
 
+        $handler ??= CurlStreamingHandler::wrap(Utils::chooseHandler());
+
         $stack = $this->pushHandlers(HandlerStack::create($handler));
 
         if ($this->handler === null && ! ini_get('allow_url_fopen')) {
             // Faked responses return before reaching this transport-only guard.
             $stack->push(static fn (callable $handler): Closure => static function (RequestInterface $request, array $options) use ($handler): PromiseInterface {
-                if ($options['stream'] ?? false) {
+                if (($options['stream'] ?? false) && ! CurlStreamingHandler::supports($options)) {
                     throw new RuntimeException('Streaming responses require allow_url_fopen when using the default HTTP handler.');
                 }
 
@@ -1964,7 +1976,7 @@ class PendingRequest implements Transient
     ): PromiseInterface {
         // The pins only bind the cURL handler, and raw cURL or proxy options could route around them.
         $unsupported = match (true) {
-            ! empty($options['stream']) => 'cannot stream responses; use [sink] instead',
+            ! empty($options['stream']) && ! CurlStreamingHandler::supports($options) => 'cannot stream responses with the fallback transport; use [sink] instead',
             $this->handler !== null => 'cannot use a custom handler',
             ($options['proxy'] ?? '') !== '' => 'cannot set the [proxy] option; select proxies in the destination policy',
             ! empty($options['curl']) => 'cannot set raw [curl] options',

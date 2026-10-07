@@ -177,11 +177,13 @@ The `jsonLines` method skips blank lines and throws a `JsonException` if a recor
 
 For plain text or a custom JSON decoder, you may use the `lines` method instead. It removes LF and CRLF line endings, preserves empty lines, and includes the final line even when it has no newline. For binary data and other formats, you may read the underlying PSR-7 response body directly.
 
-Both methods continue reading from the body's current position. They do not rewind it. If you call `body` or `json` first, you must rewind the stream before reading its lines. Memory usage grows with the longest line, not the total response size.
+Both methods continue reading from the body's current position. They do not rewind it. Streaming bodies cannot be rewound, so choose between processing their lines and reading the entire body with `body` or `json`. Memory usage grows with the longest line, not the total response size.
 
-The default streaming handler requires PHP's `allow_url_fopen` setting. If this setting is disabled, real streaming requests throw a `RuntimeException`; faked requests are unaffected. Custom handlers and clients are responsible for providing their own streaming support.
+Inside a Swoole coroutine with native cURL hooks enabled, the HTTP client receives chunks as they arrive and pauses network reads while your application processes them. [Named connections](#connections) reuse idle connections between requests while keeping request headers, credentials, and cookies separate. Each active stream owns its transport; concurrent streams do not multiplex onto the same connection.
 
-Unlike buffered requests, the default streaming handler does not use shared cURL connections or multiplexing. Streaming requests fail if their connection options require either feature.
+For streaming requests, `timeout` bounds the wait for response headers. After headers arrive, a long-running stream may continue beyond that timeout. The `read_timeout` option limits idle gaps during headers and body reads, defaults to 60 seconds, and accepts `0` to wait without an idle limit. `connect_timeout` continues to limit connection establishment. Closing a response or canceling its consuming coroutine releases its active transfer.
+
+Outside a hooked coroutine, or when you provide `stream_context` or a custom `stream_factory`, the client uses Guzzle's PHP-stream handler. This fallback requires `allow_url_fopen`, cannot use cURL destination pins or required transport sharing, and retains Guzzle's timeout behavior. In Guzzle 7, an omitted `read_timeout` uses the stream context or PHP socket timeout. Custom handlers and clients remain responsible for their own streaming support; faked responses do not need a transport.
 
 <a name="request-data"></a>
 ### Request Data
@@ -1063,7 +1065,7 @@ If the proxy cannot be resolved or refuses the connection, a `Hypervel\Http\Clie
 <a name="destination-policy-limitations"></a>
 ### Limitations
 
-Pinning relies on Guzzle's cURL handler and libcurl 7.75 or newer. For this reason, restricted requests may not use the `stream` option, set their own `proxy` or raw `curl` options, or use a custom handler from the `setHandler` method; such requests throw a `DisallowedDestinationException`. To write a large response to a file, use the `sink` method instead of streaming it.
+Pinning relies on Guzzle's cURL transport and libcurl 7.75 or newer. Streaming is supported inside a Swoole coroutine with native cURL hooks enabled. Restricted requests may not use the PHP-stream fallback, set their own `proxy` or raw `curl` options, or use a custom handler from the `setHandler` method; such requests throw a `DisallowedDestinationException`. To write a large response directly to a file, use the `sink` method.
 
 If the installed cURL transport lacks a required capability, a `Hypervel\Http\Client\Destinations\DestinationPolicyException` is thrown. These failures are never retried, and your retry callback is not called, because another attempt cannot change the installed transport.
 

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Routing;
 
 use Generator;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\View\Factory as ViewFactory;
 use Hypervel\Http\IterableStreamedResponse;
 use Hypervel\Http\StreamedEvent;
@@ -12,6 +14,8 @@ use Hypervel\Routing\Redirector;
 use Hypervel\Routing\ResponseFactory;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ResponseFactoryTest extends TestCase
@@ -141,6 +145,40 @@ class ResponseFactoryTest extends TestCase
         $this->assertSame([
             "event: update\ndata: first\ndata: second\ndata: third\ndata: fourth\n\n",
         ], $chunks);
+    }
+
+    #[DataProvider('streamingFactoryMethods')]
+    public function testStreamingFactoriesPassCancellationThroughWithoutReportingOrWrapping(string $method): void
+    {
+        $failure = new CanceledException('response canceled');
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->shouldNotReceive('report');
+        Container::getInstance()->instance(ExceptionHandler::class, $handler);
+        $callback = $method === 'eventStream'
+            ? static function () use ($failure): iterable {
+                yield 'first';
+                throw $failure;
+            }
+        : static fn () => throw $failure;
+        $response = $this->factory()->{$method}($callback);
+        ob_start();
+
+        try {
+            $response->sendContent();
+            $this->fail('Expected response production to propagate cancellation.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($failure, $exception);
+        } finally {
+            ob_end_clean();
+        }
+    }
+
+    /**
+     * Provide response factories that handle producer exceptions.
+     */
+    public static function streamingFactoryMethods(): array
+    {
+        return [['eventStream'], ['streamDownload']];
     }
 
     private function factory(): ResponseFactory

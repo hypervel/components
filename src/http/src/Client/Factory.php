@@ -675,7 +675,11 @@ class Factory
      */
     protected function createConnectionHandler(array $options): callable
     {
-        return Utils::chooseHandler($options);
+        return CurlStreamingHandler::wrap(
+            Utils::chooseHandler($options),
+            $options,
+            CurlStreamingHandler::MAX_IDLE_CONNECTIONS,
+        );
     }
 
     /**
