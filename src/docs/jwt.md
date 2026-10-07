@@ -96,7 +96,7 @@ php artisan jwt:generate-certs --force --algo=rsa --bits=4096 --sha=512
 php artisan jwt:generate-certs --force --algo=ec --sha=256
 ```
 
-RSA keys must be at least 2048 bits. EC keys use the curve their SHA variant requires: `prime256v1` for 256, `secp384r1` for 384, and `secp521r1` for 512.
+RSA keys must be at least 2048 bits. EC keys use the curve their SHA variant requires: `prime256v1` for 256, `secp384r1` for 384, and `secp521r1` for 512. Passing a different curve with `--curve` fails.
 
 You may change the output directory using `--dir`. The directory may be absolute or relative to your application's base path. The command writes absolute `file://` paths to `.env`, so if each deployment uses a new release directory, choose a `--dir` that is shared between releases.
 
@@ -123,6 +123,12 @@ To use JWT authentication, configure an auth guard that uses the `jwt` driver:
 ],
 ```
 
+If JWT is your application's main way of authenticating users, you may make this guard the default by setting the `AUTH_GUARD` environment variable. Calls such as `Auth::user()` and the `auth` middleware then use it without naming the guard:
+
+```ini
+AUTH_GUARD=api
+```
+
 You may then protect routes using Hypervel's normal authentication middleware:
 
 ```php
@@ -141,10 +147,10 @@ JWT can authenticate any model supported by your configured user provider. If yo
 
 namespace App\Models;
 
-use Hypervel\Database\Eloquent\Model;
+use Hypervel\Foundation\Auth\User as Authenticatable;
 use Hypervel\Jwt\Contracts\JwtSubject;
 
-class User extends Model implements JwtSubject
+class User extends Authenticatable implements JwtSubject
 {
     /**
      * Get the identifier that will be stored in the subject claim.
@@ -541,10 +547,24 @@ The `id` method loads the user, like the other guards. When you only need the ID
 $userId = Auth::guard('api')->getUserId();
 ```
 
-Use `userOrFail` when a missing user should throw:
+The `userOrFail` method throws a `UserNotDefinedException` when there is no authenticated user:
 
 ```php
 $user = Auth::guard('api')->userOrFail();
+```
+
+The `payload` method returns the current token's claims as an array, or an empty array when the request has no token:
+
+```php
+$payload = Auth::guard('api')->payload();
+
+$tenantId = $payload['tenant_id'] ?? null;
+```
+
+To authenticate a token that is not in the current request, pass it to the `setToken` method. The guard uses that token for the rest of the request:
+
+```php
+$user = Auth::guard('api')->setToken($token)->user();
 ```
 
 <a name="refreshing-tokens"></a>
@@ -635,10 +655,12 @@ While the blacklist is enabled, you may invalidate a token directly using the `i
 Auth::guard('api')->invalidate();
 ```
 
-You may pass `true` to blacklist the token forever. This also bypasses the configured grace period, so the revocation takes effect immediately:
+You may pass `true` to blacklist the token forever. This also bypasses the configured grace period, so the revocation takes effect immediately. The `logout` method accepts the same argument:
 
 ```php
 Auth::guard('api')->invalidate(true);
+
+Auth::guard('api')->logout(true);
 ```
 
 <a name="managing-revocations"></a>
@@ -675,10 +697,12 @@ Auth::guard('api')->byId($id);                  // Authenticatable|false
 Auth::guard('api')->user();                     // Authenticatable|null
 Auth::guard('api')->getUser();                  // Authenticatable|null
 Auth::guard('api')->userOrFail();               // Authenticatable
+Auth::guard('api')->check();                    // bool
 Auth::guard('api')->id();                       // int|string|null
 Auth::guard('api')->getUserId();                // int|string|null
 Auth::guard('api')->claims(['role' => 'admin']);
 Auth::guard('api')->setTTL(15);
+Auth::guard('api')->getTTL();                   // int|null
 Auth::guard('api')->setToken($token);
 Auth::guard('api')->getToken();
 Auth::guard('api')->payload();                  // array
@@ -711,4 +735,4 @@ The guard's `user`, `check`, and `id` methods treat an invalid, expired, or blac
 <a name="credits"></a>
 ## Credits
 
-Hypervel JWT began as a port of [PHP Open Source Saver JWT Auth](https://github.com/PHP-Open-Source-Saver/jwt-auth) and has been adapted for Hypervel's framework architecture and coroutine runtime.
+Hypervel JWT draws fixes and improvements from [jwt-auth](https://github.com/tymondesigns/jwt-auth) and its [PHP Open Source Saver fork](https://github.com/PHP-Open-Source-Saver/jwt-auth), adapted for Hypervel's framework architecture and coroutine runtime.
