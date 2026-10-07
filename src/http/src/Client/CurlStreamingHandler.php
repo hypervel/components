@@ -114,14 +114,17 @@ class CurlStreamingHandler
 
             $buffer = new BufferStream;
             $handle = null;
+            $paused = false;
             $sink = FnStream::decorate($buffer, [
-                'write' => static function (string $chunk) use ($buffer, &$handle): int {
-                    $buffer->write($chunk);
+                'write' => static function (string $chunk) use ($buffer, &$handle, &$paused): int {
+                    if ($buffer->write($chunk) === 0) {
+                        // The chunk is accepted; stop native reads at the buffer's high-water mark.
+                        $paused = true;
 
-                    // Accept this chunk, then stop native reads until the consumer drains it.
-                    /** @var CurlHandle $handle Assigned before the transfer starts. */
-                    if (curl_pause($handle, CURLPAUSE_RECV) !== CURLE_OK) {
-                        throw new RuntimeException('Unable to pause the streaming response.');
+                        /** @var CurlHandle $handle Assigned before the transfer starts. */
+                        if (curl_pause($handle, CURLPAUSE_RECV) !== CURLE_OK) {
+                            throw new RuntimeException('Unable to pause the streaming response.');
+                        }
                     }
 
                     return strlen($chunk);
@@ -143,6 +146,7 @@ class CurlStreamingHandler
                     $connection,
                     $easy,
                     $buffer,
+                    $paused,
                     $options,
                     $startedAt,
                     $deadline,

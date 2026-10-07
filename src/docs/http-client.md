@@ -41,6 +41,8 @@ Hypervel provides an expressive, minimal API around the [Guzzle HTTP client](htt
 
 The HTTP client supports Guzzle 7 and 8.
 
+Before sending a real request, Hypervel returns the current execution's idle database sessions to their pools. Transactions and explicitly pinned sessions remain held. Code that needs the same database session across an HTTP call may use `DB::withPinnedSession()`. See [releasing and pinning database connections](/docs/{{version}}/database#releasing-and-pinning-connections).
+
 <a name="making-requests"></a>
 ## Making Requests
 
@@ -182,6 +184,8 @@ Both methods continue reading from the body's current position. They do not rewi
 Inside a Swoole coroutine with native cURL hooks enabled, the HTTP client receives chunks as they arrive and pauses network reads while your application processes them. [Named connections](#connections) reuse idle connections between requests while keeping request headers, credentials, and cookies separate. Each active stream owns its transport; concurrent streams do not multiplex onto the same connection.
 
 For streaming requests, `timeout` bounds the wait for response headers. After headers arrive, a long-running stream may continue beyond that timeout. The `read_timeout` option limits idle gaps during headers and body reads, defaults to 60 seconds, and accepts `0` to wait without an idle limit. `connect_timeout` continues to limit connection establishment. Closing a response or canceling its consuming coroutine releases its active transfer.
+
+For streamed responses, `on_stats` runs when the response is returned. The `on_trailers` callback runs once the transfer has completed, after `on_headers`. Small responses may already be complete when returned; for longer responses, trailers arrive as the body is consumed.
 
 Outside a hooked coroutine, or when you provide `stream_context` or a custom `stream_factory`, the client uses Guzzle's PHP-stream handler. This fallback requires `allow_url_fopen`, cannot use cURL destination pins or required transport sharing, and retains Guzzle's timeout behavior. In Guzzle 7, an omitted `read_timeout` uses the stream context or PHP socket timeout. Custom handlers and clients remain responsible for their own streaming support; faked responses do not need a transport.
 
@@ -782,6 +786,8 @@ return $responses[0]->ok() &&
        $responses[1]->ok() &&
        $responses[2]->ok();
 ```
+
+If the parent coroutine has already used the database, call `DB::releaseIdleConnections()` before `parallel()` to make its idle sessions available while it waits. The HTTP requests run in child coroutines and cannot release the parent's connections. Transactions and pinned sessions still remain held; see [database connection pooling](/docs/{{version}}/database#releasing-and-pinning-connections).
 
 Each response can be accessed based on the order it was added to the array. If you wish, you can name the requests using array keys, which allows you to access the corresponding responses by name:
 

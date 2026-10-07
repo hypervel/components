@@ -23,9 +23,10 @@ try {
     while (($line = fgets($connection)) !== "\r\n" && $line !== false);
     fwrite(STDOUT, "REQUEST\n");
 
+    $trailerBody = $argv[1] === 'streamed-trailers' ? str_repeat('hello', 8192) : 'hello';
     $scripted = match ($argv[1]) {
         'informational' => "HTTP/1.1 103 Early Hints\r\nLink: </style.css>; rel=preload\r\n\r\nHTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nfinal",
-        'trailers' => "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nTrailer: X-Checksum\r\n\r\n5\r\nhello\r\n0\r\nX-Checksum: abc\r\n\r\n",
+        'trailers', 'streamed-trailers' => "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nTrailer: X-Checksum\r\n\r\n" . dechex(strlen($trailerBody)) . "\r\n{$trailerBody}\r\n0\r\nX-Checksum: abc\r\n\r\n",
         default => null,
     };
 

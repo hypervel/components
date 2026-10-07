@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Http;
 
 use Closure;
+use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Exception\TransferException;
 use GuzzleHttp\Handler\StreamHandler;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
@@ -83,6 +84,40 @@ class HttpClientStreamingTest extends TestCase
                 $ready->close();
             }
         });
+    }
+
+    public function testConcurrentPhpStreamsReleaseTheirResponseHeaders(): void
+    {
+        // @TODO: Update the version gate when Swoole releases the response-header ownership fix.
+        if (SWOOLE_VERSION_ID <= 60203) {
+            $this->markTestSkipped('Swoole 6.2.3 and earlier do not isolate PHP response-header ownership between coroutines.');
+        }
+
+        $process = new Process([PHP_BINARY, __DIR__ . '/Fixtures/concurrent-stream-headers.php']);
+        $process->setTimeout(10);
+        $process->run();
+
+        $this->assertSame(0, $process->getExitCode(), $process->getErrorOutput());
+        $samples = json_decode($process->getOutput(), true, flags: JSON_THROW_ON_ERROR);
+        $this->assertCount(3, $samples);
+
+        // Allow allocator bookkeeping, but not a retained batch of 16 KiB headers.
+        $this->assertLessThan(131072, max($samples) - min($samples), $process->getOutput());
+    }
+
+    public function testConcurrentFallbackRequestsKeepIndependentDeadlines(): void
+    {
+        // @TODO: Remove this skip once Guzzle fixes shared StreamHandler request deadlines.
+        if (ClientInterface::MAJOR_VERSION >= 8) {
+            $this->markTestSkipped('Guzzle 8 stores concurrent StreamHandler request deadlines on the shared handler.');
+        }
+
+        $process = new Process([PHP_BINARY, __DIR__ . '/Fixtures/concurrent-stream-deadlines.php']);
+        $process->setTimeout(10);
+        $process->run();
+
+        $this->assertSame(0, $process->getExitCode(), $process->getErrorOutput());
+        $this->assertSame('OK', json_decode($process->getOutput(), true, flags: JSON_THROW_ON_ERROR));
     }
 
     #[DataProvider('streamingTransports')]
@@ -185,20 +220,30 @@ class HttpClientStreamingTest extends TestCase
         });
     }
 
-    public function testTrailersAreDeliveredOnceAfterConsumingTheBody(): void
+    #[DataProvider('trailerResponses')]
+    public function testTrailersAreDeliveredOnceAfterHeadersAndTransferCompletion(string $mode, string $body): void
     {
-        $this->withStreamingServer('trailers', function (string $address): void {
+        $this->withStreamingServer($mode, function (string $address) use ($mode, $body): void {
             $trailers = [];
+            $events = [];
             $response = (new Factory)->withOptions([
                 'stream' => true,
-                'on_trailers' => static function (array $headers) use (&$trailers): void {
+                'on_headers' => static function () use (&$events): void {
+                    $events[] = 'headers';
+                },
+                'on_trailers' => static function (array $headers) use (&$trailers, &$events): void {
+                    $events[] = 'trailers';
                     $trailers[] = $headers;
                 },
             ])->get('http://' . $address);
 
             try {
-                $this->assertSame([], $trailers);
-                $this->assertSame('hello', $response->body());
+                if ($mode === 'streamed-trailers') {
+                    $this->assertSame([], $trailers);
+                }
+
+                $this->assertSame($body, $response->body());
+                $this->assertSame(['headers', 'trailers'], $events);
                 $this->assertSame([['x-checksum' => ['abc']]], $trailers);
                 $this->assertSame('', $response->body());
                 $this->assertCount(1, $trailers);
@@ -206,6 +251,17 @@ class HttpClientStreamingTest extends TestCase
                 $response->close();
             }
         });
+    }
+
+    /**
+     * Provide transfers that complete before exposure and during consumption.
+     */
+    public static function trailerResponses(): array
+    {
+        return [
+            'small response' => ['trailers', 'hello'],
+            'streamed response' => ['streamed-trailers', str_repeat('hello', 8192)],
+        ];
     }
 
     public function testCancelingASilentBodyReadFinishesBeforeTheProviderContinues(): void

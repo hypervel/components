@@ -26,6 +26,7 @@ use ReflectionProperty;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Swoole\Coroutine\Channel;
+use Swoole\Coroutine\Socket;
 use WeakReference;
 
 use function Hypervel\Coroutine\parallel;
@@ -134,27 +135,39 @@ class CurlStreamingHandlerTest extends TestCase
         }
     }
 
-    #[DataProvider('callbackFailureStatuses')]
-    public function testHeadersCallbackFailureKeepsItsResponseAndCauseAndClosesTheTransfer(int $status): void
+    #[DataProvider('callbackFailures')]
+    public function testCallbackFailureKeepsItsResponseAndCauseAndClosesTheTransfer(int $status, string $callback): void
     {
         $server = LoopbackHttpServer::start([['status' => $status]]);
-        $failure = new RuntimeException('invalid provider headers');
+        $failure = new RuntimeException('invalid provider response');
         $stats = [];
+        $trailers = 0;
 
         try {
             (new Factory)->withOptions([
                 'stream' => true,
-                'on_headers' => static fn () => throw $failure,
+                'on_headers' => static function () use ($callback, $failure): void {
+                    if ($callback === 'on_headers') {
+                        throw $failure;
+                    }
+                },
+                'on_trailers' => static function () use ($callback, $failure, &$trailers): void {
+                    ++$trailers;
+
+                    if ($callback === 'on_trailers') {
+                        throw $failure;
+                    }
+                },
                 'on_stats' => static function (TransferStats $transfer) use (&$stats): void {
                     $stats[] = $transfer;
                 },
             ])->get('http://127.0.0.1:' . $server->port);
 
-            $this->fail('Expected the header callback to fail.');
+            $this->fail('Expected the response callback to fail.');
         } catch (ConnectionException|RequestException $exception) {
             if ($status === 200) {
                 $this->assertInstanceOf(ConnectionException::class, $exception);
-                $this->assertSame('An error was encountered during the on_headers event', $exception->getMessage());
+                $this->assertSame("An error was encountered during the {$callback} event", $exception->getMessage());
                 $this->assertSame($failure, $exception->getPrevious()->getPrevious());
             } else {
                 $this->assertInstanceOf(RequestException::class, $exception);
@@ -162,6 +175,7 @@ class CurlStreamingHandlerTest extends TestCase
             }
         }
 
+        $this->assertSame($callback === 'on_trailers' ? 1 : 0, $trailers);
         $this->assertCount(1, $stats);
         $this->assertSame($status, $stats[0]->getResponse()->getStatusCode());
         $this->assertSame($failure, $stats[0]->getHandlerErrorData()->getPrevious());
@@ -170,11 +184,11 @@ class CurlStreamingHandlerTest extends TestCase
     }
 
     /**
-     * Provide successful and failed responses rejected by a header callback.
+     * Provide successful and failed responses rejected by response callbacks.
      */
-    public static function callbackFailureStatuses(): array
+    public static function callbackFailures(): array
     {
-        return [[200], [503]];
+        return [[200, 'on_headers'], [503, 'on_headers'], [200, 'on_trailers'], [503, 'on_trailers']];
     }
 
     public function testLateFinalHeadersRetainTheirResponseInTheExceptionAndStatistics(): void
@@ -232,17 +246,22 @@ class CurlStreamingHandlerTest extends TestCase
         $handler = new CurlStreamingHandler;
         (new ReflectionProperty($handler, 'factory'))->setValue($handler, $factory);
         $callbacks = 0;
+        $trailers = 0;
         $response = (new Factory)->setHandler($handler)->timeout(0.5)->withOptions([
             'stream' => true,
             'on_headers' => static function () use (&$callbacks): void {
                 ++$callbacks;
                 usleep(600000);
             },
+            'on_trailers' => static function () use (&$trailers): void {
+                ++$trailers;
+            },
         ])->get('http://127.0.0.1:' . $server->port);
 
         try {
             $this->assertSame('retried', $response->body());
             $this->assertSame(1, $callbacks);
+            $this->assertSame(1, $trailers);
             $this->assertNotNull($server->request());
             $this->assertNotNull($server->request());
         } finally {
@@ -290,14 +309,19 @@ class CurlStreamingHandlerTest extends TestCase
         return [[false], [true]];
     }
 
-    public function testCancellationDuringTrailerProcessingClosesTheBodyAndPreservesTheException(): void
+    #[DataProvider('trailerBodySizes')]
+    public function testCancellationDuringTrailerProcessingClosesTheBodyAndPreservesTheException(int $size): void
     {
-        $server = LoopbackHttpServer::start();
+        $server = LoopbackHttpServer::start([['body' => str_repeat('x', $size)]]);
         $ready = new Channel(1);
         $waiting = new Channel(1);
         $cancellation = null;
-        $response = (new Factory)->withOptions([
+        $body = null;
+        $request = (new Factory)->withOptions([
             'stream' => true,
+            'on_headers' => static function (ResponseInterface $response) use (&$body): void {
+                $body = $response->getBody();
+            },
             'on_trailers' => static function () use ($ready, $waiting, &$cancellation): void {
                 $ready->push(Coroutine::id());
 
@@ -309,12 +333,13 @@ class CurlStreamingHandlerTest extends TestCase
                     throw $exception;
                 }
             },
-        ])->get('http://127.0.0.1:' . $server->port);
+        ]);
 
         try {
             $results = parallel([
-                'reader' => static function () use ($response): ?CanceledException {
+                'reader' => static function () use ($request, $server): ?CanceledException {
                     try {
+                        $response = $request->get('http://127.0.0.1:' . $server->port);
                         $response->body();
 
                         return null;
@@ -332,12 +357,20 @@ class CurlStreamingHandlerTest extends TestCase
 
             $this->assertInstanceOf(CanceledException::class, $results['reader']);
             $this->assertSame($cancellation, $results['reader']);
-            $this->assertFalse($response->toPsrResponse()->getBody()->isReadable());
+            $this->assertFalse($body->isReadable());
         } finally {
-            $response->close();
+            $body?->close();
             $ready->close();
             $waiting->close();
         }
+    }
+
+    /**
+     * Provide transfers completing before exposure and during consumption.
+     */
+    public static function trailerBodySizes(): array
+    {
+        return [[5], [65536]];
     }
 
     public function testAbandonedResponseBodyIsReleasedWithoutCyclicGarbageCollection(): void
@@ -350,6 +383,118 @@ class CurlStreamingHandlerTest extends TestCase
 
         $this->assertNull($body->get());
         $this->assertNotNull($server->request());
+    }
+
+    public function testNativeWaitReportsDataArrivingBetweenPerformAndSelect(): void
+    {
+        // @TODO: Update the version gate when Swoole fixes curl_multi_select hiding ready data.
+        if (SWOOLE_VERSION_ID <= 60203) {
+            $this->markTestSkipped('Swoole 6.2.3 and earlier can consume ready cURL data and then wait for another event.');
+        }
+
+        $server = new Socket(AF_INET, SOCK_STREAM, 0);
+        $this->assertTrue($server->bind('127.0.0.1', 0));
+        $this->assertTrue($server->listen());
+        $url = 'http://127.0.0.1:' . $server->getsockname()['port'];
+        $sendFirst = new Channel(1);
+        $firstSent = new Channel(1);
+        $sendLast = new Channel(1);
+
+        try {
+            [$selected] = parallel([
+                function () use ($url, $sendFirst, $firstSent, $sendLast): int {
+                    $headersReceived = false;
+                    $body = '';
+                    $handle = curl_init($url);
+                    $multi = curl_multi_init();
+                    curl_setopt_array($handle, [
+                        CURLOPT_PROXY => '',
+                        CURLOPT_TIMEOUT => 3,
+                        CURLOPT_HEADERFUNCTION => static function (CurlHandle $handle, string $header) use (&$headersReceived): int {
+                            $headersReceived = $headersReceived || $header === "\r\n";
+
+                            return strlen($header);
+                        },
+                        CURLOPT_WRITEFUNCTION => static function (CurlHandle $handle, string $chunk) use (&$body): int {
+                            $body .= $chunk;
+
+                            return strlen($chunk);
+                        },
+                    ]);
+                    curl_multi_add_handle($multi, $handle);
+
+                    try {
+                        do {
+                            curl_multi_exec($multi, $running);
+
+                            if ($running && ! $headersReceived) {
+                                curl_multi_select($multi, 0.1);
+                            }
+                        } while ($running && ! $headersReceived);
+
+                        $this->assertTrue($headersReceived);
+                        // Match CurlStreamingBody's perform-then-select window: the
+                        // provider writes after perform, with its next event withheld.
+                        $this->assertTrue($sendFirst->push(true));
+                        $this->assertTrue($firstSent->pop(2));
+
+                        try {
+                            $selected = curl_multi_select($multi, 0.1);
+                            curl_multi_exec($multi, $running);
+                            $this->assertSame('A', $body);
+                        } finally {
+                            $sendLast->push(true);
+                        }
+
+                        do {
+                            curl_multi_exec($multi, $running);
+
+                            if ($running) {
+                                curl_multi_select($multi, 0.1);
+                            }
+                        } while ($running);
+
+                        $this->assertSame('AB', $body);
+
+                        return $selected;
+                    } finally {
+                        curl_multi_remove_handle($multi, $handle);
+                        curl_multi_close($multi);
+                    }
+                },
+                function () use ($server, $sendFirst, $firstSent, $sendLast): void {
+                    $client = $server->accept(2);
+                    $this->assertInstanceOf(Socket::class, $client);
+
+                    try {
+                        $request = '';
+
+                        while (! str_contains($request, "\r\n\r\n")) {
+                            $chunk = $client->recv(2);
+                            $this->assertIsString($chunk);
+                            $this->assertNotSame('', $chunk);
+                            $request .= $chunk;
+                        }
+
+                        $client->sendAll("HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\n");
+                        $this->assertTrue($sendFirst->pop(2));
+                        $this->assertSame(1, $client->sendAll('A'));
+                        $firstSent->push(true);
+                        $this->assertTrue($sendLast->pop(2));
+                        $this->assertSame(1, $client->sendAll('B'));
+                    } finally {
+                        $client->close();
+                    }
+                },
+            ]);
+
+            $this->assertGreaterThan(0, $selected, 'Already available provider data was consumed by the hook, then reported as a select timeout.');
+        } finally {
+            $server->close();
+            $sendFirst->close();
+            $firstSent->close();
+            $sendLast->close();
+        }
     }
 
     public function testSlowConsumersPauseDownloadsAndMayContinueBeyondTheHeaderTimeout(): void
@@ -371,6 +516,9 @@ class CurlStreamingHandlerTest extends TestCase
             $pausedAt = $downloaded;
             $this->assertGreaterThan(0, $pausedAt);
             $this->assertLessThan(strlen($payload), $pausedAt);
+            $buffer = (new ReflectionProperty($body, 'buffer'))->getValue($body);
+            // BufferStream's 16 KiB high-water mark plus one CURL_MAX_WRITE_SIZE callback.
+            $this->assertLessThanOrEqual(32768, $buffer->getSize() + strlen($first));
 
             // Allow the origin to progress while the caller holds its first byte.
             usleep(600000);

@@ -50,6 +50,9 @@ class CurlStreamingBody implements StreamInterface
 
     protected ?TransferStats $completedStats = null;
 
+    /** @var null|list<array<string, list<string>>|RequestInterface|ResponseInterface> */
+    protected ?array $pendingTrailerArguments = null;
+
     protected RequestInterface $request;
 
     /**
@@ -61,6 +64,7 @@ class CurlStreamingBody implements StreamInterface
         protected ?CurlStreamingConnection $connection,
         protected ?EasyHandle $easy,
         protected BufferStream $buffer,
+        protected bool &$paused,
         protected array $options,
         protected float $startedAt,
         protected ?float $headerDeadline,
@@ -131,6 +135,22 @@ class CurlStreamingBody implements StreamInterface
                 }
             }
 
+            $trailerArguments = $this->pendingTrailerArguments;
+            $this->pendingTrailerArguments = null;
+
+            if ($trailerArguments !== null) {
+                $onTrailers = $this->options['on_trailers'];
+                unset($this->options['on_trailers']);
+
+                try {
+                    $onTrailers(...$trailerArguments);
+                } catch (CanceledException $exception) {
+                    throw $exception;
+                } catch (Throwable $exception) {
+                    throw $this->responseException('An error was encountered during the on_trailers event', $response, $exception);
+                }
+            }
+
             $this->reportStats($response);
 
             return $response;
@@ -180,9 +200,13 @@ class CurlStreamingBody implements StreamInterface
             if ($this->buffer->eof() && ! $this->completed) {
                 $deadline = $this->readTimeout > 0 ? hrtime(true) / 1e9 + $this->readTimeout : null;
 
-                // The sink pauses after each chunk; drain it and resume before selecting again.
-                if ($this->position > 0 && curl_pause($this->easy->handle, CURLPAUSE_CONT) !== CURLE_OK) {
-                    throw new RuntimeException('Unable to resume the streaming response.');
+                if ($this->paused) {
+                    // Resuming may synchronously fill the buffer and pause the sink again.
+                    $this->paused = false;
+
+                    if (curl_pause($this->easy->handle, CURLPAUSE_CONT) !== CURLE_OK) {
+                        throw new RuntimeException('Unable to resume the streaming response.');
+                    }
                 }
 
                 while ($this->buffer->eof() && ! $this->completed) {
@@ -239,8 +263,8 @@ class CurlStreamingBody implements StreamInterface
 
             $options = array_replace($this->options, $options);
 
-            // Factory retry options contain its temporary statistics collector.
-            foreach (['on_headers', 'on_stats'] as $name) {
+            // Factory retry options contain temporary statistics and trailer collectors.
+            foreach (['on_headers', 'on_stats', 'on_trailers'] as $name) {
                 if (isset($this->options[$name])) {
                     $options[$name] = $this->options[$name];
                 } else {
@@ -259,12 +283,20 @@ class CurlStreamingBody implements StreamInterface
             }
 
             // The replacement transfer owns callbacks and header-time statistics.
-            unset($this->options['on_headers'], $this->options['on_stats']);
+            unset($this->options['on_headers'], $this->options['on_stats'], $this->options['on_trailers']);
 
             return ($this->handler)($request, $options);
         };
 
         $stats = null;
+        $trailerArguments = null;
+
+        if (! $this->exposed && isset($easy->options['on_trailers'])) {
+            // Completion before exposure must not publish trailers before on_headers.
+            $easy->options['on_trailers'] = static function (array|ResponseInterface|RequestInterface ...$arguments) use (&$trailerArguments): void {
+                $trailerArguments = $arguments;
+            };
+        }
 
         if (isset($this->options['on_stats'])) {
             $easy->options['on_stats'] = static function (TransferStats $transfer) use (&$stats): void {
@@ -283,6 +315,7 @@ class CurlStreamingBody implements StreamInterface
             throw $exception;
         } finally {
             $this->completedStats = $stats;
+            $this->pendingTrailerArguments = $trailerArguments;
         }
     }
 
@@ -399,6 +432,7 @@ class CurlStreamingBody implements StreamInterface
             $this->buffer->close();
             $this->completedResponse = null;
             $this->completedStats = null;
+            $this->pendingTrailerArguments = null;
             $this->options = [];
         }
     }
