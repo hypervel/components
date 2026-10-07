@@ -1003,18 +1003,6 @@ abstract class NodeTestBase extends TestCase
             ->select('categories.id');
 
         $this->assertSame(
-            $this->keys(1, 11),
-            (clone $query)->whereIsRoot()->orderBy('categories.id')->pluck('id')->all(),
-        );
-        $this->assertSame(
-            $this->keys(2, 3, 4, 5, 6, 7, 8, 9, 10),
-            (clone $query)->withoutRoot()->orderBy('categories.id')->pluck('id')->all(),
-        );
-        $this->assertSame(
-            $this->keys(2, 3, 4, 5, 6, 7, 8, 9, 10),
-            (clone $query)->hasParent()->orderBy('categories.id')->pluck('id')->all(),
-        );
-        $this->assertSame(
             $this->keys(3, 4, 6, 8, 9, 10, 11),
             (clone $query)->whereIsLeaf()->orderBy('categories.id')->pluck('id')->all(),
         );
@@ -1165,6 +1153,78 @@ abstract class NodeTestBase extends TestCase
         $this->assertEqualsCanonicalizing($expected, $descendants);
     }
 
+    public function testDescendantsOfExcludesSelf(): void
+    {
+        $this->assertEqualsCanonicalizing(
+            $this->keys(6, 7, 8, 9, 10),
+            $this->category::descendantsOf($this->key(5))->pluck('id')->all(),
+        );
+    }
+
+    public function testAncestorsAndSelfIncludesNode(): void
+    {
+        $this->assertEqualsCanonicalizing(
+            $this->keys(1, 5, 7, 8),
+            $this->category::ancestorsAndSelf($this->key(8))->pluck('id')->all(),
+        );
+    }
+
+    public function testWhereNotDescendantOfExcludesSubtree(): void
+    {
+        $this->assertSame(
+            $this->keys(1, 2, 3, 4, 5, 11),
+            $this->category::whereNotDescendantOf($this->key(5))->orderBy('id')->pluck('id')->all(),
+        );
+    }
+
+    public function testOrWhereDescendantOfUnionsSubtrees(): void
+    {
+        $this->assertSame(
+            $this->keys(3, 4, 6, 7, 8, 9, 10),
+            $this->category::whereDescendantOf($this->key(2))
+                ->orWhereDescendantOf($this->key(5))
+                ->orderBy('id')
+                ->pluck('id')
+                ->all(),
+        );
+    }
+
+    public function testAncestorAndDescendantConstraintShortcuts(): void
+    {
+        $this->assertSame(
+            $this->keys(1, 5, 7, 8),
+            $this->category::whereAncestorOrSelf($this->key(8))->orderBy('id')->pluck('id')->all(),
+        );
+        $this->assertSame(
+            $this->keys(1, 2, 5, 7),
+            $this->category::whereAncestorOf($this->key(3))
+                ->orWhereAncestorOf($this->key(8))
+                ->orderBy('id')
+                ->pluck('id')
+                ->all(),
+        );
+        $this->assertSame(
+            $this->keys(7, 8),
+            $this->category::whereDescendantOrSelf($this->key(7))->orderBy('id')->pluck('id')->all(),
+        );
+        $this->assertSame(
+            $this->keys(1, 3, 4, 11),
+            $this->category::whereDescendantOf($this->key(2))
+                ->orWhereNotDescendantOf($this->key(1))
+                ->orderBy('id')
+                ->pluck('id')
+                ->all(),
+        );
+        $this->assertSame(
+            $this->keys(2, 3, 4, 11),
+            $this->category::whereNodeBetween([2, 7])
+                ->orWhereNodeBetween([21, 22])
+                ->orderBy('id')
+                ->pluck('id')
+                ->all(),
+        );
+    }
+
     #[DataProvider('partialNodeStateMethods')]
     public function testPersistedNodeStateCountsRequireLoadedBounds(string $method, array $columns): void
     {
@@ -1218,6 +1278,15 @@ abstract class NodeTestBase extends TestCase
         $nodes = $this->category::withDepth()->defaultOrder()->limit(4)->pluck('depth')->all();
 
         $this->assertEquals([0, 1, 2, 2], $nodes);
+    }
+
+    public function testWithDepthUsesStoredDepthColumnWhenAvailable(): void
+    {
+        DB::table('categories')->where('id', $this->key(3))->update(['depth' => 7]);
+
+        $node = $this->category::withDepth('level')->findOrFail($this->key(3));
+
+        $this->assertSame(7, $node['level']);
     }
 
     public function testWithDepthWithCustomKeyWorks(): void
@@ -1586,6 +1655,26 @@ abstract class NodeTestBase extends TestCase
 
         $this->assertTrue($same->isSelfOrDescendantOf($same));
         $this->assertTrue($same->isSelfOrAncestorOf($same));
+    }
+
+    public function testIsSelfOrDescendantOf(): void
+    {
+        $mobile = $this->findCategory('mobile');
+        $galaxy = $this->findCategory('galaxy');
+
+        $this->assertTrue($galaxy->isSelfOrDescendantOf($mobile));
+        $this->assertTrue($galaxy->isSelfOrDescendantOf($galaxy));
+        $this->assertFalse($mobile->isSelfOrDescendantOf($galaxy));
+    }
+
+    public function testIsSelfOrAncestorOf(): void
+    {
+        $mobile = $this->findCategory('mobile');
+        $galaxy = $this->findCategory('galaxy');
+
+        $this->assertTrue($mobile->isSelfOrAncestorOf($galaxy));
+        $this->assertTrue($mobile->isSelfOrAncestorOf($mobile));
+        $this->assertFalse($galaxy->isSelfOrAncestorOf($mobile));
     }
 
     public function testSiblingsAreRealLazyLoadableRelations(): void
@@ -2097,6 +2186,16 @@ abstract class NodeTestBase extends TestCase
         $next = $node->getPrevNode();
 
         $this->assertEquals('notebooks', $next->name);
+    }
+
+    public function testGetNextNodeCrossesSubtreeBoundary(): void
+    {
+        $this->assertSame('sony', $this->findCategory('galaxy')->getNextNode()->name);
+    }
+
+    public function testGetPrevNodeCrossesSubtreeBoundary(): void
+    {
+        $this->assertSame('galaxy', $this->findCategory('sony')->getPrevNode()->name);
     }
 
     public function testWhereIsBeforeAndAfterById(): void
@@ -3629,6 +3728,26 @@ abstract class NodeTestBase extends TestCase
         $category->refreshNode();
 
         $this->assertEquals($this->key(1), $category->getParentId());
+    }
+
+    public function testWhereIsRootQualifiesParentId(): void
+    {
+        $query = $this->category::query()
+            ->join('categories as joined_categories', 'joined_categories.id', '=', 'categories.id')
+            ->select('categories.id');
+
+        $this->assertSame(
+            $this->keys(1, 11),
+            (clone $query)->whereIsRoot()->orderBy('categories.id')->pluck('id')->all(),
+        );
+        $this->assertSame(
+            $this->keys(2, 3, 4, 5, 6, 7, 8, 9, 10),
+            (clone $query)->withoutRoot()->orderBy('categories.id')->pluck('id')->all(),
+        );
+        $this->assertSame(
+            $this->keys(2, 3, 4, 5, 6, 7, 8, 9, 10),
+            (clone $query)->hasParent()->orderBy('categories.id')->pluck('id')->all(),
+        );
     }
 
     /**

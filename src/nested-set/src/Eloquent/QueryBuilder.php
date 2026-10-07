@@ -185,9 +185,7 @@ class QueryBuilder extends EloquentBuilder
             } else {
                 $this->ensureConcreteNestedSetScope('scalar lookup');
 
-                /* @phpstan-ignore method.notFound */
-                $data = $this->model->newNestedSetQuery()
-                    ->getPlainNodeData($id, true);
+                $data = $this->newNestedSetLookupQuery()->getPlainNodeData($id, true);
             }
 
             // Don't include the node

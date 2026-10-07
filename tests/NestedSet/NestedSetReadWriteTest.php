@@ -104,6 +104,29 @@ class NestedSetReadWriteTest extends TestCase
 
         $connection->flushQueryLog();
 
+        $this->assertSame(
+            [2, 4],
+            NestedSetReadWriteNode::on('nested_set_split')->whereDescendantOf(1)->orderBy('id')->pluck('id')->all(),
+        );
+
+        $this->assertSelectQueriesUseConnection($connection->getQueryLog(), 'read');
+
+        $connection->flushQueryLog();
+
+        $this->assertSame(
+            [2, 4],
+            NestedSetReadWriteNode::on('nested_set_split')
+                ->useWritePdo()
+                ->whereDescendantOf(1)
+                ->orderBy('id')
+                ->pluck('id')
+                ->all(),
+        );
+
+        $this->assertSelectQueriesUseConnection($connection->getQueryLog(), 'write');
+
+        $connection->flushQueryLog();
+
         NestedSetReadWriteNode::on('nested_set_split')->moveNode(3, 2);
 
         $this->assertSelectQueriesUseConnection($connection->getQueryLog(), 'write');
