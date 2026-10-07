@@ -12,7 +12,6 @@ use Hypervel\Contracts\Telescope\TelescopeTag;
 use Hypervel\Http\Client\Factory;
 use Hypervel\Http\Client\Request as HttpRequest;
 use Hypervel\Saloon\Enums\Method;
-use Hypervel\Saloon\Facades\Saloon;
 use Hypervel\Saloon\Http\Auth\BasicAuthenticator;
 use Hypervel\Saloon\Http\Connector;
 use Hypervel\Saloon\Http\PendingRequest;
@@ -34,7 +33,7 @@ class SenderTest extends TestCase
     public function testTheDefaultConnectionOnAllConnectorsIsTheSaloonConnection(): void
     {
         $connector = new TestConnector;
-        $sender = Saloon::sender();
+        $sender = $this->app->make(Sender::class);
 
         $pendingRequest = $connector->createPendingRequest(new UserRequest);
 
@@ -42,7 +41,7 @@ class SenderTest extends TestCase
 
         // Test the same instance is re-used
 
-        $this->assertSame($sender, Saloon::sender());
+        $this->assertSame($sender, $this->app->make(Sender::class));
     }
 
     // Upstream also overrides the sender through a connector property; connectors select their connection only
@@ -95,7 +94,7 @@ class SenderTest extends TestCase
             ->withTelescopeTags(['operation'])
             ->authenticate(new BasicAuthenticator('taylor', 'secret'))
             ->withData(['name' => 'Taylor']);
-        $pendingRequest = $this->pendingRequest(new SenderConnectorStub, $request)
+        $pendingRequest = (new PendingRequest(new SenderConnectorStub, $request))
             ->applyAuthentication()
             ->executeRequestPipeline()
             ->finalizeUri()
@@ -133,7 +132,7 @@ class SenderTest extends TestCase
             return Factory::response();
         });
         $request = (new SenderRequestStub)->withoutTelescope();
-        $pendingRequest = $this->pendingRequest(new SenderConnectorStub, $request)
+        $pendingRequest = (new PendingRequest(new SenderConnectorStub, $request))
             ->finalizeUri()
             ->prepareBody();
         $sender = new Sender($http, $this->config());
@@ -160,14 +159,6 @@ class SenderTest extends TestCase
         parent::setUp();
 
         SenderRequestStub::$psrHookCalls = 0;
-    }
-
-    /**
-     * Create a pending request with isolated framework dependencies.
-     */
-    protected function pendingRequest(Connector $connector, Request $request): PendingRequest
-    {
-        return new PendingRequest($connector, $request);
     }
 
     /**

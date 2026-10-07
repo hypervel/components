@@ -281,30 +281,6 @@ class SaloonManager
     }
 
     /**
-     * Get the Saloon sender.
-     */
-    public function sender(): Sender
-    {
-        return $this->sender;
-    }
-
-    /**
-     * Get the cache factory.
-     */
-    public function cache(): CacheFactory
-    {
-        return $this->cache;
-    }
-
-    /**
-     * Get the rate limiter manager.
-     */
-    public function rateLimiter(): RateLimiter
-    {
-        return $this->rateLimiter;
-    }
-
-    /**
      * Inspect a connector or request rate limit without consuming it.
      *
      * @return ($policy is Cooldown ? CooldownResult : LimitResult)

@@ -154,7 +154,7 @@ class PendingRequestTest extends TestCase
         $request = (new PendingRequestRequestStub)
             ->withUrl('https://{region}.example.com/{version}/users')
             ->withUrlParameters(['region' => 'eu', 'version' => 'v1']);
-        $pendingRequest = $this->pendingRequest(new PendingRequestConnectorWithoutBodyStub, $request);
+        $pendingRequest = new PendingRequest(new PendingRequestConnectorWithoutBodyStub, $request);
 
         $this->assertSame('https://eu.example.com/v1/users', (string) $pendingRequest->finalizeUri()->uri());
 
@@ -167,7 +167,7 @@ class PendingRequestTest extends TestCase
     public function testUrlParametersAreExpandedInTheBaseUrlAndEndpoint(): void
     {
         $request = (new PendingTemplateRequestStub)->withUrlParameters(['tenant' => 'acme', 'id' => 'a b/c']);
-        $pendingRequest = $this->pendingRequest(new PendingTemplateConnectorStub, $request);
+        $pendingRequest = new PendingRequest(new PendingTemplateConnectorStub, $request);
 
         $this->assertSame('https://acme.example.com/v1/users/a%20b%2Fc', (string) $pendingRequest->uri());
     }
@@ -185,7 +185,7 @@ class PendingRequestTest extends TestCase
             ++PendingRequestRequestStub::$middlewareCalls;
         });
 
-        $pendingRequest = $this->pendingRequest($connector, $request);
+        $pendingRequest = new PendingRequest($connector, $request);
 
         $this->assertSame(0, PendingRequestConnectorStub::$bootCalls);
         $this->assertSame(0, PendingRequestRequestStub::$bootCalls);
@@ -222,7 +222,7 @@ class PendingRequestTest extends TestCase
     public function testRawQuerySnapshotsDefaultsAndReplacesBothUrlQueries(): void
     {
         $request = new PendingRawQueryRequestStub;
-        $pendingRequest = $this->pendingRequest(new PendingRawQueryConnectorStub, $request);
+        $pendingRequest = new PendingRequest(new PendingRawQueryConnectorStub, $request);
         $request->withQueryString('changed=after-snapshot');
 
         $pendingRequest->finalizeUri();
@@ -242,7 +242,7 @@ class PendingRequestTest extends TestCase
         $request = (new PendingRawQueryRequestStub)
             ->withQueryString('tag=a&tag=b&token=old&token=older')
             ->withQueryParameters(['limit' => 10]);
-        $pendingRequest = $this->pendingRequest(new PendingRequestConnectorStub, $request);
+        $pendingRequest = new PendingRequest(new PendingRequestConnectorStub, $request);
 
         $pendingRequest->authenticate(new QueryAuthenticator('token', 'secret'))->finalizeUri();
 
@@ -257,7 +257,7 @@ class PendingRequestTest extends TestCase
 
     public function testNullRawQueryKeepsTheOriginalUrlQuery(): void
     {
-        $pendingRequest = $this->pendingRequest(new PendingRawQueryConnectorStub, new PendingRequestRequestStub);
+        $pendingRequest = new PendingRequest(new PendingRawQueryConnectorStub, new PendingRequestRequestStub);
 
         $this->assertNull($pendingRequest->queryString());
         $this->assertSame('base=old', $pendingRequest->uri()->getQuery());
@@ -268,7 +268,7 @@ class PendingRequestTest extends TestCase
         $request = (new PendingRequestRequestStub)
             ->withUrl('https://uploads.example.com/files?tag=a&tag=b&token=old')
             ->withQueryParameters(['limit' => 10]);
-        $pendingRequest = $this->pendingRequest(new PendingRequestConnectorStub, $request);
+        $pendingRequest = new PendingRequest(new PendingRequestConnectorStub, $request);
 
         $pendingRequest
             ->authenticate(new CookieAuthenticator('session', 'secret'))
@@ -287,7 +287,7 @@ class PendingRequestTest extends TestCase
     #[DataProvider('invalidFullUrls')]
     public function testFullUrlOverrideRequiresAnAbsoluteHttpUrl(string $url): void
     {
-        $pendingRequest = $this->pendingRequest(
+        $pendingRequest = new PendingRequest(
             new PendingRequestConnectorStub,
             (new PendingRequestRequestStub)->withUrl($url),
         );
@@ -310,13 +310,13 @@ class PendingRequestTest extends TestCase
         $this->expectException(PendingRequestException::class);
         $this->expectExceptionMessage('Connector and request body types must be the same.');
 
-        $this->pendingRequest(new PendingRequestConnectorStub, new PendingRequestStringBodyStub);
+        new PendingRequest(new PendingRequestConnectorStub, new PendingRequestStringBodyStub);
     }
 
     public function testLogicalPsrRequestReusesAnAlreadyPreparedBody(): void
     {
         CountingBodyRepository::$streamCalls = 0;
-        $pendingRequest = $this->pendingRequest(
+        $pendingRequest = new PendingRequest(
             new PendingRequestConnectorWithoutBodyStub,
             new PendingRequestCountingBodyStub,
         );
@@ -330,7 +330,7 @@ class PendingRequestTest extends TestCase
 
     public function testRequiresAuthRetainsItsProtectedMessageHook(): void
     {
-        $pendingRequest = $this->pendingRequest(
+        $pendingRequest = new PendingRequest(
             new PendingRequestConnectorWithoutBodyStub,
             new CustomRequiresAuthRequestStub,
         );
@@ -343,7 +343,7 @@ class PendingRequestTest extends TestCase
 
     public function testAuthenticatorsReplaceLogicalHeadersRegardlessOfCase(): void
     {
-        $pendingRequest = $this->pendingRequest(
+        $pendingRequest = new PendingRequest(
             new PendingRequestConnectorWithoutBodyStub,
             new PendingRequestRequestStub,
         );
@@ -383,14 +383,6 @@ class PendingRequestTest extends TestCase
         PendingRequestConnectorStub::$bootCalls = 0;
         PendingRequestRequestStub::$bootCalls = 0;
         PendingRequestRequestStub::$middlewareCalls = 0;
-    }
-
-    /**
-     * Create a pending request with isolated framework dependencies.
-     */
-    protected function pendingRequest(Connector $connector, Request $request): PendingRequest
-    {
-        return new PendingRequest($connector, $request);
     }
 }
 

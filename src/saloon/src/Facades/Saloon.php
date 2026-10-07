@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Saloon\Facades;
 
 use Closure;
-use Hypervel\Saloon\Http\Faking\MockClient;
 use Hypervel\Support\Facades\Facade;
 
 /**
@@ -14,7 +13,6 @@ use Hypervel\Support\Facades\Facade;
  * @method static void assertSent(callable|string $value)
  * @method static void assertSentCount(int $count, null|string $requestClass = null)
  * @method static void assertSentInOrder(array<int, callable|string> $callbacks)
- * @method static \Hypervel\Contracts\Cache\Factory cache()
  * @method static void clearCache(\Hypervel\Saloon\Http\Connector $connector, \Hypervel\Saloon\Http\Request $request)
  * @method static \Hypervel\Saloon\SaloonManager clearFake()
  * @method static \Hypervel\Saloon\Http\PendingRequest<mixed> createPendingRequest(\Hypervel\Saloon\Http\Connector $connector, \Hypervel\Saloon\Http\Request<mixed> $request)
@@ -24,11 +22,9 @@ use Hypervel\Support\Facades\Facade;
  * @method static ($policy is \Hypervel\RateLimiter\Cooldown ? \Hypervel\RateLimiter\CooldownResult : \Hypervel\RateLimiter\LimitResult) inspectRateLimit(\Hypervel\Saloon\Http\Connector|\Hypervel\Saloon\Http\Request $resource, \Hypervel\RateLimiter\AdmissionPolicy|\Hypervel\RateLimiter\Cooldown $policy)
  * @method static \Hypervel\Saloon\Http\MiddlewarePipeline middleware()
  * @method static \Hypervel\Saloon\Http\Faking\MockClient|null mockClient()
- * @method static \Hypervel\RateLimiter\RateLimiter rateLimiter()
  * @method static string|null resolveCacheScope(\Hypervel\Saloon\Http\PendingRequest $pendingRequest)
  * @method static \Hypervel\Saloon\SaloonManager resolveCacheScopeUsing(null|Closure $resolver)
  * @method static \Hypervel\Saloon\Http\Response<mixed> send(\Hypervel\Saloon\Http\Connector $connector, \Hypervel\Saloon\Http\Request<mixed> $request, \Hypervel\Saloon\Http\Faking\MockClient|null $mockClient = null)
- * @method static \Hypervel\Saloon\Http\Sender sender()
  * @method static void setEventDispatcher(\Hypervel\Contracts\Events\Dispatcher $events)
  * @method static \Hypervel\Saloon\SaloonManager throwOnMissingFixtures(bool $throw = true)
  * @method static bool throwsOnMissingFixtures()

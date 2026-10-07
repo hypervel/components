@@ -631,7 +631,7 @@ class ResponseTest extends TestCase
 
     public function testNonSeekableBodyIsBufferedOnce(): void
     {
-        $pendingRequest = $this->pendingRequest(new ResponseConnectorStub, new ResponseRequestStub);
+        $pendingRequest = new PendingRequest(new ResponseConnectorStub, new ResponseRequestStub);
         $psrRequest = new PsrRequest('GET', 'https://api.example.com/users');
         $httpResponse = new HttpResponse(new PsrResponse(
             body: new NoSeekStream(Utils::streamFor('response body')),
@@ -753,7 +753,7 @@ class ResponseTest extends TestCase
     ): Response {
         $connector ??= new ResponseConnectorStub;
         $request ??= new ResponseRequestStub;
-        $pendingRequest ??= $this->pendingRequest($connector, $request);
+        $pendingRequest ??= new PendingRequest($connector, $request);
         $psrRequest = new PsrRequest($request->method()->value, 'https://api.example.com/users');
 
         return Response::fromResponse(
@@ -761,14 +761,6 @@ class ResponseTest extends TestCase
             $pendingRequest,
             $psrRequest,
         );
-    }
-
-    /**
-     * Create a pending request with isolated framework dependencies.
-     */
-    protected function pendingRequest(Connector $connector, Request $request): PendingRequest
-    {
-        return new PendingRequest($connector, $request);
     }
 }
 

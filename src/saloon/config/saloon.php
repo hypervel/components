@@ -10,9 +10,9 @@ return [
     | HTTP Connection
     |--------------------------------------------------------------------------
     |
-    | Saloon sends requests through this named, worker-lifetime HTTP
-    | connection. Its options are an open transport preset and may be
-    | adjusted or removed independently.
+    | Saloon sends requests through this named HTTP client connection unless
+    | a connector selects another one. Its options are the defaults for
+    | every request sent through it, and you may change or remove them.
     |
     */
 
