@@ -146,6 +146,7 @@ class JwtConfigTest extends TestCase
         $originalValues = $this->setEnvironmentVariables([
             'JWT_ISSUER' => 'https://api.example.test',
             'JWT_BLACKLIST_ENABLED' => '1',
+            'JWT_BLACKLIST_STORE' => 'redis',
             'JWT_REFRESH_IAT' => '1',
             'JWT_LOCK_SUBJECT' => '0',
             'JWT_TOKEN' => 'api_token',
@@ -158,6 +159,7 @@ class JwtConfigTest extends TestCase
 
             $this->assertSame('https://api.example.test', $config['issuer']);
             $this->assertTrue($config['blacklist_enabled']);
+            $this->assertSame('redis', $config['blacklist_store']);
             $this->assertTrue($config['refresh_iat']);
             $this->assertFalse($config['lock_subject']);
             $this->assertSame('api_token', $config['token']);

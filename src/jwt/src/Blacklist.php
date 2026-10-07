@@ -12,10 +12,13 @@ use Hypervel\Support\Facades\Date;
 
 class Blacklist implements BlacklistContract
 {
+    /**
+     * Create a new blacklist instance.
+     */
     public function __construct(
         protected StorageContract $storage,
+        protected ?int $refreshTTL,
         protected int $gracePeriod = 0,
-        protected ?int $refreshTTL = 20160,
         protected int $leeway = 0,
         protected string $key = 'jti'
     ) {
@@ -220,6 +223,9 @@ class Blacklist implements BlacklistContract
         return $this->refreshTTL;
     }
 
+    /**
+     * Create a date from a Unix timestamp.
+     */
     protected function timestamp(int $timestamp): CarbonInterface
     {
         return Date::createFromTimestamp($timestamp);

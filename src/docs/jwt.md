@@ -378,23 +378,27 @@ The JWT blacklist lets the package invalidate tokens before they naturally expir
 
 Blacklisting is disabled by default. When enabled, newly issued tokens include a `jti` claim and authenticated blacklist checks require cache access. Enable it when your application needs server-side token invalidation.
 
+Blacklist entries are kept in your default cache store. You may choose another store using the `blacklist_store` option:
+
+```php
+'blacklist_store' => env('JWT_BLACKLIST_STORE'),
+```
+
+Use a store that all of your servers share, such as Redis, so a revoked token is rejected everywhere. Stores that are not shared between servers, such as `file` or `swoole`, only see revocations made on the same server, and the `session` store only sees revocations made within the same session. If the blacklist store is a cache stack with a node-local tier, other servers may accept a revoked token until their local entry expires, so keep that tier's TTL short.
+
+The blacklist works with any cache store. Its `clear` method, which removes every blacklist entry, requires a store that supports tags, and it never removes other cache entries.
+
 The blacklist uses the configured storage provider:
 
 ```php
 'providers' => [
-    'storage' => Hypervel\Jwt\Storage\TaggedCache::class,
+    'storage' => Hypervel\Jwt\Storage\CacheStorage::class,
 ],
 ```
 
-If the provider members are omitted, Hypervel uses `Lcobucci` for token encoding and decoding and `TaggedCache` for blacklist storage.
+If the provider members are omitted, Hypervel uses `Lcobucci` for token encoding and decoding and `CacheStorage` for blacklist storage. To keep blacklist entries somewhere other than the cache, implement `Hypervel\Jwt\Contracts\StorageContract` and configure your implementation using `jwt.providers.storage`. The `blacklist_store` option only applies to `CacheStorage`.
 
-The default tagged-cache storage requires your default cache store to support tags. Both all-mode and any-mode tagged stores are supported. When using any-mode tags, blacklist entries are written through tags but read and removed by a private plain-key prefix.
-
-If your cache store does not support tags, implement `Hypervel\Jwt\Contracts\StorageContract` and configure your implementation using `jwt.providers.storage`.
-
-If the blacklist store uses a cache stack or any node-local tier, a revoked token may still validate on another node until that node's local cache entry expires. Keep the upper-tier TTL short, or use a fully shared store such as Redis when revocation must be visible immediately across all nodes.
-
-You may configure a grace period for concurrent requests that are using the same token while a refresh is in progress:
+A grace period keeps a revoked token usable for a number of seconds, allowing concurrent requests that use it to finish. Tokens invalidated with `forceForever` are revoked immediately:
 
 ```php
 'blacklist_grace_period' => (int) env('JWT_BLACKLIST_GRACE_PERIOD', 0),

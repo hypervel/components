@@ -34,7 +34,7 @@ class BlacklistTest extends TestCase
 
         $this->testNowTimestamp = Date::now()->timestamp;
         $this->storage = m::mock(StorageContract::class);
-        $this->blacklist = new Blacklist($this->storage);
+        $this->blacklist = new Blacklist($this->storage, refreshTTL: 20160);
     }
 
     public function testAddAValidTokenToTheBlacklist(): void
@@ -281,7 +281,7 @@ class BlacklistTest extends TestCase
         ];
         $blacklist = new Blacklist($this->storage, refreshTTL: 0);
 
-        // Model the clock advancing while the tagged-cache lookup is in flight.
+        // Model the clock advancing while the storage lookup is in flight.
         $this->storage->shouldReceive('get')
             ->with('foo')
             ->once()

@@ -239,6 +239,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Blacklist Cache Store
+    |--------------------------------------------------------------------------
+    |
+    | The cache store used by the default blacklist storage. Use a store that
+    | is shared by every server, such as Redis, so revocations apply on all
+    | of them. Set it to null to use the default cache store.
+    |
+    */
+
+    'blacklist_store' => env('JWT_BLACKLIST_STORE'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Refresh Issued At
     |--------------------------------------------------------------------------
     |
@@ -282,11 +295,9 @@ return [
     | Blacklist Grace Period
     | -------------------------------------------------------------------------
     |
-    | When multiple concurrent requests are made with the same JWT,
-    | it is possible that some of them fail, due to token regeneration
-    | on every request.
-    |
-    | Set grace period in seconds to prevent parallel request failure.
+    | A revoked token remains usable for this many seconds, allowing
+    | concurrent requests that use it to finish. Tokens invalidated with
+    | `forceForever` are revoked immediately.
     |
     */
 
@@ -320,12 +331,10 @@ return [
         |--------------------------------------------------------------------------
         |
         | Specify the provider that is used to store tokens in the blacklist.
-        | The default tagged-cache storage requires a taggable default cache
-        | store; with node-local stack tiers, blacklist visibility is bounded
-        | by the upper tier's TTL.
+        | The default cache storage uses the `blacklist_store` cache store.
         |
         */
 
-        'storage' => Hypervel\Jwt\Storage\TaggedCache::class,
+        'storage' => Hypervel\Jwt\Storage\CacheStorage::class,
     ],
 ];
