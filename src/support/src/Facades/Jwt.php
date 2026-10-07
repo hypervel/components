@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Support\Facades;
 
 /**
+ * @method static \Hypervel\Jwt\Contracts\BlacklistContract blacklist()
  * @method static \Hypervel\Jwt\Providers\Lcobucci createLcobucciDriver()
  * @method static array decode(string $token, bool $validate = true, bool $checkBlacklist = true)
  * @method static mixed driver(\UnitEnum|string|null $driver = null)

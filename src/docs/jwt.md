@@ -21,9 +21,9 @@
     - [Reading the Authenticated User](#reading-the-authenticated-user)
     - [Refreshing Tokens](#refreshing-tokens)
     - [Logging Out and Invalidating Tokens](#logging-out-and-invalidating-tokens)
+    - [Managing Revocations](#managing-revocations)
 - [Guard Methods](#guard-methods)
 - [Exceptions](#exceptions)
-- [Differences From php-open-source-saver/jwt-auth](#differences-from-php-open-source-saver-jwt-auth)
 - [Credits](#credits)
 
 <a name="introduction"></a>
@@ -231,6 +231,8 @@ After registering the driver, you may select it using the `driver` configuration
 'driver' => 'custom',
 ```
 
+To customize the bundled provider, such as with your own subclass of `Hypervel\Jwt\Providers\Lcobucci`, register it under the `lcobucci` name instead. The JWT manager creates each driver once and reuses it, so register drivers before the first token is encoded or decoded. Calling `extend` after a driver has been created does not replace it.
+
 <a name="token-lifetime"></a>
 ### Token Lifetime
 
@@ -386,7 +388,7 @@ Blacklist entries are kept in your default cache store. You may choose another s
 
 Use a store that all of your servers share, such as Redis, so a revoked token is rejected everywhere. Stores that are not shared between servers, such as `file` or `swoole`, only see revocations made on the same server, and the `session` store only sees revocations made within the same session. If the blacklist store is a cache stack with a node-local tier, other servers may accept a revoked token until their local entry expires, so keep that tier's TTL short.
 
-The blacklist works with any cache store. Its `clear` method, which removes every blacklist entry, requires a store that supports tags, and it never removes other cache entries.
+The blacklist works with any cache store. Removing every revocation at once requires a store that supports tags, as described in [managing revocations](#managing-revocations).
 
 The blacklist uses the configured storage provider:
 
@@ -396,7 +398,7 @@ The blacklist uses the configured storage provider:
 ],
 ```
 
-If the provider members are omitted, Hypervel uses `Lcobucci` for token encoding and decoding and `CacheStorage` for blacklist storage. To keep blacklist entries somewhere other than the cache, implement `Hypervel\Jwt\Contracts\StorageContract` and configure your implementation using `jwt.providers.storage`. The `blacklist_store` option only applies to `CacheStorage`.
+If the storage provider is omitted, Hypervel uses `CacheStorage`. To keep blacklist entries somewhere other than the cache, implement `Hypervel\Jwt\Contracts\StorageContract` and configure your implementation using `jwt.providers.storage`. The `blacklist_store` option only applies to `CacheStorage`.
 
 A grace period keeps a revoked token usable for a number of seconds, allowing concurrent requests that use it to finish. Tokens invalidated with `forceForever` are revoked immediately:
 
@@ -581,6 +583,23 @@ You may pass `true` to blacklist the token forever. This also bypasses the confi
 Auth::guard('api')->invalidate(true);
 ```
 
+<a name="managing-revocations"></a>
+### Managing Revocations
+
+The `Jwt` facade's `blacklist` method gives you access to the blacklist. Its `remove` method removes a single token's revocation, while the `clear` method removes every revocation:
+
+```php
+use Hypervel\Support\Facades\Jwt;
+
+$payload = Jwt::decode($token, validate: false, checkBlacklist: false);
+
+Jwt::blacklist()->remove($payload);
+
+Jwt::blacklist()->clear();
+```
+
+A token whose revocation is removed can authenticate again until it expires. The `clear` method requires a cache store that supports tags, such as Redis, and only removes blacklist entries. On other stores, it throws an exception instead.
+
 <a name="guard-methods"></a>
 ## Guard Methods
 
@@ -627,22 +646,7 @@ Common exceptions include:
 
 </div>
 
-<a name="differences-from-php-open-source-saver-jwt-auth"></a>
-## Differences From php-open-source-saver/jwt-auth
-
-Hypervel JWT differs from `php-open-source-saver/jwt-auth` in several ways:
-
-<div class="content-list" markdown="1">
-
-- Hypervel uses array payloads instead of upstream `Payload`, `Token`, and claim DTO objects.
-- Hypervel keeps the `Jwt` facade mapped to the array-based `JwtManager`, but does not include upstream `JwtAuth`, `JwtFactory`, or `JwtProvider` facades.
-- Cookie token parsing is available but not enabled by default.
-- Upstream route-parameter and Lumen parser shortcuts are not included.
-- Upstream sliding refresh middleware is not included; use an explicit refresh endpoint that calls `Auth::guard(...)->refresh()`.
-- Namshi and Lumen integrations are not included.
-- The `show_black_list_exception` option is not included; JWT exceptions fail normally.
-
-</div>
+The guard's `user`, `check`, and `id` methods treat an invalid, expired, or blacklisted token as unauthenticated instead of throwing. Methods that need the token itself, such as `payload` and `refresh`, throw these exceptions. To keep them out of your logs, ignore them with the [`dontReport`](/docs/{{version}}/errors#ignoring-exceptions-by-type) exception method.
 
 <a name="credits"></a>
 ## Credits

@@ -17,11 +17,10 @@ use Hypervel\Jwt\Providers\Lcobucci;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Manager;
 use Hypervel\Support\Str;
-use RuntimeException;
 
 class JwtManager extends Manager implements ManagerContract
 {
-    protected ?BlacklistContract $blacklist;
+    protected ?BlacklistContract $blacklist = null;
 
     protected bool $blacklistEnabled = false;
 
@@ -37,9 +36,6 @@ class JwtManager extends Manager implements ManagerContract
         parent::__construct($container);
 
         $this->blacklistEnabled = $this->config->boolean('jwt.blacklist_enabled');
-        $this->blacklist = $this->blacklistEnabled
-            ? $container->make(BlacklistContract::class)
-            : null;
     }
 
     /**
@@ -47,13 +43,7 @@ class JwtManager extends Manager implements ManagerContract
      */
     public function createLcobucciDriver(): Lcobucci
     {
-        $class = $this->config->string('jwt.providers.jwt', Lcobucci::class);
-
-        if (! is_a($class, Lcobucci::class, true)) {
-            throw new RuntimeException('JWT provider must be an instance of ' . Lcobucci::class);
-        }
-
-        return new $class(
+        return new Lcobucci(
             (string) $this->config->get('jwt.secret'),
             $this->config->string('jwt.algo'),
             $this->config->array('jwt.keys'),
@@ -239,14 +229,10 @@ class JwtManager extends Manager implements ManagerContract
     }
 
     /**
-     * Get the configured blacklist instance.
+     * Get the blacklist instance.
      */
-    protected function blacklist(): BlacklistContract
+    public function blacklist(): BlacklistContract
     {
-        if ($this->blacklist === null) {
-            throw new JwtException('JWT blacklist is not configured.');
-        }
-
-        return $this->blacklist;
+        return $this->blacklist ??= $this->container->make(BlacklistContract::class);
     }
 }

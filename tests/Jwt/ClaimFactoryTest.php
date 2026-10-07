@@ -202,19 +202,50 @@ class ClaimFactoryTest extends TestCase
         $this->assertSame('one', $claims['tenant']);
     }
 
-    public function testRefreshIssuedAtRestampsIat(): void
-    {
+    #[DataProvider('repeatedRefreshIssuedAtProvider')]
+    public function testRefreshIssuedAtSettingAppliesOnEveryRefresh(
+        bool $refreshIssuedAt,
+        int $firstIssuedAt,
+        int $secondIssuedAt,
+    ): void {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-01-01 00:00:00'));
 
-        $claims = $this->factory()->refresh(
-            payload: ['sub' => 42, 'iat' => 100],
+        $factory = $this->factory();
+        $payload = ['sub' => 42, 'iat' => 100];
+
+        $first = $factory->refresh(
+            payload: $payload,
             ttl: null,
-            refreshIssuedAt: true,
+            refreshIssuedAt: $refreshIssuedAt,
             resetClaims: false,
             persistentClaims: [],
         );
 
-        $this->assertSame(1767225600, $claims['iat']);
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinutes(2));
+
+        $second = $factory->refresh(
+            payload: $payload,
+            ttl: null,
+            refreshIssuedAt: $refreshIssuedAt,
+            resetClaims: false,
+            persistentClaims: [],
+        );
+
+        $this->assertSame($firstIssuedAt, $first['iat']);
+        $this->assertSame($secondIssuedAt, $second['iat']);
+    }
+
+    /**
+     * Provide each refresh issued-at setting and the iat of two refreshes two minutes apart.
+     *
+     * @return array<string, array{bool, int, int}>
+     */
+    public static function repeatedRefreshIssuedAtProvider(): array
+    {
+        return [
+            'keep original iat' => [false, 100, 100],
+            'refresh iat' => [true, 1767225600, 1767225720],
+        ];
     }
 
     #[DataProvider('refreshIssuerProvider')]

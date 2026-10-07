@@ -11,9 +11,9 @@ return [
     | JWT Driver
     |--------------------------------------------------------------------------
     |
-    | The driver you are using to encode, decode and sign your
-    | JWT token, all the drivers must implement:
-    | Hypervel\Jwt\Contracts\ProviderContract::class
+    | The driver used to sign, encode and decode tokens. The "lcobucci"
+    | driver is built in. Register other drivers with `Jwt::extend()`;
+    | they must implement Hypervel\Jwt\Contracts\ProviderContract.
     |
     */
 
@@ -314,17 +314,6 @@ return [
     */
 
     'providers' => [
-        /*
-        |--------------------------------------------------------------------------
-        | JWT Provider
-        |--------------------------------------------------------------------------
-        |
-        | Specify the provider that is used to create and decode the tokens.
-        |
-        */
-
-        'jwt' => Hypervel\Jwt\Providers\Lcobucci::class,
-
         /*
         |--------------------------------------------------------------------------
         | Storage Provider

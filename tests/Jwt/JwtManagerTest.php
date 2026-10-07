@@ -125,9 +125,6 @@ class JwtManagerTest extends TestCase
             'jwt' => [
                 'blacklist_enabled' => false,
                 'driver' => 'lcobucci',
-                'providers' => [
-                    'jwt' => Lcobucci::class,
-                ],
                 'secret' => null,
                 'algo' => Provider::ALGO_RS256,
                 'keys' => [
@@ -151,18 +148,45 @@ class JwtManagerTest extends TestCase
         $this->assertSame('value', $payload['custom']);
     }
 
-    public function testConstructorDoesNotResolveBlacklistWhenBlacklistIsDisabled(): void
+    public function testCustomDriverCanReplaceTheLcobucciDriver(): void
     {
-        $container = m::mock(Container::class);
-        $config = m::mock(Repository::class);
+        $this->config->shouldReceive('boolean')->with('jwt.blacklist_enabled')->andReturnFalse();
+        $this->config->shouldReceive('string')->with('jwt.driver')->andReturn('lcobucci');
 
-        $container->shouldReceive('make')->once()->with('config')->andReturn($config);
-        $container->shouldReceive('make')->with(BlacklistContract::class)->never();
-        $config->shouldReceive('boolean')->once()->with('jwt.blacklist_enabled')->andReturnFalse();
+        $manager = new JwtManager($this->container, $this->claimFactory);
+        $provider = $this->provider;
 
-        $manager = new JwtManager($container, m::mock(ClaimFactory::class));
+        $manager->extend('lcobucci', static fn (): Lcobucci => $provider);
+
+        $this->assertSame($provider, $manager->driver());
+    }
+
+    public function testDisabledBlacklistIsNeverResolved(): void
+    {
+        $token = 'foo.bar.baz';
+        $refreshedToken = 'baz.bar.foo';
+        $payload = ['sub' => 1, 'iat' => $this->testNowTimestamp];
+
+        $this->mockContainer();
+        $this->mockConfig();
+        $this->container->shouldReceive('make')->with(BlacklistContract::class)->never();
+
+        $this->config->shouldReceive('boolean')->with('jwt.blacklist_enabled')->andReturnFalse();
+        $this->config->shouldReceive('array')->with('jwt.validations')->andReturn([ValidationStub::class]);
+        $this->config->shouldReceive('array')->with('jwt')->andReturn([]);
+        $this->config->shouldReceive('get')->with('jwt.refresh_ttl')->andReturn(20160);
+        $this->config->shouldReceive('get')->with('jwt.ttl')->andReturn(120);
+        $this->config->shouldReceive('boolean')->with('jwt.refresh_iat')->andReturnFalse();
+        $this->config->shouldReceive('array')->with('jwt.persistent_claims')->andReturn([]);
+        $this->claimFactory->shouldReceive('refresh')->once()->andReturn($payload);
+        $this->provider->shouldReceive('decode')->twice()->with($token)->andReturn($payload);
+        $this->provider->shouldReceive('encode')->once()->with($payload)->andReturn($refreshedToken);
+
+        $manager = $this->createManager();
 
         $this->assertFalse($manager->hasBlacklistEnabled());
+        $this->assertSame($payload, $manager->decode($token));
+        $this->assertSame($refreshedToken, $manager->refresh($token));
     }
 
     public function testDecodeAToken(): void
@@ -810,6 +834,20 @@ class JwtManagerTest extends TestCase
         $this->config->shouldReceive('boolean')->with('jwt.blacklist_enabled')->andReturnFalse();
 
         $this->createManager()->invalidate($token);
+    }
+
+    public function testGetTheBlacklist(): void
+    {
+        $this->mockContainer();
+        $this->mockConfig();
+        $this->container->shouldReceive('make')->once()->with(BlacklistContract::class)->andReturn($this->blacklist);
+
+        $this->config->shouldReceive('boolean')->with('jwt.blacklist_enabled')->andReturnFalse();
+
+        $manager = $this->createManager();
+
+        $this->assertSame($this->blacklist, $manager->blacklist());
+        $this->assertSame($this->blacklist, $manager->blacklist());
     }
 
     private function setTestNow(): void
