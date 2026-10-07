@@ -9,6 +9,7 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\NestedSet\Eloquent\Collection;
 use Hypervel\NestedSet\HasNode;
 use Hypervel\Support\Facades\DB;
+use Hypervel\Testbench\Attributes\RequiresDatabase;
 use Hypervel\Tests\NestedSet\Fixtures\Models\Category;
 use LogicException;
 
@@ -45,6 +46,33 @@ class NodeTest extends NodeTestBase
     protected function key(int $number): int
     {
         return $number;
+    }
+
+    #[RequiresDatabase(['sqlite', 'pgsql'])]
+    public function testIgnoredSaveOrIgnoreConflictKeepsThePendingAction(): void
+    {
+        $node = (new Category(['name' => 'conflict']))->forceFill(['id' => 1]);
+        $node->appendToNode(Category::findOrFail(5));
+        $ignored = new LogicException('The insert was ignored.');
+        $caught = null;
+
+        try {
+            DB::transaction(function () use ($node, $ignored): void {
+                if (! $node->saveOrIgnore()) {
+                    throw $ignored;
+                }
+            });
+        } catch (LogicException $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($ignored, $caught);
+
+        unset($node->id);
+
+        $this->assertTrue($node->save());
+        $this->assertSame(5, $node->getParentId());
+        $this->assertTreeNotBroken();
     }
 
     public function testEventedDescendantDeletionRunsChildrenFirstInChunks(): void

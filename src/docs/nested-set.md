@@ -900,7 +900,7 @@ DB::transaction(function () use ($electronics, $computers, $phones): void {
 
 Immediately before a structural mutation, Hypervel reloads each existing participating node from the write connection. A partially selected model must therefore include its primary key so Hypervel can reload the exact row. This keeps structural decisions aligned with the database without adding hidden reads to ordinary relation queries and node state helpers.
 
-If a model observer vetoes a mutation and it returns `false`, throw from the transaction closure so earlier structural writes are rolled back.
+If a structural save returns `false`, whether an observer vetoes it or `saveOrIgnore()` ignores a conflict, throw from the transaction closure so earlier structural writes are rolled back. The node keeps its queued operation, so you can save it again afterward, but Eloquent does not restore the model's other state after a rollback.
 
 Concurrent writers to the same table and nested set scope must also be serialized by your application. The package does not add an implicit distributed lock or network call.
 

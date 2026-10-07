@@ -9,4 +9,6 @@ Documentation: https://hypervel.org/docs/nested-set
 
 Migrations add the nested set columns and indexes with one Blueprint macro matching the table's primary key: `nestedSet()` for `id()`, `integerNestedSet()` for `increments()`, `uuidNestedSet()` or `ulidNestedSet()`. Each macro includes the `depth` column and accepts the tree's scope columns, which prefix every index; `dropNestedSet()` accepts the same scope columns. The matching `NestedSet` static methods take scope columns instead of a key column name and type. Upstream's `nestedSetDepth()`, `nestedSetIndex()`, `dropNestedSetDepth()` and `dropNestedSetIndex()` macros and their `NestedSet` methods are not available. For a custom index layout, define the columns and indexes with ordinary Blueprint methods.
 
+Only a `null` parent ID makes a node a root. Upstream also treats `0` and an empty string as root parent IDs; here they are ordinary parent keys, so a node whose key is `0` can have children.
+
 Ported from: https://github.com/aimeos/laravel-nestedset

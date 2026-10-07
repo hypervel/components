@@ -323,6 +323,27 @@ abstract class ScopedNodeTestBase extends TestCase
         (new $this->menuItem(['title' => 'missing scope']))->save();
     }
 
+    public function testNodeRejectedForAMissingScopeKeepsItsPendingParent(): void
+    {
+        $node = new $this->menuItem(['title' => 'retried', 'parent_id' => $this->key(5)]);
+
+        try {
+            $node->save();
+            $this->fail('Expected the missing scope to be rejected.');
+        } catch (LogicException $exception) {
+            $this->assertStringContainsString('attribute [menu_id] was not selected', $exception->getMessage());
+        }
+
+        $node->menu_id = 1;
+        $node->save();
+
+        $this->assertSame($this->key(5), $node->getParentId());
+        $this->assertSame([5, 6], $node->getBounds());
+        $this->assertSame(2, $node->getDepth());
+        $this->assertTreeNotBroken(1);
+        $this->assertOtherScopeNotAffected();
+    }
+
     public function testMovingNodeNotAffectingOtherMenu(): void
     {
         $node = $this->menuItem::where('menu_id', '=', 1)->defaultOrder()->first();
@@ -596,7 +617,14 @@ abstract class ScopedNodeTestBase extends TestCase
         $this->assertOtherScopeNotAffected();
     }
 
-    public function testInsertionResolvesParentAfterLaterScopeAttributes(): void
+    public function testInsertionToParentFromOtherScope(): void
+    {
+        $this->expectException(ModelNotFoundException::class);
+
+        $this->menuItem::create(['menu_id' => 2, 'parent_id' => $this->key(5)]);
+    }
+
+    public function testInsertionWithParentIdBeforeScope(): void
     {
         $node = $this->menuItem::create(['parent_id' => $this->key(5), 'menu_id' => 1]);
 
@@ -605,7 +633,7 @@ abstract class ScopedNodeTestBase extends TestCase
         $this->assertOtherScopeNotAffected();
     }
 
-    public function testFillResolvesParentAfterLaterScopeAttributes(): void
+    public function testFillWithParentIdBeforeScope(): void
     {
         $node = new $this->menuItem;
         $node->fill(['parent_id' => $this->key(5), 'menu_id' => 1])->save();
@@ -615,14 +643,7 @@ abstract class ScopedNodeTestBase extends TestCase
         $this->assertOtherScopeNotAffected();
     }
 
-    public function testInsertionToParentFromOtherScope(): void
-    {
-        $this->expectException(ModelNotFoundException::class);
-
-        $this->menuItem::create(['menu_id' => 2, 'parent_id' => $this->key(5)]);
-    }
-
-    public function testInsertionRejectsLaterScopeAttributesFromAnotherTree(): void
+    public function testInsertionToParentFromOtherScopeWithParentIdBeforeScope(): void
     {
         $this->expectException(ModelNotFoundException::class);
 

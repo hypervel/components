@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\NestedSet;
 
+use Closure;
 use DateTimeInterface;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Database\Eloquent\Relations\BelongsTo;
 use Hypervel\Database\Eloquent\Relations\HasMany;
 use Hypervel\Database\Query\Builder as BaseQueryBuilder;
@@ -79,7 +81,7 @@ trait HasNode
     public static function bootHasNode(): void
     {
         static::saving(function ($model): void {
-            $model->callPendingActions();
+            $model->callPendingAction();
         });
 
         static::deleting(function ($model): void {
@@ -124,7 +126,7 @@ trait HasNode
     /**
      * Call pending action.
      */
-    protected function callPendingActions(): void
+    protected function callPendingAction(): void
     {
         $this->moved = false;
 
@@ -138,7 +140,7 @@ trait HasNode
             return;
         }
 
-        $action = array_shift($this->pending);
+        $action = $this->pending[0];
 
         if ($action === 'raw') {
             $this->ensureNestedSetScopeIsUnchanged();
@@ -148,11 +150,46 @@ trait HasNode
         }
 
         $method = 'action' . ucfirst($action);
-        $parameters = $this->pending;
+        $parameters = array_slice($this->pending, 1);
 
         $this->pending = [];
 
-        $this->moved = call_user_func_array([$this, $method], $parameters);
+        $this->moved = $this->{$method}(...$parameters);
+    }
+
+    /**
+     * Save the model to the database.
+     */
+    public function save(array $options = []): bool
+    {
+        return $this->restorePendingActionUnlessSaved(fn (): bool => parent::save($options));
+    }
+
+    /**
+     * Save the model to the database, ignoring specific unique constraint conflicts.
+     */
+    public function saveOrIgnore(array $options = [], array|string|null $uniqueBy = null): bool
+    {
+        return $this->restorePendingActionUnlessSaved(fn (): bool => parent::saveOrIgnore($options, $uniqueBy));
+    }
+
+    /**
+     * Run a save, restoring its consumed action when the save does not complete.
+     */
+    protected function restorePendingActionUnlessSaved(Closure $save): bool
+    {
+        $pending = $this->pending;
+        $saved = false;
+
+        try {
+            return $saved = $save();
+        } finally {
+            // Like dirty attributes, the action survives a save that did not complete,
+            // unless an observer queued a new one.
+            if (! $saved && $this->pending === []) {
+                $this->pending = $pending;
+            }
+        }
     }
 
     /**
@@ -243,7 +280,7 @@ trait HasNode
      */
     protected function actionAppendOrPrependPrepared(self $parent, bool $prepend = false): bool
     {
-        $this->ensureNodeInTree($parent)
+        $this->assertNodeExists($parent)
             ->assertNotDescendant($parent)
             ->ensureSameTree($parent)
             ->setParent($parent)
@@ -297,7 +334,7 @@ trait HasNode
     {
         $node->prepareForNestedSetMutation();
 
-        $this->ensureNodeInTree($node)
+        $this->assertNodeExists($node)
             ->assertNotDescendant($node)
             ->ensureSameTree($node)
             ->setParentFromSibling($node)
@@ -369,11 +406,18 @@ trait HasNode
             ));
         }
 
-        return $this->newModelQuery()
+        // A base read keeps internal reloads from firing retrieved listeners.
+        $attributes = $this->newModelQuery()
             ->useWritePdo()
             ->whereKey($this->getKey())
-            ->firstOrFail($columns)
-            ->getAttributes();
+            ->toBase()
+            ->first($columns);
+
+        if ($attributes === null) {
+            throw (new ModelNotFoundException)->setModel(static::class, [$this->getKey()]);
+        }
+
+        return (array) $attributes;
     }
 
     /**
@@ -1184,7 +1228,7 @@ trait HasNode
      * Set the value of model's parent id key.
      * Behind the scenes node is appended to found parent node.
      */
-    public function setParentIdAttribute(int|string|null $value): void
+    public function setParentIdAttribute(int|string|null $value): static
     {
         $parentIdName = $this->getParentIdName();
         $hasCurrent = array_key_exists($parentIdName, $this->attributes);
@@ -1194,17 +1238,14 @@ trait HasNode
             $current === $value
             || ($current !== null && $value !== null && (string) $current === (string) $value)
         )) {
-            return;
+            return $this;
         }
 
         if ($value === null) {
-            $this->makeRoot();
-
-            return;
+            return $this->makeRoot();
         }
 
-        $this->setParentId($value);
-        $this->setNodeAction('appendToParentId', $value);
+        return $this->setParentId($value)->setNodeAction('appendToParentId', $value);
     }
 
     /**
@@ -1539,6 +1580,7 @@ trait HasNode
      */
     public function setParentId(int|string|null $value): static
     {
+        // Only null marks a root; unlike upstream, 0 and '' stay real parent keys.
         $this->attributes[$this->getParentIdName()] = $value;
 
         return $this;
@@ -1549,7 +1591,7 @@ trait HasNode
      */
     public function setDepth(?int $value): static
     {
-        $this->attributes[$this->getDepthName()] = $value;
+        $this->attributes[$this->getDepthName()] = $value ?? 0;
 
         return $this;
     }
@@ -1612,9 +1654,8 @@ trait HasNode
         $this->assertNotDescendant($node);
     }
 
-    // Keep NodeTrait::assertNotDescendant() so upstream subclasses remain compatible.
     /**
-     * Assert that a node is not this node's descendant.
+     * Assert that a node is neither this node nor one of its descendants.
      */
     protected function assertNotDescendant(self $node): static
     {
@@ -1626,9 +1667,9 @@ trait HasNode
     }
 
     /**
-     * Ensure that a node has persisted tree bounds.
+     * Assert that a node has positive tree bounds.
      */
-    protected function ensureNodeInTree(self $node): static
+    protected function assertNodeExists(self $node): static
     {
         if (($node->getLft() ?? 0) < 1 || ($node->getRgt() ?? 0) < 1) {
             throw new LogicException('Node must be part of a tree.');

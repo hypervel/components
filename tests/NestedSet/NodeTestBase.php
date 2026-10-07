@@ -8,6 +8,7 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
+use Hypervel\Database\QueryException;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\NestedSet\Eloquent\BaseRelation;
 use Hypervel\NestedSet\Eloquent\Collection;
@@ -185,6 +186,12 @@ abstract class NodeTestBase extends TestCase
         return [$node->_lft, $node->_rgt, $node->parent_id, $node->depth];
     }
 
+    public function testTreeNotBroken(): void
+    {
+        $this->assertTreeNotBroken();
+        $this->assertFalse($this->category::isBroken());
+    }
+
     public function testGetsNodeData(): void
     {
         $data = $this->category::getNodeData($this->key(3));
@@ -249,6 +256,109 @@ abstract class NodeTestBase extends TestCase
         $node->appendToNode($parent)->save();
 
         $this->assertSame(3, $this->countStructuralIdentityReloads());
+    }
+
+    public function testParticipantPreparationDoesNotFireRetrievedListeners(): void
+    {
+        $node = $this->category::findOrFail($this->key(3));
+        $parent = $this->category::findOrFail($this->key(5));
+        $retrieved = 0;
+
+        $this->category::retrieved(function () use (&$retrieved): void {
+            ++$retrieved;
+        });
+
+        $node->appendToNode($parent)->save();
+        $node->refreshNode();
+
+        $this->assertSame(0, $retrieved);
+        $this->assertTreeNotBroken();
+    }
+
+    public function testRolledBackMoveCanBeSavedAgain(): void
+    {
+        $node = $this->category::findOrFail($this->key(3));
+        $parent = $this->category::findOrFail($this->key(5));
+        $veto = new LogicException('The move was vetoed.');
+        $vetoed = false;
+        $caught = null;
+
+        $this->category::updating(function () use (&$vetoed): ?bool {
+            if ($vetoed) {
+                return null;
+            }
+
+            $vetoed = true;
+
+            return false;
+        });
+
+        $node->appendToNode($parent);
+
+        try {
+            DB::transaction(function () use ($node, $veto): void {
+                if (! $node->save()) {
+                    throw $veto;
+                }
+            });
+        } catch (LogicException $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($veto, $caught);
+        $this->assertSame($this->key(2), $this->category::findOrFail($this->key(3))->getParentId());
+
+        $this->assertTrue($node->save());
+
+        $this->assertSame($this->key(5), $this->category::findOrFail($this->key(3))->getParentId());
+        $this->assertTreeNotBroken();
+    }
+
+    public function testSavingAgainFromTheCreatedListenerDoesNotReplayTheAction(): void
+    {
+        $listened = false;
+
+        $this->category::created(function (Category $model) use (&$listened): void {
+            if ($listened) {
+                return;
+            }
+
+            $listened = true;
+            $this->category::create(['name' => 'later root']);
+            $model->name = 'renamed root';
+            $model->save();
+        });
+
+        $root = $this->category::create(['name' => 'root']);
+        $persisted = $this->category::findOrFail($root->getKey());
+
+        $this->assertSame([23, 24], $persisted->getBounds());
+        $this->assertSame('renamed root', $persisted->name);
+        $this->assertSame([25, 26], $this->findCategory('later root')->getBounds());
+        $this->assertTreeNotBroken();
+    }
+
+    public function testActionQueuedByAnObserverWaitsForTheNextSave(): void
+    {
+        $parent = $this->category::findOrFail($this->key(5));
+        $queued = false;
+
+        $this->category::created(function (Category $model) use ($parent, &$queued): void {
+            if (! $queued) {
+                $queued = true;
+                $model->appendToNode($parent);
+            }
+        });
+
+        $node = new $this->category(['name' => 'queued']);
+        $node->save();
+
+        $this->assertNull($this->category::findOrFail($node->getKey())->getParentId());
+
+        $this->assertTrue($node->save());
+
+        $this->assertSame($this->key(5), $this->category::findOrFail($node->getKey())->getParentId());
+        $this->assertTreeNotBroken();
     }
 
     public function testMovingANewSourceDoesNotPreflightTheSource(): void
@@ -674,6 +784,26 @@ abstract class NodeTestBase extends TestCase
         $this->assertSame([1, 2], $node->getBounds());
     }
 
+    public function testRawNodePendingActionSaves(): void
+    {
+        $node = new $this->category(['name' => 'raw']);
+
+        $node->rawNode(23, 24, null, 0);
+
+        $this->assertTrue($node->save());
+        $this->assertSame([23, 24], $node->fresh()->getBounds());
+    }
+
+    public function testRawNodeStoresAMissingDepthAsZero(): void
+    {
+        $node = new $this->category(['name' => 'raw']);
+
+        $node->rawNode(23, 24, null, null);
+
+        $this->assertTrue($node->save());
+        $this->assertSame(0, $node->fresh()->getDepth());
+    }
+
     public function testRawNodeWithCompleteScopeDoesNotPreflightPersistedIdentity(): void
     {
         $node = $this->category::findOrFail($this->key(3));
@@ -1017,6 +1147,23 @@ abstract class NodeTestBase extends TestCase
         $this->assertSame(1, $this->countStructuralIdentityReloads());
         $this->assertSame($this->key(5), $node->getParentId());
         $this->assertTreeNotBroken();
+    }
+
+    public function testParentIdMutatorReturnsTheNode(): void
+    {
+        $node = new $this->category(['name' => 'node']);
+
+        $this->assertSame($node, $node->setAttribute('parent_id', $this->key(5)));
+        $this->assertSame($node, $node->setAttribute('parent_id', $this->key(5)));
+        $this->assertSame($node, $node->setAttribute('parent_id', null));
+    }
+
+    public function testFailsToSaveNodeUntilNotInserted(): void
+    {
+        $this->expectException(QueryException::class);
+
+        $node = new $this->category;
+        $node->save();
     }
 
     public function testNodeIsDeletedWithDescendants(): void
@@ -1973,6 +2120,75 @@ abstract class NodeTestBase extends TestCase
         $this->assertNull($this->category::findOrFail($this->key(7))->getParentId());
         $this->assertSame(0, $this->category::findOrFail($this->key(7))->getDepth());
         $this->assertTreeNotBroken();
+    }
+
+    public function testMultipleRootNodesAreSiblings(): void
+    {
+        $store = $this->findCategory('store');
+        $store2 = $this->findCategory('store_2');
+
+        $this->assertTrue($store->isSiblingOf($store2));
+        $this->assertTrue($store2->isSiblingOf($store));
+    }
+
+    public function testMultipleRootNodesAreNotChildren(): void
+    {
+        $store = $this->findCategory('store');
+        $store2 = $this->findCategory('store_2');
+
+        $this->assertFalse($store->isChildOf($store2));
+        $this->assertFalse($store2->isChildOf($store));
+    }
+
+    public function testMultipleRootNodesInToTree(): void
+    {
+        $tree = $this->category::defaultOrder()->get()->toTree();
+
+        $this->assertCount(2, $tree);
+        $this->assertSame('store', $tree->first()->name);
+        $this->assertSame('store_2', $tree->last()->name);
+    }
+
+    public function testMultipleRootNodesInToFlatTree(): void
+    {
+        $tree = $this->category::defaultOrder()->get()->toFlatTree();
+
+        $this->assertCount(11, $tree);
+        $this->assertSame('store', $tree->first()->name);
+        $this->assertSame('store_2', $tree->last()->name);
+    }
+
+    public function testNewRootNodeIsSiblingOfExisting(): void
+    {
+        $node = new $this->category(['name' => 'store_3']);
+        $node->save();
+
+        $this->assertTreeNotBroken();
+        $this->assertTrue($node->isRoot());
+
+        $store = $this->findCategory('store');
+
+        $this->assertTrue($node->isSiblingOf($store));
+        $this->assertTrue($store->isSiblingOf($node));
+    }
+
+    public function testSetParentIdToNullKeepsRoot(): void
+    {
+        $store = $this->findCategory('store');
+        $store->parent_id = null;
+
+        $this->assertTrue($store->isRoot());
+        $this->assertFalse($store->isDirty());
+        $this->assertTreeNotBroken();
+    }
+
+    public function testChildIsNotSiblingOfRoot(): void
+    {
+        $store = $this->findCategory('store');
+        $notebooks = $this->findCategory('notebooks');
+
+        $this->assertFalse($store->isSiblingOf($notebooks));
+        $this->assertFalse($notebooks->isSiblingOf($store));
     }
 
     public function testNodeMovesDownSeveralPositions(): void
