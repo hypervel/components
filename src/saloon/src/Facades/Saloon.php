@@ -21,6 +21,7 @@ use Hypervel\Support\Facades\Facade;
  * @method static \Hypervel\Saloon\Http\Faking\MockClient fake(array<array-key, callable|\Hypervel\Saloon\Http\Faking\Fixture|\Hypervel\Saloon\Http\Faking\MockResponse>|\Hypervel\Saloon\Http\Faking\MockClient $responses = [])
  * @method static \Hypervel\Saloon\SaloonManager fixturePath(string $path)
  * @method static string getFixturePath()
+ * @method static ($policy is \Hypervel\RateLimiter\Cooldown ? \Hypervel\RateLimiter\CooldownResult : \Hypervel\RateLimiter\LimitResult) inspectRateLimit(\Hypervel\Saloon\Http\Connector|\Hypervel\Saloon\Http\Request $resource, \Hypervel\RateLimiter\AdmissionPolicy|\Hypervel\RateLimiter\Cooldown $policy)
  * @method static \Hypervel\Saloon\Http\MiddlewarePipeline middleware()
  * @method static \Hypervel\Saloon\Http\Faking\MockClient|null mockClient()
  * @method static \Hypervel\RateLimiter\RateLimiter rateLimiter()

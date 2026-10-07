@@ -210,7 +210,7 @@ saloonphp/rate-limit-plugin:
   checked_through: null
   last_reviewed_pr: null
   sync_date: null
-  notes: Part of the unified src/saloon package. Upstream rate-limit behavior maps to RateLimit and SaloonManager using Hypervel's rate-limiter policies and stores; assess changes against those framework services. Tests map to tests/Saloon/RateLimit.
+  notes: Part of the unified src/saloon package. Upstream rate-limit behavior maps to RateLimit and SaloonManager using Hypervel's rate-limiter policies and stores; assess changes against those framework services. Upstream's limiter middleware, too-many-attempts limit and store records become admission before transport, a cooldown recorded from the transport response, and Saloon::inspectRateLimit(). Feature and Unit tests map to tests/Saloon/RateLimit/{Feature,Unit}, and Laravel tests to tests/Saloon/RateLimit/Hypervel; ported cases fake the transport with Http::fake(), because Saloon fakes consume no capacity, and assert through inspectRateLimit() instead of store records. RateLimitTest keeps the Retry-After parsing and policy-group cases.
 
 Sammyjo20/saloon-docs:
   branch: v3

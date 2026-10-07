@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Saloon\RateLimit;
 
-use Carbon\CarbonInterval;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Cache\ArrayStore;
@@ -14,6 +13,7 @@ use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Http\Client\Factory;
 use Hypervel\RateLimiter\AdmissionPolicy;
+use Hypervel\RateLimiter\Contracts\Decision;
 use Hypervel\RateLimiter\Cooldown;
 use Hypervel\RateLimiter\KeyResolver;
 use Hypervel\RateLimiter\Limit;
@@ -38,50 +38,11 @@ use Hypervel\Support\Sleep;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
-use RuntimeException;
 
+// Feature/HasRateLimitsTest covers consuming connector and request policies, denials before transport, cooldowns
+// recorded before response middleware and waiting.
 class RateLimitTest extends TestCase
 {
-    public function testConnectorAndRequestPoliciesAreConsumedInOrder(): void
-    {
-        [$manager, $limiter, $http] = $this->manager();
-        $http->fake(['*' => Factory::response(['ok' => true])]);
-        $connector = new RateLimitedConnectorStub($manager);
-        $request = new RateLimitedRequestStub;
-
-        $response = $connector->send($request);
-
-        $this->assertTrue($response->successful());
-        $this->assertSame(1, $limiter->inspect(
-            $connector->policy(),
-            'saloon:' . $connector::class,
-        )->remaining());
-        $this->assertSame(1, $limiter->inspect(
-            $request->policy(),
-            'saloon:' . $request::class,
-        )->remaining());
-    }
-
-    public function testDeniedPolicyThrowsItsDecisionBeforeTransport(): void
-    {
-        [$manager, , $http] = $this->manager();
-        $http->fake(['*' => Factory::response(['ok' => true])]);
-        $connector = new RateLimitedConnectorStub($manager, maximumAttempts: 1);
-
-        $connector->send(new PlainRateLimitRequestStub);
-
-        try {
-            $connector->send(new PlainRateLimitRequestStub);
-            $this->fail('A denied rate limit reached transport.');
-        } catch (RateLimitReachedException $exception) {
-            $this->assertInstanceOf(Limit::class, $exception->policy());
-            $this->assertSame('connector', $exception->policy()->key);
-            $this->assertTrue($exception->result()->denied());
-        }
-
-        $http->assertSentCount(1);
-    }
-
     public function testFakesAndCacheHitsDoNotConsumeAdmissionCapacity(): void
     {
         [$manager, $limiter, $http] = $this->manager();
@@ -158,40 +119,16 @@ class RateLimitTest extends TestCase
         $http->assertNothingSent();
     }
 
-    public function testServerCooldownIsRecordedBeforeResponseMiddleware(): void
-    {
-        [$manager, , $http] = $this->manager();
-        $http->fake(['*' => $http->sequence()
-            ->push([], 429, ['Retry-After' => '10'])
-            ->push(['unexpected' => true])]);
-        $connector = new PlainRateLimitConnectorStub($manager);
-
-        try {
-            $connector->send(new ThrowingCooldownRequestStub);
-            $this->fail('The response middleware did not throw.');
-        } catch (RuntimeException $exception) {
-            $this->assertSame('response middleware failed', $exception->getMessage());
-        }
-
-        try {
-            $connector->send(new ThrowingCooldownRequestStub);
-            $this->fail('A recorded cooldown reached transport.');
-        } catch (RateLimitReachedException $exception) {
-            $this->assertSame(10, $exception->result()->retryAfter());
-        }
-
-        $http->assertSentCount(1);
-    }
-
-    public function testRetryAfterHttpDatesAreParsedAndInvalidValuesAreIgnored(): void
+    public function testRetryAfterHttpDatesAreParsed(): void
     {
         $now = CarbonImmutable::parse('2026-08-13 12:00:00 UTC');
         CarbonImmutable::setTestNow($now);
         [$manager, , $http] = $this->manager();
-        $http->fake(['*' => $http->sequence()
-            ->push([], 429, ['Retry-After' => $now->addSeconds(5)->toRfc7231String()])
-            ->push([], 429, ['Retry-After' => 'invalid'])
-            ->push(['ok' => true])]);
+        $http->fake(['*' => Factory::response(
+            body: [],
+            status: 429,
+            headers: ['Retry-After' => $now->addSeconds(5)->toRfc7231String()],
+        )]);
         $connector = new PlainRateLimitConnectorStub($manager);
         $dated = new DateCooldownRequestStub;
 
@@ -204,10 +141,7 @@ class RateLimitTest extends TestCase
             $this->assertSame(5, $exception->result()->retryAfter());
         }
 
-        $invalid = new InvalidCooldownRequestStub;
-        $this->assertSame(429, $connector->send($invalid)->status());
-        $this->assertTrue($connector->send($invalid)->successful());
-        $http->assertSentCount(3);
+        $http->assertSentCount(1);
     }
 
     public function testObsoleteHttpDatesAndCheckedNumericDurationsAreParsed(): void
@@ -219,9 +153,7 @@ class RateLimitTest extends TestCase
             ->push([], 429, ['Retry-After' => $now->addSeconds(5)->format('l, d-M-y H:i:s \G\M\T')])
             ->push([], 429, ['Retry-After' => 'Thu Aug  6 12:00:06 2026'])
             ->push([], 429, ['Retry-After' => 'Fri, 06 Aug 2026 12:00:07 GMT'])
-            ->push([], 429, ['Retry-After' => '0008'])
-            ->push([], 429, ['Retry-After' => str_repeat('9', 30)])
-            ->push(['ok' => true])]);
+            ->push([], 429, ['Retry-After' => '0008'])]);
         $connector = new PlainRateLimitConnectorStub($manager);
         $assertCooldown = function (Request $request, int $seconds) use ($connector): void {
             $connector->send($request);
@@ -238,9 +170,7 @@ class RateLimitTest extends TestCase
         $assertCooldown(new AsctimeCooldownRequestStub, 6);
         $assertCooldown(new MismatchedWeekdayCooldownRequestStub, 7);
         $assertCooldown(new NumericCooldownRequestStub, 8);
-        $this->assertSame(429, $connector->send(new OversizedCooldownRequestStub)->status());
-        $this->assertTrue($connector->send(new OversizedCooldownRequestStub)->successful());
-        $http->assertSentCount(6);
+        $http->assertSentCount(4);
     }
 
     public function testTwoDigitAsctimeDayIsParsed(): void
@@ -276,9 +206,7 @@ class RateLimitTest extends TestCase
             ->push([], 429, ['Retry-After' => 'Sunday, 06-Nov-70 12:00:00 GMT'])
             ->push([], 429, ['Retry-After' => 'Thu, 06 Aug 2026 12:00:60 GMT'])
             ->push([], 429, ['Retry-After' => 'Thu, 31 Feb 2026 12:00:09 GMT'])
-            ->push(['ok' => true])
-            ->push([], 429, ['Retry-After' => 'Thu, 06 Aug 2026 25:00:09 GMT'])
-            ->push(['ok' => true])]);
+            ->push([], 429, ['Retry-After' => 'Thu, 06 Aug 2026 25:00:09 GMT'])]);
         $connector = new PlainRateLimitConnectorStub($manager);
         $assertCooldown = function (Request $request, int $seconds) use ($connector): void {
             $connector->send($request);
@@ -297,14 +225,10 @@ class RateLimitTest extends TestCase
         );
         $assertCooldown(new LeapSecondCooldownRequestStub, 60);
 
-        $invalid = new InvalidCalendarCooldownRequestStub;
-        $this->assertSame(429, $connector->send($invalid)->status());
-        $this->assertTrue($connector->send($invalid)->successful());
-
-        $invalid = new InvalidTimeCooldownRequestStub;
-        $this->assertSame(429, $connector->send($invalid)->status());
-        $this->assertTrue($connector->send($invalid)->successful());
-        $http->assertSentCount(6);
+        // Out-of-range fields are rejected instead of normalized into another date, so the default cooldown applies.
+        $assertCooldown(new InvalidCalendarCooldownRequestStub, 60);
+        $assertCooldown(new InvalidTimeCooldownRequestStub, 60);
+        $http->assertSentCount(4);
     }
 
     public function testRfc850YearResolutionUsesGmtAtACenturyBoundary(): void
@@ -378,25 +302,6 @@ class RateLimitTest extends TestCase
         $http->assertSentCount(5);
     }
 
-    public function testWaitingUsesTheStoreDelayAndThenContinues(): void
-    {
-        CarbonImmutable::setTestNow('2026-08-13 12:00:00 UTC');
-        Sleep::fake(syncWithCarbon: true);
-        [$manager, , $http] = $this->manager();
-        $http->fake(['*' => $http->sequence()
-            ->push([], 429, ['Retry-After' => '2'])
-            ->push(['ok' => true])]);
-        $connector = new PlainRateLimitConnectorStub($manager);
-        $request = new WaitingCooldownRequestStub;
-
-        $connector->send($request);
-        $response = $connector->send($request);
-
-        $this->assertTrue($response->successful());
-        Sleep::assertSlept(static fn (CarbonInterval $duration): bool => (float) $duration->totalSeconds === 2.0);
-        $http->assertSentCount(2);
-    }
-
     public function testWaitingForAGroupRechecksCooldownBeforeChargingTheGroup(): void
     {
         CarbonImmutable::setTestNow('2026-08-13 12:00:00 UTC');
@@ -413,7 +318,7 @@ class RateLimitTest extends TestCase
             $this->assertSame(10, $limiter->inspect($request->firstPolicy(), $limiterName)->remaining());
 
             if (! $published) {
-                $limiter->block(Cooldown::for($request::class), 5, $limiterName);
+                $limiter->block(Cooldown::for(null), 5, $limiterName);
                 $published = true;
             }
         });
@@ -541,27 +446,6 @@ class PlainRateLimitRequestStub extends Request
     }
 }
 
-class RateLimitedRequestStub extends PlainRateLimitRequestStub
-{
-    use HasRateLimits;
-
-    /**
-     * Get the request policy.
-     */
-    public function policy(): AdmissionPolicy
-    {
-        return Limit::perMinute(2)->by('request');
-    }
-
-    /**
-     * Resolve the request rate limits.
-     */
-    protected function resolveRateLimits(PendingRequest $pendingRequest): array
-    {
-        return [$this->policy()];
-    }
-}
-
 class CachedRateLimitedRequestStub extends PlainRateLimitRequestStub implements Cacheable
 {
     use HasCaching;
@@ -591,29 +475,6 @@ class CachedRateLimitedRequestStub extends PlainRateLimitRequestStub implements 
     }
 }
 
-class ThrowingCooldownRequestStub extends PlainRateLimitRequestStub
-{
-    use HasRateLimits;
-
-    /**
-     * Register response middleware that throws.
-     */
-    public function boot(PendingRequest $pendingRequest): void
-    {
-        $pendingRequest->middleware()->onResponse(
-            static fn (): never => throw new RuntimeException('response middleware failed'),
-        );
-    }
-
-    /**
-     * Resolve no rate limits.
-     */
-    protected function resolveRateLimits(PendingRequest $pendingRequest): array
-    {
-        return [];
-    }
-}
-
 class DateCooldownRequestStub extends PlainRateLimitRequestStub
 {
     use HasRateLimits;
@@ -625,10 +486,6 @@ class DateCooldownRequestStub extends PlainRateLimitRequestStub
     {
         return [];
     }
-}
-
-class InvalidCooldownRequestStub extends DateCooldownRequestStub
-{
 }
 
 class Rfc850CooldownRequestStub extends DateCooldownRequestStub
@@ -681,21 +538,6 @@ class InvalidTimeCooldownRequestStub extends DateCooldownRequestStub
 
 class NumericCooldownRequestStub extends DateCooldownRequestStub
 {
-}
-
-class OversizedCooldownRequestStub extends DateCooldownRequestStub
-{
-}
-
-class WaitingCooldownRequestStub extends DateCooldownRequestStub
-{
-    /**
-     * Wait for rate limits instead of throwing.
-     */
-    protected function waitForRateLimits(): bool
-    {
-        return true;
-    }
 }
 
 class CallbackRateLimitRequestStub extends PlainRateLimitRequestStub
@@ -766,7 +608,7 @@ class WaitingMultipleRateLimitRequestStub extends MultipleRateLimitRequestStub
     /**
      * Wait for rate limits instead of throwing.
      */
-    protected function waitForRateLimits(): bool
+    protected function waitForRateLimits(AdmissionPolicy|Cooldown $policy, Decision $result): bool
     {
         return true;
     }

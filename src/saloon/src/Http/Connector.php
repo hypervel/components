@@ -6,6 +6,8 @@ namespace Hypervel\Saloon\Http;
 
 use Hypervel\Container\Container;
 use Hypervel\RateLimiter\AdmissionPolicy;
+use Hypervel\RateLimiter\Contracts\Decision;
+use Hypervel\RateLimiter\Cooldown;
 use Hypervel\Saloon\Contracts\Authenticator;
 use Hypervel\Saloon\Contracts\Body\BodyRepository;
 use Hypervel\Saloon\Data\RetryPolicy;
@@ -270,11 +272,11 @@ abstract class Connector
     }
 
     /**
-     * Determine if this connector defines rate limits.
+     * Determine if the connector's rate limits apply to an operation.
      *
      * @internal
      */
-    public function usesRateLimits(): bool
+    public function usesRateLimits(PendingRequest $pendingRequest): bool
     {
         return false;
     }
@@ -301,11 +303,21 @@ abstract class Connector
     }
 
     /**
-     * Determine if connector rate limits should be awaited.
+     * Resolve the identity whose limits and cooldowns the connector uses.
      *
      * @internal
      */
-    public function shouldWaitForRateLimits(): bool
+    public function rateLimiterName(): string
+    {
+        return static::class;
+    }
+
+    /**
+     * Determine if a denied connector rate limit should be awaited.
+     *
+     * @internal
+     */
+    public function shouldWaitForRateLimits(AdmissionPolicy|Cooldown $policy, Decision $result): bool
     {
         return false;
     }
@@ -317,7 +329,7 @@ abstract class Connector
      */
     public function resolveRateLimitCooldownKeyFor(PendingRequest $pendingRequest): string
     {
-        return static::class;
+        return '';
     }
 
     /**

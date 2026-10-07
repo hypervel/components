@@ -6,6 +6,8 @@ namespace Hypervel\Saloon\Http;
 
 use Hypervel\Contracts\Container\SelfBuilding;
 use Hypervel\RateLimiter\AdmissionPolicy;
+use Hypervel\RateLimiter\Contracts\Decision;
+use Hypervel\RateLimiter\Cooldown;
 use Hypervel\Saloon\Enums\Method;
 use Hypervel\Saloon\Traits\Auth\AuthenticatesRequests;
 use Hypervel\Saloon\Traits\Body\HasBody;
@@ -153,11 +155,11 @@ abstract class Request implements SelfBuilding
     }
 
     /**
-     * Determine if this request defines rate limits.
+     * Determine if the request's rate limits apply to an operation.
      *
      * @internal
      */
-    public function usesRateLimits(): bool
+    public function usesRateLimits(PendingRequest $pendingRequest): bool
     {
         return false;
     }
@@ -184,11 +186,21 @@ abstract class Request implements SelfBuilding
     }
 
     /**
-     * Determine if request rate limits should be awaited.
+     * Resolve the identity whose limits and cooldowns the request uses.
      *
      * @internal
      */
-    public function shouldWaitForRateLimits(): bool
+    public function rateLimiterName(): string
+    {
+        return static::class;
+    }
+
+    /**
+     * Determine if a denied request rate limit should be awaited.
+     *
+     * @internal
+     */
+    public function shouldWaitForRateLimits(AdmissionPolicy|Cooldown $policy, Decision $result): bool
     {
         return false;
     }
@@ -200,7 +212,7 @@ abstract class Request implements SelfBuilding
      */
     public function resolveRateLimitCooldownKeyFor(PendingRequest $pendingRequest): string
     {
-        return static::class;
+        return '';
     }
 
     /**

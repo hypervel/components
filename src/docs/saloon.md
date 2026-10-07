@@ -63,6 +63,9 @@
     - [Defining Policies](#defining-policies)
     - [Tenant and Service Limits](#tenant-and-service-limits)
     - [Server Cooldowns](#server-cooldowns)
+    - [Sharing Limits](#sharing-limits)
+    - [Inspecting Limits](#inspecting-limits)
+    - [Disabling Rate Limits](#disabling-rate-limits)
     - [Queued Requests](#queued-requests)
 - [Multi-Tenant Integrations](#multi-tenant-integrations)
 - [Telescope](#telescope)
@@ -1973,12 +1976,16 @@ class GitHubConnector extends Connector
 }
 ```
 
-By default, a denied policy throws `RateLimitReachedException` before reaching the network. Override `waitForRateLimits` to return true when the operation should sleep until capacity is available:
+By default, a denied policy throws `RateLimitReachedException` before reaching the network. Override `waitForRateLimits` to sleep until capacity is available instead. It receives the denied policy and its decision, so you may wait out a short burst limit while still throwing for a daily quota:
 
 ```php
-protected function waitForRateLimits(): bool
+use Hypervel\RateLimiter\AdmissionPolicy;
+use Hypervel\RateLimiter\Contracts\Decision;
+use Hypervel\RateLimiter\Cooldown;
+
+protected function waitForRateLimits(AdmissionPolicy|Cooldown $policy, Decision $result): bool
 {
-    return true;
+    return $result->retryAfter() <= 10;
 }
 ```
 
@@ -2028,14 +2035,14 @@ Saloon limiter names always begin with `saloon:`. Restricting the callback preve
 <a name="server-cooldowns"></a>
 ### Server Cooldowns
 
-When a rate-limited connector or request receives a 429 response with a valid `Retry-After` header, Saloon records the provider's cooldown before response middleware runs. A later operation checks this cooldown before consuming its configured admission policies.
+When a rate-limited connector or request receives a 429 response, Saloon records the provider's cooldown before response middleware runs. The `Retry-After` header sets its length. If the header is missing or invalid, the cooldown lasts 60 seconds, while a delay that has already passed records no cooldown. A later operation checks this cooldown before consuming its configured admission policies.
 
-By default, the connector or request class identifies the cooldown. If a provider applies cooldowns per account or credential, override `resolveRateLimitCooldownKey` with that stable provider identity:
+By default, each connector or request has its own cooldown. If a provider applies cooldowns per account or credential, override `resolveRateLimitCooldownKey` with that stable provider identity:
 
 ```php
 protected function resolveRateLimitCooldownKey(PendingRequest $pendingRequest): string
 {
-    return static::class . ':account:' . $this->providerAccountId;
+    return 'account:' . $this->providerAccountId;
 }
 ```
 
@@ -2071,7 +2078,79 @@ class GitHubConnector extends Connector
 }
 ```
 
-A 429 response is returned through normal error handling. Recording a cooldown never resends the response recursively. If the normal retry policy requests another attempt, that attempt must first pass the recorded cooldown.
+A 429 response is returned through normal error handling. Recording a cooldown never resends the response recursively. If the normal retry policy requests another attempt, that attempt must first pass the recorded cooldown. To wait out the cooldown and send the request again, retry 429 responses and wait for cooldowns:
+
+```php
+use Hypervel\RateLimiter\AdmissionPolicy;
+use Hypervel\RateLimiter\Contracts\Decision;
+use Hypervel\RateLimiter\Cooldown;
+use Hypervel\Saloon\Data\RetryPolicy;
+use Hypervel\Saloon\Exceptions\Request\FatalRequestException;
+use Hypervel\Saloon\Exceptions\Request\RequestException;
+
+protected function defaultRetryPolicy(): ?RetryPolicy
+{
+    return new RetryPolicy(
+        times: 2,
+        when: fn (FatalRequestException|RequestException $exception): bool => $exception instanceof RequestException
+            && $exception->status() === 429,
+    );
+}
+
+protected function waitForRateLimits(AdmissionPolicy|Cooldown $policy, Decision $result): bool
+{
+    return $policy instanceof Cooldown;
+}
+```
+
+<a name="sharing-limits"></a>
+### Sharing Limits
+
+Saloon records a resource's limits and cooldowns under its class name. When several connectors or requests use the same provider quota, override `resolveRateLimiterName` on each of them to return the same name:
+
+```php
+protected function resolveRateLimiterName(): string
+{
+    return 'acme';
+}
+```
+
+Resources with the same name share a policy's state when they declare the same policy and use the same rate-limiter store and key scope. A 429 received by one of them pauses the others too, unless their cooldown keys differ.
+
+<a name="inspecting-limits"></a>
+### Inspecting Limits
+
+The `Saloon` facade's `inspectRateLimit` method checks a resource's policy or cooldown without consuming it, using the same store and limiter name as a request:
+
+```php
+use Hypervel\RateLimiter\Cooldown;
+use Hypervel\RateLimiter\Limit;
+use Hypervel\Saloon\Facades\Saloon;
+
+$result = Saloon::inspectRateLimit($connector, Limit::perMinute(60)->by('github'));
+
+if ($result->remaining() <= $result->limit() * 0.2) {
+    // 20% or fewer of this minute's requests remain...
+}
+
+$cooldown = Saloon::inspectRateLimit($connector, Cooldown::for(null));
+```
+
+Pass the same policy your resource declares. Putting shared policies in a method keeps them identical.
+
+<a name="disabling-rate-limits"></a>
+### Disabling Rate Limits
+
+Override `rateLimitingEnabled` to skip a resource's limits for an operation. A disabled operation consumes no capacity, ignores active cooldowns, and records no cooldown from its response:
+
+```php
+protected function rateLimitingEnabled(PendingRequest $pendingRequest): bool
+{
+    return ! $pendingRequest->request() instanceof ImportRequest;
+}
+```
+
+Disabling a request's limits does not disable its connector's limits. Returning no policies still applies cooldowns.
 
 <a name="queued-requests"></a>
 ### Queued Requests

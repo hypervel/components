@@ -14,7 +14,9 @@ use Hypervel\Http\Client\Response as HttpResponse;
 use Hypervel\RateLimiter\AdmissionPolicy;
 use Hypervel\RateLimiter\Contracts\Decision;
 use Hypervel\RateLimiter\Cooldown;
+use Hypervel\RateLimiter\CooldownResult;
 use Hypervel\RateLimiter\Limiter;
+use Hypervel\RateLimiter\LimitResult;
 use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\Saloon\Cache\CacheKey;
 use Hypervel\Saloon\Cache\Data\CachedResponse;
@@ -303,6 +305,16 @@ class SaloonManager
     }
 
     /**
+     * Inspect a connector or request rate limit without consuming it.
+     *
+     * @return ($policy is Cooldown ? CooldownResult : LimitResult)
+     */
+    public function inspectRateLimit(Connector|Request $resource, AdmissionPolicy|Cooldown $policy): LimitResult|CooldownResult
+    {
+        return $this->rateLimiterFor($resource)->inspect($policy, $this->limiterNameFor($resource));
+    }
+
+    /**
      * Set the event dispatcher.
      *
      * Boot or tests only. The dispatcher persists on the manager for the
@@ -558,7 +570,7 @@ class SaloonManager
      */
     protected function enforceRateLimitsFor(PendingRequest $pendingRequest, Connector|Request $resource): void
     {
-        if (! $resource->usesRateLimits()) {
+        if (! $resource->usesRateLimits($pendingRequest)) {
             return;
         }
 
@@ -580,7 +592,7 @@ class SaloonManager
         }
 
         $limiter = $this->rateLimiterFor($resource);
-        $limiterName = 'saloon:' . $resource::class;
+        $limiterName = $this->limiterNameFor($resource);
         $cooldown = Cooldown::for($resource->resolveRateLimitCooldownKeyFor($pendingRequest));
 
         while (true) {
@@ -620,7 +632,7 @@ class SaloonManager
         Response $response,
         Connector|Request $resource,
     ): void {
-        if (! $resource->usesRateLimits()
+        if (! $resource->usesRateLimits($pendingRequest)
             || ($seconds = $resource->resolveRateLimitCooldownFor($response)) === null) {
             return;
         }
@@ -628,8 +640,16 @@ class SaloonManager
         $this->rateLimiterFor($resource)->block(
             Cooldown::for($resource->resolveRateLimitCooldownKeyFor($pendingRequest)),
             $seconds,
-            'saloon:' . $resource::class,
+            $this->limiterNameFor($resource),
         );
+    }
+
+    /**
+     * Resolve the limiter name used for a resource's limits and cooldowns.
+     */
+    protected function limiterNameFor(Connector|Request $resource): string
+    {
+        return 'saloon:' . $resource->rateLimiterName();
     }
 
     /**
@@ -653,8 +673,8 @@ class SaloonManager
         AdmissionPolicy|Cooldown $policy,
         Decision $result,
     ): void {
-        if (! $resource->shouldWaitForRateLimits()) {
-            throw new RateLimitReachedException($policy, $result);
+        if (! $resource->shouldWaitForRateLimits($policy, $result)) {
+            throw new RateLimitReachedException($this->limiterNameFor($resource), $policy, $result);
         }
 
         Sleep::sleep($result->retryAfter());
