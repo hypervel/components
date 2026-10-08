@@ -19,11 +19,14 @@ class LogIntegrationTest extends TestCase
         ],
     ];
 
+    /**
+     * Define the test environment.
+     */
     protected function defineEnvironment(ApplicationContract $app): void
     {
         parent::defineEnvironment($app);
 
-        tap($app->make('config'), static function (Repository $config) {
+        tap($app->make('config'), static function (Repository $config): void {
             $config->set('logging.channels.sentry', [
                 'driver' => 'sentry',
             ]);

@@ -98,7 +98,7 @@ return [
         // Capture SQL queries as breadcrumbs
         'sql_queries' => (bool) env('SENTRY_BREADCRUMBS_SQL_QUERIES_ENABLED', true),
 
-        // Capture SQL query bindings (parameters) in SQL query breadcrumbs
+        // Capture SQL query bindings (parameters) in SQL query breadcrumbs, ignored when `data_collection` is set
         'sql_bindings' => (bool) env('SENTRY_BREADCRUMBS_SQL_BINDINGS_ENABLED', false),
 
         // Capture SQL transactions (begin, commit, rollbacks) as breadcrumbs

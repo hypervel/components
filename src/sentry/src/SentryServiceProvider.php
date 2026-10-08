@@ -28,8 +28,8 @@ use Hypervel\Sentry\Features\Feature;
 use Hypervel\Sentry\Http\FlushEventsMiddleware;
 use Hypervel\Sentry\Http\HypervelRequestFetcher;
 use Hypervel\Sentry\Http\SetRequestIpMiddleware;
-use Hypervel\Sentry\Integration\ContextIntegration;
 use Hypervel\Sentry\Integration\ExceptionContextIntegration;
+use Hypervel\Sentry\Integration\HypervelContextIntegration;
 use Hypervel\Sentry\State\CoroutineRuntimeContextStorage;
 use Hypervel\Sentry\State\RuntimeContextBoundary;
 use Hypervel\Sentry\Tracing\BacktraceHelper;
@@ -51,6 +51,7 @@ use LogicException;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Sentry\ClientBuilder;
+use Sentry\DataCollection\DataCollectionPolicy;
 use Sentry\Integration as SdkIntegration;
 use Sentry\Integration\IntegrationInterface;
 use Sentry\Logger\DebugFileLogger;
@@ -283,7 +284,7 @@ class SentryServiceProvider extends ServiceProvider
                     $integrations,
                     [
                         new Integration,
-                        new ContextIntegration,
+                        new HypervelContextIntegration,
                         new ExceptionContextIntegration,
                     ],
                     $userIntegrations
@@ -374,7 +375,7 @@ class SentryServiceProvider extends ServiceProvider
 
             $handler->subscribe($dispatcher);
 
-            if ($userConfig['send_default_pii'] === true) {
+            if (DataCollectionPolicy::fromHub($this->app->make(HubInterface::class))->shouldCollectUserInfo()) {
                 $handler->subscribeAuthEvents($dispatcher);
             }
         } catch (BindingResolutionException) {
@@ -423,7 +424,7 @@ class SentryServiceProvider extends ServiceProvider
         $httpKernel->prependMiddleware(TracingMiddleware::class);
         $httpKernel->prependMiddleware(FlushEventsMiddleware::class);
 
-        if (SentrySdk::getCurrentHub()->getClient()?->getOptions()->shouldSendDefaultPii() === true) {
+        if (DataCollectionPolicy::fromHub(SentrySdk::getCurrentHub())->shouldCollectUserInfo()) {
             $httpKernel->pushMiddleware(SetRequestIpMiddleware::class);
         }
     }

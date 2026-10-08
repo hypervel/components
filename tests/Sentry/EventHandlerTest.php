@@ -48,6 +48,9 @@ class EventHandlerTest extends TestCase
         );
     }
 
+    // REMOVED: testAllMappedOctaneEventHandlersExist and EventHandler/OctaneEventsTest; Hypervel has no Octane.
+    // Each request runs in its own coroutine with its own scope and transaction name (see CoroutineSafetyTest and HubTest).
+
     public function testWorkerExitListenerReturnsBeforeCoordinatorReleaseThenDrainsAndCloses(): void
     {
         $closed = new Channel(1);
@@ -134,11 +137,14 @@ class EventHandlerTest extends TestCase
         }
     }
 
+    /**
+     * Assert that a handler method exists for each mapped event.
+     */
     private function tryAllEventHandlerMethods(array $methods): void
     {
         $handler = new EventHandler($this->app, config()->array('sentry'));
 
-        $methods = array_map(static function ($method) {
+        $methods = array_map(static function (string $method): string {
             return "{$method}Handler";
         }, array_unique(array_values($methods)));
 
@@ -147,6 +153,9 @@ class EventHandlerTest extends TestCase
         }
     }
 
+    /**
+     * Get the given event handler map from the event handler.
+     */
     private function getEventHandlerMapFromEventHandler(string $eventHandlerMapName): array
     {
         $class = new ReflectionClass(EventHandler::class);

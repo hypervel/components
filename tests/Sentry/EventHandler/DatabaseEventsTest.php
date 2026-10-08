@@ -91,6 +91,56 @@ class DatabaseEventsTest extends TestCase
         $this->assertFalse(isset($lastBreadcrumb->getMetadata()['bindings']));
     }
 
+    public function testSqlQueryDataIsRecordedWithDataCollection(): void
+    {
+        $this->resetApplicationWithConfig([
+            'sentry' => $this->sentryConfigWith([
+                'breadcrumbs.sql_bindings' => false,
+                'data_collection' => [],
+            ]),
+        ]);
+
+        $this->dispatchHypervelEvent(new QueryExecuted(
+            'SELECT * FROM users WHERE email = :email AND password = :password;',
+            ['email' => 'foo@example.com', 'password' => 'secret'],
+            10,
+            $this->getMockedConnection()
+        ));
+
+        $metadata = $this->getLastSentryBreadcrumb()->getMetadata();
+
+        $this->assertSame('foo@example.com', $metadata['db.query.parameter.email']);
+        $this->assertSame('[Filtered]', $metadata['db.query.parameter.password']);
+        $this->assertArrayNotHasKey('bindings', $metadata);
+    }
+
+    public function testSqlQueryDataIsNotRecordedWhenDisabled(): void
+    {
+        $this->resetApplicationWithConfig([
+            'sentry' => $this->sentryConfigWith([
+                'breadcrumbs.sql_bindings' => true,
+                'data_collection' => [
+                    'database_query_data' => false,
+                ],
+            ]),
+        ]);
+
+        $this->dispatchHypervelEvent(new QueryExecuted(
+            'SELECT * FROM breadcrumbs WHERE bindings = ?;',
+            ['1'],
+            10,
+            $this->getMockedConnection()
+        ));
+
+        $metadata = $this->getLastSentryBreadcrumb()->getMetadata();
+
+        $this->assertArrayNotHasKey('db.query.parameter.0', $metadata);
+        $this->assertArrayNotHasKey('bindings', $metadata);
+    }
+
+    /**
+     * Get a database connection mock.
+     */
     private function getMockedConnection(): Connection
     {
         $connection = m::mock(Connection::class);

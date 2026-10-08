@@ -7,8 +7,8 @@ namespace Hypervel\Tests\Sentry\Hypervel;
 use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Sentry\Integration;
-use Hypervel\Sentry\Integration\ContextIntegration;
 use Hypervel\Sentry\Integration\ExceptionContextIntegration;
+use Hypervel\Sentry\Integration\HypervelContextIntegration;
 use Hypervel\Tests\Sentry\TestCase;
 use RuntimeException;
 use Sentry\Integration\EnvironmentIntegration;
@@ -142,7 +142,7 @@ class HypervelIntegrationsConfigOptionTest extends TestCase
         $this->assertNull($client->getIntegration(EnvironmentIntegration::class));
 
         $this->assertNotNull($client->getIntegration(Integration::class));
-        $this->assertNotNull($client->getIntegration(ContextIntegration::class));
+        $this->assertNotNull($client->getIntegration(HypervelContextIntegration::class));
         $this->assertNotNull($client->getIntegration(ExceptionContextIntegration::class));
     }
 

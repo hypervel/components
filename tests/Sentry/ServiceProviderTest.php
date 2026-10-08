@@ -20,6 +20,7 @@ use Hypervel\Sentry\Tracing\Middleware as TracingMiddleware;
 use Hypervel\Support\Facades\Artisan;
 use LogicException;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Depends;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
@@ -181,11 +182,10 @@ class ServiceProviderTest extends TestCase
             ->registerMiddlewareForTest();
     }
 
-    public function testRequestIpMiddlewareIsRegisteredWhenPiiIsEnabled(): void
+    #[DataProvider('userInfoCollectionProvider')]
+    public function testRequestIpMiddlewareIsRegisteredOnlyWhenUserInfoIsCollected(array $config, bool $registered): void
     {
-        $this->resetApplicationWithConfig([
-            'sentry.send_default_pii' => true,
-        ]);
+        $this->resetApplicationWithConfig($config);
         $kernel = m::mock(Kernel::class);
         $kernel->shouldReceive('prependMiddleware')
             ->once()
@@ -197,15 +197,35 @@ class ServiceProviderTest extends TestCase
             ->with(FlushEventsMiddleware::class)
             ->ordered()
             ->andReturnSelf();
-        $kernel->shouldReceive('pushMiddleware')
-            ->once()
-            ->with(SetRequestIpMiddleware::class)
-            ->ordered()
-            ->andReturnSelf();
+
+        if ($registered) {
+            $kernel->shouldReceive('pushMiddleware')
+                ->once()
+                ->with(SetRequestIpMiddleware::class)
+                ->ordered()
+                ->andReturnSelf();
+        } else {
+            $kernel->shouldNotReceive('pushMiddleware');
+        }
+
         $this->app->instance(Kernel::class, $kernel);
 
         (new InspectableSentryServiceProvider($this->app))
             ->registerMiddlewareForTest();
+    }
+
+    /**
+     * Provide user info collection settings and whether the request IP middleware is registered.
+     *
+     * @return array<string, array{array<string, mixed>, bool}>
+     */
+    public static function userInfoCollectionProvider(): array
+    {
+        return [
+            'send default pii' => [['sentry.send_default_pii' => true], true],
+            'data collection defaults' => [['sentry.send_default_pii' => false, 'sentry.data_collection' => []], true],
+            'user info disabled' => [['sentry.send_default_pii' => true, 'sentry.data_collection' => ['user_info' => false]], false],
+        ];
     }
 
     public function testLegacyAndZeroRateTracingOptionsKeepFeatureSpansEnabled(): void

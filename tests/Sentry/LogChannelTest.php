@@ -96,6 +96,9 @@ class LogChannelTest extends TestCase
         $this->assertSame(['original' => true], $error->context);
     }
 
+    /**
+     * Provide the handlers that support native batch handling.
+     */
     public static function nativeBatchHandlerDataProvider(): iterable
     {
         yield 'events handler' => [new RecordingSentryHandler(m::mock(HubInterface::class), Level::Warning)];
@@ -135,13 +138,16 @@ class LogChannelTest extends TestCase
         $asserter($lastEvent);
     }
 
+    /**
+     * Provide log contexts and the assertions for their events.
+     */
     public static function handlerDataProvider(): iterable
     {
         $context = ['foo' => 'bar'];
 
         yield [
             $context,
-            function (Event $event) use ($context) {
+            function (Event $event) use ($context): void {
                 self::assertEquals($context, $event->getExtra()['log_context']);
             },
         ];
@@ -150,7 +156,7 @@ class LogChannelTest extends TestCase
 
         yield [
             $context,
-            function (Event $event) use ($context) {
+            function (Event $event) use ($context): void {
                 self::assertEquals($context['fingerprint'], $event->getFingerprint());
                 self::assertEmpty($event->getExtra());
             },
@@ -160,7 +166,7 @@ class LogChannelTest extends TestCase
 
         yield [
             $context,
-            function (Event $event) use ($context) {
+            function (Event $event) use ($context): void {
                 self::assertNull($event->getUser());
                 self::assertEquals($context, $event->getExtra()['log_context']);
             },
@@ -170,7 +176,7 @@ class LogChannelTest extends TestCase
 
         yield [
             $context,
-            function (Event $event) {
+            function (Event $event): void {
                 self::assertNotNull($event->getUser());
                 self::assertEquals(123, $event->getUser()->getId());
                 self::assertEmpty($event->getExtra());
@@ -184,7 +190,7 @@ class LogChannelTest extends TestCase
 
         yield [
             $context,
-            function (Event $event) {
+            function (Event $event): void {
                 self::assertSame([
                     'foo' => 'bar',
                     'bar' => '123',
@@ -214,6 +220,9 @@ class RecordingSentryHandler extends SentryHandler
     /** @var array<int, LogRecord> */
     public array $writtenRecords = [];
 
+    /**
+     * Record the written log record.
+     */
     protected function doWrite(LogRecord $record): void
     {
         $this->writtenRecords[] = $record;
@@ -225,6 +234,9 @@ class RecordingLogsHandler extends LogsHandler
     /** @var array<int, LogRecord> */
     public array $writtenRecords = [];
 
+    /**
+     * Record the written log record.
+     */
     protected function doWrite(LogRecord $record): void
     {
         $this->writtenRecords[] = $record;

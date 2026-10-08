@@ -25,6 +25,8 @@ use Hypervel\Sentry\Transport\HttpPoolTransport;
 use RuntimeException;
 use Sentry\Breadcrumb;
 use Sentry\Client;
+use Sentry\DataCollection\DatabaseDataCollector;
+use Sentry\DataCollection\DataCollectionPolicy;
 use Sentry\SentrySdk;
 use Sentry\State\Scope;
 use Swoole\Coroutine\CanceledException;
@@ -54,12 +56,27 @@ class EventHandler
         Sanctum\TokenAuthenticated::class => 'sanctumTokenAuthenticated',
     ];
 
+    // Upstream's Octane handlers are not ported: each request runs in its own coroutine
+    // with its own scope and transaction name, and the request context flushes its events.
+
+    /**
+     * Indicates if we should add SQL queries to the breadcrumbs.
+     */
     private readonly bool $recordSqlQueries;
 
+    /**
+     * Indicates if we should add query bindings to the breadcrumbs.
+     */
     private readonly bool $recordSqlBindings;
 
+    /**
+     * Indicates if we should add SQL transactions to the breadcrumbs.
+     */
     private readonly bool $recordSqlTransactions;
 
+    /**
+     * Indicates if we should add Hypervel logs to the breadcrumbs.
+     */
     private readonly bool $recordLogs;
 
     /**
@@ -162,9 +179,14 @@ class EventHandler
             $data['executionTimeMs'] = $query->time;
         }
 
-        if ($this->recordSqlBindings) {
+        $policy = DataCollectionPolicy::fromHub(SentrySdk::getCurrentHub());
+
+        // The data collection options replace the `sql_bindings` option
+        if ($this->recordSqlBindings && $policy->isLegacyMode()) {
             $data['bindings'] = $query->bindings;
         }
+
+        $data += DatabaseDataCollector::collectQueryData($policy, $query->bindings);
 
         Integration::addBreadcrumb(new Breadcrumb(
             Breadcrumb::LEVEL_INFO,

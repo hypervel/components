@@ -96,11 +96,17 @@ class ModelViolationDedupeTest extends TestCase
 
 class ConcreteViolationReporter extends ModelViolationReporter
 {
+    /**
+     * Get the context data for the violation.
+     */
     protected function getViolationContext(Model $model, string $property): array
     {
         return ['property' => $property, 'kind' => 'concrete'];
     }
 
+    /**
+     * Get the exception representing the violation.
+     */
     protected function getViolationException(Model $model, string $property): Exception
     {
         return new Exception("Concrete violation: {$property}");
@@ -109,11 +115,17 @@ class ConcreteViolationReporter extends ModelViolationReporter
 
 class AnotherConcreteViolationReporter extends ModelViolationReporter
 {
+    /**
+     * Get the context data for the violation.
+     */
     protected function getViolationContext(Model $model, string $property): array
     {
         return ['property' => $property, 'kind' => 'another'];
     }
 
+    /**
+     * Get the exception representing the violation.
+     */
     protected function getViolationException(Model $model, string $property): Exception
     {
         return new Exception("Another violation: {$property}");

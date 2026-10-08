@@ -15,6 +15,9 @@ class IntegrationMetaTagTest extends TestCase
 {
     private const string DANGEROUS_PAYLOAD = '</meta><script>alert("owned")</script>';
 
+    /**
+     * Clean up the test environment.
+     */
     protected function tearDown(): void
     {
         configureScope(static function (Scope $scope): void {
@@ -82,6 +85,9 @@ class IntegrationMetaTagTest extends TestCase
         $this->assertStringEndsWith('"/>', $meta);
     }
 
+    /**
+     * Set a current span that returns the given trace values.
+     */
     private function setDangerousSpanValues(string $traceparent, string $baggage): void
     {
         $span = m::mock(Span::class);

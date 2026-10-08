@@ -71,6 +71,9 @@ class ModelViolationReportersTest extends TestCase
         $callback = new class {
             public bool $called = false;
 
+            /**
+             * Record that the callback was called.
+             */
             public function __invoke(): void
             {
                 $this->called = true;

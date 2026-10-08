@@ -12,6 +12,9 @@ use Sentry\State\Scope;
 
 class ExceptionContextIntegration implements IntegrationInterface
 {
+    /**
+     * Register the event processor that adds the exception context.
+     */
     public function setupOnce(): void
     {
         Scope::addGlobalEventProcessor(static function (Event $event, ?EventHint $hint = null): Event {

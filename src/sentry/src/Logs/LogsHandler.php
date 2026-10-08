@@ -12,6 +12,8 @@ use Monolog\LogRecord;
 use Sentry\Logs\LogLevel;
 use Throwable;
 
+use function Sentry\logger;
+
 class LogsHandler extends AbstractProcessingHandler
 {
     /**
@@ -94,7 +96,7 @@ class LogsHandler extends AbstractProcessingHandler
             unset($context['exception']);
         }
 
-        \Sentry\logger()->aggregator()->add(
+        logger()->aggregator()->add(
             self::getLogLevel($record->level),
             $record->message,
             [],

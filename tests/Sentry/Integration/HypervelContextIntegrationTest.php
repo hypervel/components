@@ -5,23 +5,23 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sentry\Integration;
 
 use Exception;
-use Hypervel\Sentry\Integration\ContextIntegration;
+use Hypervel\Sentry\Integration\HypervelContextIntegration;
 use Hypervel\Support\Facades\Context;
 use Hypervel\Tests\Sentry\TestCase;
 use Sentry\EventType;
 
 use function Sentry\captureException;
 
-class ContextIntegrationTest extends TestCase
+class HypervelContextIntegrationTest extends TestCase
 {
-    public function testContextIntegrationIsRegistered(): void
+    public function testHypervelContextIntegrationIsRegistered(): void
     {
-        $integration = $this->getSentryHubFromContainer()->getIntegration(ContextIntegration::class);
+        $integration = $this->getSentryHubFromContainer()->getIntegration(HypervelContextIntegration::class);
 
-        $this->assertInstanceOf(ContextIntegration::class, $integration);
+        $this->assertInstanceOf(HypervelContextIntegration::class, $integration);
     }
 
-    public function testExceptionIsCapturedWithContext(): void
+    public function testExceptionIsCapturedWithHypervelContext(): void
     {
         $this->setupTestContext();
 
@@ -34,7 +34,7 @@ class ContextIntegrationTest extends TestCase
         $this->assertContextIsCaptured($event->getContexts());
     }
 
-    public function testExceptionIsCapturedWithoutContextIfEmpty(): void
+    public function testExceptionIsCapturedWithoutHypervelContextIfEmpty(): void
     {
         captureException(new Exception('Context test'));
 
@@ -45,7 +45,7 @@ class ContextIntegrationTest extends TestCase
         $this->assertArrayNotHasKey('hypervel', $event->getContexts());
     }
 
-    public function testExceptionIsCapturedWithoutContextIfOnlyHidden(): void
+    public function testExceptionIsCapturedWithoutHypervelContextIfOnlyHidden(): void
     {
         Context::addHidden('hidden', 'value');
 
@@ -58,7 +58,7 @@ class ContextIntegrationTest extends TestCase
         $this->assertArrayNotHasKey('hypervel', $event->getContexts());
     }
 
-    public function testTransactionIsCapturedWithContext(): void
+    public function testTransactionIsCapturedWithHypervelContext(): void
     {
         $this->setupTestContext();
 
@@ -73,6 +73,9 @@ class ContextIntegrationTest extends TestCase
         $this->assertContextIsCaptured($event->getContexts());
     }
 
+    /**
+     * Add visible and hidden values to the context.
+     */
     private function setupTestContext(): void
     {
         Context::flush();
@@ -80,6 +83,9 @@ class ContextIntegrationTest extends TestCase
         Context::addHidden('hidden', 'value');
     }
 
+    /**
+     * Assert that only the visible context values were captured.
+     */
     private function assertContextIsCaptured(array $context): void
     {
         $this->assertArrayHasKey('hypervel', $context);

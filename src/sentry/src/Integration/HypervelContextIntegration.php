@@ -15,8 +15,11 @@ use Sentry\State\Scope;
 /**
  * Adds log context data to Sentry events.
  */
-class ContextIntegration implements IntegrationInterface
+class HypervelContextIntegration implements IntegrationInterface
 {
+    /**
+     * Register the event processor that adds the context data.
+     */
     public function setupOnce(): void
     {
         Scope::addGlobalEventProcessor(static function (Event $event, ?EventHint $hint = null): Event {

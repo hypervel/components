@@ -32,6 +32,9 @@ class Integration implements IntegrationInterface
 {
     private const string CONTEXT_TRANSACTION_KEY = '__sentry.transaction';
 
+    /**
+     * Register the event processor that adds the Swoole version and transaction name.
+     */
     public function setupOnce(): void
     {
         Scope::addGlobalEventProcessor(static function (Event $event): Event {
@@ -162,6 +165,8 @@ class Integration implements IntegrationInterface
         return sprintf('<meta name="sentry-trace" content="%s"/>', self::escapeMetaTagContent(getTraceparent()));
     }
 
+    // Upstream's sentryW3CTracingMeta() is not ported: it is deprecated and always returns an empty string.
+
     /**
      * Retrieve the `baggage` meta tag with information to link this request to front-end requests.
      * This propagates the Dynamic Sampling Context.
@@ -192,6 +197,8 @@ class Integration implements IntegrationInterface
 
     /**
      * Return a callback for `Model::handleMissingAttributeViolationUsing` to report missing attribute violations to Sentry.
+     *
+     * @param null|callable $callback optional callback to be called after the violation is reported to Sentry
      */
     public static function missingAttributeViolationReporter(?callable $callback = null, bool $suppressDuplicateReports = true, bool $reportAfterResponse = true): callable
     {
@@ -200,6 +207,8 @@ class Integration implements IntegrationInterface
 
     /**
      * Return a callback for `Model::handleLazyLoadingViolationUsing` to report lazy loading violations to Sentry.
+     *
+     * @param null|callable $callback optional callback to be called after the violation is reported to Sentry
      */
     public static function lazyLoadingViolationReporter(?callable $callback = null, bool $suppressDuplicateReports = true, bool $reportAfterResponse = true): callable
     {
@@ -208,6 +217,8 @@ class Integration implements IntegrationInterface
 
     /**
      * Return a callback for `Model::handleDiscardedAttributeViolationUsing` to report discarded attribute violations to Sentry.
+     *
+     * @param null|callable $callback optional callback to be called after the violation is reported to Sentry
      */
     public static function discardedAttributeViolationReporter(?callable $callback = null, bool $suppressDuplicateReports = true, bool $reportAfterResponse = true): callable
     {
