@@ -1,0 +1,69 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Ai\Files;
+
+use Hypervel\Contracts\Support\Arrayable;
+use InvalidArgumentException;
+use JsonSerializable;
+use Override;
+
+class S3Document extends Document implements Arrayable, JsonSerializable
+{
+    /**
+     * Create a new S3Document instance.
+     */
+    public function __construct(
+        public string $url,
+        public ?string $bucketOwner = null,
+        ?string $mimeType = null,
+    ) {
+        $this->mime = $mimeType;
+    }
+
+    /**
+     * Get the displayable name of the file.
+     */
+    #[Override]
+    public function name(): ?string
+    {
+        $path = parse_url($this->url, PHP_URL_PATH);
+
+        return $this->name ?? basename(is_string($path) ? $path : '');
+    }
+
+    /**
+     * Reject direct content access for an S3 reference.
+     *
+     * @throws InvalidArgumentException
+     */
+    public function content(): string
+    {
+        throw new InvalidArgumentException(
+            'S3Document cannot be read directly. It is only supported by providers that accept S3 location references. Use StoredDocument or RemoteDocument instead if you need to send the file contents inline.'
+        );
+    }
+
+    /**
+     * Get the instance as an array.
+     */
+    public function toArray(): array
+    {
+        return [
+            'type' => 's3-document',
+            'name' => $this->name(),
+            'url' => $this->url,
+            'bucket_owner' => $this->bucketOwner,
+            'mime' => $this->mime,
+        ];
+    }
+
+    /**
+     * Get the JSON serializable representation of the instance.
+     */
+    public function jsonSerialize(): array
+    {
+        return $this->toArray();
+    }
+}
