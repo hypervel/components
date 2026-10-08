@@ -32,6 +32,7 @@ class NamedScopeMethodExtension implements MethodsClassReflectionExtension
     public function __construct(
         private readonly ReflectionProvider $reflectionProvider,
         private readonly ModelScopeMethodResolver $scopeMethods,
+        private readonly BuilderMacroResolver $builderMacros,
     ) {
         $this->scope = new OutOfClassScope;
     }
@@ -72,7 +73,8 @@ class NamedScopeMethodExtension implements MethodsClassReflectionExtension
             return null;
         }
 
-        $cacheKey = $classReflection->getCacheKey() . ':' . strtolower($methodName);
+        // Keep the exact spelling: builder macro names are case-sensitive.
+        $cacheKey = $classReflection->getCacheKey() . ':' . $methodName;
 
         if (array_key_exists($cacheKey, $this->methods)) {
             $cachedMethod = $this->methods[$cacheKey];
@@ -90,12 +92,10 @@ class NamedScopeMethodExtension implements MethodsClassReflectionExtension
         $scopeMethod = $this->scopeMethods->resolve($modelClass, $methodName);
         $method = null;
 
-        if ($scopeMethod !== null && ! $this->nativeMethodTakesPrecedence(
-            $classReflection,
-            $methodName,
-            $queryType,
-            $static,
-        )) {
+        // Local builder macros run before named scopes in Builder::__call().
+        if ($scopeMethod !== null
+            && ! $this->builderMacros->hasMacro($modelClass, $methodName)
+            && ! $this->nativeMethodTakesPrecedence($classReflection, $methodName, $queryType, $static)) {
             $method = new NamedScopeMethodReflection(
                 $classReflection,
                 $modelClass,

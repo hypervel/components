@@ -6,6 +6,7 @@
 includes:
   - src/database/extension.neon
   - src/foundation/extension.neon
+  - src/scout/extension.neon
 
 parameters:
   tmpDir: .cache/phpstan

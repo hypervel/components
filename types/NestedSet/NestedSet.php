@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Hypervel\Database\Eloquent\HasBuilder;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\NestedSet\Eloquent\Collection;
 use Hypervel\NestedSet\Eloquent\QueryBuilder;
 use Hypervel\NestedSet\HasNode;
@@ -17,6 +18,12 @@ class NestedSetTypeCategory extends Model
 
 class NestedSetTypeSubcategory extends NestedSetTypeCategory
 {
+}
+
+class NestedSetTypeSoftCategory extends Model
+{
+    use HasNode;
+    use SoftDeletes;
 }
 
 /**
@@ -66,3 +73,8 @@ assertType('NestedSetTypeCategory|null', $category->getNextSibling());
 
 assertType('NestedSetTypeMenuBuilder<NestedSetTypeMenuItem>', NestedSetTypeMenuItem::query());
 assertType('NestedSetTypeMenuBuilder<NestedSetTypeMenuItem>', NestedSetTypeMenuItem::whereIsLeaf());
+
+$softCategory = new NestedSetTypeSoftCategory;
+
+assertType('Hypervel\NestedSet\Eloquent\QueryBuilder<NestedSetTypeSoftCategory>', NestedSetTypeSoftCategory::withTrashed());
+assertType('Hypervel\NestedSet\Eloquent\AncestorsRelation<NestedSetTypeSoftCategory>', $softCategory->ancestors()->withTrashed());
