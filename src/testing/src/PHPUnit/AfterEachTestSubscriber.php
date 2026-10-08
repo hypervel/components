@@ -320,6 +320,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\WebSocketServer\Collector\FdCollector::flushState();
         \Hypervel\WebSocketServer\Context::flushState();
 
+        $this->flushAiState();
         $this->flushDataState();
         $this->flushFortifyState();
         $this->flushHorizonState();
@@ -337,6 +338,14 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         $this->flushTelescopeState();
         $this->flushTestbenchState();
         $this->flushWayfinderState();
+    }
+
+    /**
+     * Flush AI state.
+     */
+    protected function flushAiState(): void
+    {
+        $this->callIfExists(\Hypervel\Ai\Files\UntrustedUrl::class, 'flushState');
     }
 
     /**

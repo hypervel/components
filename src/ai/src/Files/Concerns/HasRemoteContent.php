@@ -1,0 +1,76 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Ai\Files\Concerns;
+
+use Hypervel\Ai\Files\UntrustedUrl;
+use Hypervel\Http\Client\Response;
+use Hypervel\Support\Stringable;
+
+trait HasRemoteContent
+{
+    protected ?Response $response = null;
+
+    /**
+     * Get the raw representation of the file.
+     */
+    public function content(): string
+    {
+        return $this->response()->body();
+    }
+
+    /**
+     * Get the displayable name of the file.
+     */
+    public function name(): ?string
+    {
+        $path = parse_url($this->url, PHP_URL_PATH);
+
+        return $this->name ?? basename(is_string($path) ? $path : '');
+    }
+
+    /**
+     * Get the file's MIME type.
+     */
+    public function mimeType(): ?string
+    {
+        return $this->mime ?? ((new Stringable($this->response()->header('Content-Type')))->before(';')->trim()->toString() ?: null);
+    }
+
+    /**
+     * Get the declared MIME type without fetching the remote resource.
+     */
+    public function declaredMimeType(): ?string
+    {
+        return $this->mime;
+    }
+
+    /**
+     * Get the HTTP response for the remote file.
+     */
+    protected function response(): Response
+    {
+        return $this->response ??= UntrustedUrl::fetch($this->url)->throw();
+    }
+
+    /**
+     * Prepare the file for serialization, discarding the cached HTTP response so it can be fetched again.
+     */
+    public function __serialize(): array
+    {
+        $properties = get_mangled_object_vars($this);
+
+        unset($properties["\0*\0response"]);
+
+        return $properties;
+    }
+
+    /**
+     * Get the file content as a string.
+     */
+    public function __toString(): string
+    {
+        return $this->content();
+    }
+}
