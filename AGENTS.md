@@ -111,6 +111,8 @@ Anything found follows When to Stop and Report — "the task didn't ask me to fi
 
 ### Verification
 
+**Run verification commands sequentially** — Never overlap test, lint, formatting, or static-analysis commands. Wait for each to finish before starting another. A tool’s built-in parallelism, such as ParaTest workers, is fine.
+
 During implementation, run new or changed test files immediately. After completing a coherent implementation slice, run the affected package or focused test suite.
 
 Use checks that match the change. For isolated changes, run `composer lint:fix`, `composer analyse`, and the affected tests. Run a single affected test file with PHPUnit. Use ParaTest when the affected tests span multiple files. Only run `composer fix` when changes could affect code beyond the affected tests; it already runs formatting, analysis, and all test suites, so do not run those checks separately first.
