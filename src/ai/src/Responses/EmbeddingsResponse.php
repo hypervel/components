@@ -1,0 +1,75 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Ai\Responses;
+
+use Countable;
+use Hypervel\Ai\Responses\Data\Meta;
+use Hypervel\Ai\Responses\Data\Usage;
+use Hypervel\Contracts\Support\Arrayable;
+use IteratorAggregate;
+use JsonSerializable;
+use Traversable;
+
+class EmbeddingsResponse implements Arrayable, Countable, IteratorAggregate, JsonSerializable
+{
+    /**
+     * Create a new embeddings response instance.
+     *
+     * @param array<int, array<float>> $embeddings
+     */
+    public function __construct(public array $embeddings, public Usage $usage, public Meta $meta)
+    {
+    }
+
+    /**
+     * Get the first set of embeddings in the response.
+     *
+     * @return array<float>
+     */
+    public function first(): array
+    {
+        return $this->embeddings[0];
+    }
+
+    /**
+     * Get the instance as an array.
+     */
+    public function toArray(): array
+    {
+        return [
+            'embeddings' => $this->embeddings,
+            'usage' => $this->usage,
+            'meta' => $this->meta,
+        ];
+    }
+
+    /**
+     * Get the JSON serializable representation of the instance.
+     */
+    public function jsonSerialize(): array
+    {
+        return $this->toArray();
+    }
+
+    /**
+     * Get the number of generated embeddings in the response.
+     */
+    public function count(): int
+    {
+        return count($this->embeddings);
+    }
+
+    /**
+     * Get an iterator for the object.
+     *
+     * @return Traversable<int, array<float>>
+     */
+    public function getIterator(): Traversable
+    {
+        foreach ($this->embeddings as $embedding) {
+            yield $embedding;
+        }
+    }
+}
