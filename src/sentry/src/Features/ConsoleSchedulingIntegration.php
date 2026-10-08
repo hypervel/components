@@ -10,7 +10,7 @@ use Hypervel\Console\Events\ScheduledTaskFailed;
 use Hypervel\Console\Events\ScheduledTaskFinished;
 use Hypervel\Console\Events\ScheduledTaskStarting;
 use Hypervel\Console\Scheduling\Event as SchedulingEvent;
-use Hypervel\Log\Context\Repository as ContextRepository;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Sentry\Features\Concerns\TracksPushedScopesAndSpans;
 use Hypervel\Support\Str;
 use RuntimeException;
@@ -28,8 +28,16 @@ class ConsoleSchedulingIntegration extends Feature
 {
     use TracksPushedScopesAndSpans;
 
+    /**
+     * The context key for the check-ins in progress in the current coroutine.
+     */
+    public const string CHECK_INS_CONTEXT_KEY = '__sentry.scheduling.check_ins';
+
     private bool $shouldHandleCheckIn = false;
 
+    /**
+     * Register the `sentryMonitor` scheduling macro.
+     */
     public function register(): void
     {
         $startCheckIn = function (
@@ -41,7 +49,7 @@ class ConsoleSchedulingIntegration extends Feature
             ?int $failureIssueThreshold,
             ?int $recoveryThreshold,
             ?string $schedule
-        ) {
+        ): void {
             $this->startCheckIn(
                 $slug,
                 $scheduled,
@@ -53,7 +61,7 @@ class ConsoleSchedulingIntegration extends Feature
                 $schedule
             );
         };
-        $finishCheckIn = function (?string $slug, SchedulingEvent $scheduled, CheckInStatus $status) {
+        $finishCheckIn = function (?string $slug, SchedulingEvent $scheduled, CheckInStatus $status): void {
             $this->finishCheckIn($slug, $scheduled, $status);
         };
 
@@ -65,7 +73,7 @@ class ConsoleSchedulingIntegration extends Feature
             ?int $failureIssueThreshold = null,
             ?int $recoveryThreshold = null,
             ?string $schedule = null
-        ) use ($startCheckIn, $finishCheckIn) {
+        ) use ($startCheckIn, $finishCheckIn): SchedulingEvent {
             /** @var SchedulingEvent $this */
             if ($monitorSlug === null && empty($this->command) && empty($this->description)) {
                 throw new RuntimeException(
@@ -83,7 +91,7 @@ class ConsoleSchedulingIntegration extends Feature
                     $failureIssueThreshold,
                     $recoveryThreshold,
                     $schedule
-                ) {
+                ): void {
                     /** @var SchedulingEvent $this */
                     $startCheckIn(
                         $monitorSlug,
@@ -96,22 +104,28 @@ class ConsoleSchedulingIntegration extends Feature
                         $schedule
                     );
                 })
-                ->onSuccess(function () use ($finishCheckIn, $monitorSlug) {
+                ->onSuccess(function () use ($finishCheckIn, $monitorSlug): void {
                     /** @var SchedulingEvent $this */
                     $finishCheckIn($monitorSlug, $this, CheckInStatus::ok());
                 })
-                ->onFailure(function () use ($finishCheckIn, $monitorSlug) {
+                ->onFailure(function () use ($finishCheckIn, $monitorSlug): void {
                     /** @var SchedulingEvent $this */
                     $finishCheckIn($monitorSlug, $this, CheckInStatus::error());
                 });
         });
     }
 
+    /**
+     * Indicate if the feature is applicable to the current environment.
+     */
     public function isApplicable(): bool
     {
         return true;
     }
 
+    /**
+     * Set up the feature in the environment.
+     */
     public function onBoot(): void
     {
         $this->shouldHandleCheckIn = true;
@@ -127,10 +141,16 @@ class ConsoleSchedulingIntegration extends Feature
         $dispatcher->listen(ScheduledTaskFailed::class, [$this, 'handleScheduledTaskFailed']);
     }
 
+    /**
+     * Set up the feature in the environment in an inactive state (when no DSN was set).
+     */
     public function onBootInactive(): void
     {
         $this->shouldHandleCheckIn = false;
     }
+
+    // Upstream's useCacheStore() and its cache and Context hand-off of check-in IDs are not ported:
+    // background tasks run in a coroutine of the scheduler process, which starts and finishes their check-ins.
 
     /**
      * Start tracing the scheduled task.
@@ -173,6 +193,9 @@ class ConsoleSchedulingIntegration extends Feature
         $this->maybeFinishSpan(SpanStatus::internalError());
     }
 
+    /**
+     * Send the in-progress check-in for the scheduled event.
+     */
     private function startCheckIn(
         ?string $slug,
         SchedulingEvent $scheduled,
@@ -212,11 +235,18 @@ class ConsoleSchedulingIntegration extends Feature
 
         $cacheKey = $this->buildCacheKey($scheduled->mutexName(), $checkInSlug);
 
-        $this->storeCheckIn($cacheKey, $checkIn);
+        // Background tasks finish in the coroutine that started them, so the check-in never needs to
+        // leave it. The application log context would carry it into queued jobs and subprocesses.
+        $checkIns = CoroutineContext::get(self::CHECK_INS_CONTEXT_KEY, []);
+        $checkIns[$cacheKey] = $checkIn;
+        CoroutineContext::set(self::CHECK_INS_CONTEXT_KEY, $checkIns);
 
         $this->sendCheckIn($checkIn);
     }
 
+    /**
+     * Send the final check-in for the scheduled event with the given status.
+     */
     private function finishCheckIn(?string $slug, SchedulingEvent $scheduled, CheckInStatus $status): void
     {
         if (! $this->shouldHandleCheckIn) {
@@ -227,20 +257,28 @@ class ConsoleSchedulingIntegration extends Feature
 
         $cacheKey = $this->buildCacheKey($scheduled->mutexName(), $checkInSlug);
 
-        $checkIn = $this->getCheckIn($cacheKey);
+        $checkIns = CoroutineContext::get(self::CHECK_INS_CONTEXT_KEY, []);
+        $checkIn = $checkIns[$cacheKey] ?? null;
 
         // This should never happen (because we should always start before we finish), but better safe than sorry
         if ($checkIn === null) {
             return;
         }
 
-        $this->forgetCheckIn($cacheKey);
+        // We don't need to keep the checkIn stored since we finished executing the command
+        unset($checkIns[$cacheKey]);
+        CoroutineContext::set(self::CHECK_INS_CONTEXT_KEY, $checkIns);
 
+        // The start check-in may still be waiting for asynchronous delivery, so it must not change
+        $checkIn = clone $checkIn;
         $checkIn->setStatus($status);
 
         $this->sendCheckIn($checkIn);
     }
 
+    /**
+     * Send the check-in to Sentry.
+     */
     private function sendCheckIn(CheckIn $checkIn): void
     {
         $event = SentryEvent::createCheckIn();
@@ -249,59 +287,34 @@ class ConsoleSchedulingIntegration extends Feature
         SentrySdk::getCurrentHub()->captureEvent($event);
     }
 
-    private function createCheckIn(string $slug, CheckInStatus $status, ?string $id = null): CheckIn
+    /**
+     * Create a check-in for the monitor with the client's release and environment.
+     */
+    private function createCheckIn(string $slug, CheckInStatus $status): CheckIn
     {
         $options = SentrySdk::getCurrentHub()->getClient()->getOptions();
 
         return new CheckIn(
             Str::limit($slug, 128, ''),
             $status,
-            $id,
+            null,
             $options->getRelease(),
             $options->getEnvironment()
         );
     }
 
     /**
-     * Store the check-in in coroutine-local hidden context.
+     * Build the key that identifies the scheduled event's check-in.
      */
-    private function storeCheckIn(string $cacheKey, CheckIn $checkIn): void
-    {
-        ContextRepository::getInstance()->addHidden($cacheKey, $checkIn);
-    }
-
-    /**
-     * Retrieve the check-in from coroutine-local hidden context.
-     */
-    private function getCheckIn(string $cacheKey): ?CheckIn
-    {
-        if (! ContextRepository::hasInstance()) {
-            return null;
-        }
-
-        $checkIn = ContextRepository::getInstance()->getHidden($cacheKey);
-
-        return $checkIn instanceof CheckIn ? $checkIn : null;
-    }
-
-    /**
-     * Remove the check-in from coroutine-local hidden context.
-     */
-    private function forgetCheckIn(string $cacheKey): void
-    {
-        if (! ContextRepository::hasInstance()) {
-            return;
-        }
-
-        ContextRepository::getInstance()->forgetHidden($cacheKey);
-    }
-
     private function buildCacheKey(string $mutex, string $slug): string
     {
         // We use the mutex name as part of the cache key to avoid collisions between the same commands with the same schedule but with different slugs
         return 'sentry:checkIn:' . hash('xxh128', "{$mutex}:{$slug}");
     }
 
+    /**
+     * Generate a monitor slug for the scheduled event.
+     */
     private function makeSlugForScheduled(SchedulingEvent $scheduled): string
     {
         if (empty($scheduled->command)) {
@@ -330,6 +343,9 @@ class ConsoleSchedulingIntegration extends Feature
         return "scheduled_{$generatedSlug}";
     }
 
+    /**
+     * Get the Artisan command name of the scheduled event, if it runs a command.
+     */
     private function getCommandNameForScheduled(SchedulingEvent $scheduled): ?string
     {
         if (empty($scheduled->command)) {

@@ -17,7 +17,7 @@ class ConsoleIntegrationNonCoroutineTest extends TestCase
     public function testCommandScopeIsBalancedOutsideACoroutine(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry' => $this->sentryConfigWith(['breadcrumbs.command_info' => false]),
+            'sentry.breadcrumbs.command_info' => false,
         ]);
         $scope = $this->getCurrentSentryScope();
         $command = new NonCoroutineConsoleIntegrationCommand;
@@ -33,7 +33,7 @@ class ConsoleIntegrationNonCoroutineTest extends TestCase
     public function testUnnamedCommandCompletionDoesNotPopItsParentScopeOutsideACoroutine(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry' => $this->sentryConfigWith(['breadcrumbs.command_info' => false]),
+            'sentry.breadcrumbs.command_info' => false,
         ]);
         $baselineScope = $this->getCurrentSentryScope();
         $outer = new NonCoroutineConsoleIntegrationCommand;
@@ -59,6 +59,9 @@ class NonCoroutineConsoleIntegrationCommand extends Command
 
     protected bool $coroutine = false;
 
+    /**
+     * Execute the console command.
+     */
     public function handle(): void
     {
     }
@@ -68,6 +71,9 @@ class NonCoroutineUnnamedConsoleIntegrationCommand extends Command
 {
     protected bool $coroutine = false;
 
+    /**
+     * Execute the console command.
+     */
     public function handle(): void
     {
     }

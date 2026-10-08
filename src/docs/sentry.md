@@ -298,9 +298,13 @@ SENTRY_SEND_DEFAULT_PII=true
 
 Command breadcrumbs omit command-line input unless this option is enabled. When enabled, the raw command arguments and options are sent to Sentry, so do not pass credentials on the command line.
 
+Once the `data_collection` option is set, command breadcrumbs instead include the arguments and options that differ from their defaults, as separate `input.arguments` and `input.options` arrays. Values whose names suggest secrets, such as `password` or `token`, are replaced with `[Filtered]`.
+
 Redis command parameters are omitted unless this option is enabled. When enabled, the active session key is still redacted from Redis and cache telemetry.
 
 SQL bindings are controlled separately using `SENTRY_BREADCRUMBS_SQL_BINDINGS_ENABLED` and `SENTRY_TRACE_SQL_BINDINGS_ENABLED`. Review these settings carefully before enabling them in production.
+
+Once the `data_collection` option is set, its `database_query_data` setting controls both SQL bindings and Redis command parameters instead.
 
 <a name="spotlight"></a>
 ## Spotlight

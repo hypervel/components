@@ -29,6 +29,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionClass;
 use ReflectionMethod;
+use Sentry\Tracing\Span;
 
 class StorageIntegrationTest extends TestCase
 {
@@ -198,7 +199,7 @@ class StorageIntegrationTest extends TestCase
         $this->assertIsString($disk->mimeType('foo.txt'));
 
         $operations = array_map(
-            static fn ($span): ?string => $span->getOp(),
+            static fn (Span $span): ?string => $span->getOp(),
             $transaction->getSpanRecorder()->getSpans(),
         );
 
@@ -246,7 +247,7 @@ class StorageIntegrationTest extends TestCase
                 'file.directoryExists',
                 'file.directoryExists',
                 'file.exists',
-            ], array_map(static fn ($span): ?string => $span->getOp(), $spans));
+            ], array_map(static fn (Span $span): ?string => $span->getOp(), $spans));
             $this->assertSame(['path' => 'file.txt', 'disk' => 'plain'], $spans[0]->getData());
         } finally {
             $files->deleteDirectory($root);
@@ -385,7 +386,7 @@ class StorageIntegrationTest extends TestCase
         $this->assertContains(
             'file.mimeType',
             array_map(
-                static fn ($span): ?string => $span->getOp(),
+                static fn (Span $span): ?string => $span->getOp(),
                 $transaction->getSpanRecorder()->getSpans(),
             ),
         );
@@ -410,7 +411,7 @@ class StorageIntegrationTest extends TestCase
         fclose($stream);
 
         $operations = array_map(
-            static fn ($span): ?string => $span->getOp(),
+            static fn (Span $span): ?string => $span->getOp(),
             $transaction->getSpanRecorder()->getSpans(),
         );
 
@@ -662,8 +663,10 @@ class StorageIntegrationTest extends TestCase
         $this->assertFalse(Storage::disk('local')->exists('missing'));
     }
 
-    public function testAnonymousDiskRequiresStoredLogicalName(): void
+    public function testThrowsIfDiskConfigurationDoesntSpecifyDiskName(): void
     {
+        // Named disks receive their name from the filesystem manager, so only a disk built
+        // from configuration alone still needs the `sentry_disk_name` key.
         $this->expectExceptionMessageIs('Missing `sentry_disk_name` config key for `sentry` filesystem driver.');
 
         Storage::build([
