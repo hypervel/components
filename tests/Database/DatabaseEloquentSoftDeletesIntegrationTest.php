@@ -259,6 +259,7 @@ class DatabaseEloquentSoftDeletesIntegrationTest extends TestCase
         }
 
         $this->assertTrue($user->exists);
+        $this->assertFalse($user->isForceDeleting());
     }
 
     public function testForceDestroyFullyDeletesRecord(): void

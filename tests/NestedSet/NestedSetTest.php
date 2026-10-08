@@ -8,7 +8,6 @@ use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Eloquent\Attributes\UseEloquentBuilder;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Query\Builder as BaseQueryBuilder;
 use Hypervel\NestedSet\Eloquent\QueryBuilder;
 use Hypervel\NestedSet\HasNode;
@@ -99,15 +98,6 @@ class NestedSetTest extends TestCase
     public function testIsNodeReturnsTrueForModelUsingHasNodeThroughAnotherTrait(): void
     {
         $this->assertTrue(NestedSet::isNode(new NestedSetTestNestedTraitNodeModel));
-    }
-
-    public function testNodeBootDetectsSoftDeletesWithoutNestedModelConstruction(): void
-    {
-        $node = new NestedSetTestNodeModel;
-        $softDeletingNode = new NestedSetTestSoftDeletingNodeModel;
-
-        $this->assertFalse($node::usesSoftDelete());
-        $this->assertTrue($softDeletingNode::usesSoftDelete());
     }
 
     public function testNodeUsesNestedSetBuilderByDefault(): void
@@ -334,14 +324,6 @@ class NestedSetTestNestedTraitNodeModel extends Model
     use NestedSetTestNestedNode;
 
     protected ?string $table = 'nested_set_test_nested_trait_nodes';
-}
-
-class NestedSetTestSoftDeletingNodeModel extends Model
-{
-    use SoftDeletes;
-    use HasNode;
-
-    protected ?string $table = 'nested_set_test_soft_deleting_nodes';
 }
 
 class NestedSetTestScopeNodeModel extends Model

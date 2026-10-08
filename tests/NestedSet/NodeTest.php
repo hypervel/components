@@ -4,20 +4,41 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\NestedSet;
 
+use Closure;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\QueryException;
 use Hypervel\NestedSet\Eloquent\Collection;
 use Hypervel\NestedSet\Eloquent\QueryBuilder;
 use Hypervel\NestedSet\HasNode;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\Attributes\RequiresDatabase;
 use Hypervel\Tests\NestedSet\Fixtures\Models\Category;
 use LogicException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
 
 class NodeTest extends NodeTestBase
 {
     protected string $category = Category::class;
+
+    /**
+     * Enforce SQLite foreign keys, as the server drivers do, for the constrained fixtures.
+     */
+    protected function defineEnvironment(ApplicationContract $app): void
+    {
+        parent::defineEnvironment($app);
+
+        $config = $app->make('config');
+
+        $config->set(
+            'database.connections.' . $config->string('database.default') . '.foreign_key_constraints',
+            true,
+        );
+    }
 
     /**
      * Seed the fixture tree inside the test coroutine and transaction.
@@ -50,6 +71,19 @@ class NodeTest extends NodeTestBase
         return $number;
     }
 
+    /**
+     * Count the logged evented chunk queries of two nodes in the given left-bound order.
+     */
+    protected function countChunkQueries(string $direction): int
+    {
+        $order = 'order by ' . DB::getQueryGrammar()->wrap('_lft') . " {$direction} limit 2";
+
+        return count(array_filter(
+            array_column(DB::getQueryLog(), 'query'),
+            static fn (string $query): bool => str_contains($query, $order),
+        ));
+    }
+
     #[RequiresDatabase(['sqlite', 'pgsql'])]
     public function testIgnoredSaveOrIgnoreConflictKeepsThePendingAction(): void
     {
@@ -77,7 +111,7 @@ class NodeTest extends NodeTestBase
         $this->assertTreeNotBroken();
     }
 
-    public function testEventedDescendantDeletionRunsChildrenFirstInChunks(): void
+    public function testEventedDescendantDeletesAreChunked(): void
     {
         $deleting = [];
 
@@ -96,22 +130,23 @@ class NodeTest extends NodeTestBase
             $this->assertNotNull(EventedCategoryModel::withTrashed()->findOrFail($id)->deleted_at);
         }
 
-        $chunkOrder = 'order by ' . DB::getQueryGrammar()->wrap('_lft') . ' desc limit 2';
-
-        $this->assertSame(4, count(array_filter(
-            array_column(DB::getQueryLog(), 'query'),
-            static fn (string $query): bool => str_contains($query, $chunkOrder),
-        )));
+        // Five descendants in chunks of two: the short third chunk ends the loop.
+        $this->assertSame(3, $this->countChunkQueries('desc'));
     }
 
-    public function testEventedDescendantDeletionPropagatesVetoesForTransactionRollback(): void
+    /**
+     * @param Closure(EventedCategoryModel): mixed $delete
+     */
+    #[DataProvider('vetoedEventedDeletions')]
+    public function testEventedDescendantDeletionVetoRollsBackEarlierDeletes(Closure $delete): void
     {
         EventedCategoryModel::deleting(
             fn (EventedCategoryModel $model): ?bool => $model->getKey() === 8 ? false : null,
         );
+        $before = $this->persistedRows();
 
         try {
-            DB::transaction(fn (): int|bool|null => EventedCategoryModel::findOrFail(5)->delete());
+            $delete(EventedCategoryModel::findOrFail(5));
             $this->fail('Expected the descendant deletion veto to propagate.');
         } catch (LogicException $exception) {
             $this->assertSame(
@@ -123,9 +158,78 @@ class NodeTest extends NodeTestBase
             );
         }
 
-        foreach ([5, 6, 7, 8, 9, 10] as $id) {
-            $this->assertNull(EventedCategoryModel::withTrashed()->findOrFail($id)->deleted_at);
+        $this->assertSame($before, $this->persistedRows());
+    }
+
+    /**
+     * Provide transactional deletions whose veto follows earlier descendant deletes.
+     *
+     * @return array<string, array{Closure(EventedCategoryModel): mixed}>
+     */
+    public static function vetoedEventedDeletions(): array
+    {
+        return [
+            'soft delete' => [static fn (EventedCategoryModel $node): mixed => $node->deleteOrFail()],
+            'force delete' => [
+                static fn (EventedCategoryModel $node): mixed => DB::transaction(fn (): mixed => $node->forceDelete()),
+            ],
+        ];
+    }
+
+    public function testEventedDescendantRestoresAreChunkedParentsFirst(): void
+    {
+        CarbonImmutable::setTestNow('2025-07-03 12:00:00');
+        EventedCategoryModel::findOrFail(7)->delete();
+
+        CarbonImmutable::setTestNow('2025-07-03 12:00:01');
+        EventedCategoryModel::findOrFail(5)->delete();
+
+        $restoring = [];
+        $restored = [];
+
+        EventedCategoryModel::restoring(function (EventedCategoryModel $model) use (&$restoring): void {
+            $restoring[] = $model->getKey();
+        });
+        EventedCategoryModel::restored(function (EventedCategoryModel $model) use (&$restored): void {
+            $restored[] = $model->getKey();
+        });
+
+        $node = EventedCategoryModel::withTrashed()->findOrFail(5);
+        DB::flushQueryLog();
+
+        $node->restore();
+
+        $this->assertSame(2, $this->countChunkQueries('asc'));
+
+        // Samsung and galaxy were deleted before mobile, so they stay deleted.
+        $this->assertSame([5, 6, 9, 10], $restoring);
+        $this->assertSame([6, 9, 10, 5], $restored);
+        $this->assertSame([5, 6, 9, 10], EventedCategoryModel::whereKey([5, 6, 7, 8, 9, 10])->orderBy('id')->pluck('id')->all());
+        $this->assertSame([7, 8], EventedCategoryModel::onlyTrashed()->orderBy('id')->pluck('id')->all());
+    }
+
+    public function testEventedDescendantRestorationVetoRollsBackEarlierRestores(): void
+    {
+        EventedCategoryModel::findOrFail(5)->delete();
+        EventedCategoryModel::restoring(
+            fn (EventedCategoryModel $model): ?bool => $model->getKey() === 8 ? false : null,
+        );
+        $before = $this->persistedRows();
+
+        try {
+            DB::transaction(fn (): bool => EventedCategoryModel::withTrashed()->findOrFail(5)->restore());
+            $this->fail('Expected the descendant restoration veto to propagate.');
+        } catch (LogicException $exception) {
+            $this->assertSame(
+                sprintf(
+                    'Restoring nested set descendant [%s] with key [8] was vetoed.',
+                    EventedCategoryModel::class,
+                ),
+                $exception->getMessage(),
+            );
         }
+
+        $this->assertSame($before, $this->persistedRows());
     }
 
     public function testEventedForceDeletionIncludesTrashedDescendantsAndClosesTheGap(): void
@@ -146,6 +250,111 @@ class NodeTest extends NodeTestBase
         foreach ([5, 6, 7, 8, 9, 10] as $id) {
             $this->assertNull(EventedCategoryModel::withTrashed()->find($id));
         }
+    }
+
+    public function testDeletingVetoRegisteredAfterBootLeavesTheSubtreeUnchanged(): void
+    {
+        Category::deleting(fn (Category $model): ?bool => $model->getKey() === 5 ? false : null);
+        $before = $this->persistedRows();
+
+        $this->assertFalse(Category::findOrFail(5)->forceDelete());
+        $this->assertSame($before, $this->persistedRows());
+    }
+
+    /**
+     * @param class-string<ConstrainedCategoryModel> $model
+     */
+    #[DataProvider('constrainedCategoryModels')]
+    public function testHardDeletionSatisfiesARestrictingParentKey(string $model): void
+    {
+        $model::create(['name' => 'root', 'children' => [
+            ['name' => 'branch', 'children' => [
+                ['name' => 'twig', 'children' => [['name' => 'leaf']]],
+                ['name' => 'other twig'],
+            ]],
+            ['name' => 'other branch'],
+        ]]);
+
+        $model::where('name', 'branch')->firstOrFail()->delete();
+
+        $this->assertSame(['root', 'other branch'], $model::defaultOrder()->pluck('name')->all());
+        $this->assertSame([1, 4], $model::where('name', 'root')->firstOrFail()->getBounds());
+        $this->assertFalse($model::isBroken());
+    }
+
+    /**
+     * Provide node models whose table restricts deleting a referenced parent.
+     *
+     * @return array<string, array{class-string<ConstrainedCategoryModel>}>
+     */
+    public static function constrainedCategoryModels(): array
+    {
+        return [
+            'set-based' => [ConstrainedCategoryModel::class],
+            'evented' => [EventedConstrainedCategoryModel::class],
+        ];
+    }
+
+    public function testFailedNodeDeletionRollsBackItsDeletedDescendants(): void
+    {
+        ConstrainedCategoryModel::create(['name' => 'root', 'children' => [
+            ['name' => 'branch', 'children' => [['name' => 'leaf']]],
+        ]]);
+        $branch = ConstrainedCategoryModel::where('name', 'branch')->firstOrFail();
+        DB::table('constrained_category_items')->insert(['category_id' => $branch->getKey()]);
+        $before = $this->persistedRows('constrained_categories');
+
+        try {
+            $branch->deleteOrFail();
+            $this->fail('Expected the referenced node to be kept.');
+        } catch (QueryException) {
+            $this->assertSame($before, $this->persistedRows('constrained_categories'));
+        }
+    }
+
+    public function testHardDeletionRemovesDescendantsHiddenByGlobalScopes(): void
+    {
+        HiddenGalaxyCategoryModel::findOrFail(5)->delete();
+
+        $this->assertNull(DB::table('categories')->find(8));
+        $this->assertTreeNotBroken();
+    }
+
+    public function testSoftDeletionAndRestorationIncludeDescendantsHiddenByGlobalScopes(): void
+    {
+        GloballyScopedCategoryModel::findOrFail(5)->delete();
+
+        $this->assertNotNull(Category::withTrashed()->findOrFail(8)->deleted_at);
+
+        GloballyScopedCategoryModel::withTrashed()->findOrFail(5)->restore();
+
+        $this->assertNotNull(Category::find(8));
+    }
+
+    public function testCustomModelEventResultsDoNotSkipTreeMaintenance(): void
+    {
+        // A non-null custom event result skips the model's ordinary listeners.
+        Event::listen(CategoryLifecycleEvent::class, static fn (): bool => true);
+
+        $node = new CustomEventCategoryModel(['name' => 'custom']);
+        $node->appendToNode(CustomEventCategoryModel::findOrFail(5))->save();
+
+        $this->assertTreeNotBroken();
+
+        $subtree = [5, 6, 7, 8, 9, 10, $node->getKey()];
+
+        CustomEventCategoryModel::findOrFail(5)->delete();
+
+        $this->assertSame(0, Category::whereIn('id', $subtree)->count());
+
+        CustomEventCategoryModel::withTrashed()->findOrFail(5)->restore();
+
+        $this->assertSame(7, Category::whereIn('id', $subtree)->count());
+
+        CustomEventCategoryModel::findOrFail(5)->forceDelete();
+
+        $this->assertSame(0, Category::withTrashed()->whereIn('id', $subtree)->count());
+        $this->assertTreeNotBroken();
     }
 
     public function testPredicatesTreatZeroAsARealPersistedParentKey(): void
@@ -373,7 +582,7 @@ class EventedCategoryModel extends Category
     protected ?string $table = 'categories';
 
     /**
-     * Determine whether descendant model events should be fired during deletion.
+     * Determine whether descendant model events should be fired during deletion and restoration.
      */
     protected function shouldFireDescendantEvents(): bool
     {
@@ -381,11 +590,76 @@ class EventedCategoryModel extends Category
     }
 
     /**
-     * Get the descendant deletion chunk size.
+     * Get the number of descendants loaded per evented deletion or restoration chunk.
      */
-    protected function getDescendantDeleteChunkSize(): int
+    protected function getDescendantChunkSize(): int
     {
         return 2;
+    }
+}
+
+class ConstrainedCategoryModel extends Model
+{
+    use HasNode;
+
+    public bool $timestamps = false;
+
+    protected ?string $table = 'constrained_categories';
+
+    protected array $fillable = ['name'];
+}
+
+class EventedConstrainedCategoryModel extends ConstrainedCategoryModel
+{
+    /**
+     * Determine whether descendant model events should be fired during deletion and restoration.
+     */
+    protected function shouldFireDescendantEvents(): bool
+    {
+        return true;
+    }
+}
+
+class HiddenGalaxyCategoryModel extends Model
+{
+    use HasNode;
+
+    public bool $timestamps = false;
+
+    protected ?string $table = 'categories';
+
+    /**
+     * Register the visibility scope.
+     */
+    protected static function booted(): void
+    {
+        static::addGlobalScope(
+            'visible',
+            fn (EloquentBuilder $query): EloquentBuilder => $query->where('name', '<>', 'galaxy'),
+        );
+    }
+}
+
+class CustomEventCategoryModel extends Category
+{
+    protected ?string $table = 'categories';
+
+    protected array $dispatchesEvents = [
+        'saving' => CategoryLifecycleEvent::class,
+        'deleting' => CategoryLifecycleEvent::class,
+        'deleted' => CategoryLifecycleEvent::class,
+        'restoring' => CategoryLifecycleEvent::class,
+        'restored' => CategoryLifecycleEvent::class,
+    ];
+}
+
+class CategoryLifecycleEvent
+{
+    /**
+     * Create a new event instance.
+     */
+    public function __construct(public CustomEventCategoryModel $category)
+    {
     }
 }
 

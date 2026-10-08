@@ -187,6 +187,18 @@ abstract class NodeTestBase extends TestCase
         return [$node->_lft, $node->_rgt, $node->parent_id, $node->depth];
     }
 
+    /**
+     * Get every persisted row of a fixture table in key order.
+     */
+    protected function persistedRows(string $table = 'categories'): array
+    {
+        return DB::table($table)
+            ->orderBy('id')
+            ->get()
+            ->map(fn (object $row): array => (array) $row)
+            ->all();
+    }
+
     public function testTreeNotBroken(): void
     {
         $this->assertTreeNotBroken();
@@ -1397,25 +1409,19 @@ abstract class NodeTestBase extends TestCase
         $node = $this->category::findOrFail($this->key(3));
         $this->category::findOrFail($this->key(3))->forceDelete();
 
-        $before = DB::table('categories')
-            ->orderBy('id')
-            ->get(['id', '_lft', '_rgt', 'parent_id', 'depth'])
-            ->map(fn (object $row): array => (array) $row)
-            ->all();
+        $before = $this->persistedRows();
 
-        try {
-            $node->forceDelete();
-            $this->fail('Expected the missing nested set row to be rejected.');
-        } catch (ModelNotFoundException) {
-            $this->assertSame(
-                $before,
-                DB::table('categories')
-                    ->orderBy('id')
-                    ->get(['id', '_lft', '_rgt', 'parent_id', 'depth'])
-                    ->map(fn (object $row): array => (array) $row)
-                    ->all(),
-            );
-        }
+        $this->assertFalse($node->forceDelete());
+        $this->assertSame($before, $this->persistedRows());
+    }
+
+    public function testDestroyingANodeWithItsDescendantDeletesTheSubtreeOnce(): void
+    {
+        $this->category::forceDestroy([$this->key(5), $this->key(7)]);
+
+        $this->assertSame(0, $this->category::withTrashed()->whereIn('id', $this->keys(5, 6, 7, 8, 9, 10))->count());
+        $this->assertSame(8, $this->category::root()->getRgt());
+        $this->assertTreeNotBroken();
     }
 
     public function testNodeIsSoftDeleted(): void
@@ -1527,6 +1533,19 @@ abstract class NodeTestBase extends TestCase
         $this->assertNotNull($this->category::find($this->key(4)));
         $this->assertNotNull($this->findCategory('nokia'));
         $this->assertNull($this->findCategory('samsung'));
+    }
+
+    public function testRestoreIncludesDescendantsDeletedAtTheSameStoredTime(): void
+    {
+        CarbonImmutable::setTestNow('2025-07-03 12:00:00');
+
+        $this->findCategory('samsung')->delete();
+        $this->findCategory('mobile')->delete();
+
+        $this->findCategory('mobile', true)->restore();
+
+        $this->assertNotNull($this->findCategory('samsung'));
+        $this->assertNotNull($this->findCategory('galaxy'));
     }
 
     public function testSoftDeletedNodeIsDeletedWhenParentIsDeleted(): void

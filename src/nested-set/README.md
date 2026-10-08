@@ -19,4 +19,8 @@ The query builder's `getDepth($position)` is `depthForPosition($position)`, whic
 
 Eager loading constrains and matches all parents together, so eager-loaded ancestors are matched in one pass over the sorted results instead of a scan of the earlier results for each parent. Relation subclasses implement `constrainEagerModels()`, which receives the base query builder and the prepared parent models, and `matchMany()`. These replace upstream's per-parent hooks: `addEagerConstraint()` is no longer abstract, and `matches()`, `matchForModel()`, `indexResults()`, `matchFromIndex()`, `preservesResultOrder()` and `getEagerModelKey()` are not available.
 
+Descendant model events are off by default; override `shouldFireDescendantEvents()` to return `true`. Aimeos fires them by default. When they are on, restoring a node also restores its descendants through their model events. `getDescendantChunkSize()` sets the chunk size for both and replaces Aimeos's `getDescendantDeleteChunkSize()`, and `deleteDescendantsWithEvents()` receives a `bool $forceDelete` flag instead of the descendants query and method name.
+
+Hard deletes remove descendants after the node's own `deleting` observers allow the delete, so a veto at that point leaves the subtree unchanged. Aimeos removes them inside its own `deleting` listener, before observers registered later can veto.
+
 Ported from: https://github.com/aimeos/laravel-nestedset

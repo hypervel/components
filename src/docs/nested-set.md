@@ -821,7 +821,7 @@ Soft deleting a node soft deletes its descendants:
 $electronics->delete();
 ```
 
-Restoring the node restores descendants that were deleted as part of the same delete operation. Descendants that were already deleted before the parent was deleted remain deleted:
+Restoring the node restores descendants whose stored deletion time is the same as or later than the node's. Descendants deleted earlier remain deleted:
 
 ```php
 $electronics->restore();
@@ -833,7 +833,9 @@ Force deleting a node removes the node and its descendants from the table and cl
 $electronics->forceDelete();
 ```
 
-By default, descendants are deleted in one set-based query, so descendant model events are not fired. If your application requires those events, enable the evented path on the model:
+Hard deletes remove children before their parents, so deleting a subtree works with a restricting foreign key on `parent_id`. Descendants hidden by your model's global scopes are deleted and restored along with the others.
+
+By default, descendants are deleted and restored with one query each, so descendant model events are not fired. If your application requires those events, enable the evented path on the model:
 
 ```php
 protected function shouldFireDescendantEvents(): bool
@@ -841,13 +843,21 @@ protected function shouldFireDescendantEvents(): bool
     return true;
 }
 
-protected function getDescendantDeleteChunkSize(): int
+protected function getDescendantChunkSize(): int
 {
     return 1000;
 }
 ```
 
-The evented path deletes descendants in bounded, children-first chunks. Wrap the delete in a transaction so an exception or veto from a descendant observer rolls back the whole operation.
+The evented path deletes descendants in children-first chunks and restores them in parents-first chunks. If an observer vetoes a descendant, an exception is thrown.
+
+A delete that fails partway, such as when a descendant's observer vetoes it or another table's foreign key still references the node, leaves the earlier changes in place. Use `deleteOrFail()`, or wrap `forceDelete()` and `restore()` in a transaction, so a failure rolls back the whole operation:
+
+```php
+$electronics->deleteOrFail();
+
+DB::transaction(fn () => $electronics->forceDelete());
+```
 
 <a name="rendering-trees"></a>
 ## Rendering Trees

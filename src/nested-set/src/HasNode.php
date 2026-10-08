@@ -43,9 +43,9 @@ trait HasNode
     protected bool $moved = false;
 
     /**
-     * Whether the node is being deleted by an evented descendant cascade.
+     * Whether the node is being deleted or restored by an ancestor's evented cascade.
      */
-    protected bool $deletingAsDescendant = false;
+    protected bool $cascadingAsDescendant = false;
 
     /**
      * Create a new Eloquent query builder for the model.
@@ -76,41 +76,75 @@ trait HasNode
     }
 
     /**
-     * Bootstrap node events.
+     * Fire the given event for the model, keeping the tree consistent around its observers.
+     *
+     * Upstream maintains the tree from listeners registered in bootNodeTrait(). A custom
+     * $dispatchesEvents result skips those listeners, and listeners cannot act after every
+     * deleting observer has allowed a delete, so the maintenance runs here instead.
      */
-    public static function bootHasNode(): void
+    protected function fireModelEvent(string $event, bool $halt = true): mixed
     {
-        static::saving(function ($model): void {
-            $model->callPendingAction();
-        });
+        // Quiet and event-free operations skip tree maintenance, as they skip listeners.
+        // Descendants changed by an ancestor's evented cascade only notify observers.
+        if (! in_array($event, ['saving', 'deleting', 'deleted', 'restoring', 'restored'], true)
+            || ! isset(static::$dispatcher)
+            || static::eventsDisabled()
+            || ($this->cascadingAsDescendant && $event !== 'saving')
+        ) {
+            return parent::fireModelEvent($event, $halt);
+        }
 
-        static::deleting(function ($model): void {
-            if (! $model->deletingAsDescendant) {
-                $model->prepareForNestedSetMutation();
-            }
-        });
+        switch ($event) {
+            case 'saving':
+                $this->callPendingAction();
+                break;
+            case 'deleting':
+                $persisted = $this->findPersistedNodeAttributes($this->getMutationIdentityColumns());
 
-        static::deleted(function ($model): void {
-            if (! $model->deletingAsDescendant) {
-                $model->deleteDescendants();
-            }
-        });
+                // An ancestor's delete may already have removed the row.
+                if ($persisted === null) {
+                    return false;
+                }
 
-        // The restore events are supplied by SoftDeletes rather than Model.
-        if (static::isSoftDeletable()) {
-            static::restoring(function ($model): void {
-                $model->prepareForNestedSetMutation([$model->getDeletedAtColumn()]);
-            });
+                $this->prepareFromPersistedAttributes($persisted);
 
-            static::restored(function ($model): void {
+                $result = parent::fireModelEvent($event, $halt);
+
+                // Remove descendants once every observer has allowed the delete, and
+                // before the node's own row so restricting parent keys are satisfied.
+                if ($result !== false && $this->hardDeleting()) {
+                    $this->deleteDescendants();
+                }
+
+                return $result;
+            case 'deleted':
+                if ($this->hardDeleting()) {
+                    $height = $this->getRgt() - $this->getLft() + 1;
+
+                    $this->newNestedSetQuery()->makeGap($this->getRgt() + 1, -$height);
+
+                    // In case the user wants to re-create the node
+                    $this->makeRoot();
+                } else {
+                    $this->deleteDescendants();
+                }
+
+                break;
+            case 'restoring':
+                $this->prepareForNestedSetMutation([$this->getDeletedAtColumn()]);
+                break;
+            case 'restored':
                 /** @var null|DateTimeInterface|int|string $deletedAt */
-                $deletedAt = $model->getPrevious()[$model->getDeletedAtColumn()] ?? null;
+                $deletedAt = $this->getPrevious()[$this->getDeletedAtColumn()] ?? null;
 
                 if ($deletedAt !== null) {
-                    $model->restoreDescendants($deletedAt);
+                    $this->restoreDescendants($deletedAt);
                 }
-            });
+
+                break;
         }
+
+        return parent::fireModelEvent($event, $halt);
     }
 
     /**
@@ -376,8 +410,15 @@ trait HasNode
             ...$this->getMutationIdentityColumns(),
             ...$extraColumns,
         ]));
-        $persisted = $this->getPersistedNodeAttributes($columns);
 
+        $this->prepareFromPersistedAttributes($this->getPersistedNodeAttributes($columns));
+    }
+
+    /**
+     * Prepare an existing model for a structural mutation from its persisted row.
+     */
+    protected function prepareFromPersistedAttributes(array $persisted): void
+    {
         $this->ensureNestedSetScopeIsUnchanged($persisted);
         $this->applyPersistedNodeAttributes($persisted);
         $this->ensureConcreteNestedSetScope('mutation');
@@ -398,6 +439,15 @@ trait HasNode
      */
     protected function getPersistedNodeAttributes(array $columns): array
     {
+        return $this->findPersistedNodeAttributes($columns)
+            ?? throw (new ModelNotFoundException)->setModel(static::class, [$this->getKey()]);
+    }
+
+    /**
+     * Read selected attributes from the exact persisted row, if it still exists.
+     */
+    protected function findPersistedNodeAttributes(array $columns): ?array
+    {
         if ($this->getKey() === null) {
             throw new LogicException(sprintf(
                 'Nested set model [%s] requires the [%s] column to be selected.',
@@ -413,11 +463,7 @@ trait HasNode
             ->toBase()
             ->first($columns);
 
-        if ($attributes === null) {
-            throw (new ModelNotFoundException)->setModel(static::class, [$this->getKey()]);
-        }
-
-        return (array) $attributes;
+        return $attributes === null ? null : (array) $attributes;
     }
 
     /**
@@ -841,40 +887,31 @@ trait HasNode
     }
 
     /**
-     * Update the tree when the node is removed physically.
+     * Delete the node's descendants, including any hidden by ordinary global scopes.
+     *
+     * Hard deletes run before the node's own row is deleted and soft deletes after it,
+     * so descendants are never trashed before the node.
      */
     protected function deleteDescendants(): void
     {
-        $lft = $this->getLft();
-        $rgt = $this->getRgt();
-
-        $method = static::isSoftDeletable() && $this->forceDeleting
-            ? 'forceDelete'
-            : 'delete';
-
         if ($this->shouldFireDescendantEvents()) {
-            $this->deleteDescendantsWithEvents($method === 'forceDelete');
-        } else {
-            $query = $method === 'forceDelete'
-                ? $this->newNestedSetQuery()
-                : $this->newScopedQuery();
+            $this->deleteDescendantsWithEvents(static::isSoftDeletable() && $this->forceDeleting);
 
-            $query->whereDescendantOf($this)
-                ->{$method}();
+            return;
         }
 
-        if ($this->hasForceDeleting()) {
-            $height = $rgt - $lft + 1;
+        $query = $this->newNestedSetQuery()->whereDescendantOf($this);
 
-            $this->newNestedSetQuery()->makeGap($rgt + 1, -$height);
-
-            // In case if user wants to re-create the node
-            $this->makeRoot();
+        if ($this->hardDeleting()) {
+            // MySQL and MariaDB check a restricting parent key as each row is deleted.
+            $query->orderBy($this->getLftName(), 'desc')->forceDelete();
+        } else {
+            $query->withoutTrashed()->delete();
         }
     }
 
     /**
-     * Determine whether descendant model events should be fired during deletion.
+     * Determine whether descendant model events should be fired during deletion and restoration.
      */
     protected function shouldFireDescendantEvents(): bool
     {
@@ -882,9 +919,9 @@ trait HasNode
     }
 
     /**
-     * Get the descendant deletion chunk size.
+     * Get the number of descendants loaded per evented deletion or restoration chunk.
      */
-    protected function getDescendantDeleteChunkSize(): int
+    protected function getDescendantChunkSize(): int
     {
         return 1000;
     }
@@ -894,61 +931,89 @@ trait HasNode
      */
     protected function deleteDescendantsWithEvents(bool $forceDelete): void
     {
-        $lftName = $this->getLftName();
-        $query = $this->newNestedSetQuery()
-            ->useWritePdo()
-            ->where($lftName, '>', $this->getLft())
-            ->where($lftName, '<', $this->getRgt())
-            ->orderBy($lftName, 'desc');
+        $query = $this->newNestedSetQuery()->whereDescendantOf($this);
 
         if (static::isSoftDeletable() && ! $forceDelete) {
-            $query->whereNull($this->getDeletedAtColumn());
+            $query->withoutTrashed();
         }
 
+        $this->changeDescendantsWithEvents(
+            $query,
+            childrenFirst: true,
+            operation: 'Deleting',
+            change: static fn (Model $descendant): int|bool|null => $forceDelete
+                ? $descendant->forceDelete()
+                : $descendant->delete(),
+        );
+    }
+
+    /**
+     * Change descendants one at a time in bounded chunks ordered by their left bound.
+     *
+     * @param Closure(Model): (null|bool|int) $change
+     */
+    protected function changeDescendantsWithEvents(
+        QueryBuilder $query,
+        bool $childrenFirst,
+        string $operation,
+        Closure $change,
+    ): void {
+        $lftName = $this->getLftName();
+        $chunkSize = $this->getDescendantChunkSize();
         $cursor = null;
+
+        $query->useWritePdo()->orderBy($lftName, $childrenFirst ? 'desc' : 'asc');
 
         do {
             $chunk = clone $query;
 
             if ($cursor !== null) {
-                $chunk->where($lftName, '<', $cursor);
+                $chunk->where($lftName, $childrenFirst ? '<' : '>', $cursor);
             }
 
-            $descendants = $chunk
-                ->limit($this->getDescendantDeleteChunkSize())
-                ->get();
+            $descendants = $chunk->limit($chunkSize)->get();
 
             foreach ($descendants as $descendant) {
-                $cursor = $descendant->getLft(); /* @phpstan-ignore method.notFound */
-                $descendant->deletingAsDescendant = true; /* @phpstan-ignore property.notFound */
+                $cursor = $descendant->getLft();
+                $descendant->cascadingAsDescendant = true;
 
                 try {
-                    $deleted = $forceDelete
-                        ? $descendant->forceDelete()
-                        : $descendant->delete();
-
-                    if ($deleted === false) {
+                    if ($change($descendant) === false) {
                         throw new LogicException(sprintf(
-                            'Deleting nested set descendant [%s] with key [%s] was vetoed.',
+                            '%s nested set descendant [%s] with key [%s] was vetoed.',
+                            $operation,
                             $descendant::class,
                             $descendant->getKey() ?? 'null',
                         ));
                     }
                 } finally {
-                    $descendant->deletingAsDescendant = false; /* @phpstan-ignore property.notFound */
+                    $descendant->cascadingAsDescendant = false;
                 }
             }
-        } while ($descendants->isNotEmpty());
+        } while ($descendants->count() === $chunkSize);
     }
 
     /**
-     * Restore the descendants.
+     * Restore descendants deleted at or after the given stored deletion time.
      */
     protected function restoreDescendants(DateTimeInterface|int|string $deletedAt): void
     {
-        $this->descendants()
-            ->where($this->getDeletedAtColumn(), '>=', $deletedAt)
-            ->restore();
+        $query = $this->newNestedSetQuery()
+            ->whereDescendantOf($this)
+            ->where($this->getDeletedAtColumn(), '>=', $deletedAt);
+
+        if ($this->shouldFireDescendantEvents()) {
+            $this->changeDescendantsWithEvents(
+                $query,
+                childrenFirst: false,
+                operation: 'Restoring',
+                change: static fn (Model $descendant): bool => $descendant->restore(),
+            );
+
+            return;
+        }
+
+        $query->restore();
     }
 
     /**
@@ -1545,7 +1610,7 @@ trait HasNode
     /**
      * Get whether user is intended to delete the model from database entirely.
      */
-    protected function hasForceDeleting(): bool
+    protected function hardDeleting(): bool
     {
         return ! static::isSoftDeletable() || $this->forceDeleting;
     }
