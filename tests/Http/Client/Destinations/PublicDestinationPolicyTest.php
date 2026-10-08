@@ -38,6 +38,16 @@ class PublicDestinationPolicyTest extends TestCase
         );
     }
 
+    public function testAllowsUnderscoresInResolvedDnsLabels(): void
+    {
+        $policy = new FakeDestinationPolicy(['_files.example_host.com' => ['93.184.216.34']]);
+
+        $destination = $policy->resolve('https://_files.example_host.com/file', self::TIMEOUT_SECONDS);
+
+        $this->assertSame(['93.184.216.34'], $destination->addresses);
+        $this->assertSame('_files.example_host.com', $destination->resolvedHost);
+    }
+
     #[DataProvider('reservedAddresses')]
     public function testRejectsReservedDestinations(string $address): void
     {
@@ -57,6 +67,9 @@ class PublicDestinationPolicyTest extends TestCase
     public static function reservedAddresses(): iterable
     {
         yield 'private IPv4' => ['10.0.0.1'];
+        yield 'NAT64 private IPv4' => ['64:ff9b::a00:1'];
+        yield 'NAT64 reserved IPv4' => ['64:ff9b::c000:201'];
+        yield 'local-use NAT64' => ['64:ff9b:1::808:808'];
         yield 'carrier-grade NAT' => ['100.64.0.1'];
         yield 'loopback IPv4' => ['127.0.0.1'];
         yield 'link-local IPv4' => ['169.254.169.254'];
@@ -189,6 +202,27 @@ class PublicDestinationPolicyTest extends TestCase
         );
     }
 
+    #[DataProvider('publicNat64Destinations')]
+    public function testAllowsPublicNat64DestinationsWithoutChangingTheirAddresses(string $url, array $addresses): void
+    {
+        $policy = new FakeDestinationPolicy(['example.com' => $addresses]);
+
+        $destination = $policy->resolve($url, self::TIMEOUT_SECONDS);
+
+        $this->assertSame($addresses, $destination->addresses);
+    }
+
+    /**
+     * Provide public NAT64 literals and DNS64 answers.
+     */
+    public static function publicNat64Destinations(): array
+    {
+        return [
+            'literal' => ['https://[64:ff9b::808:808]/', ['64:ff9b::808:808']],
+            'DNS64' => ['https://example.com/', ['64:ff9b::808:808', '8.8.8.8']],
+        ];
+    }
+
     public function testDirectPinningFallsBackAcrossAuthorizedAddresses(): void
     {
         $server = LoopbackHttpServer::start();
@@ -299,7 +333,7 @@ class PublicDestinationPolicyTest extends TestCase
         yield 'userinfo' => ['https://user:secret@example.com'];
         yield 'relative' => ['/relative/path'];
         yield 'unicode' => ["https://example.com/\u{00e9}"];
-        yield 'invalid host' => ['https://exa_mple.com'];
+        yield 'invalid host' => ['https://-example.com'];
     }
 
     public function testRejectsAProxyUrlWithAPath(): void

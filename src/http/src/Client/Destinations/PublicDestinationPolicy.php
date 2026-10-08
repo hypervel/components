@@ -286,7 +286,13 @@ class PublicDestinationPolicy implements DestinationPolicy
      */
     private function authorizeAddress(UriInterface $uri, string $address): void
     {
-        if (IpUtils::checkIp($address, self::DISALLOWED_NETWORKS)
+        // DNS64 uses this prefix to reach IPv4 services; authorize the translated
+        // destination while retaining the original address for routing and overrides.
+        $destination = IpUtils::checkIp($address, '64:ff9b::/96')
+            ? inet_ntop(substr(inet_pton($address), 12))
+            : $address;
+
+        if (IpUtils::checkIp($destination, self::DISALLOWED_NETWORKS)
             && ! IpUtils::checkIp($address, $this->allowedNetworks)
             && ! $this->allowsAddress($uri, $address)) {
             throw new DisallowedDestinationException(
@@ -308,7 +314,7 @@ class PublicDestinationPolicy implements DestinationPolicy
 
         if (strlen($host) > 253
             || preg_match(
-                '/\A(?=.{1,253}\z)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\.(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?))*\z/',
+                '/\A(?=.{1,253}\z)(?:[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?)(?:\.(?:[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?))*\z/',
                 $host,
             ) !== 1) {
             throw new DisallowedDestinationException(
