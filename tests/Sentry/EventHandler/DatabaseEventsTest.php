@@ -6,15 +6,20 @@ namespace Hypervel\Tests\Sentry\EventHandler;
 
 use Hypervel\Database\Connection;
 use Hypervel\Database\Events\QueryExecuted;
+use Hypervel\Database\Events\TransactionBeginning;
+use Hypervel\Database\Events\TransactionCommitted;
+use Hypervel\Database\Events\TransactionRolledBack;
 use Hypervel\Tests\Sentry\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
+use Sentry\Breadcrumb;
 
 class DatabaseEventsTest extends TestCase
 {
     public function testSqlQueriesAreRecordedWhenEnabled(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry' => $this->sentryConfigWith(['breadcrumbs.sql_queries' => true]),
+            'sentry.breadcrumbs.sql_queries' => true,
         ]);
 
         $this->assertTrue($this->app->make('config')->boolean('sentry.breadcrumbs.sql_queries'));
@@ -34,7 +39,7 @@ class DatabaseEventsTest extends TestCase
     public function testSqlBindingsAreRecordedWhenEnabled(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry' => $this->sentryConfigWith(['breadcrumbs.sql_bindings' => true]),
+            'sentry.breadcrumbs.sql_bindings' => true,
         ]);
 
         $this->assertTrue($this->app->make('config')->boolean('sentry.breadcrumbs.sql_bindings'));
@@ -50,12 +55,19 @@ class DatabaseEventsTest extends TestCase
 
         $this->assertEquals($query, $lastBreadcrumb->getMessage());
         $this->assertEquals($bindings, $lastBreadcrumb->getMetadata()['bindings']);
+        $this->assertSame('db.sql.query', $lastBreadcrumb->getCategory());
+        $this->assertSame(Breadcrumb::LEVEL_INFO, $lastBreadcrumb->getLevel());
+        $this->assertEquals([
+            'connectionName' => 'test',
+            'executionTimeMs' => 10,
+            'bindings' => $bindings,
+        ], $lastBreadcrumb->getMetadata());
     }
 
     public function testSqlQueriesAreRecordedWhenDisabled(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry' => $this->sentryConfigWith(['breadcrumbs.sql_queries' => false]),
+            'sentry.breadcrumbs.sql_queries' => false,
         ]);
 
         $this->assertFalse($this->app->make('config')->boolean('sentry.breadcrumbs.sql_queries'));
@@ -73,7 +85,7 @@ class DatabaseEventsTest extends TestCase
     public function testSqlBindingsAreRecordedWhenDisabled(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry' => $this->sentryConfigWith(['breadcrumbs.sql_bindings' => false]),
+            'sentry.breadcrumbs.sql_bindings' => false,
         ]);
 
         $this->assertFalse($this->app->make('config')->boolean('sentry.breadcrumbs.sql_bindings'));
@@ -89,15 +101,17 @@ class DatabaseEventsTest extends TestCase
 
         $this->assertEquals($query, $lastBreadcrumb->getMessage());
         $this->assertFalse(isset($lastBreadcrumb->getMetadata()['bindings']));
+        $this->assertEquals([
+            'connectionName' => 'test',
+            'executionTimeMs' => 10,
+        ], $lastBreadcrumb->getMetadata());
     }
 
     public function testSqlQueryDataIsRecordedWithDataCollection(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry' => $this->sentryConfigWith([
-                'breadcrumbs.sql_bindings' => false,
-                'data_collection' => [],
-            ]),
+            'sentry.breadcrumbs.sql_bindings' => false,
+            'sentry.data_collection' => [],
         ]);
 
         $this->dispatchHypervelEvent(new QueryExecuted(
@@ -117,12 +131,10 @@ class DatabaseEventsTest extends TestCase
     public function testSqlQueryDataIsNotRecordedWhenDisabled(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry' => $this->sentryConfigWith([
-                'breadcrumbs.sql_bindings' => true,
-                'data_collection' => [
-                    'database_query_data' => false,
-                ],
-            ]),
+            'sentry.breadcrumbs.sql_bindings' => true,
+            'sentry.data_collection' => [
+                'database_query_data' => false,
+            ],
         ]);
 
         $this->dispatchHypervelEvent(new QueryExecuted(
@@ -136,6 +148,40 @@ class DatabaseEventsTest extends TestCase
 
         $this->assertArrayNotHasKey('db.query.parameter.0', $metadata);
         $this->assertArrayNotHasKey('bindings', $metadata);
+    }
+
+    #[DataProvider('sqlTransactionEventProvider')]
+    public function testSqlTransactionsAreRecordedWhenEnabled(string $eventClass): void
+    {
+        $this->dispatchHypervelEvent(new $eventClass($this->getMockedConnection()));
+
+        $lastBreadcrumb = $this->getLastSentryBreadcrumb();
+
+        $this->assertSame('db.sql.transaction', $lastBreadcrumb->getCategory());
+        $this->assertSame(Breadcrumb::LEVEL_INFO, $lastBreadcrumb->getLevel());
+        $this->assertSame($eventClass, $lastBreadcrumb->getMessage());
+        $this->assertSame(['connectionName' => 'test'], $lastBreadcrumb->getMetadata());
+    }
+
+    /**
+     * Provide the database transaction events.
+     */
+    public static function sqlTransactionEventProvider(): iterable
+    {
+        yield 'beginning' => [TransactionBeginning::class];
+        yield 'committed' => [TransactionCommitted::class];
+        yield 'rolled back' => [TransactionRolledBack::class];
+    }
+
+    public function testSqlTransactionsAreNotRecordedWhenDisabled(): void
+    {
+        $this->resetApplicationWithConfig([
+            'sentry.breadcrumbs.sql_transactions' => false,
+        ]);
+
+        $this->dispatchHypervelEvent(new TransactionBeginning($this->getMockedConnection()));
+
+        $this->assertEmpty($this->getCurrentSentryBreadcrumbs());
     }
 
     /**

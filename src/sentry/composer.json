@@ -63,7 +63,6 @@
         "sentry/sentry": "^4.34",
         "symfony/console": "^8.1.2",
         "symfony/http-foundation": "^8.1",
-        "symfony/psr-http-message-bridge": "^8.1",
         "vlucas/phpdotenv": "^5.6.1"
     },
     "config": {

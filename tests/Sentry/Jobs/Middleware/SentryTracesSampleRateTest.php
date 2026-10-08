@@ -14,6 +14,9 @@ use stdClass;
 
 class SentryTracesSampleRateTest extends TestCase
 {
+    /**
+     * Enable tracing for every transaction.
+     */
     protected function withTracingEnabled(ApplicationContract $app): void
     {
         $app->make('config')->set('sentry.traces_sample_rate', 1.0);
@@ -97,7 +100,7 @@ class SentryTracesSampleRateTest extends TestCase
         $called = false;
 
         $middleware = new SentryTracesSampleRate(1.0);
-        $middleware->handle(new stdClass, function () use (&$called) {
+        $middleware->handle(new stdClass, function () use (&$called): void {
             $called = true;
         });
 
@@ -142,6 +145,9 @@ class SentryTracesSampleRateTest extends TestCase
         $middleware->handle(new stdClass, $this->nextMiddleware());
     }
 
+    /**
+     * Get a next middleware callback that does nothing.
+     */
     private function nextMiddleware(): Closure
     {
         return static function (): void {

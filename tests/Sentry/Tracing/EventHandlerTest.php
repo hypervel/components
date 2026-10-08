@@ -25,6 +25,7 @@ use RuntimeException;
 use Sentry\SentrySdk;
 use Sentry\Tracing\Span;
 use Sentry\Tracing\SpanStatus;
+use Swoole\Coroutine\CanceledException;
 use Swoole\Coroutine\Channel;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -146,6 +147,23 @@ class EventHandlerTest extends TestCase
         $this->addToAssertionCount(1);
     }
 
+    public function testCancellationFromInstrumentationReachesApplicationCode(): void
+    {
+        $this->startTransaction();
+        $cancellation = new CanceledException('Request canceled');
+        $connection = m::mock(Connection::class);
+        $connection->shouldReceive('getName')->once()->andReturn('canceled');
+        $connection->shouldReceive('getDatabaseName')->once()->andThrow($cancellation);
+        $handler = new EventHandler(config()->array('sentry.tracing'));
+
+        try {
+            $handler->queryExecuted(new QueryExecuted('select 1', [], 1.0, $connection));
+            $this->fail('The tracing event handler swallowed coroutine cancellation.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+    }
+
     public function testCoroutineExitFinishesOnlyAbandonedResponseAndTransactionSpans(): void
     {
         $this->startTransaction();
@@ -177,11 +195,14 @@ class EventHandlerTest extends TestCase
         $this->assertNotNull($transactionSpan->getEndTimestamp());
     }
 
+    /**
+     * Assert that a handler method exists for each mapped event.
+     */
     private function tryAllEventHandlerMethods(array $methods): void
     {
         $handler = new EventHandler(config()->array('sentry.tracing'));
 
-        $methods = array_map(static function ($method) {
+        $methods = array_map(static function (string $method): string {
             return "{$method}Handler";
         }, array_unique(array_values($methods)));
 
@@ -190,6 +211,9 @@ class EventHandlerTest extends TestCase
         }
     }
 
+    /**
+     * Get the event handler map from the event handler.
+     */
     private function getEventHandlerMapFromEventHandler(): array
     {
         $class = new ReflectionClass(EventHandler::class);
@@ -199,6 +223,9 @@ class EventHandlerTest extends TestCase
         return $attributes['eventHandlerMap'];
     }
 
+    /**
+     * Create an in-memory SQLite connection with the given name.
+     */
     private function connection(string $name): Connection
     {
         return new SQLiteConnection(
@@ -209,6 +236,9 @@ class EventHandlerTest extends TestCase
         );
     }
 
+    /**
+     * Get the innermost transaction span for the given connection.
+     */
     private function currentTransactionSpan(Connection $connection): Span
     {
         $transactionSpans = CoroutineContext::get(EventHandler::CONTEXT_TRANSACTION_SPANS_KEY, []);
@@ -216,6 +246,9 @@ class EventHandlerTest extends TestCase
         return end($transactionSpans[spl_object_id($connection)]);
     }
 
+    /**
+     * Get the last span recorded by the given transaction.
+     */
     private function lastRecordedSpan(Span $transaction): Span
     {
         return last($transaction->getSpanRecorder()->getSpans());

@@ -31,6 +31,8 @@ class SentryTracesSampleRate
 {
     /**
      * Create a new middleware instance.
+     *
+     * @param float $sampleRate A value between 0.0 (never sampled) and 1.0 (always sampled)
      */
     public function __construct(
         private readonly float $sampleRate,

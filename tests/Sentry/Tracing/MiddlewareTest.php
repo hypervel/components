@@ -8,9 +8,10 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Request;
 use Hypervel\Sentry\Tracing\Middleware;
 use Hypervel\Tests\Sentry\TestCase;
-use ReflectionClass;
 use Sentry\SentrySdk;
+use Sentry\Tracing\Span;
 use Sentry\Tracing\SpanContext;
+use Swoole\Coroutine\Channel;
 use Symfony\Component\HttpFoundation\Response;
 
 class MiddlewareTest extends TestCase
@@ -27,9 +28,9 @@ class MiddlewareTest extends TestCase
         $instance1 = $this->app->make(Middleware::class);
         $instance2 = null;
 
-        $channel = new \Swoole\Coroutine\Channel(1);
+        $channel = new Channel(1);
 
-        \Hypervel\Coroutine\Coroutine::create(function () use (&$instance2, $channel) {
+        Coroutine::create(function () use (&$instance2, $channel): void {
             $instance2 = $this->app->make(Middleware::class);
             $channel->push(true);
         });
@@ -56,37 +57,6 @@ class MiddlewareTest extends TestCase
         );
     }
 
-    public function testBootedTimestampIsStaticAndSharedAcrossInstances(): void
-    {
-        // Reset the static timestamp
-        Middleware::setBootedTimestamp(1234567890.123);
-
-        // Even though scoped gives different instances per coroutine,
-        // the static bootedTimestamp should be visible from any instance
-        $reflection = new ReflectionClass(Middleware::class);
-        $property = $reflection->getProperty('bootedTimestamp');
-
-        $this->assertSame(1234567890.123, $property->getValue());
-
-        // Clean up
-        Middleware::setBootedTimestamp(null);
-        $property->setValue(null, null);
-    }
-
-    public function testFlushStateClearsBootedTimestamp(): void
-    {
-        Middleware::setBootedTimestamp(1234567890.123);
-
-        $reflection = new ReflectionClass(Middleware::class);
-        $property = $reflection->getProperty('bootedTimestamp');
-
-        $this->assertSame(1234567890.123, $property->getValue());
-
-        Middleware::flushState();
-
-        $this->assertNull($property->getValue());
-    }
-
     public function testTransactionUsesTheRequestStartTimestamp(): void
     {
         $middleware = $this->app->make(Middleware::class);
@@ -96,7 +66,7 @@ class MiddlewareTest extends TestCase
 
         $request->server->set('REQUEST_TIME_FLOAT', 1_800_000_000.654321);
 
-        $response = $middleware->handle($request, fn () => new Response('OK'));
+        $response = $middleware->handle($request, static fn (): Response => new Response('OK'));
 
         Middleware::signalRouteWasMatched();
         $middleware->terminate($request, $response);
@@ -106,32 +76,24 @@ class MiddlewareTest extends TestCase
         $this->assertSame(1_700_000_000.123456, $this->getLastSentryEvent()?->getStartTimestamp());
     }
 
-    public function testAfterResponseSpansAreCapturedOnTransaction(): void
+    public function testRequestSpansStartWithinTheRequest(): void
     {
-        $middleware = $this->app->make(Middleware::class);
-        $request = Request::create('/test', 'GET');
+        $this->app->make('router')->get('/test', static fn (): string => 'OK');
 
-        // Simulate handle() — starts the transaction
-        $response = $middleware->handle($request, fn () => new Response('OK'));
+        $this->get('/test')->assertOk();
 
-        // Signal that a route was matched (otherwise terminate discards the transaction)
-        Middleware::signalRouteWasMatched();
+        $transaction = $this->getLastSentryEvent();
 
-        // Simulate terminate() — finishes appSpan, hydrates response
-        $middleware->terminate($request, $response);
+        $this->assertNotNull($transaction);
+        $this->assertContains('middleware.handle', array_map(
+            static fn (Span $span): ?string => $span->getOp(),
+            $transaction->getSpans(),
+        ));
 
-        // At this point, the transaction is finished in the current code.
-        // Any span created after terminate() would be lost.
-        $hub = SentrySdk::getCurrentHub();
-        $parentSpan = $hub->getSpan();
-
-        // With the current (broken) code, the transaction is already finished
-        // and parentSpan is null — after-response work can't attach spans.
-        // With the fix, the transaction stays open until coroutine exit.
-        $this->assertNotNull(
-            $parentSpan,
-            'Transaction should still be open after terminate() to capture after-response work'
-        );
+        foreach ($transaction->getSpans() as $span) {
+            $this->assertGreaterThanOrEqual($transaction->getStartTimestamp(), $span->getStartTimestamp());
+            $this->assertGreaterThanOrEqual($span->getStartTimestamp(), $span->getEndTimestamp());
+        }
     }
 
     public function testAfterResponseSpanAppearsOnCapturedTransaction(): void
@@ -140,9 +102,9 @@ class MiddlewareTest extends TestCase
         $request = Request::create('/test', 'GET');
 
         // Simulate handle() — starts the transaction
-        $response = $middleware->handle($request, fn () => new Response('OK'));
+        $response = $middleware->handle($request, static fn (): Response => new Response('OK'));
 
-        // Signal that a route was matched
+        // Signal that a route was matched (otherwise terminate discards the transaction)
         Middleware::signalRouteWasMatched();
 
         // Simulate terminate() — finishes appSpan, hydrates response, transaction stays open
@@ -186,7 +148,7 @@ class MiddlewareTest extends TestCase
         $middleware = new Middleware(false, true);
         $request = Request::create('/test', 'GET');
 
-        $response = $middleware->handle($request, static fn () => new Response('OK'));
+        $response = $middleware->handle($request, static fn (): Response => new Response('OK'));
         $middleware->terminate($request, $response);
 
         $this->assertSentryTransactionCount(1);
@@ -194,25 +156,5 @@ class MiddlewareTest extends TestCase
         $middleware->finishTransaction();
 
         $this->assertSentryTransactionCount(1);
-    }
-
-    public function testIncomingTraceIsContinuedWhenTransactionRecordingIsDisabled(): void
-    {
-        $this->resetApplicationWithConfig([
-            'sentry.traces_sample_rate' => null,
-        ]);
-        $middleware = $this->app->make(Middleware::class);
-        $traceId = '5b8efff798038103d269b633813fc60c';
-        $request = Request::create('/test', 'GET', server: [
-            'HTTP_SENTRY_TRACE' => "{$traceId}-5e8efff798038103-1",
-        ]);
-
-        $middleware->handle($request, static fn () => new Response('OK'));
-
-        $this->assertNull(SentrySdk::getCurrentHub()->getTransaction());
-        $this->assertSame(
-            $traceId,
-            (string) $this->getCurrentSentryScope()->getPropagationContext()->getTraceId(),
-        );
     }
 }

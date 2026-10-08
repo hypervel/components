@@ -48,7 +48,7 @@ class EventHandlerTest extends TestCase
         );
     }
 
-    // REMOVED: testAllMappedOctaneEventHandlersExist and EventHandler/OctaneEventsTest; Hypervel has no Octane.
+    // REMOVED: testAllMappedOctaneEventHandlersExist, EventHandler/OctaneEventsTest and OctaneIntegrationTest; Hypervel has no Octane.
     // Each request runs in its own coroutine with its own scope and transaction name (see CoroutineSafetyTest and HubTest).
 
     public function testWorkerExitListenerReturnsBeforeCoordinatorReleaseThenDrainsAndCloses(): void

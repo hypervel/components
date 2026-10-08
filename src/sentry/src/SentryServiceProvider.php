@@ -440,7 +440,7 @@ class SentryServiceProvider extends ServiceProvider
         // Per-request state ($transaction, $appSpan, $didRouteMatch) is isolated between concurrent requests.
         $this->app->scoped(
             TracingMiddleware::class,
-            static fn () => new TracingMiddleware(
+            static fn (): TracingMiddleware => new TracingMiddleware(
                 $tracingConfig['continue_after_response'] === true,
                 $tracingConfig['missing_routes'] === true,
             ),
@@ -449,10 +449,6 @@ class SentryServiceProvider extends ServiceProvider
         if (SentrySdk::getCurrentHub()->getClient()?->getOptions()->isTracingEnabled() !== true) {
             return;
         }
-
-        $this->app->booted(function () {
-            TracingMiddleware::setBootedTimestamp();
-        });
 
         $this->bindTracingEvents($tracingConfig);
         $this->bindViewEngine($tracingConfig);
@@ -501,20 +497,16 @@ class SentryServiceProvider extends ServiceProvider
 
         $viewEngineWrapper = function (EngineResolver $engineResolver): void {
             foreach (['file', 'php', 'blade'] as $engineName) {
-                try {
-                    $realEngine = $engineResolver->resolve($engineName);
+                $realEngine = $engineResolver->resolve($engineName);
 
-                    // Prevent double wrapping — causes issues in framework internals
-                    if ($realEngine instanceof ViewEngineDecorator) {
-                        continue;
-                    }
-
-                    $engineResolver->register($engineName, function () use ($realEngine) {
-                        return $this->wrapViewEngine($realEngine);
-                    });
-                } catch (InvalidArgumentException) {
-                    // Engine doesn't exist, skip it
+                // Prevent double wrapping, which would record every view render twice
+                if ($realEngine instanceof ViewEngineDecorator) {
+                    continue;
                 }
+
+                $engineResolver->register($engineName, function () use ($realEngine): Engine {
+                    return $this->wrapViewEngine($realEngine);
+                });
             }
         };
 
@@ -538,11 +530,11 @@ class SentryServiceProvider extends ServiceProvider
      */
     private function decorateRoutingDispatchers(): void
     {
-        $this->app->extend(CallableDispatcher::class, static function (CallableDispatcher $dispatcher) {
+        $this->app->extend(CallableDispatcher::class, static function (CallableDispatcher $dispatcher): TracingCallableDispatcherTracing {
             return new TracingCallableDispatcherTracing($dispatcher);
         });
 
-        $this->app->extend(ControllerDispatcher::class, static function (ControllerDispatcher $dispatcher) {
+        $this->app->extend(ControllerDispatcher::class, static function (ControllerDispatcher $dispatcher): TracingControllerDispatcherTracing {
             return new TracingControllerDispatcherTracing($dispatcher);
         });
     }

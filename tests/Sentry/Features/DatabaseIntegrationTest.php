@@ -4,17 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sentry\Features;
 
-use Hypervel\Contracts\Events\Dispatcher;
-use Hypervel\Database\Connection;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Events\QueryExecuted;
-use Hypervel\Database\Events\TransactionBeginning;
-use Hypervel\Database\Events\TransactionCommitted;
-use Hypervel\Database\Events\TransactionRolledBack;
-use Hypervel\Database\SQLiteConnection;
 use Hypervel\Support\Facades\DB;
+use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Tests\Sentry\TestCase;
-use PDO;
-use Sentry\Breadcrumb;
 use Sentry\Tracing\Span;
 
 class DatabaseIntegrationTest extends TestCase
@@ -24,37 +18,48 @@ class DatabaseIntegrationTest extends TestCase
     ];
 
     /**
-     * Create a test database connection for breadcrumb event testing.
+     * Use a MySQL connection.
      */
-    protected function createTestConnection(): Connection
+    protected function usesMySQL(ApplicationContract $app): void
     {
-        return new SQLiteConnection(
-            new PDO('sqlite::memory:'),
-            ':memory:',
-            '',
-            ['driver' => 'sqlite', 'name' => 'sqlite'],
-        );
+        $app->make('config')->set('database.default', 'mysql');
+        $app->make('config')->set('database.connections.mysql', [
+            'driver' => 'mysql',
+            'host' => 'host-mysql',
+            'port' => 3306,
+            'username' => 'user-mysql',
+            'password' => 'password',
+            'database' => 'db-mysql',
+        ]);
     }
 
-    // ──────────────────────────────────────────────────────
-    // Span tests (upstream parity — test Tracing\EventHandler)
-    // ──────────────────────────────────────────────────────
+    /**
+     * Use a MySQL connection configured from a URL.
+     */
+    protected function usesMySQLFromUrl(ApplicationContract $app): void
+    {
+        $app->make('config')->set('database.default', 'mysqlurl');
+        $app->make('config')->set('database.connections.mysqlurl', [
+            'driver' => 'mysql',
+            'url' => 'mysql://user-mysqlurl:password@host-mysqlurl:3307/db-mysqlurl',
+        ]);
+    }
 
+    /**
+     * Use an in-memory SQLite connection.
+     */
+    protected function usesInMemorySqlite(ApplicationContract $app): void
+    {
+        $app->make('config')->set('database.default', 'inmemory');
+        $app->make('config')->set('database.connections.inmemory', [
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+        ]);
+    }
+
+    #[DefineEnvironment('usesMySQL')]
     public function testSpanIsCreatedForMySQLConnectionQuery(): void
     {
-        $this->resetApplicationWithConfig([
-            'sentry.traces_sample_rate' => 1.0,
-            'database.default' => 'mysql',
-            'database.connections.mysql' => [
-                'driver' => 'mysql',
-                'host' => 'host-mysql',
-                'port' => 3306,
-                'username' => 'user-mysql',
-                'password' => 'password',
-                'database' => 'db-mysql',
-            ],
-        ]);
-
         $span = $this->executeQueryAndRetrieveSpan(
             $query = 'SELECT "mysql"'
         );
@@ -65,6 +70,20 @@ class DatabaseIntegrationTest extends TestCase
         $this->assertEquals(3306, $span->getData()['server.port']);
     }
 
+    #[DefineEnvironment('usesMySQLFromUrl')]
+    public function testSpanIsCreatedForMySQLUrlConnectionQuery(): void
+    {
+        $span = $this->executeQueryAndRetrieveSpan(
+            $query = 'SELECT "mysqlurl"'
+        );
+
+        $this->assertEquals($query, $span->getDescription());
+        $this->assertEquals('db.sql.query', $span->getOp());
+        $this->assertEquals('host-mysqlurl', $span->getData()['server.address']);
+        $this->assertEquals(3307, $span->getData()['server.port']);
+    }
+
+    #[DefineEnvironment('usesInMemorySqlite')]
     public function testSpanIsCreatedForSqliteConnectionQuery(): void
     {
         $span = $this->executeQueryAndRetrieveSpan(
@@ -80,10 +99,7 @@ class DatabaseIntegrationTest extends TestCase
     public function testSqlBindingsAreRecordedWhenEnabled(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry' => $this->sentryConfigWith([
-                'traces_sample_rate' => 1.0,
-                'tracing.sql_bindings' => true,
-            ]),
+            'sentry.tracing.sql_bindings' => true,
         ]);
 
         $span = $this->executeQueryAndRetrieveSpan(
@@ -98,10 +114,7 @@ class DatabaseIntegrationTest extends TestCase
     public function testSqlBindingsAreRecordedWhenDisabled(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry' => $this->sentryConfigWith([
-                'traces_sample_rate' => 1.0,
-                'tracing.sql_bindings' => false,
-            ]),
+            'sentry.tracing.sql_bindings' => false,
         ]);
 
         $span = $this->executeQueryAndRetrieveSpan(
@@ -113,14 +126,78 @@ class DatabaseIntegrationTest extends TestCase
         $this->assertFalse(isset($span->getData()['db.sql.bindings']));
     }
 
+    public function testSqlBindingsAreNotRecordedWhenConfigKeyIsMissing(): void
+    {
+        $this->resetApplicationWithConfig([
+            'sentry.tracing' => [
+                'sql_queries' => true,
+            ],
+        ]);
+
+        $span = $this->executeQueryAndRetrieveSpan(
+            $query = 'SELECT %',
+            ['1']
+        );
+
+        $this->assertEquals($query, $span->getDescription());
+        $this->assertFalse(isset($span->getData()['db.sql.bindings']));
+    }
+
+    public function testSqlQueryDataIsRecordedWithDataCollection(): void
+    {
+        $this->resetApplicationWithConfig([
+            'sentry.tracing.sql_bindings' => false,
+            'sentry.data_collection' => [],
+        ]);
+
+        $span = $this->executeQueryAndRetrieveSpan(
+            'SELECT %',
+            [1, 'foo']
+        );
+
+        $this->assertSame(1, $span->getData()['db.query.parameter.0']);
+        $this->assertSame('foo', $span->getData()['db.query.parameter.1']);
+        $this->assertArrayNotHasKey('db.sql.bindings', $span->getData());
+    }
+
+    public function testSensitiveSqlQueryDataIsFiltered(): void
+    {
+        $this->resetApplicationWithConfig([
+            'sentry.data_collection' => [],
+        ]);
+
+        $span = $this->executeQueryAndRetrieveSpan(
+            'SELECT %',
+            ['email' => 'foo@example.com', 'api_token' => 'secret']
+        );
+
+        $this->assertSame('foo@example.com', $span->getData()['db.query.parameter.email']);
+        $this->assertSame('[Filtered]', $span->getData()['db.query.parameter.api_token']);
+    }
+
+    public function testSqlQueryDataIsNotRecordedWhenDisabled(): void
+    {
+        $this->resetApplicationWithConfig([
+            'sentry.tracing.sql_bindings' => true,
+            'sentry.data_collection' => [
+                'database_query_data' => false,
+            ],
+        ]);
+
+        $span = $this->executeQueryAndRetrieveSpan(
+            'SELECT %',
+            ['1']
+        );
+
+        $this->assertArrayNotHasKey('db.query.parameter.0', $span->getData());
+        $this->assertArrayNotHasKey('db.sql.bindings', $span->getData());
+    }
+
     public function testSqlOriginIsResolvedWhenEnabledAndOverTreshold(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry' => $this->sentryConfigWith([
-                'traces_sample_rate' => 1.0,
-                'tracing.sql_origin' => true,
-                'tracing.sql_origin_threshold_ms' => 10,
-            ]),
+            'sentry.tracing.sql_origin' => true,
+            'sentry.tracing.sql_origin_threshold_ms' => 10,
         ]);
 
         $span = $this->executeQueryAndRetrieveSpan('SELECT 1', [], 20);
@@ -131,10 +208,7 @@ class DatabaseIntegrationTest extends TestCase
     public function testSqlOriginIsNotResolvedWhenDisabled(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry' => $this->sentryConfigWith([
-                'traces_sample_rate' => 1.0,
-                'tracing.sql_origin' => false,
-            ]),
+            'sentry.tracing.sql_origin' => false,
         ]);
 
         $span = $this->executeQueryAndRetrieveSpan('SELECT 1');
@@ -145,11 +219,8 @@ class DatabaseIntegrationTest extends TestCase
     public function testSqlOriginIsNotResolvedWhenUnderThreshold(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry' => $this->sentryConfigWith([
-                'traces_sample_rate' => 1.0,
-                'tracing.sql_origin' => true,
-                'tracing.sql_origin_threshold_ms' => 10,
-            ]),
+            'sentry.tracing.sql_origin' => true,
+            'sentry.tracing.sql_origin_threshold_ms' => 10,
         ]);
 
         $span = $this->executeQueryAndRetrieveSpan('SELECT 1', [], 5);
@@ -157,165 +228,9 @@ class DatabaseIntegrationTest extends TestCase
         $this->assertArrayNotHasKey('code.filepath', $span->getData());
     }
 
-    // ──────────────────────────────────────────────────────
-    // Breadcrumb tests (Hypervel — test EventHandler breadcrumbs)
-    // ──────────────────────────────────────────────────────
-
-    public function testQueryExecutedEventCreatesCorrectBreadcrumb(): void
-    {
-        $this->resetApplicationWithConfig([
-            'sentry' => $this->sentryConfigWith(['breadcrumbs.sql_bindings' => true]),
-        ]);
-
-        $dispatcher = $this->app->make(Dispatcher::class);
-
-        $event = new QueryExecuted(
-            'SELECT * FROM users WHERE id = ?',
-            [123],
-            50.0,
-            $this->createTestConnection()
-        );
-
-        $dispatcher->dispatch($event);
-
-        $breadcrumb = $this->getLastSentryBreadcrumb();
-
-        $this->assertInstanceOf(Breadcrumb::class, $breadcrumb);
-        $this->assertEquals('db.sql.query', $breadcrumb->getCategory());
-        $this->assertEquals('SELECT * FROM users WHERE id = ?', $breadcrumb->getMessage());
-        $this->assertEquals(Breadcrumb::LEVEL_INFO, $breadcrumb->getLevel());
-        $this->assertEquals([
-            'connectionName' => 'sqlite',
-            'executionTimeMs' => 50.0,
-            'bindings' => [123],
-        ], $breadcrumb->getMetadata());
-    }
-
-    public function testQueryExecutedEventWithoutBindingsWhenDisabled(): void
-    {
-        $this->resetApplicationWithConfig([
-            'sentry' => $this->sentryConfigWith([
-                'breadcrumbs.sql_queries' => true,
-                'breadcrumbs.sql_bindings' => false,
-            ]),
-        ]);
-
-        $dispatcher = $this->app->make(Dispatcher::class);
-
-        $event = new QueryExecuted(
-            'SELECT * FROM users WHERE id = ?',
-            [123],
-            50.0,
-            $this->createTestConnection()
-        );
-
-        $dispatcher->dispatch($event);
-
-        $breadcrumb = $this->getLastSentryBreadcrumb();
-
-        $this->assertInstanceOf(Breadcrumb::class, $breadcrumb);
-        $this->assertEquals([
-            'connectionName' => 'sqlite',
-            'executionTimeMs' => 50.0,
-        ], $breadcrumb->getMetadata());
-        $this->assertArrayNotHasKey('bindings', $breadcrumb->getMetadata());
-    }
-
-    public function testTransactionBeginningEventCreatesCorrectBreadcrumb(): void
-    {
-        $dispatcher = $this->app->make(Dispatcher::class);
-
-        $event = new TransactionBeginning($this->createTestConnection());
-
-        $dispatcher->dispatch($event);
-
-        $breadcrumb = $this->getLastSentryBreadcrumb();
-
-        $this->assertInstanceOf(Breadcrumb::class, $breadcrumb);
-        $this->assertEquals('db.sql.transaction', $breadcrumb->getCategory());
-        $this->assertEquals(TransactionBeginning::class, $breadcrumb->getMessage());
-        $this->assertEquals([
-            'connectionName' => 'sqlite',
-        ], $breadcrumb->getMetadata());
-    }
-
-    public function testTransactionCommittedEventCreatesCorrectBreadcrumb(): void
-    {
-        $dispatcher = $this->app->make(Dispatcher::class);
-
-        $event = new TransactionCommitted($this->createTestConnection());
-
-        $dispatcher->dispatch($event);
-
-        $breadcrumb = $this->getLastSentryBreadcrumb();
-
-        $this->assertInstanceOf(Breadcrumb::class, $breadcrumb);
-        $this->assertEquals('db.sql.transaction', $breadcrumb->getCategory());
-        $this->assertEquals(TransactionCommitted::class, $breadcrumb->getMessage());
-        $this->assertEquals([
-            'connectionName' => 'sqlite',
-        ], $breadcrumb->getMetadata());
-    }
-
-    public function testTransactionRolledBackEventCreatesCorrectBreadcrumb(): void
-    {
-        $dispatcher = $this->app->make(Dispatcher::class);
-
-        $event = new TransactionRolledBack($this->createTestConnection());
-
-        $dispatcher->dispatch($event);
-
-        $breadcrumb = $this->getLastSentryBreadcrumb();
-
-        $this->assertInstanceOf(Breadcrumb::class, $breadcrumb);
-        $this->assertEquals('db.sql.transaction', $breadcrumb->getCategory());
-        $this->assertEquals(TransactionRolledBack::class, $breadcrumb->getMessage());
-        $this->assertEquals([
-            'connectionName' => 'sqlite',
-        ], $breadcrumb->getMetadata());
-    }
-
-    public function testQueryExecutedEventIsIgnoredWhenFeatureDisabled(): void
-    {
-        $this->resetApplicationWithConfig([
-            'sentry' => $this->sentryConfigWith(['breadcrumbs.sql_queries' => false]),
-        ]);
-
-        $dispatcher = $this->app->make(Dispatcher::class);
-
-        $event = new QueryExecuted(
-            'SELECT * FROM users WHERE id = ?',
-            [123],
-            50.0,
-            $this->createTestConnection()
-        );
-
-        $dispatcher->dispatch($event);
-
-        $breadcrumbs = $this->getCurrentSentryBreadcrumbs();
-        $this->assertEmpty($breadcrumbs);
-    }
-
-    public function testTransactionEventIsIgnoredWhenFeatureDisabled(): void
-    {
-        $this->resetApplicationWithConfig([
-            'sentry' => $this->sentryConfigWith(['breadcrumbs.sql_transactions' => false]),
-        ]);
-
-        $dispatcher = $this->app->make(Dispatcher::class);
-
-        $event = new TransactionBeginning($this->createTestConnection());
-
-        $dispatcher->dispatch($event);
-
-        $breadcrumbs = $this->getCurrentSentryBreadcrumbs();
-        $this->assertEmpty($breadcrumbs);
-    }
-
-    // ──────────────────────────────────────────────────────
-    // Helpers
-    // ──────────────────────────────────────────────────────
-
+    /**
+     * Execute the given query and retrieve its span.
+     */
     private function executeQueryAndRetrieveSpan(string $query, array $bindings = [], int $time = 123): Span
     {
         $transaction = $this->startTransaction();

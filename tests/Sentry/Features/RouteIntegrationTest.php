@@ -10,14 +10,17 @@ use Hypervel\Tests\Sentry\TestCase;
 
 class RouteIntegrationTest extends TestCase
 {
+    /**
+     * Define the test routes.
+     */
     protected function defineRoutes(Router $router): void
     {
-        $router->group(['prefix' => 'sentry'], function (Router $router) {
-            $router->get('/ok', function () {
+        $router->group(['prefix' => 'sentry'], function (Router $router): void {
+            $router->get('/ok', function (): string {
                 return 'ok';
             });
 
-            $router->get('/abort/{code}', function (string $code) {
+            $router->get('/abort/{code}', function (string $code): never {
                 abort((int) $code);
             });
         });

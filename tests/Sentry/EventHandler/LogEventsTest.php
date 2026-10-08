@@ -12,7 +12,7 @@ class LogEventsTest extends TestCase
     public function testHypervelLogsAreRecordedWhenEnabled(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry' => $this->sentryConfigWith(['breadcrumbs.logs' => true]),
+            'sentry.breadcrumbs.logs' => true,
         ]);
 
         $this->assertTrue($this->app->make('config')->boolean('sentry.breadcrumbs.logs'));
@@ -33,7 +33,7 @@ class LogEventsTest extends TestCase
     public function testHypervelLogsAreRecordedWhenDisabled(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry' => $this->sentryConfigWith(['breadcrumbs.logs' => false]),
+            'sentry.breadcrumbs.logs' => false,
         ]);
 
         $this->assertFalse($this->app->make('config')->boolean('sentry.breadcrumbs.logs'));

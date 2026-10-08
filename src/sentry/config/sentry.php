@@ -128,7 +128,7 @@ return [
         // Capture SQL queries as spans
         'sql_queries' => (bool) env('SENTRY_TRACE_SQL_QUERIES_ENABLED', true),
 
-        // Capture SQL query bindings (parameters) in SQL query spans
+        // Capture SQL query bindings (parameters) in SQL query spans, ignored when `data_collection` is set
         'sql_bindings' => (bool) env('SENTRY_TRACE_SQL_BINDINGS_ENABLED', false),
 
         // Capture where the SQL query originated from on the SQL query spans
