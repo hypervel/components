@@ -16,7 +16,7 @@ trait HasRawResponse
     /**
      * Set the raw HTTP response.
      */
-    public function withRawResponse(?HttpResponse $response): self
+    public function withRawResponse(?HttpResponse $response): static
     {
         $this->raw = $response;
 
