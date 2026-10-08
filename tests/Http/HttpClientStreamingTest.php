@@ -5,10 +5,18 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Http;
 
 use Closure;
+use GuzzleHttp\ClientInterface;
+use GuzzleHttp\Exception\TransferException;
+use GuzzleHttp\Handler\StreamHandler;
+use Hypervel\Engine\Coroutine as EngineCoroutine;
+use Hypervel\Http\Client\ConnectionException;
+use Hypervel\Http\Client\CurlStreamingHandler;
 use Hypervel\Http\Client\Factory;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Psr\Http\Message\ResponseInterface;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Swoole\Coroutine\Channel;
 use Symfony\Component\Process\Process;
 use Throwable;
@@ -78,19 +86,60 @@ class HttpClientStreamingTest extends TestCase
         });
     }
 
-    public function testBufferedFirstRecordArrivesBeforeTheNextServerWrite(): void
+    public function testConcurrentPhpStreamsReleaseTheirResponseHeaders(): void
     {
+        // @TODO: Update the version gate when Swoole releases the response-header ownership fix.
         if (SWOOLE_VERSION_ID <= 60203) {
+            $this->markTestSkipped('Swoole 6.2.3 and earlier do not isolate PHP response-header ownership between coroutines.');
+        }
+
+        $process = new Process([PHP_BINARY, __DIR__ . '/Fixtures/concurrent-stream-headers.php']);
+        $process->setTimeout(10);
+        $process->run();
+
+        $this->assertSame(0, $process->getExitCode(), $process->getErrorOutput());
+        $samples = json_decode($process->getOutput(), true, flags: JSON_THROW_ON_ERROR);
+        $this->assertCount(3, $samples);
+
+        // Allow allocator bookkeeping, but not a retained batch of 16 KiB headers.
+        $this->assertLessThan(131072, max($samples) - min($samples), $process->getOutput());
+    }
+
+    public function testConcurrentFallbackRequestsKeepIndependentDeadlines(): void
+    {
+        // @TODO: Remove this skip once Guzzle fixes shared StreamHandler request deadlines.
+        if (ClientInterface::MAJOR_VERSION >= 8) {
+            $this->markTestSkipped('Guzzle 8 stores concurrent StreamHandler request deadlines on the shared handler.');
+        }
+
+        $process = new Process([PHP_BINARY, __DIR__ . '/Fixtures/concurrent-stream-deadlines.php']);
+        $process->setTimeout(10);
+        $process->run();
+
+        $this->assertSame(0, $process->getExitCode(), $process->getErrorOutput());
+        $this->assertSame('OK', json_decode($process->getOutput(), true, flags: JSON_THROW_ON_ERROR));
+    }
+
+    #[DataProvider('streamingTransports')]
+    public function testBufferedFirstRecordArrivesBeforeTheNextServerWrite(bool $native, string $mode): void
+    {
+        if (! $native && SWOOLE_VERSION_ID <= 60203) {
             $this->markTestSkipped('Swoole 6.2.3 and earlier lack the buffered-read fix: https://github.com/swoole/swoole-src/pull/6235.');
         }
 
-        $this->withStreamingServer('buffered', function (string $address): void {
+        $this->withStreamingServer($mode, function (string $address) use ($native, $mode): void {
             $received = new Channel(1);
             try {
                 $results = parallel([
-                    'reader' => function () use ($address, $received): array {
-                        $response = (new Factory)->withOptions(['stream' => true, 'read_timeout' => 3])->get('http://' . $address);
+                    'reader' => function () use ($address, $received, $native, $mode): array {
+                        $response = (new Factory)->withOptions(['stream' => true, 'read_timeout' => 3])
+                            ->setHandler($native ? new CurlStreamingHandler : new StreamHandler)
+                            ->get('http://' . $address);
                         try {
+                            if ($mode === 'chunked') {
+                                $this->releaseServer($address);
+                            }
+
                             $lines = $response->jsonLines();
                             $first = $lines->current();
                             $received->push($first);
@@ -119,18 +168,361 @@ class HttpClientStreamingTest extends TestCase
         });
     }
 
-    public function testIdleStreamingReadTimeoutRaisesTheStreamReadError(): void
+    /**
+     * Provide the native streaming route and its PHP-stream fallback.
+     */
+    public static function streamingTransports(): array
     {
-        if (SWOOLE_VERSION_ID <= 60203) {
+        return [
+            'native cURL with buffered data' => [true, 'buffered'],
+            'native cURL with later chunked data' => [true, 'chunked'],
+            'PHP stream fallback' => [false, 'buffered'],
+        ];
+    }
+
+    public function testInformationalHeadersAreNotExposedAsTheFinalResponse(): void
+    {
+        $this->withStreamingServer('informational', function (string $address): void {
+            $statuses = [];
+            $response = (new Factory)->withOptions([
+                'stream' => true,
+                'on_headers' => static function (ResponseInterface $response) use (&$statuses): void {
+                    $statuses[] = $response->getStatusCode();
+                },
+            ])->get('http://' . $address);
+
+            try {
+                $this->assertSame([200], $statuses);
+                $this->assertSame('final', $response->body());
+            } finally {
+                $response->close();
+            }
+        });
+    }
+
+    public function testTruncatedBodiesFailInsteadOfReportingSuccessfulEndOfStream(): void
+    {
+        $this->withStreamingServer('truncated', function (string $address): void {
+            $response = (new Factory)->withOptions(['stream' => true])->get('http://' . $address);
+
+            try {
+                $this->assertSame('partial', $response->toPsrResponse()->getBody()->read(8192));
+                $this->releaseServer($address);
+                $response->body();
+
+                $this->fail('Expected a truncated-response error.');
+            } catch (TransferException $exception) {
+                $this->assertStringContainsString('cURL error 18', $exception->getMessage());
+                $this->assertFalse($response->toPsrResponse()->getBody()->isReadable());
+            } finally {
+                $response->close();
+            }
+        });
+    }
+
+    #[DataProvider('trailerResponses')]
+    public function testTrailersAreDeliveredOnceAfterHeadersAndTransferCompletion(string $mode, string $body): void
+    {
+        $this->withStreamingServer($mode, function (string $address) use ($mode, $body): void {
+            $trailers = [];
+            $events = [];
+            $response = (new Factory)->withOptions([
+                'stream' => true,
+                'on_headers' => static function () use (&$events): void {
+                    $events[] = 'headers';
+                },
+                'on_trailers' => static function (array $headers) use (&$trailers, &$events): void {
+                    $events[] = 'trailers';
+                    $trailers[] = $headers;
+                },
+            ])->get('http://' . $address);
+
+            try {
+                if ($mode === 'streamed-trailers') {
+                    $this->assertSame([], $trailers);
+                }
+
+                $this->assertSame($body, $response->body());
+                $this->assertSame(['headers', 'trailers'], $events);
+                $this->assertSame([['x-checksum' => ['abc']]], $trailers);
+                $this->assertSame('', $response->body());
+                $this->assertCount(1, $trailers);
+            } finally {
+                $response->close();
+            }
+        });
+    }
+
+    /**
+     * Provide transfers that complete before exposure and during consumption.
+     */
+    public static function trailerResponses(): array
+    {
+        return [
+            'small response' => ['trailers', 'hello'],
+            'streamed response' => ['streamed-trailers', str_repeat('hello', 8192)],
+        ];
+    }
+
+    public function testCancelingASilentBodyReadFinishesBeforeTheProviderContinues(): void
+    {
+        $this->withStreamingServer('delayed', function (string $address): void {
+            $ready = new Channel(1);
+            $finished = new Channel(1);
+
+            try {
+                $results = parallel([
+                    'reader' => function () use ($address, $ready, $finished): ?CanceledException {
+                        $response = (new Factory)->withOptions(['stream' => true])->get('http://' . $address);
+
+                        try {
+                            $ready->push(EngineCoroutine::id());
+                            $response->lines()->current();
+
+                            return null;
+                        } catch (CanceledException $exception) {
+                            return $exception;
+                        } finally {
+                            $response->close();
+                            $finished->push(true);
+                        }
+                    },
+                    'cancel' => function () use ($address, $ready, $finished): bool {
+                        try {
+                            $coroutine = $ready->pop(1);
+                            $this->assertIsInt($coroutine);
+                            // Channel delivery resumes us before the reader enters its I/O wait.
+                            usleep(1000);
+                            $this->assertTrue(EngineCoroutine::cancelById($coroutine));
+
+                            return $finished->pop(1) === true;
+                        } finally {
+                            $this->releaseServer($address);
+                        }
+                    },
+                ]);
+
+                $this->assertInstanceOf(CanceledException::class, $results['reader']);
+                $this->assertTrue($results['cancel'], 'The reader waited for provider data after cancellation.');
+            } finally {
+                $ready->close();
+                $finished->close();
+            }
+        });
+    }
+
+    public function testAResponseCanBeConsumedAfterItsCreatingCoroutineEnds(): void
+    {
+        $this->withStreamingServer('buffered', function (string $address): void {
+            [$response] = parallel([
+                static fn () => (new Factory)->withOptions(['stream' => true])->get('http://' . $address),
+            ]);
+
+            try {
+                $lines = $response->jsonLines();
+                $this->assertSame(['id' => 1], $lines->current());
+                $this->releaseServer($address);
+                $lines->next();
+                $this->assertSame(['id' => 2], $lines->current());
+                $lines->next();
+                $this->assertFalse($lines->valid());
+            } finally {
+                $response->close();
+            }
+        });
+    }
+
+    #[DataProvider('connectionRoutes')]
+    public function testNamedStreamsReuseConnectionsWithoutSharingCredentialsOrCookies(bool $proxy): void
+    {
+        $process = new Process([PHP_BINARY, dirname(__DIR__) . '/HttpServer/Fixtures/disconnect-server.php', '', 'process']);
+        $process->setTimeout(10);
+        $process->start();
+        $processId = $process->getPid();
+
+        try {
+            $deadline = microtime(true) + 3;
+
+            while (! str_contains($process->getOutput(), 'READY ') && $process->isRunning() && microtime(true) < $deadline) {
+                usleep(10000);
+            }
+
+            $this->assertSame(1, preg_match('/READY (\d+)/', $process->getOutput(), $matches), $process->getErrorOutput());
+            $endpoint = 'http://127.0.0.1:' . $matches[1];
+            $url = ($proxy ? 'http://provider.invalid' : $endpoint) . '/identity';
+            $failure = null;
+
+            run(function () use ($url, $endpoint, $proxy, &$failure): void {
+                try {
+                    $factory = (new Factory)->registerConnection('provider');
+                    $connections = [];
+                    $tokens = ['first-account', 'second-account', 'first-account', null, 'second-account'];
+
+                    for ($index = 3; $index <= CurlStreamingHandler::MAX_IDLE_CONNECTIONS; ++$index) {
+                        $tokens[] = 'account-' . $index;
+                    }
+
+                    $tokens[] = 'account-' . CurlStreamingHandler::MAX_IDLE_CONNECTIONS;
+                    $tokens[] = 'first-account';
+
+                    foreach ($tokens as $token) {
+                        $request = $factory->connection('provider')->withOptions(['stream' => true]);
+
+                        if ($proxy) {
+                            $request->withOptions([
+                                'proxy' => $endpoint,
+                                'curl' => [
+                                    CURLOPT_HTTPPROXYTUNNEL => true,
+                                    CURLOPT_PROXYHEADER => $token === null ? [] : ['Proxy-Authorization: Bearer ' . $token],
+                                ],
+                            ]);
+                        }
+
+                        if ($token !== null) {
+                            $request->withToken($token);
+                        }
+
+                        $response = $request->get($url);
+
+                        try {
+                            $identity = $response->json();
+                            $connections[] = $identity['connection'];
+                            $this->assertSame($token === null ? null : 'Bearer ' . $token, $identity['authorization']);
+                            $this->assertSame($proxy && $token !== null ? 'Bearer ' . $token : null, $identity['proxy_authorization']);
+                            $this->assertNull($identity['cookie']);
+                        } finally {
+                            $response->close();
+                        }
+                    }
+
+                    $this->assertCount($proxy ? CurlStreamingHandler::MAX_IDLE_CONNECTIONS + 2 : 1, array_unique($connections));
+                    $this->assertSame($connections[0], $connections[2]);
+                    $this->assertSame($connections[1], $connections[4]);
+                    $this->assertSame($connections[count($connections) - 3], $connections[count($connections) - 2]);
+
+                    if ($proxy) {
+                        $this->assertNotSame($connections[0], end($connections), 'The least recently used identity was not evicted.');
+                    }
+                } catch (Throwable $exception) {
+                    $failure = $exception;
+                }
+            }, SWOOLE_HOOK_ALL);
+
+            if ($failure !== null) {
+                throw $failure;
+            }
+        } finally {
+            posix_kill(-$processId, SIGKILL);
+            $process->stop(0);
+        }
+    }
+
+    /**
+     * Provide direct requests and connection-authenticated proxy tunnels.
+     */
+    public static function connectionRoutes(): array
+    {
+        return [[false], [true]];
+    }
+
+    public function testCancelingAHeaderWaitFinishesBeforeTheProviderResponds(): void
+    {
+        $this->withStreamingServer('silent-headers', function (string $address): void {
+            $started = new Channel(1);
+            $finished = new Channel(1);
+
+            try {
+                $results = parallel([
+                    'reader' => function () use ($address, $started, $finished): ?CanceledException {
+                        $started->push(EngineCoroutine::id());
+
+                        try {
+                            (new Factory)->withOptions(['stream' => true])->get('http://' . $address);
+
+                            return null;
+                        } catch (CanceledException $exception) {
+                            return $exception;
+                        } finally {
+                            $finished->push(true);
+                        }
+                    },
+                    'cancel' => function () use ($address, $started, $finished): void {
+                        $coroutine = $started->pop(1);
+                        $control = stream_socket_client('tcp://' . $address, $error, $message, 2);
+                        $this->assertIsResource($control, $message);
+
+                        try {
+                            stream_set_timeout($control, 2);
+                            $this->assertSame("ready\n", fgets($control));
+                            $this->assertTrue(EngineCoroutine::cancelById($coroutine));
+                            $this->assertTrue($finished->pop(1), 'The header wait continued until the provider responded.');
+                        } finally {
+                            fclose($control);
+                        }
+                    },
+                ]);
+
+                $this->assertInstanceOf(CanceledException::class, $results['reader']);
+            } finally {
+                $started->close();
+                $finished->close();
+            }
+        });
+    }
+
+    public function testSilentHeadersUseTheIdleTimeoutWhenTheTotalTimeoutIsDisabled(): void
+    {
+        $this->withStreamingServer('silent-headers', function (string $address): void {
+            try {
+                $this->expectException(ConnectionException::class);
+                $this->expectExceptionMessage('The streaming request timed out before response headers.');
+
+                (new Factory)->timeout(0)->withOptions(['stream' => true, 'read_timeout' => 0.2])->get('http://' . $address);
+            } finally {
+                $this->releaseServer($address);
+            }
+        });
+    }
+
+    public function testHeaderProgressResetsTheIdleTimeoutBeforeAHeaderLineIsComplete(): void
+    {
+        $this->withStreamingServer('trickle-headers', function (string $address): void {
+            $response = (new Factory)->timeout(0)->withOptions(['stream' => true, 'read_timeout' => 0.4])->get('http://' . $address);
+
+            try {
+                $this->assertSame(200, $response->status());
+                $this->assertSame('aaaaaaaa', $response->header('X-Partial'));
+            } finally {
+                $response->close();
+            }
+        });
+    }
+
+    public function testHeaderProgressDoesNotResetTheTotalHeaderDeadline(): void
+    {
+        $this->withStreamingServer('trickle-headers', function (string $address): void {
+            $this->expectException(ConnectionException::class);
+            $this->expectExceptionMessage('The streaming request timed out before response headers.');
+
+            (new Factory)->timeout(0.4)->withOptions(['stream' => true, 'read_timeout' => 0.4])->get('http://' . $address);
+        });
+    }
+
+    #[DataProvider('idleTimeoutTransports')]
+    public function testIdleStreamingReadTimeoutRaisesTheStreamReadError(bool $native): void
+    {
+        if (! $native && SWOOLE_VERSION_ID <= 60203) {
             $this->markTestSkipped('Swoole 6.2.3 and earlier lack the read-timeout fix: https://github.com/swoole/swoole-src/pull/6236.');
         }
 
-        $this->withStreamingServer('delayed', function (string $address): void {
+        $this->withStreamingServer('delayed', function (string $address) use ($native): void {
             $finished = new Channel(1);
             try {
                 $results = parallel([
-                    'reader' => function () use ($address, $finished): ?RuntimeException {
-                        $response = (new Factory)->withOptions(['stream' => true, 'read_timeout' => 1])->get('http://' . $address);
+                    'reader' => function () use ($address, $finished, $native): ?RuntimeException {
+                        $response = (new Factory)->withOptions(['stream' => true, 'read_timeout' => 1])
+                            ->setHandler($native ? new CurlStreamingHandler : new StreamHandler)
+                            ->get('http://' . $address);
                         try {
                             $response->lines()->current();
 
@@ -149,11 +541,19 @@ class HttpClientStreamingTest extends TestCase
                 ]);
 
                 $this->assertInstanceOf(RuntimeException::class, $results['reader']);
-                $this->assertSame('Unable to read from stream', $results['reader']->getMessage());
+                $this->assertSame($native ? 'The streaming response read timed out.' : 'Unable to read from stream', $results['reader']->getMessage());
             } finally {
                 $finished->close();
             }
         });
+    }
+
+    /**
+     * Provide both transports for their respective read-timeout contracts.
+     */
+    public static function idleTimeoutTransports(): array
+    {
+        return [[true], [false]];
     }
 
     /**
@@ -166,8 +566,13 @@ class HttpClientStreamingTest extends TestCase
         $process->start();
 
         try {
-            $ready = $process->waitUntil(fn () => str_contains($process->getOutput(), "\n"));
-            $this->assertTrue($ready, $process->getErrorOutput());
+            $deadline = microtime(true) + 5;
+
+            while (! str_contains($process->getOutput(), "\n") && $process->isRunning() && microtime(true) < $deadline) {
+                usleep(10000);
+            }
+
+            $this->assertStringContainsString("\n", $process->getOutput(), $process->getErrorOutput());
             $address = trim($process->getOutput());
 
             $failure = null;

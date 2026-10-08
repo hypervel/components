@@ -74,6 +74,19 @@ class ClassMetadataCacheTest extends TestCase
         $this->assertSame(ClassMetadataCacheAttributedFixture::class, $first?->declaringClass->getName());
     }
 
+    public function testTraitMembershipIncludesNestedAndInheritedTraitsWithoutCachingMisses(): void
+    {
+        $fixture = new ClassMetadataCacheInheritedTraitFixture;
+
+        $this->assertTrue(ClassMetadataCache::usesTrait($fixture, ClassMetadataCacheTrait::class));
+        $this->assertTrue(ClassMetadataCache::usesTrait($fixture::class, ClassMetadataCacheNestedTrait::class));
+        $this->assertTrue(ClassMetadataCache::usesTrait($fixture, ClassMetadataCacheLeafTrait::class));
+        $traits = $this->staticProperty('traits');
+        $this->assertFalse(ClassMetadataCache::usesTrait($fixture, RuntimeException::class));
+        $this->assertSame($traits, $this->staticProperty('traits'));
+        $this->assertFalse(ClassMetadataCache::usesTrait(ClassMetadataCacheFixture::class, ClassMetadataCacheTrait::class));
+    }
+
     public function testMissingClassAttributeIsCachedAsNull(): void
     {
         $this->assertNull(ClassMetadataCache::getAttribute(ClassMetadataCacheFixture::class, ClassMetadataCacheAttribute::class));
@@ -183,11 +196,13 @@ class ClassMetadataCacheTest extends TestCase
         ClassMetadataCache::getAttribute(ClassMetadataCacheAttributedFixture::class, ClassMetadataCacheAttribute::class);
         ClassMetadataCache::hasClassAttribute(ClassMetadataCacheParentFixture::class, ClassMetadataCacheAttribute::class);
         ClassMetadataCache::hasClassAttribute(ClassMetadataCacheChildFixture::class, ClassMetadataCacheAttribute::class, ascend: true);
+        ClassMetadataCache::usesTrait(ClassMetadataCacheTraitFixture::class, ClassMetadataCacheTrait::class);
         ClassMetadataCache::flushState();
 
         $this->assertSame([], $this->staticProperty('methods'));
         $this->assertSame([], $this->staticProperty('attributes'));
         $this->assertSame([], $this->staticProperty('classAttributePresence'));
+        $this->assertSame([], $this->staticProperty('traits'));
 
         $classAfter = ClassMetadataCache::reflectClass(ClassMetadataCacheFixture::class);
         $methodAfter = ClassMetadataCache::reflectMethod(ClassMetadataCacheFixture::class, 'greet');
@@ -258,6 +273,20 @@ trait ClassMetadataCacheTrait
 class ClassMetadataCacheTraitFixture
 {
     use ClassMetadataCacheTrait;
+}
+
+trait ClassMetadataCacheLeafTrait
+{
+}
+
+trait ClassMetadataCacheNestedTrait
+{
+    use ClassMetadataCacheLeafTrait;
+}
+
+class ClassMetadataCacheInheritedTraitFixture extends ClassMetadataCacheTraitFixture
+{
+    use ClassMetadataCacheNestedTrait;
 }
 
 class ClassMetadataCachePropertyFixture

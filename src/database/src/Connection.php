@@ -113,6 +113,11 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     protected int $foreignKeyConstraintSuppressionDepth = 0;
 
     /**
+     * The number of operations retaining the current physical session.
+     */
+    protected int $sessionPinDepth = 0;
+
+    /**
      * The transaction manager instance.
      */
     protected ?DatabaseTransactionsManager $transactionsManager = null;
@@ -549,57 +554,63 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
      */
     protected function run(string $query, array $bindings, Closure $callback): mixed
     {
-        foreach ($this->beforeExecutingCallbacks as $beforeExecutingCallback) {
-            $beforeExecutingCallback($query, $bindings, $this);
-        }
+        ++$this->sessionPinDepth;
 
-        $this->reconnectIfMissingConnection();
-
-        $start = hrtime(true) / 1e9;
-
-        // Here we will run this query. If an exception occurs we'll determine if it was
-        // caused by a connection that has been lost. If that is the cause, we'll try
-        // to re-establish connection and re-run the query with a fresh connection.
         try {
+            foreach ($this->beforeExecutingCallbacks as $beforeExecutingCallback) {
+                $beforeExecutingCallback($query, $bindings, $this);
+            }
+
+            $this->reconnectIfMissingConnection();
+
+            $start = hrtime(true) / 1e9;
+
+            // Here we will run this query. If an exception occurs we'll determine if it was
+            // caused by a connection that has been lost. If that is the cause, we'll try
+            // to re-establish connection and re-run the query with a fresh connection.
             try {
-                $result = $this->runQueryCallback($query, $bindings, $callback);
-            } catch (QueryException $e) {
-                $result = $this->handleQueryException(
-                    $e,
-                    $query,
-                    $bindings,
-                    $callback
-                );
-            }
-        } catch (CanceledException $exception) {
-            throw $exception;
-        } catch (Throwable $exception) {
-            $events = $this->events;
+                try {
+                    $result = $this->runQueryCallback($query, $bindings, $callback);
+                } catch (QueryException $e) {
+                    $result = $this->handleQueryException(
+                        $e,
+                        $query,
+                        $bindings,
+                        $callback
+                    );
+                }
+            } catch (CanceledException $exception) {
+                throw $exception;
+            } catch (Throwable $exception) {
+                $events = $this->events;
 
-            if ($events?->hasListeners(QueryFailed::class)) {
-                $events->dispatch(new QueryFailed(
-                    $query,
-                    $bindings,
-                    $this->getElapsedTime($start),
-                    $this,
-                    $exception,
-                    $this->latestReadWriteTypeUsed(),
-                ));
+                if ($events?->hasListeners(QueryFailed::class)) {
+                    $events->dispatch(new QueryFailed(
+                        $query,
+                        $bindings,
+                        $this->getElapsedTime($start),
+                        $this,
+                        $exception,
+                        $this->latestReadWriteTypeUsed(),
+                    ));
+                }
+
+                throw $exception;
             }
 
-            throw $exception;
+            // Once we have run the query we will calculate the time that it took to run and
+            // then log the query, bindings, and execution time so we will report them on
+            // the event that the developer needs them. We'll log time in milliseconds.
+            $this->logQuery(
+                $query,
+                $bindings,
+                $this->getElapsedTime($start)
+            );
+
+            return $result;
+        } finally {
+            --$this->sessionPinDepth;
         }
-
-        // Once we have run the query we will calculate the time that it took to run and
-        // then log the query, bindings, and execution time so we will report them on
-        // the event that the developer needs them. We'll log time in milliseconds.
-        $this->logQuery(
-            $query,
-            $bindings,
-            $this->getElapsedTime($start)
-        );
-
-        return $result;
     }
 
     /**
@@ -617,67 +628,73 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
      */
     protected function runStreaming(string $query, array $bindings, Closure $callback): Generator
     {
-        foreach ($this->beforeExecutingCallbacks as $beforeExecutingCallback) {
-            $beforeExecutingCallback($query, $bindings, $this);
-        }
+        ++$this->sessionPinDepth;
 
-        $this->reconnectIfMissingConnection();
+        try {
+            foreach ($this->beforeExecutingCallbacks as $beforeExecutingCallback) {
+                $beforeExecutingCallback($query, $bindings, $this);
+            }
 
-        $start = hrtime(true) / 1e9;
-        $hasYielded = false;
+            $this->reconnectIfMissingConnection();
 
-        $execute = function (string $query, array $bindings) use ($callback, &$hasYielded): Generator {
-            try {
-                foreach ($callback($query, $bindings) as $key => $value) {
-                    $readWriteType = $this->latestReadWriteTypeRetrieved;
-                    $hasYielded = true;
+            $start = hrtime(true) / 1e9;
+            $hasYielded = false;
 
-                    try {
-                        yield $key => $value;
-                    } finally {
-                        // A consumer may run another query while this operation is suspended.
-                        $this->latestReadWriteTypeRetrieved = $readWriteType;
+            $execute = function (string $query, array $bindings) use ($callback, &$hasYielded): Generator {
+                try {
+                    foreach ($callback($query, $bindings) as $key => $value) {
+                        $readWriteType = $this->latestReadWriteTypeRetrieved;
+                        $hasYielded = true;
+
+                        try {
+                            yield $key => $value;
+                        } finally {
+                            // A consumer may run another query while this operation is suspended.
+                            $this->latestReadWriteTypeRetrieved = $readWriteType;
+                        }
                     }
+                } catch (CanceledException|StreamClosedException $exception) {
+                    throw $exception;
+                } catch (Exception $exception) {
+                    ++$this->errorCount;
+
+                    throw $this->newQueryException($query, $bindings, $exception);
+                }
+            };
+
+            try {
+                try {
+                    yield from $execute($query, $bindings);
+                } catch (QueryException $exception) {
+                    if ($hasYielded) {
+                        throw $exception;
+                    }
+
+                    yield from $this->handleQueryException($exception, $query, $bindings, $execute);
                 }
             } catch (CanceledException|StreamClosedException $exception) {
                 throw $exception;
-            } catch (Exception $exception) {
-                ++$this->errorCount;
+            } catch (Throwable $exception) {
+                $events = $this->events;
 
-                throw $this->newQueryException($query, $bindings, $exception);
-            }
-        };
-
-        try {
-            try {
-                yield from $execute($query, $bindings);
-            } catch (QueryException $exception) {
-                if ($hasYielded) {
-                    throw $exception;
+                if ($events?->hasListeners(QueryFailed::class)) {
+                    $events->dispatch(new QueryFailed(
+                        $query,
+                        $bindings,
+                        $this->getElapsedTime($start),
+                        $this,
+                        $exception,
+                        $this->latestReadWriteTypeUsed(),
+                    ));
                 }
 
-                yield from $this->handleQueryException($exception, $query, $bindings, $execute);
-            }
-        } catch (CanceledException|StreamClosedException $exception) {
-            throw $exception;
-        } catch (Throwable $exception) {
-            $events = $this->events;
-
-            if ($events?->hasListeners(QueryFailed::class)) {
-                $events->dispatch(new QueryFailed(
-                    $query,
-                    $bindings,
-                    $this->getElapsedTime($start),
-                    $this,
-                    $exception,
-                    $this->latestReadWriteTypeUsed(),
-                ));
+                throw $exception;
             }
 
-            throw $exception;
+            $this->logQuery($query, $bindings, $this->getElapsedTime($start));
+        } finally {
+            --$this->sessionPinDepth;
         }
-
-        $this->logQuery($query, $bindings, $this->getElapsedTime($start));
     }
 
     /**
@@ -1054,6 +1071,37 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     public function clearBeforeExecutingCallbacks(): void
     {
         $this->beforeExecutingCallbacks = [];
+    }
+
+    /**
+     * Retain the physical database session for the duration of the callback.
+     *
+     * @template TReturn
+     *
+     * @param Closure(): TReturn $callback
+     * @return TReturn
+     */
+    public function withPinnedSession(Closure $callback): mixed
+    {
+        ++$this->sessionPinDepth;
+
+        try {
+            return $callback();
+        } finally {
+            --$this->sessionPinDepth;
+        }
+    }
+
+    /**
+     * Determine whether an operation requires the current physical session.
+     *
+     * @internal
+     */
+    public function hasPinnedSession(): bool
+    {
+        return $this->sessionPinDepth > 0
+            || $this->transactions > 0
+            || $this->foreignKeyConstraintSuppressionDepth > 0;
     }
 
     /**

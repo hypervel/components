@@ -17,12 +17,6 @@ use Throwable;
  */
 class DatabaseTransactionsManager
 {
-    protected const string COMMITTED_CONTEXT_KEY = '__database.transactions.committed';
-
-    protected const string PENDING_CONTEXT_KEY = '__database.transactions.pending';
-
-    protected const string CURRENT_CONTEXT_KEY = '__database.transactions.current';
-
     /**
      * Get all committed transactions for the current coroutine.
      *
@@ -30,17 +24,7 @@ class DatabaseTransactionsManager
      */
     protected function getCommittedTransactionsInternal(): Collection
     {
-        return CoroutineContext::get(self::COMMITTED_CONTEXT_KEY, new Collection);
-    }
-
-    /**
-     * Set committed transactions for the current coroutine.
-     *
-     * @param Collection<int, DatabaseTransactionRecord> $transactions
-     */
-    protected function setCommittedTransactions(Collection $transactions): void
-    {
-        CoroutineContext::set(self::COMMITTED_CONTEXT_KEY, $transactions);
+        return DatabaseTransactionState::current()->committed;
     }
 
     /**
@@ -50,37 +34,7 @@ class DatabaseTransactionsManager
      */
     protected function getPendingTransactionsInternal(): Collection
     {
-        return CoroutineContext::get(self::PENDING_CONTEXT_KEY, new Collection);
-    }
-
-    /**
-     * Set pending transactions for the current coroutine.
-     *
-     * @param Collection<int, DatabaseTransactionRecord> $transactions
-     */
-    protected function setPendingTransactions(Collection $transactions): void
-    {
-        CoroutineContext::set(self::PENDING_CONTEXT_KEY, $transactions);
-    }
-
-    /**
-     * Get current transaction map for the current coroutine.
-     *
-     * @return array<string, null|DatabaseTransactionRecord>
-     */
-    protected function getCurrentTransaction(): array
-    {
-        return CoroutineContext::get(self::CURRENT_CONTEXT_KEY, []);
-    }
-
-    /**
-     * Set current transaction for a connection.
-     */
-    protected function setCurrentTransactionForConnection(string $connection, ?DatabaseTransactionRecord $transaction): void
-    {
-        $current = $this->getCurrentTransaction();
-        $current[$connection] = $transaction;
-        CoroutineContext::set(self::CURRENT_CONTEXT_KEY, $current);
+        return DatabaseTransactionState::current()->pending;
     }
 
     /**
@@ -88,7 +42,7 @@ class DatabaseTransactionsManager
      */
     protected function getCurrentTransactionForConnection(string $connection): ?DatabaseTransactionRecord
     {
-        return $this->getCurrentTransaction()[$connection] ?? null;
+        return DatabaseTransactionState::current()->current[$connection] ?? null;
     }
 
     /**
@@ -96,17 +50,16 @@ class DatabaseTransactionsManager
      */
     public function begin(string $connection, int $level): void
     {
-        $pending = $this->getPendingTransactionsInternal();
+        $state = DatabaseTransactionState::current();
 
         $newTransaction = new DatabaseTransactionRecord(
             $connection,
             $level,
-            $this->getCurrentTransactionForConnection($connection)
+            $state->current[$connection] ?? null
         );
 
-        $pending->push($newTransaction);
-        $this->setPendingTransactions($pending);
-        $this->setCurrentTransactionForConnection($connection, $newTransaction);
+        $state->pending->push($newTransaction);
+        $state->current[$connection] = $newTransaction;
     }
 
     /**
@@ -118,9 +71,10 @@ class DatabaseTransactionsManager
     {
         $this->stageTransactions($connection, $levelBeingCommitted);
 
-        $currentForConnection = $this->getCurrentTransactionForConnection($connection);
+        $state = DatabaseTransactionState::current();
+        $currentForConnection = $state->current[$connection] ?? null;
         if ($currentForConnection !== null) {
-            $this->setCurrentTransactionForConnection($connection, $currentForConnection->parent);
+            $state->current[$connection] = $currentForConnection->parent;
         }
 
         if (! $this->afterCommitCallbacksShouldBeExecuted($newTransactionLevel)
@@ -129,18 +83,15 @@ class DatabaseTransactionsManager
         }
 
         // Clear pending transactions for this connection at or above the committed level
-        $pending = $this->getPendingTransactionsInternal()->reject(
+        $state->pending = $state->pending->reject(
             fn ($transaction) => $transaction->connection === $connection
                 && $transaction->level >= $levelBeingCommitted
         )->values();
-        $this->setPendingTransactions($pending);
-
-        $committed = $this->getCommittedTransactionsInternal();
-        [$forThisConnection, $forOtherConnections] = $committed->partition(
+        [$forThisConnection, $forOtherConnections] = $state->committed->partition(
             fn ($transaction) => $transaction->connection === $connection
         );
 
-        $this->setCommittedTransactions($forOtherConnections->values());
+        $state->committed = $forOtherConnections->values();
 
         $this->executeCommitCallbacks($forThisConnection);
 
@@ -152,21 +103,18 @@ class DatabaseTransactionsManager
      */
     public function stageTransactions(string $connection, int $levelBeingCommitted): void
     {
-        $pending = $this->getPendingTransactionsInternal();
-        $committed = $this->getCommittedTransactionsInternal();
+        $state = DatabaseTransactionState::current();
 
-        $toStage = $pending->filter(
+        $toStage = $state->pending->filter(
             fn ($transaction) => $transaction->connection === $connection
                                  && $transaction->level >= $levelBeingCommitted
         );
 
-        $this->setCommittedTransactions($committed->merge($toStage));
+        $state->committed = $state->committed->merge($toStage);
 
-        $this->setPendingTransactions(
-            $pending->reject(
-                fn ($transaction) => $transaction->connection === $connection
-                                     && $transaction->level >= $levelBeingCommitted
-            )
+        $state->pending = $state->pending->reject(
+            fn ($transaction) => $transaction->connection === $connection
+                                 && $transaction->level >= $levelBeingCommitted
         );
     }
 
@@ -181,15 +129,14 @@ class DatabaseTransactionsManager
             return;
         }
 
-        $this->setPendingTransactions(
-            $this->getPendingTransactionsInternal()->reject(
-                fn ($transaction) => $transaction->connection === $connection
-                                     && $transaction->level > $newTransactionLevel
-            )->values()
-        );
+        $state = DatabaseTransactionState::current();
+        $state->pending = $state->pending->reject(
+            fn ($transaction) => $transaction->connection === $connection
+                                 && $transaction->level > $newTransactionLevel
+        )->values();
 
         $transactions = new Collection;
-        $currentForConnection = $this->getCurrentTransactionForConnection($connection);
+        $currentForConnection = $state->current[$connection] ?? null;
 
         while ($currentForConnection !== null
             && $currentForConnection->level > $newTransactionLevel) {
@@ -200,14 +147,14 @@ class DatabaseTransactionsManager
             $currentForConnection = $currentForConnection->parent;
         }
 
-        $this->setCurrentTransactionForConnection($connection, $currentForConnection);
+        $state->current[$connection] = $currentForConnection;
 
-        [$stagedTransactions, $remainingCommitted] = $this->getCommittedTransactionsInternal()->partition(
+        [$stagedTransactions, $remainingCommitted] = $state->committed->partition(
             fn (DatabaseTransactionRecord $committed): bool => $transactions->contains(
                 fn (DatabaseTransactionRecord $transaction): bool => $transaction === $committed
             )
         );
-        $this->setCommittedTransactions($remainingCommitted->values());
+        $state->committed = $remainingCommitted->values();
 
         $this->executeRollbackCallbacks(
             $transactions
@@ -223,14 +170,13 @@ class DatabaseTransactionsManager
      */
     protected function removeAllTransactionsForConnection(string $connection): void
     {
-        [$committedForConnection, $committedForOtherConnections] = $this
-            ->getCommittedTransactionsInternal()
-            ->partition(
-                fn (DatabaseTransactionRecord $transaction): bool => $transaction->connection === $connection
-            );
+        $state = DatabaseTransactionState::current();
+        [$committedForConnection, $committedForOtherConnections] = $state->committed->partition(
+            fn (DatabaseTransactionRecord $transaction): bool => $transaction->connection === $connection
+        );
 
         $currentTransactions = new Collection;
-        $currentForConnection = $this->getCurrentTransactionForConnection($connection);
+        $currentForConnection = $state->current[$connection] ?? null;
 
         for ($current = $currentForConnection; $current !== null; $current = $current->parent) {
             $currentTransactions->push($current);
@@ -243,15 +189,13 @@ class DatabaseTransactionsManager
             ->values();
 
         // User callbacks must observe the transaction records as already detached.
-        $this->setCurrentTransactionForConnection($connection, null);
+        $state->current[$connection] = null;
 
-        $this->setPendingTransactions(
-            $this->getPendingTransactionsInternal()->reject(
-                fn ($transaction) => $transaction->connection === $connection
-            )->values()
-        );
+        $state->pending = $state->pending->reject(
+            fn ($transaction) => $transaction->connection === $connection
+        )->values();
 
-        $this->setCommittedTransactions($committedForOtherConnections->values());
+        $state->committed = $committedForOtherConnections->values();
 
         $this->executeRollbackCallbacks($transactions);
     }
@@ -264,14 +208,14 @@ class DatabaseTransactionsManager
     protected function removeCommittedTransactionsThatAreChildrenOf(
         DatabaseTransactionRecord $transaction
     ): Collection {
-        $committed = $this->getCommittedTransactionsInternal();
+        $state = DatabaseTransactionState::current();
 
-        [$removedTransactions, $remaining] = $committed->partition(
+        [$removedTransactions, $remaining] = $state->committed->partition(
             fn ($committed) => $committed->connection === $transaction->connection
                                && $committed->parent === $transaction
         );
 
-        $this->setCommittedTransactions($remaining);
+        $state->committed = $remaining;
 
         foreach ($removedTransactions as $removedTransaction) {
             $removedTransactions = $removedTransactions->concat(
@@ -435,9 +379,10 @@ class DatabaseTransactionsManager
      */
     public static function hasNonCoroutinePendingTransactions(): bool
     {
-        $pending = CoroutineContext::getFromNonCoroutine(self::PENDING_CONTEXT_KEY);
+        /** @var null|DatabaseTransactionState $state */
+        $state = CoroutineContext::getFromNonCoroutine(DatabaseTransactionState::CONTEXT_KEY);
 
-        return $pending instanceof Collection && $pending->isNotEmpty();
+        return $state !== null && $state->pending->isNotEmpty();
     }
 
     /**
@@ -448,11 +393,25 @@ class DatabaseTransactionsManager
      */
     public static function copyToNonCoroutineState(): void
     {
-        CoroutineContext::copyToNonCoroutine([
-            self::COMMITTED_CONTEXT_KEY,
-            self::PENDING_CONTEXT_KEY,
-            self::CURRENT_CONTEXT_KEY,
-        ]);
+        CoroutineContext::setNonCoroutine(
+            DatabaseTransactionState::CONTEXT_KEY,
+            DatabaseTransactionState::current(),
+        );
+    }
+
+    /**
+     * Restore the test lifecycle's transaction state in the current coroutine.
+     *
+     * Tests only. This deliberately shares transaction ownership across setup,
+     * test and teardown; normal child coroutines must own separate transactions.
+     */
+    public static function copyFromNonCoroutineState(): void
+    {
+        $state = CoroutineContext::getFromNonCoroutine(DatabaseTransactionState::CONTEXT_KEY);
+
+        if ($state !== null) {
+            CoroutineContext::set(DatabaseTransactionState::CONTEXT_KEY, $state);
+        }
     }
 
     /**
@@ -463,10 +422,6 @@ class DatabaseTransactionsManager
      */
     public static function clearNonCoroutineState(): void
     {
-        CoroutineContext::clearFromNonCoroutine([
-            self::COMMITTED_CONTEXT_KEY,
-            self::PENDING_CONTEXT_KEY,
-            self::CURRENT_CONTEXT_KEY,
-        ]);
+        CoroutineContext::clearFromNonCoroutine([DatabaseTransactionState::CONTEXT_KEY]);
     }
 }

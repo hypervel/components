@@ -79,6 +79,12 @@ $schema = JsonSchema::object([
 ])->withoutAdditionalProperties();
 ```
 
+To inspect or reuse an object's property schemas, call `getProperties`. This returns the named `Type` instances rather than their serialized JSON Schema arrays:
+
+```php
+$properties = $schema->getProperties();
+```
+
 <a name="array-schemas"></a>
 ### Array Schemas
 

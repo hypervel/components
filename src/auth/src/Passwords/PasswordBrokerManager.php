@@ -162,8 +162,10 @@ class PasswordBrokerManager implements FactoryContract
      */
     public function getDefaultDriver(): string
     {
-        if (CoroutineContext::has(self::DEFAULT_BROKER_CONTEXT_KEY)) {
-            return CoroutineContext::get(self::DEFAULT_BROKER_CONTEXT_KEY);
+        $name = CoroutineContext::get(self::DEFAULT_BROKER_CONTEXT_KEY);
+
+        if ($name !== null) {
+            return $name;
         }
 
         $guard = $this->app->make(AuthFactoryContract::class)->getDefaultDriver();

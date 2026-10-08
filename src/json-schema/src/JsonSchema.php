@@ -17,7 +17,7 @@ use Hypervel\JsonSchema\Types\UnionType;
 use InvalidArgumentException;
 
 /**
- * @method static ObjectType object(Closure|array<string, Type> $properties = [])
+ * @method static ObjectType object(Closure|array<int|string, Type> $properties = [])
  * @method static AnyOfType anyOf(Closure|array<int, Type> $schemas)
  * @method static IntegerType integer()
  * @method static NumberType number()

@@ -12,6 +12,7 @@ use Hypervel\Contracts\ConnectionPool\Connection as PoolConnection;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Coordinator\Timer;
+use Hypervel\Database\Connection as DatabaseConnection;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\Pool\DatabasePool;
 use Hypervel\Database\Pool\PoolManager;
@@ -621,7 +622,8 @@ class PoolManagerTest extends TestCase
         $this->assertSame('default::read', $pool->getName());
         $this->assertNotSame($manager->pool('default'), $pool);
         $this->assertInstanceOf(PoolManagerTestPool::class, $pool);
-        $this->assertSame(['replica.test'], $pool->configForTest()['host']);
+        $this->assertSame(['replica.test'], $pool->configForTest()['read']['host']);
+        $this->assertSame('read', $pool->configForTest()[DatabaseConnection::READ_WRITE_TYPE_CONFIG_KEY]);
     }
 
     public function testReadConnectionUsesBasePoolWhenReadConfigIsMissingOrNull(): void

@@ -11,6 +11,7 @@ use Hypervel\Http\IterableStreamedResponse;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response as HypervelResponse;
 use Hypervel\HttpServer\ResponseBridge;
+use Hypervel\Server\ResponseCancellation;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -18,11 +19,15 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionProperty;
 use RuntimeException;
 use SplTempFileObject;
+use Swoole\Coroutine\CanceledException;
+use Swoole\Coroutine\Channel;
 use Swoole\Http\Response as SwooleResponse;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+
+use function Hypervel\Coroutine\parallel;
 
 class ResponseBridgeTest extends TestCase
 {
@@ -1230,6 +1235,131 @@ class ResponseBridgeTest extends TestCase
         $this->expectExceptionMessageIs('Unable to set the response status.');
 
         ResponseBridge::send(new Response('body'), $swooleResponse);
+    }
+
+    #[DataProvider('disconnectCancellationOptions')]
+    public function testDisconnectCancelsAllActiveStreamsOnOnlyThatConnection(bool $cancel, array $streams): void
+    {
+        $ready = new Channel(3);
+        $continue = new Channel(3);
+        $closed = [];
+        $produce = function (int $connection, int $stream) use ($ready, $continue, $cancel, &$closed): bool {
+            $response = new IterableStreamedResponse((function () use ($connection, $stream, $ready, $continue, &$closed): iterable {
+                try {
+                    $ready->push(true);
+                    $this->assertTrue($continue->pop(2));
+                    yield 'body';
+                } finally {
+                    $closed[] = [$connection, $stream];
+                }
+            })());
+            $native = $this->mockSwooleResponse();
+            $native->fd = $connection;
+
+            if ($cancel) {
+                $response->cancelOnDisconnect();
+                $native->expects('isWritable')->andReturnTrue();
+            }
+
+            try {
+                ResponseBridge::send($response, $native, streamId: $stream);
+
+                return false;
+            } catch (CanceledException) {
+                return true;
+            }
+        };
+
+        try {
+            $results = parallel([
+                'first' => fn (): bool => $produce(10, $streams[0]),
+                'second' => fn (): bool => $produce(10, $streams[1]),
+                'other' => fn (): bool => $produce(20, 1),
+                'close' => function () use ($ready, $continue, $cancel): void {
+                    for ($index = 0; $index < 3; ++$index) {
+                        $this->assertTrue($ready->pop(1));
+                    }
+
+                    usleep(1000);
+                    ResponseCancellation::cancel(10);
+
+                    for ($index = 0; $index < ($cancel ? 1 : 3); ++$index) {
+                        $continue->push(true);
+                    }
+                },
+            ]);
+
+            $this->assertSame($cancel, $results['first']);
+            $this->assertSame($cancel, $results['second']);
+            $this->assertFalse($results['other']);
+            $this->assertEqualsCanonicalizing([[10, $streams[0]], [10, $streams[1]], [20, 1]], $closed);
+        } finally {
+            $ready->close();
+            $continue->close();
+        }
+    }
+
+    /**
+     * Provide default production and explicit disconnect cancellation.
+     */
+    public static function disconnectCancellationOptions(): array
+    {
+        return [
+            'default opt-out' => [false, [1, 3]],
+            'HTTP/2 streams' => [true, [1, 3]],
+            'pipelined HTTP/1 responses' => [true, [0, 0]],
+        ];
+    }
+
+    public function testDisconnectAfterProductionDoesNotCancelLaterRequestWork(): void
+    {
+        $sent = new Channel(1);
+        $continue = new Channel(1);
+
+        try {
+            $results = parallel([
+                'producer' => function () use ($sent, $continue): mixed {
+                    $response = (new IterableStreamedResponse(['body']))->cancelOnDisconnect();
+                    $native = $this->mockSwooleResponse();
+                    $native->fd = 10;
+                    $native->expects('isWritable')->andReturnTrue();
+                    ResponseBridge::send($response, $native);
+                    $sent->push(true);
+
+                    return $continue->pop(2);
+                },
+                'close' => function () use ($sent, $continue): void {
+                    $this->assertTrue($sent->pop(1));
+                    usleep(1000);
+                    ResponseCancellation::cancel(10);
+                    $continue->push(true);
+                },
+            ]);
+
+            $this->assertTrue($results['producer']);
+        } finally {
+            $sent->close();
+            $continue->close();
+        }
+    }
+
+    public function testAlreadyDisconnectedClientDoesNotStartAnOptedInProducer(): void
+    {
+        $started = false;
+        $response = (new IterableStreamedResponse((static function () use (&$started): iterable {
+            $started = true;
+            yield 'body';
+        })()))->cancelOnDisconnect();
+        $native = $this->mockSwooleResponse();
+        $native->expects('isWritable')->andReturnFalse();
+        $native->shouldNotReceive('write');
+
+        try {
+            ResponseBridge::send($response, $native);
+            $this->fail('Expected cancellation before producing the response.');
+        } catch (CanceledException) {
+            $this->assertFalse($started);
+        }
     }
 
     public function testHeaderFailureThrowsBeforeBody(): void

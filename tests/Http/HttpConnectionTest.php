@@ -17,6 +17,12 @@ use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Http\Message\RequestInterface;
 use ReflectionMethod;
+use Swoole\Coroutine;
+use Swoole\Coroutine\Channel;
+use Swoole\Coroutine\Http\Server;
+use Swoole\Http\Request as ServerRequest;
+use Swoole\Http\Response as ServerResponse;
+use Throwable;
 
 use function Hypervel\Coroutine\parallel;
 use function Hypervel\Coroutine\run;
@@ -52,6 +58,64 @@ class HttpConnectionTest extends TestCase
         $this->assertSame(array_fill(0, 10, 'handler-1'), $responses);
         $this->assertCount(1, $factory->createdHandlerOptions);
         $this->assertCount(10, $factory->invocations);
+    }
+
+    public function testNamedBufferedRequestsReuseConnectionsAcrossConcurrentBursts(): void
+    {
+        // @TODO Unskip once Guzzle supports configurable idle-handle retention and Hypervel uses it for named buffered requests.
+        $this->markTestSkipped('Guzzle limits the synchronous handler to three idle handles.');
+
+        $bursts = [];
+        $failure = null;
+
+        run(function () use (&$bursts, &$failure): void {
+            $server = new Server('127.0.0.1', 0, false, false);
+            $ready = new Channel(4);
+            $arrived = 0;
+            $factory = (new Factory)->registerConnection('api');
+
+            $server->handle('/', static function (ServerRequest $request, ServerResponse $response) use ($ready, &$arrived): void {
+                // Hold each burst until all four requests own an active connection.
+                if (++$arrived % 4 === 0) {
+                    for ($index = 0; $index < 4; ++$index) {
+                        $ready->push(true);
+                    }
+                }
+
+                if ($ready->pop(2) !== true) {
+                    $response->status(503);
+                    $response->end('Not all requests reached the barrier.');
+
+                    return;
+                }
+
+                $response->end((string) $request->server['remote_port']);
+            });
+            Coroutine::create(fn (): bool => $server->start());
+            $url = 'http://127.0.0.1:' . $server->port;
+
+            try {
+                for ($burst = 0; $burst < 2; ++$burst) {
+                    $bursts[] = parallel(array_fill(0, 4, fn (): string => $factory->connection('api')
+                        ->withOptions(['proxy' => '', 'version' => '1.1'])
+                        ->timeout(3)->get($url)->throw()->body()));
+                }
+            } catch (Throwable $exception) {
+                $failure = $exception;
+            } finally {
+                $factory->forgetConnectionHandlers();
+                $server->shutdown();
+                $ready->close();
+            }
+        });
+
+        if ($failure !== null) {
+            throw $failure;
+        }
+
+        $this->assertCount(4, array_unique($bursts[0]));
+        $this->assertCount(4, array_unique($bursts[1]));
+        $this->assertCount(4, array_unique(array_merge(...$bursts)), 'The second burst opened another connection instead of reusing all four warm connections.');
     }
 
     public function testEachRequestKeepsItsOwnMiddlewareStack(): void

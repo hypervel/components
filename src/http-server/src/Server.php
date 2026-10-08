@@ -144,6 +144,7 @@ class Server implements OnRequestInterface, BootstrapsForServer
                         withBody: ! isset($rawMethod) || $rawMethod !== 'HEAD',
                         protocol: is_string($protocol) ? $protocol : 'HTTP/1.1',
                         request: $request ?? null,
+                        streamId: $swooleRequest->streamId ?? 0,
                     );
                 } catch (CanceledException $throwable) {
                     $cancellation = $throwable;

@@ -13,7 +13,7 @@ class JsonSchemaTypeFactory extends JsonSchema implements JsonSchemaContract
     /**
      * Create a new object schema instance.
      *
-     * @param array<string, Type>|(Closure(JsonSchemaTypeFactory): array<string, Type>) $properties
+     * @param array<int|string, Type>|(Closure(JsonSchemaTypeFactory): array<int|string, Type>) $properties
      */
     public function object(Closure|array $properties = []): Types\ObjectType
     {

@@ -11,6 +11,8 @@ Hypervel omits Laravel's legacy `Storage::cloud()` / `filesystem.cloud` default-
 
 Hypervel's `Filesystem::hash()` method uses `xxh128` by default instead of `md5`. Pass `md5` explicitly when Laravel-compatible digests are required.
 
+Custom implementations of `Hypervel\Contracts\Filesystem\Filesystem` must provide `fileExists()` and `directoryExists()` as well as `exists()`, which accepts either kind of path.
+
 The configured disk name `ondemand` is reserved. Disks explicitly set under that name, including fakes, intercept anonymous `build()` calls; configured disks with that name are rejected on resolution.
 
 Hypervel pools S3 and Google Cloud Storage SDK clients rather than complete disk adapters. Disks with equivalent client construction config share the expensive client pool while retaining their own bucket, root, visibility, and callback behavior. Pooled disks expose raw internals only through borrow-scoped `withClient()`, `withDriver()`, and `withAdapter()` callbacks.

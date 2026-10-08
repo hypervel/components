@@ -10,6 +10,7 @@ use Hypervel\Testbench\Foundation\Env;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class WithEnvTest extends TestCase
 {
@@ -66,6 +67,36 @@ class WithEnvTest extends TestCase
     public function itDoesNotPersistDefinedEnvVariablesBetweenTests(): void
     {
         $this->assertNull(Env::get('TESTING_USING_ATTRIBUTE'));
+    }
+
+    #[Test]
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function itRestoresValuesAfterScopedEnvironmentChanges(bool $hasOriginalValue): void
+    {
+        $key = 'TESTBENCH_ATTRIBUTE_OWNERSHIP';
+
+        $this->withEnvironmentValue($key, null, function () use ($key, $hasOriginalValue): void {
+            $originalValue = $hasOriginalValue ? '"original"' : null;
+
+            if ($originalValue !== null) {
+                Env::getRepository()->set($key, $originalValue);
+            }
+
+            $restore = (new WithEnv($key, 'temporary'))(m::mock(ApplicationContract::class));
+
+            try {
+                $this->assertSame('temporary', Env::get($key));
+
+                $this->withEnvironmentValue('TESTBENCH_OTHER_ATTRIBUTE_SETTING', 'other', static fn () => null);
+
+                $this->assertSame('temporary', Env::get($key));
+            } finally {
+                $restore();
+            }
+
+            $this->assertSame($originalValue, Env::getRepository()->get($key));
+        });
     }
 
     #[Test]
