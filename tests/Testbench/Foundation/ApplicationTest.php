@@ -12,6 +12,7 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
 use Hypervel\Foundation\Http\Kernel as HttpKernel;
+use Hypervel\Foundation\Testing\Concerns\InteractsWithEnvironment;
 use Hypervel\Http\Request;
 use Hypervel\Testbench\Foundation\Application as TestbenchApplication;
 use Hypervel\Testbench\Foundation\Bootstrap\LoadMigrationsFromArray;
@@ -36,6 +37,8 @@ use function Hypervel\Testbench\package_path;
 
 class ApplicationTest extends TestCase
 {
+    use InteractsWithEnvironment;
+
     protected string $customApplicationPath;
 
     protected function setUp(): void
@@ -150,28 +153,30 @@ class ApplicationTest extends TestCase
         array $environment,
         bool $includesDefaultMigrations,
     ): void {
-        $app = TestbenchApplication::create(
-            (string) default_skeleton_path(),
-            static function (ApplicationContract $app): void {
-                (new LoadMigrationsFromArray([]))->bootstrap($app);
-            },
-            ['extra' => ['env' => $environment]],
-        );
-
-        try {
-            $this->assertSame(
-                $includesDefaultMigrations,
-                in_array(default_migration_path(), $app->make('migrator')->paths(), true),
+        // Creating the application replaces Env's repository after loading the value,
+        // so Env::forget() can no longer clear it; restore every source instead.
+        $this->withEnvironmentValue('TESTBENCH_WITHOUT_DEFAULT_MIGRATIONS', null, function () use ($environment, $includesDefaultMigrations): void {
+            $app = TestbenchApplication::create(
+                (string) default_skeleton_path(),
+                static function (ApplicationContract $app): void {
+                    (new LoadMigrationsFromArray([]))->bootstrap($app);
+                },
+                ['extra' => ['env' => $environment]],
             );
-        } finally {
-            Env::forget('TESTBENCH_WITHOUT_DEFAULT_MIGRATIONS');
 
             try {
-                $app->terminate();
+                $this->assertSame(
+                    $includesDefaultMigrations,
+                    in_array(default_migration_path(), $app->make('migrator')->paths(), true),
+                );
             } finally {
-                $app->flush();
+                try {
+                    $app->terminate();
+                } finally {
+                    $app->flush();
+                }
             }
-        }
+        });
     }
 
     /**
