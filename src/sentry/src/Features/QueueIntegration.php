@@ -31,7 +31,7 @@ use function Sentry\continueTrace;
 use function Sentry\getBaggage;
 use function Sentry\getTraceparent;
 
-class QueueFeature extends Feature
+class QueueIntegration extends Feature
 {
     use TracksPushedScopesAndSpans {
         pushScope as private pushScopeTrait;

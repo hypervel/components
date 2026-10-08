@@ -7,10 +7,10 @@ namespace Hypervel\Tests\Sentry\Console;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Sentry\Console\PublishCommand;
 use Hypervel\Testing\ParallelTesting;
-use Hypervel\Tests\Sentry\SentryTestCase;
+use Hypervel\Tests\Sentry\TestCase;
 use ReflectionMethod;
 
-class PublishCommandTest extends SentryTestCase
+class PublishCommandTest extends TestCase
 {
     public function testIsEnvKeySetTreatsRegexMetacharactersAsLiterals(): void
     {

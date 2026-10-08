@@ -24,7 +24,7 @@ use Sentry\Tracing\SpanStatus;
 use Sentry\Tracing\TransactionContext;
 use Sentry\Tracing\TransactionSource;
 
-class ConsoleSchedulingFeature extends Feature
+class ConsoleSchedulingIntegration extends Feature
 {
     use TracksPushedScopesAndSpans;
 

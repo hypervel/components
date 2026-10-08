@@ -117,7 +117,7 @@ class TestCommand extends Command
         }
 
         // Set the Hypervel SDK identifier and version
-        $clientBuilder->setSdkIdentifier(Version::getSdkIdentifier());
+        $clientBuilder->setSdkIdentifier(Version::SDK_IDENTIFIER);
         $clientBuilder->setSdkVersion(Version::getSdkVersion());
 
         // We set a logger so we can surface errors thrown internally by the SDK

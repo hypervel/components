@@ -37,7 +37,7 @@ use Throwable;
 use function Sentry\logger;
 use function Sentry\traceMetrics;
 
-class WebSocketRuntimeContextTest extends SentryTestCase
+class WebSocketRuntimeContextTest extends TestCase
 {
     public function testRejectedHandshakeFlushesTelemetryRecordedBeforeValidation(): void
     {

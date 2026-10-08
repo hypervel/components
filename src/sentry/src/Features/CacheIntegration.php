@@ -29,7 +29,7 @@ use Sentry\Tracing\Span;
 use Sentry\Tracing\SpanContext;
 use Sentry\Tracing\SpanStatus;
 
-class CacheFeature extends Feature
+class CacheIntegration extends Feature
 {
     use WorksWithSpans;
     use TracksPushedScopesAndSpans;

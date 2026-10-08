@@ -12,7 +12,7 @@ use Sentry\EventType;
 use function Sentry\logger;
 use function Sentry\traceMetrics;
 
-class RuntimeContextIsolationTest extends SentryTestCase
+class RuntimeContextIsolationTest extends TestCase
 {
     public function testConcurrentExecutionContextsFlushOnlyTheirOwnLogsAndMetrics(): void
     {

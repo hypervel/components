@@ -12,12 +12,12 @@ use Hypervel\Database\Events\TransactionCommitted;
 use Hypervel\Database\Events\TransactionRolledBack;
 use Hypervel\Database\SQLiteConnection;
 use Hypervel\Support\Facades\DB;
-use Hypervel\Tests\Sentry\SentryTestCase;
+use Hypervel\Tests\Sentry\TestCase;
 use PDO;
 use Sentry\Breadcrumb;
 use Sentry\Tracing\Span;
 
-class DatabaseIntegrationTest extends SentryTestCase
+class DatabaseIntegrationTest extends TestCase
 {
     protected array $defaultSetupConfig = [
         'sentry.traces_sample_rate' => 1.0,

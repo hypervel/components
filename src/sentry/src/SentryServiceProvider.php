@@ -64,10 +64,10 @@ use Throwable;
 class SentryServiceProvider extends ServiceProvider
 {
     /**
-     * Configuration options that are Hypervel-specific and should not be sent to the base PHP SDK.
+     * List of configuration options that are Hypervel specific and should not be sent to the base PHP SDK.
      */
     protected const array HYPERVEL_SPECIFIC_OPTIONS = [
-        // These settings are Hypervel-specific and the PHP SDK will throw errors if it receives them
+        // We do not want these settings to hit the PHP SDK because they are Hypervel specific and the PHP SDK will throw errors
         'tracing',
         'breadcrumbs',
         'features',
@@ -79,7 +79,7 @@ class SentryServiceProvider extends ServiceProvider
     ];
 
     /**
-     * Options that should be resolved from the container instead of being passed directly to the SDK.
+     * List of options that should be resolved from the container instead of being passed directly to the SDK.
      */
     protected const array OPTIONS_TO_RESOLVE_FROM_CONTAINER = [
         'logger',
@@ -200,7 +200,7 @@ class SentryServiceProvider extends ServiceProvider
                 $userConfig
             );
 
-            // Default to the application environment when not explicitly configured
+            // When we get no environment from the (user) configuration we default to the Hypervel environment
             if (empty($options['environment'])) {
                 $options['environment'] = $this->app->environment();
             }
@@ -213,7 +213,8 @@ class SentryServiceProvider extends ServiceProvider
 
             $clientBuilder = ClientBuilder::create($options);
 
-            $clientBuilder->setSdkIdentifier(Version::getSdkIdentifier());
+            // Set the Hypervel SDK identifier and version
+            $clientBuilder->setSdkIdentifier(Version::SDK_IDENTIFIER);
             $clientBuilder->setSdkVersion(Version::getSdkVersion());
 
             // Set the pooled transport for async sending via Swoole coroutines
@@ -247,8 +248,9 @@ class SentryServiceProvider extends ServiceProvider
 
             $options->setIntegrations(static function (array $integrations) use ($options, $userIntegrations, $userIntegrationOption): array {
                 if ($options->hasDefaultIntegrations()) {
-                    // Remove the default error and fatal exception listeners to let the framework handle those
-                    // through the exception handler and log channel integration
+                    // Remove the default error and fatal exception listeners to let Hypervel handle those
+                    // itself. These events still bubble up through the documented changes in the user's
+                    // `ExceptionHandler` of their application or through the log channel integration to Sentry
                     $integrations = array_filter($integrations, static function (IntegrationInterface $integration): bool {
                         if ($integration instanceof SdkIntegration\ErrorListenerIntegration) {
                             return false;
@@ -262,8 +264,9 @@ class SentryServiceProvider extends ServiceProvider
                             return false;
                         }
 
-                        // Remove the default request integration so it can be re-added with
-                        // a Hypervel-specific request fetcher that reads from coroutine context.
+                        // We also remove the default request integration so it can be re-added
+                        // after with a Hypervel specific request fetcher. This way we can resolve
+                        // the request from Hypervel instead of constructing it from the global state
                         if ($integration instanceof SdkIntegration\RequestIntegration) {
                             return false;
                         }
@@ -293,6 +296,9 @@ class SentryServiceProvider extends ServiceProvider
                 return $integrations;
             });
 
+            // Exception handler configuration through withExceptions(..) might run before the real Sentry hub
+            // is instantiated. By copying the scope here we can preserve data that was set on the Scope before
+            // this function was executed.
             $hub = new Hub($clientBuilder->getClient(), $this->cloneCurrentHubScope());
 
             SentrySdk::setCurrentHub($hub);
@@ -607,6 +613,7 @@ class SentryServiceProvider extends ServiceProvider
 
                 $featureInstance->register();
             } catch (Throwable $exception) {
+                // Ensure that features do not break the whole application
                 $this->reportFeatureFailure($feature, 'register', $exception);
             }
         }
@@ -628,6 +635,7 @@ class SentryServiceProvider extends ServiceProvider
                     ? $featureInstance->boot()
                     : $featureInstance->bootInactive();
             } catch (Throwable $exception) {
+                // Ensure that features do not break the whole application
                 $this->reportFeatureFailure(
                     $feature,
                     $active ? 'boot' : 'bootInactive',

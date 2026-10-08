@@ -17,7 +17,7 @@ use Sentry\SentrySdk;
 use Sentry\Tracing\SpanContext;
 use Sentry\Tracing\SpanStatus;
 
-class NotificationsFeature extends Feature
+class NotificationsIntegration extends Feature
 {
     use TracksPushedScopesAndSpans;
 

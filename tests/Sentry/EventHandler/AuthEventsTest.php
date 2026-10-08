@@ -7,10 +7,10 @@ namespace Hypervel\Tests\Sentry\EventHandler;
 use Hypervel\Auth\Events\Authenticated;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Tests\Sentry\SentryTestCase;
+use Hypervel\Tests\Sentry\TestCase;
 use Swoole\Coroutine\CanceledException;
 
-class AuthEventsTest extends SentryTestCase
+class AuthEventsTest extends TestCase
 {
     protected array $setupConfig = [
         'sentry.send_default_pii' => true,

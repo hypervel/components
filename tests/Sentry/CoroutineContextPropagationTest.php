@@ -22,7 +22,7 @@ use Swoole\Coroutine\Channel;
 use function Sentry\logger;
 use function Sentry\traceMetrics;
 
-class CoroutineContextPropagationTest extends SentryTestCase
+class CoroutineContextPropagationTest extends TestCase
 {
     public function testOrdinaryChildCoroutinesCloneParentSentryState(): void
     {

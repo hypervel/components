@@ -17,7 +17,7 @@ use Hypervel\Http\Request;
 use Hypervel\Routing\Events\PreparingResponse;
 use Hypervel\Routing\Events\ResponsePrepared;
 use Hypervel\Sentry\Tracing\EventHandler;
-use Hypervel\Tests\Sentry\SentryTestCase;
+use Hypervel\Tests\Sentry\TestCase;
 use Mockery as m;
 use PDO;
 use ReflectionClass;
@@ -28,7 +28,7 @@ use Sentry\Tracing\SpanStatus;
 use Swoole\Coroutine\Channel;
 use Symfony\Component\HttpFoundation\Response;
 
-class EventHandlerTest extends SentryTestCase
+class EventHandlerTest extends TestCase
 {
     protected array $defaultSetupConfig = [
         'sentry.traces_sample_rate' => 1.0,

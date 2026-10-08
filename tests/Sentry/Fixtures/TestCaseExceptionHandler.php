@@ -13,7 +13,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
 /**
- * Proxy class that injects Sentry exception capture into the test exception handler.
+ * This is a proxy class, so we can inject the Sentry bits while running tests and handle exceptions like "normal".
  */
 class TestCaseExceptionHandler implements ExceptionHandler
 {

@@ -6,11 +6,11 @@ namespace Hypervel\Tests\Sentry\Http;
 
 use Hypervel\Routing\Router;
 use Hypervel\Sentry\Http\HypervelRequestFetcher;
-use Hypervel\Tests\Sentry\SentryTestCase;
+use Hypervel\Tests\Sentry\TestCase;
 use Psr\Http\Message\ServerRequestInterface;
 use ReflectionProperty;
 
-class HypervelRequestFetcherTest extends SentryTestCase
+class HypervelRequestFetcherTest extends TestCase
 {
     protected function defineRoutes(Router $router): void
     {

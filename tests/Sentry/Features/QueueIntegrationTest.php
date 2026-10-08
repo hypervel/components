@@ -16,9 +16,9 @@ use Hypervel\Queue\Events\JobQueueingFailed;
 use Hypervel\Queue\Events\WorkerStopping;
 use Hypervel\Queue\Jobs\SyncJob;
 use Hypervel\Queue\SyncQueue;
-use Hypervel\Sentry\Features\QueueFeature;
+use Hypervel\Sentry\Features\QueueIntegration;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
-use Hypervel\Tests\Sentry\SentryTestCase;
+use Hypervel\Tests\Sentry\TestCase;
 use RuntimeException;
 use Sentry\Breadcrumb;
 use Sentry\EventType;
@@ -29,11 +29,11 @@ use function Hypervel\Coroutine\wait;
 use function Sentry\addBreadcrumb;
 use function Sentry\captureException;
 
-class QueueIntegrationTest extends SentryTestCase
+class QueueIntegrationTest extends TestCase
 {
     protected array $defaultSetupConfig = [
         'sentry.features' => [
-            QueueFeature::class,
+            QueueIntegration::class,
         ],
     ];
 
@@ -275,7 +275,7 @@ class QueueIntegrationTest extends SentryTestCase
         $listeners = $this->app->make('events')->getRawListeners()[$event] ?? [];
 
         foreach ($listeners as $listener) {
-            if (is_array($listener) && ($listener[0] ?? null) instanceof QueueFeature) {
+            if (is_array($listener) && ($listener[0] ?? null) instanceof QueueIntegration) {
                 return true;
             }
         }

@@ -6,13 +6,13 @@ namespace Hypervel\Tests\Sentry\Integration;
 
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Sentry\Integration;
-use Hypervel\Tests\Sentry\SentryTestCase;
+use Hypervel\Tests\Sentry\TestCase;
 
 /**
  * Since large parts of the violation reporters are shared between the different types of violations,
  * we try to test only a single type of violation reporter to keep the test cases a bit smaller when possible.
  */
-class ModelViolationReportersTest extends SentryTestCase
+class ModelViolationReportersTest extends TestCase
 {
     public function testModelViolationReportersCanBeRegistered(): void
     {

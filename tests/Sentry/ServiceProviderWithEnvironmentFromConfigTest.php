@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sentry;
 
-class ServiceProviderWithEnvironmentFromConfigTest extends SentryTestCase
+class ServiceProviderWithEnvironmentFromConfigTest extends TestCase
 {
     public function testSentryEnvironmentDefaultsToHypervelEnvironment(): void
     {

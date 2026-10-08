@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-use Hypervel\Sentry\Features\CacheFeature;
+use Hypervel\Sentry\Features\CacheIntegration;
 use Hypervel\Sentry\Features\ConsoleIntegration;
-use Hypervel\Sentry\Features\ConsoleSchedulingFeature;
-use Hypervel\Sentry\Features\LogFeature;
-use Hypervel\Sentry\Features\NotificationsFeature;
-use Hypervel\Sentry\Features\QueueFeature;
+use Hypervel\Sentry\Features\ConsoleSchedulingIntegration;
+use Hypervel\Sentry\Features\LogIntegration;
+use Hypervel\Sentry\Features\NotificationsIntegration;
+use Hypervel\Sentry\Features\QueueIntegration;
 use Hypervel\Sentry\Features\RedisFeature;
 use Hypervel\Sentry\Features\Storage\Integration as StorageIntegration;
 use Hypervel\Validation\ValidationException;
@@ -185,16 +185,17 @@ return [
         EnvironmentIntegration::class,
     ],
 
-    // Feature classes to register (Hypervel loads from config, upstream hardcodes in service provider)
+    // The features that instrument the application. Remove a feature to skip it entirely,
+    // or add your own class that extends `Hypervel\Sentry\Features\Feature`.
     'features' => [
-        CacheFeature::class,
-        QueueFeature::class,
-        NotificationsFeature::class,
-        LogFeature::class,
-        ConsoleIntegration::class,
-        ConsoleSchedulingFeature::class,
+        LogIntegration::class,
+        CacheIntegration::class,
         RedisFeature::class,
+        QueueIntegration::class,
+        ConsoleIntegration::class,
         StorageIntegration::class,
+        NotificationsIntegration::class,
+        ConsoleSchedulingIntegration::class,
     ],
 
     // Exceptions that should not be reported to Sentry

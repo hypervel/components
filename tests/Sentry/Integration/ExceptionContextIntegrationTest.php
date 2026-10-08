@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Sentry\Integration;
 
 use Exception;
 use Hypervel\Sentry\Integration\ExceptionContextIntegration;
-use Hypervel\Tests\Sentry\SentryTestCase;
+use Hypervel\Tests\Sentry\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Sentry\Event;
 use Sentry\EventHint;
@@ -14,7 +14,7 @@ use Sentry\State\Scope;
 
 use function Sentry\withScope;
 
-class ExceptionContextIntegrationTest extends SentryTestCase
+class ExceptionContextIntegrationTest extends TestCase
 {
     public function testExceptionContextIntegrationIsRegistered(): void
     {

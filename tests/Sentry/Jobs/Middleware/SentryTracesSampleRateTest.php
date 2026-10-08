@@ -8,11 +8,11 @@ use Closure;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Sentry\Jobs\Middleware\SentryTracesSampleRate;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
-use Hypervel\Tests\Sentry\SentryTestCase;
+use Hypervel\Tests\Sentry\TestCase;
 use InvalidArgumentException;
 use stdClass;
 
-class SentryTracesSampleRateTest extends SentryTestCase
+class SentryTracesSampleRateTest extends TestCase
 {
     protected function withTracingEnabled(ApplicationContract $app): void
     {

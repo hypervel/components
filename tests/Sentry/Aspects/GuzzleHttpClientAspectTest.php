@@ -11,13 +11,13 @@ use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Psr7\Response;
 use GuzzleHttp\TransferStats;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithAop;
-use Hypervel\Tests\Sentry\SentryTestCase;
+use Hypervel\Tests\Sentry\TestCase;
 use Psr\Http\Message\RequestInterface;
 use RuntimeException;
 use Sentry\SentrySdk;
 use Sentry\Tracing\SpanStatus;
 
-class GuzzleHttpClientAspectTest extends SentryTestCase
+class GuzzleHttpClientAspectTest extends TestCase
 {
     use InteractsWithAop;
 

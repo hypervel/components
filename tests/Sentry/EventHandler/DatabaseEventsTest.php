@@ -6,10 +6,10 @@ namespace Hypervel\Tests\Sentry\EventHandler;
 
 use Hypervel\Database\Connection;
 use Hypervel\Database\Events\QueryExecuted;
-use Hypervel\Tests\Sentry\SentryTestCase;
+use Hypervel\Tests\Sentry\TestCase;
 use Mockery as m;
 
-class DatabaseEventsTest extends SentryTestCase
+class DatabaseEventsTest extends TestCase
 {
     public function testSqlQueriesAreRecordedWhenEnabled(): void
     {

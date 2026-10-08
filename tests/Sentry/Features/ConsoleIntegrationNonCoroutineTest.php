@@ -7,10 +7,10 @@ namespace Hypervel\Tests\Sentry\Features;
 use Hypervel\Console\Command;
 use Hypervel\Console\Events\AfterExecute;
 use Hypervel\Console\Events\BeforeHandle;
-use Hypervel\Tests\Sentry\SentryTestCase;
+use Hypervel\Tests\Sentry\TestCase;
 use Symfony\Component\Console\Input\ArgvInput;
 
-class ConsoleIntegrationNonCoroutineTest extends SentryTestCase
+class ConsoleIntegrationNonCoroutineTest extends TestCase
 {
     protected bool $runTestsInCoroutine = false;
 

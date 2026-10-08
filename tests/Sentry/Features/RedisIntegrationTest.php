@@ -21,14 +21,14 @@ use Hypervel\Redis\Pool\RedisPool;
 use Hypervel\Redis\RedisConfig;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Sentry\Features\RedisFeature;
-use Hypervel\Tests\Sentry\SentryTestCase;
+use Hypervel\Tests\Sentry\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\TestWith;
 use Sentry\SentrySdk;
 use Sentry\State\Hub;
 use Sentry\State\HubInterface;
 
-class RedisIntegrationTest extends SentryTestCase
+class RedisIntegrationTest extends TestCase
 {
     protected function setUp(): void
     {

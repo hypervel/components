@@ -13,7 +13,7 @@ use ReflectionProperty;
 use Sentry\ClientBuilder;
 use Sentry\Transport\TransportInterface;
 
-class ConfigTest extends SentryTestCase
+class ConfigTest extends TestCase
 {
     public function testPoolIsConstructedFromSentryPoolConfig(): void
     {

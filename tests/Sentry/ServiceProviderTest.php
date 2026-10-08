@@ -20,6 +20,7 @@ use Hypervel\Sentry\Tracing\Middleware as TracingMiddleware;
 use Hypervel\Support\Facades\Artisan;
 use LogicException;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\Depends;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Sentry\ClientInterface;
@@ -33,7 +34,7 @@ use Sentry\Transport\Result;
 use Sentry\Transport\ResultStatus;
 use Symfony\Component\HttpFoundation\Response;
 
-class ServiceProviderTest extends SentryTestCase
+class ServiceProviderTest extends TestCase
 {
     protected array $setupConfig = [
         'sentry.error_types' => E_ALL ^ E_DEPRECATED ^ E_USER_DEPRECATED,
@@ -56,11 +57,13 @@ class ServiceProviderTest extends SentryTestCase
         $this->app->register(ConflictingSentryServiceProvider::class);
     }
 
+    #[Depends('testIsBound')]
     public function testEnvironment(): void
     {
         $this->assertEquals('testing', app('sentry')->getClient()->getOptions()->getEnvironment());
     }
 
+    #[Depends('testIsBound')]
     public function testDsnWasSetFromConfig(): void
     {
         $options = app('sentry')->getClient()->getOptions();
@@ -89,6 +92,7 @@ class ServiceProviderTest extends SentryTestCase
         $this->assertSame('preserved', $event->getTags()['configured_before_client'] ?? null);
     }
 
+    #[Depends('testIsBound')]
     public function testErrorTypesWasSetFromConfig(): void
     {
         $this->assertEquals(
@@ -97,6 +101,7 @@ class ServiceProviderTest extends SentryTestCase
         );
     }
 
+    #[Depends('testIsBound')]
     public function testArtisanCommandsAreRegistered(): void
     {
         $this->assertArrayHasKey('sentry:test', Artisan::all());
@@ -366,6 +371,9 @@ class ConflictingSentryServiceProvider extends SentryServiceProvider
 
 class InspectableSentryFeature extends Feature
 {
+    /**
+     * Indicate if the feature is applicable to the current environment.
+     */
     public function isApplicable(): bool
     {
         return true;
@@ -394,16 +402,25 @@ class FailingRegistrationSentryFeature extends Feature
 
     public bool $booted = false;
 
+    /**
+     * Indicate if the feature is applicable to the current environment.
+     */
     public function isApplicable(): bool
     {
         return true;
     }
 
+    /**
+     * Register the feature in the environment.
+     */
     public function register(): void
     {
         throw $this->exception;
     }
 
+    /**
+     * Set up the feature in the environment.
+     */
     public function onBoot(): void
     {
         $this->booted = true;

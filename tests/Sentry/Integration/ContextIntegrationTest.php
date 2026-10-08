@@ -7,12 +7,12 @@ namespace Hypervel\Tests\Sentry\Integration;
 use Exception;
 use Hypervel\Sentry\Integration\ContextIntegration;
 use Hypervel\Support\Facades\Context;
-use Hypervel\Tests\Sentry\SentryTestCase;
+use Hypervel\Tests\Sentry\TestCase;
 use Sentry\EventType;
 
 use function Sentry\captureException;
 
-class ContextIntegrationTest extends SentryTestCase
+class ContextIntegrationTest extends TestCase
 {
     public function testContextIntegrationIsRegistered(): void
     {

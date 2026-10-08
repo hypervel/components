@@ -8,11 +8,11 @@ use Hypervel\Foundation\Console\AboutCommand;
 use Hypervel\Sentry\Hub;
 use Hypervel\Sentry\Version;
 use Hypervel\Support\Facades\Artisan;
-use Hypervel\Tests\Sentry\SentryTestCase;
+use Hypervel\Tests\Sentry\TestCase;
 use Sentry\Client;
 use Sentry\State\HubInterface;
 
-class AboutCommandIntegrationTest extends SentryTestCase
+class AboutCommandIntegrationTest extends TestCase
 {
     public function testAboutCommandContainsExpectedData(): void
     {

@@ -10,19 +10,19 @@ use Hypervel\Console\Events\ScheduledTaskStarting;
 use Hypervel\Console\Scheduling\Event;
 use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Contracts\Queue\ShouldQueue;
-use Hypervel\Sentry\Features\ConsoleSchedulingFeature;
-use Hypervel\Tests\Sentry\SentryTestCase;
+use Hypervel\Sentry\Features\ConsoleSchedulingIntegration;
+use Hypervel\Tests\Sentry\TestCase;
 use RuntimeException;
 use Sentry\Event as SentryEvent;
 use Sentry\EventType;
 use Sentry\Tracing\SpanStatus;
 
-class ConsoleSchedulingIntegrationTest extends SentryTestCase
+class ConsoleSchedulingIntegrationTest extends TestCase
 {
     protected array $defaultSetupConfig = [
         'sentry.traces_sample_rate' => 1.0,
         'sentry.features' => [
-            ConsoleSchedulingFeature::class,
+            ConsoleSchedulingIntegration::class,
         ],
     ];
 
@@ -146,7 +146,7 @@ class ConsoleSchedulingIntegrationTest extends SentryTestCase
             'sentry.dsn' => null,
             'sentry_test.override_dsn' => true,
             'sentry.features' => [
-                ConsoleSchedulingFeature::class,
+                ConsoleSchedulingIntegration::class,
             ],
         ]);
 
@@ -169,14 +169,14 @@ class ConsoleSchedulingIntegrationTest extends SentryTestCase
         $this->resetApplicationWithConfig([
             'sentry.traces_sample_rate' => null,
             'sentry.features' => [
-                ConsoleSchedulingFeature::class,
+                ConsoleSchedulingIntegration::class,
             ],
         ]);
         $listeners = $this->app->make('events')->getRawListeners()[ScheduledTaskStarting::class] ?? [];
 
         foreach ($listeners as $listener) {
             $this->assertFalse(
-                is_array($listener) && ($listener[0] ?? null) instanceof ConsoleSchedulingFeature,
+                is_array($listener) && ($listener[0] ?? null) instanceof ConsoleSchedulingIntegration,
             );
         }
 
@@ -197,7 +197,7 @@ class ConsoleSchedulingIntegrationTest extends SentryTestCase
             'sentry.dsn' => null,
             'sentry_test.override_dsn' => true,
             'sentry.features' => [
-                ConsoleSchedulingFeature::class,
+                ConsoleSchedulingIntegration::class,
             ],
         ]);
 

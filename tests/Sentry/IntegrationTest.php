@@ -17,7 +17,7 @@ use Sentry\Tracing\TransactionSource;
 
 use function Sentry\withScope;
 
-class IntegrationTest extends SentryTestCase
+class IntegrationTest extends TestCase
 {
     public function testIntegrationIsRegistered(): void
     {

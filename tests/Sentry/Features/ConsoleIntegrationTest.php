@@ -10,12 +10,12 @@ use Hypervel\Console\Events\BeforeHandle;
 use Hypervel\Database\QueryException;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Sentry\Features\ConsoleIntegration;
-use Hypervel\Tests\Sentry\SentryTestCase;
+use Hypervel\Tests\Sentry\TestCase;
 use RuntimeException;
 use Sentry\SentrySdk;
 use Symfony\Component\Console\Input\ArgvInput;
 
-class ConsoleIntegrationTest extends SentryTestCase
+class ConsoleIntegrationTest extends TestCase
 {
     public function testCommandBreadcrumbIncludesInputWhenPiiIsEnabled(): void
     {

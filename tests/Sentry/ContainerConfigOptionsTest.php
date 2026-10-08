@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Sentry;
 use Sentry\Logger\DebugFileLogger;
 use Sentry\State\HubInterface;
 
-class ContainerConfigOptionsTest extends SentryTestCase
+class ContainerConfigOptionsTest extends TestCase
 {
     public function testOrgIdIsNullByDefault(): void
     {

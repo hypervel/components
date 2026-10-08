@@ -10,20 +10,20 @@ use Hypervel\Notifications\Events\NotificationFailed;
 use Hypervel\Notifications\Events\NotificationSending;
 use Hypervel\Notifications\Events\NotificationSkipped;
 use Hypervel\Notifications\Messages\MailMessage;
-use Hypervel\Sentry\Features\NotificationsFeature;
+use Hypervel\Sentry\Features\NotificationsIntegration;
 use Hypervel\Support\Facades\Mail;
 use Hypervel\Support\Facades\Notification;
-use Hypervel\Tests\Sentry\SentryTestCase;
+use Hypervel\Tests\Sentry\TestCase;
 use Mockery as m;
 use Sentry\Tracing\Span;
 use Sentry\Tracing\SpanStatus;
 
-class NotificationsIntegrationTest extends SentryTestCase
+class NotificationsIntegrationTest extends TestCase
 {
     protected array $defaultSetupConfig = [
         'sentry.traces_sample_rate' => 1.0,
         'sentry.features' => [
-            NotificationsFeature::class,
+            NotificationsIntegration::class,
         ],
     ];
 
@@ -80,7 +80,7 @@ class NotificationsIntegrationTest extends SentryTestCase
             'sentry' => $this->sentryConfigWith([
                 'traces_sample_rate' => 1.0,
                 'tracing.notifications' => false,
-                'features' => [NotificationsFeature::class],
+                'features' => [NotificationsIntegration::class],
             ]),
         ]);
 
@@ -103,7 +103,7 @@ class NotificationsIntegrationTest extends SentryTestCase
         $this->resetApplicationWithConfig([
             'sentry' => $this->sentryConfigWith([
                 'breadcrumbs.notifications' => false,
-                'features' => [NotificationsFeature::class],
+                'features' => [NotificationsIntegration::class],
             ]),
         ]);
 

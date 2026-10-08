@@ -20,7 +20,7 @@ use RuntimeException;
 use Sentry\Event;
 use Sentry\State\HubInterface;
 
-class LogChannelTest extends SentryTestCase
+class LogChannelTest extends TestCase
 {
     public function testCreatingHandlerWithoutActionLevelConfig(): void
     {

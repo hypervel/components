@@ -22,7 +22,7 @@ use Sentry\Transport\ResultStatus;
 use Swoole\Coroutine\Channel;
 use Swoole\Server;
 
-class EventHandlerTest extends SentryTestCase
+class EventHandlerTest extends TestCase
 {
     public function testMissingEventHandlerThrowsException(): void
     {

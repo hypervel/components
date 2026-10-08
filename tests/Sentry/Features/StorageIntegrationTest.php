@@ -21,7 +21,7 @@ use Hypervel\Sentry\Features\Storage\SentryS3V3Adapter;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\Facades\Storage;
 use Hypervel\Testing\ParallelTesting;
-use Hypervel\Tests\Sentry\SentryTestCase;
+use Hypervel\Tests\Sentry\TestCase;
 use InvalidArgumentException;
 use League\Flysystem\Filesystem as Flysystem;
 use League\Flysystem\Local\LocalFilesystemAdapter;
@@ -30,7 +30,7 @@ use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionClass;
 use ReflectionMethod;
 
-class StorageIntegrationTest extends SentryTestCase
+class StorageIntegrationTest extends TestCase
 {
     protected array $defaultSetupConfig = [
         'sentry.traces_sample_rate' => 1.0,

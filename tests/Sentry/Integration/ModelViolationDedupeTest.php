@@ -8,14 +8,14 @@ use Exception;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Sentry\Integration\ModelViolations\ModelViolationReporter;
-use Hypervel\Tests\Sentry\SentryTestCase;
+use Hypervel\Tests\Sentry\TestCase;
 use Swoole\Coroutine\Channel;
 
 /**
  * Verify that model violation dedupe is per-request (coroutine-scoped),
  * not per-worker (instance property on a long-lived object).
  */
-class ModelViolationDedupeTest extends SentryTestCase
+class ModelViolationDedupeTest extends TestCase
 {
     public function testDedupeIsIsolatedBetweenCoroutines(): void
     {

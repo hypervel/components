@@ -8,7 +8,7 @@ use Hypervel\Sentry\LogChannel;
 use Hypervel\Sentry\Logs\LogChannel as LogsLogChannel;
 use Hypervel\Support\Facades\Log;
 
-class LogFeature extends Feature
+class LogIntegration extends Feature
 {
     public function isApplicable(): bool
     {

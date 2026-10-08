@@ -8,7 +8,7 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Events\TransactionBeginning;
-use Hypervel\Sentry\Features\CacheFeature;
+use Hypervel\Sentry\Features\CacheIntegration;
 use Hypervel\Sentry\Integration;
 use Hypervel\Sentry\Tracing\EventHandler as TracingEventHandler;
 use Mockery as m;
@@ -22,7 +22,7 @@ use Swoole\Coroutine\Channel;
  * Verifies that instance properties and static properties used for per-request
  * mutable state are properly isolated between concurrent coroutines.
  */
-class CoroutineSafetyTest extends SentryTestCase
+class CoroutineSafetyTest extends TestCase
 {
     public function testIntegrationTransactionNameIsIsolatedPerCoroutine(): void
     {
@@ -92,9 +92,9 @@ class CoroutineSafetyTest extends SentryTestCase
     {
         // The trait uses Context keys namespaced by class name.
         // Verify that different coroutines get independent stacks.
-        $featureClass = 'Hypervel\Sentry\Features\CacheFeature';
-        $scopeKey = CacheFeature::SPANS_CONTEXT_PREFIX . $featureClass . '.scope_count';
-        $currentSpansKey = CacheFeature::SPANS_CONTEXT_PREFIX . $featureClass . '.current_spans';
+        $featureClass = CacheIntegration::class;
+        $scopeKey = CacheIntegration::SPANS_CONTEXT_PREFIX . $featureClass . '.scope_count';
+        $currentSpansKey = CacheIntegration::SPANS_CONTEXT_PREFIX . $featureClass . '.current_spans';
 
         // Simulate pushing scope/span state in parent
         CoroutineContext::set($scopeKey, 3);

@@ -7,27 +7,27 @@ namespace Hypervel\Tests\Sentry\Features;
 use Hypervel\Cache\Events\RetrievingKey;
 use Hypervel\Cache\Repository;
 use Hypervel\Contracts\Cache\Store;
-use Hypervel\Sentry\Features\CacheFeature;
+use Hypervel\Sentry\Features\CacheIntegration;
 use Hypervel\Support\Facades\Cache;
-use Hypervel\Tests\Sentry\SentryTestCase;
+use Hypervel\Tests\Sentry\TestCase;
 use Mockery as m;
 use RuntimeException;
 use Sentry\Tracing\Span;
 use Sentry\Tracing\SpanStatus;
 
-class CacheIntegrationTest extends SentryTestCase
+class CacheIntegrationTest extends TestCase
 {
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->app->make(CacheFeature::class)->detectSessionKeyOnConsole = true;
+        $this->app->make(CacheIntegration::class)->detectSessionKeyOnConsole = true;
     }
 
     protected array $defaultSetupConfig = [
         'sentry.traces_sample_rate' => 1.0,
         'sentry.features' => [
-            CacheFeature::class,
+            CacheIntegration::class,
         ],
     ];
 

@@ -46,6 +46,6 @@ class HttpTransportPool extends ObjectPool
      */
     protected function getHttpClient(): HttpClientInterface
     {
-        return new HttpClient(Version::getSdkIdentifier(), Version::getSdkVersion());
+        return new HttpClient(Version::SDK_IDENTIFIER, Version::getSdkVersion());
     }
 }

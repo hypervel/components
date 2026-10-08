@@ -6,16 +6,16 @@ namespace Hypervel\Tests\Sentry\Features;
 
 use Hypervel\Config\Repository;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
-use Hypervel\Sentry\Features\LogFeature;
+use Hypervel\Sentry\Features\LogIntegration;
 use Hypervel\Support\Facades\Log;
-use Hypervel\Tests\Sentry\SentryTestCase;
+use Hypervel\Tests\Sentry\TestCase;
 use Sentry\Severity;
 
-class LogIntegrationTest extends SentryTestCase
+class LogIntegrationTest extends TestCase
 {
     protected array $defaultSetupConfig = [
         'sentry.features' => [
-            LogFeature::class,
+            LogIntegration::class,
         ],
     ];
 
@@ -48,7 +48,7 @@ class LogIntegrationTest extends SentryTestCase
             'sentry.dsn' => null,
             'sentry_test.override_dsn' => true,
             'sentry.features' => [
-                LogFeature::class,
+                LogIntegration::class,
             ],
         ]);
 

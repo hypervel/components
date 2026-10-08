@@ -7,20 +7,20 @@ namespace Hypervel\Tests\Sentry\Features;
 use Exception;
 use Hypervel\Config\Repository;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
-use Hypervel\Sentry\Features\LogFeature;
+use Hypervel\Sentry\Features\LogIntegration;
 use Hypervel\Support\Facades\Log;
-use Hypervel\Tests\Sentry\SentryTestCase;
+use Hypervel\Tests\Sentry\TestCase;
 use Sentry\EventType;
 use Sentry\Logs\Log as SentryLog;
 use Sentry\Logs\LogLevel;
 
 use function Sentry\logger;
 
-class LogLogsIntegrationTest extends SentryTestCase
+class LogLogsIntegrationTest extends TestCase
 {
     protected array $defaultSetupConfig = [
         'sentry.features' => [
-            LogFeature::class,
+            LogIntegration::class,
         ],
     ];
 
@@ -53,7 +53,7 @@ class LogLogsIntegrationTest extends SentryTestCase
             'sentry.dsn' => null,
             'sentry_test.override_dsn' => true,
             'sentry.features' => [
-                LogFeature::class,
+                LogIntegration::class,
             ],
         ]);
 
@@ -118,7 +118,7 @@ class LogLogsIntegrationTest extends SentryTestCase
         $this->resetApplicationWithConfig([
             'sentry.log_flush_threshold' => 2,
             'sentry.features' => [
-                LogFeature::class,
+                LogIntegration::class,
             ],
         ]);
 
@@ -142,7 +142,7 @@ class LogLogsIntegrationTest extends SentryTestCase
         $this->resetApplicationWithConfig([
             'sentry.log_flush_threshold' => null,
             'sentry.features' => [
-                LogFeature::class,
+                LogIntegration::class,
             ],
         ]);
 

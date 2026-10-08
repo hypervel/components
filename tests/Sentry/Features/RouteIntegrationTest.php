@@ -6,9 +6,9 @@ namespace Hypervel\Tests\Sentry\Features;
 
 use Hypervel\Routing\Router;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
-use Hypervel\Tests\Sentry\SentryTestCase;
+use Hypervel\Tests\Sentry\TestCase;
 
-class RouteIntegrationTest extends SentryTestCase
+class RouteIntegrationTest extends TestCase
 {
     protected function defineRoutes(Router $router): void
     {

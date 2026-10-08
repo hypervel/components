@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Sentry\Features;
 
 use Hypervel\Sentry\SentryServiceProvider;
 use Hypervel\Sentry\Tracing\ViewEngineDecorator;
-use Hypervel\Tests\Sentry\SentryTestCase;
+use Hypervel\Tests\Sentry\TestCase;
 use Hypervel\View\Engines\EngineResolver;
 use Hypervel\View\Factory;
 use ReflectionProperty;
@@ -14,7 +14,7 @@ use Sentry\Tracing\Transaction;
 
 use function Hypervel\Coroutine\parallel;
 
-class ViewEngineDecoratorTest extends SentryTestCase
+class ViewEngineDecoratorTest extends TestCase
 {
     protected array $defaultSetupConfig = [
         'sentry.traces_sample_rate' => 1.0,

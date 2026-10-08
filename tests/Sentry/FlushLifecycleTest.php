@@ -16,8 +16,8 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Queue\Events\WorkerStopping;
 use Hypervel\Queue\WorkerStopReason;
 use Hypervel\Sentry\Features\ConsoleIntegration as ConsoleFeature;
-use Hypervel\Sentry\Features\ConsoleSchedulingFeature;
-use Hypervel\Sentry\Features\QueueFeature;
+use Hypervel\Sentry\Features\ConsoleSchedulingIntegration;
+use Hypervel\Sentry\Features\QueueIntegration;
 use Hypervel\Sentry\Integration;
 use Hypervel\Sentry\SentryConfig;
 use Hypervel\Sentry\State\CoroutineRuntimeContextStorage;
@@ -157,7 +157,7 @@ class FlushLifecycleTest extends TestCase
             ->with(2)
             ->ordered()
             ->andReturn(new Result(ResultStatus::success()));
-        $feature = new QueueFeature(m::mock(Container::class));
+        $feature = new QueueIntegration(m::mock(Container::class));
 
         $this->withHub(
             new Hub($client),
@@ -172,7 +172,7 @@ class FlushLifecycleTest extends TestCase
         $client = m::mock(ClientInterface::class);
         $client->shouldReceive('getOptions')->never();
         $client->shouldReceive('flush')->never();
-        $feature = new QueueFeature(m::mock(Container::class));
+        $feature = new QueueIntegration(m::mock(Container::class));
 
         $this->withHub(new Hub($client), static function () use ($feature): void {
             $feature->handleWorkerStoppingQueueEvent(new WorkerStopping(terminatesImmediately: true));
@@ -218,7 +218,7 @@ class FlushLifecycleTest extends TestCase
     public function testScheduledTaskCompletionFlushesAtExecutionEnd(): void
     {
         $this->assertScheduledTaskFlushesAtExecutionEnd(static function (
-            ConsoleSchedulingFeature $feature,
+            ConsoleSchedulingIntegration $feature,
             ScheduledEvent $event
         ): void {
             $feature->handleScheduledTaskFinished(new ScheduledTaskFinished($event, 0.0));
@@ -227,7 +227,7 @@ class FlushLifecycleTest extends TestCase
 
     public function testScheduledTaskFailureFlushesAtExecutionEnd(): void
     {
-        $this->assertScheduledTaskFlushesAtExecutionEnd(static function (ConsoleSchedulingFeature $feature): void {
+        $this->assertScheduledTaskFlushesAtExecutionEnd(static function (ConsoleSchedulingIntegration $feature): void {
             $feature->handleScheduledTaskFailed();
         });
     }
@@ -235,7 +235,7 @@ class FlushLifecycleTest extends TestCase
     public function testDuplicateScheduledTaskCompletionDoesNotFlushAgain(): void
     {
         $this->assertScheduledTaskFlushesAtExecutionEnd(static function (
-            ConsoleSchedulingFeature $feature,
+            ConsoleSchedulingIntegration $feature,
             ScheduledEvent $event
         ): void {
             $finished = new ScheduledTaskFinished($event, 0.0);
@@ -248,7 +248,7 @@ class FlushLifecycleTest extends TestCase
     public function testScheduledTaskCompletionFollowedByFailureFlushesOnce(): void
     {
         $this->assertScheduledTaskFlushesAtExecutionEnd(static function (
-            ConsoleSchedulingFeature $feature,
+            ConsoleSchedulingIntegration $feature,
             ScheduledEvent $event
         ): void {
             $feature->handleScheduledTaskFinished(new ScheduledTaskFinished($event, 0.0));
@@ -259,7 +259,7 @@ class FlushLifecycleTest extends TestCase
     /**
      * Assert that a scheduled task terminal sequence flushes at execution end.
      *
-     * @param callable(ConsoleSchedulingFeature, ScheduledEvent): void $terminal
+     * @param callable(ConsoleSchedulingIntegration, ScheduledEvent): void $terminal
      */
     private function assertScheduledTaskFlushesAtExecutionEnd(callable $terminal): void
     {
@@ -278,7 +278,7 @@ class FlushLifecycleTest extends TestCase
                 return new Result(ResultStatus::success());
             });
 
-        $feature = new ConsoleSchedulingFeature(m::mock(Container::class));
+        $feature = new ConsoleSchedulingIntegration(m::mock(Container::class));
         $event = (new ScheduledEvent(m::mock(EventMutex::class)))->description('Scheduled task');
         $hub = new Hub($client);
         $storage = new CoroutineRuntimeContextStorage;

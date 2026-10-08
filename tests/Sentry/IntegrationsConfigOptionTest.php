@@ -12,7 +12,7 @@ use Sentry\Integration\ExceptionListenerIntegration;
 use Sentry\Integration\FatalErrorListenerIntegration;
 use Sentry\Integration\IntegrationInterface;
 
-class IntegrationsConfigOptionTest extends SentryTestCase
+class IntegrationsConfigOptionTest extends TestCase
 {
     protected function defineEnvironment(ApplicationContract $app): void
     {

@@ -19,7 +19,7 @@ use Hypervel\WebSocketServer\Events\MessageReceived;
 use Mockery as m;
 use ReflectionFunction;
 
-class ServiceProviderListenerRegistrationTest extends SentryTestCase
+class ServiceProviderListenerRegistrationTest extends TestCase
 {
     protected array $defaultSetupConfig = [
         'sentry.traces_sample_rate' => 1.0,
@@ -120,12 +120,17 @@ class ServiceProviderListenerRegistrationTest extends SentryTestCase
         );
     }
 
+    /**
+     * Get the event dispatcher.
+     */
     private function getEventDispatcher(): Dispatcher
     {
-        /** @var Dispatcher $dispatcher */
         return app('events');
     }
 
+    /**
+     * Count the listeners that call the given method.
+     */
     private function countMethodListeners(string $eventClass, string $method): int
     {
         $listeners = $this->getEventDispatcher()->getRawListeners()[$eventClass] ?? [];
@@ -137,6 +142,9 @@ class ServiceProviderListenerRegistrationTest extends SentryTestCase
         }));
     }
 
+    /**
+     * Find the index of the listener that calls the given method.
+     */
     private function findMethodListenerIndex(string $eventClass, string $method): ?int
     {
         $listeners = $this->getEventDispatcher()->getRawListeners()[$eventClass] ?? [];
@@ -152,6 +160,9 @@ class ServiceProviderListenerRegistrationTest extends SentryTestCase
         return null;
     }
 
+    /**
+     * Find the index of the Sentry runtime context boundary listener.
+     */
     private function findBoundaryListenerIndex(string $eventClass): ?int
     {
         $listeners = $this->getEventDispatcher()->getRawListeners()[$eventClass] ?? [];
