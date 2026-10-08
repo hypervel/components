@@ -37,8 +37,8 @@ class QueryBuilder extends EloquentBuilder
         // first() ignores its columns once a global scope has selected some,
         // so select() replaces any scope projection with the structural columns.
         $data = $this->toBase()
-            ->select($this->model->qualifyColumns([$lftName, $rgtName, $depthName]))
-            ->where($this->model->getQualifiedKeyName(), '=', $id)
+            ->select($this->qualifyColumns([$lftName, $rgtName, $depthName]))
+            ->where($this->qualifyColumn($this->model->getKeyName()), '=', $id)
             ->first();
 
         if (! $data && $required) {

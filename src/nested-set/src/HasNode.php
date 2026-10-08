@@ -1346,6 +1346,9 @@ trait HasNode
             return $this->makeRoot();
         }
 
+        // The new parent is only looked up when the save runs, so forget a loaded old one.
+        $this->unsetRelation('parent');
+
         return $this->setParentId($value)->setNodeAction('appendToParentId', $value);
     }
 

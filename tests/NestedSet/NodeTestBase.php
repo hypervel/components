@@ -210,6 +210,10 @@ abstract class NodeTestBase extends TestCase
         $data = $this->category::getNodeData($this->key(3));
 
         $this->assertEquals(['_lft' => 3, '_rgt' => 4, 'depth' => 2], $data);
+        $this->assertEquals(
+            ['_lft' => 3, '_rgt' => 4, 'depth' => 2],
+            $this->category::query()->from('categories as aliased_categories')->getNodeData($this->key(3)),
+        );
     }
 
     public function testGetsPlainNodeData(): void
@@ -1375,6 +1379,14 @@ abstract class NodeTestBase extends TestCase
         $this->assertSame($node, $node->setAttribute('parent_id', $this->key(5)));
         $this->assertSame($node, $node->setAttribute('parent_id', $this->key(5)));
         $this->assertSame($node, $node->setAttribute('parent_id', null));
+    }
+
+    public function testParentIdAssignmentForgetsTheLoadedParent(): void
+    {
+        $node = $this->category::with('parent')->findOrFail($this->key(3));
+        $node->parent_id = $this->key(5);
+
+        $this->assertSame($this->key(5), $node->parent->getKey());
     }
 
     public function testFailsToSaveNodeUntilNotInserted(): void
