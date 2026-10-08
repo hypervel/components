@@ -10,7 +10,7 @@ use LogicException;
 
 class ActionsBlockTest extends TestCase
 {
-    public function testArrayable(): void
+    public function testItIsArrayable(): void
     {
         $block = new ActionsBlock;
         $block->button('Example Button');
@@ -30,7 +30,7 @@ class ActionsBlockTest extends TestCase
         ], $block->toArray());
     }
 
-    public function testRequiresAtLeastOneElement(): void
+    public function testItRequiresAtLeastOneElement(): void
     {
         $this->expectException(LogicException::class);
         $this->expectExceptionMessageIs('There must be at least one element in each actions block.');
@@ -39,7 +39,7 @@ class ActionsBlockTest extends TestCase
         $block->toArray();
     }
 
-    public function testDoesNotAllowMoreTwentyFiveElements(): void
+    public function testItDoesNotAllowMoreThanTwentyFiveElements(): void
     {
         $this->expectException(LogicException::class);
         $this->expectExceptionMessageIs('There is a maximum of 25 elements in each actions block.');
@@ -52,7 +52,7 @@ class ActionsBlockTest extends TestCase
         $block->toArray();
     }
 
-    public function testCanManuallySpecifyBlockIdField(): void
+    public function testItCanManuallySpecifyTheBlockIdField(): void
     {
         $block = new ActionsBlock;
         $block->button('Example Button');
@@ -83,7 +83,7 @@ class ActionsBlockTest extends TestCase
         $this->assertSame('0', $block->toArray()['block_id']);
     }
 
-    public function testBlockIdCantExceedTwoFiveFiveCharacters(): void
+    public function testTheBlockIdFieldCannotExceed255Characters(): void
     {
         $this->expectException(LogicException::class);
         $this->expectExceptionMessageIs('Maximum length for the block_id field is 255 characters.');
@@ -105,7 +105,7 @@ class ActionsBlockTest extends TestCase
         $this->assertSame($id, $block->toArray()['block_id']);
     }
 
-    public function testCanAddButtons(): void
+    public function testItCanAddButtons(): void
     {
         $block = new ActionsBlock;
         $block->button('Example Button');
@@ -135,7 +135,7 @@ class ActionsBlockTest extends TestCase
         ], $block->toArray());
     }
 
-    public function testCanAddSelects(): void
+    public function testItCanAddSelects(): void
     {
         $block = new ActionsBlock;
         $block->staticSelect('Example Select')

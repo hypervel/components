@@ -97,7 +97,7 @@ class SectionBlock implements BlockContract
         }
 
         if (is_null($this->text) && empty($this->fields)) {
-            throw new LogicException('A section requires at least one block, or the text to be set.');
+            throw new LogicException('A section requires at least one field, or the text to be set.');
         }
 
         if (count($this->fields) > 10) {
@@ -108,7 +108,7 @@ class SectionBlock implements BlockContract
             'text' => $this->text?->toArray(),
             'block_id' => $this->blockId,
             'accessory' => $this->accessory?->toArray(),
-            'fields' => array_map(fn (Arrayable $element) => $element->toArray(), $this->fields),
+            'fields' => array_map(fn (Arrayable $element): array => $element->toArray(), $this->fields),
         ], static fn (mixed $value): bool => $value !== null && $value !== '' && $value !== []);
 
         return array_merge([

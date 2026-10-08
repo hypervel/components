@@ -9,7 +9,7 @@ use Hypervel\Tests\TestCase;
 
 class ConfirmObjectTest extends TestCase
 {
-    public function testArrayable(): void
+    public function testItIsArrayable(): void
     {
         $object = new ConfirmObject;
 
@@ -33,7 +33,7 @@ class ConfirmObjectTest extends TestCase
         ], $object->toArray());
     }
 
-    public function testTitleIsCustomizable(): void
+    public function testTheTitleFieldIsCustomizable(): void
     {
         $object = new ConfirmObject;
         $object->title('This is a custom title.');
@@ -58,7 +58,7 @@ class ConfirmObjectTest extends TestCase
         ], $object->toArray());
     }
 
-    public function testTitleTruncatedOverOneHundredCharacters(): void
+    public function testTheTitleGetsTruncatedWhenItExceeds100Characters(): void
     {
         $object = new ConfirmObject;
         $object->title(str_repeat('a', 101));
@@ -83,7 +83,7 @@ class ConfirmObjectTest extends TestCase
         ], $object->toArray());
     }
 
-    public function testTextIsCustomizable(): void
+    public function testTheTextFieldIsCustomizable(): void
     {
         $object = new ConfirmObject;
         $object->text('This is some custom text.');
@@ -108,7 +108,7 @@ class ConfirmObjectTest extends TestCase
         ], $object->toArray());
     }
 
-    public function testTextTruncatedOverThreeHundredCharacters(): void
+    public function testTheTextGetsTruncatedWhenItExceeds300Characters(): void
     {
         $objectA = new ConfirmObject(str_repeat('a', 301));
 
@@ -154,7 +154,7 @@ class ConfirmObjectTest extends TestCase
         ], $objectB->toArray());
     }
 
-    public function testConfirmIsCustomizable(): void
+    public function testTheConfirmFieldIsCustomizable(): void
     {
         $object = new ConfirmObject;
         $object->confirm('Custom confirmation button.');
@@ -179,7 +179,7 @@ class ConfirmObjectTest extends TestCase
         ], $object->toArray());
     }
 
-    public function testConfirmTruncatedOverThirtyCharacters(): void
+    public function testTheConfirmFieldIsGetsTruncatedAfter30Characters(): void
     {
         $object = new ConfirmObject;
         $object->confirm(str_repeat('a', 31));
@@ -204,7 +204,7 @@ class ConfirmObjectTest extends TestCase
         ], $object->toArray());
     }
 
-    public function testColorSchemeWithDanger(): void
+    public function testTheColorSchemeCanBeSetToDanger(): void
     {
         $object = new ConfirmObject;
         $object->danger();
@@ -230,7 +230,7 @@ class ConfirmObjectTest extends TestCase
         ], $object->toArray());
     }
 
-    public function testDenyIsCustomizable(): void
+    public function testTheDenyFieldIsCustomizable(): void
     {
         $object = new ConfirmObject;
         $object->deny('Custom deny button.');
@@ -255,7 +255,7 @@ class ConfirmObjectTest extends TestCase
         ], $object->toArray());
     }
 
-    public function testDenyTruncatedOverThirtyCharacters(): void
+    public function testTheDenyFieldIsGetsTruncatedAfter30Characters(): void
     {
         $object = new ConfirmObject;
         $object->deny(str_repeat('a', 31));
