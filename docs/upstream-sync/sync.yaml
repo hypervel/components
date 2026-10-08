@@ -167,9 +167,9 @@ spatie/laravel-permission:
 
 aimeos/laravel-nestedset:
   branch: master
-  checked_through: null
-  last_reviewed_pr: null
-  sync_date: null
+  checked_through: 90ea384febeaaa97967f43b1af9661d4edf2354a
+  last_reviewed_pr: 25
+  sync_date: '2026-10-08'
   notes: The only tracked Nested Set upstream; lazychaser/laravel-nestedset and lunarphp/nestedset are not tracked because Aimeos carries their applicable fixes. src/NodeTrait.php maps to src/nested-set/src/HasNode.php; QueryBuilder, Collection and the relations map to src/nested-set/src/Eloquent; NestedSet and NestedSetServiceProvider keep their names. Hypervel keeps the original package's grouped method order rather than Aimeos's sort by visibility and name, so find upstream changes by method name. Upstream tests keep their class names in tests/NestedSet; tests/models map to tests/NestedSet/Fixtures/Models, and tests/data to the bases' getMockCategories() and getMockMenuItems(). Add ported cases to the shared bases, which also run on MySQL, MariaDB and PostgreSQL through the subclasses in tests/Integration/NestedSet/Database. README.md maps to src/docs/nested-set.md.
 
 PHP-Open-Source-Saver/jwt-auth:
