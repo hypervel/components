@@ -27,6 +27,7 @@ use Hypervel\Http\Client\Factory;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
+use LogicException;
 use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
@@ -599,8 +600,10 @@ class DatabaseConnectionLeaseTest extends TestCase
 
         $failure = $cancel ? new CanceledException('listener canceled') : new RuntimeException('listener failed');
         $fail = true;
-        Event::listen(ConnectionEstablished::class, static function (ConnectionEstablished $event) use ($failure, &$fail): void {
+        $retained = null;
+        Event::listen(ConnectionEstablished::class, static function (ConnectionEstablished $event) use ($failure, &$fail, &$retained): void {
             if ($event->connection->getName() === 'leases' && $fail) {
+                $retained = $event->connection;
                 $fail = false;
                 throw $failure;
             }
@@ -619,6 +622,17 @@ class DatabaseConnectionLeaseTest extends TestCase
         }
 
         $this->assertSame(0, $this->pool()->getManagedCount());
+
+        if (! $reacquire) {
+            try {
+                $retained->getPdo();
+                $this->fail('Expected the failed initial owner to reject a new borrow.');
+            } catch (LogicException) {
+            }
+
+            $this->assertSame(0, $this->pool()->getManagedCount());
+        }
+
         $connection ??= DB::connection('leases');
         $this->assertSame(1, $connection->selectOne('select 1 as value')->value);
         DB::releaseIdleConnections();

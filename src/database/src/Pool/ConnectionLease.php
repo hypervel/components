@@ -61,7 +61,7 @@ class ConnectionLease implements NonCopyableContext
     {
         if ($this->pooledConnection === null) {
             if ($this->ended) {
-                throw new LogicException("This database connection can't be used after the coroutine or task that resolved it has finished. Resolve the connection where you use it.");
+                throw new LogicException('This database connection is no longer available because the coroutine or task that resolved it has finished or failed to set it up. Resolve the connection where you use it.');
             }
 
             /** @var PooledConnection $pooledConnection */
