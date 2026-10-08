@@ -651,6 +651,9 @@ class AiManager extends MultipleInstanceManager
     /**
      * Configure the provider configuration resolver.
      *
+     * Configured providers are rebuilt on every lookup, including those built
+     * by custom creators. Keep custom creators inexpensive and stateless.
+     *
      * Boot-only. The callback is shared by every subsequent AI operation.
      *
      * @param Closure(string, array): array $resolver
@@ -748,6 +751,11 @@ class AiManager extends MultipleInstanceManager
 
     /**
      * Configure context capture for deferred operations.
+     *
+     * The returned runner wraps every stream resumption and AI callback,
+     * including nested failover and sub-agent streams. It must be safe to nest
+     * and inexpensive to re-enter when its context is already active. Return
+     * a runner for a captured empty context too; null means no wrapper.
      *
      * Boot-only. The callback is shared by every subsequent AI operation.
      *
