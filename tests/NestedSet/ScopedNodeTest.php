@@ -52,6 +52,19 @@ class ScopedNodeTest extends ScopedNodeTestBase
         $this->assertSame(0, $node->getDepth());
     }
 
+    public function testRebuildAssignsAGuardedScopeOverNewNodeDefaults(): void
+    {
+        GuardedScopeMenuItem::scoped(['menu_id' => 1])->rebuildTree([
+            ['id' => 2, 'children' => [[]]],
+        ]);
+
+        $child = GuardedScopeMenuItem::where('title', 'untitled')->sole();
+
+        $this->assertSame(1, $child->menu_id);
+        $this->assertSame(2, $child->parent_id);
+        $this->assertTreeNotBroken(1);
+    }
+
     public function testRestoringPartiallySelectedScopedNodeHydratesItsTreeIdentity(): void
     {
         SoftDeletingMenuItem::findOrFail(2)->delete();
@@ -78,6 +91,15 @@ class ScopedNodeTest extends ScopedNodeTestBase
 class NullableMenuItem extends MenuItem
 {
     protected ?string $table = 'nullable_menu_items';
+}
+
+class GuardedScopeMenuItem extends MenuItem
+{
+    protected ?string $table = 'menu_items';
+
+    protected array $attributes = ['menu_id' => 2, 'title' => 'untitled'];
+
+    protected array $fillable = ['parent_id', 'title'];
 }
 
 class SoftDeletingMenuItem extends MenuItem

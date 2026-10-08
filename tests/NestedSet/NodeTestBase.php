@@ -229,11 +229,19 @@ abstract class NodeTestBase extends TestCase
 
     public function testLowLevelMoveDerivesDepthWhenTheCallerOmitsIt(): void
     {
+        $retrieved = 0;
+
+        $this->category::retrieved(function () use (&$retrieved): void {
+            ++$retrieved;
+        });
+
         $this->assertSame(0, $this->category::query()->depthForPosition(21));
         $this->assertSame(3, $this->category::query()->depthForPosition(12));
 
         $this->category::query()->moveNode($this->key(2), 12);
 
+        // Depth lookups read plain rows instead of hydrating partial models.
+        $this->assertSame(0, $retrieved);
         $this->assertSame(3, $this->category::findOrFail($this->key(2))->getDepth());
         $this->assertSame(4, $this->category::findOrFail($this->key(3))->getDepth());
     }

@@ -513,10 +513,12 @@ class QueryBuilder extends EloquentBuilder
     {
         $this->ensureConcreteNestedSetScope('depth lookup');
 
+        // A base read keeps this internal lookup from hydrating a model and firing retrieved listeners.
         $depth = $this->newNestedSetLookupQuery()
             ->where($this->model->getLftName(), '<', $position) /* @phpstan-ignore method.notFound */
             ->where($this->model->getRgtName(), '>=', $position) /* @phpstan-ignore method.notFound */
             ->orderBy($this->model->getLftName(), 'desc') /* @phpstan-ignore method.notFound */
+            ->toBase()
             ->value($this->model->getDepthName()); /* @phpstan-ignore method.notFound */
 
         return $depth === null ? 0 : ((int) $depth + 1);
@@ -1632,7 +1634,10 @@ class QueryBuilder extends EloquentBuilder
             $children = $itemData['children'] ?? null;
 
             if (! isset($itemData[$keyName])) {
-                $model = $this->model->newInstance($scopeAttributes);
+                $model = $this->model->newInstance();
+
+                // Rebuild owns the tree scope, so a guarded scope attribute still applies.
+                $model->setRawAttributes(array_replace($model->getAttributes(), $scopeAttributes));
 
                 // Set temporary values without scheduling a tree action.
                 $model->rawNode(0, 0, $parentId, 0); /* @phpstan-ignore method.notFound */
