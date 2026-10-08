@@ -52,13 +52,18 @@ trait SoftDeletes
 
         $this->forceDeleting = true;
 
-        return tap($this->delete(), function ($deleted) {
+        // Reset the flag even when deletion throws, so a later delete() stays a soft delete.
+        try {
+            $deleted = $this->delete();
+        } finally {
             $this->forceDeleting = false;
+        }
 
-            if ($deleted) {
-                $this->fireModelEvent('forceDeleted', false);
-            }
-        });
+        if ($deleted) {
+            $this->fireModelEvent('forceDeleted', false);
+        }
+
+        return $deleted;
     }
 
     /**
