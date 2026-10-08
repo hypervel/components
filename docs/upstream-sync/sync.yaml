@@ -107,9 +107,10 @@ laravel/scout:
 
 laravel/slack-notification-channel:
   branch: 3.x
-  checked_through: null
+  checked_through: 7b7c3e220a4f7a45cd88d65069f28d4fb4b67281
   last_reviewed_pr: null
-  sync_date: null
+  sync_date: '2026-10-08'
+  notes: Upstream src/ maps to src/slack-notification-channel/src and tests/ to tests/SlackNotificationChannel; the two tests/Slack notification fixtures live in Slack/Fixtures, and the feature tests' sendNotification and assertNotificationSent helpers live in Slack/TestCase. User documentation is the Slack Notifications section of src/docs/notifications.md, which also documents the webhook routes Laravel's docs omit. The Web API channel sends through the slack-notifications HTTP connection (SlackChannel::CONNECTION), so keep connection() when porting request changes. Feature tests fake Slack's API responses instead of calling Slack, and router tests register Mockery channel instances because determineChannel() returns typed channels. Horizon's LongWaitDetected builds both message types; run its test after message API changes.
 
 laravel/telescope:
   branch: 5.x

@@ -6,19 +6,24 @@ namespace Hypervel\Tests\SlackNotificationChannel\Slack\Fixtures;
 
 use Hypervel\Notifications\Notifiable;
 use Hypervel\Notifications\Slack\SlackRoute;
+use Psr\Http\Message\UriInterface;
 
 class SlackChannelTestNotifiable
 {
     use Notifiable;
 
-    protected SlackRoute|string|null $route;
-
-    public function __construct(SlackRoute|string|null $route = null)
-    {
-        $this->route = $route;
+    /**
+     * Create a notifiable with the given Slack route.
+     */
+    public function __construct(
+        protected SlackRoute|UriInterface|string|false|null $route = null
+    ) {
     }
 
-    public function routeNotificationForSlack(): SlackRoute|string|null
+    /**
+     * Get the notification routing information for the Slack channel.
+     */
+    public function routeNotificationForSlack(): SlackRoute|UriInterface|string|false|null
     {
         return $this->route;
     }

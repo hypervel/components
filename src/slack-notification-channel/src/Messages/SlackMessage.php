@@ -5,7 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Notifications\Messages;
 
 use Closure;
+use Hypervel\Notifications\Slack\SlackMessage as BlockKitSlackMessage;
 
+/**
+ * Legacy Slack message with attachments.
+ *
+ * @link https://api.slack.com/legacy/outmoded-messaging
+ * @see  BlockKitSlackMessage
+ */
 class SlackMessage
 {
     /**

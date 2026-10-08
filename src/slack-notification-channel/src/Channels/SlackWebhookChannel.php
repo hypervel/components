@@ -69,7 +69,7 @@ class SlackWebhookChannel
      */
     protected function attachments(LegacySlackMessage $message): array
     {
-        return Collection::make($message->attachments)->map(function ($attachment) use ($message) {
+        return Collection::make($message->attachments)->map(function (SlackAttachment $attachment) use ($message): array {
             return array_filter([
                 'actions' => $attachment->actions,
                 'author_icon' => $attachment->authorIcon,
@@ -98,7 +98,7 @@ class SlackWebhookChannel
      */
     protected function fields(SlackAttachment $attachment): array
     {
-        return Collection::make($attachment->fields)->map(function ($value, $key) {
+        return Collection::make($attachment->fields)->map(function (mixed $value, int|string $key): array {
             if ($value instanceof SlackAttachmentField) {
                 return $value->toArray();
             }
