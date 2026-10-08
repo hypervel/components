@@ -6,7 +6,7 @@ Correct the lifecycle defects reported on [PR #653](https://github.com/hypervel/
 
 Work in `/home/binaryfire/workspace/contrib/hypervel/components`, branch `fix/database-lease-lifecycle`, created from `0.4`. AI package work remains paused in its separate worktree. This is a separate framework PR to complete before returning to AI implementation.
 
-**Status:** implementation, verification and review are complete. PR creation and replies to Albert await owner authorization. Follow monorepo `CLAUDE.md` and this repository's `AGENTS.md`. The peer is `claude-ai`; do not compact the peer during this work. Leave the historical framework plan unchanged; track the paused AI work's dependency in its existing orchestration document.
+**Status:** implementation, verification and review are complete, including failed-initial-owner cleanup. Complete both PRs' remaining CI and bot-review pass before merging. Follow monorepo `CLAUDE.md` and this repository's `AGENTS.md`. The peer is `claude-ai`; do not compact the peer during this work. Leave the historical framework plan unchanged; track the paused AI work's dependency in its existing orchestration document.
 
 Fix confirmed failures at their owning boundary without adding automatic ownership transfer, per-query coroutine checks, SQL parsing, retry machinery or unrelated refactoring. Any newly proposed Laravel API break requires owner approval.
 
@@ -29,16 +29,16 @@ Diagnostic probes at `/tmp/hypervel-ai-port/AlbertReviewProbeTest.php` and `albe
 - Make the lease's existing `release()` and `discard()` terminal: set `$ended` before settling the current pooled connection. Repeated terminal calls with no held slot remain harmless.
 - Keep the two internal non-terminal paths recoverable: `releaseIfIdle()` calls `$this->pooledConnection?->release()` directly, while `discardAfterFailure()` calls `$this->pooledConnection?->discard()` directly and keeps its exception precedence.
 - In `resolvePdo()`, check `$ended` only inside the branch about to borrow a new slot. Throw `LogicException` with an actionable message explaining that the owning execution ended and the caller must resolve its connection where it will be used. Do not add checks to every query.
-- Keep resolver call sites unchanged: the coroutine defer, non-coroutine task release/discard and replacement of a retained non-coroutine owner already call the appropriate terminal methods. Keep connections registered in context until their release/rollback callbacks finish.
+- Failed initial publication must discard the logical owner terminally; fall back to the borrowed wrapper if construction did not return an owner. The coroutine defer, non-coroutine task release/discard and replacement of a retained non-coroutine owner keep their existing terminal calls. Keep connections registered in context until their release/rollback callbacks finish.
 - Release listeners and rollback callbacks may query or reconnect the still-held slot. Set the terminal flag before settlement so a newly awakened consumer cannot reacquire after detachment; do not reject ordinary access to the slot while cleanup still owns it.
-- Ordinary early release, disconnect/reconnect and failed acquisition remain reusable within the live owner. Do not mark every physical discard terminal.
+- Ordinary early release, disconnect/reconnect and failed reacquisition remain reusable within a registered live owner. Do not mark every physical discard terminal.
 
 Core branch, within the existing resolver:
 
 ```php
 if ($this->pooledConnection === null) {
     if ($this->ended) {
-        throw new LogicException("This database connection can't be used after the coroutine or task that resolved it has finished. Resolve the connection where you use it.");
+        throw new LogicException('This database connection is no longer available because the coroutine or task that resolved it has finished or failed to set it up. Resolve the connection where you use it.');
     }
 
     // Existing borrow and attachment.
@@ -120,7 +120,7 @@ Prefer additions to existing tests and data providers. Make each new regression 
 | Existing test area | Required coverage |
 |---|---|
 | `DatabaseConnectionLeaseLifecycleTest::testTerminalCallbacksResolveTheirOwningConnection` | Retain a builder before cleanup; after each existing coroutine/task/failing-listener row, its next acquisition throws and borrowed count stays zero. Preserve callback access during cleanup. |
-| Existing lease recovery/task-cleanup tests | Retained builder survives early release and another borrower; repeated early release/task cleanup; listener-acquisition failure remains recoverable; disconnect/reconnect still works. Extend the existing task test's final `discardConnections()` section to prove that retained owner cannot borrow again either; listener mocks alone do not prove this state transition. |
+| Existing lease recovery/task-cleanup tests | Retained builder survives early release and another borrower; repeated early release/task cleanup; listener failure during reacquisition remains recoverable; disconnect/reconnect still works. Initial publication failure or cancellation leaves its retained connection unable to borrow, while fresh resolution succeeds. Extend the existing task test's final `discardConnections()` section to prove that retained owner cannot borrow again either; listener mocks alone do not prove this state transition. |
 | `DatabaseConnectionLeaseTest::testConfigFirstExtensionsRetainWholeConnectionOwnership` | Preserve top-level case; add single and listed read-record PDO extension cases. Assert returned extension identity, disabled leases and unaffected early release. Retain mixed-identity, read-selection and existing non-PDO whole-connection tests. |
 | `DatabaseConnectionLeaseTest::testSessionDependentScopesPreventEarlyRelease` | Extend rows for native raw transaction, SQL `BEGIN`, and distinct read-PDO transaction; parameterize the connection name. Check manual and HTTP-triggered release retains the slot, then release succeeds after transaction settlement. Retain explicit/FK/tracked transaction rows. |
 | Raw transaction lifecycle coverage in `DatabaseConnectionLeaseLifecycleTest` | Coroutine/task cleanup, including a transaction opened by a release listener. Assert physical transaction ends before the next borrow, uncommitted data disappears, and pre-transaction schema/committed data survives shared-memory SQLite wrapper replacement. |
