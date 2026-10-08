@@ -21,6 +21,7 @@ use Hypervel\Events\EventServiceProvider;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Configuration\ApplicationBuilder;
 use Hypervel\Foundation\Events\LocaleUpdated;
+use Hypervel\Http\Client\CoroutineTaskQueue;
 use Hypervel\Log\Context\ContextServiceProvider;
 use Hypervel\Log\LogServiceProvider;
 use Hypervel\Routing\RoutingServiceProvider;
@@ -184,6 +185,8 @@ class Application extends Container implements ApplicationContract, CachesConfig
     public function __construct(?string $basePath = null)
     {
         $this->checkEnvironment();
+
+        CoroutineTaskQueue::install();
 
         if ($basePath) {
             $this->setBasePath($basePath);

@@ -508,7 +508,7 @@ Maintenance views prepared with `down --render` are served by running Hypervel w
 <a name="http-client-and-concurrency"></a>
 ### HTTP Client and Concurrency
 
-For concurrent HTTP requests, replace Laravel's `Http::pool` and `Http::batch` patterns with Hypervel's coroutine helpers, typically `parallel` from `Hypervel\Coroutine`. See the [HTTP client documentation](/docs/{{version}}/http-client#concurrent-requests) for examples.
+For concurrent HTTP requests, replace Laravel's `Http::pool` and `Http::batch` patterns with Hypervel's coroutine helpers, typically `parallel` from `Hypervel\Coroutine`. See the [HTTP client documentation](/docs/{{version}}/http-client#concurrent-requests) for examples. Wait on Guzzle promises, including `async` requests, in the coroutine that created them, and pass results rather than promises between coroutines. See [Promises and Coroutines](/docs/{{version}}/http-client#promises-and-coroutines).
 
 `withNtlmAuth()` and Saloon's NTLM authenticator are not provided. Integrations requiring NTLM must supply their own authentication implementation.
 

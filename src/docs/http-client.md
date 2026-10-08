@@ -22,6 +22,7 @@
     - [Handling Failures](#handling-failures)
     - [Per-Request Callbacks](#per-request-callbacks)
     - [Running Concurrent Requests After the Response](#running-concurrent-requests-after-the-response)
+    - [Promises and Coroutines](#promises-and-coroutines)
 - [Connections](#connections)
 - [Restricting Destinations](#restricting-destinations)
     - [Validating URLs](#validating-destination-urls)
@@ -950,6 +951,19 @@ defer(function () {
     ]);
 })->always();
 ```
+
+<a name="promises-and-coroutines"></a>
+### Promises and Coroutines
+
+Requests sent with the `async` method return Guzzle promises, and SDKs built on Guzzle, such as the AWS SDK, use promises internally. In Hypervel, each coroutine runs its own promise callbacks: a promise's `then` callbacks run in the coroutine that settles it or, if the promise has already settled, in the coroutine that adds them. This keeps concurrent coroutines from running, or waiting on, each other's callbacks.
+
+Wait on a promise in the coroutine that created it, and pass the result to other coroutines rather than the promise. A pending `async` request may be waited on by one other coroutine, since waiting on it is what completes the request. Other hand-offs fail when the promise is waited on in another coroutine, including:
+
+- An `async` request answered by `Http::fake()`, since faked responses have already settled
+- A promise that had already settled when a callback was added to it
+- A promise settled by calling its `resolve` or `reject` method from another coroutine
+
+Callbacks still queued when their coroutine ends are discarded.
 
 <a name="connections"></a>
 ## Connections

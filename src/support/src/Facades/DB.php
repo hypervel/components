@@ -125,6 +125,7 @@ use Hypervel\Database\Console\WipeCommand;
  * @method static \PDO|\Closure|null getRawPdo()
  * @method static \PDO|\Closure|null getRawReadPdo()
  * @method static \PDO getReadPdo()
+ * @method static int maxBindings()
  * @method static \Hypervel\Database\PdoConnection setPdo(\PDO|\Closure|null $pdo)
  * @method static \Hypervel\Database\PdoConnection setReadPdo(\PDO|\Closure|null $pdo)
  * @method static \Hypervel\Database\PdoConnection setReadPdoConfig(array $config)
