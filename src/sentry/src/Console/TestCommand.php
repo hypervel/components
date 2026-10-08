@@ -16,6 +16,7 @@ use Sentry\State\HubInterface;
 use Sentry\Tracing\SpanContext;
 use Sentry\Tracing\TransactionContext;
 use Sentry\Tracing\TransactionSource;
+use Stringable;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Output\OutputInterface;
 use Throwable;
@@ -122,12 +123,20 @@ class TestCommand extends Command
 
         // We set a logger so we can surface errors thrown internally by the SDK
         $clientBuilder->setLogger(new class($this) extends AbstractLogger {
+            /**
+             * Create a new logger for the test command.
+             */
             public function __construct(
                 private readonly TestCommand $command,
             ) {
             }
 
-            public function log($level, $message, array $context = []): void
+            /**
+             * Write an SDK log message to the command output.
+             *
+             * @param string $level
+             */
+            public function log($level, string|Stringable $message, array $context = []): void
             {
                 // Only show debug, info and notice messages in verbose mode
                 $verbosity = in_array($level, ['debug', 'info', 'notice'], true)
@@ -137,7 +146,7 @@ class TestCommand extends Command
                 $this->command->info("SDK({$level}): {$message}", $verbosity);
 
                 if (in_array($level, ['error', 'critical'], true)) {
-                    $this->command->logErrorMessageFromSDK($message);
+                    $this->command->logErrorMessageFromSDK((string) $message);
                 }
             }
         });
@@ -235,16 +244,25 @@ class TestCommand extends Command
         }
     }
 
+    /**
+     * Record an error message reported by the SDK.
+     */
     public function logErrorMessageFromSDK(string $message): void
     {
         $this->errorMessages[] = $message;
     }
 
+    /**
+     * Clear the recorded SDK error messages.
+     */
     private function clearErrorMessagesFromSDK(): void
     {
         $this->errorMessages = [];
     }
 
+    /**
+     * Print hints for resolving a failed send.
+     */
     private function printDebugTips(): void
     {
         $probablySSLError = false;

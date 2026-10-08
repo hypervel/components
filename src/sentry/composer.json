@@ -55,7 +55,6 @@
         "hypervel/redis": "^0.4",
         "hypervel/routing": "^0.4",
         "hypervel/support": "^0.4",
-        "hypervel/validation": "^0.4",
         "hypervel/view": "^0.4",
         "monolog/monolog": "^3.10",
         "nyholm/psr7": "^1.0",
@@ -64,7 +63,8 @@
         "sentry/sentry": "^4.34",
         "symfony/console": "^8.1.2",
         "symfony/http-foundation": "^8.1",
-        "symfony/psr-http-message-bridge": "^8.1"
+        "symfony/psr-http-message-bridge": "^8.1",
+        "vlucas/phpdotenv": "^5.6.1"
     },
     "config": {
         "sort-packages": true

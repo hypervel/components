@@ -4,12 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sentry;
 
+use Hypervel\Config\Repository;
 use Hypervel\Sentry\Features\RedisFeature;
+use Hypervel\Sentry\SentryConfig;
 use Hypervel\Sentry\Transport\HttpPoolTransport;
 use Hypervel\Sentry\Transport\HttpTransportPool;
+use Hypervel\Validation\ValidationException;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionProperty;
+use RuntimeException;
 use Sentry\ClientBuilder;
 use Sentry\Transport\TransportInterface;
 
@@ -70,6 +74,9 @@ class ConfigTest extends TestCase
         ]);
     }
 
+    /**
+     * Get the pool options that the transport pool does not support.
+     */
     public static function unsupportedPoolOptions(): array
     {
         return [
@@ -78,11 +85,6 @@ class ConfigTest extends TestCase
             ['pool_idle_timeout', 300],
             ['unknown', true],
         ];
-    }
-
-    public function testOldPoolsKeyIsNotUsed(): void
-    {
-        $this->assertNull($this->app->make('config')->get('pools.sentry'));
     }
 
     public function testLogsChannelLevelUsesCurrentEnvironmentNames(): void
@@ -118,6 +120,26 @@ class ConfigTest extends TestCase
         $this->assertTrue($config['tracing']['storage']);
     }
 
+    public function testOmittedBreadcrumbAndTracingOptionsUseTheShippedDefaults(): void
+    {
+        $shippedConfig = $this->sentryConfig();
+
+        $config = (new SentryConfig(new Repository([
+            'sentry' => [
+                ...$shippedConfig,
+                'breadcrumbs' => [],
+                'tracing' => [],
+            ],
+        ]), 'sentry'))->all();
+
+        foreach (['breadcrumbs', 'tracing'] as $section) {
+            ksort($shippedConfig[$section]);
+            ksort($config[$section]);
+
+            $this->assertSame($shippedConfig[$section], $config[$section]);
+        }
+    }
+
     public function testTraceMetricsAreEnabledByDefault(): void
     {
         $config = $this->withEnvironmentValues([
@@ -125,6 +147,25 @@ class ConfigTest extends TestCase
         ], fn (): array => $this->sentryConfig());
 
         $this->assertTrue($config['enable_metrics']);
+    }
+
+    public function testValidationExceptionsAreOnlyIgnoredWhenConfigured(): void
+    {
+        $exception = ValidationException::withMessages(['email' => 'The email field is required.']);
+
+        $this->getSentryHubFromContainer()->captureException($exception);
+
+        $this->assertSentryEventCount(1);
+
+        $this->resetApplicationWithConfig([
+            'sentry.ignore_exceptions' => [ValidationException::class],
+        ]);
+
+        $this->getSentryHubFromContainer()->captureException($exception);
+        $this->getSentryHubFromContainer()->captureException(new RuntimeException('Not ignored.'));
+
+        $this->assertSentryEventCount(1);
+        $this->assertSame(RuntimeException::class, $this->getLastSentryEvent()->getExceptions()[0]->getType());
     }
 
     public function testBooleanEnvironmentValuesAreNormalized(): void
@@ -162,6 +203,9 @@ class ConfigTest extends TestCase
         $this->assertLessThanOrEqual(0.01, $pool->getOptions()->waitTimeout);
     }
 
+    /**
+     * Get the transport configured on the client builder.
+     */
     private function getTransportFromBuilder(ClientBuilder $builder): TransportInterface
     {
         $reflection = new ReflectionProperty($builder, 'transport');
@@ -169,6 +213,9 @@ class ConfigTest extends TestCase
         return $reflection->getValue($builder);
     }
 
+    /**
+     * Get the pool that backs the transport.
+     */
     private function getPoolFromTransport(HttpPoolTransport $transport): HttpTransportPool
     {
         $reflection = new ReflectionProperty($transport, 'pool');

@@ -700,8 +700,8 @@ class SentryServiceProvider extends ServiceProvider
     protected function registerCommands(): void
     {
         $this->commands([
-            PublishCommand::class,
             TestCommand::class,
+            PublishCommand::class,
         ]);
     }
 
