@@ -152,7 +152,7 @@ class TurbopufferEngineTest extends TestCase
         Http::preventStrayRequests();
 
         $this->expectException(ScoutException::class);
-        $this->expectExceptionMessage('AI-generated embeddings are not available in Hypervel.');
+        $this->expectExceptionMessageIsOrContains('AI-generated embeddings are not available in Hypervel.');
 
         $this->engine()->search(
             (new Builder(new SearchableModelWithPrecomputedEmbedding, 'conceptual query'))->semantic()
@@ -477,7 +477,7 @@ class TurbopufferEngineTest extends TestCase
         Http::preventStrayRequests();
 
         $this->expectException(ScoutException::class);
-        $this->expectExceptionMessage('require a valid [embed] schema configuration');
+        $this->expectExceptionMessageIsOrContains('require a valid [embed] schema configuration');
 
         $this->engine()->search(
             (new Builder(new SearchableModelWithNativeEmbedding, 'conceptual query'))->semantic()
@@ -604,7 +604,7 @@ class TurbopufferEngineTest extends TestCase
         Http::preventStrayRequests();
 
         $this->expectException(ScoutException::class);
-        $this->expectExceptionMessage('10,000');
+        $this->expectExceptionMessageIsOrContains('10,000');
 
         $this->engine()->paginate(new Builder(new SearchableModelWithPrecomputedEmbedding, 'hypervel'), 100, 101);
     }
@@ -649,7 +649,7 @@ class TurbopufferEngineTest extends TestCase
         Http::fake(['*' => Http::response([], 202)]);
 
         $this->expectException(ScoutException::class);
-        $this->expectExceptionMessage('still building');
+        $this->expectExceptionMessageIsOrContains('still building');
 
         $this->engine()->search(new Builder(new SearchableModelWithPrecomputedEmbedding, 'hypervel'));
     }
@@ -659,7 +659,7 @@ class TurbopufferEngineTest extends TestCase
         Http::preventStrayRequests();
 
         $this->expectException(ScoutException::class);
-        $this->expectExceptionMessage('Invalid Turbopuffer namespace');
+        $this->expectExceptionMessageIsOrContains('Invalid Turbopuffer namespace');
 
         $this->engine()->search(
             (new Builder(new SearchableModelWithPrecomputedEmbedding, 'hypervel'))->within('invalid namespace')

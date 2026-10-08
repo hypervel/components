@@ -171,7 +171,7 @@ class CommandInvokerTest extends TestCase
         $connection->pushResponse(['subscribe', null, 0]);
 
         $this->expectException(SocketException::class);
-        $this->expectExceptionMessage('malformed Redis subscribe acknowledgement');
+        $this->expectExceptionMessageIsOrContains('malformed Redis subscribe acknowledgement');
 
         $invoker->invoke(['subscribe'], 1);
     }
@@ -336,7 +336,7 @@ class CommandInvokerTest extends TestCase
         $this->assertFalse($connection->wasClosed());
 
         $this->expectException(SocketException::class);
-        $this->expectExceptionMessage('Timed out waiting');
+        $this->expectExceptionMessageIsOrContains('Timed out waiting');
 
         try {
             $invoker->invoke(['subscribe', 'foo'], 1);
@@ -351,7 +351,7 @@ class CommandInvokerTest extends TestCase
         $invoker = new CommandInvoker($connection);
 
         $this->expectException(SocketException::class);
-        $this->expectExceptionMessage('PONG');
+        $this->expectExceptionMessageIsOrContains('PONG');
 
         try {
             $invoker->ping(0.01);
@@ -497,7 +497,7 @@ class CommandInvokerTest extends TestCase
         $connection->pushResponse(['message', 'foo', new stdClass]);
 
         $this->expectException(SocketException::class);
-        $this->expectExceptionMessage('malformed Redis message');
+        $this->expectExceptionMessageIsOrContains('malformed Redis message');
 
         $invoker->invoke(['subscribe', 'foo'], 1);
     }

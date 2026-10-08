@@ -97,7 +97,7 @@ class DatabaseSqliteSchemaStateTest extends TestCase
         $schemaState = new SqliteSchemaState($connection, m::mock(Filesystem::class));
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('In-memory SQLite schema loading requires a PDO-backed connection.');
+        $this->expectExceptionMessageIs('In-memory SQLite schema loading requires a PDO-backed connection.');
 
         $schemaState->load('database/schema/sqlite-schema.dump');
     }

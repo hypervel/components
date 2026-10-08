@@ -270,7 +270,7 @@ class SessionManagerTest extends TestCase
         ]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'User [' . SessionManagerAdminStub::class . '] does not belong to auth provider [users].'
         );
 
@@ -310,7 +310,7 @@ class SessionManagerTest extends TestCase
         ]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Auth guard [providerless] does not declare a user provider. Set auth.guards.providerless.provider.'
         );
 
@@ -333,7 +333,7 @@ class SessionManagerTest extends TestCase
         $user->shouldReceive('getAuthIdentifier')->once()->andReturnNull();
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The user identifier must be an integer or string.');
+        $this->expectExceptionMessageIs('The user identifier must be an integer or string.');
 
         $manager->forUser($user);
     }

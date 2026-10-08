@@ -12,7 +12,7 @@ use function Hypervel\Coroutine\go;
 
 class ChannelManagerTest extends TestCase
 {
-    public function testChannelManager()
+    public function testChannelManager(): void
     {
         $manager = new ChannelManager;
         $chan = $manager->get(1, true);
@@ -30,7 +30,7 @@ class ChannelManagerTest extends TestCase
         $this->assertNull($manager->get(1));
     }
 
-    public function testChannelFlush()
+    public function testChannelFlush(): void
     {
         $manager = new ChannelManager;
         $manager->get(1, true);

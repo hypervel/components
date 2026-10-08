@@ -6,7 +6,7 @@ namespace Hypervel\Tests\View\Blade;
 
 class BladeCommentsTest extends AbstractBladeTestCase
 {
-    public function testCommentsAreCompiled()
+    public function testCommentsAreCompiled(): void
     {
         $string = '{{--this is a comment--}}';
         $this->assertEmpty($this->compiler->compileString($string));
@@ -20,7 +20,7 @@ this is a comment
         $this->assertEmpty($this->compiler->compileString($string));
     }
 
-    public function testBladeCodeInsideCommentsIsNotCompiled()
+    public function testBladeCodeInsideCommentsIsNotCompiled(): void
     {
         $string = '{{-- @foreach() --}}';
 

@@ -29,7 +29,7 @@ class BlockedOperationsIntegrationTest extends RedisCacheIntegrationTestCase
 
         // Attempting to get via tags should throw
         $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('Cannot get items via tags in any mode');
+        $this->expectExceptionMessageIsOrContains('Cannot get items via tags in any mode');
 
         Cache::tags(['blocked_tag'])->get('blocked_key');
     }
@@ -40,7 +40,7 @@ class BlockedOperationsIntegrationTest extends RedisCacheIntegrationTestCase
         Cache::tags(['blocked_tag'])->put('blocked_key', 'value', 60);
 
         $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('Cannot get items via tags in any mode');
+        $this->expectExceptionMessageIsOrContains('Cannot get items via tags in any mode');
 
         Cache::tags(['blocked_tag'])->get('blocked_key', 'default_value');
     }
@@ -51,7 +51,7 @@ class BlockedOperationsIntegrationTest extends RedisCacheIntegrationTestCase
         Cache::tags(['blocked_tag'])->put('key2', 'value2', 60);
 
         $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('Cannot get items via tags in any mode');
+        $this->expectExceptionMessageIsOrContains('Cannot get items via tags in any mode');
 
         Cache::tags(['blocked_tag'])->many(['key1', 'key2']);
     }
@@ -69,7 +69,7 @@ class BlockedOperationsIntegrationTest extends RedisCacheIntegrationTestCase
 
         // Attempting to check via tags should throw
         $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('Cannot check existence via tags in any mode');
+        $this->expectExceptionMessageIsOrContains('Cannot check existence via tags in any mode');
 
         Cache::tags(['blocked_tag'])->has('blocked_key');
     }
@@ -78,7 +78,7 @@ class BlockedOperationsIntegrationTest extends RedisCacheIntegrationTestCase
     {
         // missing() is the inverse of has()
         $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('Cannot check existence via tags in any mode');
+        $this->expectExceptionMessageIsOrContains('Cannot check existence via tags in any mode');
 
         Cache::tags(['blocked_tag'])->missing('nonexistent_key');
     }
@@ -96,7 +96,7 @@ class BlockedOperationsIntegrationTest extends RedisCacheIntegrationTestCase
 
         // Attempting to pull via tags should throw
         $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('Cannot pull items via tags in any mode');
+        $this->expectExceptionMessageIsOrContains('Cannot pull items via tags in any mode');
 
         Cache::tags(['blocked_tag'])->pull('blocked_key');
     }
@@ -114,7 +114,7 @@ class BlockedOperationsIntegrationTest extends RedisCacheIntegrationTestCase
 
         // Attempting to forget via tags should throw
         $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('Cannot forget items via tags in any mode');
+        $this->expectExceptionMessageIsOrContains('Cannot forget items via tags in any mode');
 
         Cache::tags(['blocked_tag'])->forget('blocked_key');
     }

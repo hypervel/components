@@ -182,7 +182,7 @@ class DatabaseEloquentInverseRelationTest extends TestCase
     }
 
     #[DataProvider('guessedParentRelationsDataProvider')]
-    public function testGuessesInverseRelationBasedOnParent($guessedRelation)
+    public function testGuessesInverseRelationBasedOnParent($guessedRelation): void
     {
         $related = m::mock(Model::class);
         $related->shouldReceive('isRelation')->andReturnUsing(fn ($relation) => $relation === $guessedRelation);
@@ -226,7 +226,7 @@ class DatabaseEloquentInverseRelationTest extends TestCase
     }
 
     #[DataProvider('guessedParentRelationsDataProvider')]
-    public function testSetsGuessedInverseRelationBasedOnParent($guessedRelation)
+    public function testSetsGuessedInverseRelationBasedOnParent($guessedRelation): void
     {
         $related = m::mock(Model::class);
         $related->shouldReceive('isRelation')->andReturnUsing(fn ($relation) => $relation === $guessedRelation);

@@ -14,10 +14,16 @@ use Hypervel\Permission\Models\Permission as HypervelPermission;
 use Hypervel\Permission\Models\Role as HypervelRole;
 use Hypervel\Permission\PermissionRegistrar;
 use Hypervel\Permission\Support\Config;
+use Hypervel\Support\Facades\Cache;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Permission\Fixtures\Models\Permission as TestPermission;
 use Hypervel\Tests\Permission\Fixtures\Models\Role as TestRole;
+use Hypervel\Tests\Permission\Fixtures\Models\Team;
 use Hypervel\Tests\Permission\TestCase;
 use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\DataProvider;
+use UnitEnum;
 
 class PermissionRegistrarTest extends TestCase
 {
@@ -32,6 +38,92 @@ class PermissionRegistrarTest extends TestCase
         $registrar->clearPermissionsCollection();
 
         $this->assertFalse(CoroutineContext::has(PermissionRegistrar::PERMISSION_CATALOG_CONTEXT_KEY));
+    }
+
+    public function testItClearsTheLoadedPermissionsCollectionWhenReinitializingTheCache(): void
+    {
+        $registrar = $this->app->make(PermissionRegistrar::class);
+
+        $registrar->getPermissions();
+
+        $this->assertTrue(CoroutineContext::has(PermissionRegistrar::PERMISSION_CATALOG_CONTEXT_KEY));
+
+        $registrar->initializeCache();
+
+        $this->assertFalse(CoroutineContext::has(PermissionRegistrar::PERMISSION_CATALOG_CONTEXT_KEY));
+    }
+
+    public function testItDoesNotLeakAPreviousTenantsPermissionsAfterSwitchingCacheContextViaInitializeCache(): void
+    {
+        // Two separate cache "stores" stand in for two tenants' cache namespaces
+        // (e.g. distinct cache prefixes/connections in a real multi-tenant app).
+        config([
+            'cache.stores.tenant_a' => ['driver' => 'array'],
+            'cache.stores.tenant_b' => ['driver' => 'array'],
+        ]);
+
+        // Insert both tenants' rows via the query builder, bypassing Eloquent,
+        // so the RefreshesPermissionCache model events don't auto-bust the cache and
+        // mask the very staleness this test is meant to catch.
+        $tenantAId = DB::table('permissions')->insertGetId([
+            'name' => 'tenant-permission',
+            'guard_name' => 'web',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        config(['permission.cache.store' => 'tenant_a']);
+        app(PermissionRegistrar::class)->initializeCache();
+
+        $loaded = app(PermissionRegistrar::class)->getPermissions()->firstWhere('name', 'tenant-permission');
+        $this->assertSame($tenantAId, $loaded->getKey());
+
+        // Simulate switching to tenant B: its own row for the "same" permission has
+        // a different primary key, as it would in a separate tenant database.
+        DB::table('permissions')->where('id', $tenantAId)->delete();
+        $tenantBId = DB::table('permissions')->insertGetId([
+            'name' => 'tenant-permission',
+            'guard_name' => 'web',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $this->assertNotSame($tenantAId, $tenantBId);
+
+        config(['permission.cache.store' => 'tenant_b']);
+        app(PermissionRegistrar::class)->initializeCache();
+
+        $loaded = app(PermissionRegistrar::class)->getPermissions()->firstWhere('name', 'tenant-permission');
+        $this->assertSame($tenantBId, $loaded->getKey());
+    }
+
+    public function testItPicksUpAReboundCacheManagerWhenInitializeCacheRunsAfterTheContainerCacheBindingIsReplaced(): void
+    {
+        // Neither the array nor the file store apply cache.prefix (only
+        // database/redis/storage do), so this needs a store that
+        // actually honours the prefix to observe the staleness.
+        if (! Schema::hasTable('cache')) {
+            $this->createCacheTable();
+        }
+        config()->set('cache.default', 'database');
+
+        // This mirrors what spatie/laravel-multitenancy's PrefixCacheTask does on every
+        // tenant switch: change cache.prefix, then forget the container's cache
+        // singletons so they get rebuilt against the new prefix.
+        $switchPrefix = function (string $prefix): void {
+            config()->set('cache.prefix', $prefix);
+            app('cache')->forgetDriver(config('cache.default'));
+            app()->forgetInstance('cache');
+            app()->forgetInstance('cache.store');
+            Cache::clearResolvedInstances();
+        };
+
+        $switchPrefix('tenant_a_');
+        app(PermissionRegistrar::class)->initializeCache();
+        $this->assertSame('tenant_a_', app(PermissionRegistrar::class)->getCacheStore()->getPrefix());
+
+        $switchPrefix('tenant_b_');
+        app(PermissionRegistrar::class)->initializeCache();
+        $this->assertSame('tenant_b_', app(PermissionRegistrar::class)->getCacheStore()->getPrefix());
     }
 
     public function testItCanCheckUids(): void
@@ -90,7 +182,12 @@ class PermissionRegistrarTest extends TestCase
 
         $this->app->make(PermissionRegistrar::class)->setPermissionClass(TestPermission::class);
 
-        $this->assertSame(HypervelPermission::class, $this->app->make('config')->get('permission.models.permission'));
+        $this->assertSame(TestPermission::class, $this->app->make('config')->get('permission.models.permission'));
+        $this->assertSame(TestPermission::class, $this->app->make(PermissionRegistrar::class)->getPermissionClass());
+        $this->assertInstanceOf(TestPermission::class, $this->app->make(PermissionContract::class));
+
+        $this->app->make(PermissionRegistrar::class)->initializeCache();
+
         $this->assertSame(TestPermission::class, $this->app->make(PermissionRegistrar::class)->getPermissionClass());
         $this->assertInstanceOf(TestPermission::class, $this->app->make(PermissionContract::class));
     }
@@ -109,9 +206,33 @@ class PermissionRegistrarTest extends TestCase
 
         $this->app->make(PermissionRegistrar::class)->setRoleClass(TestRole::class);
 
-        $this->assertSame(HypervelRole::class, $this->app->make('config')->get('permission.models.role'));
+        $this->assertSame(TestRole::class, $this->app->make('config')->get('permission.models.role'));
         $this->assertSame(TestRole::class, $this->app->make(PermissionRegistrar::class)->getRoleClass());
         $this->assertInstanceOf(TestRole::class, $this->app->make(RoleContract::class));
+
+        $this->app->make(PermissionRegistrar::class)->initializeCache();
+
+        $this->assertSame(TestRole::class, $this->app->make(PermissionRegistrar::class)->getRoleClass());
+        $this->assertInstanceOf(TestRole::class, $this->app->make(RoleContract::class));
+    }
+
+    public function testItCanChangeTeamClass(): void
+    {
+        $registrar = $this->app->make(PermissionRegistrar::class);
+
+        $this->assertNull($registrar->getTeamClass());
+
+        $registrar->setTeamClass(Team::class);
+        $registrar->initializeCache();
+
+        $this->assertSame(Team::class, $this->app->make('config')->get('permission.models.team'));
+        $this->assertSame(Team::class, $registrar->getTeamClass());
+
+        $registrar->setTeamClass(null);
+        $registrar->initializeCache();
+
+        $this->assertNull($this->app->make('config')->get('permission.models.team'));
+        $this->assertNull($registrar->getTeamClass());
     }
 
     public function testItCanChangeTeamId(): void
@@ -131,6 +252,23 @@ class PermissionRegistrarTest extends TestCase
 
         $this->assertSame($this->testUser->getKey(), $registrar->getPermissionsTeamId());
     }
+
+    public function testItRejectsAnUndefinedCacheStore(): void
+    {
+        // Upstream silently falls back to the array store, which hides the configuration
+        // error and changes the selected backend.
+        config()->set('permission.cache.store', 'this-store-does-not-exist');
+
+        app(PermissionRegistrar::class)->initializeCache();
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessageIs('Cache store [this-store-does-not-exist] is not defined.');
+
+        app(PermissionRegistrar::class)->getCacheStore();
+    }
+
+    // REMOVED: upstream's "retries loading permissions when another load is already in progress".
+    // The loaded catalog is coroutine-local, so there is no shared in-progress load to wait for.
 
     public function testPermissionLookupUsesGuardExactCatalogIndex(): void
     {
@@ -172,12 +310,9 @@ class PermissionRegistrarTest extends TestCase
 
         $this->assertTrue($registrar->getPermissions(['name' => 'missing-permission', 'guard_name' => 'web'])->isEmpty());
 
-        try {
-            $permissionClass::findByName('missing-permission');
-            $this->fail('Expected missing permission exception was not thrown.');
-        } catch (PermissionDoesNotExist) {
-            $this->assertTrue(true);
-        }
+        $this->expectException(PermissionDoesNotExist::class);
+
+        $permissionClass::findByName('missing-permission');
     }
 
     public function testRoleLookupUsesCatalogIndexAndStillThrowsWhenMissing(): void
@@ -187,12 +322,9 @@ class PermissionRegistrarTest extends TestCase
 
         $this->assertTrue($role->is($roleClass::findById($role->getKey())));
 
-        try {
-            $roleClass::findByName('missing-role');
-            $this->fail('Expected missing role exception was not thrown.');
-        } catch (RoleDoesNotExist) {
-            $this->assertTrue(true);
-        }
+        $this->expectException(RoleDoesNotExist::class);
+
+        $roleClass::findByName('missing-role');
     }
 
     public function testPermissionCreateUsesDatabaseForDuplicateCheckWhenCatalogIsStale(): void
@@ -250,13 +382,42 @@ class PermissionRegistrarTest extends TestCase
         $this->assertFalse(array_key_exists('created_at', $role->getAttributes()));
     }
 
+    #[DataProvider('catalogRoleConnections')]
+    public function testCatalogModelsMatchDatabaseLoadedModels(string $roleClass, string $connection): void
+    {
+        $this->testUser->assignRole('testRole');
+        $this->testUser->givePermissionTo('edit-articles');
+        $this->app->make(PermissionRegistrar::class)->setRoleClass($roleClass);
+        $user = $this->testUser->fresh();
+
+        $role = $roleClass::findByName('testRole');
+        $permission = $this->app->make(PermissionContract::class)::findByName('edit-articles');
+
+        $this->assertSame($connection, $role->getConnectionName());
+        $this->assertTrue($role->is($roleClass::query()->find($role->getKey())));
+        $this->assertTrue($user->roles->contains($role));
+        $this->assertTrue($user->permissions->contains($permission));
+    }
+
+    /**
+     * Provide catalog role connections and their hydrated names.
+     */
+    public static function catalogRoleConnections(): array
+    {
+        return [
+            'default connection' => [HypervelRole::class, 'testing'],
+            'empty connection' => [EmptyConnectionRole::class, 'testing'],
+            'read alias' => [ReadConnectionRole::class, 'testing'],
+            'write alias' => [WriteConnectionRole::class, 'testing::write'],
+        ];
+    }
+
     public function testInitializeCacheUsesOptionalConfigurationDefaults(): void
     {
         $permissionConfig = config()->array('permission');
         unset(
             $permissionConfig['models']['team'],
             $permissionConfig['models']['default_model'],
-            $permissionConfig['team_resolver'],
             $permissionConfig['cache']['expiration_seconds'],
             $permissionConfig['cache']['store'],
             $permissionConfig['cache']['column_names_except'],
@@ -273,7 +434,7 @@ class PermissionRegistrarTest extends TestCase
         $this->assertNull($registrar->getTeamClass());
         $this->assertNull(Config::defaultModel());
         $this->assertSame('team-a', $registrar->getPermissionsTeamId());
-        $this->assertSame(86400, $registrar->cacheExpirationTime);
+        $this->assertSame(PermissionRegistrar::DEFAULT_CACHE_EXPIRATION_SECONDS, $registrar->cacheExpirationTime);
         $this->assertSame($this->app->make('cache')->store()->getStore(), $registrar->getCacheStore());
 
         $role = $this->app->make(RoleContract::class)::findByName('testRole');
@@ -326,7 +487,7 @@ class PermissionRegistrarTest extends TestCase
         );
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Permission cache column exclusions cannot contain required role columns [id, name, guard_name] '
             . 'or permission columns [id, name, guard_name].'
         );
@@ -343,7 +504,7 @@ class PermissionRegistrarTest extends TestCase
         ]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Permission cache column exclusions cannot contain required role columns [role_test_id] '
             . 'or permission columns [permission_test_id].'
         );
@@ -359,7 +520,7 @@ class PermissionRegistrarTest extends TestCase
         ]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('role columns [team_test_id]');
+        $this->expectExceptionMessageIsOrContains('role columns [team_test_id]');
 
         $this->app->make(PermissionRegistrar::class)->initializeCache();
     }
@@ -388,4 +549,19 @@ class PermissionRegistrarTest extends TestCase
 
         $this->assertFalse($resolverCalled);
     }
+}
+
+class EmptyConnectionRole extends HypervelRole
+{
+    protected UnitEnum|string|null $connection = '';
+}
+
+class ReadConnectionRole extends HypervelRole
+{
+    protected UnitEnum|string|null $connection = 'testing::read';
+}
+
+class WriteConnectionRole extends HypervelRole
+{
+    protected UnitEnum|string|null $connection = 'testing::write';
 }

@@ -166,7 +166,7 @@ class MetadataCodecTest extends TestCase
         }
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'A transport header must contain a non-empty list of string values.',
         );
 

@@ -889,7 +889,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
             ->andReturnNull();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Callback failed');
+        $this->expectExceptionMessageIs('Callback failed');
 
         $store = $this->createStore($connection);
         $store->tags(['users'])->remember('data', 60, function () {
@@ -909,7 +909,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
             ->andReturnNull();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Forever callback failed');
+        $this->expectExceptionMessageIs('Forever callback failed');
 
         $store = $this->createStore($connection);
         $store->tags(['config'])->rememberForever('data', function () {

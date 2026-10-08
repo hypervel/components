@@ -18,6 +18,8 @@ class PermissionDetachedEvent
     use SerializesModels;
 
     /**
+     * Create a new event instance.
+     *
      * Internally the HasPermissions trait passes $permissionsOrIds as an Eloquent record.
      * Theoretically one could register the event to other places and pass an array etc.
      * So a Listener should inspect the type of $permissionsOrIds received before using.

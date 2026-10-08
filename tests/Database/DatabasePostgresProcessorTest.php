@@ -9,7 +9,7 @@ use Hypervel\Tests\TestCase;
 
 class DatabasePostgresProcessorTest extends TestCase
 {
-    public function testProcessColumns()
+    public function testProcessColumns(): void
     {
         $processor = new PostgresProcessor;
 

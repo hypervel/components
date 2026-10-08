@@ -10,11 +10,18 @@ use Hypervel\NestedSet\NestedSet;
 use InvalidArgumentException;
 use LogicException;
 
+/**
+ * @template TKey of array-key
+ * @template TModel of Model
+ *
+ * @extends BaseCollection<TKey, TModel>
+ */
 class Collection extends BaseCollection
 {
     /**
      * Fill `parent` and `children` relationships for every node in the collection.
-     * This will overwrite any previously set relations.
+     * Replaces children and in-collection parents, and keeps loaded parents
+     * outside the collection.
      */
     public function linkNodes(): static
     {
@@ -33,11 +40,6 @@ class Collection extends BaseCollection
     protected function linkNodesFromGroups(array $groupedNodes, array $roots): static
     {
         foreach ($this->items as $node) {
-            $node->unsetRelation('parent');
-            $node->unsetRelation('children');
-        }
-
-        foreach ($this->items as $node) {
             $parentId = $node->getParentId(); /* @phpstan-ignore method.notFound */
 
             if ($parentId === null) {
@@ -48,6 +50,10 @@ class Collection extends BaseCollection
 
             if ($children !== []) {
                 $parent = clone $node;
+
+                // Detach relations from the parent stub so the child->parent
+                // reference can't re-enter the tree and cause infinite
+                // recursion when serializing (e.g. toJson()).
                 $parent->setRelations([]);
 
                 foreach ($children as $child) {
@@ -65,6 +71,8 @@ class Collection extends BaseCollection
      * Build a tree from a list of nodes. Each item will have set children relation.
      * To successfully build tree "id", "_lft" and "parent_id" keys must present.
      * If `$root` is provided, the tree will contain only descendants of that node.
+     *
+     * @return static<int, TModel>
      */
     public function toTree(Model|int|string|false|null $root = false): static
     {
@@ -143,22 +151,22 @@ class Collection extends BaseCollection
     /**
      * Build a list of nodes that retain the order that they were pulled from
      * the database.
+     *
+     * @return static<int, TModel>
      */
     public function toFlatTree(Model|int|string|false|null $root = false): static
     {
-        $result = new static;
-
         if ($this->isEmpty()) {
-            return $result;
+            return new static;
         }
 
         [$groupedNodes, $roots] = $this->groupNodesByParent();
 
-        return $result->flattenTree(
+        return new static($this->flattenTree(
             $groupedNodes,
             $roots,
             $this->getRootNodeId($root),
-        );
+        ));
     }
 
     /**
@@ -202,9 +210,14 @@ class Collection extends BaseCollection
 
     /**
      * Flatten a tree without recursive stack growth.
+     *
+     * @param array<array-key, list<TModel>> $groupedNodes
+     * @param list<TModel> $roots
+     * @return list<TModel>
      */
-    protected function flattenTree(array $groupedNodes, array $roots, int|string|null $parentId): static
+    protected function flattenTree(array $groupedNodes, array $roots, int|string|null $parentId): array
     {
+        $nodes = [];
         $stack = [];
         $children = $this->nodesForParent($groupedNodes, $roots, $parentId);
 
@@ -214,7 +227,7 @@ class Collection extends BaseCollection
 
         while ($stack !== []) {
             $node = array_pop($stack);
-            $this->push($node);
+            $nodes[] = $node;
 
             $children = $this->nodesForParent($groupedNodes, $roots, $node->getKey());
 
@@ -223,11 +236,15 @@ class Collection extends BaseCollection
             }
         }
 
-        return $this;
+        return $nodes;
     }
 
     /**
      * Get nodes for a parent ID.
+     *
+     * @param array<array-key, list<TModel>> $groupedNodes
+     * @param list<TModel> $roots
+     * @return list<TModel>
      */
     protected function nodesForParent(
         array $groupedNodes,

@@ -10,7 +10,7 @@ class ChannelMakeCommandTest extends TestCase
         'app/Broadcasting/FooChannel.php',
     ];
 
-    public function testItCanGenerateChannelFile()
+    public function testItCanGenerateChannelFile(): void
     {
         $this->artisan('make:channel', ['name' => 'FooChannel'])
             ->assertExitCode(0);

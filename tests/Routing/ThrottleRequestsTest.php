@@ -48,7 +48,7 @@ class ThrottleRequestsTest extends RoutingTestCase
     public function testMissingRouteCannotProduceARequestSignature(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to generate the request signature. Route unavailable.');
+        $this->expectExceptionMessageIs('Unable to generate the request signature. Route unavailable.');
 
         (new ExposesThrottleRequests)->resolveRequestSignatureForTest(Request::create('/ping'));
     }
@@ -78,7 +78,7 @@ class ThrottleRequestsTest extends RoutingTestCase
     public function testNonNumericMiddlewareDurationIsRejected(): void
     {
         $this->expectException(InvalidRateLimitException::class);
-        $this->expectExceptionMessage('The rate limit decay minutes must be numeric.');
+        $this->expectExceptionMessageIs('The rate limit decay minutes must be numeric.');
 
         (new ExposesThrottleRequests)->resolveDecaySecondsForTest('invalid');
     }

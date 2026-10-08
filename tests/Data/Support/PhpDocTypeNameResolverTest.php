@@ -16,8 +16,12 @@ use Hypervel\Tests\TestCase;
 use ReflectionClass;
 use ReflectionProperty;
 
+use function Hypervel\Tests\Data\Fixtures\Second\multiNamespaceAnonymous;
+
 class PhpDocTypeNameResolverTest extends TestCase
 {
+    // REMOVED: Spatie's ContextResolverTest; PHPDoc names resolve through this resolver instead of phpDocumentor contexts. Class resolution and the per-file cache are covered here, and property, parameter and method types resolve through their declaring class (DataTypeFactoryTest).
+
     /**
      * Test built-in, fully qualified, and declaration-relative names.
      */
@@ -72,13 +76,27 @@ class PhpDocTypeNameResolverTest extends TestCase
         $this->assertCount(1, $this->imports($resolver));
     }
 
+    public function testAnonymousClassesUseTheirSourceNamespace(): void
+    {
+        require_once __DIR__ . '/../Fixtures/MultiNamespacePhpDocTypes.php';
+
+        $resolver = new PhpDocTypeNameResolver;
+        $anonymous = new ReflectionClass(new class extends PhpDocTypeContext {
+        });
+        $multiNamespace = new ReflectionClass(multiNamespaceAnonymous());
+
+        $this->assertSame(ImportedType::class, $resolver->resolve('ImportedType', $anonymous));
+        $this->assertSame(__NAMESPACE__ . '\UnimportedType', $resolver->resolve('UnimportedType', $anonymous));
+        $this->assertSame(GroupedType::class, $resolver->resolve('SharedAlias', $multiNamespace));
+    }
+
     /**
-     * Get the resolver's bounded source import cache.
+     * Get the resolver's bounded source cache.
      *
-     * @return array<string, array<string, array<string, class-string>>>
+     * @return array<string, array{imports: array<string, array<string, class-string>>, namespaces: array<int, string>}>
      */
     protected function imports(PhpDocTypeNameResolver $resolver): array
     {
-        return (new ReflectionProperty($resolver, 'imports'))->getValue($resolver);
+        return (new ReflectionProperty($resolver, 'sources'))->getValue($resolver);
     }
 }

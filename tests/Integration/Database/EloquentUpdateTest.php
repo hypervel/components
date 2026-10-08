@@ -46,7 +46,7 @@ class EloquentUpdateTest extends DatabaseTestCase
         });
     }
 
-    public function testBasicUpdate()
+    public function testBasicUpdate(): void
     {
         TestUpdateModel1::create([
             'name' => Str::random(),
@@ -70,7 +70,7 @@ class EloquentUpdateTest extends DatabaseTestCase
         $this->assertNotSame('Dr.', TestUpdateModel1::find(7)->title);
     }
 
-    public function testUpdatedAtWithJoins()
+    public function testUpdatedAtWithJoins(): void
     {
         TestUpdateModel1::create([
             'name' => 'Abdul',
@@ -91,7 +91,7 @@ class EloquentUpdateTest extends DatabaseTestCase
         $this->assertSame('Engineer: Abdul', $record->job . ': ' . $record->name);
     }
 
-    public function testSoftDeleteWithJoins()
+    public function testSoftDeleteWithJoins(): void
     {
         TestUpdateModel1::create([
             'name' => Str::random(),
@@ -110,7 +110,7 @@ class EloquentUpdateTest extends DatabaseTestCase
         $this->assertCount(0, TestUpdateModel2::all());
     }
 
-    public function testIncrement()
+    public function testIncrement(): void
     {
         TestUpdateModel3::create([
             'counter' => 0,
@@ -127,7 +127,7 @@ class EloquentUpdateTest extends DatabaseTestCase
         $this->assertEquals(0, $models[1]->counter);
     }
 
-    public function testIncrementOrDecrementIgnoresGlobalScopes()
+    public function testIncrementOrDecrementIgnoresGlobalScopes(): void
     {
         /** @var TestUpdateModel3 $deletedModel */
         $deletedModel = tap(TestUpdateModel3::create([
@@ -145,7 +145,7 @@ class EloquentUpdateTest extends DatabaseTestCase
         $this->assertEquals(0, $deletedModel->fresh()->counter);
     }
 
-    public function testUpdateSyncsPrevious()
+    public function testUpdateSyncsPrevious(): void
     {
         $model = TestUpdateModel1::create([
             'name' => Str::random(),
@@ -160,7 +160,7 @@ class EloquentUpdateTest extends DatabaseTestCase
         $this->assertSame(['title' => 'Ms.'], $model->getPrevious());
     }
 
-    public function testSaveSyncsPrevious()
+    public function testSaveSyncsPrevious(): void
     {
         $model = TestUpdateModel1::create([
             'name' => Str::random(),
@@ -258,7 +258,7 @@ class EloquentUpdateTest extends DatabaseTestCase
         $this->assertSame(['title' => $updatedState['stored']], $updatedState['changes']);
     }
 
-    public function testIncrementSyncsPrevious()
+    public function testIncrementSyncsPrevious(): void
     {
         $model = TestUpdateModel3::create([
             'counter' => 0,

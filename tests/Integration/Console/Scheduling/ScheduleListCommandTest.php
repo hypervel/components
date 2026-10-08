@@ -26,14 +26,14 @@ class ScheduleListCommandTest extends TestCase
         $this->schedule = $this->app->make(Schedule::class);
     }
 
-    public function testDisplayEmptySchedule()
+    public function testDisplayEmptySchedule(): void
     {
         $this->artisan(ScheduleListCommand::class)
             ->assertSuccessful()
             ->expectsOutputToContain('No scheduled tasks have been defined.');
     }
 
-    public function testDisplayEmptyScheduleAsJson()
+    public function testDisplayEmptyScheduleAsJson(): void
     {
         $this->withoutMockingConsoleOutput()->artisan(ScheduleListCommand::class, ['--json' => true]);
         $output = Artisan::output();
@@ -42,7 +42,7 @@ class ScheduleListCommandTest extends TestCase
         $this->assertJsonStringEqualsJsonString('[]', $output);
     }
 
-    public function testDisplaySchedule()
+    public function testDisplaySchedule(): void
     {
         $this->schedule->command(FooCommand::class)->quarterly();
         $this->schedule->command('inspire')->twiceDaily(14, 18);
@@ -78,7 +78,7 @@ class ScheduleListCommandTest extends TestCase
             ->expectsOutput('  * *     * *      *  Closure at: ' . $closureFilePath . ':' . $closureLineNumber . '  Next Due: 1 minute from now');
     }
 
-    public function testDisplayScheduleAsJson()
+    public function testDisplayScheduleAsJson(): void
     {
         $this->schedule->command(FooCommand::class)->quarterly();
         $this->schedule->command('inspire')->twiceDaily(14, 18);
@@ -155,7 +155,7 @@ class ScheduleListCommandTest extends TestCase
         $this->assertContains($environment, $data[0]['environments']);
     }
 
-    public function testDisplayScheduleWithSortAsJson()
+    public function testDisplayScheduleWithSortAsJson(): void
     {
         $this->schedule->command(FooCommand::class)->quarterly();
         $this->schedule->command('inspire')->twiceDaily(14, 18);
@@ -186,7 +186,7 @@ class ScheduleListCommandTest extends TestCase
         $this->assertSame('php artisan foo:command', $data[2]['command']);
     }
 
-    public function testDisplayScheduleAsJsonWithTimezone()
+    public function testDisplayScheduleAsJsonWithTimezone(): void
     {
         $this->schedule->command('inspire')->daily();
 
@@ -309,7 +309,7 @@ class ScheduleListCommandTest extends TestCase
         $this->assertSame([], $data[2]['environments']);
     }
 
-    public function testDisplayScheduleAsJsonInVerboseMode()
+    public function testDisplayScheduleAsJsonInVerboseMode(): void
     {
         $this->schedule->command(FooCommand::class)->quarterly();
         $this->schedule->command('inspire')->everyMinute();
@@ -338,7 +338,7 @@ class ScheduleListCommandTest extends TestCase
         $this->assertStringContainsString('ScheduleListCommandTest.php', $data[2]['command']);
     }
 
-    public function testDisplayScheduleWithSort()
+    public function testDisplayScheduleWithSort(): void
     {
         $this->schedule->command(FooCommand::class)->quarterly();
         $this->schedule->command('inspire')->twiceDaily(14, 18);
@@ -374,7 +374,7 @@ class ScheduleListCommandTest extends TestCase
             ->expectsOutput('  0 0     1 1-12/3 *  php artisan foo:command .... Next Due: 3 months from now');
     }
 
-    public function testDisplayScheduleInVerboseMode()
+    public function testDisplayScheduleInVerboseMode(): void
     {
         $this->schedule->command(FooCommand::class)->everyMinute();
 
@@ -384,7 +384,7 @@ class ScheduleListCommandTest extends TestCase
             ->expectsOutput('             ⇁ This is the description of the command.');
     }
 
-    public function testDisplayScheduleSubMinute()
+    public function testDisplayScheduleSubMinute(): void
     {
         $this->schedule->command('inspire')->weekly()->everySecond();
         $this->schedule->command('inspire')->everyTwoSeconds();
@@ -405,7 +405,7 @@ class ScheduleListCommandTest extends TestCase
             ->expectsOutput('  * * * * * 30s  php artisan inspire ........... Next Due: 30 seconds from now');
     }
 
-    public function testClosureCommandsMayBeScheduled()
+    public function testClosureCommandsMayBeScheduled(): void
     {
         $closure = function () {
         };

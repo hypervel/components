@@ -14,12 +14,12 @@ use Mockery as m;
 
 class DatabaseEloquentMorphTest extends TestCase
 {
-    public function testMorphOneSetsProperConstraints()
+    public function testMorphOneSetsProperConstraints(): void
     {
         $this->getOneRelation();
     }
 
-    public function testMorphOneEagerConstraintsAreProperlyAdded()
+    public function testMorphOneEagerConstraintsAreProperlyAdded(): void
     {
         $relation = $this->getOneRelation();
         $relation->getParent()->expects('getKeyName')->andReturn('id');
@@ -38,12 +38,12 @@ class DatabaseEloquentMorphTest extends TestCase
      * Note that the tests are the exact same for morph many because the classes share this code...
      * Will still test to be safe.
      */
-    public function testMorphManySetsProperConstraints()
+    public function testMorphManySetsProperConstraints(): void
     {
         $this->getManyRelation();
     }
 
-    public function testMorphManyEagerConstraintsAreProperlyAdded()
+    public function testMorphManyEagerConstraintsAreProperlyAdded(): void
     {
         $relation = $this->getManyRelation();
         $relation->getParent()->expects('getKeyName')->andReturn('id');
@@ -58,7 +58,7 @@ class DatabaseEloquentMorphTest extends TestCase
         $relation->addEagerConstraints([$model1, $model2]);
     }
 
-    public function testMorphRelationUpsertFillsForeignKey()
+    public function testMorphRelationUpsertFillsForeignKey(): void
     {
         $relation = $this->getManyRelation();
 

@@ -251,7 +251,7 @@ class GoogleCloudStorageAdapterTest extends TestCase
         $adapter = $this->adapter($client, ['bucket' => 'bucket', 'throw' => true]);
 
         $this->expectException(UnableToReadFile::class);
-        $this->expectExceptionMessage('GCS failed');
+        $this->expectExceptionMessageIsOrContains('GCS failed');
 
         $adapter->readStreamRange('file.txt', 3, 5);
     }
@@ -295,7 +295,7 @@ class GoogleCloudStorageAdapterTest extends TestCase
         $adapter = $this->adapter($client, ['bucket' => 'bucket', 'throw' => true]);
 
         $this->expectException(UnableToReadFile::class);
-        $this->expectExceptionMessage('Downloaded object does not contain a file resource.');
+        $this->expectExceptionMessageIsOrContains('Downloaded object does not contain a file resource.');
 
         $adapter->readStreamRange('file.txt', 3, 5);
     }

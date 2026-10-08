@@ -593,7 +593,7 @@ class MeilisearchEngineTest extends TestCase
         $builder = (new Builder(new SearchableModelWithPrecomputedEmbedding, 'conceptual query'))->semantic();
 
         $this->expectException(ScoutException::class);
-        $this->expectExceptionMessage('The [foo] Meilisearch embedding driver is not supported.');
+        $this->expectExceptionMessageIs('The [foo] Meilisearch embedding driver is not supported.');
 
         $engine->search($builder);
     }
@@ -629,7 +629,7 @@ class MeilisearchEngineTest extends TestCase
         $engine = $this->engineWithEmbedding($client, ['embedder' => 'default', 'dimensions' => 2]);
 
         $this->expectException(ScoutException::class);
-        $this->expectExceptionMessage('AI-generated embeddings are not available in Hypervel.');
+        $this->expectExceptionMessageIsOrContains('AI-generated embeddings are not available in Hypervel.');
 
         $engine->search((new Builder(new SearchableModelWithPrecomputedEmbedding, 'conceptual query'))->semantic());
     }
@@ -645,7 +645,7 @@ class MeilisearchEngineTest extends TestCase
         $engine = $this->engineWithEmbedding($client, ['embedder' => 'default', 'dimensions' => 2]);
 
         $this->expectException(ScoutException::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIs($message);
 
         $engine->search(
             (new Builder(new SearchableModelWithPrecomputedEmbedding, 'conceptual query'))
@@ -976,7 +976,7 @@ class MeilisearchEngineTest extends TestCase
         $model->shouldNotReceive('indexableAs');
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Meilisearch filter deletion requires a non-empty filter.');
+        $this->expectExceptionMessageIs('Meilisearch filter deletion requires a non-empty filter.');
 
         $engine->deleteByFilter(new Builder($model, ''));
     }
@@ -998,7 +998,7 @@ class MeilisearchEngineTest extends TestCase
         $builder = (new Builder($model, ''))->where('tenant_id', 42);
 
         $this->expectException(ScoutException::class);
-        $this->expectExceptionMessage('Meilisearch filter deletion did not complete successfully.');
+        $this->expectExceptionMessageIs('Meilisearch filter deletion did not complete successfully.');
 
         $engine->deleteByFilter($builder);
     }
@@ -1378,7 +1378,7 @@ class MeilisearchEngineTest extends TestCase
         $engine = new MeilisearchEngine($client);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIs($message);
 
         $engine->generateTenantToken(['users' => ['filter' => 'tenant_id = 42']], $apiKeyUid, $apiKey);
     }

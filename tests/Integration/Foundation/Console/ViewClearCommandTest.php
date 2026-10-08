@@ -74,7 +74,7 @@ class ViewClearCommandTest extends TestCase
         $this->app->instance(Filesystem::class, $files);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage("Unable to enumerate compiled views in [{$this->compiledPath}].");
+        $this->expectExceptionMessageIs("Unable to enumerate compiled views in [{$this->compiledPath}].");
 
         $this->artisan('view:clear');
     }

@@ -35,6 +35,7 @@ use PDO;
 use ReflectionProperty;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use WeakReference;
 
 /**
  * Tests for PooledConnection — the adapter that wraps a database Connection
@@ -186,7 +187,7 @@ class PooledConnectionTest extends DatabaseTestCase
         ]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Database connection [memory_read_pool_test::read] cannot use a derived read pool for in-memory SQLite.'
         );
 
@@ -218,7 +219,7 @@ class PooledConnectionTest extends DatabaseTestCase
             ]);
 
             $this->expectException(InvalidArgumentException::class);
-            $this->expectExceptionMessage(
+            $this->expectExceptionMessageIs(
                 'Database connection [memory_read_url_pool_test::read] cannot use a derived read pool for in-memory SQLite.'
             );
 
@@ -884,8 +885,8 @@ class PooledConnectionTest extends DatabaseTestCase
         $configurator = new PoolSessionConfigurator;
         PdoConnection::configureSessionUsing($configurator);
         $pool = new DatabasePool($this->app, 'pool_test');
-        $stateCallsAfterCreation = $configurator->stateCalls;
-        $applyCallsAfterCreation = $configurator->applyCalls;
+        $this->assertSame(0, $configurator->stateCalls);
+        $this->assertSame(0, $configurator->applyCalls);
 
         /** @var PooledConnection $pooledConnection */
         $pooledConnection = $pool->borrow();
@@ -895,8 +896,8 @@ class PooledConnectionTest extends DatabaseTestCase
             $stateCallsBeforePing = $configurator->stateCalls;
             $applyCallsBeforePing = $configurator->applyCalls;
 
-            $this->assertGreaterThanOrEqual($stateCallsAfterCreation, $stateCallsBeforePing);
-            $this->assertSame($applyCallsAfterCreation, $applyCallsBeforePing);
+            $this->assertSame(1, $stateCallsBeforePing);
+            $this->assertSame(1, $applyCallsBeforePing);
             $this->assertTrue($pooledConnection->ping(1.0));
             $this->assertSame($stateCallsBeforePing, $configurator->stateCalls);
             $this->assertSame($applyCallsBeforePing, $configurator->applyCalls);
@@ -1443,6 +1444,16 @@ class PooledConnectionTest extends DatabaseTestCase
         $this->assertSame($connection, $nextPooledConnection->getConnection());
 
         $nextPooledConnection->release();
+    }
+
+    public function testClosingAnUnusedSharedMemoryPoolClosesItsPhysicalSession(): void
+    {
+        $pool = new DatabasePool($this->app, 'pool_test');
+        $pdo = WeakReference::create($pool->getSharedInMemorySqlitePdo());
+
+        $pool->close();
+
+        $this->assertNull($pdo->get());
     }
 
     public function testSharedPdoPersistsAcrossInMemorySqliteBorrows(): void

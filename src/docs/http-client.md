@@ -41,6 +41,8 @@ Hypervel provides an expressive, minimal API around the [Guzzle HTTP client](htt
 
 The HTTP client supports Guzzle 7 and 8.
 
+Before sending a real request, Hypervel returns the current execution's idle database sessions to their pools. Transactions and explicitly pinned sessions remain held. Code that needs the same database session across an HTTP call may use `DB::withPinnedSession()`. See [releasing and pinning database connections](/docs/{{version}}/database#releasing-and-pinning-connections).
+
 <a name="making-requests"></a>
 ## Making Requests
 
@@ -177,11 +179,17 @@ The `jsonLines` method skips blank lines and throws a `JsonException` if a recor
 
 For plain text or a custom JSON decoder, you may use the `lines` method instead. It removes LF and CRLF line endings, preserves empty lines, and includes the final line even when it has no newline. For binary data and other formats, you may read the underlying PSR-7 response body directly.
 
-Both methods continue reading from the body's current position. They do not rewind it. If you call `body` or `json` first, you must rewind the stream before reading its lines. Memory usage grows with the longest line, not the total response size.
+Both methods continue reading from the body's current position. They do not rewind it. Streaming bodies cannot be rewound, so choose between processing their lines and reading the entire body with `body` or `json`. Memory usage grows with the longest line, not the total response size.
 
-The default streaming handler requires PHP's `allow_url_fopen` setting. If this setting is disabled, real streaming requests throw a `RuntimeException`; faked requests are unaffected. Custom handlers and clients are responsible for providing their own streaming support.
+Inside a Swoole coroutine with native cURL hooks enabled, the HTTP client receives chunks as they arrive, buffers a limited amount, and pauses network reads when your application falls behind. [Named connections](#connections) reuse idle connections between requests while keeping request headers, credentials, and cookies separate. Each active stream owns its transport; concurrent streams do not multiplex onto the same connection.
 
-Unlike buffered requests, the default streaming handler does not use shared cURL connections or multiplexing. Streaming requests fail if their connection options require either feature.
+For streaming requests, `timeout` bounds the wait for response headers. After headers arrive, a long-running stream may continue beyond that timeout. The `read_timeout` option limits idle gaps during headers and body reads, defaults to 60 seconds, and accepts `0` to wait without an idle limit. `connect_timeout` continues to limit connection establishment. Closing a response or canceling its consuming coroutine releases its active transfer.
+
+If cURL negotiates authentication for a streamed request, such as digest authentication with Guzzle 7 or the `CURLOPT_HTTPAUTH` and `CURLOPT_PROXYAUTH` cURL options, the response is returned when its first body bytes arrive or the transfer completes. The `timeout` option also covers that wait.
+
+For streamed responses, `on_stats` runs when the response is returned. The `on_trailers` callback runs once the transfer has completed, after `on_headers`. Small responses may already be complete when returned; for longer responses, trailers arrive as the body is consumed.
+
+Outside a hooked coroutine, or when you provide `stream_context` or a custom `stream_factory`, the client uses Guzzle's PHP-stream handler. This fallback requires `allow_url_fopen`, cannot use cURL destination pins or required transport sharing, and retains Guzzle's timeout behavior. In Guzzle 7, an omitted `read_timeout` uses the stream context or PHP socket timeout. Custom handlers and clients remain responsible for their own streaming support; faked responses do not need a transport.
 
 <a name="request-data"></a>
 ### Request Data
@@ -781,6 +789,8 @@ return $responses[0]->ok() &&
        $responses[2]->ok();
 ```
 
+If the parent coroutine has already used the database, call `DB::releaseIdleConnections()` before `parallel()` to make its idle sessions available while it waits. The HTTP requests run in child coroutines and cannot release the parent's connections. Transactions and pinned sessions still remain held; see [database connection pooling](/docs/{{version}}/database#releasing-and-pinning-connections).
+
 Each response can be accessed based on the order it was added to the array. If you wish, you can name the requests using array keys, which allows you to access the corresponding responses by name:
 
 ```php
@@ -955,6 +965,8 @@ defer(function () {
 
 Hypervel's HTTP client supports named connection presets for services your application calls frequently. Synchronous requests on a registered connection share one low-level Guzzle transport handler, which retains reusable cURL handles and keep-alive connection state. Every pending request still receives a fresh Guzzle client and middleware stack, so request-specific middleware, callbacks, and options never become frozen onto the first request. Asynchronous requests use isolated handlers because a worker-lived cURL multi-handler cannot be driven safely by concurrent coroutines.
 
+For streamed responses, each named connection keeps up to 32 idle connections per worker for reuse. Connections are opened as needed; this does not limit how many requests can run at once.
+
 To register a connection, typically in the `boot` method of your application's `AppServiceProvider`, call the `registerConnection` method:
 
 ```php
@@ -1063,7 +1075,7 @@ If the proxy cannot be resolved or refuses the connection, a `Hypervel\Http\Clie
 <a name="destination-policy-limitations"></a>
 ### Limitations
 
-Pinning relies on Guzzle's cURL handler and libcurl 7.75 or newer. For this reason, restricted requests may not use the `stream` option, set their own `proxy` or raw `curl` options, or use a custom handler from the `setHandler` method; such requests throw a `DisallowedDestinationException`. To write a large response to a file, use the `sink` method instead of streaming it.
+Pinning relies on Guzzle's cURL transport and libcurl 7.75 or newer. Streaming is supported inside a Swoole coroutine with native cURL hooks enabled. Restricted requests may not use the PHP-stream fallback, set their own `proxy` or raw `curl` options, or use a custom handler from the `setHandler` method; such requests throw a `DisallowedDestinationException`. To write a large response directly to a file, use the `sink` method.
 
 If the installed cURL transport lacks a required capability, a `Hypervel\Http\Client\Destinations\DestinationPolicyException` is thrown. These failures are never retried, and your retry callback is not called, because another attempt cannot change the installed transport.
 

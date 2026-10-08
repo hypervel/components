@@ -9,7 +9,7 @@ use Hypervel\Tests\TestCase;
 
 class SupportBenchmarkTest extends TestCase
 {
-    public function testMeasure()
+    public function testMeasure(): void
     {
         $this->assertIsNumeric(Benchmark::measure(fn () => 1 + 1));
 
@@ -19,12 +19,12 @@ class SupportBenchmarkTest extends TestCase
         ], 3));
     }
 
-    public function testValue()
+    public function testValue(): void
     {
         $this->assertIsArray(Benchmark::value(fn () => 1 + 1));
     }
 
-    public function testMacroable()
+    public function testMacroable(): void
     {
         $macroName = __FUNCTION__;
 
@@ -37,7 +37,7 @@ class SupportBenchmarkTest extends TestCase
         $this->assertTrue(Benchmark::$macroName());
     }
 
-    public function testFlushStateClearsMacros()
+    public function testFlushStateClearsMacros(): void
     {
         Benchmark::macro('flushable', fn () => true);
         $this->assertTrue(Benchmark::hasMacro('flushable'));

@@ -11,7 +11,7 @@ use Symfony\Component\Console\Output\StreamOutput;
 
 class ConsoleOutputTest extends TestCase
 {
-    public function testCorrectlyCountsTrailingNewlinesWithUnixLineEndings()
+    public function testCorrectlyCountsTrailingNewlinesWithUnixLineEndings(): void
     {
         $output = $this->createSilentOutput();
         $ref = new ReflectionProperty($output, 'newLinesWritten');
@@ -48,7 +48,7 @@ class ConsoleOutputTest extends TestCase
         $this->assertSame(2, $ref->getValue($output));
     }
 
-    public function testAccumulatesNewlinesForBlankLines()
+    public function testAccumulatesNewlinesForBlankLines(): void
     {
         $output = $this->createSilentOutput();
         $ref = new ReflectionProperty($output, 'newLinesWritten');
@@ -61,7 +61,7 @@ class ConsoleOutputTest extends TestCase
         $this->assertSame(3, $ref->getValue($output));
     }
 
-    public function testResetsNewlineCountForNonBlankLines()
+    public function testResetsNewlineCountForNonBlankLines(): void
     {
         $output = $this->createSilentOutput();
         $ref = new ReflectionProperty($output, 'newLinesWritten');
@@ -75,7 +75,7 @@ class ConsoleOutputTest extends TestCase
         $this->assertSame(1, $ref->getValue($output));
     }
 
-    public function testCountsZeroTrailingNewlinesForMessagesWithoutNewlineFlag()
+    public function testCountsZeroTrailingNewlinesForMessagesWithoutNewlineFlag(): void
     {
         $output = $this->createSilentOutput();
         $ref = new ReflectionProperty($output, 'newLinesWritten');

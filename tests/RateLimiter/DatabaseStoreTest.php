@@ -362,7 +362,7 @@ class DatabaseStoreTest extends TestCase
         $store = new DatabaseStore($connections, 'limiter', 'custom_rate_limits');
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'PostgreSQL database rate limiter connection [limiter] must use READ COMMITTED transaction isolation.'
         );
 
@@ -389,7 +389,7 @@ class DatabaseStoreTest extends TestCase
         $connection->shouldNotReceive('table');
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'PostgreSQL database rate limiter connection [limiter] must use READ COMMITTED transaction isolation.'
         );
 
@@ -451,7 +451,7 @@ class DatabaseStoreTest extends TestCase
         $store = new DatabaseStore($connections, 'limiter', 'custom_rate_limits');
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIsOrContains(
             'Database rate limiter mutations cannot run inside an active transaction on the selected connection.'
         );
 

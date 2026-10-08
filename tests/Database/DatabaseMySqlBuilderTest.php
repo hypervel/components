@@ -135,7 +135,7 @@ class DatabaseMySqlBuilderTest extends TestCase
         $connection->shouldReceive('endForeignKeyConstraintSuppression')->once();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage("Failed to execute schema statement [{$statement}].");
+        $this->expectExceptionMessageIs("Failed to execute schema statement [{$statement}].");
 
         $builder->dropAllTables();
     }
@@ -155,7 +155,7 @@ class DatabaseMySqlBuilderTest extends TestCase
         $connection->shouldReceive('statement')->once()->with($statement)->andReturnFalse();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage("Failed to execute schema statement [{$statement}].");
+        $this->expectExceptionMessageIs("Failed to execute schema statement [{$statement}].");
 
         $builder->dropAllViews();
     }

@@ -6,10 +6,13 @@ namespace Hypervel\Tests\Permission;
 
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
 use Hypervel\Database\Eloquent\Relations\MorphPivot;
+use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Permission\Models\Permission;
 use Hypervel\Permission\Models\Role;
 use Hypervel\Permission\Traits\HasRoles;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Permission\Fixtures\Models\UserWithoutHasRoles;
 
 class CustomPivotTest extends TestCase
@@ -126,6 +129,32 @@ class CustomPivotTest extends TestCase
         $this->assertTrue($user->hasDeniedPermission('edit-news'));
         $this->assertTrue($user->hasRole('testRole'));
     }
+
+    public function testTimestampedPivotRecordsEffectChanges(): void
+    {
+        Schema::table('model_has_permissions', function (Blueprint $table): void {
+            $table->timestamps();
+        });
+
+        CarbonImmutable::setTestNow('2026-01-01 10:00:00');
+        $user = TimestampedPivotTestUser::create(['email' => 'timestamped@example.com']);
+        $user->givePermissionTo('edit-articles');
+
+        CarbonImmutable::setTestNow('2026-01-02 10:00:00');
+        $user->denyPermissionTo('edit-articles');
+
+        $pivot = DB::table('model_has_permissions')->where('model_test_id', $user->getKey())->first();
+        $this->assertSame('2026-01-01 10:00:00', $pivot->created_at);
+        $this->assertSame('2026-01-02 10:00:00', $pivot->updated_at);
+
+        CarbonImmutable::setTestNow('2026-01-03 10:00:00');
+        $user->syncPermissionEffects(allowed: ['edit-articles']);
+
+        $pivot = DB::table('model_has_permissions')->where('model_test_id', $user->getKey())->first();
+        $this->assertSame('2026-01-01 10:00:00', $pivot->created_at);
+        $this->assertSame('2026-01-03 10:00:00', $pivot->updated_at);
+        $this->assertTrue($user->hasDirectPermission('edit-articles'));
+    }
 }
 
 class CustomPermissionPivotTestUser extends UserWithoutHasRoles
@@ -138,6 +167,8 @@ class CustomPermissionPivotTestUser extends UserWithoutHasRoles
     protected string $guard_name = 'web';
 
     /**
+     * Get the permissions through the custom pivot.
+     *
      * @return BelongsToMany<Permission, $this, CustomPermissionPivotTestPermissionPivot>
      */
     public function permissions(): BelongsToMany
@@ -146,11 +177,32 @@ class CustomPermissionPivotTestUser extends UserWithoutHasRoles
     }
 
     /**
+     * Get the roles through the custom pivot.
+     *
      * @return BelongsToMany<Role, $this, CustomPermissionPivotTestRolePivot>
      */
     public function roles(): BelongsToMany
     {
         return $this->traitRoles()->using(CustomPermissionPivotTestRolePivot::class);
+    }
+}
+
+class TimestampedPivotTestUser extends UserWithoutHasRoles
+{
+    use HasRoles {
+        permissions as protected traitPermissions;
+    }
+
+    protected string $guard_name = 'web';
+
+    /**
+     * Get the permissions with pivot timestamps.
+     *
+     * @return BelongsToMany<Permission, $this>
+     */
+    public function permissions(): BelongsToMany
+    {
+        return $this->traitPermissions()->withTimestamps();
     }
 }
 

@@ -76,7 +76,7 @@ class ConcurrencyLimiterTest extends TestCase
         $limiter = new ConcurrencyLimiter($redis, 'test-lock', 3, 60);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('test error');
+        $this->expectExceptionMessageIs('test error');
 
         $limiter->block(5, function (): never {
             throw new RuntimeException('test error');

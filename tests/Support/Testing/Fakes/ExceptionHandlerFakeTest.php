@@ -56,7 +56,7 @@ class ExceptionHandlerFakeTest extends TestCase
     public function testAssertReportedFailsWhenExceptionNotReported(): void
     {
         $this->expectException(ExpectationFailedException::class);
-        $this->expectExceptionMessage('The expected [InvalidArgumentException] exception was not reported.');
+        $this->expectExceptionMessageIsOrContains('The expected [InvalidArgumentException] exception was not reported.');
 
         Exceptions::fake();
 
@@ -68,7 +68,7 @@ class ExceptionHandlerFakeTest extends TestCase
     public function testAssertReportedWithClosureFailsWhenNoMatch(): void
     {
         $this->expectException(ExpectationFailedException::class);
-        $this->expectExceptionMessage('The expected [RuntimeException] exception was not reported.');
+        $this->expectExceptionMessageIsOrContains('The expected [RuntimeException] exception was not reported.');
 
         Exceptions::fake();
 
@@ -90,7 +90,7 @@ class ExceptionHandlerFakeTest extends TestCase
     public function testAssertReportedCountFails(): void
     {
         $this->expectException(ExpectationFailedException::class);
-        $this->expectExceptionMessage('The total number of exceptions reported was 2 instead of 1.');
+        $this->expectExceptionMessageIsOrContains('The total number of exceptions reported was 2 instead of 1.');
 
         Exceptions::fake();
 
@@ -112,7 +112,7 @@ class ExceptionHandlerFakeTest extends TestCase
     public function testAssertNotReportedFails(): void
     {
         $this->expectException(ExpectationFailedException::class);
-        $this->expectExceptionMessage('The expected [RuntimeException] exception was reported.');
+        $this->expectExceptionMessageIs('The expected [RuntimeException] exception was reported.');
 
         Exceptions::fake();
 
@@ -124,7 +124,7 @@ class ExceptionHandlerFakeTest extends TestCase
     public function testAssertNotReportedWithClosureFails(): void
     {
         $this->expectException(ExpectationFailedException::class);
-        $this->expectExceptionMessage('The expected [RuntimeException] exception was reported.');
+        $this->expectExceptionMessageIs('The expected [RuntimeException] exception was reported.');
 
         Exceptions::fake();
 
@@ -143,7 +143,7 @@ class ExceptionHandlerFakeTest extends TestCase
     public function testAssertNothingReportedFails(): void
     {
         $this->expectException(ExpectationFailedException::class);
-        $this->expectExceptionMessage('The following exceptions were reported: RuntimeException, InvalidArgumentException.');
+        $this->expectExceptionMessageIsOrContains('The following exceptions were reported: RuntimeException, InvalidArgumentException.');
 
         Exceptions::fake();
 
@@ -187,7 +187,7 @@ class ExceptionHandlerFakeTest extends TestCase
         Exceptions::fake()->throwOnReport();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('test exception');
+        $this->expectExceptionMessageIs('test exception');
 
         Exceptions::report(new RuntimeException('test exception'));
     }
@@ -213,7 +213,7 @@ class ExceptionHandlerFakeTest extends TestCase
         Exceptions::report(new InvalidArgumentException('second'));
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('first');
+        $this->expectExceptionMessageIs('first');
 
         Exceptions::throwFirstReported();
     }

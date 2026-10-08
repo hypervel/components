@@ -10,9 +10,9 @@ return [
     | HTTP Connection
     |--------------------------------------------------------------------------
     |
-    | Saloon sends requests through this named, worker-lifetime HTTP
-    | connection. Its options are an open transport preset and may be
-    | adjusted or removed independently.
+    | Saloon sends requests through this named HTTP client connection unless
+    | a connector selects another one. Its options are the defaults for
+    | every request sent through it, and you may change or remove them.
     |
     */
 
@@ -64,8 +64,9 @@ return [
     | Generated Integrations
     |--------------------------------------------------------------------------
     |
-    | The path and namespace are independent. A null namespace derives
-    | "Http\\Integrations" beneath the application's root namespace.
+    | A null namespace follows the path beneath the application directory,
+    | so "app/Http/Integrations" becomes "App\Http\Integrations". Set the
+    | namespace when the path is outside the application directory.
     |
     */
 

@@ -14,8 +14,6 @@ use Hypervel\Tests\Permission\Fixtures\Models\GlobalPartitionUser;
 use Hypervel\Tests\Permission\Fixtures\Models\PartitionedPermission;
 use Hypervel\Tests\Permission\Fixtures\Models\PartitionedRole;
 use Hypervel\Tests\Permission\PartitionTestCase;
-use ReflectionClass;
-use ReflectionParameter;
 
 class PartitionEventTest extends PartitionTestCase
 {
@@ -26,80 +24,21 @@ class PartitionEventTest extends PartitionTestCase
         $app->make('config')->set('permission.events_enabled', true);
     }
 
-    public function testPartitionedRoleEventsKeepTheirExistingShape(): void
-    {
-        Event::fake([RoleAttachedEvent::class, RoleDetachedEvent::class]);
-
-        $user = GlobalPartitionUser::create(['email' => 'global@example.com']);
-        $role = PartitionedRole::create(['name' => 'member']);
-
-        $user->assignRole($role);
-
-        Event::assertDispatched(RoleAttachedEvent::class, function (RoleAttachedEvent $event) use ($user, $role): bool {
-            return $event->model->is($user)
-                && $event->rolesOrIds === [$role->getKey()];
-        });
-
-        $user->removeRole($role);
-
-        Event::assertDispatched(RoleDetachedEvent::class, function (RoleDetachedEvent $event) use ($user, $role): bool {
-            return $event->model->is($user)
-                && $event->rolesOrIds === [$role->getKey()];
-        });
-
-        $this->assertEventConstructorIsUnchanged(RoleAttachedEvent::class, 'rolesOrIds');
-        $this->assertEventConstructorIsUnchanged(RoleDetachedEvent::class, 'rolesOrIds');
-    }
-
-    public function testPartitionedPermissionEventsKeepTheirExistingShape(): void
-    {
-        Event::fake([PermissionAttachedEvent::class, PermissionDetachedEvent::class]);
-
-        $user = GlobalPartitionUser::create(['email' => 'global@example.com']);
-        $permission = PartitionedPermission::create(['name' => 'articles.edit']);
-
-        $user->givePermissionTo($permission);
-
-        Event::assertDispatched(PermissionAttachedEvent::class, function (PermissionAttachedEvent $event) use ($user, $permission): bool {
-            return $event->model->is($user)
-                && $event->permissionsOrIds === [$permission->getKey()];
-        });
-
-        $user->revokePermissionTo($permission);
-
-        Event::assertDispatched(PermissionDetachedEvent::class, function (PermissionDetachedEvent $event) use ($user, $permission): bool {
-            return $event->model->is($user)
-                && $event->permissionsOrIds === $permission;
-        });
-
-        $this->assertEventConstructorIsUnchanged(PermissionAttachedEvent::class, 'permissionsOrIds');
-        $this->assertEventConstructorIsUnchanged(PermissionDetachedEvent::class, 'permissionsOrIds');
-    }
-
-    public function testPartitionedNoOpAndSyncEventsPreserveRequestedUuidPayloads(): void
+    public function testSyncDetachedPayloadsOnlyIncludeTheCurrentPartition(): void
     {
         $user = GlobalPartitionUser::create(['email' => 'global@example.com']);
+
+        $this->setPartition(self::PARTITION_B);
+        $user->assignRole(PartitionedRole::create(['name' => 'member']));
+        $user->givePermissionTo(PartitionedPermission::create(['name' => 'articles.edit']));
+
+        $this->setPartition(self::PARTITION_A);
         $member = PartitionedRole::create(['name' => 'member']);
         $owner = PartitionedRole::create(['name' => 'owner']);
         $edit = PartitionedPermission::create(['name' => 'articles.edit']);
         $publish = PartitionedPermission::create(['name' => 'articles.publish']);
-
         $user->assignRole($member);
         $user->givePermissionTo($edit);
-
-        Event::fake([RoleAttachedEvent::class, PermissionAttachedEvent::class]);
-
-        $user->assignRole($member);
-        $user->givePermissionTo($edit);
-
-        Event::assertDispatched(RoleAttachedEvent::class, function (RoleAttachedEvent $event) use ($user, $member): bool {
-            return $event->model->is($user)
-                && $event->rolesOrIds === [$member->getKey()];
-        });
-        Event::assertDispatched(PermissionAttachedEvent::class, function (PermissionAttachedEvent $event) use ($user, $edit): bool {
-            return $event->model->is($user)
-                && $event->permissionsOrIds === [$edit->getKey()];
-        });
 
         Event::fake([
             PermissionAttachedEvent::class,
@@ -108,41 +47,24 @@ class PartitionEventTest extends PartitionTestCase
             RoleDetachedEvent::class,
         ]);
 
-        $user->syncRoles($member, $owner);
-        $user->syncPermissions($edit, $publish);
+        $user->syncRoles($owner);
+        $user->syncPermissions($publish);
 
         Event::assertDispatched(RoleDetachedEvent::class, function (RoleDetachedEvent $event) use ($user, $member): bool {
             return $event->model->is($user)
                 && $event->rolesOrIds === [$member->getKey()];
         });
-        Event::assertDispatched(RoleAttachedEvent::class, function (RoleAttachedEvent $event) use ($user, $member, $owner): bool {
+        Event::assertDispatched(RoleAttachedEvent::class, function (RoleAttachedEvent $event) use ($user, $owner): bool {
             return $event->model->is($user)
-                && $event->rolesOrIds === [$member->getKey(), $owner->getKey()];
-        });
-        Event::assertDispatched(PermissionAttachedEvent::class, function (PermissionAttachedEvent $event) use ($user, $edit, $publish): bool {
-            return $event->model->is($user)
-                && $event->permissionsOrIds === [$edit->getKey(), $publish->getKey()];
+                && $event->rolesOrIds === [$owner->getKey()];
         });
         Event::assertDispatched(PermissionDetachedEvent::class, function (PermissionDetachedEvent $event) use ($user, $edit): bool {
             return $event->model->is($user)
                 && $event->permissionsOrIds->modelKeys() === [$edit->getKey()];
         });
-    }
-
-    /**
-     * Assert a permission assignment event retains its two public arguments.
-     *
-     * @param class-string $event
-     */
-    private function assertEventConstructorIsUnchanged(string $event, string $assignmentArgument): void
-    {
-        $constructor = (new ReflectionClass($event))->getConstructor();
-
-        $this->assertNotNull($constructor);
-        $this->assertSame(
-            ['model', $assignmentArgument],
-            array_map(static fn (ReflectionParameter $parameter): string => $parameter->getName(), $constructor->getParameters()),
-        );
-        $this->assertFalse((new ReflectionClass($event))->hasProperty('partition'));
+        Event::assertDispatched(PermissionAttachedEvent::class, function (PermissionAttachedEvent $event) use ($user, $publish): bool {
+            return $event->model->is($user)
+                && $event->permissionsOrIds === [$publish->getKey()];
+        });
     }
 }

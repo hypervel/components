@@ -111,7 +111,7 @@ class SearchableModelTest extends ScoutTestCase
             ->firstOrFail();
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Model [Hypervel\Tests\Scout\Fixtures\Models\SearchableModel] has no Scout key.');
+        $this->expectExceptionMessageIs('Model [Hypervel\Tests\Scout\Fixtures\Models\SearchableModel] has no Scout key.');
 
         $partialModel->getScoutKey();
     }

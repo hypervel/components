@@ -138,6 +138,8 @@ class Channel extends \Swoole\Coroutine\Channel implements ChannelInterface
 
     /**
      * Determine if the last operation timed out.
+     *
+     * This state must be inspected immediately after a failed operation.
      */
     public function isTimeout(): bool
     {

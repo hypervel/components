@@ -10,8 +10,8 @@ use RuntimeException;
 
 class PhpDocTypeNameResolver
 {
-    /** @var array<string, array<string, array<string, class-string>>> */
-    protected array $imports = [];
+    /** @var array<string, array{imports: array<string, array<string, class-string>>, namespaces: array<int, string>}> */
+    protected array $sources = [];
 
     /**
      * Resolve a PHPDoc type name in its declaring class context.
@@ -28,11 +28,11 @@ class PhpDocTypeNameResolver
             return $name;
         }
 
-        $namespace = $class->getNamespaceName();
+        $namespace = $this->namespaceFor($class);
         $sameNamespace = $namespace === '' ? $name : "{$namespace}\\{$name}";
 
         [$alias, $suffix] = array_pad(explode('\\', $name, 2), 2, null);
-        $import = $this->importsFor($class)[$alias] ?? null;
+        $import = $this->importsFor($class, $namespace)[$alias] ?? null;
 
         if ($import !== null) {
             return $suffix === null ? $import : "{$import}\\{$suffix}";
@@ -42,12 +42,40 @@ class PhpDocTypeNameResolver
     }
 
     /**
-     * Get the class imports declared by the source file.
+     * Get the namespace a class is declared in.
+     *
+     * An anonymous class is named after its parent, so its namespace comes from its position in the source file.
+     *
+     * @param ReflectionClass<object> $class
+     */
+    protected function namespaceFor(ReflectionClass $class): string
+    {
+        $file = $class->getFileName();
+
+        if (! $class->isAnonymous() || $file === false) {
+            return $class->getNamespaceName();
+        }
+
+        $namespace = '';
+
+        foreach ($this->source($file)['namespaces'] as $line => $declaredNamespace) {
+            if ($line > $class->getStartLine()) {
+                break;
+            }
+
+            $namespace = $declaredNamespace;
+        }
+
+        return $namespace;
+    }
+
+    /**
+     * Get the class imports declared for a namespace by the source file.
      *
      * @param ReflectionClass<object> $class
      * @return array<string, class-string>
      */
-    protected function importsFor(ReflectionClass $class): array
+    protected function importsFor(ReflectionClass $class, string $namespace): array
     {
         $file = $class->getFileName();
 
@@ -55,17 +83,25 @@ class PhpDocTypeNameResolver
             return [];
         }
 
-        $imports = $this->imports[$file] ??= $this->parseImports($file);
-
-        return $imports[$class->getNamespaceName()] ?? [];
+        return $this->source($file)['imports'][$namespace] ?? [];
     }
 
     /**
-     * Parse class imports from a PHP source file.
+     * Get the parsed imports and namespace declarations of a source file.
      *
-     * @return array<string, array<string, class-string>>
+     * @return array{imports: array<string, array<string, class-string>>, namespaces: array<int, string>}
      */
-    protected function parseImports(string $file): array
+    protected function source(string $file): array
+    {
+        return $this->sources[$file] ??= $this->parseSource($file);
+    }
+
+    /**
+     * Parse class imports and namespace declaration lines from a PHP source file.
+     *
+     * @return array{imports: array<string, array<string, class-string>>, namespaces: array<int, string>}
+     */
+    protected function parseSource(string $file): array
     {
         $source = file_get_contents($file);
 
@@ -75,6 +111,7 @@ class PhpDocTypeNameResolver
 
         $tokens = PhpToken::tokenize($source);
         $imports = [];
+        $namespaces = [];
         $namespace = '';
         $namespaceDepth = 0;
         $braceDepth = 0;
@@ -84,6 +121,7 @@ class PhpDocTypeNameResolver
 
             if ($token->id === T_NAMESPACE && $braceDepth === 0) {
                 [$namespace, $delimiterIndex] = $this->parseNamespace($tokens, $index + 1);
+                $namespaces[$token->line] = $namespace;
                 $delimiter = $tokens[$delimiterIndex]->text;
                 $namespaceDepth = $delimiter === '{' ? 1 : 0;
                 $braceDepth = $namespaceDepth;
@@ -120,7 +158,7 @@ class PhpDocTypeNameResolver
             $index = $delimiterIndex;
         }
 
-        return $imports;
+        return ['imports' => $imports, 'namespaces' => $namespaces];
     }
 
     /**

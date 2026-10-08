@@ -232,7 +232,7 @@ class CalloutTest extends TestCase
         Prompt::fake();
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Unsupported callout content part: ' . ElementContract::class . '@anonymous');
+        $this->expectExceptionMessageIs('Unsupported callout content part: ' . ElementContract::class . '@anonymous');
 
         callout('Details', [new class implements ElementContract {
         }]);

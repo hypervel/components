@@ -93,7 +93,7 @@ class DeleteFilesTest extends TestCase
         $components->expects('task')->with('File [b] has been deleted');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to delete files [a].');
+        $this->expectExceptionMessageIs('Unable to delete files [a].');
 
         (new DeleteFiles(
             filesystem: $filesystem,

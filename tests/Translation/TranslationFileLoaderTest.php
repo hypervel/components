@@ -176,7 +176,7 @@ class TranslationFileLoaderTest extends TestCase
         $files->shouldReceive('getRequire')->never();
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Invalid characters present in locale.');
+        $this->expectExceptionMessageIs('Invalid characters present in locale.');
 
         (new FileLoader($files, __DIR__))->load($locale, 'messages');
     }
@@ -270,7 +270,7 @@ class TranslationFileLoaderTest extends TestCase
         $files->expects('get')->with(__DIR__ . '/invalid/en.json')->andReturn($json);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Translation file [' . __DIR__ . '/invalid/en.json] contains an invalid JSON structure.'
         );
 
@@ -299,7 +299,7 @@ class TranslationFileLoaderTest extends TestCase
         $files->expects('get')->with(__DIR__ . '/en.json')->andReturn('{"unread":0}');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Translation file [' . __DIR__ . '/en.json] contains an invalid value for key [unread]. Translation values must be strings or arrays.'
         );
 

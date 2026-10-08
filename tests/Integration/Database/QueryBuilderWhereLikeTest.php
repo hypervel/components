@@ -35,7 +35,7 @@ class QueryBuilderWhereLikeTest extends DatabaseTestCase
         ]);
     }
 
-    public function testWhereLike()
+    public function testWhereLike(): void
     {
         $users = DB::table('users')->whereLike('email', 'john.doe@example.com')->get();
         $this->assertCount(1, $users);
@@ -44,7 +44,7 @@ class QueryBuilderWhereLikeTest extends DatabaseTestCase
         $this->assertSame(4, DB::table('users')->whereNotLike('email', 'john.doe@example.com')->count());
     }
 
-    public function testWhereLikeWithPercentWildcard()
+    public function testWhereLikeWithPercentWildcard(): void
     {
         $this->assertSame(5, DB::table('users')->whereLike('email', '%@example.com')->count());
         $this->assertSame(2, DB::table('users')->whereNotLike('email', '%Doe%')->count());
@@ -54,7 +54,7 @@ class QueryBuilderWhereLikeTest extends DatabaseTestCase
         $this->assertSame('John.Doe@example.com', $users[0]->email);
     }
 
-    public function testWhereLikeWithUnderscoreWildcard()
+    public function testWhereLikeWithUnderscoreWildcard(): void
     {
         $users = DB::table('users')->whereLike('email', '_a_e_%@example.com')->get();
         $this->assertCount(2, $users);

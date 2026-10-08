@@ -26,7 +26,7 @@ class RedisPrefixTest extends IntegrationTestCase
     public function testUseThrowsForUnknownConnection(): void
     {
         $this->expectException(Exception::class);
-        $this->expectExceptionMessage('Redis connection [missing] has not been configured.');
+        $this->expectExceptionMessageIs('Redis connection [missing] has not been configured.');
 
         Horizon::use('missing');
     }

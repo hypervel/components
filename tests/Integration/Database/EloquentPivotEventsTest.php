@@ -69,7 +69,7 @@ class EloquentPivotEventsTest extends DatabaseTestCase
         });
     }
 
-    public function testPivotWillTriggerEventsToBeFired()
+    public function testPivotWillTriggerEventsToBeFired(): void
     {
         $user = PivotEventsTestUser::forceCreate(['email' => 'taylor@laravel.com']);
         $user2 = PivotEventsTestUser::forceCreate(['email' => 'ralph@ralphschindler.com']);
@@ -91,7 +91,7 @@ class EloquentPivotEventsTest extends DatabaseTestCase
         $this->assertEquals(['deleting', 'deleted'], PivotEventsTestCollaborator::$eventsCalled);
     }
 
-    public function testPivotWithPivotValueWillTriggerEventsToBeFired()
+    public function testPivotWithPivotValueWillTriggerEventsToBeFired(): void
     {
         $user = PivotEventsTestUser::forceCreate(['email' => 'taylor@laravel.com']);
         $user2 = PivotEventsTestUser::forceCreate(['email' => 'ralph@ralphschindler.com']);
@@ -119,7 +119,7 @@ class EloquentPivotEventsTest extends DatabaseTestCase
         $this->assertEquals(['deleting', 'deleted'], PivotEventsTestCollaborator::$eventsCalled);
     }
 
-    public function testPivotWithPivotCriteriaTriggerEventsToBeFiredOnCreateUpdateNoneOnDetach()
+    public function testPivotWithPivotCriteriaTriggerEventsToBeFiredOnCreateUpdateNoneOnDetach(): void
     {
         $user = PivotEventsTestUser::forceCreate(['email' => 'taylor@laravel.com']);
         $user2 = PivotEventsTestUser::forceCreate(['email' => 'ralph@ralphschindler.com']);
@@ -133,7 +133,7 @@ class EloquentPivotEventsTest extends DatabaseTestCase
         $this->assertSame([], PivotEventsTestCollaborator::$eventsCalled);
     }
 
-    public function testCustomPivotUpdateEventHasExistingAttributes()
+    public function testCustomPivotUpdateEventHasExistingAttributes(): void
     {
         $_SERVER['pivot_attributes'] = false;
 
@@ -160,7 +160,7 @@ class EloquentPivotEventsTest extends DatabaseTestCase
         );
     }
 
-    public function testCustomPivotUpdateEventHasDirtyCorrect()
+    public function testCustomPivotUpdateEventHasDirtyCorrect(): void
     {
         $_SERVER['pivot_dirty_attributes'] = false;
 
@@ -179,7 +179,7 @@ class EloquentPivotEventsTest extends DatabaseTestCase
         $this->assertSame(['role' => 'Lead Developer'], $_SERVER['pivot_dirty_attributes']);
     }
 
-    public function testCustomMorphPivotClassDetachAttributes()
+    public function testCustomMorphPivotClassDetachAttributes(): void
     {
         $project = PivotEventsTestProject::forceCreate([
             'name' => 'Test Project',

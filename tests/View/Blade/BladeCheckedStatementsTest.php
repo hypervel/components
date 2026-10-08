@@ -6,7 +6,7 @@ namespace Hypervel\Tests\View\Blade;
 
 class BladeCheckedStatementsTest extends AbstractBladeTestCase
 {
-    public function testSelectedStatementsAreCompiled()
+    public function testSelectedStatementsAreCompiled(): void
     {
         $string = '<input @selected(name(foo(bar)))/>';
         $expected = "<input <?php if(name(foo(bar))): echo 'selected'; endif; ?>/>";
@@ -14,7 +14,7 @@ class BladeCheckedStatementsTest extends AbstractBladeTestCase
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
 
-    public function testCheckedStatementsAreCompiled()
+    public function testCheckedStatementsAreCompiled(): void
     {
         $string = '<input @checked(name(foo(bar)))/>';
         $expected = "<input <?php if(name(foo(bar))): echo 'checked'; endif; ?>/>";
@@ -22,7 +22,7 @@ class BladeCheckedStatementsTest extends AbstractBladeTestCase
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
 
-    public function testDisabledStatementsAreCompiled()
+    public function testDisabledStatementsAreCompiled(): void
     {
         $string = '<button @disabled(name(foo(bar)))>Foo</button>';
         $expected = "<button <?php if(name(foo(bar))): echo 'disabled'; endif; ?>>Foo</button>";
@@ -30,7 +30,7 @@ class BladeCheckedStatementsTest extends AbstractBladeTestCase
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
 
-    public function testRequiredStatementsAreCompiled()
+    public function testRequiredStatementsAreCompiled(): void
     {
         $string = '<input @required(name(foo(bar)))/>';
         $expected = "<input <?php if(name(foo(bar))): echo 'required'; endif; ?>/>";
@@ -38,7 +38,7 @@ class BladeCheckedStatementsTest extends AbstractBladeTestCase
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
 
-    public function testReadonlyStatementsAreCompiled()
+    public function testReadonlyStatementsAreCompiled(): void
     {
         $string = '<input @readonly(name(foo(bar)))/>';
         $expected = "<input <?php if(name(foo(bar))): echo 'readonly'; endif; ?>/>";

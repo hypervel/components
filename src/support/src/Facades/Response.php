@@ -8,7 +8,7 @@ use Hypervel\Contracts\Routing\ResponseFactory as ResponseFactoryContract;
 
 /**
  * @method static \Symfony\Component\HttpFoundation\BinaryFileResponse download(\SplFileInfo|string $file, string|null $name = null, array $headers = [], string $disposition = 'attachment')
- * @method static \Symfony\Component\HttpFoundation\StreamedResponse eventStream(\Closure $callback, array $headers = [], \Hypervel\Http\StreamedEvent|string|null $endStreamWith = '</stream>')
+ * @method static \Hypervel\Http\IterableStreamedResponse eventStream(\Closure $callback, array $headers = [], \Hypervel\Http\StreamedEvent|string|null $endStreamWith = '</stream>')
  * @method static \Symfony\Component\HttpFoundation\BinaryFileResponse file(\SplFileInfo|string $file, array $headers = [])
  * @method static void flushMacros()
  * @method static void flushState()

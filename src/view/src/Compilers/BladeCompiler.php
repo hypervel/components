@@ -236,11 +236,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
      */
     public function getPath(): string
     {
-        if (CoroutineContext::has(static::PATH_CONTEXT_KEY)) {
-            return CoroutineContext::get(static::PATH_CONTEXT_KEY, '');
-        }
-
-        return $this->path;
+        return CoroutineContext::get(static::PATH_CONTEXT_KEY) ?? $this->path;
     }
 
     /**
@@ -1053,7 +1049,6 @@ class BladeCompiler extends Compiler implements CompilerInterface
      */
     public function usingEchoFormat(string $format, callable $callback): string
     {
-        $hadOverride = CoroutineContext::has(static::ECHO_FORMAT_CONTEXT_KEY);
         $previous = CoroutineContext::get(static::ECHO_FORMAT_CONTEXT_KEY);
 
         CoroutineContext::set(static::ECHO_FORMAT_CONTEXT_KEY, $format);
@@ -1061,7 +1056,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
         try {
             return call_user_func($callback);
         } finally {
-            if ($hadOverride) {
+            if ($previous !== null) {
                 CoroutineContext::set(static::ECHO_FORMAT_CONTEXT_KEY, $previous);
             } else {
                 CoroutineContext::forget(static::ECHO_FORMAT_CONTEXT_KEY);

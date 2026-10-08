@@ -115,7 +115,7 @@ class DatabaseEloquentRouteBindingTest extends TestCase
         $query->shouldNotReceive('where');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Invalid id: abc');
+        $this->expectExceptionMessageIs('Invalid id: abc');
 
         (new RouteBindingCustomExceptionModel)->resolveRouteBindingQuery($query, 'abc');
     }

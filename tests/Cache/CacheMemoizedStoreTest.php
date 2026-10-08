@@ -212,7 +212,7 @@ class CacheMemoizedStoreTest extends TestCase
         $this->assertFalse($nonTaggable->supportsTags());
 
         $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('This cache store does not support tagging.');
+        $this->expectExceptionMessageIs('This cache store does not support tagging.');
 
         $nonTaggable->getTagMode();
     }
@@ -413,7 +413,7 @@ class CacheMemoizedStoreTest extends TestCase
         $store = m::mock(Store::class);
 
         $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage(sprintf(
+        $this->expectExceptionMessageIs(sprintf(
             'The memoized cache store\'s underlying store [%s] does not support flushing locks.',
             $store::class
         ));
@@ -428,7 +428,7 @@ class CacheMemoizedStoreTest extends TestCase
         $store->shouldNotReceive('flushLocks');
 
         $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage(sprintf(
+        $this->expectExceptionMessageIs(sprintf(
             'The memoized cache store\'s underlying store [%s] does not support flushing locks.',
             $store::class
         ));

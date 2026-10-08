@@ -16,7 +16,7 @@ use stdClass;
 
 class AuthorizesRequestsTest extends TestCase
 {
-    public function testAuthorize()
+    public function testAuthorize(): void
     {
         $response = m::mock(Response::class);
 
@@ -27,7 +27,7 @@ class AuthorizesRequestsTest extends TestCase
         $this->assertEquals($response, (new AuthorizesRequestsStub)->authorize('foo', ['bar']));
     }
 
-    public function testAuthorizeMayBeGuessedPassingModelInstance()
+    public function testAuthorizeMayBeGuessedPassingModelInstance(): void
     {
         $model = new class extends Model {};
         $response = m::mock(Response::class);
@@ -39,7 +39,7 @@ class AuthorizesRequestsTest extends TestCase
         $this->assertEquals($response, (new AuthorizesRequestsStub)->authorize($model));
     }
 
-    public function testAuthorizeMayBeGuessedPassingClassName()
+    public function testAuthorizeMayBeGuessedPassingClassName(): void
     {
         $class = Model::class;
         $response = m::mock(Response::class);
@@ -51,7 +51,7 @@ class AuthorizesRequestsTest extends TestCase
         $this->assertEquals($response, (new AuthorizesRequestsStub)->authorize($class));
     }
 
-    public function testAuthorizeMayBeGuessedAndNormalized()
+    public function testAuthorizeMayBeGuessedAndNormalized(): void
     {
         $model = new class extends Model {};
         $response = m::mock(Response::class);
@@ -68,7 +68,7 @@ class AuthorizesRequestsTest extends TestCase
         })->store($model));
     }
 
-    public function testAuthorizeForUserDelegatesToGateForUser()
+    public function testAuthorizeForUserDelegatesToGateForUser(): void
     {
         $response = m::mock(Response::class);
         $user = new stdClass;

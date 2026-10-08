@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Data\Eloquent;
 
 use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
+use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Data\Contracts\BaseData;
 use Hypervel\Data\Contracts\TransformableData;
 use Hypervel\Data\DataCollection;
@@ -12,6 +13,7 @@ use Hypervel\Data\Exceptions\CannotCastData;
 use Hypervel\Database\Eloquent\Casts\Json;
 use Hypervel\Database\Eloquent\JsonEncodingException;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Support\Enumerable;
 use Hypervel\Support\Facades\Crypt;
 
 /**
@@ -19,7 +21,7 @@ use Hypervel\Support\Facades\Crypt;
  * @template TDataCollection of DataCollection<array-key, TData>
  *
  * @extends AbstractDataEloquentCast<TData>
- * @implements CastsAttributes<null|TDataCollection,null|array<array-key, array<array-key, mixed>|TData>|TDataCollection>
+ * @implements CastsAttributes<null|TDataCollection,null|array<array-key, array<array-key, mixed>|TData>|Arrayable<array<array-key, array<array-key, mixed>|TData>>|TDataCollection>
  */
 class DataCollectionEloquentCast extends AbstractDataEloquentCast implements CastsAttributes
 {
@@ -84,7 +86,7 @@ class DataCollectionEloquentCast extends AbstractDataEloquentCast implements Cas
     /**
      * Transform a data collection into its stored representation.
      *
-     * @param null|array<array-key, array<array-key, mixed>|TData>|TDataCollection $value
+     * @param null|array<array-key, array<array-key, mixed>|TData>|Arrayable<array<array-key, array<array-key, mixed>|TData>>|TDataCollection $value
      * @param array<string, mixed> $attributes
      */
     public function set(Model $model, string $key, mixed $value, array $attributes): ?string
@@ -93,8 +95,14 @@ class DataCollectionEloquentCast extends AbstractDataEloquentCast implements Cas
             return null;
         }
 
+        // Collections keep their data objects, since toArray() would give their output form, not the values needed to
+        // recreate them.
         if ($value instanceof DataCollection) {
             $value = $value->items();
+        } elseif ($value instanceof Enumerable) {
+            $value = $value->all();
+        } elseif ($value instanceof Arrayable) {
+            $value = $value->toArray();
         }
 
         if (! is_array($value)) {

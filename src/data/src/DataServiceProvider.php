@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Data;
 
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Data\Console\DataMakeCommand;
 use Hypervel\Data\Contracts\TransformableData;
@@ -12,6 +13,7 @@ use Hypervel\Data\Support\DataConfig;
 use Hypervel\Data\Support\Transformation\DataTransformer;
 use Hypervel\Data\Support\VarDumper\DataVarDumperCaster;
 use Hypervel\Support\ServiceProvider;
+use InvalidArgumentException;
 use Symfony\Component\VarDumper\Cloner\AbstractCloner;
 
 class DataServiceProvider extends ServiceProvider
@@ -33,7 +35,7 @@ class DataServiceProvider extends ServiceProvider
     /**
      * Bootstrap data services.
      */
-    public function boot(): void
+    public function boot(Repository $config): void
     {
         // Build the typed configuration once during worker boot.
         $this->app->make(DataConfig::class);
@@ -45,8 +47,19 @@ class DataServiceProvider extends ServiceProvider
             });
         }
 
-        AbstractCloner::$defaultCasters[TransformableData::class]
-            ??= [DataVarDumperCaster::class, 'cast'];
+        $enableVarDumperCaster = match ($config->string('data.var_dumper_caster_mode')) {
+            'enabled' => true,
+            'development' => $this->app->environment('local', 'testing'),
+            'disabled' => false,
+            default => throw new InvalidArgumentException(
+                "Configuration [data.var_dumper_caster_mode] must be 'enabled', 'disabled' or 'development'.",
+            ),
+        };
+
+        if ($enableVarDumperCaster) {
+            AbstractCloner::$defaultCasters[TransformableData::class]
+                ??= [DataVarDumperCaster::class, 'cast'];
+        }
 
         if ($this->app->runningInConsole()) {
             // REMOVED: data:cache-structures; worker memory is the metadata cache boundary.

@@ -42,6 +42,7 @@ class PartitionRelationProvenanceTest extends PartitionTestCase
         $user = GlobalPartitionUser::create(['email' => 'global@example.com']);
         $user->load('roles');
 
+        $this->assertTrue($this->app->make(PermissionRegistrar::class)->loadedRelationIsCurrent($user, 'roles'));
         $this->assertFalse($user->hasRole('member'));
 
         $this->setPartition(self::PARTITION_B);

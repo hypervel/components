@@ -129,7 +129,7 @@ class ConnectionResolverTest extends TestCase
     public function testNonCoroutineConnectionIsRetainedUntilTerminalRelease(): void
     {
         $poolManager = m::mock(PoolManager::class);
-        $pool = m::mock(DatabasePool::class);
+        $pool = m::mock(DatabasePool::class, ['usesSessionLeases' => false]);
         $firstWrapper = m::mock(PooledConnection::class);
         $secondWrapper = m::mock(PooledConnection::class);
         $firstConnection = m::mock(Connection::class);
@@ -163,7 +163,7 @@ class ConnectionResolverTest extends TestCase
         $resolver = $this->makeResolver('mysql', $poolManager);
 
         foreach (['mysql' => null, 'mysql::read' => 'read', 'mysql::write' => 'write'] as $name => $role) {
-            $pool = m::mock(DatabasePool::class);
+            $pool = m::mock(DatabasePool::class, ['usesSessionLeases' => false]);
             $wrapper = m::mock(PooledConnection::class);
             $connection = m::mock(Connection::class);
 
@@ -191,7 +191,7 @@ class ConnectionResolverTest extends TestCase
     public function testBorrowedConnectionRetainsItsRequestedRole(): void
     {
         $poolManager = m::mock(PoolManager::class);
-        $pool = m::mock(DatabasePool::class);
+        $pool = m::mock(DatabasePool::class, ['usesSessionLeases' => false]);
         $resolver = $this->makeResolver('sqlite', $poolManager);
         $pool->allows('getSharedInMemorySqlitePdo')->andReturnNull();
 
@@ -214,7 +214,7 @@ class ConnectionResolverTest extends TestCase
     public function testSharedInMemorySqliteAliasesReuseOneConnectionOwner(): void
     {
         $poolManager = m::mock(PoolManager::class);
-        $pool = m::mock(DatabasePool::class);
+        $pool = m::mock(DatabasePool::class, ['usesSessionLeases' => false]);
         $wrapper = m::mock(PooledConnection::class);
         $connection = m::mock(Connection::class);
 
@@ -237,10 +237,10 @@ class ConnectionResolverTest extends TestCase
         $resolver->releaseConnections();
     }
 
-    public function testTerminalStateIsDetachedBeforeReleaseCanReenterTheResolver(): void
+    public function testTerminalStateRemainsAvailableUntilItsOwnerIsReleased(): void
     {
         $poolManager = m::mock(PoolManager::class);
-        $pool = m::mock(DatabasePool::class);
+        $pool = m::mock(DatabasePool::class, ['usesSessionLeases' => false]);
         $firstWrapper = m::mock(PooledConnection::class);
         $secondWrapper = m::mock(PooledConnection::class);
         $firstConnection = m::mock(Connection::class);
@@ -258,14 +258,16 @@ class ConnectionResolverTest extends TestCase
         $resolver = $this->makeResolver('mysql', $poolManager);
         $resolver->setDefaultConnection('reporting');
 
-        $firstWrapper->expects('release')->andReturnUsing(function () use ($resolver, $secondConnection): void {
-            $this->assertSame('mysql', $resolver->getDefaultConnection());
-            $this->assertSame($secondConnection, $resolver->connection('mysql'));
+        $firstWrapper->expects('release')->andReturnUsing(function () use ($resolver, $firstConnection): void {
+            $this->assertSame('reporting', $resolver->getDefaultConnection());
+            $this->assertSame($firstConnection, $resolver->connection('mysql'));
         });
 
         $this->assertSame($firstConnection, $resolver->connection('mysql'));
 
         $resolver->releaseConnections();
+        $this->assertSame('mysql', $resolver->getDefaultConnection());
+        $this->assertSame($secondConnection, $resolver->connection('mysql'));
         $resolver->releaseConnections();
     }
 
@@ -280,7 +282,7 @@ class ConnectionResolverTest extends TestCase
             ['first', $firstException],
             ['second', $secondException],
         ] as [$name, $exception]) {
-            $pool = m::mock(DatabasePool::class);
+            $pool = m::mock(DatabasePool::class, ['usesSessionLeases' => false]);
             $wrapper = m::mock(PooledConnection::class);
 
             $poolManager->expects('pool')->once()->with($name)->andReturn($pool);
@@ -316,7 +318,7 @@ class ConnectionResolverTest extends TestCase
             ['second', $firstCancellation],
             ['third', $secondCancellation],
         ] as [$name, $failure]) {
-            $pool = m::mock(DatabasePool::class);
+            $pool = m::mock(DatabasePool::class, ['usesSessionLeases' => false]);
             $wrapper = m::mock(PooledConnection::class);
 
             $poolManager->expects('pool')->once()->with($name)->andReturn($pool);
@@ -345,7 +347,7 @@ class ConnectionResolverTest extends TestCase
         $resolver = $this->makeResolver('first', $poolManager);
 
         foreach (['first', 'second'] as $name) {
-            $pool = m::mock(DatabasePool::class);
+            $pool = m::mock(DatabasePool::class, ['usesSessionLeases' => false]);
             $wrapper = m::mock(PooledConnection::class);
 
             $poolManager->expects('pool')->once()->with($name)->andReturn($pool);
@@ -366,7 +368,7 @@ class ConnectionResolverTest extends TestCase
     {
         $exception = new RuntimeException('Connection retrieval failed.');
         $poolManager = m::mock(PoolManager::class);
-        $pool = m::mock(DatabasePool::class);
+        $pool = m::mock(DatabasePool::class, ['usesSessionLeases' => false]);
         $wrapper = m::mock(PooledConnection::class);
 
         $poolManager->expects('pool')->once()->with('mysql')->andReturn($pool);
@@ -389,7 +391,7 @@ class ConnectionResolverTest extends TestCase
     {
         $exception = new RuntimeException('Connection listener failed.');
         $poolManager = m::mock(PoolManager::class);
-        $pool = m::mock(DatabasePool::class);
+        $pool = m::mock(DatabasePool::class, ['usesSessionLeases' => false]);
         $wrapper = m::mock(PooledConnection::class);
 
         $poolManager->expects('pool')->with('mysql')->andReturn($pool);
@@ -418,7 +420,7 @@ class ConnectionResolverTest extends TestCase
     {
         $exception = new RuntimeException('Write role configuration failed.');
         $poolManager = m::mock(PoolManager::class);
-        $pool = m::mock(DatabasePool::class);
+        $pool = m::mock(DatabasePool::class, ['usesSessionLeases' => false]);
         $wrapper = m::mock(PooledConnection::class);
         $connection = m::mock(Connection::class);
 
@@ -445,7 +447,7 @@ class ConnectionResolverTest extends TestCase
         $setupException = new RuntimeException('Connection retrieval failed.');
         $discardException = new RuntimeException('Discard failed.');
         $poolManager = m::mock(PoolManager::class);
-        $pool = m::mock(DatabasePool::class);
+        $pool = m::mock(DatabasePool::class, ['usesSessionLeases' => false]);
         $wrapper = m::mock(PooledConnection::class);
 
         $poolManager->expects('pool')->once()->with('mysql')->andReturn($pool);
@@ -469,7 +471,7 @@ class ConnectionResolverTest extends TestCase
         $setupException = new RuntimeException('Connection retrieval failed.');
         $discardCancellation = new CanceledException('Discard was canceled.');
         $poolManager = m::mock(PoolManager::class);
-        $pool = m::mock(DatabasePool::class);
+        $pool = m::mock(DatabasePool::class, ['usesSessionLeases' => false]);
         $wrapper = m::mock(PooledConnection::class);
 
         $poolManager->expects('pool')->once()->with('mysql')->andReturn($pool);
@@ -493,7 +495,7 @@ class ConnectionResolverTest extends TestCase
         $setupCancellation = new CanceledException('Connection setup was canceled.');
         $discardException = new RuntimeException('Discard failed.');
         $poolManager = m::mock(PoolManager::class);
-        $pool = m::mock(DatabasePool::class);
+        $pool = m::mock(DatabasePool::class, ['usesSessionLeases' => false]);
         $wrapper = m::mock(PooledConnection::class);
 
         $poolManager->expects('pool')->once()->with('mysql')->andReturn($pool);
@@ -517,7 +519,7 @@ class ConnectionResolverTest extends TestCase
         $setupCancellation = new CanceledException('Connection setup was canceled.');
         $discardCancellation = new CanceledException('Discard was canceled.');
         $poolManager = m::mock(PoolManager::class);
-        $pool = m::mock(DatabasePool::class);
+        $pool = m::mock(DatabasePool::class, ['usesSessionLeases' => false]);
         $wrapper = m::mock(PooledConnection::class);
 
         $poolManager->expects('pool')->once()->with('mysql')->andReturn($pool);
@@ -539,7 +541,7 @@ class ConnectionResolverTest extends TestCase
     public function testCoroutineConnectionRemainsDeferOwned(): void
     {
         $poolManager = m::mock(PoolManager::class);
-        $pool = m::mock(DatabasePool::class);
+        $pool = m::mock(DatabasePool::class, ['usesSessionLeases' => false]);
         $wrapper = m::mock(PooledConnection::class);
         $connection = m::mock(Connection::class);
 

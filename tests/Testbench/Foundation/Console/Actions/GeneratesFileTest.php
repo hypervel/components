@@ -127,7 +127,7 @@ class GeneratesFileTest extends TestCase
         $components->shouldNotReceive('task');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to generate file [b].');
+        $this->expectExceptionMessageIs('Unable to generate file [b].');
 
         (new GeneratesFile(
             filesystem: $filesystem,

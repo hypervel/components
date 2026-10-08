@@ -464,7 +464,7 @@ class DatabasePostgresBuilderTest extends TestCase
         $connection->shouldReceive('statement')->once()->with($statement)->andReturnFalse();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage("Failed to execute schema statement [{$statement}].");
+        $this->expectExceptionMessageIs("Failed to execute schema statement [{$statement}].");
 
         $builder->dropAllTables();
     }
@@ -484,7 +484,7 @@ class DatabasePostgresBuilderTest extends TestCase
         $connection->shouldReceive('statement')->once()->with($statement)->andReturnFalse();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage("Failed to execute schema statement [{$statement}].");
+        $this->expectExceptionMessageIs("Failed to execute schema statement [{$statement}].");
 
         $builder->dropAllViews();
     }
@@ -504,7 +504,7 @@ class DatabasePostgresBuilderTest extends TestCase
         $connection->shouldReceive('statement')->once()->with($statement)->andReturnFalse();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage("Failed to execute schema statement [{$statement}].");
+        $this->expectExceptionMessageIs("Failed to execute schema statement [{$statement}].");
 
         $builder->dropAllTypes();
     }
@@ -524,7 +524,7 @@ class DatabasePostgresBuilderTest extends TestCase
         $connection->shouldReceive('statement')->once()->with($statement)->andReturnFalse();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage("Failed to execute schema statement [{$statement}].");
+        $this->expectExceptionMessageIs("Failed to execute schema statement [{$statement}].");
 
         $builder->dropAllTypes();
     }

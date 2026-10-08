@@ -948,7 +948,7 @@ class PersonalAccessTokenCacheTest extends TestCase
 
         try {
             $this->expectException(RuntimeException::class);
-            $this->expectExceptionMessage('Transactions Manager has not been set.');
+            $this->expectExceptionMessageIs('Transactions Manager has not been set.');
 
             $token->fireUpdatedEvent();
         } finally {

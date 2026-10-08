@@ -32,7 +32,7 @@ class DatabasePostgresConnectionTest extends PostgresTestCase
     }
 
     #[DataProvider('jsonWhereNullDataProvider')]
-    public function testJsonWhereNull($expected, $key, array $value = ['value' => 123])
+    public function testJsonWhereNull($expected, $key, array $value = ['value' => 123]): void
     {
         DB::table('json_table')->insert(['json_col' => json_encode($value)]);
 
@@ -40,7 +40,7 @@ class DatabasePostgresConnectionTest extends PostgresTestCase
     }
 
     #[DataProvider('jsonWhereNullDataProvider')]
-    public function testJsonWhereNotNull($expected, $key, array $value = ['value' => 123])
+    public function testJsonWhereNotNull($expected, $key, array $value = ['value' => 123]): void
     {
         DB::table('json_table')->insert(['json_col' => json_encode($value)]);
 
@@ -73,7 +73,7 @@ class DatabasePostgresConnectionTest extends PostgresTestCase
         ];
     }
 
-    public function testJsonPathUpdate()
+    public function testJsonPathUpdate(): void
     {
         DB::table('json_table')->insert([
             ['json_col' => '{"foo":["bar"]}'],
@@ -164,7 +164,7 @@ class DatabasePostgresConnectionTest extends PostgresTestCase
     }
 
     #[DataProvider('jsonContainsKeyDataProvider')]
-    public function testWhereJsonContainsKey($count, $column)
+    public function testWhereJsonContainsKey($count, $column): void
     {
         DB::table('json_table')->insert([
             ['json_col' => '{"foo":{"bar":["baz"]}}'],

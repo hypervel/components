@@ -222,7 +222,7 @@ class ConfigTest extends TestCase
         file_put_contents($this->temporaryDirectory . '/testbench.yaml', $yaml);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The Testbench configuration root must be a mapping.');
+        $this->expectExceptionMessageIs('The Testbench configuration root must be a mapping.');
 
         Config::loadFromYaml($this->temporaryDirectory);
     }
@@ -244,7 +244,7 @@ class ConfigTest extends TestCase
         file_put_contents($this->temporaryDirectory . '/testbench.yaml', "purge: invalid\n");
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The Testbench [purge] configuration must be a mapping.');
+        $this->expectExceptionMessageIs('The Testbench [purge] configuration must be a mapping.');
 
         Config::loadFromYaml($this->temporaryDirectory);
     }

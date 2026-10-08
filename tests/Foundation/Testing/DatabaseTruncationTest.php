@@ -312,7 +312,7 @@ class DatabaseTruncationTest extends TestCase
         $this->app->instance('db', $database);
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('In-memory SQLite database testing requires a PDO-backed connection.');
+        $this->expectExceptionMessageIs('In-memory SQLite database testing requires a PDO-backed connection.');
 
         $this->cacheInMemoryDatabases();
     }
@@ -334,7 +334,7 @@ class DatabaseTruncationTest extends TestCase
         $this->app->instance('db', $database);
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('In-memory SQLite database testing requires a PDO-backed connection.');
+        $this->expectExceptionMessageIs('In-memory SQLite database testing requires a PDO-backed connection.');
 
         $this->restoreInMemoryDatabases();
     }
@@ -352,7 +352,7 @@ class DatabaseTruncationTest extends TestCase
         };
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('DatabaseTruncation cannot be combined with DatabaseMigrations.');
+        $this->expectExceptionMessageIs('DatabaseTruncation cannot be combined with DatabaseMigrations.');
 
         $testCase->truncate();
     }
@@ -370,7 +370,7 @@ class DatabaseTruncationTest extends TestCase
         };
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('DatabaseTruncation cannot be combined with LazilyRefreshDatabase.');
+        $this->expectExceptionMessageIs('DatabaseTruncation cannot be combined with LazilyRefreshDatabase.');
 
         $testCase->truncate();
     }
@@ -390,7 +390,7 @@ class DatabaseTruncationTest extends TestCase
         };
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIsOrContains(
             'Automatic database seeding is not supported when DatabaseTruncation is combined with RefreshDatabase or DatabaseTransactions.'
         );
 
@@ -412,7 +412,7 @@ class DatabaseTruncationTest extends TestCase
         };
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIsOrContains(
             'Automatic database seeding is not supported when DatabaseTruncation is combined with RefreshDatabase or DatabaseTransactions.'
         );
 

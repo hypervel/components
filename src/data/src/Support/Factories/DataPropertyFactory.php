@@ -26,6 +26,7 @@ use Hypervel\Data\Support\DataParameter;
 use Hypervel\Data\Support\DataProperty;
 use Hypervel\Data\Support\DataPropertyType;
 use Hypervel\Data\Support\NameMapperResolver;
+use Hypervel\Data\Support\Types\Type;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use PropertyHookType;
@@ -101,6 +102,20 @@ class DataPropertyFactory
         $isVirtual = $reflectionProperty->isVirtual();
         $computed = $attributes->has(Computed::class) || $isVirtual;
         $configuredCasts = $this->applicableExtensions($type, $this->config->casts);
+        $configuredItemCasts = [];
+
+        foreach ($type->getNamedTypes() as $namedType) {
+            if ($namedType->iterableItemType === null || $namedType->kind->isDataCollectable()) {
+                continue;
+            }
+
+            $itemCasts = $this->applicableExtensions($namedType->iterableItemType, $this->config->casts);
+
+            if ($itemCasts !== []) {
+                $configuredItemCasts[$namedType->name] = $itemCasts;
+            }
+        }
+
         $configuredTransformers = $this->applicableExtensions($type, $this->config->transformers);
         [$constructionOperation, $constructionTarget] = $this->resolveConstructionOperation($type, $computed);
 
@@ -112,7 +127,6 @@ class DataPropertyFactory
             constructionTarget: $constructionTarget,
             transformationOperation: $this->resolveTransformationOperation($type),
             validate: ! $computed
-                && $constructorParameter?->contextualAttribute === null
                 && ! $attributes->has(AutoWhenLoadedLazy::class)
                 && ! $attributes->has(WithoutValidation::class),
             computed: $computed,
@@ -134,6 +148,7 @@ class DataPropertyFactory
                 : (is_int($inputMappedName) ? [$inputMappedName] : explode('.', $inputMappedName)),
             outputMappedName: $outputMappedName,
             configuredCasts: $configuredCasts,
+            configuredItemCasts: $configuredItemCasts,
             configuredTransformers: $configuredTransformers,
             attributes: $attributes,
             reflection: $reflectionProperty,
@@ -274,14 +289,14 @@ class DataPropertyFactory
     }
 
     /**
-     * Select configured extensions that apply to a property type.
+     * Select configured extensions that apply to a property or iterable item type.
      *
      * @template TExtension of object
      *
      * @param array<string, class-string<TExtension>> $extensions
      * @return list<class-string<TExtension>>
      */
-    protected function applicableExtensions(DataPropertyType $type, array $extensions): array
+    protected function applicableExtensions(DataPropertyType|Type $type, array $extensions): array
     {
         $applicable = [];
 

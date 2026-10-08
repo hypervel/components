@@ -88,7 +88,7 @@ class ObjectPoolTest extends TestCase
         $pool->close();
 
         $this->expectException(PoolClosedException::class);
-        $this->expectExceptionMessage('Cannot borrow from a closed pool.');
+        $this->expectExceptionMessageIs('Cannot borrow from a closed pool.');
 
         $pool->borrow();
     }
@@ -396,7 +396,7 @@ class ObjectPoolTest extends TestCase
         $borrowed = $pool->borrow();
 
         $this->expectException(PoolExhaustedException::class);
-        $this->expectExceptionMessage('Object pool exhausted. Cannot create new object before wait_timeout.');
+        $this->expectExceptionMessageIs('Object pool exhausted. Cannot create new object before wait_timeout.');
 
         try {
             $pool->borrow();

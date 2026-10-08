@@ -26,10 +26,12 @@
     - [Scheduling](#scheduling)
     - [Maintenance Mode](#maintenance-mode)
     - [HTTP Client and Concurrency](#http-client-and-concurrency)
+    - [Saloon](#saloon)
     - [Broadcasting](#broadcasting)
     - [JSON:API Resources](#jsonapi-resources)
     - [CSRF Protection](#csrf-protection)
     - [Fortify](#fortify)
+    - [JWT Authentication](#jwt-authentication)
     - [Scout](#scout)
     - [Socialite](#socialite)
     - [JSON Schema](#json-schema)
@@ -514,6 +516,13 @@ For concurrent HTTP requests, replace Laravel's `Http::pool` and `Http::batch` p
 
 Hypervel's `Concurrency` facade provides `coroutine`, `process`, and `sync` drivers. Laravel's `fork` driver is not available because coroutines are Hypervel's native lightweight execution model. Use the default `coroutine` driver for normal concurrent application work and reserve `process` for work that requires operating system process isolation. See the [concurrency documentation](/docs/{{version}}/concurrency#choosing-a-driver).
 
+<a name="saloon"></a>
+### Saloon
+
+Integrations built with `saloonphp/saloon`, its Laravel plugin, and its cache, pagination, and rate limit plugins use the single `hypervel/saloon` package. Replace the `Saloon\` and `Saloon\Laravel\` namespaces with `Hypervel\Saloon\`, and the plugins' `Saloon\CachePlugin\`, `Saloon\PaginationPlugin\`, and `Saloon\RateLimitPlugin\` namespaces with `Hypervel\Saloon\Cache\`, `Hypervel\Saloon\Pagination\`, and `Hypervel\Saloon\RateLimit\`.
+
+Connectors may be shared by concurrent requests, so they are read-only. Move code that changes a connector's headers, query parameters, options, authenticator, delay, middleware, or mock client at runtime to the request, the `send` call, or the connector's `boot` method. Requests use fluent methods such as `withHeaders` and `withQueryParameters` instead of `headers()->add()` and `query()->add()`. Replace `sendAsync` and promises with pools, retry properties with `retry` or `defaultRetryPolicy`, custom senders with HTTP connections, and the rate limit plugin's limits and stores with rate limiter policies. Request exceptions extend the HTTP client's `RequestException`, so `catch (SaloonException $e)` no longer catches failed responses. See [Differences From Saloon](/docs/{{version}}/saloon#differences-from-saloon).
+
 <a name="broadcasting"></a>
 ### Broadcasting
 
@@ -535,6 +544,15 @@ Replace references to Laravel's deprecated `VerifyCsrfToken` and `ValidateCsrfTo
 User models that use Fortify's `TwoFactorAuthenticatable` trait must also implement `Hypervel\Fortify\Contracts\TwoFactorAuthenticationUser`, or two-factor challenges will fail. See [two-factor authentication](/docs/{{version}}/fortify#two-factor-authentication).
 
 Fortify ignores Laravel's `fortify.passwords` setting. Declare the password reset broker with the guard's `passwords` key in `config/auth.php` instead. See [password resets](/docs/{{version}}/fortify#password-resets). Laravel's deprecated `Laravel\Fortify\Rules\Password` rule is not available; use `Hypervel\Validation\Rules\Password`.
+
+<a name="jwt-authentication"></a>
+### JWT Authentication
+
+Applications using `tymon/jwt-auth` or `php-open-source-saver/jwt-auth` can switch to `hypervel/jwt`. Publish its `config/jwt.php` file and copy your values into it instead of reusing the old file, since some options have been renamed or removed. Replace the `JWTAuth` and `JWTFactory` facades with guard methods such as `fromUser` and `payload`, which returns the claims as an array. Set options such as subject locking and the blacklist in configuration instead of calling setters at runtime. Replace the `jwt.auth` middleware with `auth:api`, remove `jwt.check` from routes that allow guests, and replace `jwt.refresh` and `jwt.renew` with a [refresh endpoint](/docs/{{version}}/jwt#refreshing-tokens).
+
+Only the `Authorization` header is read by default. If clients send tokens in the query string, request body, or a cookie, add the matching parser to the `parser` option. See [token sources](/docs/{{version}}/jwt#token-sources).
+
+Rotate `JWT_SECRET` or your key pair when you switch, so clients sign in again. Hypervel stores revocations under different cache keys, so tokens revoked by the old application would be accepted again if they still verified.
 
 <a name="scout"></a>
 ### Scout
@@ -574,9 +592,26 @@ Laravel's deprecated `InvokableRule` contract is not available. Change rules tha
 
 When porting `spatie/laravel-data`, replace its namespace with `Hypervel\Data` and review the [Data Objects documentation](/docs/{{version}}/data-objects). The familiar `Data`, `Dto`, `Resource`, `Optional`, mapping, casting, validation, lazy-value, collection, resource, and Eloquent APIs are all available.
 
-Replace Spatie's `From*` attributes with Hypervel contextual constructor attributes and its `withOptionalValues()` and `withoutOptionalValues()` factory switches with declared `Optional` unions. `SerializeTransformer` and `UnserializeCast` are not included; use native PHP serialization or explicit custom casts and transformers. Livewire and TypeScript integrations are also not included.
+Replace Spatie's `From*` attributes with Hypervel contextual constructor attributes. `UnserializeCast` is not included; write a custom cast that passes `allowed_classes` to `unserialize()` for trusted values. Livewire and TypeScript integrations are also not included.
 
-Model attributes containing `null` remain explicit values, including for non-nullable properties with defaults. When several payloads are supplied to `from()`, the first payload containing a property's input key wins, including when its value is `null`.
+In `config/data.php`, the `casts`, `transformers`, `normalizers`, and `rule_inferrers` options only hold your own extensions; remove Spatie's built-in entries, since Hypervel's built-in handling is fixed. If you enabled Spatie's optional `FormRequestNormalizer`, keep it as `Hypervel\Data\Normalizers\FormRequestNormalizer`. Typed iterable items are always cast and transformed, and an array given to a collection property becomes that collection.
+
+Review these behavior differences in ported code:
+
+- `Resource` authorizes and validates request input, like `Data` and `Dto`.
+- A named factory that receives a request and returns the finished object must validate the request itself.
+- When `from()` receives several payloads, the combined input is validated once, and a later explicit `null` replaces an earlier value.
+- Responses use the `200` status code for `POST` requests. Set `201` in `withResponse()` instead of overriding `calculateResponseStatus()`.
+- Data classes whose properties share an input path or output key are rejected when first used.
+- Custom `pipeline()` overrides and `DataPipe` classes are not supported. Rebuild them with named factories, `prepareForPipeline()`, or factory hooks.
+- A value that a union property already accepts is kept, such as a string for `string|SongData` or an array for `array|Collection`, and validation applies the rules of the declared type that holds it. Declare `Collection` alone when the property should always hold a collection. See [type conversion](/docs/{{version}}/data-objects#type-conversion).
+- A model attribute holding `null` is passed as `null` instead of falling back to the property's default or `Optional`. Columns that were not selected still count as missing.
+- A custom cast's `$properties` contains only declared property values keyed by PHP property name, without undeclared input or raw input names.
+- `CreationContext::$dataClass` is the class the creation started with, even while nested objects are created, and the context has no `from()`, `collect()`, or `currentPath`. Replace `$context->from()` with `TargetData::factory($context)->from()`, which copies the context's options but not its hooks. A cast can read `$property->className` for the class that declares the property.
+- An array or collection cannot be collected into a paginator target or given to a paginator property. Pass a Hypervel paginator so its pagination details are kept.
+- A required property declared outside the constructor that receives no input, and no value from its default or the constructor, fails with `CannotCreateData` instead of staying uninitialized.
+- Casts and transformers that read Spatie's metadata need small changes. `DataProperty` has `hasDefaultValue` but no `defaultValue`. Hypervel reads defaults from reflection when it needs them, so a default such as `new Money(0)` is never one object shared by every request in the worker; read it from the constructor parameter's or property's reflection. `DataClass` exposes `constructor` and `constructorParameters` instead of `constructorMethod`, and `TransformationContext::$transformers` is an array of factory transformers keyed by type instead of a `GlobalTransformersCollection`. Likewise, `withCastCollection()` and `CreationContext::$casts` use an array of casts keyed by type instead of a `GlobalCastsCollection`. Create factories with `Data::factory()` instead of `CreationContextFactory::createFromConfig()`, and read their options through `get()`.
+- Replace `getDataContext()` with `getPartialsDefinition()` and `getWrap()`, and `make:data --namespace` with `--target-namespace` and a complete namespace.
 
 <a name="rate-limiting"></a>
 ### Rate Limiting
@@ -617,6 +652,8 @@ Hypervel's `Str::orderedUuid()` returns a UUIDv7, while Laravel returns a timest
 
 Hypervel's `Filesystem::hash()` method uses `xxh128` by default. Pass `md5` explicitly when a port requires Laravel-compatible digests.
 
+Custom filesystem contract implementations must also provide `fileExists()` and `directoryExists()`. The existing `exists()` method continues to accept either a file or a directory. See [retrieving files](/docs/{{version}}/filesystem#retrieving-files).
+
 Unlike Laravel, Hypervel honors `read-only` on scoped disk records. Remove that option from any scoped disk that must accept writes.
 
 Rename any configured disk called `ondemand`; Hypervel reserves that name for [on-demand disk fakes](/docs/{{version}}/filesystem#on-demand-disks).
@@ -641,6 +678,8 @@ MySQL and MariaDB connection configs must specify `strict` or `modes`; they cann
 SQLite JSON-path updates replace assigned objects and retain JSON null. Review any reliance on Laravel's object merging or null-key deletion when [updating JSON columns](/docs/{{version}}/queries#updating-json-columns).
 
 Database connections are persistent, pooled worker resources. Define every connection in `config/database.php` before the application boots. Dynamic connection creation through `DB::build()` and `DB::connectUsing()` is not supported. Review pool sizing and any database session state against the [database documentation](/docs/{{version}}/database#connection-pooling).
+
+Outgoing framework HTTP requests release idle database sessions automatically. Wrap code that depends on the same session across an HTTP call, such as temporary tables, session locks or retained raw PDOs, in `DB::withPinnedSession()`. Active transactions remain pinned automatically. See [releasing and pinning connections](/docs/{{version}}/database#releasing-and-pinning-connections).
 
 When a package constructs `DatabaseStore`, `DatabaseSessionHandler`, `DatabaseQueue`, or `DatabaseBatchRepository` directly, pass the database connection resolver and configured connection name instead of retaining a resolved connection. Framework-configured drivers already use this form.
 

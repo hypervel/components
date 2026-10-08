@@ -776,7 +776,7 @@ class BroadcastManagerTest extends TestCase
         $this->assertSame($first->getPoolName(), $second->getPoolName());
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Failed to create broadcaster for driver "redis" with error: Redis unavailable.');
+        $this->expectExceptionMessageIsOrContains('Failed to create broadcaster for driver "redis" with error: Redis unavailable.');
 
         $second->auth(Request::create('/broadcasting/auth', 'POST'));
     }
@@ -847,7 +847,7 @@ class BroadcastManagerTest extends TestCase
     public function testThrowExceptionWhenDriverCreationFails(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Failed to create broadcaster for connection "failing" with error: Redis unavailable.');
+        $this->expectExceptionMessageIsOrContains('Failed to create broadcaster for connection "failing" with error: Redis unavailable.');
 
         $app = new Container;
         $app->singleton('config', fn () => new Repository([
@@ -943,7 +943,7 @@ class BroadcastManagerTest extends TestCase
     public function testMercureRequiresAUrl(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('"url"');
+        $this->expectExceptionMessageIsOrContains('"url"');
 
         (new BroadcastManager($this->getApp([])))->mercure(['secret' => str_repeat('s', 32)]);
     }
@@ -951,7 +951,7 @@ class BroadcastManagerTest extends TestCase
     public function testMercureRequiresASecret(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('"secret"');
+        $this->expectExceptionMessageIsOrContains('"secret"');
 
         (new BroadcastManager($this->getApp([])))->mercure(['url' => 'https://hub.test/.well-known/mercure']);
     }
@@ -959,7 +959,7 @@ class BroadcastManagerTest extends TestCase
     public function testMercureRejectsAShortHmacSecret(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('at least 32 bytes');
+        $this->expectExceptionMessageIsOrContains('at least 32 bytes');
 
         (new BroadcastManager($this->getApp([])))->mercure($this->mercureConfig(['secret' => 'too-short']));
     }
@@ -967,7 +967,7 @@ class BroadcastManagerTest extends TestCase
     public function testMercureRejectsANegativePublishExpiration(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('publish_expiration');
+        $this->expectExceptionMessageIsOrContains('publish_expiration');
 
         (new BroadcastManager($this->getApp([])))->mercure($this->mercureConfig(['publish_expiration' => -1]));
     }
@@ -975,7 +975,7 @@ class BroadcastManagerTest extends TestCase
     public function testMercureRejectsAPublishExpirationTruncatingToZeroSeconds(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('publish_expiration');
+        $this->expectExceptionMessageIsOrContains('publish_expiration');
 
         (new BroadcastManager($this->getApp([])))->mercure($this->mercureConfig(['publish_expiration' => 0.01]));
     }
@@ -996,7 +996,7 @@ class BroadcastManagerTest extends TestCase
         ]));
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('subscribe_expiration');
+        $this->expectExceptionMessageIsOrContains('subscribe_expiration');
 
         $manager->connection('mercure');
     }
@@ -1008,7 +1008,7 @@ class BroadcastManagerTest extends TestCase
         ]));
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('subscribe_expiration');
+        $this->expectExceptionMessageIsOrContains('subscribe_expiration');
 
         $manager->connection('mercure');
     }
@@ -1029,7 +1029,7 @@ class BroadcastManagerTest extends TestCase
         ]));
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('encryption_key');
+        $this->expectExceptionMessageIsOrContains('encryption_key');
 
         $manager->connection('mercure');
     }
@@ -1048,7 +1048,7 @@ class BroadcastManagerTest extends TestCase
         ]));
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('cookie_name');
+        $this->expectExceptionMessageIsOrContains('cookie_name');
 
         $manager->connection('mercure');
     }

@@ -453,7 +453,7 @@ If the file you are retrieving contains JSON, you may use the `json` method to r
 $orders = Storage::json('orders.json');
 ```
 
-The `exists` method may be used to determine if a file exists on the disk:
+The `exists` method may be used to determine if a file or directory exists on the disk:
 
 ```php
 if (Storage::disk('s3')->exists('file.jpg')) {
@@ -461,7 +461,7 @@ if (Storage::disk('s3')->exists('file.jpg')) {
 }
 ```
 
-The `missing` method may be used to determine if a file is missing from the disk:
+The `missing` method may be used to determine if a file or directory is missing from the disk:
 
 ```php
 if (Storage::disk('s3')->missing('file.jpg')) {
@@ -480,6 +480,8 @@ if (Storage::disk('s3')->directoryMissing('photos')) {
     // ...
 }
 ```
+
+The `Hypervel\Contracts\Filesystem\Filesystem` contract includes `exists`, `fileExists`, and `directoryExists`, so these checks are available when a disk is injected through the contract. Custom implementations must provide all three methods.
 
 <a name="retrieving-images"></a>
 ### Images

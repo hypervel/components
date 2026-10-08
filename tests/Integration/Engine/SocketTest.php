@@ -19,7 +19,7 @@ class SocketTest extends EngineIntegrationTestCase
      */
     protected int $serverPort = 19502;
 
-    public function testSocketRecvPacketFromTcpServer()
+    public function testSocketRecvPacketFromTcpServer(): void
     {
         $socket = new Socket(AF_INET, SOCK_STREAM, 0);
         $socket->setProtocol([
@@ -38,7 +38,7 @@ class SocketTest extends EngineIntegrationTestCase
         $this->assertSame('recv:' . $id, substr($socket->recvPacket(), 4));
     }
 
-    public function testSocketRecvPacketFromTcpServerViaFactory()
+    public function testSocketRecvPacketFromTcpServerViaFactory(): void
     {
         $socket = (new Socket\SocketFactory)->make(new Socket\SocketOption(
             $this->getServerHost(),
@@ -59,7 +59,7 @@ class SocketTest extends EngineIntegrationTestCase
         $this->assertSame('recv:' . $id, substr($socket->recvPacket(), 4));
     }
 
-    public function testSocketRecvAllFromTcpServer()
+    public function testSocketRecvAllFromTcpServer(): void
     {
         $socket = new Socket(AF_INET, SOCK_STREAM, 0);
         $socket->connect($this->getServerHost(), $this->getServerPort());

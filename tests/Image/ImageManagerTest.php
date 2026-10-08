@@ -107,7 +107,7 @@ class ImageManagerTest extends TestCase
         });
 
         $this->expectException(TypeError::class);
-        $this->expectExceptionMessage('must be of type Hypervel\Contracts\Image\Driver');
+        $this->expectExceptionMessageIsOrContains('must be of type Hypervel\Contracts\Image\Driver');
 
         $manager->driver('custom');
     }
@@ -329,7 +329,7 @@ class ImageManagerTest extends TestCase
         $image = $manager->fromStorage('images/missing.jpg', 'public');
 
         $this->expectException(ImageException::class);
-        $this->expectExceptionMessage('Unable to read image from path [images/missing.jpg].');
+        $this->expectExceptionMessageIs('Unable to read image from path [images/missing.jpg].');
 
         $image->toBytes();
     }

@@ -261,7 +261,6 @@ class Application
         unset($_SERVER['APP_ENV'], $_ENV['APP_ENV']);
 
         putenv('APP_ENV');
-        Env::flushRepository();
 
         return static function () use ($originalServerValue, $originalEnvironmentValue, $originalProcessValue): void {
             if ($originalServerValue instanceof UndefinedValue) {
@@ -281,8 +280,6 @@ class Application
             } else {
                 putenv("APP_ENV={$originalProcessValue}");
             }
-
-            Env::flushRepository();
         };
     }
 

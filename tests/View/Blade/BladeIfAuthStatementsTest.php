@@ -6,7 +6,7 @@ namespace Hypervel\Tests\View\Blade;
 
 class BladeIfAuthStatementsTest extends AbstractBladeTestCase
 {
-    public function testIfStatementsAreCompiled()
+    public function testIfStatementsAreCompiled(): void
     {
         $string = '@auth("api")
 breeze
@@ -17,7 +17,7 @@ breeze
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
 
-    public function testPlainIfStatementsAreCompiled()
+    public function testPlainIfStatementsAreCompiled(): void
     {
         $string = '@auth
 breeze

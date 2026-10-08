@@ -14,7 +14,7 @@ use Hypervel\Tests\TestCase;
 
 class FoundationAuthorizesRequestsTraitTest extends TestCase
 {
-    public function testBasicGateCheck()
+    public function testBasicGateCheck(): void
     {
         unset($_SERVER['_test.authorizes.trait']);
 
@@ -32,7 +32,7 @@ class FoundationAuthorizesRequestsTraitTest extends TestCase
         $this->assertTrue($_SERVER['_test.authorizes.trait']);
     }
 
-    public function testAcceptsBackedEnumAsAbility()
+    public function testAcceptsBackedEnumAsAbility(): void
     {
         unset($_SERVER['_test.authorizes.trait.enum']);
 
@@ -74,7 +74,7 @@ class FoundationAuthorizesRequestsTraitTest extends TestCase
         (new AuthorizeTraitClass)->authorize('baz');
     }
 
-    public function testPoliciesMayBeCalled()
+    public function testPoliciesMayBeCalled(): void
     {
         unset($_SERVER['_test.authorizes.trait.policy']);
 
@@ -88,7 +88,7 @@ class FoundationAuthorizesRequestsTraitTest extends TestCase
         $this->assertTrue($_SERVER['_test.authorizes.trait.policy']);
     }
 
-    public function testPolicyMethodMayBeGuessedPassingModelInstance()
+    public function testPolicyMethodMayBeGuessedPassingModelInstance(): void
     {
         unset($_SERVER['_test.authorizes.trait.policy']);
 
@@ -102,7 +102,7 @@ class FoundationAuthorizesRequestsTraitTest extends TestCase
         $this->assertTrue($_SERVER['_test.authorizes.trait.policy']);
     }
 
-    public function testPolicyMethodMayBeGuessedPassingClassName()
+    public function testPolicyMethodMayBeGuessedPassingClassName(): void
     {
         unset($_SERVER['_test.authorizes.trait.policy']);
 
@@ -116,7 +116,7 @@ class FoundationAuthorizesRequestsTraitTest extends TestCase
         $this->assertTrue($_SERVER['_test.authorizes.trait.policy']);
     }
 
-    public function testPolicyMethodMayBeGuessedAndNormalized()
+    public function testPolicyMethodMayBeGuessedAndNormalized(): void
     {
         unset($_SERVER['_test.authorizes.trait.policy']);
 

@@ -49,7 +49,7 @@ class HasAttributesTest extends TestCase
         $this->assertSame('array', $casts['data']);
     }
 
-    public function testResolveCasterClassReturnsSameInstanceOnSubsequentCalls()
+    public function testResolveCasterClassReturnsSameInstanceOnSubsequentCalls(): void
     {
         $model = new CasterCacheModel;
         $invoker = new ClassInvoker($model);
@@ -60,7 +60,7 @@ class HasAttributesTest extends TestCase
         $this->assertSame($first, $second);
     }
 
-    public function testResolveCasterClassCachesPerModelClass()
+    public function testResolveCasterClassCachesPerModelClass(): void
     {
         $modelA = new CasterCacheModel;
         $modelB = new CasterCacheModelB;
@@ -75,7 +75,7 @@ class HasAttributesTest extends TestCase
         $this->assertNotSame($casterA, $casterB);
     }
 
-    public function testResolveCasterClassCachesCasterWithArguments()
+    public function testResolveCasterClassCachesCasterWithArguments(): void
     {
         $model = new CasterCacheWithArgumentsModel;
         $invoker = new ClassInvoker($model);
@@ -88,7 +88,7 @@ class HasAttributesTest extends TestCase
         $this->assertSame(['2'], $first->arguments);
     }
 
-    public function testResolveCasterClassCachesDifferentCastTypesSeperately()
+    public function testResolveCasterClassCachesDifferentCastTypesSeperately(): void
     {
         $model = new CasterCacheMultipleCastsModel;
         $invoker = new ClassInvoker($model);
@@ -101,7 +101,7 @@ class HasAttributesTest extends TestCase
         $this->assertNotSame($dataCaster, $amountCaster);
     }
 
-    public function testResolveCasterClassCachesCastableClass()
+    public function testResolveCasterClassCachesCastableClass(): void
     {
         $model = new CasterCacheCastableModel;
         $invoker = new ClassInvoker($model);
@@ -113,7 +113,7 @@ class HasAttributesTest extends TestCase
         $this->assertSame($first, $second);
     }
 
-    public function testResolveCasterClassCachesCastableReturningObject()
+    public function testResolveCasterClassCachesCastableReturningObject(): void
     {
         $model = new CasterCacheCastableObjectModel;
         $invoker = new ClassInvoker($model);

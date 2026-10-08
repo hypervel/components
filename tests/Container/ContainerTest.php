@@ -62,7 +62,7 @@ class ContainerTest extends TestCase
         }
     }
 
-    public function testContainerSingleton()
+    public function testContainerSingleton(): void
     {
         $container = Container::setInstance(new Container);
 
@@ -86,7 +86,7 @@ class ContainerTest extends TestCase
         $this->assertSame($application, Application::getInstance());
     }
 
-    public function testClosureResolution()
+    public function testClosureResolution(): void
     {
         $container = new Container;
         $container->bind('name', function () {
@@ -95,7 +95,7 @@ class ContainerTest extends TestCase
         $this->assertSame('Taylor', $container->make('name'));
     }
 
-    public function testAbstractCanBeBoundFromConcreteReturnType()
+    public function testAbstractCanBeBoundFromConcreteReturnType(): void
     {
         $container = new Container;
         $container->bind(function (): IContainerContractStub|ContainerImplementationStub {
@@ -113,7 +113,7 @@ class ContainerTest extends TestCase
         $this->assertTrue($container->isShared(ContainerConcreteStub::class));
     }
 
-    public function testBindIfDoesntRegisterIfServiceAlreadyRegistered()
+    public function testBindIfDoesntRegisterIfServiceAlreadyRegistered(): void
     {
         $container = new Container;
         $container->bind('name', function () {
@@ -126,7 +126,7 @@ class ContainerTest extends TestCase
         $this->assertSame('Taylor', $container->make('name'));
     }
 
-    public function testBindIfDoesRegisterIfServiceNotRegisteredYet()
+    public function testBindIfDoesRegisterIfServiceNotRegisteredYet(): void
     {
         $container = new Container;
         $container->bind('surname', function () {
@@ -152,7 +152,7 @@ class ContainerTest extends TestCase
         $this->assertInstanceOf(ContainerImplementationStub::class, $container->make(ContainerImplementationStub::class));
     }
 
-    public function testSingletonIfDoesntRegisterIfBindingAlreadyRegistered()
+    public function testSingletonIfDoesntRegisterIfBindingAlreadyRegistered(): void
     {
         $container = new Container;
         $container->singleton('class', function () {
@@ -166,7 +166,7 @@ class ContainerTest extends TestCase
         $this->assertSame($firstInstantiation, $secondInstantiation);
     }
 
-    public function testSingletonIfDoesRegisterIfBindingNotRegisteredYet()
+    public function testSingletonIfDoesRegisterIfBindingNotRegisteredYet(): void
     {
         $container = new Container;
         $container->singleton('class', function () {
@@ -191,7 +191,7 @@ class ContainerTest extends TestCase
         );
     }
 
-    public function testSharedClosureResolution()
+    public function testSharedClosureResolution(): void
     {
         $container = new Container;
         $container->singleton('class', function () {
@@ -202,7 +202,7 @@ class ContainerTest extends TestCase
         $this->assertSame($firstInstantiation, $secondInstantiation);
     }
 
-    public function testScopedClosureResolution()
+    public function testScopedClosureResolution(): void
     {
         $container = new Container;
         $container->scoped('class', function () {
@@ -213,14 +213,14 @@ class ContainerTest extends TestCase
         $this->assertSame($firstInstantiation, $secondInstantiation);
     }
 
-    public function testScopedBindingsWithClosureReturnType()
+    public function testScopedBindingsWithClosureReturnType(): void
     {
         $container = new Container;
         $container->scoped(fn (): stdClass => new stdClass);
         $container->forgetScopedInstances();
     }
 
-    public function testScopedClosureReturnTypeInstanceIsScopedCorrectly()
+    public function testScopedClosureReturnTypeInstanceIsScopedCorrectly(): void
     {
         $container = new Container;
         $container->scoped(fn (): stdClass => new stdClass);
@@ -236,7 +236,7 @@ class ContainerTest extends TestCase
         $this->assertNotSame($first, $third);
     }
 
-    public function testScopedIf()
+    public function testScopedIf(): void
     {
         $container = new Container;
         $container->scopedIf('class', function () {
@@ -279,7 +279,7 @@ class ContainerTest extends TestCase
 
     // REMOVED: Scoped re-registration after offsetUnset; arbitrary binding removal is unsupported.
 
-    public function testScopedClosureResets()
+    public function testScopedClosureResets(): void
     {
         $container = new Container;
         $container->scoped('class', function () {
@@ -293,13 +293,13 @@ class ContainerTest extends TestCase
         $this->assertNotSame($firstInstantiation, $secondInstantiation);
     }
 
-    public function testAutoConcreteResolution()
+    public function testAutoConcreteResolution(): void
     {
         $container = new Container;
         $this->assertInstanceOf(ContainerConcreteStub::class, $container->make(ContainerConcreteStub::class));
     }
 
-    public function testSharedConcreteResolution()
+    public function testSharedConcreteResolution(): void
     {
         $container = new Container;
         $container->singleton(ContainerConcreteStub::class);
@@ -309,7 +309,7 @@ class ContainerTest extends TestCase
         $this->assertSame($var1, $var2);
     }
 
-    public function testScopedConcreteResolutionResets()
+    public function testScopedConcreteResolutionResets(): void
     {
         $container = new Container;
         $container->scoped(ContainerConcreteStub::class);
@@ -323,7 +323,7 @@ class ContainerTest extends TestCase
         $this->assertNotSame($var1, $var2);
     }
 
-    public function testBindFailsLoudlyWithInvalidArgument()
+    public function testBindFailsLoudlyWithInvalidArgument(): void
     {
         $this->expectException(TypeError::class);
         $container = new Container;
@@ -332,7 +332,7 @@ class ContainerTest extends TestCase
         $container->bind(ContainerConcreteStub::class, $concrete);
     }
 
-    public function testAbstractToConcreteResolution()
+    public function testAbstractToConcreteResolution(): void
     {
         $container = new Container;
         $container->bind(IContainerContractStub::class, ContainerImplementationStub::class);
@@ -340,7 +340,7 @@ class ContainerTest extends TestCase
         $this->assertInstanceOf(ContainerImplementationStub::class, $class->impl);
     }
 
-    public function testNestedDependencyResolution()
+    public function testNestedDependencyResolution(): void
     {
         $container = new Container;
         $container->bind(IContainerContractStub::class, ContainerImplementationStub::class);
@@ -349,7 +349,7 @@ class ContainerTest extends TestCase
         $this->assertInstanceOf(ContainerImplementationStub::class, $class->inner->impl);
     }
 
-    public function testContainerIsPassedToResolvers()
+    public function testContainerIsPassedToResolvers(): void
     {
         $container = new Container;
         $container->bind('something', function ($c) {
@@ -372,7 +372,7 @@ class ContainerTest extends TestCase
         $this->assertSame('bar', $container->make('bat'));
     }
 
-    public function testAliasesWithArrayOfParameters()
+    public function testAliasesWithArrayOfParameters(): void
     {
         $container = new Container;
         $container->bind('foo', function ($app, $config) {
@@ -390,7 +390,7 @@ class ContainerTest extends TestCase
         $this->assertSame('baz', $container->make('foo'));
     }
 
-    public function testBindingAnInstanceReturnsTheInstance()
+    public function testBindingAnInstanceReturnsTheInstance(): void
     {
         $container = new Container;
 
@@ -400,7 +400,7 @@ class ContainerTest extends TestCase
         $this->assertSame($bound, $resolved);
     }
 
-    public function testBindingAnInstanceAsShared()
+    public function testBindingAnInstanceAsShared(): void
     {
         $container = new Container;
         $bound = new stdClass;
@@ -458,7 +458,7 @@ class ContainerTest extends TestCase
         $this->assertNull($resolved->dependency);
     }
 
-    public function testResolutionOfDefaultParameters()
+    public function testResolutionOfDefaultParameters(): void
     {
         $container = new Container;
         $instance = $container->make(ContainerDefaultValueStub::class);
@@ -483,7 +483,7 @@ class ContainerTest extends TestCase
         $this->assertInstanceOf(ContainerConcreteStub::class, $instance->default);
     }
 
-    public function testResolutionOfClassWithDefaultParametersAndContextualBindings()
+    public function testResolutionOfClassWithDefaultParametersAndContextualBindings(): void
     {
         $container = new Container;
 
@@ -549,7 +549,7 @@ class ContainerTest extends TestCase
         $this->assertSame([$first, $second], $resolved->dependencies);
     }
 
-    public function testBound()
+    public function testBound(): void
     {
         $container = new Container;
         $container->bind(ContainerConcreteStub::class, function () {
@@ -576,7 +576,7 @@ class ContainerTest extends TestCase
         $this->assertTrue($container->bound('alias'));
     }
 
-    public function testReboundListeners()
+    public function testReboundListeners(): void
     {
         unset($_SERVER['__test.rebind']);
 
@@ -592,7 +592,7 @@ class ContainerTest extends TestCase
         $this->assertTrue($_SERVER['__test.rebind']);
     }
 
-    public function testReboundListenersOnInstances()
+    public function testReboundListenersOnInstances(): void
     {
         unset($_SERVER['__test.rebind']);
 
@@ -608,7 +608,7 @@ class ContainerTest extends TestCase
         $this->assertTrue($_SERVER['__test.rebind']);
     }
 
-    public function testReboundListenersOnInstancesOnlyFiresIfWasAlreadyBound()
+    public function testReboundListenersOnInstancesOnlyFiresIfWasAlreadyBound(): void
     {
         $_SERVER['__test.rebind'] = false;
 
@@ -695,7 +695,7 @@ class ContainerTest extends TestCase
         $this->assertSame($second, $container->make(ContainerConcreteStub::class));
     }
 
-    public function testForgetInstanceForgetsScopedInstance()
+    public function testForgetInstanceForgetsScopedInstance(): void
     {
         $container = new Container;
         $container->scoped(ContainerConcreteStub::class);
@@ -825,7 +825,7 @@ class ContainerTest extends TestCase
         $this->assertSame($first, $container->make(ContainerScopedAttribute::class));
     }
 
-    public function testForgetInstancesForgetsAllInstances()
+    public function testForgetInstancesForgetsAllInstances(): void
     {
         $container = new Container;
         $containerConcreteStub1 = new ContainerConcreteStub;
@@ -843,7 +843,7 @@ class ContainerTest extends TestCase
         $this->assertFalse($container->isShared('Instance3'));
     }
 
-    public function testForgetInstancesClearsScopedInstances()
+    public function testForgetInstancesClearsScopedInstances(): void
     {
         $container = new Container;
         $container->scoped(ContainerConcreteStub::class);
@@ -855,7 +855,7 @@ class ContainerTest extends TestCase
         $this->assertNotSame($first, $second);
     }
 
-    public function testContainerFlushFlushesAllBindingsAliasesAndResolvedInstances()
+    public function testContainerFlushFlushesAllBindingsAliasesAndResolvedInstances(): void
     {
         $container = new Container;
         $container->bind('ConcreteStub', function () {
@@ -874,7 +874,7 @@ class ContainerTest extends TestCase
         $this->assertFalse($container->isShared('ConcreteStub'));
     }
 
-    public function testFlushStateClearsBuildRecipeCache()
+    public function testFlushStateClearsBuildRecipeCache(): void
     {
         Container::flushState();
 
@@ -890,7 +890,7 @@ class ContainerTest extends TestCase
         $this->assertSame([], $buildRecipes->getValue());
     }
 
-    public function testFlushClearsScopedInstances()
+    public function testFlushClearsScopedInstances(): void
     {
         $container = new Container;
         $container->scoped(ContainerConcreteStub::class);
@@ -906,7 +906,7 @@ class ContainerTest extends TestCase
         $this->assertNotSame($first, $second);
     }
 
-    public function testRebindingScopedBindingClearsStaleContextInstance()
+    public function testRebindingScopedBindingClearsStaleContextInstance(): void
     {
         $container = new Container;
         $container->scoped(IContainerContractStub::class, ContainerImplementationStub::class);
@@ -933,7 +933,7 @@ class ContainerTest extends TestCase
         $this->assertSame($replacement, $container->make(AutoSingletonStub::class));
     }
 
-    public function testResolvedResolvesAliasToBindingNameBeforeChecking()
+    public function testResolvedResolvesAliasToBindingNameBeforeChecking(): void
     {
         $container = new Container;
         $container->bind('ConcreteStub', function () {
@@ -950,14 +950,14 @@ class ContainerTest extends TestCase
         $this->assertTrue($container->resolved('foo'));
     }
 
-    public function testGetAlias()
+    public function testGetAlias(): void
     {
         $container = new Container;
         $container->alias('ConcreteStub', 'foo');
         $this->assertSame('ConcreteStub', $container->getAlias('foo'));
     }
 
-    public function testCurrentlyResolving()
+    public function testCurrentlyResolving(): void
     {
         $container = new Container;
 
@@ -1027,7 +1027,7 @@ class ContainerTest extends TestCase
         $this->assertFalse($container->hasResolutionState());
     }
 
-    public function testGetAliasRecursive()
+    public function testGetAliasRecursive(): void
     {
         $container = new Container;
         $container->alias('ConcreteStub', 'foo');
@@ -1083,7 +1083,7 @@ class ContainerTest extends TestCase
         $container->alias('c', 'a');
     }
 
-    public function testContainerGetFactory()
+    public function testContainerGetFactory(): void
     {
         $container = new Container;
         $container->bind('name', function () {
@@ -1094,7 +1094,7 @@ class ContainerTest extends TestCase
         $this->assertEquals($container->make('name'), $factory());
     }
 
-    public function testMakeWithMethodIsAnAliasForMakeMethod()
+    public function testMakeWithMethodIsAnAliasForMakeMethod(): void
     {
         $mock = $this->getMockBuilder(Container::class)
             ->onlyMethods(['make'])
@@ -1110,7 +1110,7 @@ class ContainerTest extends TestCase
         $this->assertInstanceOf(stdClass::class, $result);
     }
 
-    public function testResolvingWithArrayOfParameters()
+    public function testResolvingWithArrayOfParameters(): void
     {
         $container = new Container;
         $instance = $container->make(ContainerDefaultValueStub::class, ['default' => 'adam']);
@@ -1126,7 +1126,7 @@ class ContainerTest extends TestCase
         $this->assertEquals([1, 2, 3], $container->make('foo', [1, 2, 3]));
     }
 
-    public function testResolvingWithArrayOfMixedParameters()
+    public function testResolvingWithArrayOfMixedParameters(): void
     {
         $container = new Container;
         $instance = $container->make(ContainerMixedPrimitiveStub::class, ['first' => 1, 'last' => 2, 'third' => 3]);
@@ -1136,7 +1136,7 @@ class ContainerTest extends TestCase
         $this->assertFalse(isset($instance->third));
     }
 
-    public function testResolvingWithUsingAnInterface()
+    public function testResolvingWithUsingAnInterface(): void
     {
         $container = new Container;
         $container->bind(IContainerContractStub::class, ContainerInjectVariableStubWithInterfaceImplementation::class);
@@ -1144,7 +1144,7 @@ class ContainerTest extends TestCase
         $this->assertSame('laurence', $instance->something);
     }
 
-    public function testNestedParameterOverride()
+    public function testNestedParameterOverride(): void
     {
         $container = new Container;
         $container->bind('foo', function ($app, $config) {
@@ -1157,7 +1157,7 @@ class ContainerTest extends TestCase
         $this->assertEquals(['name' => 'Taylor'], $container->make('foo', ['something']));
     }
 
-    public function testNestedParametersAreResetForFreshMake()
+    public function testNestedParametersAreResetForFreshMake(): void
     {
         $container = new Container;
 
@@ -1172,7 +1172,7 @@ class ContainerTest extends TestCase
         $this->assertSame([], $container->make('foo', ['something']));
     }
 
-    public function testSingletonBindingsNotRespectedWithMakeParameters()
+    public function testSingletonBindingsNotRespectedWithMakeParameters(): void
     {
         $container = new Container;
 
@@ -1184,20 +1184,20 @@ class ContainerTest extends TestCase
         $this->assertEquals(['name' => 'abigail'], $container->make('foo', ['name' => 'abigail']));
     }
 
-    public function testCanBuildWithoutParameterStackWithNoConstructors()
+    public function testCanBuildWithoutParameterStackWithNoConstructors(): void
     {
         $container = new Container;
         $this->assertInstanceOf(ContainerConcreteStub::class, $container->build(ContainerConcreteStub::class));
     }
 
-    public function testCanBuildWithoutParameterStackWithConstructors()
+    public function testCanBuildWithoutParameterStackWithConstructors(): void
     {
         $container = new Container;
         $container->bind(IContainerContractStub::class, ContainerImplementationStub::class);
         $this->assertInstanceOf(ContainerDependentStub::class, $container->build(ContainerDependentStub::class));
     }
 
-    public function testBuildWithReturnsFreshInstancePerCall()
+    public function testBuildWithReturnsFreshInstancePerCall(): void
     {
         $container = new Container;
 
@@ -1209,7 +1209,7 @@ class ContainerTest extends TestCase
         $this->assertSame('taylor', $second->default);
     }
 
-    public function testBuildWithAppliesParameterOverrides()
+    public function testBuildWithAppliesParameterOverrides(): void
     {
         $container = new Container;
 
@@ -1219,7 +1219,7 @@ class ContainerTest extends TestCase
         $this->assertInstanceOf(ContainerConcreteStub::class, $instance->stub);
     }
 
-    public function testBuildWithBypassesAutoSingletonCache()
+    public function testBuildWithBypassesAutoSingletonCache(): void
     {
         $container = new Container;
 
@@ -1239,7 +1239,7 @@ class ContainerTest extends TestCase
         $this->assertNotSame($cached, $third);
     }
 
-    public function testBuildWithSupportsClosureConcrete()
+    public function testBuildWithSupportsClosureConcrete(): void
     {
         $container = new Container;
 
@@ -1252,14 +1252,14 @@ class ContainerTest extends TestCase
         $this->assertSame(['name' => 'taylor'], $resultWithParams);
     }
 
-    public function testContainerKnowsEntry()
+    public function testContainerKnowsEntry(): void
     {
         $container = new Container;
         $container->bind(IContainerContractStub::class, ContainerImplementationStub::class);
         $this->assertTrue($container->has(IContainerContractStub::class));
     }
 
-    public function testContainerCanBindAnyWord()
+    public function testContainerCanBindAnyWord(): void
     {
         $container = new Container;
         $container->bind('Taylor', stdClass::class);
@@ -1268,7 +1268,7 @@ class ContainerTest extends TestCase
 
     // REMOVED: Container ArrayAccess is intentionally unsupported; use named container methods.
 
-    public function testUnknownEntryThrowsException()
+    public function testUnknownEntryThrowsException(): void
     {
         $this->expectException(EntryNotFoundException::class);
 
@@ -1291,7 +1291,7 @@ class ContainerTest extends TestCase
         }
     }
 
-    public function testBoundEntriesThrowsContainerExceptionWhenNotResolvable()
+    public function testBoundEntriesThrowsContainerExceptionWhenNotResolvable(): void
     {
         $this->expectException(ContainerExceptionInterface::class);
 
@@ -1301,7 +1301,7 @@ class ContainerTest extends TestCase
         $container->get('Taylor');
     }
 
-    public function testContainerCanResolveClasses()
+    public function testContainerCanResolveClasses(): void
     {
         $container = new Container;
         $class = $container->get(ContainerConcreteStub::class);
@@ -1309,7 +1309,7 @@ class ContainerTest extends TestCase
         $this->assertInstanceOf(ContainerConcreteStub::class, $class);
     }
 
-    public function testMethodLevelContextualBinding()
+    public function testMethodLevelContextualBinding(): void
     {
         $container = new Container;
 
@@ -1324,7 +1324,7 @@ class ContainerTest extends TestCase
         $this->assertInstanceOf(ContainerImplementationStub::class, $result);
     }
 
-    public function testContainerSingletonAttribute()
+    public function testContainerSingletonAttribute(): void
     {
         $container = new Container;
         $firstInstantiation = $container->get(ContainerSingletonAttribute::class);
@@ -1334,7 +1334,7 @@ class ContainerTest extends TestCase
         $this->assertSame($firstInstantiation, $secondInstantiation);
     }
 
-    public function testContainerScopedAttribute()
+    public function testContainerScopedAttribute(): void
     {
         $container = new Container;
         $firstInstantiation = $container->get(ContainerScopedAttribute::class);
@@ -1348,7 +1348,7 @@ class ContainerTest extends TestCase
         $this->assertNotSame($firstInstantiation, $thirdInstantiation);
     }
 
-    public function testBindInterfaceToSingleton()
+    public function testBindInterfaceToSingleton(): void
     {
         $container = new Container;
         $container->resolveEnvironmentUsing(fn ($arr) => true);
@@ -1358,7 +1358,7 @@ class ContainerTest extends TestCase
         $this->assertSame($firstInstantiation, $secondInstantiation);
     }
 
-    public function testBindInterfaceToScoped()
+    public function testBindInterfaceToScoped(): void
     {
         $container = new Container;
         $container->resolveEnvironmentUsing(fn ($arr) => $arr === ['test']);
@@ -1604,7 +1604,7 @@ class ContainerTest extends TestCase
         $container->make(ProdEnvOnlyInterface::class);
     }
 
-    public function testScopedSingletonWithBind()
+    public function testScopedSingletonWithBind(): void
     {
         $container = new Container;
         $container->resolveEnvironmentUsing(fn ($environments) => true);
@@ -1617,7 +1617,7 @@ class ContainerTest extends TestCase
         $this->assertNotSame($original, $container->make(IsScoped::class));
     }
 
-    public function testIsScopedDetectsAttributeWithoutCallingIsShared()
+    public function testIsScopedDetectsAttributeWithoutCallingIsShared(): void
     {
         $container = new Container;
 
@@ -1858,7 +1858,7 @@ class ContainerTest extends TestCase
         );
     }
 
-    public function testSingletonWithBind()
+    public function testSingletonWithBind(): void
     {
         $container = new Container;
         $container->resolveEnvironmentUsing(fn ($environments) => true);
@@ -1869,7 +1869,7 @@ class ContainerTest extends TestCase
         $this->assertSame($original, $new);
     }
 
-    public function testWithFactoryHasDependency()
+    public function testWithFactoryHasDependency(): void
     {
         $container = new Container;
         $_SERVER['__withFactory.email'] = 'taylor@laravel.com';
@@ -1883,7 +1883,7 @@ class ContainerTest extends TestCase
         $this->assertSame('taylor@laravel.com', $r->email);
     }
 
-    public function testContainerCanCatchCircularDependency()
+    public function testContainerCanCatchCircularDependency(): void
     {
         $this->expectException(CircularDependencyException::class);
 
@@ -1891,7 +1891,7 @@ class ContainerTest extends TestCase
         $container->get(CircularAStub::class);
     }
 
-    public function testCircularDependencyExceptionContainsFullChain()
+    public function testCircularDependencyExceptionContainsFullChain(): void
     {
         $container = new Container;
 
@@ -1913,7 +1913,7 @@ class ContainerTest extends TestCase
         }
     }
 
-    public function testCallDoesNotFalsePositiveCircularDependency()
+    public function testCallDoesNotFalsePositiveCircularDependency(): void
     {
         $container = new Container;
 
@@ -1930,7 +1930,7 @@ class ContainerTest extends TestCase
         $this->assertInstanceOf(CallMakesServiceStub::class, $result);
     }
 
-    public function testCircularDependencyThroughContextualBindingIsDetected()
+    public function testCircularDependencyThroughContextualBindingIsDetected(): void
     {
         $this->expectException(CircularDependencyException::class);
 
@@ -1971,7 +1971,7 @@ class ContainerTest extends TestCase
 
     // --- Auto-singleton behavior tests ---
 
-    public function testAutoSingletonCachesUnboundConcreteClass()
+    public function testAutoSingletonCachesUnboundConcreteClass(): void
     {
         $container = new Container;
 
@@ -2196,7 +2196,7 @@ class ContainerTest extends TestCase
         $this->assertSame(['extended'], $second->marks);
     }
 
-    public function testAutoSingletonSkippedWhenParametersProvided()
+    public function testAutoSingletonSkippedWhenParametersProvided(): void
     {
         $container = new Container;
 
@@ -2208,7 +2208,7 @@ class ContainerTest extends TestCase
         $this->assertSame('b', $second->value);
     }
 
-    public function testAutoSingletonSkippedWhenExplicitlyBound()
+    public function testAutoSingletonSkippedWhenExplicitlyBound(): void
     {
         $container = new Container;
         $container->bind(AutoSingletonStub::class);
@@ -2219,7 +2219,7 @@ class ContainerTest extends TestCase
         $this->assertNotSame($first, $second);
     }
 
-    public function testForgetInstanceClearsAutoSingleton()
+    public function testForgetInstanceClearsAutoSingleton(): void
     {
         $container = new Container;
 
@@ -2230,7 +2230,7 @@ class ContainerTest extends TestCase
         $this->assertNotSame($first, $second);
     }
 
-    public function testForgetInstancesClearsAutoSingletons()
+    public function testForgetInstancesClearsAutoSingletons(): void
     {
         $container = new Container;
 
@@ -2241,7 +2241,7 @@ class ContainerTest extends TestCase
         $this->assertNotSame($first, $second);
     }
 
-    public function testFlushClearsAutoSingletons()
+    public function testFlushClearsAutoSingletons(): void
     {
         $container = new Container;
 
@@ -2252,7 +2252,7 @@ class ContainerTest extends TestCase
         $this->assertNotSame($first, $second);
     }
 
-    public function testSelfBuildingClassIsNotAutoSingletoned()
+    public function testSelfBuildingClassIsNotAutoSingletoned(): void
     {
         $container = new Container;
         $_SERVER['__selfBuilding.counter'] = 1;
@@ -2269,7 +2269,7 @@ class ContainerTest extends TestCase
         unset($_SERVER['__selfBuilding.counter']);
     }
 
-    public function testSelfBuildingClassCanBeExplicitlySingletoned()
+    public function testSelfBuildingClassCanBeExplicitlySingletoned(): void
     {
         $container = new Container;
         $_SERVER['__selfBuilding.counter'] = 1;

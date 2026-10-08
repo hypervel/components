@@ -17,6 +17,7 @@
     - [Headers](#headers)
     - [Request URL](#request-url)
     - [Query Parameters](#query-parameters)
+    - [API Versions](#api-versions)
     - [Authentication](#authentication)
     - [Request Bodies](#request-bodies)
     - [Multipart Requests](#multipart-requests)
@@ -62,6 +63,9 @@
     - [Defining Policies](#defining-policies)
     - [Tenant and Service Limits](#tenant-and-service-limits)
     - [Server Cooldowns](#server-cooldowns)
+    - [Sharing Limits](#sharing-limits)
+    - [Inspecting Limits](#inspecting-limits)
+    - [Disabling Rate Limits](#disabling-rate-limits)
     - [Queued Requests](#queued-requests)
 - [Multi-Tenant Integrations](#multi-tenant-integrations)
 - [Telescope](#telescope)
@@ -204,7 +208,7 @@ Do not change a reused connector while handling a request. If a credential or en
 <a name="connector-defaults"></a>
 ### Connector Defaults
 
-You may define default headers, query parameters, Guzzle options, authentication, delays, and request bodies using protected connector methods:
+You may define default headers, query parameters, Guzzle options, authentication, delays, [retry policies](#retries), and request bodies using protected connector methods:
 
 ```php
 use Hypervel\Saloon\Contracts\Authenticator;
@@ -248,9 +252,23 @@ public function boot(PendingRequest $pendingRequest): void
 <a name="organizing-sdks"></a>
 ### Organizing SDKs
 
+A connector may serve as an SDK's entry point by offering methods that send its requests:
+
+```php
+use App\Http\Integrations\GitHub\Requests\GetUser;
+use Hypervel\Saloon\Http\Response;
+
+public function user(string $username): Response
+{
+    return $this->send(new GetUser($username));
+}
+```
+
 When an integration contains many endpoints, you may group related requests into resource classes. Extend `BaseResource` and use the `@extends` annotation to specify your connector type:
 
 ```php
+use App\Http\Integrations\GitHub\GitHubConnector;
+use App\Http\Integrations\GitHub\Requests\GetRepository;
 use Hypervel\Saloon\Http\BaseResource;
 use Hypervel\Saloon\Http\Response;
 
@@ -284,9 +302,18 @@ Your resource may access the connector through its protected, readonly `$connect
 <a name="http-connections"></a>
 ### HTTP Connections
 
-Saloon registers one named Hypervel HTTP connection, named `saloon` by default. Synchronous requests through this connection reuse the low-level transport, allowing cURL to retain keep-alive sockets, DNS information, and TLS sessions. Each operation still receives its own pending request, client, middleware stack, and cookie jar.
+Saloon registers one named Hypervel [HTTP connection](/docs/{{version}}/http-client#connections), named `saloon` by default. Synchronous requests through this connection reuse the low-level transport, allowing cURL to retain keep-alive sockets, DNS information, and TLS sessions. Each operation still receives its own pending request, client, middleware stack, and cookie jar.
 
-You may publish the configuration file to change the default connection options. A connector may also select another connection that your application registered during worker boot:
+The `saloon` connection uses a 10-second connection timeout and a 30-second request timeout. Like other HTTP client requests, Saloon requests require TLS 1.2 or later unless the connection sets another `crypto_method` option. You may [publish the configuration file](#publishing-configuration-and-stubs) to change its options. A connector may also select another connection that your application registers during worker boot:
+
+```php
+use Hypervel\Support\Facades\Http;
+
+Http::registerConnection('github', [
+    'connect_timeout' => 5,
+    'timeout' => 60,
+]);
+```
 
 ```php
 public function resolveHttpConnection(): ?string
@@ -294,6 +321,8 @@ public function resolveHttpConnection(): ?string
     return 'github';
 }
 ```
+
+A connection used by Saloon may not contain options that shape the request, such as `headers`, `query`, `cookies`, `json`, and `auth`, because Saloon builds those from the connector and request. Define them on the connector instead. Saloon requests also receive the HTTP client's [global options](/docs/{{version}}/http-client#global-options) and [global middleware](/docs/{{version}}/http-client#global-middleware).
 
 Connection names must come from a fixed, bounded set. Do not create a connection name from a tenant ID, hostname, or credential, since registered connections and their handlers remain in memory for the worker lifetime. One fixed connection may safely send requests to many tenant-selected hosts.
 
@@ -336,7 +365,7 @@ Requests are mutable while you prepare one operation. You may create them with `
 $request = GetUser::make('hypervel');
 ```
 
-No-argument requests may also be resolved from the service container and are created fresh on each resolution. Requests that require caller-supplied values should be constructed directly, created with `make`, or given an explicit transient container binding.
+Requests may also be resolved from the service container, which creates a fresh request on each resolution and injects its constructor dependencies. Pass any other constructor values as parameters to the container's `make` method.
 
 <a name="request-methods"></a>
 ### Request Methods
@@ -373,6 +402,17 @@ $response = $github->send(
 
 The returned `Hypervel\Saloon\Http\Response` extends Hypervel's normal HTTP response, so the same JSON, header, status, exception, and PSR-7 methods are available.
 
+To inspect an outgoing request without sending it, pass the request to the connector's `createPendingRequest` method. The pending request has run its plugins, authenticator, boot hooks, and request middleware:
+
+```php
+$pendingRequest = $github->createPendingRequest(GetUser::make('hypervel'));
+
+$pendingRequest->headers();
+$pendingRequest->uri();
+```
+
+The URL and body are finalized, and fake responses are matched, only when a request is sent. Sending creates a new pending request, so make outgoing changes on the request or in its hooks and middleware rather than on an inspected pending request.
+
 <a name="standalone-requests"></a>
 ### Standalone Requests
 
@@ -395,7 +435,32 @@ class GetStatus extends SoloRequest
 $response = (new GetStatus)->send();
 ```
 
-Normal connector requests accept relative endpoints. An absolute endpoint is rejected unless the request or connector explicitly opts into base URL replacement. This protects credentials from being sent to an unexpected host.
+Standalone requests define their headers, query parameters, options, authentication, and body using the same [default methods](#request-defaults) as other requests.
+
+> [!WARNING]
+> A standalone request sends its headers and credentials to whatever URL `resolveEndpoint` returns. Do not build the endpoint from user input.
+
+A request that always uses the same connector may send itself with the `HasConnector` trait. Define the connector class in a `$connector` property:
+
+```php
+use App\Http\Integrations\GitHub\GitHubConnector;
+use Hypervel\Saloon\Traits\Request\HasConnector;
+
+class GetUser extends Request
+{
+    use HasConnector;
+
+    protected string $connector = GitHubConnector::class;
+
+    // ...
+}
+
+$response = GetUser::make('hypervel')->send();
+```
+
+The request creates its connector once, and the `connector` method returns it. Use `setConnector` to supply a configured instance instead, or override `resolveConnector` when the connector needs constructor arguments. The `createPendingRequest` method prepares the request through that connector.
+
+Normal connector requests accept relative endpoints. An endpoint without a scheme is always a path on the connector's host, even when it contains a colon, such as `documents:batchGet`, or begins with `//`. An absolute endpoint is rejected unless the request or connector explicitly opts into base URL replacement. This protects credentials from being sent to an unexpected host.
 
 Override `allowsBaseUrlOverride` on a request to return `true` when that request may use an application-controlled absolute endpoint. The request method returns `null` by default, which inherits the connector's decision:
 
@@ -455,7 +520,7 @@ Requests and pending requests provide fluent methods that mirror Hypervel's HTTP
 <a name="headers"></a>
 ### Headers
 
-Use `withHeader` to add one header or `withHeaders` to merge several headers. The `replaceHeaders` method replaces matching header names without removing unrelated headers. Header names are matched without regard to casing:
+Use `withHeader` to add one header or `withHeaders` to merge several headers. Adding a header that is already present keeps both values. The `replaceHeaders` method replaces matching header names without removing unrelated headers. Header names are matched without regard to casing:
 
 ```php
 $request
@@ -466,6 +531,17 @@ $request
     ])
     ->acceptJson()
     ->withUserAgent('Acme Application/1.0');
+```
+
+The `withoutHeader` and `withoutHeaders` methods remove headers, also ignoring case. Removing a header from a request only affects the request's own headers, since connector defaults are merged into the pending request when the request is sent. To remove a connector default, remove it from the pending request in a hook or middleware:
+
+```php
+use Hypervel\Saloon\Http\PendingRequest;
+
+public function boot(PendingRequest $pendingRequest): void
+{
+    $pendingRequest->withoutHeader('X-Api-Version');
+}
 ```
 
 <a name="request-url"></a>
@@ -481,6 +557,30 @@ The URL must be absolute HTTP or HTTPS. It replaces both the connector base URL 
 
 The `url` method returns the override, or `null` when none was supplied. Explicit query strings and query parameters are still applied as described below.
 
+The `withUrlParameters` method fills URI template placeholders in the connector base URL, the request endpoint, or the URL override, just like Hypervel's HTTP client:
+
+```php
+// Base URL: https://{region}.api.example.com
+// Endpoint: /accounts/{account}
+
+$request->withUrlParameters([
+    'region' => 'eu',
+    'account' => $accountId,
+]);
+```
+
+Values in simple placeholders such as `{account}` are percent-encoded, so slashes and query characters in a value stay part of that value. Placeholders are only replaced when parameters are given.
+
+Pending requests also provide `withUrl` and `withMethod`, so a hook or middleware may redirect a single operation without changing the request instance:
+
+```php
+use Hypervel\Saloon\Enums\Method;
+
+$pendingRequest
+    ->withUrl('https://uploads.example.com/files')
+    ->withMethod(Method::PUT);
+```
+
 <a name="query-parameters"></a>
 ### Query Parameters
 
@@ -495,6 +595,14 @@ $request->withQueryParameters([
 
 Request values replace connector values with the same key. Values added later by middleware replace earlier values. Query parameters already present in the connector base URL or request endpoint are preserved unless the request contains the same top-level key.
 
+Query parameters are encoded using PHP's `http_build_query` function, so arrays use bracketed names such as `filter[active]=1`, booleans become `1` or `0`, and `null` values are left out. When an API expects another format, use the `withQueryString` method described below.
+
+The `withoutQueryParameters` method removes parameters added through `withQueryParameters` or `defaultQuery`. As with headers, removing a parameter from a request does not remove a connector default; remove it from the pending request instead. Values embedded in the base URL, endpoint, or `withQueryString` query are unchanged:
+
+```php
+$request->withoutQueryParameters(['page', 'per_page']);
+```
+
 Use `withQueryString` when an API supplies an already-encoded query, including repeated parameter names:
 
 ```php
@@ -505,6 +613,31 @@ The query should not include a leading `?`. It replaces the query in the base UR
 
 You may define a default query string by overriding `defaultQueryString(): ?string` on your request. Returning `null` leaves the URL's query unchanged. The `queryString` method returns this string, while `queryParameters` returns the separately configured array parameters. Middleware may also call `withQueryString` on a pending request to replace the query for that attempt.
 
+<a name="api-versions"></a>
+### API Versions
+
+The `HasApiVersion` plugin sends an API version with each operation. Assign the version in the connector or request constructor, and choose where it is sent with the `$versionMode` property: a header (the default), a query parameter, or the URL. The `$versionKey` property names the header or query parameter and defaults to `api-version`:
+
+```php
+use Hypervel\Saloon\Enums\VersionMode;
+use Hypervel\Saloon\Traits\Plugins\HasApiVersion;
+
+class AnthropicConnector extends Connector
+{
+    use HasApiVersion;
+
+    public function __construct()
+    {
+        $this->apiVersion = '2023-06-01';
+        $this->versionKey = 'anthropic-version';
+    }
+
+    // ...
+}
+```
+
+In URL mode, the version replaces a `{version}` placeholder in the base URL, endpoint, or URL override, such as `https://generativelanguage.googleapis.com/{version}`. The version may only contain letters, numbers, dashes, underscores, and single dots, so it can only fill that subdomain label or path segment. You may override `getApiVersion` to calculate the version. When both a connector and a request send a version, the request's version is used.
+
 <a name="authentication"></a>
 ### Authentication
 
@@ -514,6 +647,31 @@ Saloon provides the same familiar authentication methods as Hypervel's HTTP clie
 $request->withToken($token);
 $request->withBasicAuth($username, $password);
 $request->withDigestAuth($username, $password);
+```
+
+These methods create authenticators, which you may also use directly. Return an authenticator from a connector or request's `defaultAuth` method, or pass one to `authenticate`. Saloon includes header, query, cookie, token, basic, digest, certificate, access-token, and multi-authenticator implementations under `Hypervel\Saloon\Http\Auth`:
+
+```php
+use Hypervel\Saloon\Contracts\Authenticator;
+use Hypervel\Saloon\Http\Auth\HeaderAuthenticator;
+
+protected function defaultAuth(): ?Authenticator
+{
+    return new HeaderAuthenticator($this->key, 'X-Api-Key');
+}
+```
+
+A request's authenticator replaces its connector's. When an API requires more than one form of authentication, such as a client certificate and a token, combine them using `MultiAuthenticator`:
+
+```php
+use Hypervel\Saloon\Http\Auth\CertificateAuthenticator;
+use Hypervel\Saloon\Http\Auth\MultiAuthenticator;
+use Hypervel\Saloon\Http\Auth\QueryAuthenticator;
+
+$request->authenticate(new MultiAuthenticator(
+    new CertificateAuthenticator('/path/to/client.pem', $password),
+    new QueryAuthenticator('api_key', $key),
+));
 ```
 
 Built-in NTLM authentication is not provided. Integrations requiring NTLM must supply their own authenticator and transport middleware.
@@ -528,23 +686,25 @@ class ApiKeyAuthenticator implements Authenticator
 {
     public function __construct(
         private readonly string $key,
+        private readonly string $accountId,
     ) {
     }
 
     public function set(PendingRequest $pendingRequest): void
     {
-        $pendingRequest->withHeader('X-Api-Key', $this->key);
+        $pendingRequest->withHeaders([
+            'X-Api-Key' => $this->key,
+            'X-Account-Id' => $this->accountId,
+        ]);
     }
 }
 ```
 
-Apply a custom authenticator using `authenticate`, or return it from a connector's `defaultAuth` method:
+Use a custom authenticator like the built-in ones:
 
 ```php
-$request->authenticate(new ApiKeyAuthenticator($key));
+$request->authenticate(new ApiKeyAuthenticator($key, $accountId));
 ```
-
-Saloon also includes header, query, cookie, token, basic, digest, certificate, access-token, and multi-authenticator implementations under `Hypervel\Saloon\Http\Auth`.
 
 For APIs that authenticate using a cookie, use `CookieAuthenticator`:
 
@@ -570,6 +730,28 @@ class GetPrivateReport extends Request
 ```
 
 You may also add the trait to a connector to require authentication for every request in that integration. Saloon throws `MissingAuthenticatorException` before sending an unauthenticated request. You may override `getRequiresAuthMessage(PendingRequest $pendingRequest): string` when the integration needs a more specific message.
+
+Some APIs require you to request a token before calling other endpoints. A connector's `boot` method may send that request and authenticate the pending request with the result:
+
+```php
+use Hypervel\Saloon\Http\Auth\TokenAuthenticator;
+use Hypervel\Saloon\Http\PendingRequest;
+
+public function boot(PendingRequest $pendingRequest): void
+{
+    if ($pendingRequest->request() instanceof GetAccessToken) {
+        return;
+    }
+
+    $token = $this->send(new GetAccessToken($this->username, $this->password))
+        ->throw()
+        ->json('token');
+
+    $pendingRequest->authenticate(new TokenAuthenticator($token));
+}
+```
+
+The early return stops the token request from requesting a token itself. Don't combine this with `RequiresAuth`, which checks for an authenticator before `boot` runs. When the API's tokens last longer than one request, you may store the token in your application's [cache](/docs/{{version}}/cache) until it expires.
 
 <a name="request-bodies"></a>
 ### Request Bodies
@@ -604,7 +786,7 @@ class CreateIssue extends Request
 }
 ```
 
-The JSON, form, XML, and multipart traits supply the appropriate content type unless you already defined one. String and stream bodies do not assume a content type, so specify one using `contentType` or `defaultHeaders`. Body traits may also be used on connectors when every request shares the same body format; request body values take precedence over connector values.
+The JSON, form, and XML traits supply the appropriate content type unless you already defined one. A multipart body always receives `multipart/form-data` with its boundary unless the content type you define declares a boundary. String and stream bodies do not assume a content type, so specify one using `contentType` or `defaultHeaders`. Body traits may also be used on connectors when every request shares the same body format. A request's JSON and form values are merged into the connector's, replacing values with the same key, and its multipart parts are added after the connector's. A request's string, XML, or stream body replaces the connector's.
 
 When both a connector and request define a body, their body repositories must be the same type. For example, a request using `HasFormBody` cannot be sent through a connector using `HasJsonBody`. Saloon throws a `PendingRequestException` when the body types do not match.
 
@@ -617,13 +799,17 @@ $request->withBody($stream, 'application/octet-stream');
 $request->withBody($stream, null);
 ```
 
-The `withData` method merges structured values into the current JSON or form body. If the request does not yet have a structured body, the method creates a JSON body:
+The `withBody` method accepts a string, stream, or resource. Like the HTTP client's method of the same name, it sets an `application/json` content type unless you pass another one, or `null` to leave the content type unchanged.
+
+The `withData` method merges structured values into the current JSON or form body. If the request has no JSON, form, or multipart body, the method creates a JSON body:
 
 ```php
 $request->withData(['active' => true]);
 ```
 
-Laravel `Arrayable` objects, `JsonSerializable` objects, and stringable values are normalized recursively in JSON, form, and query data.
+On a multipart body, `withData` adds each value as a field after the existing parts. Fields are appended, so repeating a name adds another field instead of replacing the first. Nested arrays are sent as bracketed field names such as `roles[0]`, `true` is sent as `1`, and `false` and `null` are sent as empty fields.
+
+`Arrayable` and `JsonSerializable` objects, and the fluent strings returned by `Str::of`, are converted recursively in JSON, form, and query data.
 
 JSON bodies use `JSON_THROW_ON_ERROR` by default. To use other encoding flags, return a configured `JsonBodyRepository` from `defaultBodyRepository`:
 
@@ -638,7 +824,7 @@ protected function defaultBodyRepository(): ?BodyRepository
 }
 ```
 
-The request may still use `HasJsonBody` so Saloon supplies the JSON content type. Invalid JSON values throw a `BodyException` instead of being sent as an empty body.
+The request may still use `HasJsonBody` so Saloon supplies the JSON content type. When the connector also defines a JSON body, the request's values are merged into the connector's repository, so the connector's flags apply. Invalid JSON values throw a `BodyException` instead of being sent as an empty body.
 
 <a name="multipart-requests"></a>
 ### Multipart Requests
@@ -654,7 +840,42 @@ $request
     ->attach('description', 'Quarterly report');
 ```
 
+You may also pass an array of parts, each containing the same arguments:
+
+```php
+$request->attach([
+    ['document', fopen($path, 'rb'), 'report.pdf', ['Content-Type' => 'application/pdf']],
+    ['description', 'Quarterly report'],
+]);
+```
+
+When a request has a body in another format, `attach` replaces it with a multipart body. The `asMultipart` method selects a multipart body without adding a value. Neither method discards values that a multipart body already contains.
+
 Saloon preserves multipart streams, filenames, headers, order, and the generated boundary. Caller-owned streams are not buffered automatically.
+
+A request using the `HasMultipartBody` trait returns its default parts from `defaultBody` as `MultipartValue` instances, each containing the part's name, contents, and an optional filename and headers. String contents are sent as they are, so open files using `fopen`:
+
+```php
+use Hypervel\Saloon\Data\MultipartValue;
+use Hypervel\Saloon\Traits\Body\HasMultipartBody;
+
+class UploadAvatar extends Request
+{
+    use HasMultipartBody;
+
+    // ...
+
+    protected function defaultBody(): array
+    {
+        return [
+            new MultipartValue('avatar', fopen($this->path, 'rb'), 'avatar.png', [
+                'Content-Type' => 'image/png',
+            ]),
+            new MultipartValue('description', 'Profile photo'),
+        ];
+    }
+}
+```
 
 <a name="custom-body-repositories"></a>
 ### Custom Body Repositories
@@ -719,7 +940,7 @@ class NdjsonBodyRepository implements MergeableBody
 }
 ```
 
-Implement `MergeableBody` when connector values should be merged with request values. A repository that implements only `BodyRepository` is replaced as a complete value instead. The `withData` method is reserved for the built-in JSON and form repositories; calling it on a custom repository selects a JSON body.
+Implement `MergeableBody` when connector values should be merged with request values. A repository that implements only `BodyRepository` is replaced as a complete value instead. The `withData` method is reserved for the built-in JSON, form, and multipart repositories; calling it on a custom repository selects a JSON body.
 
 Return the repository from the request or connector's `defaultBodyRepository` method and set the appropriate content type during `boot`:
 
@@ -754,7 +975,35 @@ $request
     ->withOptions(['proxy' => $proxy]);
 ```
 
-The `timeout` and `connectTimeout` methods accept seconds, while `delay` accepts milliseconds.
+The `timeout` and `connectTimeout` methods accept seconds, while `delay` accepts milliseconds. Saloon waits for the delay before every attempt, including attempts answered by a mock or fake response, so `Sleep::fake()` can assert it in your tests. Responses served from the cache are not delayed.
+
+The `withoutRedirecting` method disables redirects, and the `sink` method writes the response body to a path or resource as it is received.
+
+The `withoutOptions` method removes options from the request, so the connector's value or the HTTP connection's configured value applies again. To remove a connector default, call `withoutOptions` on the pending request:
+
+```php
+$request->withoutOptions(['timeout', 'connect_timeout']);
+```
+
+The `HasTimeout` plugin gives a connector or request default timeouts from its `$connectTimeout` and `$requestTimeout` properties, in seconds. You may override the `getConnectTimeout` or `getRequestTimeout` methods to calculate them instead. Options set on the same connector or request take precedence over its declared timeouts, and a request's timeouts take precedence over its connector's. A timeout that is not declared leaves the existing options and the HTTP connection's configured value in effect:
+
+```php
+use Hypervel\Saloon\Traits\Plugins\HasTimeout;
+
+class GitHubConnector extends Connector
+{
+    use HasTimeout;
+
+    protected int $connectTimeout = 5;
+
+    protected int $requestTimeout = 60;
+
+    public function resolveBaseUrl(): string
+    {
+        return 'https://api.github.com';
+    }
+}
+```
 
 To specify a cookie's path or other attributes, use `withCookie` with a Guzzle `SetCookie` instance. The cookie must include a domain:
 
@@ -775,7 +1024,7 @@ Request-shaping options such as `headers`, `query`, `cookies`, `body`, `json`, `
 <a name="middleware"></a>
 ## Middleware
 
-Middleware may inspect or change the pending request, response, or fatal transport exception. You may register middleware from a connector or request's `boot` method, through a reusable plugin, or globally during application boot.
+Middleware may inspect or change the pending request, response, or fatal transport exception. You may register middleware on a request before sending it, from a connector or request's `boot` method, through a reusable plugin, or globally during application boot.
 
 <a name="request-middleware"></a>
 ### Request Middleware
@@ -797,7 +1046,17 @@ public function boot(PendingRequest $pendingRequest): void
 }
 ```
 
-Request middleware may return a `MockResponse` or another implementation of `FakeResponse` to short-circuit the network request.
+Requests have the same middleware pipeline, so you may also add middleware to a request before sending it:
+
+```php
+$request = GetUser::make('hypervel');
+
+$request->middleware()->onRequest(function (PendingRequest $pendingRequest) use ($traceId): void {
+    $pendingRequest->withHeader('X-Trace-ID', $traceId);
+});
+```
+
+Request middleware may return a `MockResponse` or another implementation of `FakeResponse` to short-circuit the network request. The remaining request middleware still runs, and the last fake response returned is used. A fake response supplied by middleware bypasses the [response cache](#caching) and [mock clients](#faking-responses), and consumes no [rate limit](#rate-limiting) capacity. Other return values are ignored, so change the pending request it receives rather than returning a new one.
 
 For reusable middleware, create an invokable class that implements `RequestMiddleware`:
 
@@ -820,7 +1079,9 @@ class AddRequestId implements RequestMiddleware
 
 Register the class in the same way as a closure: `$pendingRequest->middleware()->onRequest(new AddRequestId)`.
 
-Middleware runs in registration order. You may pass `PipeOrder::First` or `PipeOrder::Last` using the `order` argument when a middleware must run before or after the normal group. Named middleware must have a unique name within its pipeline.
+Middleware runs in registration order. Saloon registers [global middleware](#global-middleware) first, followed by plugin middleware, middleware added by the connector's `boot` method, the request's own middleware, and middleware added by the request's `boot` method. You may pass `PipeOrder::FIRST` or `PipeOrder::LAST` using the `order` argument when a middleware must run before or after the normal group.
+
+These sources are merged into the operation's pipelines, so a name may be used only once among its request middleware, and likewise among its response and fatal exception middleware. A duplicate name throws a `DuplicatePipeNameException`. Request middleware may register response middleware, but request middleware added while the request pipeline is running does not run for that operation.
 
 <a name="response-middleware"></a>
 ### Response Middleware
@@ -861,7 +1122,7 @@ class RecordResponse implements ResponseMiddleware
 <a name="fatal-exception-middleware"></a>
 ### Fatal Exception Middleware
 
-Fatal exception middleware receives connection and transport failures after they have been wrapped in a `FatalRequestException`:
+Fatal exception middleware receives connection and transport failures after they have been wrapped in a `FatalRequestException`, as well as a `FatalRequestException` thrown by a fake response to simulate one:
 
 ```php
 use Hypervel\Saloon\Exceptions\Request\FatalRequestException;
@@ -919,7 +1180,7 @@ The connector hook runs before the request hook. Each hook runs once on the fina
 <a name="plugins"></a>
 ### Plugins
 
-Plugins are traits with a boot method named after the trait. They allow connector and request behavior to be shared without another service layer:
+Plugins are traits with a public boot method named after the trait. They allow connector and request behavior to be shared without another service layer:
 
 ```php
 use Hypervel\Saloon\Http\PendingRequest;
@@ -934,7 +1195,9 @@ trait AddsRequestId
 }
 ```
 
-Use the trait on any connector or request. Saloon discovers plugin boot methods once per concrete class and invokes them for each operation.
+Use the trait on any connector or request. Saloon discovers plugin boot methods once per concrete class and invokes them for each operation. Change the pending request in a plugin rather than the connector or request, since a connector may be shared by concurrent operations. A plugin used by both a connector and its request boots twice.
+
+Connector plugins boot before request plugins, and the request is authenticated once every plugin has booted. This lets an authenticator use the URL and headers set by plugins, such as an [API version](#api-versions) in the host. A plugin may select the authenticator by calling `authenticate` on the pending request; Saloon applies it after the remaining plugins boot. The connector and request `boot` methods and request middleware run after authentication, so calling `authenticate` there applies the authenticator immediately.
 
 <a name="responses"></a>
 ## Responses
@@ -958,7 +1221,7 @@ $response->toPsrResponse();
 $response->dataUrl();
 ```
 
-The `dataUrl` method returns the response body as a base64 data URL using its `Content-Type` header.
+The `dataUrl` method returns the response body as a base64 data URL using its `Content-Type` header. The `isJson` and `isXml` methods check whether that header names a JSON or XML type, and `array` is an alias of `json`.
 
 You may use [`lines` and `jsonLines`](/docs/{{version}}/http-client#streaming-responses) to process a response as it arrives. Enable the `stream` request option and leave response caching and fixture recording disabled, since both read the body before returning the response.
 
@@ -1033,7 +1296,7 @@ class GetUser extends Request
 }
 ```
 
-Call `dto` to create the configured value. The `dtoOrFail` method refuses to create it when the integration considers the response failed:
+Call `dto` to create the configured value. The `dto` method converts every response, including failed ones, so you may also map error responses. The `dtoOrFail` method instead throws a `LogicException` when the integration considers the response [failed](#error-handling). When the response would also throw, its request exception is available as the `LogicException`'s previous exception:
 
 ```php
 $user = $github->send(new GetUser('hypervel'))->dtoOrFail();
@@ -1098,49 +1361,127 @@ if ($response->failed()) {
 $response->throw();
 ```
 
-By default, 4xx responses throw `ClientException`, 5xx responses throw `ServerException`, and other integration-defined failures throw `RequestException`. Transport failures throw `FatalRequestException`.
+Common statuses throw an exception named after them from the `Hypervel\Saloon\Exceptions\Request\Statuses` namespace:
 
-You may define provider-specific failure behavior on a request or connector:
+| Status | Exception |
+|---|---|
+| 400 | `BadRequestException` |
+| 401 | `UnauthorizedException` |
+| 402 | `PaymentRequiredException` |
+| 403 | `ForbiddenException` |
+| 404 | `NotFoundException` |
+| 405 | `MethodNotAllowedException` |
+| 408 | `RequestTimeOutException` |
+| 409 | `ConflictException` |
+| 422 | `UnprocessableEntityException` |
+| 429 | `TooManyRequestsException` |
+| 500 | `InternalServerErrorException` |
+| 502 | `BadGatewayException` |
+| 503 | `ServiceUnavailableException` |
+| 504 | `GatewayTimeoutException` |
+
+These extend `ClientException` for 4xx responses and `ServerException` for 5xx responses, which other 4xx and 5xx responses throw directly. All of them extend `RequestException`, which other integration-defined failures throw.
+
+A request that could not complete throws `FatalRequestException`. This includes failed connections and transfers that break while the response is being received, whatever status the partial response has.
+
+Some APIs report errors in a successful response. A request or connector may override `hasRequestFailed` to decide whether a response failed, returning `null` to fall back to the status code:
 
 ```php
+use Hypervel\Saloon\Http\Response;
+
 public function hasRequestFailed(Response $response): ?bool
 {
     return $response->json('ok') === false ? true : null;
 }
+```
 
-public function shouldThrowRequestException(Response $response): bool
+In this example, a response whose body contains `"ok": false` is treated as failed whatever its status. A request's non-null decision takes precedence over its connector's. Failed responses are not [cached](#caching), and by default they throw from `throw` and trigger [retries](#retries).
+
+A response throws when the `shouldThrowRequestException` method of either its request or its connector returns `true`. Both return `failed()` by default. To stop a failed response from throwing while keeping it failed, return `false` from both methods. Returning `false` from `hasRequestFailed` instead makes the response successful, so it may also be cached and converted by `dtoOrFail`.
+
+You may return a custom Saloon request exception from `getRequestException`, and a request's exception takes precedence over its connector's. To give a custom exception its own message, override its `prepareMessage` method:
+
+```php
+use Hypervel\Http\Client\Response;
+use Hypervel\Saloon\Exceptions\Request\RequestException;
+
+class GitHubException extends RequestException
 {
-    return $response->status() !== 404 && $response->failed();
+    protected function prepareMessage(Response $response): string
+    {
+        return 'GitHub: ' . $response->json('message');
+    }
 }
 ```
 
-In this example, the integration treats a 404 response as an empty result instead of an exception.
+Then return it from the request or connector:
 
-A non-null request failure decision takes precedence over the connector decision, which takes precedence over the status-code fallback. You may return a custom Saloon request exception from `getRequestException`. The `AlwaysThrowOnErrors` plugin calls `throw` automatically after each response.
+```php
+use Hypervel\Saloon\Exceptions\Request\RequestException;
+use Hypervel\Saloon\Http\Response;
+
+public function getRequestException(Response $response): ?RequestException
+{
+    return new GitHubException($response);
+}
+```
+
+The `AlwaysThrowOnErrors` plugin calls `throw` automatically after each response.
 
 <a name="retries"></a>
 ### Retries
 
-Use `retry` to specify the number of attempts and delay between attempts:
+The `retry` method accepts the maximum number of times a request should be attempted and the number of milliseconds to wait between attempts. A request is retried when its response would [throw](#error-handling) or the request could not complete:
 
 ```php
 $request->retry(3, 100);
 ```
 
-You may supply an array of delays or calculate the delay using a closure:
+You may calculate the delay using a closure, or pass an array of delays as the first argument, which makes one more attempt than it contains delays:
 
 ```php
-$request->retry([100, 250, 500]);
+$request->retry(3, fn (int $attempt) => $attempt * 100);
 
-$request->retry(
-    4,
-    fn (int $attempt) => $attempt * 100,
-    when: fn ($exception, $pendingRequest) => $exception->getCode() !== 401,
-    throw: false,
-);
+$request->retry([100, 250, 500]);
+```
+
+When a request with more than one attempt runs out of attempts, Saloon throws the last attempt's `RequestException` or `FatalRequestException`. A request with one attempt, such as `retry(1)`, returns a failed response as usual. Pass `throw: false` to return the last response instead of throwing. A `FatalRequestException` is still thrown, because there is no response to return, as is a request exception thrown by response middleware, such as the `AlwaysThrowOnErrors` plugin's:
+
+```php
+$request->retry(3, 100, throw: false);
 ```
 
 Each attempt receives a fresh pending request, so middleware and authentication run again. Seekable request bodies are restored before another attempt. Saloon throws a `BodyException` rather than retrying a consumed non-seekable body.
+
+The `when` callback receives the exception and the failed attempt's pending request. Changes made to the original request through `$pendingRequest->request()` apply to the next attempt, such as replacing an expired token:
+
+```php
+use Hypervel\Saloon\Exceptions\Request\RequestException;
+use Hypervel\Saloon\Http\PendingRequest;
+
+$request->retry(2, when: function ($exception, PendingRequest $pendingRequest) {
+    if (! $exception instanceof RequestException || $exception->status() !== 401) {
+        return false;
+    }
+
+    $pendingRequest->request()->withToken($this->refreshToken());
+
+    return true;
+});
+```
+
+To retry every request sent through a connector, return a policy from the connector's `defaultRetryPolicy` method. A request may define the same method to set its own default:
+
+```php
+use Hypervel\Saloon\Data\RetryPolicy;
+
+protected function defaultRetryPolicy(): ?RetryPolicy
+{
+    return new RetryPolicy(3, 100);
+}
+```
+
+Saloon uses the policy passed to the request's `retry` method, then the request's default, then the connector's default. A request's policy replaces the connector's entirely, including its `when` condition, so `$request->retry(1)` turns off the connector's retries. Middleware and `boot` methods may also call `retry` on the pending request to change the policy for a single operation.
 
 <a name="debugging"></a>
 ### Debugging
@@ -1153,7 +1494,26 @@ $request->debugRequest();
 $request->debugResponse();
 ```
 
-The `debugRequest` and `debugResponse` methods accept a custom callback. All three methods accept `die: true`, which terminates the current worker process and is intended only for local debugging.
+To debug every request sent through a connector, call the same methods on the pending request from the connector's `boot` method. All three methods accept `die: true`, which stops the current request or command after the output and is intended only for local debugging.
+
+Saloon dumps the request and response using Symfony's VarDumper. The request is shown as Saloon passes it to the HTTP client, after [PSR-7 request hooks](#psr-request-hooks) have run, so headers that HTTP client middleware or Guzzle add later are not included. The response is shown before response middleware that uses the default [order](#middleware).
+
+The `debugRequest` and `debugResponse` methods also accept a callback, such as one that writes to your logs instead:
+
+```php
+use Hypervel\Saloon\Http\PendingRequest;
+use Hypervel\Saloon\Http\Response;
+use Psr\Http\Message\RequestInterface;
+use Psr\Http\Message\ResponseInterface;
+
+$request->debugRequest(function (PendingRequest $pendingRequest, RequestInterface $psrRequest): void {
+    logger()->debug('Saloon request', ['uri' => (string) $psrRequest->getUri()]);
+});
+
+$request->debugResponse(function (Response $response, ResponseInterface $psrResponse): void {
+    logger()->debug('Saloon response', ['status' => $response->status()]);
+});
+```
 
 > [!WARNING]
 > Debug output contains raw headers and bodies and may expose credentials or other sensitive values. Custom callbacks are also responsible for any stream reads they perform.
@@ -1194,7 +1554,9 @@ class GitHubConnector extends Connector
 }
 ```
 
-The `allowBaseUrlOverride` option is required here because GitHub's trusted authorization and token endpoints use a different host from the connector's API base URL. Leave this option disabled when the OAuth endpoints are relative to the connector base URL.
+The authorize, token, and user endpoints default to `authorize`, `token`, and `user`, relative to the connector's base URL. The `allowBaseUrlOverride` option is required here because GitHub's trusted authorization and token endpoints use a different host from the connector's API base URL. Leave this option disabled when the OAuth endpoints are relative to the connector base URL.
+
+If each tenant has its own OAuth client, pass the client credentials to the connector's constructor and use them in `defaultOAuthConfig`.
 
 The `authorizationUrl` method returns the URL together with its generated state. Store the state for the current authorization attempt before redirecting the user:
 
@@ -1205,6 +1567,8 @@ session(['github_oauth_state' => $authorization->state]);
 
 return redirect((string) $authorization);
 ```
+
+The given scopes are added to the configuration's `defaultScopes`. The state is a random 32-character string unless you pass your own `state` argument. The `authorizationUrl` method also accepts a `scopeSeparator` and an array of `additionalQueryParameters`. Additional parameters may replace the standard ones, such as `response_type` for an OpenID Connect hybrid flow, but the URL's `state` always matches the returned state.
 
 After the provider redirects to your application, exchange the code and validate the returned state:
 
@@ -1220,7 +1584,7 @@ $response = $github->send(
 );
 ```
 
-If either state value is supplied, both values must be non-empty and equal. Keeping the state beside each authorization attempt allows one connector to support concurrent tabs and users without shared mutable state.
+If either state value is supplied, both values must be non-empty and equal, or Saloon throws an `InvalidStateException`. If the provider rejects the code, `getAccessToken` throws the token response's [request exception](#error-handling). Keeping the state beside each authorization attempt allows one connector to support concurrent tabs and users without shared mutable state.
 
 You may pass a PKCE code challenge to `authorizationUrl` and the corresponding verifier to `getAccessToken`:
 
@@ -1258,7 +1622,7 @@ class ServiceConnector extends Connector
 $authenticator = $connector->getAccessToken(['reports:read']);
 ```
 
-Use `ClientCredentialsBasicAuthGrant` when the provider requires the client credentials in an HTTP Basic authentication header.
+The given scopes are added to the configuration's `defaultScopes` and separated by spaces unless you pass a `scopeSeparator`. Client credentials connectors need no `redirectUri`. Use `ClientCredentialsBasicAuthGrant` when the provider requires the client credentials in an HTTP Basic authentication header.
 
 OAuth token grant methods return an OAuth authenticator by default. Pass `returnResponse: true` when you need the original Saloon response instead:
 
@@ -1278,6 +1642,18 @@ An `AccessTokenAuthenticator` exposes its access token, optional refresh token, 
 if ($authenticator->hasExpired() && $authenticator->isRefreshable()) {
     $authenticator = $connector->refreshAccessToken($authenticator);
 }
+```
+
+To keep tokens between requests, store the authenticator's `accessToken`, `refreshToken`, and `expiresAt` properties and create a new authenticator from them when you need it. For example, you may store the tokens in [encrypted](/docs/{{version}}/eloquent-mutators#encrypted-casting) model attributes and [cast](/docs/{{version}}/eloquent-mutators#date-casting) the expiry attribute to `immutable_datetime`:
+
+```php
+use Hypervel\Saloon\Http\Auth\AccessTokenAuthenticator;
+
+$authenticator = new AccessTokenAuthenticator(
+    $user->github_access_token,
+    $user->github_refresh_token,
+    $user->github_token_expires_at,
+);
 ```
 
 OAuth token expiry values use immutable dates. Saloon rejects negative or unrepresentable expiry durations instead of creating an already-expired token.
@@ -1326,7 +1702,19 @@ $authenticator = $connector->getAccessToken(
 );
 ```
 
-For providers that require a different request body or token response format, override the protected `resolveAccessTokenRequest`, `resolveRefreshTokenRequest`, `resolveUserRequest`, `createOAuthAuthenticatorFromResponse`, or `createOAuthAuthenticator` method on the connector. These methods let you adapt the provider protocol without replacing the OAuth flow.
+For providers that require a different request body or token response format, override the protected `resolveAccessTokenRequest`, `resolveRefreshTokenRequest`, `resolveUserRequest`, `createOAuthAuthenticatorFromResponse`, or `createOAuthAuthenticator` method on the connector. These methods let you adapt the provider protocol without replacing the OAuth flow. A PKCE verifier is added to the request your `resolveAccessTokenRequest` method returns.
+
+For example, you may return your own authenticator class. Authorization code connectors receive the access token, refresh token, and expiry, while client credentials connectors receive the access token and expiry:
+
+```php
+use DateTimeImmutable;
+use Hypervel\Saloon\Contracts\OAuthAuthenticator;
+
+protected function createOAuthAuthenticator(string $accessToken, ?string $refreshToken = null, ?DateTimeImmutable $expiresAt = null): OAuthAuthenticator
+{
+    return new SpotifyAuthenticator($accessToken, $refreshToken, $expiresAt);
+}
+```
 
 <a name="concurrent-requests"></a>
 ## Concurrent Requests
@@ -1346,7 +1734,7 @@ $pool = $github->pool([
 
 $responses = $pool->send();
 
-$responses['hypervel']->throw();
+$responses['hypervel']->json();
 ```
 
 The pool also accepts a lazy iterable or a producer callback that receives the connector:
@@ -1359,7 +1747,9 @@ $responses = $github->pool(function (Connector $connector) use ($usernames) {
 }, concurrency: 10)->send();
 ```
 
-The concurrency value must be a positive integer. Scheduling blocks when the bound is full, so a lazy iterable does not create an unbounded queue of child coroutines.
+The callback runs each time the pool is sent, so a pool whose callback returns a new iterable each time may be sent again. A generator passed directly can only be sent once.
+
+The concurrency defaults to 5 and must be a positive integer. Each request is sent as the connector's `send` method would send it, so its retry policy, middleware, caching, and rate limits still apply. Scheduling blocks when the bound is full, so a lazy iterable does not create an unbounded queue of child coroutines.
 
 You may also create an empty pool and configure it fluently before sending:
 
@@ -1381,7 +1771,7 @@ If a response handler owns each result and you do not need a response array, cal
 $github->pool(
     requests: $requests,
     concurrency: 10,
-    responseHandler: function (Response $response, string $key): void {
+    responseHandler: function (Response $response, int|string $key): void {
         ProcessImportedUser::dispatch($key, $response->json());
     },
 )->process();
@@ -1397,13 +1787,17 @@ You may handle request failures while allowing the remaining requests to finish:
 ```php
 $responses = $github->pool(
     requests: $requests,
-    exceptionHandler: function (Throwable $exception, string $key): void {
+    exceptionHandler: function (Throwable $exception, int|string $key): void {
         report($exception);
     },
 )->send();
 ```
 
-A handled failure is omitted from the returned responses. Without an exception handler, or when a response or exception callback fails, Saloon waits for every started child and then throws `PoolException`. The exception provides `orchestrationFailure`, `failures`, `callbackFailures`, and `responses` methods so no completed work or cause is lost.
+A failed response is a request failure: when the response would throw, such as a `4xx` or `5xx` status or a request your [failure hooks](#error-handling) mark as failed, the exception handler receives its request exception, and `$exception->response()` returns the response. A handled failure is omitted from the returned responses.
+
+Without an exception handler, or when a response or exception callback fails, Saloon waits for every started child and then throws `PoolException`. The exception provides `orchestrationFailure`, `failures`, `callbackFailures`, and `responses` methods so no completed work or cause is lost. Its previous exception is the failure that stopped scheduling, otherwise the first request failure, or the first callback failure if no request failed, so reported pool failures show their cause.
+
+To stop sending early, end the request generator. Requests that have already started, or that are waiting for a free slot, still run to completion.
 
 <a name="caching"></a>
 ## Caching
@@ -1441,7 +1835,18 @@ A null store uses `saloon.cache.store`, which itself falls back to Hypervel's de
 
 An integer cache duration is measured in seconds. You may also return a `DateInterval` or `DateTimeInterface` instance.
 
-GET, HEAD, OPTIONS, and QUERY requests are cacheable by default. Only successful network responses are written. Saloon fakes do not read or populate the response cache.
+GET, HEAD, OPTIONS, and QUERY requests are cacheable by default. To change which methods are eligible, override `cacheableMethods` on the connector, or on a request using the [`HasCaching` trait](#request-cache-controls). A request's list takes precedence over its connector's:
+
+```php
+use Hypervel\Saloon\Enums\Method;
+
+protected function cacheableMethods(): array
+{
+    return [Method::GET, Method::POST];
+}
+```
+
+A response is written unless it failed, including failures defined by a request or connector's [failure check](#error-handling). Mock responses and fixtures are cached like network responses, so a cached response is returned before the mock client is consulted. See [Fixtures](#fixtures) for keeping tests out of the cache.
 
 The default cache key includes the connector and request classes, method, final URI, headers, cookies, authentication and certificate state, prepared body, and response-affecting transport options. This means a QUERY request's body is part of its identity. Responses cached from streaming bodies are buffered because the cache must retain their bytes.
 
@@ -1471,7 +1876,17 @@ $request->disableCaching();
 $request->invalidateCache();
 ```
 
-The request or its connector must implement `Cacheable` before these controls are used. `invalidateCache` removes the matching value and refreshes it from the network.
+The request or its connector must implement `Cacheable` before these controls are used. `invalidateCache` removes the matching value and caches the new response.
+
+To remove a cached response without sending the request, pass the connector to the request's `clearCache` method. A connector's `clearCache` method accepts any request, including one without the `HasCaching` trait:
+
+```php
+$request->clearCache($connector);
+
+$connector->clearCache($request);
+```
+
+Clearing ignores `disableCaching` and the cacheable methods. It prepares the request as sending does, running its plugins, boot methods, and middleware, so it removes the value the request would read. `SendingSaloonRequest` listeners do not run, so any change a listener makes to the request's identity must also be made by a hook or middleware, or derived by a [custom cache key](#custom-cache-keys).
 
 To always keep a request type out of connector caching, override `cachingEnabled` on a request without the `HasCaching` trait. This is useful for live streams that must not be buffered:
 
@@ -1497,8 +1912,6 @@ protected function cacheKey(PendingRequest $pendingRequest): ?string
 ```
 
 Saloon hashes custom keys before passing them to the cache backend, so raw credentials and tenant identifiers are not exposed in backend key names. A custom key must include every value that can change the successful response. It is required when a non-seekable request body is cached or when lower-level PSR or HTTP middleware changes response identity after Saloon finalizes the operation.
-
-You may override `cacheableMethods` to change which methods are eligible. A request override takes precedence over the connector's list.
 
 <a name="cache-scopes"></a>
 ### Cache Scopes
@@ -1529,14 +1942,14 @@ public function boot(): void
 
 The callback runs when a cacheable operation resolves its key. It must resolve the current tenant at invocation time; do not capture one tenant while the worker boots. Returning null deliberately allows sharing for connectors where a separate scope is not needed.
 
-Authentication state already separates tenant-owned credentials, and the final URI separates tenant-specific endpoints. A cache scope expresses an additional application policy, such as preventing tenants with shared platform credentials from sharing provider responses. It is applied to reads, writes, invalidation, and custom keys.
+Authentication state already separates tenant-owned credentials, and the final URI separates tenant-specific endpoints. A cache scope expresses an additional application policy, such as preventing tenants with shared platform credentials from sharing provider responses. It is applied to reads, writes, invalidation, clearing, and custom keys.
 
 <a name="api-pagination"></a>
 ## API Pagination
 
 Saloon pagination iterates through pages returned by a remote API. It is separate from Hypervel's [application pagination](/docs/{{version}}/pagination), which prepares local data for views and JSON responses.
 
-A paginated request must implement the `Paginatable` marker contract. Create a paginator class for the remote API's pagination format.
+A paginated request must implement the `Paginatable` marker contract. Create a paginator class for the remote API's pagination format. Saloon includes page, offset, cursor, link, and link header paginators. For another format, extend `Paginator` and implement `applyPagination`, `isLastPage`, and `getPageItems`, using the protected `$pageNumber` and `$perPageLimit` properties to build each page's request.
 
 <a name="page-pagination"></a>
 ### Page Pagination
@@ -1610,9 +2023,9 @@ $users = $paginator->collect();
 
 The `HasPagination` contract provides the conventional connector entry point. A request that needs its own paginator may implement `HasRequestPagination` and define `paginate(Connector $connector): Paginator`; the connector can delegate to it as shown above. Declare the request's item type with `@implements HasRequestPagination<UserData>` and `@return Paginator<UserData>` on its `paginate` method.
 
-The `collect(false)` method returns a lazy collection of page responses instead of items. Declare the paginator's item type with `@extends PagedPaginator<UserData>` (or the matching base class) to preserve it through `items` and `collect`. You may also inspect `totalResults`, `request`, and the zero-based iterator position returned by `currentPage`. Use `startPage` to configure the first remote page number.
+Iterating the paginator itself yields each page's response, and only the current page is kept in memory. A page response that would [throw](#error-handling) stops iteration with its request exception. The `collect(false)` method returns a lazy collection of page responses instead of items. To return data objects, map them in `getPageItems` and declare the paginator's item type with `@extends PagedPaginator<UserData>` (or the matching base class) to preserve it through `items` and `collect`. You may also inspect `totalResults`, `request`, and the zero-based iterator position returned by `currentPage`. Use `startPage` to configure the first remote page number.
 
-Calling `count($paginator)` counts remote pages by requesting each page. It is not a metadata-only operation.
+Calling `count($paginator)` counts remote pages by requesting each page. It is not a metadata-only operation. Do not use `iterator_count`, which never loads a page and so cannot find the last one.
 
 Override the protected query-name properties when an API uses different names:
 
@@ -1622,16 +2035,25 @@ protected string $pageName = 'currentPage';
 protected string $perPageName = 'pageSize';
 ```
 
-`PagedPaginator` defaults to `page` and `per_page`. `OffsetPaginator` provides `$limitName` and `$offsetName`, defaulting to `limit` and `offset`; `CursorPaginator` provides `$cursorName` and `$perPageName`, defaulting to `cursor` and `per_page`. Override `applyPagination(Request $request): Request` for a protocol that needs a different request structure.
+`PagedPaginator` defaults to `page` and `per_page`, and sends a page size only when a per-page limit is set. To send one by default, declare `protected ?int $perPageLimit = 100;` on your paginator. `OffsetPaginator` provides `$limitName` and `$offsetName`, defaulting to `limit` and `offset`; `CursorPaginator` provides `$cursorName` and `$perPageName`, defaulting to `cursor` and `per_page`. Override `applyPagination(Request $request): Request` for a protocol that needs a different request structure.
 
 During sequential pagination, Saloon throws a `PaginationException` if five consecutive pages return the same response body. Check that your paginator correctly identifies the last page. Retrying the current page does not count as another page. If your API legitimately returns identical pages, you may disable this check by declaring `protected bool $detectInfiniteLoop = false;` on your paginator.
+
+The check compares each page's body after all response middleware has run. If your API adds a value that changes on every request, such as a request ID, override `getBodyChecksum` to compare only the page contents:
+
+```php
+protected function getBodyChecksum(Response $response): string
+{
+    return hash('xxh128', json_encode($response->json('data')));
+}
+```
 
 If a request implements `MapPaginatedResponseItems`, its `mapPaginatedResponseItems` method takes precedence over the paginator's item mapping. Declare `@implements MapPaginatedResponseItems<UserData>` with the same item type as its paginator. Mapping runs once per fetched page, after all response middleware, and `totalResults` counts these final items.
 
 <a name="offset-and-cursor-pagination"></a>
 ### Offset and Cursor Pagination
 
-Extend `OffsetPaginator` for APIs that use `limit` and `offset`. A per-page limit must be configured before iteration. Extend `CursorPaginator` for APIs where each response supplies the next cursor, and implement `getNextCursor`.
+Extend `OffsetPaginator` for APIs that use `limit` and `offset`. A per-page limit must be configured before iteration, and the protected `getOffset` method returns the current page's offset, such as for comparison with a total in `isLastPage`. Extend `CursorPaginator` for APIs where each response supplies the next cursor, and implement `getNextCursor`.
 
 Cursors may be strings, numbers, booleans, or null. The default query encoding omits null and sends booleans as `1` or `0`. Override `applyPagination` when your API requires another encoding, and use `isLastPage` to determine when pagination ends.
 
@@ -1749,16 +2171,22 @@ class GitHubConnector extends Connector
 }
 ```
 
-By default, a denied policy throws `RateLimitReachedException` before reaching the network. Override `waitForRateLimits` to return true when the operation should sleep until capacity is available:
+A policy may be a [fixed, calendar or sliding window, or a leaky bucket](/docs/{{version}}/rate-limiting#choosing-a-rate-limit). For example, a quota that resets at the end of each minute or day suits a calendar window, while an API that refills capacity continuously suits a leaky bucket. Give each user or API key its own limit with a distinct `by` key.
+
+By default, a denied policy throws `RateLimitReachedException` before reaching the network. The exception's `policy` and `result` methods return the denied policy and its decision, so `$exception->result()->retryAfter()` gives the number of seconds to wait. Override `waitForRateLimits` to sleep until capacity is available instead. It receives the denied policy and its decision, so you may wait out a short burst limit while still throwing for a daily quota:
 
 ```php
-protected function waitForRateLimits(): bool
+use Hypervel\RateLimiter\AdmissionPolicy;
+use Hypervel\RateLimiter\Contracts\Decision;
+use Hypervel\RateLimiter\Cooldown;
+
+protected function waitForRateLimits(AdmissionPolicy|Cooldown $policy, Decision $result): bool
 {
-    return true;
+    return $result->retryAfter() <= 10;
 }
 ```
 
-You may select another configured rate-limiter store by overriding `resolveRateLimitStore`. Fakes and cache hits do not consume capacity.
+Limits are stored in the rate-limiter store named by the `saloon.rate_limiter.store` configuration value, or the rate limiter's default store when it is `null`. A connector or request may return another configured [store](/docs/{{version}}/rate-limiting#available-stores) name from `resolveRateLimitStore`. Fakes and cache hits do not consume capacity.
 
 Saloon [consumes each resource's policies together](/docs/{{version}}/rate-limiting#consuming-multiple-limits), subject to the documented Redis Cluster limitation. Connector and request limits are separate: the connector is admitted first, so its charge remains if the request's limits deny the operation. After waiting for capacity, Saloon checks the resource's cooldown again before retrying its policies.
 
@@ -1804,20 +2232,20 @@ Saloon limiter names always begin with `saloon:`. Restricting the callback preve
 <a name="server-cooldowns"></a>
 ### Server Cooldowns
 
-When a rate-limited connector or request receives a 429 response with a valid `Retry-After` header, Saloon records the provider's cooldown before response middleware runs. A later operation checks this cooldown before consuming its configured admission policies.
+When a rate-limited connector or request receives a 429 response, Saloon records the provider's cooldown before response middleware runs. The `Retry-After` header sets its length. If the header is missing or invalid, the cooldown lasts 60 seconds, while a delay that has already passed records no cooldown. A later operation checks this cooldown before consuming its configured admission policies.
 
-By default, the connector or request class identifies the cooldown. If a provider applies cooldowns per account or credential, override `resolveRateLimitCooldownKey` with that stable provider identity:
+By default, each connector or request has its own cooldown. If a provider applies cooldowns per account or credential, override `resolveRateLimitCooldownKey` with that stable provider identity:
 
 ```php
 protected function resolveRateLimitCooldownKey(PendingRequest $pendingRequest): string
 {
-    return static::class . ':account:' . $this->providerAccountId;
+    return 'account:' . $this->providerAccountId;
 }
 ```
 
 Do not infer this key from a hostname or assume every provider limits by token. Use the boundary documented by the provider.
 
-You may override `resolveRateLimitCooldown` to support a provider-specific response or clamp a provider-defined maximum:
+You may override `resolveRateLimitCooldown` to support a provider-specific response or clamp a provider-defined maximum. Returning `null` records no cooldown:
 
 ```php
 use Hypervel\RateLimiter\AdmissionPolicy;
@@ -1847,7 +2275,79 @@ class GitHubConnector extends Connector
 }
 ```
 
-A 429 response is returned through normal error handling. Recording a cooldown never resends the response recursively. If the normal retry policy requests another attempt, that attempt must first pass the recorded cooldown.
+A 429 response is returned through normal error handling. Recording a cooldown never resends the response recursively. If the normal retry policy requests another attempt, that attempt must first pass the recorded cooldown. To wait out the cooldown and send the request again, retry 429 responses and wait for cooldowns:
+
+```php
+use Hypervel\RateLimiter\AdmissionPolicy;
+use Hypervel\RateLimiter\Contracts\Decision;
+use Hypervel\RateLimiter\Cooldown;
+use Hypervel\Saloon\Data\RetryPolicy;
+use Hypervel\Saloon\Exceptions\Request\FatalRequestException;
+use Hypervel\Saloon\Exceptions\Request\RequestException;
+
+protected function defaultRetryPolicy(): ?RetryPolicy
+{
+    return new RetryPolicy(
+        times: 2,
+        when: fn (FatalRequestException|RequestException $exception): bool => $exception instanceof RequestException
+            && $exception->status() === 429,
+    );
+}
+
+protected function waitForRateLimits(AdmissionPolicy|Cooldown $policy, Decision $result): bool
+{
+    return $policy instanceof Cooldown;
+}
+```
+
+<a name="sharing-limits"></a>
+### Sharing Limits
+
+Saloon records a resource's limits and cooldowns under its class name. When several connectors or requests use the same provider quota, override `resolveRateLimiterName` on each of them to return the same name:
+
+```php
+protected function resolveRateLimiterName(): string
+{
+    return 'acme';
+}
+```
+
+Resources with the same name share a policy's state when they declare the same policy and use the same rate-limiter store and key scope. A 429 received by one of them pauses the others too, unless their cooldown keys differ.
+
+<a name="inspecting-limits"></a>
+### Inspecting Limits
+
+The `Saloon` facade's `inspectRateLimit` method checks a resource's policy or cooldown without consuming it, using the same store and limiter name as a request:
+
+```php
+use Hypervel\RateLimiter\Cooldown;
+use Hypervel\RateLimiter\Limit;
+use Hypervel\Saloon\Facades\Saloon;
+
+$result = Saloon::inspectRateLimit($connector, Limit::perMinute(60)->by('github'));
+
+if ($result->remaining() <= $result->limit() * 0.2) {
+    // 20% or fewer of this minute's requests remain...
+}
+
+$cooldown = Saloon::inspectRateLimit($connector, Cooldown::for(null));
+```
+
+Pass the same policy your resource declares. Putting shared policies in a method keeps them identical.
+
+<a name="disabling-rate-limits"></a>
+### Disabling Rate Limits
+
+Override `rateLimitingEnabled` to skip a resource's limits for an operation. A disabled operation consumes no capacity, ignores active cooldowns, and records no cooldown from its response:
+
+```php
+protected function rateLimitingEnabled(PendingRequest $pendingRequest): bool
+{
+    return ! $pendingRequest->request() instanceof ImportRequest;
+}
+```
+
+Disabling a request's limits does not disable its connector's limits. Returning no policies still applies cooldowns.
 
 <a name="queued-requests"></a>
 ### Queued Requests
@@ -1980,12 +2480,12 @@ Macros remain registered for the worker lifetime. Hypervel automatically clears 
 <a name="testing"></a>
 ## Testing
 
-Saloon provides a strict mock client, response sequences, fixtures, request recording, and PHPUnit assertions. Saloon fakes operate at the integration layer, before caching, admission policies, and Hypervel HTTP transport.
+Saloon provides a strict mock client, response sequences, fixtures, request recording, and PHPUnit assertions. Saloon fakes operate at the integration layer, after the response cache is checked and before admission policies and Hypervel HTTP transport.
 
 <a name="faking-responses"></a>
 ### Faking Responses
 
-Use the `Saloon` facade to replace responses for the current test application:
+Use the `Saloon` facade to fake responses for the current test application:
 
 ```php
 use App\Http\Integrations\GitHub\Requests\GetUser;
@@ -2000,6 +2500,26 @@ Saloon::fake([
 ]);
 ```
 
+The `make` method accepts a body, status code, and headers. An array body is encoded as JSON, while a string body is returned as it is:
+
+```php
+MockResponse::make(['message' => 'Not Found'], 404, [
+    'Content-Type' => 'application/json',
+]);
+```
+
+To simulate a failed connection, pass an exception to the mock response's `throw` method. Saloon reports a `ConnectionException` as a `FatalRequestException`, just like a real connection failure:
+
+```php
+use Hypervel\Http\Client\ConnectionException;
+
+Saloon::fake([
+    GetUser::class => MockResponse::make()->throw(new ConnectionException('Connection refused')),
+]);
+```
+
+The fake belongs to the test application, so each test starts without one. Calling `fake` again adds responses to the same mock client, so a test may extend the fakes registered in its `setUp` method. To replace the global mock client instead, pass a `MockClient` instance to `fake`.
+
 Responses may be matched by request class, connector class, or wildcard URL. Request matches take precedence over connector matches, followed by URL matches and sequence responses:
 
 ```php
@@ -2010,9 +2530,26 @@ Saloon::fake([
 ]);
 ```
 
+A URL pattern may leave out the scheme and host, such as `'api.github.com/repos/*'` or `'/user'`, and matches the URL with or without its query string. A pattern that includes a query string, such as `'/users?page=2'`, matches only that encoded query. Assertions and `allowStrayRequests` use the same patterns.
+
 Each matching value may also be a callback that receives the pending request and returns a mock response or fixture. A lower-level `Http::fake()` still prevents a network request after the Saloon lifecycle reaches Hypervel's HTTP client. The response is recorded by the HTTP client and `isMocked()` returns false. When no Saloon mock client is active, Saloon facade assertions do not include the response.
 
-You may attach a mock client to one request using `withMockClient`, or pass it as the second argument to `Connector::send`. An explicitly supplied client takes precedence over a request client, which takes precedence over the facade's global test client.
+You may attach a mock client to one request using `withMockClient`, or pass it as the second argument to `Connector::send`. An explicitly supplied client takes precedence over a request client, which takes precedence over the facade's global test client. Mock responses are matched after request middleware has run and the URL is final, so URL matches see any changes middleware made.
+
+A local mock client is useful when testing an SDK's requests directly. It records every request sent with it, so you may make assertions on it:
+
+```php
+use Hypervel\Saloon\Http\Faking\MockClient;
+use Hypervel\Saloon\Http\Faking\MockResponse;
+
+$mockClient = new MockClient([
+    CreateIssue::class => MockResponse::make(['id' => 1], 201),
+]);
+
+$github->send(new CreateIssue('Bug report'), $mockClient);
+
+$mockClient->assertSent(fn (CreateIssue $request) => $request->body() === ['title' => 'Bug report']);
+```
 
 Mock clients are strict by default. An unmatched request throws `NoMockResponseFoundException` instead of reaching the network.
 
@@ -2060,13 +2597,14 @@ When no class or URL response matches, Saloon consumes the next sequence respons
 <a name="assertions"></a>
 ### Assertions
 
-The facade provides assertions for recorded Saloon requests:
+The facade provides assertions for recorded Saloon requests. Responses served from the [response cache](#caching) are not recorded, because nothing was sent:
 
 ```php
 Saloon::assertSent(GetUser::class);
 Saloon::assertSent('https://api.github.com/users/*');
 Saloon::assertNotSent(DeleteUser::class);
 Saloon::assertSentCount(1);
+Saloon::assertSentCount(1, GetUser::class);
 Saloon::assertNothingSent();
 ```
 
@@ -2094,7 +2632,11 @@ Saloon::fake([
 ]);
 ```
 
-By default, fixtures are stored under `tests/Fixtures/Saloon`. Fixture names use portable path segments separated by forward slashes. Absolute paths, backslashes, empty segments, and `.` or `..` segments are rejected.
+You may also create a fixture using `MockResponse::fixture('github/users/hypervel')`. By default, fixtures are stored as JSON files under `tests/Fixtures/Saloon`, so this fixture is written to `tests/Fixtures/Saloon/github/users/hypervel.json`. To record a fixture again, delete its file and run the test.
+
+Fixture names use portable path segments separated by forward slashes. Absolute paths, backslashes, empty segments, and `.` or `..` segments are rejected. Lowercase names avoid fixtures going missing when a test suite moves between case-insensitive and case-sensitive filesystems.
+
+When `Http::preventStrayRequests()` is active, recording a missing fixture is a stray request and throws. Allow the API's URLs while recording, such as by calling `Http::allowStrayRequests(['https://api.github.com/*'])`.
 
 To redact sensitive response data, extend `Fixture` and define header, JSON, or regular-expression replacement rules:
 
@@ -2118,7 +2660,15 @@ class GitHubFixture extends Fixture
 }
 ```
 
-Invalid or failed regular expressions prevent the fixture from being written. You may use `merge` or `through` to adjust a recorded JSON object or array during replay, and `withContext` to store additional fixture metadata.
+Header rules apply to each value of a matching header, so a closure receives one value and returns its replacement. Invalid or failed regular expressions prevent the fixture from being written. The rules change the stored file, so the test that records a fixture still receives the real response. A fixture class may also override `defineName` to return its name, so it can be created without arguments. You may use `merge` or `through` to adjust a recorded JSON object or array during replay, and `withContext` to store additional fixture metadata.
+
+Mock responses and fixtures are cached like network responses. Once a cacheable request has been cached, later sends return the cached response instead of the next mock response or an updated fixture file, and a missing fixture is not recorded. Call `withoutCache` on the mock client to keep its requests from reading, writing, or invalidating the cache:
+
+```php
+Saloon::fake([
+    GetUser::class => new Fixture('github/users/hypervel'),
+])->withoutCache();
+```
 
 Tests may override the fixture directory and missing-fixture behavior:
 
@@ -2127,7 +2677,7 @@ Saloon::fixturePath(base_path('tests/Fixtures/Api'));
 Saloon::throwOnMissingFixtures();
 ```
 
-These are tests-only settings and are cleared when the test application is destroyed.
+These are tests-only settings and are cleared when the test application is destroyed. To fail on missing fixtures in every run, such as in CI, set the `saloon.fixtures.throw_on_missing` configuration option instead.
 
 <a name="publishing-configuration-and-stubs"></a>
 ## Publishing Configuration and Stubs
@@ -2146,26 +2696,31 @@ You may publish the generator stubs using the `saloon-stubs` tag:
 php artisan vendor:publish --tag=saloon-stubs
 ```
 
-Set `saloon.integrations_path` to change where generated files are written. Set `saloon.integrations_namespace` when that path uses a custom Composer namespace. The path and namespace are configured independently; Saloon does not guess a namespace from an arbitrary filesystem path.
+Set `saloon.integrations_path` to change where generated files are written. When the path is inside your application directory, generated classes follow it beneath your application's namespace, so `app_path('Integrations')` produces classes in `App\Integrations`. For a path outside the application directory, also set `saloon.integrations_namespace` to the namespace Composer loads from that path.
 
 <a name="differences-from-saloon"></a>
 ## Differences From Saloon
 
-Hypervel Saloon keeps the connector, request, middleware, authentication, response, testing, OAuth 2, caching, pagination, and rate-limit concepts of Saloon while using Hypervel's framework services directly.
+Hypervel Saloon keeps the connector, request, middleware, authentication, response, testing, OAuth 2, caching, pagination, and rate-limit concepts of Saloon while using Hypervel's framework services directly. When porting an existing integration, note the following differences:
 
-- Hypervel HTTP is the only transport. Sender factories, configurable Guzzle senders, and process-global Saloon configuration are not included.
-- Request customization uses Hypervel HTTP names such as `withHeader`, `withQueryParameters`, `withOptions`, `timeout`, `withToken`, and `retry`.
-- Connectors contain stable defaults. Operation-specific authentication, caching, debugging, middleware, retries, and mocks belong to requests and pending requests.
-- Coroutine-native pools replace promises and `sendAsync`. Paginator concurrency uses the same bounded pool.
-- Cache, pagination, and rate limiting are included in `hypervel/saloon` and use Hypervel's cache, collections, coroutine, and rate-limiter services.
+<div class="content-list" markdown="1">
+
+- The Laravel plugin and the cache, pagination, and rate-limit plugins are built in, using Hypervel's cache, collections, coroutine, and rate-limiter services.
+- Hypervel HTTP is the only transport. Requests are sent through a named [HTTP connection](#http-connections) instead of a sender, and there is no process-global `Config` class; register global middleware through `Saloon::middleware()`.
+- Requests and pending requests use the HTTP client's method names, such as `withHeader`, `withQueryParameters`, `withOptions`, `timeout`, and `withToken`, and their getters return plain values instead of upstream's repositories.
+- Connectors are read-only, since one connector may be shared by concurrent requests. Operation-specific authentication, middleware, debugging, mocks, and retries belong to requests, the `send` call, or the connector's `boot` method.
+- Retries use `retry` and `defaultRetryPolicy` instead of the `$tries`, `$retryInterval`, `$useExponentialBackoff`, and `$throwOnMaxTries` properties.
+- Coroutine-native [pools](#concurrent-requests) replace `sendAsync` and promises. Paginator concurrency uses the same bounded pool.
+- Responses extend Hypervel HTTP responses. Request exceptions extend the HTTP client's `RequestException` rather than `SaloonException`, so catch `RequestException` for failed responses.
+- Mock clients are matched when the request is sent, after request middleware has run. Fixture settings are configured through the `Saloon` facade and configuration file, and application-wide stray-request protection uses `Http::preventStrayRequests()`, which also applies to fixture recording.
+- OAuth 2 configuration is immutable, and authorization URLs return their paired state.
+- NTLM authentication is not included.
 - Rate limits use Hypervel `AdmissionPolicy` instances instead of Saloon's mutable limit and store abstractions.
-- OAuth 2 configuration is immutable, authorization URLs return their paired state, and OAuth 1 is not included.
-- Saloon responses extend Hypervel HTTP responses rather than forwarding a selected subset of methods.
-- Test fixture settings are configured through the `Saloon` facade instead of a process-global mock configuration object.
-- Application-wide stray-request protection uses `Http::preventStrayRequests()`. Saloon mock clients separately control unmatched requests while they are active.
-- The optional `xmlReader` response extension is not included. Use the built-in `xml` or `dom` methods instead.
+- The `xmlReader` response method is not included. Use the `xml` or `dom` methods, or install [XML Wrangler](https://github.com/saloonphp/xml-wrangler) and pass `$response->toPsrResponse()` to `XmlReader::fromPsrResponse()`.
 
-These differences remove framework-neutral adapter layers while retaining the public concepts needed to build complete integrations and reusable SDKs for Hypervel.
+</div>
+
+The [package README](https://github.com/hypervel/components/blob/0.4/src/saloon/README.md) documents API differences and their Hypervel equivalents.
 
 <a name="credits"></a>
 ## Credits

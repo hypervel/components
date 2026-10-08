@@ -6,7 +6,7 @@ namespace Hypervel\Tests\View\Blade;
 
 class BladeEscapedTest extends AbstractBladeTestCase
 {
-    public function testEscapedWithAtDirectivesAreCompiled()
+    public function testEscapedWithAtDirectivesAreCompiled(): void
     {
         $this->assertSame('@foreach', $this->compiler->compileString('@@foreach'));
         $this->assertSame('@verbatim @continue @endverbatim', $this->compiler->compileString('@@verbatim @@continue @@endverbatim'));
@@ -19,7 +19,7 @@ class BladeEscapedTest extends AbstractBladeTestCase
         )'));
     }
 
-    public function testNestedEscapes()
+    public function testNestedEscapes(): void
     {
         $template = '
 @foreach($cols as $col)

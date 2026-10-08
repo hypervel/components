@@ -141,7 +141,7 @@ class ScrollMetadataTest extends TestCase
     public function testThrowsExceptionIfNotAPaginator(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The given value is not a Hypervel paginator instance. Use a custom callback to extract pagination metadata.');
+        $this->expectExceptionMessageIs('The given value is not a Hypervel paginator instance. Use a custom callback to extract pagination metadata.');
 
         ScrollMetadata::fromPaginator(collect());
     }

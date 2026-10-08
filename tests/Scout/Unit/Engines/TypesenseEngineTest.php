@@ -118,7 +118,7 @@ class TypesenseEngineTest extends TestCase
         $engine = $this->createEngine();
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Unsupported Typesense filter operator [LIKE].');
+        $this->expectExceptionMessageIs('Unsupported Typesense filter operator [LIKE].');
 
         $this->invokeMethod($engine, 'parseWhereFilter', ['active', 'status', 'LIKE']);
     }
@@ -201,7 +201,7 @@ class TypesenseEngineTest extends TestCase
         $engine = $this->createEngine();
 
         $this->expectException(NotSupportedException::class);
-        $this->expectExceptionMessage('Typesense indexes are created automatically upon adding objects.');
+        $this->expectExceptionMessageIs('Typesense indexes are created automatically upon adding objects.');
 
         $engine->createIndex('test_index');
     }
@@ -642,7 +642,7 @@ class TypesenseEngineTest extends TestCase
         $client->shouldReceive('getCollections')->once()->andReturn($collections);
 
         $this->expectException(TypesenseClientError::class);
-        $this->expectExceptionMessage('Connection failed');
+        $this->expectExceptionMessageIs('Connection failed');
 
         $this->createEngine($client)->delete(new EloquentCollection([$model]));
     }
@@ -803,7 +803,7 @@ class TypesenseEngineTest extends TestCase
         $model->shouldNotReceive('indexableAs');
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Typesense filter deletion requires a non-empty filter.');
+        $this->expectExceptionMessageIs('Typesense filter deletion requires a non-empty filter.');
 
         $engine->deleteByFilter(new Builder($model, ''));
     }
@@ -985,7 +985,7 @@ class TypesenseEngineTest extends TestCase
         ]);
 
         $this->expectException(RequestMalformed::class);
-        $this->expectExceptionMessage('Query string exceeds max allowed length.');
+        $this->expectExceptionMessageIs('Query string exceeds max allowed length.');
 
         $engine->search(new Builder(new SearchableModelWithPrecomputedEmbedding, 'conceptual query'));
     }
@@ -1417,7 +1417,7 @@ class TypesenseEngineTest extends TestCase
         $engine = $this->createSemanticEngine(['attribute' => 'embedding', 'dimensions' => 2]);
 
         $this->expectException(ScoutException::class);
-        $this->expectExceptionMessage('AI-generated embeddings are not available in Hypervel.');
+        $this->expectExceptionMessageIsOrContains('AI-generated embeddings are not available in Hypervel.');
 
         $engine->buildSearchParameters(
             (new Builder(new SearchableModelWithPrecomputedEmbedding, 'conceptual query'))->semantic(),
@@ -1558,7 +1558,7 @@ class TypesenseEngineTest extends TestCase
         $builder = (new Builder(new SearchableModelWithPrecomputedEmbedding, 'combined query'))->hybrid();
 
         $this->expectException(ScoutException::class);
-        $this->expectExceptionMessage('Typesense hybrid searches require at least one keyword field in the [query_by] search parameter.');
+        $this->expectExceptionMessageIs('Typesense hybrid searches require at least one keyword field in the [query_by] search parameter.');
 
         $engine->buildSearchParameters($builder, 1, 10);
     }
@@ -1572,7 +1572,7 @@ class TypesenseEngineTest extends TestCase
             ->semantic();
 
         $this->expectException(ScoutException::class);
-        $this->expectExceptionMessage('Typesense semantic and hybrid searches cannot be combined with a custom [vector_query] option.');
+        $this->expectExceptionMessageIs('Typesense semantic and hybrid searches cannot be combined with a custom [vector_query] option.');
 
         $engine->buildSearchParameters($builder, 1, 10);
     }
@@ -1590,7 +1590,7 @@ class TypesenseEngineTest extends TestCase
             ->semantic($minSimilarity);
 
         $this->expectException(ScoutException::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIs($message);
 
         $engine->buildSearchParameters($builder, 1, 10);
     }
@@ -1615,7 +1615,7 @@ class TypesenseEngineTest extends TestCase
         $builder = (new Builder(new SearchableModelWithPrecomputedEmbedding, 'conceptual query'))->semantic();
 
         $this->expectException(ScoutException::class);
-        $this->expectExceptionMessage('No Typesense embedding settings have been configured for [' . SearchableModelWithPrecomputedEmbedding::class . '].');
+        $this->expectExceptionMessageIs('No Typesense embedding settings have been configured for [' . SearchableModelWithPrecomputedEmbedding::class . '].');
 
         $engine->buildSearchParameters($builder, 1, 10);
     }

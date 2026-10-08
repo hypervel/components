@@ -55,7 +55,7 @@ class SubscriberTest extends TestCase
         $subscriber = $this->createSubscriber($invoker);
 
         $this->expectException(SubscribeException::class);
-        $this->expectExceptionMessage('At least one Redis channel is required');
+        $this->expectExceptionMessageIs('At least one Redis channel is required.');
 
         $subscriber->subscribe();
     }
@@ -168,7 +168,7 @@ class SubscriberTest extends TestCase
         $subscriber = $this->createSubscriber($invoker);
 
         $this->expectException(SubscribeException::class);
-        $this->expectExceptionMessage('At least one Redis channel pattern is required');
+        $this->expectExceptionMessageIs('At least one Redis channel pattern is required.');
 
         $subscriber->psubscribe();
     }

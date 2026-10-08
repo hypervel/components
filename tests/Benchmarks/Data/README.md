@@ -2,6 +2,8 @@
 
 This developer-only harness measures Data construction against native constructors and explicit array mapping, plus collection, validation, named-factory, transforming and non-transforming output, resource-response, metadata, Eloquent persistence, and relation-loading paths. It is not registered as an Artisan command and is not part of the PHPUnit suite.
 
+Other load on the machine skews the results, so get confirmation from the owner that the machine is idle before running a benchmark.
+
 Run it from the components repository root:
 
 ```shell

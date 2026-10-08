@@ -6,7 +6,7 @@ namespace Hypervel\Tests\View\Blade;
 
 class BladeCananyStatementsTest extends AbstractBladeTestCase
 {
-    public function testCananyStatementsAreCompiled()
+    public function testCananyStatementsAreCompiled(): void
     {
         $string = '@canany ([\'create\', \'update\'], [$post])
 breeze

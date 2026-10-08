@@ -19,7 +19,7 @@ class ValidationParserCacheTest extends TestCase
         ValidationRuleParser::flushState();
     }
 
-    public function testCacheHitReturnsSameResult()
+    public function testCacheHitReturnsSameResult(): void
     {
         $result1 = ValidationRuleParser::parse('required');
         $result2 = ValidationRuleParser::parse('required');
@@ -35,7 +35,7 @@ class ValidationParserCacheTest extends TestCase
         $this->assertSame(['255'], $result1[1]);
     }
 
-    public function testNonStringInputsAreNotCached()
+    public function testNonStringInputsAreNotCached(): void
     {
         $result = ValidationRuleParser::parse(['required_array_keys', 'name']);
 
@@ -47,7 +47,7 @@ class ValidationParserCacheTest extends TestCase
         $this->assertSame(0, $this->getParseCacheSize());
     }
 
-    public function testStringableObjectsAreNotCached()
+    public function testStringableObjectsAreNotCached(): void
     {
         $exists = new Exists('users', 'email');
 
@@ -57,7 +57,7 @@ class ValidationParserCacheTest extends TestCase
         $this->assertSame(0, $this->getParseCacheSize());
     }
 
-    public function testRuleContractObjectsAreNotCached()
+    public function testRuleContractObjectsAreNotCached(): void
     {
         $rule = new class implements RuleContract {
             public function passes(string $attribute, mixed $value): bool
@@ -77,7 +77,7 @@ class ValidationParserCacheTest extends TestCase
         $this->assertSame(0, $this->getParseCacheSize());
     }
 
-    public function testCacheHandlesRegexPatterns()
+    public function testCacheHandlesRegexPatterns(): void
     {
         $result1 = ValidationRuleParser::parse('regex:/^[a-z:]+$/');
         $result2 = ValidationRuleParser::parse('regex:/^[a-z:]+$/');
@@ -87,7 +87,7 @@ class ValidationParserCacheTest extends TestCase
         $this->assertSame(['/^[a-z:]+$/'], $result1[1]);
     }
 
-    public function testCacheHandlesNotRegex()
+    public function testCacheHandlesNotRegex(): void
     {
         $result1 = ValidationRuleParser::parse('not_regex:/^[0-9|]+$/');
         $result2 = ValidationRuleParser::parse('not_regex:/^[0-9|]+$/');
@@ -97,7 +97,7 @@ class ValidationParserCacheTest extends TestCase
         $this->assertSame(['/^[0-9|]+$/'], $result1[1]);
     }
 
-    public function testFlushStateClearsCache()
+    public function testFlushStateClearsCache(): void
     {
         ValidationRuleParser::parse('required');
         $this->assertSame(1, $this->getParseCacheSize());
@@ -106,7 +106,7 @@ class ValidationParserCacheTest extends TestCase
         $this->assertSame(0, $this->getParseCacheSize());
     }
 
-    public function testCacheIsBounded()
+    public function testCacheIsBounded(): void
     {
         $reflection = new ReflectionClass(ValidationRuleParser::class);
         $maxSizeProp = $reflection->getProperty('parseCacheMaxSize');

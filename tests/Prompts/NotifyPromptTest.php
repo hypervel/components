@@ -23,7 +23,7 @@ class TestableNotifyPrompt extends NotifyPrompt
 
 class NotifyPromptTest extends TestCase
 {
-    public function testSetsTheTitle()
+    public function testSetsTheTitle(): void
     {
         $prompt = new NotifyPrompt('Hello');
 
@@ -31,7 +31,7 @@ class NotifyPromptTest extends TestCase
         $this->assertSame('', $prompt->body);
     }
 
-    public function testSetsTheTitleAndBody()
+    public function testSetsTheTitleAndBody(): void
     {
         $prompt = new NotifyPrompt('Hello', 'World');
 
@@ -39,7 +39,7 @@ class NotifyPromptTest extends TestCase
         $this->assertSame('World', $prompt->body);
     }
 
-    public function testSetsMacosOptions()
+    public function testSetsMacosOptions(): void
     {
         $prompt = new NotifyPrompt(
             title: 'Hello',
@@ -52,7 +52,7 @@ class NotifyPromptTest extends TestCase
         $this->assertSame('Glass', $prompt->sound);
     }
 
-    public function testSetsLinuxOptions()
+    public function testSetsLinuxOptions(): void
     {
         $prompt = new NotifyPrompt(
             title: 'Hello',

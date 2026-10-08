@@ -70,7 +70,7 @@ class MiddlewareTest extends TestCase
         });
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('An empty Inertia response was returned.');
+        $this->expectExceptionMessageIs('An empty Inertia response was returned.');
 
         $this
             ->withoutExceptionHandling()

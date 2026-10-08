@@ -246,7 +246,7 @@ class SearchPromptTest extends TestCase
     public function testFailsWhenNonInteractive(): void
     {
         $this->expectException(NonInteractiveValidationException::class);
-        $this->expectExceptionMessage('Required.');
+        $this->expectExceptionMessageIs('Required.');
 
         Prompt::interactive(false);
         search('What is your favorite color?', fn () => []);
@@ -255,7 +255,7 @@ class SearchPromptTest extends TestCase
     public function testAllowsRequiredValidationMessageCustomization(): void
     {
         $this->expectException(NonInteractiveValidationException::class);
-        $this->expectExceptionMessage('The color is required.');
+        $this->expectExceptionMessageIs('The color is required.');
 
         Prompt::interactive(false);
         search('What is your favorite color?', fn () => [], required: 'The color is required.');

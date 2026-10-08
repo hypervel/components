@@ -122,7 +122,7 @@ class ReadThroughFilesystem extends FilesystemAdapter
      */
     protected function readerFor(string $path): Cloud
     {
-        return $this->primary->fileExists($this->readThroughPrefixer->prefixPath($path)) // @phpstan-ignore method.notFound
+        return $this->primary->fileExists($this->readThroughPrefixer->prefixPath($path))
             ? $this->primary
             : $this->fallback;
     }

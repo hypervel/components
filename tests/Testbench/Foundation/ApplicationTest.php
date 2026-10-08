@@ -164,7 +164,7 @@ class ApplicationTest extends TestCase
                 in_array(default_migration_path(), $app->make('migrator')->paths(), true),
             );
         } finally {
-            Env::forget('TESTBENCH_WITHOUT_DEFAULT_MIGRATIONS');
+            $forgotten = Env::forget('TESTBENCH_WITHOUT_DEFAULT_MIGRATIONS');
 
             try {
                 $app->terminate();
@@ -172,6 +172,9 @@ class ApplicationTest extends TestCase
                 $app->flush();
             }
         }
+
+        $this->assertTrue($forgotten);
+        $this->assertNull(Env::get('TESTBENCH_WITHOUT_DEFAULT_MIGRATIONS'));
     }
 
     /**

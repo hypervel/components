@@ -37,16 +37,19 @@ class HttpClientDestinationPolicyTest extends TestCase
      */
     private array $connectionFailures = [];
 
-    public function testPinsTheRequestToTheVettedAddresses(): void
+    #[DataProvider('streamModes')]
+    public function testPinsTheRequestToTheVettedAddresses(bool $stream): void
     {
         $server = LoopbackHttpServer::start();
         $policy = $this->loopbackPolicy('destination.invalid');
 
         $response = $this->factory()
             ->withDestinationPolicy($policy)
+            ->withOptions(['stream' => $stream])
             ->get("http://destination.invalid:{$server->port}/probe");
 
         $this->assertSame('OK', $response->body());
+        $this->assertSame('127.0.0.1', $response->handlerStats()['primary_ip']);
         $this->assertStringContainsString("Host: destination.invalid:{$server->port}\r\n", (string) $server->request());
         $this->assertSame(["http://destination.invalid:{$server->port}/probe"], $policy->urls);
     }
@@ -54,7 +57,7 @@ class HttpClientDestinationPolicyTest extends TestCase
     public function testRejectsAPrivateAddressLiteralBeforeConnecting(): void
     {
         $this->expectException(DisallowedDestinationException::class);
-        $this->expectExceptionMessage('disallowed address [127.0.0.1]');
+        $this->expectExceptionMessageIsOrContains('disallowed address [127.0.0.1]');
 
         $this->factory()
             ->withDestinationPolicy(new PublicDestinationPolicy)
@@ -74,7 +77,8 @@ class HttpClientDestinationPolicyTest extends TestCase
         $this->assertStringContainsString("Host: destination.invalid.:{$server->port}\r\n", (string) $server->request());
     }
 
-    public function testResolvesEveryRedirectAgain(): void
+    #[DataProvider('streamModes')]
+    public function testResolvesEveryRedirectAgain(bool $stream): void
     {
         $second = LoopbackHttpServer::start();
         $first = LoopbackHttpServer::start([
@@ -84,6 +88,7 @@ class HttpClientDestinationPolicyTest extends TestCase
 
         $response = $this->factory()
             ->withDestinationPolicy($policy)
+            ->withOptions(['stream' => $stream])
             ->get("http://first.invalid:{$first->port}/start");
 
         $this->assertSame('OK', $response->body());
@@ -93,7 +98,8 @@ class HttpClientDestinationPolicyTest extends TestCase
         ], $policy->urls);
     }
 
-    public function testPinsAnApprovedProxyWithoutResolvingTheTarget(): void
+    #[DataProvider('streamModes')]
+    public function testPinsAnApprovedProxyWithoutResolvingTheTarget(bool $stream): void
     {
         $proxy = LoopbackHttpServer::start();
         $policy = new FakeDestinationPolicy(
@@ -104,11 +110,20 @@ class HttpClientDestinationPolicyTest extends TestCase
 
         $response = $this->factory()
             ->withDestinationPolicy($policy)
+            ->withOptions(['stream' => $stream])
             ->get('http://target.invalid/probe');
 
         $this->assertSame('OK', $response->body());
         $this->assertStringStartsWith("GET http://target.invalid/probe HTTP/1.1\r\n", (string) $proxy->request());
         $this->assertSame(['proxy.invalid'], $policy->resolvedHosts);
+    }
+
+    /**
+     * Provide buffered and incremental response transports.
+     */
+    public static function streamModes(): array
+    {
+        return [[false], [true]];
     }
 
     /**
@@ -136,9 +151,9 @@ class HttpClientDestinationPolicyTest extends TestCase
      */
     public static function unpinnableRequests(): iterable
     {
-        yield 'streamed response' => [
-            static fn (PendingRequest $request): PendingRequest => $request->withOptions(['stream' => true]),
-            'Destination-restricted requests cannot stream responses; use [sink] instead.',
+        yield 'fallback streamed response' => [
+            static fn (PendingRequest $request): PendingRequest => $request->withOptions(['stream' => true, 'stream_context' => []]),
+            'Destination-restricted requests cannot stream responses with the fallback transport; use [sink] instead.',
         ];
         yield 'custom handler' => [
             static fn (PendingRequest $request): PendingRequest => $request->setHandler(
@@ -163,7 +178,7 @@ class HttpClientDestinationPolicyTest extends TestCase
 
         // The response arrives within the configured timeout, but not within what resolution left of it.
         $this->expectException(ConnectionException::class);
-        $this->expectExceptionMessage('cURL error 28');
+        $this->expectExceptionMessageIsOrContains('cURL error 28');
 
         $this->factory()
             ->withDestinationPolicy($policy)
@@ -241,7 +256,7 @@ class HttpClientDestinationPolicyTest extends TestCase
     }
 
     #[DataProvider('refusingProxies')]
-    public function testAProxyRefusingConnectionsIsARetriedProxyConnectionFailure(bool $async, bool $ipv6): void
+    public function testAProxyRefusingConnectionsIsARetriedProxyConnectionFailure(bool $async, bool $ipv6, bool $stream): void
     {
         [$refusing, $port] = $this->refusingPort($ipv6);
         $errors = [];
@@ -252,6 +267,7 @@ class HttpClientDestinationPolicyTest extends TestCase
         );
         $request = $this->factory()
             ->withDestinationPolicy($policy)
+            ->withOptions(['stream' => $stream])
             ->withOptions(['on_stats' => static function (TransferStats $stats) use (&$errors): void {
                 $errors[] = $stats->getHandlerErrorData();
             }])
@@ -276,10 +292,14 @@ class HttpClientDestinationPolicyTest extends TestCase
      */
     public static function refusingProxies(): iterable
     {
-        yield 'synchronous hostname' => [false, false];
-        yield 'asynchronous hostname' => [true, false];
-        yield 'synchronous IPv6 literal' => [false, true];
-        yield 'asynchronous IPv6 literal' => [true, true];
+        yield 'synchronous hostname' => [false, false, false];
+        yield 'asynchronous hostname' => [true, false, false];
+        yield 'synchronous IPv6 literal' => [false, true, false];
+        yield 'asynchronous IPv6 literal' => [true, true, false];
+        yield 'streamed synchronous hostname' => [false, false, true];
+        yield 'streamed asynchronous hostname' => [true, false, true];
+        yield 'streamed synchronous IPv6 literal' => [false, true, true];
+        yield 'streamed asynchronous IPv6 literal' => [true, true, true];
     }
 
     public function testARefusedDirectConnectionStaysAPlainConnectionException(): void

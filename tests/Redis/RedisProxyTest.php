@@ -651,7 +651,7 @@ class RedisProxyTest extends TestCase
         $redis = $this->createRedis($connection);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Redis error');
+        $this->expectExceptionMessageIs('Redis error');
 
         $redis->get('key');
     }
@@ -669,7 +669,7 @@ class RedisProxyTest extends TestCase
         $redis = $this->createRedis($connection);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Get connection failed.');
+        $this->expectExceptionMessageIs('Get connection failed.');
 
         $redis->set('xxxx', 'yyyy');
     }
@@ -1130,7 +1130,7 @@ class RedisProxyTest extends TestCase
         CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Exec failed.');
+        $this->expectExceptionMessageIs('Exec failed.');
 
         $this->createRedis($connection)->transaction(static function (): void {
         });
@@ -1296,7 +1296,7 @@ class RedisProxyTest extends TestCase
         $redis = $this->createRedis($connection);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Callback failed');
+        $this->expectExceptionMessageIs('Callback failed');
 
         $redis->withConnection(function (RedisConnection $redisConnection) {
             throw new RuntimeException('Callback failed');

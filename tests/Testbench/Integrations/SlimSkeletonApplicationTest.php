@@ -28,7 +28,7 @@ class SlimSkeletonApplicationTest extends TestCase
     public function itThrowsExceptionWhenTryingToAccessAuthenticatedRoutesAsGuestWithoutLoginRouteName(): void
     {
         $this->expectException(RouteNotFoundException::class);
-        $this->expectExceptionMessage('Route [login] not defined.');
+        $this->expectExceptionMessageIs('Route [login] not defined.');
 
         $this->withoutExceptionHandling()
             ->get(route('dashboard'));

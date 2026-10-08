@@ -342,7 +342,7 @@ class FailoverStoreTest extends TestCase
         ]);
 
         $this->expectException(Exception::class);
-        $this->expectExceptionMessage('Fallback failed.');
+        $this->expectExceptionMessageIs('Fallback failed.');
 
         $store->forget('key');
     }
@@ -365,7 +365,7 @@ class FailoverStoreTest extends TestCase
         ]);
 
         $this->expectException(Exception::class);
-        $this->expectExceptionMessage('Fallback failed.');
+        $this->expectExceptionMessageIs('Fallback failed.');
 
         $store->getRaw('key');
     }

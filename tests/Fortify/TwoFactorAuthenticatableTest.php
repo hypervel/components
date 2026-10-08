@@ -128,7 +128,7 @@ class TwoFactorAuthenticatableTest extends TestCase
         ]);
 
         $this->expectException(UnexpectedValueException::class);
-        $this->expectExceptionMessage('Two-factor recovery codes must decode to an array.');
+        $this->expectExceptionMessageIs('Two-factor recovery codes must decode to an array.');
 
         $user->recoveryCodes();
     }
@@ -141,7 +141,7 @@ class TwoFactorAuthenticatableTest extends TestCase
         $partialUser = UserWithTwoFactor::query()->select('id')->findOrFail($user->getKey());
 
         $this->expectException(MissingAttributeException::class);
-        $this->expectExceptionMessage('two_factor_secret');
+        $this->expectExceptionMessageIsOrContains('two_factor_secret');
 
         $partialUser->hasEnabledTwoFactorAuthentication();
     }
@@ -160,7 +160,7 @@ class TwoFactorAuthenticatableTest extends TestCase
             ->findOrFail($user->getKey());
 
         $this->expectException(MissingAttributeException::class);
-        $this->expectExceptionMessage('two_factor_confirmed_at');
+        $this->expectExceptionMessageIsOrContains('two_factor_confirmed_at');
 
         $partialUser->hasEnabledTwoFactorAuthentication();
     }

@@ -11,7 +11,7 @@ use Hypervel\Tests\TestCase;
 
 class BootProvidersTest extends TestCase
 {
-    public function testBoot()
+    public function testBoot(): void
     {
         $app = new Application;
         $app->register(ApplicationBasicServiceProviderStub::class);

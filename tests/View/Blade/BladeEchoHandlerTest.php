@@ -22,7 +22,7 @@ class BladeEchoHandlerTest extends AbstractBladeTestCase
         });
     }
 
-    public function testBladeHandlerCanInterceptRegularEchos()
+    public function testBladeHandlerCanInterceptRegularEchos(): void
     {
         $this->assertSame(
             "<?php \$__bladeCompiler = app('blade.compiler'); ?><?php echo e(\$__bladeCompiler->applyEchoHandler(\$exampleObject)); ?>",
@@ -30,7 +30,7 @@ class BladeEchoHandlerTest extends AbstractBladeTestCase
         );
     }
 
-    public function testBladeHandlerCanInterceptRawEchos()
+    public function testBladeHandlerCanInterceptRawEchos(): void
     {
         $this->assertSame(
             "<?php \$__bladeCompiler = app('blade.compiler'); ?><?php echo \$__bladeCompiler->applyEchoHandler(\$exampleObject); ?>",
@@ -38,7 +38,7 @@ class BladeEchoHandlerTest extends AbstractBladeTestCase
         );
     }
 
-    public function testBladeHandlerCanInterceptEscapedEchos()
+    public function testBladeHandlerCanInterceptEscapedEchos(): void
     {
         $this->assertSame(
             "<?php \$__bladeCompiler = app('blade.compiler'); ?><?php echo e(\$__bladeCompiler->applyEchoHandler(\$exampleObject)); ?>",
@@ -46,7 +46,7 @@ class BladeEchoHandlerTest extends AbstractBladeTestCase
         );
     }
 
-    public function testWhitespaceIsPreservedCorrectly()
+    public function testWhitespaceIsPreservedCorrectly(): void
     {
         $this->assertSame(
             "<?php \$__bladeCompiler = app('blade.compiler'); ?><?php echo e(\$__bladeCompiler->applyEchoHandler(\$exampleObject)); ?>\n\n",
@@ -90,7 +90,7 @@ class BladeEchoHandlerTest extends AbstractBladeTestCase
     }
 
     #[DataProvider('handlerWorksWithIterableDataProvider')]
-    public function testHandlerWorksWithIterables($blade, $closure, $expectedOutput)
+    public function testHandlerWorksWithIterables($blade, $closure, $expectedOutput): void
     {
         $this->compiler->stringable('iterable', $closure);
 
@@ -117,7 +117,7 @@ class BladeEchoHandlerTest extends AbstractBladeTestCase
     }
 
     #[DataProvider('nonStringableDataProvider')]
-    public function testHandlerWorksWithNonStringables($blade, $expectedOutput)
+    public function testHandlerWorksWithNonStringables($blade, $expectedOutput): void
     {
         $app = $this->createApplication();
         $app->instance('blade.compiler', $this->compiler);

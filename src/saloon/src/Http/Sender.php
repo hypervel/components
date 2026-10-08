@@ -7,7 +7,9 @@ namespace Hypervel\Saloon\Http;
 use GuzzleHttp\Cookie\SetCookie;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Telescope\TelescopeTag;
+use Hypervel\Http\Client\ConnectionException;
 use Hypervel\Http\Client\Factory;
+use Hypervel\Http\Client\RequestException as HttpRequestException;
 use Psr\Http\Message\RequestInterface;
 
 class Sender
@@ -74,10 +76,17 @@ class Sender
                 return $request;
             });
 
-        $httpResponse = $httpRequest->send(
-            $pendingRequest->method()->value,
-            (string) $pendingRequest->uri(),
-        );
+        try {
+            $httpResponse = $httpRequest->send(
+                $pendingRequest->method()->value,
+                (string) $pendingRequest->uri(),
+            );
+        } catch (HttpRequestException $exception) {
+            // A transfer that fails after the response headers arrive keeps its partial response. The HTTP client
+            // throws that as a request exception for a 4xx or 5xx status and as a connection exception otherwise, so
+            // both reach Saloon as an exchange that could not complete.
+            throw new ConnectionException($exception->getMessage(), 0, $exception);
+        }
 
         return $pendingRequest->createResponse(
             $httpResponse,

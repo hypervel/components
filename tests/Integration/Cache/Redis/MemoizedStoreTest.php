@@ -34,7 +34,7 @@ class MemoizedStoreTest extends TestCase
 {
     use InteractsWithRedis;
 
-    public function testItCanMemoizeWhenRetrievingSingleValue()
+    public function testItCanMemoizeWhenRetrievingSingleValue(): void
     {
         Cache::put('name', 'Tim', 60);
 
@@ -51,7 +51,7 @@ class MemoizedStoreTest extends TestCase
         $this->assertSame('Tim', $memoized);
     }
 
-    public function testNullValuesAreMemoizedWhenRetrievingSingleValue()
+    public function testNullValuesAreMemoizedWhenRetrievingSingleValue(): void
     {
         $live = Cache::get('name');
         $memoized = Cache::memo()->get('name');
@@ -66,7 +66,7 @@ class MemoizedStoreTest extends TestCase
         $this->assertNull($memoized);
     }
 
-    public function testItCanMemoizeWhenRetrievingMultipleValues()
+    public function testItCanMemoizeWhenRetrievingMultipleValues(): void
     {
         Cache::put('name.0', 'Tim', 60);
         Cache::put('name.1', 'Taylor', 60);
@@ -85,7 +85,7 @@ class MemoizedStoreTest extends TestCase
         $this->assertSame(['name.0' => 'Tim', 'name.1' => 'Taylor'], $memoized);
     }
 
-    public function testItUsesCorrectKeysForGetMultiple()
+    public function testItUsesCorrectKeysForGetMultiple(): void
     {
         $data = [
             'a' => 'string-value',
@@ -112,7 +112,7 @@ class MemoizedStoreTest extends TestCase
         $this->assertSame($cacheValue, $memoValue);
     }
 
-    public function testItUsesCorrectKeysForGetMultipleWithEmptyPrefix()
+    public function testItUsesCorrectKeysForGetMultipleWithEmptyPrefix(): void
     {
         Cache::setPrefix(null);
 
@@ -127,7 +127,7 @@ class MemoizedStoreTest extends TestCase
         $this->assertSame($data, Cache::memo()->many(array_keys($data)));
     }
 
-    public function testNullValuesAreMemoizedWhenRetrievingMultipleValues()
+    public function testNullValuesAreMemoizedWhenRetrievingMultipleValues(): void
     {
         $live = Cache::getMultiple(['name.0', 'name.1']);
         $memoized = Cache::memo()->getMultiple(['name.0', 'name.1']);
@@ -143,7 +143,7 @@ class MemoizedStoreTest extends TestCase
         $this->assertSame(['name.0' => null, 'name.1' => null], $memoized);
     }
 
-    public function testItCanRetrieveAlreadyMemoizedAndNotYetMemoizedValuesWhenRetrievingMultipleValues()
+    public function testItCanRetrieveAlreadyMemoizedAndNotYetMemoizedValuesWhenRetrievingMultipleValues(): void
     {
         Cache::put('name.0', 'Tim', 60);
         Cache::put('name.1', 'Taylor', 60);
@@ -162,7 +162,7 @@ class MemoizedStoreTest extends TestCase
         $this->assertSame(['name.0' => 'Tim', 'name.1' => 'Otwell'], $memoized);
     }
 
-    public function testPutForgetsMemoizedValue()
+    public function testPutForgetsMemoizedValue(): void
     {
         Cache::put(['name.0' => 'Tim', 'name.1' => 'Taylor'], 60);
 
@@ -180,7 +180,7 @@ class MemoizedStoreTest extends TestCase
         $this->assertSame(['name.0' => 'MacDonald', 'name.1' => 'Otwell'], $memoized);
     }
 
-    public function testPutManyForgetsMemoizedValue()
+    public function testPutManyForgetsMemoizedValue(): void
     {
         Cache::memo()->put(['name.0' => 'Tim', 'name.1' => 'Taylor'], 60);
 
@@ -197,7 +197,7 @@ class MemoizedStoreTest extends TestCase
         $this->assertSame(['name.0' => 'MacDonald', 'name.1' => 'Taylor'], $memoized);
     }
 
-    public function testIncrementForgetsMemoizedValue()
+    public function testIncrementForgetsMemoizedValue(): void
     {
         Cache::put('count', 1, 60);
 
@@ -214,7 +214,7 @@ class MemoizedStoreTest extends TestCase
         $this->assertSame('2', $memoized);
     }
 
-    public function testDecrementForgetsMemoizedValue()
+    public function testDecrementForgetsMemoizedValue(): void
     {
         Cache::put('count', 1, 60);
 
@@ -231,7 +231,7 @@ class MemoizedStoreTest extends TestCase
         $this->assertSame('0', $memoized);
     }
 
-    public function testForeverForgetsMemoizedValue()
+    public function testForeverForgetsMemoizedValue(): void
     {
         Cache::put('name', 'Tim', 60);
 
@@ -248,7 +248,7 @@ class MemoizedStoreTest extends TestCase
         $this->assertSame('Taylor', $memoized);
     }
 
-    public function testForgetForgetsMemoizedValue()
+    public function testForgetForgetsMemoizedValue(): void
     {
         Cache::put('name', 'Tim', 60);
 
@@ -265,7 +265,7 @@ class MemoizedStoreTest extends TestCase
         $this->assertNull($memoized);
     }
 
-    public function testFlushForgetsMemoizedValue()
+    public function testFlushForgetsMemoizedValue(): void
     {
         Cache::put(['name.0' => 'Tim', 'name.1' => 'Taylor'], 60);
 
@@ -282,7 +282,7 @@ class MemoizedStoreTest extends TestCase
         $this->assertSame(['name.0' => null, 'name.1' => null], $memoized);
     }
 
-    public function testMemoizedDriverUsesUnderlyingDriversPrefix()
+    public function testMemoizedDriverUsesUnderlyingDriversPrefix(): void
     {
         $this->assertSame('hypervel-cache-', Cache::memo()->getPrefix());
 
@@ -291,7 +291,7 @@ class MemoizedStoreTest extends TestCase
         $this->assertSame('foo', Cache::memo()->getPrefix());
     }
 
-    public function testMemoizedKeysArePrefixed()
+    public function testMemoizedKeysArePrefixed(): void
     {
         $redis = Cache::store('redis');
 
@@ -309,7 +309,7 @@ class MemoizedStoreTest extends TestCase
         $this->assertSame('Taylor', $value);
     }
 
-    public function testItDispatchesDecoratedDriverEventsOnly()
+    public function testItDispatchesDecoratedDriverEventsOnly(): void
     {
         $redis = Cache::driver('redis');
         $events = [];
@@ -452,7 +452,7 @@ class MemoizedStoreTest extends TestCase
         $this->assertSame('Taylor', Cache::tags(['people'])->get('name'));
     }
 
-    public function testItThrowsWhenUnderlyingStoreDoesNotSupportLocks()
+    public function testItThrowsWhenUnderlyingStoreDoesNotSupportLocks(): void
     {
         $this->freezeTime();
         $exceptions = [];
@@ -528,7 +528,7 @@ class MemoizedStoreTest extends TestCase
         $this->assertSame('This cache store does not support locks.', $exceptions[0]->getMessage());
     }
 
-    public function testItSupportsWithFlexible()
+    public function testItSupportsWithFlexible(): void
     {
         $this->freezeTime();
         Cache::flexible('key', [10, 20], 'value-1');
@@ -563,7 +563,7 @@ class MemoizedStoreTest extends TestCase
         $this->assertSame('value-1', Cache::get('key'));
     }
 
-    public function testItSupportsRestoreLock()
+    public function testItSupportsRestoreLock(): void
     {
         $owner = Cache::lock('foo', 10)->owner();
 
@@ -572,7 +572,7 @@ class MemoizedStoreTest extends TestCase
         $this->assertSame($owner, $restoredLock->owner());
     }
 
-    public function testNullSentinelRoundTripsThroughMemoizedStoreIntegration()
+    public function testNullSentinelRoundTripsThroughMemoizedStoreIntegration(): void
     {
         $count = 0;
         $result1 = Cache::memo()->rememberNullable('k', 60, function () use (&$count) {
@@ -592,7 +592,7 @@ class MemoizedStoreTest extends TestCase
         $this->assertSame(NullSentinel::VALUE, Cache::getStore()->get('k'));
     }
 
-    public function testPlainRememberTreatsCachedSentinelAsHitThroughRealMemoizedStack()
+    public function testPlainRememberTreatsCachedSentinelAsHitThroughRealMemoizedStack(): void
     {
         Cache::memo()->rememberNullable('k', 60, fn () => null);
 
@@ -609,7 +609,7 @@ class MemoizedStoreTest extends TestCase
         $this->assertFalse($invoked);
     }
 
-    public function testPlainFlexibleTreatsCachedSentinelAsHitThroughRealMemoizedStack()
+    public function testPlainFlexibleTreatsCachedSentinelAsHitThroughRealMemoizedStack(): void
     {
         Cache::memo()->flexibleNullable('k', [60, 120], fn () => null);
 

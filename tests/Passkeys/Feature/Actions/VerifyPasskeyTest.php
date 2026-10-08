@@ -100,7 +100,7 @@ class VerifyPasskeyTest extends TestCase
         );
 
         $this->expectException(InvalidPasskeyException::class);
-        $this->expectExceptionMessage('Unable to verify passkey');
+        $this->expectExceptionMessageIsOrContains('Unable to verify passkey');
 
         app(VerifyPasskey::class)($assertion, $this->createRequestOptions());
     }
@@ -114,7 +114,7 @@ class VerifyPasskeyTest extends TestCase
         );
 
         $this->expectException(InvalidPasskeyException::class);
-        $this->expectExceptionMessage('Passkey not recognized');
+        $this->expectExceptionMessageIsOrContains('Passkey not recognized');
 
         app(VerifyPasskey::class)($assertion, $this->createRequestOptions());
     }
@@ -180,7 +180,7 @@ class VerifyPasskeyTest extends TestCase
             ->getMock();
 
         $this->expectException(InvalidPasskeyException::class);
-        $this->expectExceptionMessage('Passkey not recognized');
+        $this->expectExceptionMessageIsOrContains('Passkey not recognized');
 
         $action($assertion, $this->createRequestOptions(), $otherUser);
     }
@@ -236,7 +236,7 @@ class VerifyPasskeyTest extends TestCase
         );
 
         $this->expectException(InvalidPasskeyException::class);
-        $this->expectExceptionMessage('Unable to verify passkey. Please try again.');
+        $this->expectExceptionMessageIs('Unable to verify passkey. Please try again.');
 
         app(VerifyPasskey::class)($credential, $options, $user);
     }
@@ -270,7 +270,7 @@ class VerifyPasskeyTest extends TestCase
         }
 
         $this->expectException(InvalidPasskeyException::class);
-        $this->expectExceptionMessage('Unable to verify passkey. Please try again.');
+        $this->expectExceptionMessageIs('Unable to verify passkey. Please try again.');
 
         app(VerifyPasskey::class)($credential, $options, $user);
     }
@@ -297,7 +297,7 @@ class VerifyPasskeyTest extends TestCase
         );
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to configure the ceremony factory.');
+        $this->expectExceptionMessageIs('Unable to configure the ceremony factory.');
 
         app(VerifyPasskey::class)($credential, $options, $user);
     }
@@ -323,7 +323,7 @@ class VerifyPasskeyTest extends TestCase
         $action = new ExposesVerifyPasskeyHost;
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Passkey verification options must contain a relying party ID.');
+        $this->expectExceptionMessageIs('Passkey verification options must contain a relying party ID.');
 
         $action->host($options);
     }

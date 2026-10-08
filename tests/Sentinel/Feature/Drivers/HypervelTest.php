@@ -59,7 +59,7 @@ class HypervelTest extends TestCase
         $request = Request::create('https://hypervel.ngrok-free.app/horizon', 'GET', [], [], [], ['REMOTE_ADDR' => '127.0.0.1']);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to access "GET /horizon" using "local" environment');
+        $this->expectExceptionMessageIsOrContains('Unable to access "GET /horizon" using "local" environment');
 
         Sentinel::driver()->authorize($request);
     }

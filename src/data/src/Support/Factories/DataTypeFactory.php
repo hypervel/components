@@ -11,11 +11,11 @@ use Hypervel\Data\Contracts\BaseData;
 use Hypervel\Data\CursorPaginatedDataCollection;
 use Hypervel\Data\DataCollection;
 use Hypervel\Data\Enums\DataTypeKind;
-use Hypervel\Data\Exceptions\CannotFindDataClass;
 use Hypervel\Data\Lazy;
 use Hypervel\Data\Optional;
 use Hypervel\Data\PaginatedDataCollection;
 use Hypervel\Data\Support\Annotations\DataIterableAnnotation;
+use Hypervel\Data\Support\Annotations\DataIterableAnnotationReader;
 use Hypervel\Data\Support\DataAttributesCollection;
 use Hypervel\Data\Support\DataPropertyType;
 use Hypervel\Data\Support\DataType;
@@ -55,6 +55,7 @@ class DataTypeFactory
      */
     public function __construct(
         protected readonly PhpDocTypeNameResolver $typeNameResolver,
+        protected readonly DataIterableAnnotationReader $annotationReader,
     ) {
     }
 
@@ -79,7 +80,6 @@ class DataTypeFactory
             $reflectionType,
             $class,
             $declaringClass,
-            $typeable,
             $iterableAnnotations,
             $collectionOf instanceof DataCollectionOf ? $collectionOf->class : null,
             true,
@@ -110,37 +110,12 @@ class DataTypeFactory
             $reflectionType,
             $class,
             $this->declaringClass($typeable, $class),
-            $typeable,
         );
 
         return new DataType(
             type: $type,
             isNullable: $reflectionType?->allowsNull() ?? true,
             isMixed: $this->containsType($type->getNamedTypes(), 'mixed'),
-        );
-    }
-
-    /**
-     * Build a data type from a declared type name.
-     *
-     * @param class-string|ReflectionClass<object> $class
-     */
-    public function buildFromString(
-        string $type,
-        ReflectionClass|string $class,
-        bool $isBuiltIn,
-        bool $isNullable = false,
-    ): DataType {
-        $class = $this->reflectionClass($class);
-        $namedType = $this->buildNamedType(
-            $this->resolveNativeName($type, $class, $class),
-            $isBuiltIn,
-        );
-
-        return new DataType(
-            type: $namedType,
-            isNullable: $isNullable,
-            isMixed: $namedType->name === 'mixed',
         );
     }
 
@@ -155,7 +130,6 @@ class DataTypeFactory
         ?ReflectionType $reflectionType,
         ReflectionClass $targetClass,
         ReflectionClass $declaringClass,
-        ReflectionMethod|ReflectionProperty|ReflectionParameter|string $typeable,
         array $iterableAnnotations = [],
         ?string $collectionOf = null,
         bool $forProperty = false,
@@ -182,7 +156,9 @@ class DataTypeFactory
                     $kind,
                     $targetClass,
                     $iterableAnnotations,
-                )) {
+                ) ?? ($forProperty && ! $reflectionType->isBuiltin()
+                    ? $this->annotationReader->getForCollectionClass(ClassMetadataCache::reflectClass($name))
+                    : null)) {
                 $annotationClass = ClassMetadataCache::reflectClass($annotation->declaringClass);
                 $itemType = $this->buildPhpDocType(
                     $annotation->itemType,
@@ -197,8 +173,9 @@ class DataTypeFactory
                 $itemType,
             );
 
+            // Without an item class, the property holds a finished collection that is transformed by value, as in Spatie.
             if ($forProperty && $this->requiresDataItemType($type->kind) && $type->dataClass === null) {
-                throw CannotFindDataClass::forTypeable($typeable);
+                return new NamedType($name, false, DataTypeKind::Default);
             }
 
             return $type;
@@ -212,7 +189,6 @@ class DataTypeFactory
                     $subType,
                     $targetClass,
                     $declaringClass,
-                    $typeable,
                     $iterableAnnotations,
                     $collectionOf,
                     $forProperty,
@@ -372,6 +348,8 @@ class DataTypeFactory
         array $annotations,
     ): ?DataIterableAnnotation {
         $fallback = null;
+        $shorthandFallback = null;
+        $itemFallbacks = [];
 
         foreach ($annotations as $annotation) {
             $container = $this->resolvePhpDocName(
@@ -391,10 +369,42 @@ class DataTypeFactory
                 )
             ) {
                 $fallback = $annotation;
+
+                continue;
+            }
+
+            // Item shorthands such as `Item[]` or `array<Item>` describe any container, as in upstream.
+            if ($container === 'array' || $container === 'iterable') {
+                $shorthandFallback ??= $annotation;
+
+                continue;
+            }
+
+            // Another collection's annotation, such as `DataCollection<Item>` on an array, also gives the items, as in
+            // upstream, but only when no other collection annotation gives a different item type.
+            $containerKind = $this->kindFor($container);
+
+            if ($containerKind->isNonDataIterable() || $containerKind->isDataCollectable()) {
+                $itemType = $this->buildPhpDocType(
+                    $annotation->itemType,
+                    $targetClass,
+                    ClassMetadataCache::reflectClass($annotation->declaringClass),
+                );
+
+                // Resolved types compare by value, so an imported and a qualified name for one item agree.
+                foreach ($itemFallbacks as [$fallbackType]) {
+                    if ($fallbackType == $itemType) {
+                        continue 2;
+                    }
+                }
+
+                $itemFallbacks[] = [$itemType, $annotation];
             }
         }
 
-        return $fallback;
+        return $fallback
+            ?? $shorthandFallback
+            ?? (count($itemFallbacks) === 1 ? $itemFallbacks[0][1] : null);
     }
 
     /**

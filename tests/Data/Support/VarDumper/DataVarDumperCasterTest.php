@@ -19,6 +19,8 @@ use Hypervel\Data\Support\VarDumper\DataVarDumperCaster;
 use Hypervel\Pagination\CursorPaginator;
 use Hypervel\Pagination\Paginator;
 use Hypervel\Testbench\TestCase;
+use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use stdClass;
 use Symfony\Component\VarDumper\Cloner\AbstractCloner;
 use Symfony\Component\VarDumper\Cloner\Stub;
@@ -109,7 +111,7 @@ class DataVarDumperCasterTest extends TestCase
         try {
             AbstractCloner::$defaultCasters[TransformableData::class] = $caster;
 
-            (new DataServiceProvider($this->app))->boot();
+            (new DataServiceProvider($this->app))->boot($this->app->make('config'));
 
             $this->assertSame(
                 $caster,
@@ -122,6 +124,61 @@ class DataVarDumperCasterTest extends TestCase
                 unset(AbstractCloner::$defaultCasters[TransformableData::class]);
             }
         }
+    }
+
+    #[DataProvider('casterModeProvider')]
+    public function testCasterModeControlsRegistration(string $mode, string $environment, bool $registered): void
+    {
+        $hadCaster = array_key_exists(
+            TransformableData::class,
+            AbstractCloner::$defaultCasters,
+        );
+        $previousCaster = AbstractCloner::$defaultCasters[TransformableData::class] ?? null;
+
+        try {
+            unset(AbstractCloner::$defaultCasters[TransformableData::class]);
+            $this->app->make('config')->set('data.var_dumper_caster_mode', $mode);
+            $this->app->detectEnvironment(static fn (): string => $environment);
+
+            (new DataServiceProvider($this->app))->boot($this->app->make('config'));
+
+            $this->assertSame(
+                $registered,
+                array_key_exists(TransformableData::class, AbstractCloner::$defaultCasters),
+            );
+        } finally {
+            if ($hadCaster) {
+                AbstractCloner::$defaultCasters[TransformableData::class] = $previousCaster;
+            } else {
+                unset(AbstractCloner::$defaultCasters[TransformableData::class]);
+            }
+        }
+    }
+
+    /**
+     * Get caster modes with the environment and expected registration.
+     *
+     * @return array<string, array{string, string, bool}>
+     */
+    public static function casterModeProvider(): array
+    {
+        return [
+            'enabled in production' => ['enabled', 'production', true],
+            'disabled in testing' => ['disabled', 'testing', false],
+            'development locally' => ['development', 'local', true],
+            'development in testing' => ['development', 'testing', true],
+            'development in production' => ['development', 'production', false],
+        ];
+    }
+
+    public function testInvalidCasterModeIsRejected(): void
+    {
+        $this->app->make('config')->set('data.var_dumper_caster_mode', 'sometimes');
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessageIsOrContains('Configuration [data.var_dumper_caster_mode]');
+
+        (new DataServiceProvider($this->app))->boot($this->app->make('config'));
     }
 
     public function testOrdinaryObjectsKeepSymfonyDefaultDumping(): void

@@ -705,7 +705,7 @@ class SupportStrTest extends TestCase
     public function testFlushCache(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Str::flushCache() is not implemented in Hypervel because Str casing caches are intentionally not used. Use StrCache for persistent casing caching.');
+        $this->expectExceptionMessageIs('Str::flushCache() is not implemented in Hypervel because Str casing caches are intentionally not used. Use StrCache for persistent casing caching.');
 
         Str::flushCache();
     }

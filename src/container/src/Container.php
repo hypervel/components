@@ -732,13 +732,15 @@ class Container implements ContainerContract
             $this->autoSingletons[$abstract] = $closure($this->autoSingletons[$abstract], $this);
 
             $this->rebound($abstract);
-        } elseif ($this->isScoped($abstract) && CoroutineContext::has(self::SCOPED_CONTEXT_PREFIX . $abstract)) {
+        } elseif ($this->isScoped($abstract)
+            && ($instance = CoroutineContext::get(self::SCOPED_CONTEXT_PREFIX . $abstract)) !== null
+        ) {
             // Apply the extender to the current cached scoped instance immediately.
             // Also queue it in $this->extenders for future resolutions — unlike singletons
             // (which persist for the worker lifetime), scoped instances are destroyed each
             // request by forgetScopedInstances() and must re-apply extenders on rebuild.
             $contextKey = self::SCOPED_CONTEXT_PREFIX . $abstract;
-            CoroutineContext::set($contextKey, $closure(CoroutineContext::get($contextKey), $this));
+            CoroutineContext::set($contextKey, $closure($instance, $this));
 
             $this->extenders[$abstract][] = $closure;
 
@@ -1191,8 +1193,10 @@ class Container implements ContainerContract
             && ! $needsContextualBuild
         ) {
             $contextKey = self::SCOPED_CONTEXT_PREFIX . $abstract;
-            if (CoroutineContext::has($contextKey)) {
-                return CoroutineContext::get($contextKey);
+            $instance = CoroutineContext::get($contextKey);
+
+            if ($instance !== null) {
+                return $instance;
             }
         }
 
@@ -1338,7 +1342,7 @@ class Container implements ContainerContract
             if ($publishedCache === 'scoped') {
                 $contextKey = self::SCOPED_CONTEXT_PREFIX . $abstract;
 
-                if (CoroutineContext::has($contextKey)
+                if ($publishedValue !== null
                     && CoroutineContext::get($contextKey) === $publishedValue
                 ) {
                     CoroutineContext::forget($contextKey);
@@ -1757,6 +1761,55 @@ class Container implements ContainerContract
     }
 
     /**
+     * Resolve the contextual constructor parameters of a class within its build context.
+     *
+     * Contextual bindings for the class apply to dependencies the attributes resolve, and each
+     * parameter's attribute callbacks fire here. Pass the values to buildWith() as overrides
+     * so they are not resolved again. Variadic parameters are skipped, because an override
+     * is passed as one argument; the container resolves them when the class is built.
+     *
+     * @param class-string $concrete
+     * @param null|list<string> $names the parameters to resolve, or null for every contextual parameter
+     * @return array<string, mixed>
+     *
+     * @throws BindingResolutionException
+     */
+    public function resolveContextualParameters(string $concrete, ?array $names = null): array
+    {
+        $recipe = $this->getBuildRecipe($concrete);
+        $resolutionState = $this->getOrCreateResolutionState();
+        $resolutionState->buildStack[] = $concrete;
+
+        try {
+            $values = [];
+
+            foreach ($recipe->parameters as $paramRecipe) {
+                if ($paramRecipe->contextualAttribute === null
+                    || $paramRecipe->isVariadic
+                    || ($names !== null && ! in_array($paramRecipe->name, $names, true))
+                ) {
+                    continue;
+                }
+
+                $value = $this->resolveFromAttribute(
+                    $paramRecipe->contextualAttribute,
+                    $paramRecipe->getReflectionParameter(),
+                );
+
+                if ($paramRecipe->attributes !== []) {
+                    $this->fireAfterResolvingAttributeCallbacks($paramRecipe->attributes, $value);
+                }
+
+                $values[$paramRecipe->name] = $value;
+            }
+
+            return $values;
+        } finally {
+            array_pop($resolutionState->buildStack);
+        }
+    }
+
+    /**
      * Instantiate a concrete instance of the given type.
      *
      * @template TClass of object
@@ -1824,7 +1877,10 @@ class Container implements ContainerContract
             array_pop($resolutionState->buildStack);
         }
 
-        $instance = new $concrete(...$instances);
+        // Arguments go through the native invoker so scalars convert as they do in Laravel.
+        $instance = $instances === []
+            ? new $concrete
+            : NativeInvoker::construct($concrete, $instances);
 
         if ($recipe->classAttributes !== []) {
             $this->fireAfterResolvingAttributeCallbacks(

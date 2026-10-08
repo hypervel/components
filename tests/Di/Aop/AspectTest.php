@@ -11,7 +11,7 @@ use Hypervel\Tests\TestCase;
 
 class AspectTest extends TestCase
 {
-    public function testParseMoreThanOneMethods()
+    public function testParseMoreThanOneMethods(): void
     {
         $aspect = 'App\Aspect\DebugAspect';
 
@@ -25,7 +25,7 @@ class AspectTest extends TestCase
         $this->assertEquals(['test1', 'test2'], $res->getMethods());
     }
 
-    public function testParseOneMethod()
+    public function testParseOneMethod(): void
     {
         $aspect = 'App\Aspect\DebugAspect';
 
@@ -39,7 +39,7 @@ class AspectTest extends TestCase
         $this->assertTrue($res->shouldRewrite('test1'));
     }
 
-    public function testParseClass()
+    public function testParseClass(): void
     {
         $aspect = 'App\Aspect\DebugAspect';
 
@@ -53,7 +53,7 @@ class AspectTest extends TestCase
         $this->assertTrue($res->shouldRewrite('test'));
     }
 
-    public function testMatchClassPattern()
+    public function testMatchClassPattern(): void
     {
         $aspect = 'App\Aspect\DebugAspect';
 
@@ -68,7 +68,7 @@ class AspectTest extends TestCase
         $this->assertTrue($res->shouldRewrite('test1'));
     }
 
-    public function testMatchMethodPattern()
+    public function testMatchMethodPattern(): void
     {
         $aspect = 'App\Aspect\DebugAspect';
 
@@ -81,7 +81,7 @@ class AspectTest extends TestCase
         $this->assertFalse($res->shouldRewrite('no'));
     }
 
-    public function testIsMatchClassRule()
+    public function testIsMatchClassRule(): void
     {
         $rule = 'Foo/Bar';
         $this->assertSame([true, null], Aspect::isMatchClassRule('Foo/Bar', $rule));
@@ -112,7 +112,7 @@ class AspectTest extends TestCase
         $this->assertSame([false, null], Aspect::isMatchClassRule('Foo/Bar/Baz::method', $rule));
     }
 
-    public function testIsMatch()
+    public function testIsMatch(): void
     {
         $rule = 'Foo/Bar';
         $this->assertTrue(Aspect::isMatch('Foo/Bar', 'test', $rule));

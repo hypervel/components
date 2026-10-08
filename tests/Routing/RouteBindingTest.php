@@ -15,7 +15,7 @@ use LogicException;
 
 class RouteBindingTest extends RoutingTestCase
 {
-    public function testItCanResolveTheExplicitModelForTheGivenRoute()
+    public function testItCanResolveTheExplicitModelForTheGivenRoute(): void
     {
         $container = Container::getInstance();
 
@@ -40,7 +40,7 @@ class RouteBindingTest extends RoutingTestCase
         $this->assertSame(2, $second->getKey());
     }
 
-    public function testItCannotResolveTheExplicitSoftDeletedModelForTheGivenRoute()
+    public function testItCannotResolveTheExplicitSoftDeletedModelForTheGivenRoute(): void
     {
         $container = Container::getInstance();
 
@@ -53,7 +53,7 @@ class RouteBindingTest extends RoutingTestCase
         $callback(1, $route);
     }
 
-    public function testItCanResolveTheExplicitSoftDeletedModelForTheGivenRouteWithTrashed()
+    public function testItCanResolveTheExplicitSoftDeletedModelForTheGivenRouteWithTrashed(): void
     {
         $container = Container::getInstance();
 

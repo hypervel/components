@@ -619,6 +619,17 @@ class Factory
     }
 
     /**
+     * Set the event dispatcher implementation.
+     *
+     * Boot or tests only. The dispatcher persists on the factory for the
+     * worker lifetime and receives every subsequent HTTP client event.
+     */
+    public function setDispatcher(?Dispatcher $dispatcher): void
+    {
+        $this->dispatcher = $dispatcher;
+    }
+
+    /**
      * Get the array of global middleware.
      */
     public function getGlobalMiddleware(): array
@@ -675,7 +686,11 @@ class Factory
      */
     protected function createConnectionHandler(array $options): callable
     {
-        return Utils::chooseHandler($options);
+        return CurlStreamingHandler::wrap(
+            Utils::chooseHandler($options),
+            $options,
+            CurlStreamingHandler::MAX_IDLE_CONNECTIONS,
+        );
     }
 
     /**

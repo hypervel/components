@@ -11,7 +11,6 @@ use Hypervel\Data\Casts\Uncastable;
 use Hypervel\Data\Contracts\BaseData;
 use Hypervel\Data\Exceptions\CannotCastEnum;
 use Hypervel\Data\Support\Annotations\DataIterableAnnotationReader;
-use Hypervel\Data\Support\Creation\ConstructionState;
 use Hypervel\Data\Support\Creation\CreationContext;
 use Hypervel\Data\Support\DataConfig;
 use Hypervel\Data\Support\DataProperty;
@@ -24,18 +23,45 @@ use ReflectionClass;
 
 class EnumCastTest extends TestCase
 {
-    /**
-     * Test declared backed enum values are cast or passed through.
-     */
-    public function testCastsDeclaredBackedEnumValues(): void
+    public function testCanCastEnum(): void
     {
-        [$state, $context] = $this->operation();
+        [$properties, $context] = $this->operation();
         $property = $this->property('status');
         $cast = new EnumCast;
 
-        $this->assertSame(EnumCastStatus::Ready, $cast->cast($property, 'ready', $state, $context));
-        $this->assertSame(EnumCastStatus::Ready, $cast->cast($property, EnumCastStatus::Ready, $state, $context));
-        $this->assertSame(EnumCastStatus::Ready, $cast->cast($property, OtherEnumCastStatus::Ready, $state, $context));
+        $this->assertSame(EnumCastStatus::Ready, $cast->cast($property, 'ready', $properties, $context));
+        $this->assertSame(EnumCastStatus::Ready, $cast->cast($property, EnumCastStatus::Ready, $properties, $context));
+        $this->assertSame(EnumCastStatus::Ready, $cast->cast($property, OtherEnumCastStatus::Ready, $properties, $context));
+    }
+
+    public function testFailsWhenItCannotCastAnEnumFromValue(): void
+    {
+        [$properties, $context] = $this->operation();
+
+        $this->expectException(CannotCastEnum::class);
+        $this->expectExceptionMessageIsOrContains('EnumCastDataFixture::$status');
+
+        (new EnumCast)->cast($this->property('status'), 'invalid', $properties, $context);
+    }
+
+    public function testFailsWhenCastingAnUnitEnum(): void
+    {
+        [$properties, $context] = $this->operation();
+
+        $this->assertSame(
+            Uncastable::create(),
+            (new EnumCast)->cast($this->property('unit'), 'Ready', $properties, $context),
+        );
+    }
+
+    public function testFailsWithOtherTypes(): void
+    {
+        [$properties, $context] = $this->operation();
+
+        $this->assertSame(
+            Uncastable::create(),
+            (new EnumCast)->cast($this->property('int'), 'ready', $properties, $context),
+        );
     }
 
     /**
@@ -43,11 +69,11 @@ class EnumCastTest extends TestCase
      */
     public function testCastsIntegerBackedEnumFromNumericString(): void
     {
-        [$state, $context] = $this->operation();
+        [$properties, $context] = $this->operation();
 
         $this->assertSame(
             IntegerEnumCastStatus::Ready,
-            (new EnumCast)->cast($this->property('integerStatus'), '1', $state, $context),
+            (new EnumCast)->cast($this->property('integerStatus'), '1', $properties, $context),
         );
     }
 
@@ -56,43 +82,17 @@ class EnumCastTest extends TestCase
      */
     public function testCastsIterableBackedEnumValues(): void
     {
-        [$state, $context] = $this->operation();
+        [$properties, $context] = $this->operation();
 
         $this->assertSame(
             EnumCastStatus::Done,
             (new EnumCast)->castIterableItem(
                 $this->property('statuses'),
                 'done',
-                $state,
+                $properties,
                 $context,
             ),
         );
-    }
-
-    /**
-     * Test a declaration without a backed enum declines the cast.
-     */
-    public function testReturnsUncastableWithoutABackedEnumDeclaration(): void
-    {
-        [$state, $context] = $this->operation();
-
-        $this->assertSame(
-            Uncastable::create(),
-            (new EnumCast)->cast($this->property('name'), 'ready', $state, $context),
-        );
-    }
-
-    /**
-     * Test invalid enum values produce a property-specific exception.
-     */
-    public function testThrowsForAnInvalidBackedEnumValue(): void
-    {
-        [$state, $context] = $this->operation();
-
-        $this->expectException(CannotCastEnum::class);
-        $this->expectExceptionMessageIsOrContains('EnumCastDataFixture::$status');
-
-        (new EnumCast)->cast($this->property('status'), 'invalid', $state, $context);
     }
 
     /**
@@ -102,7 +102,7 @@ class EnumCastTest extends TestCase
     {
         $defaults = require __DIR__ . '/../../../src/data/config/data.php';
         $config = new DataConfig(new Repository(['data' => $defaults]));
-        $typeFactory = new DataTypeFactory(new PhpDocTypeNameResolver);
+        $typeFactory = new DataTypeFactory(new PhpDocTypeNameResolver, new DataIterableAnnotationReader);
         $reflectionClass = new ReflectionClass(EnumCastDataFixture::class);
 
         return (new DataPropertyFactory(
@@ -121,13 +121,11 @@ class EnumCastTest extends TestCase
     /**
      * Create one cast operation.
      *
-     * @return array{ConstructionState, CreationContext}
+     * @return array{array<string, mixed>, CreationContext}
      */
     protected function operation(): array
     {
-        $context = new CreationContext(EnumCastDataContract::class);
-
-        return [ConstructionState::create($context, EnumCastDataContract::class), $context];
+        return [[], new CreationContext(EnumCastDataContract::class)];
     }
 }
 
@@ -147,16 +145,23 @@ enum IntegerEnumCastStatus: int
     case Ready = 1;
 }
 
+enum UnitEnumCastStatus
+{
+    case Ready;
+}
+
 class EnumCastDataFixture
 {
     public EnumCastStatus $status;
 
     public IntegerEnumCastStatus $integerStatus;
 
+    public UnitEnumCastStatus $unit;
+
     /** @var list<EnumCastStatus> */
     public array $statuses;
 
-    public string $name;
+    public int $int;
 }
 
 abstract class EnumCastDataContract implements BaseData

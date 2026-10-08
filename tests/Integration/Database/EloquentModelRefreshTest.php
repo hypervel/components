@@ -25,14 +25,14 @@ class EloquentModelRefreshTest extends DatabaseTestCase
         });
     }
 
-    public function testItRefreshesModelExcludedByGlobalScope()
+    public function testItRefreshesModelExcludedByGlobalScope(): void
     {
         $post = Post::create(['title' => 'mohamed']);
 
         $post->refresh();
     }
 
-    public function testItRefreshesASoftDeletedModel()
+    public function testItRefreshesASoftDeletedModel(): void
     {
         $post = Post::create(['title' => 'said']);
 
@@ -45,7 +45,7 @@ class EloquentModelRefreshTest extends DatabaseTestCase
         $this->assertTrue($post->trashed());
     }
 
-    public function testItSyncsOriginalOnRefresh()
+    public function testItSyncsOriginalOnRefresh(): void
     {
         $post = Post::create(['title' => 'pat']);
 
@@ -58,7 +58,7 @@ class EloquentModelRefreshTest extends DatabaseTestCase
         $this->assertSame('patrick', $post->getOriginal('title'));
     }
 
-    public function testItDoesNotSyncPreviousOnRefresh()
+    public function testItDoesNotSyncPreviousOnRefresh(): void
     {
         $post = Post::create(['title' => 'pat']);
 
@@ -93,7 +93,7 @@ class EloquentModelRefreshTest extends DatabaseTestCase
         $partialPost = Post::query()->select('title')->findOrFail($post->id);
 
         $this->expectException(MissingAttributeException::class);
-        $this->expectExceptionMessage('The attribute [id]');
+        $this->expectExceptionMessageIsOrContains('The attribute [id]');
 
         $partialPost->fresh();
     }
@@ -106,12 +106,12 @@ class EloquentModelRefreshTest extends DatabaseTestCase
         $partialPost = Post::query()->select('title')->findOrFail($post->id);
 
         $this->expectException(MissingAttributeException::class);
-        $this->expectExceptionMessage('The attribute [id]');
+        $this->expectExceptionMessageIsOrContains('The attribute [id]');
 
         $partialPost->refresh();
     }
 
-    public function testAsPivot()
+    public function testAsPivot(): void
     {
         Schema::create('post_posts', function (Blueprint $table) {
             $table->increments('id');

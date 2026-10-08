@@ -27,9 +27,19 @@ interface Filesystem
     public function path(string $path): string;
 
     /**
-     * Determine if a file exists.
+     * Determine if a file or directory exists.
      */
     public function exists(string $path): bool;
+
+    /**
+     * Determine if a file exists.
+     */
+    public function fileExists(string $path): bool;
+
+    /**
+     * Determine if a directory exists.
+     */
+    public function directoryExists(string $path): bool;
 
     /**
      * Get the contents of a file.

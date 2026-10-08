@@ -28,7 +28,7 @@ class DatabaseEloquentPostgresIntegrationTest extends PostgresTestCase
         Schema::drop('database_eloquent_postgres_integration_users');
     }
 
-    public function testCreateOrFirst()
+    public function testCreateOrFirst(): void
     {
         $user1 = DatabaseEloquentPostgresIntegrationUser::createOrFirst(['email' => 'taylorotwell@gmail.com']);
 
@@ -61,7 +61,7 @@ class DatabaseEloquentPostgresIntegrationTest extends PostgresTestCase
         $this->assertSame('Nuno Maduro', $user4->name);
     }
 
-    public function testCreateOrFirstWithinTransaction()
+    public function testCreateOrFirstWithinTransaction(): void
     {
         $user1 = DatabaseEloquentPostgresIntegrationUser::create(['email' => 'taylor@laravel.com']);
 

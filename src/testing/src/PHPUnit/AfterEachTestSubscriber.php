@@ -261,6 +261,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Routing\SortedMiddleware::flushCache();
         \Hypervel\Routing\UrlGenerator::flushState();
         \Hypervel\Server\ServerManager::flushState();
+        \Hypervel\Server\ResponseCancellation::flushState();
         \Hypervel\ServerProcess\ProcessCollector::flushState();
         \Hypervel\ServerProcess\ProcessManager::flushState();
         \Hypervel\Session\Middleware\AuthenticateSession::flushState();
@@ -422,7 +423,6 @@ class AfterEachTestSubscriber implements FinishedSubscriber
      */
     protected function flushPermissionState(): void
     {
-        $this->callIfExists(\Hypervel\Permission\DefaultTeamResolver::class, 'flushState');
         $this->callIfExists(\Hypervel\Permission\Guard::class, 'flushState');
         $this->callIfExists(\Hypervel\Permission\PermissionRegistrar::class, 'flushState');
     }

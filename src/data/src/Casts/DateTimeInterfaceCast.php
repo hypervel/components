@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Data\Casts;
 
 use DateTimeInterface;
-use Hypervel\Data\Support\Creation\ConstructionState;
 use Hypervel\Data\Support\Creation\CreationContext;
 use Hypervel\Data\Support\Creation\ValueCaster;
 use Hypervel\Data\Support\DataProperty;
@@ -32,7 +31,7 @@ class DateTimeInterfaceCast implements Cast, IterableItemCast
     public function cast(
         DataProperty $property,
         mixed $value,
-        ConstructionState $state,
+        array $properties,
         CreationContext $context,
     ): DateTimeInterface|Uncastable {
         return $this->castValue(
@@ -48,7 +47,7 @@ class DateTimeInterfaceCast implements Cast, IterableItemCast
     public function castIterableItem(
         DataProperty $property,
         mixed $value,
-        ConstructionState $state,
+        array $properties,
         CreationContext $context,
     ): DateTimeInterface|Uncastable {
         return $this->castValue(

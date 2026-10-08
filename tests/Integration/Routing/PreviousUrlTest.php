@@ -12,7 +12,7 @@ use Hypervel\Tests\Integration\Routing\RoutingTestCase;
 
 class PreviousUrlTest extends RoutingTestCase
 {
-    public function testPreviousUrlWithoutSession()
+    public function testPreviousUrlWithoutSession(): void
     {
         Route::post('/previous-url', function (DummyFormRequest $request) {
             return 'OK';

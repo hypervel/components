@@ -315,6 +315,31 @@ class DatabaseConnectionFactoryTest extends TestCase
         $this->assertSame(':memory:', $config['database']);
     }
 
+    public function testReadEndpointMetadataMatchesTheSelectedPdoConfiguration(): void
+    {
+        $container = new Container;
+        $pdo = m::mock(PDO::class);
+        $connector = m::mock(ConnectorInterface::class);
+        $connector->expects('connect')->withArgs(
+            static fn (array $config): bool => $config['host'] === 'first-reader'
+            && $config['options'][PDO::ATTR_EMULATE_PREPARES] === true
+        )->andReturn($pdo);
+        $container->instance('db.connector.pgsql', $connector);
+        $factory = new AlternatingReadConnectionFactory($container);
+        $connection = $factory->make([
+            'driver' => 'pgsql',
+            'database' => 'app',
+            'write' => [],
+            'read' => [
+                ['host' => 'first-reader', 'options' => [PDO::ATTR_EMULATE_PREPARES => true]],
+                ['host' => 'second-reader', 'options' => [PDO::ATTR_EMULATE_PREPARES => false]],
+            ],
+        ], 'read-options');
+
+        $this->assertSame($pdo, $connection->getReadPdo());
+        $this->assertSame(['true', 'false'], $connection->prepareBindings([true, false]));
+    }
+
     // REMOVED: Laravel's external-pooler configuration tests. Hypervel configures
     // the direct endpoint as a normal named connection and uses migrations_connection
     // instead of the ::direct suffix.
@@ -634,6 +659,21 @@ class DatabaseConnectionFactoryTest extends TestCase
 
 class FactorySqliteConnection extends SQLiteConnection
 {
+}
+
+class AlternatingReadConnectionFactory extends ConnectionFactory
+{
+    protected int $readSelection = 0;
+
+    /**
+     * Select consecutive read records to expose repeated endpoint selection.
+     */
+    protected function getReadWriteConfig(array $config, string $type): array
+    {
+        return $type === 'read' && isset($config[$type][0])
+            ? $config[$type][$this->readSelection++ % count($config[$type])]
+            : parent::getReadWriteConfig($config, $type);
+    }
 }
 
 class FactoryTestConnectionFactory extends ConnectionFactory

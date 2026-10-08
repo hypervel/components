@@ -11,7 +11,7 @@ use function Hypervel\Prompts\clear;
 
 class ClearPromptTest extends TestCase
 {
-    public function testPromptClear()
+    public function testPromptClear(): void
     {
         Prompt::fake();
 

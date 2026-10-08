@@ -21,7 +21,7 @@ use Hypervel\Tests\Telescope\FeatureTestCase;
 ])]
 class ModelWatcherTest extends FeatureTestCase
 {
-    public function testModelWatcherRegistersEntry()
+    public function testModelWatcherRegistersEntry(): void
     {
         UserEloquent::query()
             ->create([
@@ -37,7 +37,7 @@ class ModelWatcherTest extends FeatureTestCase
         $this->assertSame(UserEloquent::class . ':1', $entry->content['model']);
     }
 
-    public function testModelWatcherCanRestrictEvents()
+    public function testModelWatcherCanRestrictEvents(): void
     {
         $user = UserEloquent::query()
             ->create([
@@ -57,7 +57,7 @@ class ModelWatcherTest extends FeatureTestCase
         $this->assertSame(UserEloquent::class . ':1', $entry->content['model']);
     }
 
-    public function testModelWatcherRegistersHydrationEntry()
+    public function testModelWatcherRegistersHydrationEntry(): void
     {
         Telescope::stopRecording();
         $this->createUser();

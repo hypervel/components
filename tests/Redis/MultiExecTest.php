@@ -180,7 +180,7 @@ class MultiExecTest extends TestCase
         $redis = $this->createRedis($connection);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Redis error');
+        $this->expectExceptionMessageIs('Redis error');
 
         $redis->pipeline(function ($pipe) {
             // callback runs, but exec will throw
@@ -224,7 +224,7 @@ class MultiExecTest extends TestCase
         $redis = $this->createRedis($connection);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Transaction failed');
+        $this->expectExceptionMessageIs('Transaction failed');
 
         $redis->transaction(function ($tx) {
             // callback runs, but exec will throw

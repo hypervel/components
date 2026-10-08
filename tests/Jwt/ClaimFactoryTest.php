@@ -12,6 +12,7 @@ use Hypervel\Jwt\Contracts\JwtSubject;
 use Hypervel\Jwt\Exceptions\JwtException;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionProperty;
 use SensitiveParameter;
 
@@ -57,10 +58,42 @@ class ClaimFactoryTest extends TestCase
         $this->assertSame('one', $claims['tenant']);
     }
 
+    #[DataProvider('customRegisteredClaimTtlProvider')]
+    public function testCustomClaimsOverrideDefaultRegisteredClaims(?int $ttl): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-01-01 00:00:00'));
+
+        $claims = $this->factory(['jwt' => ['issuer' => 'https://api.example.test', 'lock_subject' => false]])->make(
+            new ClaimFactoryJwtSubjectUser(42, 'jwt-42', ['exp' => 1767229200, 'iss' => 'https://model.example.test']),
+            new ClaimFactoryProvider,
+            $ttl,
+            ['iss' => 'https://tenant.example.test', 'iat' => 1767225000, 'nbf' => 1767226000, 'jti' => 'custom-jti'],
+        );
+
+        $this->assertSame(1767229200, $claims['exp']);
+        $this->assertSame('https://tenant.example.test', $claims['iss']);
+        $this->assertSame(1767225000, $claims['iat']);
+        $this->assertSame(1767226000, $claims['nbf']);
+        $this->assertSame('custom-jti', $claims['jti']);
+    }
+
+    /**
+     * Provide token lifetimes that an explicit expiration replaces.
+     *
+     * @return array<string, array{null|int}>
+     */
+    public static function customRegisteredClaimTtlProvider(): array
+    {
+        return [
+            'configured lifetime' => [120],
+            'no expiration' => [null],
+        ];
+    }
+
     public function testRejectsReservedJwtSubjectClaims(): void
     {
         $this->expectException(JwtException::class);
-        $this->expectExceptionMessage('Custom JWT claims may not override reserved claims: exp, sub.');
+        $this->expectExceptionMessageIs('Custom JWT claims may not override reserved claims: sub.');
 
         $this->factory()->make(
             new ClaimFactoryJwtSubjectUser(42, 'jwt-42', ['sub' => 999, 'exp' => 123]),
@@ -72,7 +105,7 @@ class ClaimFactoryTest extends TestCase
     public function testRejectsReservedInlineClaims(): void
     {
         $this->expectException(JwtException::class);
-        $this->expectExceptionMessage('Custom JWT claims may not override reserved claims: iss, prv.');
+        $this->expectExceptionMessageIs('Custom JWT claims may not override reserved claims: prv.');
 
         $this->factory()->make(
             new ClaimFactoryUser(42),
@@ -169,25 +202,123 @@ class ClaimFactoryTest extends TestCase
         $this->assertSame('one', $claims['tenant']);
     }
 
-    public function testRefreshIssuedAtRestampsIat(): void
-    {
+    #[DataProvider('repeatedRefreshIssuedAtProvider')]
+    public function testRefreshIssuedAtSettingAppliesOnEveryRefresh(
+        bool $refreshIssuedAt,
+        int $firstIssuedAt,
+        int $secondIssuedAt,
+    ): void {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-01-01 00:00:00'));
 
-        $claims = $this->factory()->refresh(
-            payload: ['sub' => 42, 'iat' => 100],
+        $factory = $this->factory();
+        $payload = ['sub' => 42, 'iat' => 100];
+
+        $first = $factory->refresh(
+            payload: $payload,
             ttl: null,
-            refreshIssuedAt: true,
+            refreshIssuedAt: $refreshIssuedAt,
             resetClaims: false,
             persistentClaims: [],
         );
 
-        $this->assertSame(1767225600, $claims['iat']);
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinutes(2));
+
+        $second = $factory->refresh(
+            payload: $payload,
+            ttl: null,
+            refreshIssuedAt: $refreshIssuedAt,
+            resetClaims: false,
+            persistentClaims: [],
+        );
+
+        $this->assertSame($firstIssuedAt, $first['iat']);
+        $this->assertSame($secondIssuedAt, $second['iat']);
+    }
+
+    /**
+     * Provide each refresh issued-at setting and the iat of two refreshes two minutes apart.
+     *
+     * @return array<string, array{bool, int, int}>
+     */
+    public static function repeatedRefreshIssuedAtProvider(): array
+    {
+        return [
+            'keep original iat' => [false, 100, 100],
+            'refresh iat' => [true, 1767225600, 1767225720],
+        ];
+    }
+
+    #[DataProvider('refreshIssuerProvider')]
+    public function testRefreshCarriesTheIssuerLikeOtherClaims(
+        bool $resetClaims,
+        array $persistentClaims,
+        array $customClaims,
+        ?string $expectedIssuer,
+    ): void {
+        $claims = $this->factory()->refresh(
+            payload: ['sub' => 42, 'iat' => 100, 'iss' => 'https://tenant.example.test'],
+            ttl: 120,
+            refreshIssuedAt: false,
+            resetClaims: $resetClaims,
+            persistentClaims: $persistentClaims,
+            customClaims: $customClaims,
+        );
+
+        $this->assertSame($expectedIssuer, $claims['iss'] ?? null);
+    }
+
+    /**
+     * Provide refresh options and the issuer each one produces.
+     *
+     * @return array<string, array{bool, array<int, string>, array<string, string>, null|string}>
+     */
+    public static function refreshIssuerProvider(): array
+    {
+        return [
+            'normal refresh' => [false, [], [], 'https://tenant.example.test'],
+            'reset without persistence' => [true, [], [], null],
+            'reset with persistence' => [true, ['iss'], [], 'https://tenant.example.test'],
+            'explicit replacement' => [false, [], ['iss' => 'https://other.example.test'], 'https://other.example.test'],
+        ];
+    }
+
+    #[DataProvider('refreshIssuedAtProvider')]
+    public function testRefreshCustomClaimsOverrideRebuiltClaims(bool $refreshIssuedAt): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-01-01 00:00:00'));
+
+        $claims = $this->factory()->refresh(
+            payload: ['sub' => 42, 'iat' => 100, 'nbf' => 100, 'exp' => 200, 'jti' => 'old-jti'],
+            ttl: 120,
+            refreshIssuedAt: $refreshIssuedAt,
+            resetClaims: false,
+            persistentClaims: [],
+            customClaims: ['iat' => 1767225000, 'nbf' => 1767226000, 'exp' => 1767229200, 'jti' => 'custom-jti'],
+        );
+
+        $this->assertSame(1767225000, $claims['iat']);
+        $this->assertSame(1767226000, $claims['nbf']);
+        $this->assertSame(1767229200, $claims['exp']);
+        $this->assertSame('custom-jti', $claims['jti']);
+    }
+
+    /**
+     * Provide both refresh issued-at settings.
+     *
+     * @return array<string, array{bool}>
+     */
+    public static function refreshIssuedAtProvider(): array
+    {
+        return [
+            'keep original iat' => [false],
+            'refresh iat' => [true],
+        ];
     }
 
     public function testRejectsReservedRefreshClaims(): void
     {
         $this->expectException(JwtException::class);
-        $this->expectExceptionMessage('Custom JWT claims may not override reserved claims: exp, jti.');
+        $this->expectExceptionMessageIs('Custom JWT claims may not override reserved claims: prv, sub.');
 
         $this->factory()->refresh(
             payload: ['sub' => 42, 'iat' => 100],
@@ -195,7 +326,7 @@ class ClaimFactoryTest extends TestCase
             refreshIssuedAt: false,
             resetClaims: false,
             persistentClaims: [],
-            customClaims: ['exp' => 999, 'jti' => 'custom-jti'],
+            customClaims: ['sub' => 7, 'prv' => 'other-provider'],
         );
     }
 

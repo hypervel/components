@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Data\Support\Creation;
 
-enum CreationMode
+enum CreationMode: string
 {
-    case Create;
-    case Validate;
-    case Rules;
+    case Create = 'Create';
+    case Validate = 'Validate';
+    case Rules = 'Rules';
 }

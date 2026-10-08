@@ -13,7 +13,7 @@ use RuntimeException;
 
 class DatabaseAbstractSchemaGrammarTest extends TestCase
 {
-    public function testCreateDatabase()
+    public function testCreateDatabase(): void
     {
         $connection = m::mock(Connection::class);
         $grammar = new class($connection) extends Grammar {
@@ -22,7 +22,7 @@ class DatabaseAbstractSchemaGrammarTest extends TestCase
         $this->assertSame('create database "foo"', $grammar->compileCreateDatabase('foo'));
     }
 
-    public function testDropDatabaseIfExists()
+    public function testDropDatabaseIfExists(): void
     {
         $connection = m::mock(Connection::class);
         $grammar = new class($connection) extends Grammar {
@@ -41,7 +41,7 @@ class DatabaseAbstractSchemaGrammarTest extends TestCase
         };
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('This database driver does not support table partitioning.');
+        $this->expectExceptionMessageIs('This database driver does not support table partitioning.');
 
         $grammar->{$method}(...$arguments);
     }

@@ -32,7 +32,7 @@ class ValidationPasswordRuleTest extends TestCase
         });
     }
 
-    public function testString()
+    public function testString(): void
     {
         $this->fails(Password::min(3), [['foo' => 'bar'], ['foo']], [
             'validation.string',
@@ -46,7 +46,7 @@ class ValidationPasswordRuleTest extends TestCase
         $this->passes(Password::min(3), ['abcd', '454qb^', '接2133手田']);
     }
 
-    public function testMin()
+    public function testMin(): void
     {
         $this->fails(new Password(8), ['a', 'ff', '12'], [
             'validation.min.string',
@@ -60,7 +60,7 @@ class ValidationPasswordRuleTest extends TestCase
         $this->passes(new Password(8), ['88888888']);
     }
 
-    public function testMax()
+    public function testMax(): void
     {
         $this->fails(Password::min(2)->max(4), ['aaaaa', '11111111'], [
             'validation.max.string',
@@ -69,7 +69,7 @@ class ValidationPasswordRuleTest extends TestCase
         $this->passes(Password::min(2)->max(3), ['aa', '111']);
     }
 
-    public function testConditional()
+    public function testConditional(): void
     {
         $is_privileged_user = true;
         $rule = (new Password(8))->when($is_privileged_user, function ($rule) {
@@ -90,7 +90,7 @@ class ValidationPasswordRuleTest extends TestCase
         $this->passes($rule, ['aaaaaaaa', '11111111']);
     }
 
-    public function testMixedCase()
+    public function testMixedCase(): void
     {
         $this->fails(Password::min(2)->mixedCase(), ['nn', 'MM'], [
             'validation.password.mixed',
@@ -99,7 +99,7 @@ class ValidationPasswordRuleTest extends TestCase
         $this->passes(Password::min(2)->mixedCase(), ['Nn', 'Mn', 'âA']);
     }
 
-    public function testLetters()
+    public function testLetters(): void
     {
         $this->fails(Password::min(2)->letters(), ['11', '22', '^^', '``', '**'], [
             'validation.password.letters',
@@ -108,7 +108,7 @@ class ValidationPasswordRuleTest extends TestCase
         $this->passes(Password::min(2)->letters(), ['1a', 'b2', 'â1', '1 京都府']);
     }
 
-    public function testNumbers()
+    public function testNumbers(): void
     {
         $this->fails(Password::min(2)->numbers(), ['aa', 'bb', '  a', '京都府'], [
             'validation.password.numbers',
@@ -117,7 +117,7 @@ class ValidationPasswordRuleTest extends TestCase
         $this->passes(Password::min(2)->numbers(), ['1a', 'b2', '00', '京都府 1']);
     }
 
-    public function testDefaultRules()
+    public function testDefaultRules(): void
     {
         $this->fails(Password::min(3), [null], [
             'validation.string',
@@ -125,7 +125,7 @@ class ValidationPasswordRuleTest extends TestCase
         ]);
     }
 
-    public function testSymbols()
+    public function testSymbols(): void
     {
         $this->fails(Password::min(2)->symbols(), ['ab', '1v'], [
             'validation.password.symbols',
@@ -275,12 +275,12 @@ class ValidationPasswordRuleTest extends TestCase
         );
     }
 
-    public function testItCanUseDefault()
+    public function testItCanUseDefault(): void
     {
         $this->assertInstanceOf(Password::class, Password::default());
     }
 
-    public function testItCanSetDefaultUsing()
+    public function testItCanSetDefaultUsing(): void
     {
         $this->assertInstanceOf(Password::class, Password::default());
 
@@ -305,7 +305,7 @@ class ValidationPasswordRuleTest extends TestCase
         $this->assertInstanceOf(Password::class, Password::sometimes());
     }
 
-    public function testItCanFlushDefaultConfiguration()
+    public function testItCanFlushDefaultConfiguration(): void
     {
         Password::defaults(Password::min(2)->mixedCase());
 
@@ -323,7 +323,7 @@ class ValidationPasswordRuleTest extends TestCase
         Password::defaults('required|password');
     }
 
-    public function testItPassesWithValidDataIfTheSameValidationRulesAreReused()
+    public function testItPassesWithValidDataIfTheSameValidationRulesAreReused(): void
     {
         $rules = [
             'password' => Password::default(),
@@ -346,7 +346,7 @@ class ValidationPasswordRuleTest extends TestCase
         $this->assertTrue($v1->passes());
     }
 
-    public function testCustomMessages()
+    public function testCustomMessages(): void
     {
         $rules = [
             'my_password' => Password::min(6)->letters(),
@@ -372,7 +372,7 @@ class ValidationPasswordRuleTest extends TestCase
         );
     }
 
-    public function testPassesWithCustomRules()
+    public function testPassesWithCustomRules(): void
     {
         $closureRule = function ($attribute, $value, $fail) {
             if ($value !== 'aa') {
@@ -406,7 +406,7 @@ class ValidationPasswordRuleTest extends TestCase
         ]);
     }
 
-    public function testCanRetrieveAllRulesApplied()
+    public function testCanRetrieveAllRulesApplied(): void
     {
         $password = Password::min(2)
             ->max(4)
@@ -442,7 +442,7 @@ class ValidationPasswordRuleTest extends TestCase
         ], $password->appliedRules());
     }
 
-    public function testRequired()
+    public function testRequired(): void
     {
         $this->fails(Password::required(), [null], [
             'validation.required',
@@ -478,7 +478,7 @@ class ValidationPasswordRuleTest extends TestCase
         $this->passes([Password::required()], ['Password123', 'password123']);
     }
 
-    public function testSometimes()
+    public function testSometimes(): void
     {
         $this->fails(Password::sometimes(), ['short'], [
             'validation.min.string',
@@ -510,7 +510,7 @@ class ValidationPasswordRuleTest extends TestCase
         $this->passes([Password::sometimes()], ['Password123', 'password123']);
     }
 
-    public function testRequiredWithMissingValue()
+    public function testRequiredWithMissingValue(): void
     {
         $v = new Validator(
             $this->app->make('translator'),
@@ -532,7 +532,7 @@ class ValidationPasswordRuleTest extends TestCase
         $this->assertFalse($v->passes());
     }
 
-    public function testNullableWithEmptyString()
+    public function testNullableWithEmptyString(): void
     {
         $v = new Validator(
             $this->app->make('translator'),
@@ -559,7 +559,7 @@ class ValidationPasswordRuleTest extends TestCase
         $this->assertTrue($v->passes());
     }
 
-    public function testItCanReturnsAsUnpackedArray()
+    public function testItCanReturnsAsUnpackedArray(): void
     {
         $this->assertSame(['required', 'string', 'min:8'], [...Password::required()]);
         $this->assertSame(['sometimes', 'string', 'min:8'], [...Password::sometimes()]);

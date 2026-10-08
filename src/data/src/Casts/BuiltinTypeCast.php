@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Data\Casts;
 
-use Hypervel\Data\Support\Creation\ConstructionState;
 use Hypervel\Data\Support\Creation\CreationContext;
 use Hypervel\Data\Support\Creation\ValueCaster;
 use Hypervel\Data\Support\DataProperty;
@@ -27,7 +26,7 @@ class BuiltinTypeCast implements Cast, IterableItemCast
     public function cast(
         DataProperty $property,
         mixed $value,
-        ConstructionState $state,
+        array $properties,
         CreationContext $context,
     ): mixed {
         return $this->runCast($value);
@@ -39,7 +38,7 @@ class BuiltinTypeCast implements Cast, IterableItemCast
     public function castIterableItem(
         DataProperty $property,
         mixed $value,
-        ConstructionState $state,
+        array $properties,
         CreationContext $context,
     ): mixed {
         return $this->runCast($value);

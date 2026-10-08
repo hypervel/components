@@ -207,7 +207,7 @@ class ComponentTest extends TestCase
         $this->assertSame('alert', $component->resolveView());
     }
 
-    public function testHtmlableGetReturned()
+    public function testHtmlableGetReturned(): void
     {
         $component = new TestHtmlableReturningViewComponent;
 
@@ -250,7 +250,7 @@ class ComponentTest extends TestCase
         $this->assertSame('ab', $component->render());
     }
 
-    public function testResolveDependenciesWithContainerIfNecessary()
+    public function testResolveDependenciesWithContainerIfNecessary(): void
     {
         $component = TestInlineViewComponentWithContainerDependencies::resolve([]);
         $this->assertSame($this->viewFactory, $component->dependency);
@@ -260,7 +260,7 @@ class ComponentTest extends TestCase
         $this->assertSame('foo', $component->render());
     }
 
-    public function testResolveReturnsFreshInstancesAcrossCalls()
+    public function testResolveReturnsFreshInstancesAcrossCalls(): void
     {
         // Components capture per-render state in their constructors, so resolve()
         // must hand back a fresh instance every time — even when the constructor
@@ -274,7 +274,7 @@ class ComponentTest extends TestCase
         $this->assertSame(2, TestStatefulInlineComponent::$constructed);
     }
 
-    public function testResolveComponentsUsing()
+    public function testResolveComponentsUsing(): void
     {
         $component = new TestInlineViewComponent;
 
@@ -446,14 +446,14 @@ class ComponentTest extends TestCase
         $this->assertSame($replacement, $getFactory($inline));
     }
 
-    public function testComponentSlotIsEmpty()
+    public function testComponentSlotIsEmpty(): void
     {
         $slot = new ComponentSlot;
 
         $this->assertTrue((bool) $slot->isEmpty());
     }
 
-    public function testComponentSlotSanitizedEmpty()
+    public function testComponentSlotSanitizedEmpty(): void
     {
         // default sanitizer should remove all html tags
         $slot = new ComponentSlot('<!-- test -->');
@@ -470,7 +470,7 @@ class ComponentTest extends TestCase
         $this->assertFalse((bool) $moreComplexSlot->hasActualContent());
     }
 
-    public function testComponentSlotSanitizedNotEmpty()
+    public function testComponentSlotSanitizedNotEmpty(): void
     {
         // default sanitizer should remove all html tags
         $slot = new ComponentSlot('<!-- test -->not empty');
@@ -487,7 +487,7 @@ class ComponentTest extends TestCase
         $this->assertTrue((bool) $moreComplexSlot->hasActualContent());
     }
 
-    public function testComponentSlotIsNotEmpty()
+    public function testComponentSlotIsNotEmpty(): void
     {
         $slot = new ComponentSlot('test');
 

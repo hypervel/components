@@ -40,7 +40,7 @@ class DatabaseEloquentCollectionQueueableTest extends TestCase
         $keyless = new CollectionQueueableTestModel;
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Model [Hypervel\Tests\Database\CollectionQueueableTestModel] has no queueable ID.');
+        $this->expectExceptionMessageIs('Model [Hypervel\Tests\Database\CollectionQueueableTestModel] has no queueable ID.');
 
         (new Collection([$keyed, $keyless]))->getQueueableIds();
     }

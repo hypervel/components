@@ -46,7 +46,7 @@ class ClearCompiledCommandTest extends TestCase
 
         try {
             $this->expectException(RuntimeException::class);
-            $this->expectExceptionMessage("Unable to delete the compiled packages file [{$path}].");
+            $this->expectExceptionMessageIs("Unable to delete the compiled packages file [{$path}].");
 
             $this->artisan('clear-compiled');
         } finally {

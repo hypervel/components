@@ -10,7 +10,7 @@ use UnexpectedValueException;
 
 class DatabaseSQLiteProcessorTest extends TestCase
 {
-    public function testProcessColumns()
+    public function testProcessColumns(): void
     {
         $processor = new SQLiteProcessor;
 
@@ -157,7 +157,7 @@ class DatabaseSQLiteProcessorTest extends TestCase
         $processor = new SQLiteProcessor;
 
         $this->expectException(UnexpectedValueException::class);
-        $this->expectExceptionMessage('The SQLite schema metadata contains invalid hexadecimal text.');
+        $this->expectExceptionMessageIs('The SQLite schema metadata contains invalid hexadecimal text.');
 
         $processor->processIndexesForSchemaState([[
             'name' => 'contacts_index',

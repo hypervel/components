@@ -120,7 +120,7 @@ class ViewBladeCompilerTest extends TestCase
         $compiler = new BladeCompiler(new Filesystem, __DIR__);
 
         $this->expectException(FileNotFoundException::class);
-        $this->expectExceptionMessage("File does not exist at path {$source}.");
+        $this->expectExceptionMessageIs("File does not exist at path {$source}.");
 
         $compiler->compile($source);
     }

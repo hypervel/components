@@ -181,6 +181,8 @@ class PartitionCustomPivotUser extends UserWithoutHasRoles
     protected string $guard_name = 'web';
 
     /**
+     * Get the permissions through the custom pivot.
+     *
      * @return BelongsToMany<Permission, $this, PartitionCustomPermissionPivot>
      */
     public function permissions(): BelongsToMany
@@ -189,6 +191,8 @@ class PartitionCustomPivotUser extends UserWithoutHasRoles
     }
 
     /**
+     * Get the roles through the custom pivot.
+     *
      * @return BelongsToMany<Role, $this, PartitionCustomRolePivot>
      */
     public function roles(): BelongsToMany

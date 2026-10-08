@@ -29,7 +29,7 @@ class CanConfigureMigrationCommandsTest extends TestCase
         );
     }
 
-    public function testMigrateFreshUsingDefault()
+    public function testMigrateFreshUsingDefault(): void
     {
         $migrateFreshUsingReflection = $this->__reflectAndSetupAccessibleForProtectedTraitMethod('migrateFreshUsing');
 
@@ -42,7 +42,7 @@ class CanConfigureMigrationCommandsTest extends TestCase
         $this->assertEquals($expected, $migrateFreshUsingReflection->invoke($this->traitObject));
     }
 
-    public function testMigrateFreshUsingWithPropertySets()
+    public function testMigrateFreshUsingWithPropertySets(): void
     {
         $migrateFreshUsingReflection = $this->__reflectAndSetupAccessibleForProtectedTraitMethod('migrateFreshUsing');
 

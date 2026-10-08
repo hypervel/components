@@ -48,7 +48,7 @@ class DatabaseSqliteSchemaBuilderTest extends SqliteTestCase
         Schema::drop('users');
     }
 
-    public function testGetTablesAndColumnListing()
+    public function testGetTablesAndColumnListing(): void
     {
         $tables = Schema::getTables();
 
@@ -89,7 +89,7 @@ class DatabaseSqliteSchemaBuilderTest extends SqliteTestCase
         $this->assertSame('first', DB::table('quoted_values')->value('first'));
     }
 
-    public function testGetViews()
+    public function testGetViews(): void
     {
         DB::connection('conn1')->statement(<<<'SQL'
 CREATE VIEW users_view
@@ -109,7 +109,7 @@ SQL);
         $this->assertEmpty(Schema::getViews());
     }
 
-    public function testGetRawIndex()
+    public function testGetRawIndex(): void
     {
         Schema::create('table', function (Blueprint $table) {
             $table->id();

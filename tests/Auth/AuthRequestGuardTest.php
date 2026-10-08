@@ -14,7 +14,7 @@ use Mockery as m;
 
 class AuthRequestGuardTest extends TestCase
 {
-    public function testCallbackReceivesRequestAndProvider()
+    public function testCallbackReceivesRequestAndProvider(): void
     {
         $request = Request::create('/');
         $provider = m::mock(UserProvider::class);
@@ -36,7 +36,7 @@ class AuthRequestGuardTest extends TestCase
         $this->assertSame($provider, $receivedProvider);
     }
 
-    public function testUserReturnsCachedUserOnSubsequentCalls()
+    public function testUserReturnsCachedUserOnSubsequentCalls(): void
     {
         RequestContext::set(Request::create('/'));
 
@@ -54,7 +54,7 @@ class AuthRequestGuardTest extends TestCase
         $this->assertSame(1, $callCount);
     }
 
-    public function testNullUserIsCachedViaSentinel()
+    public function testNullUserIsCachedViaSentinel(): void
     {
         RequestContext::set(Request::create('/'));
 
@@ -71,7 +71,7 @@ class AuthRequestGuardTest extends TestCase
         $this->assertSame(1, $callCount);
     }
 
-    public function testHasUserReturnsTrueWhenUserExists()
+    public function testHasUserReturnsTrueWhenUserExists(): void
     {
         RequestContext::set(Request::create('/'));
 
@@ -81,14 +81,14 @@ class AuthRequestGuardTest extends TestCase
         $this->assertTrue($guard->hasUser());
     }
 
-    public function testHasUserReturnsFalseWhenNoUser()
+    public function testHasUserReturnsFalseWhenNoUser(): void
     {
         $guard = new RequestGuard('custom', fn () => null, $this->app);
 
         $this->assertFalse($guard->hasUser());
     }
 
-    public function testHasUserReturnsFalseAfterNullUserCached()
+    public function testHasUserReturnsFalseAfterNullUserCached(): void
     {
         RequestContext::set(Request::create('/'));
 
@@ -98,7 +98,7 @@ class AuthRequestGuardTest extends TestCase
         $this->assertFalse($guard->hasUser());
     }
 
-    public function testSetUserOverridesCachedUser()
+    public function testSetUserOverridesCachedUser(): void
     {
         RequestContext::set(Request::create('/'));
 
@@ -128,7 +128,7 @@ class AuthRequestGuardTest extends TestCase
         $this->assertSame($explicitUser, $guard->user());
     }
 
-    public function testForgetUserClearsCachedUser()
+    public function testForgetUserClearsCachedUser(): void
     {
         RequestContext::set(Request::create('/'));
 
@@ -142,7 +142,7 @@ class AuthRequestGuardTest extends TestCase
         $this->assertFalse($guard->hasUser());
     }
 
-    public function testTwoGuardNamesDoNotCollideInContext()
+    public function testTwoGuardNamesDoNotCollideInContext(): void
     {
         RequestContext::set(Request::create('/'));
 
@@ -156,7 +156,7 @@ class AuthRequestGuardTest extends TestCase
         $this->assertSame($user2, $guard2->user());
     }
 
-    public function testReplacingRequestInContextChangesWhatGuardSees()
+    public function testReplacingRequestInContextChangesWhatGuardSees(): void
     {
         $request1 = Request::create('/one');
         $request2 = Request::create('/two');
@@ -193,7 +193,7 @@ class AuthRequestGuardTest extends TestCase
         ], $guard->getAuthContextKeys());
     }
 
-    public function testValidateCallsCallbackWithCredentialsRequest()
+    public function testValidateCallsCallbackWithCredentialsRequest(): void
     {
         $request = Request::create('/');
         $provider = m::mock(UserProvider::class);
@@ -205,7 +205,7 @@ class AuthRequestGuardTest extends TestCase
         $this->assertTrue($guard->validate(['request' => $request]));
     }
 
-    public function testValidateReturnsFalseWhenCallbackReturnsNull()
+    public function testValidateReturnsFalseWhenCallbackReturnsNull(): void
     {
         $request = Request::create('/');
 

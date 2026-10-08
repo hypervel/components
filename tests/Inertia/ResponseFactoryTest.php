@@ -550,7 +550,7 @@ class ResponseFactoryTest extends TestCase
         config()->set('inertia.pages.ensure_pages_exist', true);
 
         $this->expectException(ComponentNotFoundException::class);
-        $this->expectExceptionMessage('Inertia page component [foo] not found.');
+        $this->expectExceptionMessageIs('Inertia page component [foo] not found.');
 
         (new ResponseFactory)->render('foo');
     }

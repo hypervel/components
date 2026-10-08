@@ -45,7 +45,7 @@ class CoroutineTest extends TestCase
         $this->assertFalse(Coroutine::exists($coroutineId));
     }
 
-    public function testCoroutineParentId()
+    public function testCoroutineParentId(): void
     {
         $pid = Coroutine::id();
         Coroutine::create(function () use ($pid) {
@@ -62,7 +62,7 @@ class CoroutineTest extends TestCase
         });
     }
 
-    public function testCoroutineParentIdHasBeenDestroyed()
+    public function testCoroutineParentIdHasBeenDestroyed(): void
     {
         $id = Coroutine::create(function () {
         });
@@ -75,7 +75,7 @@ class CoroutineTest extends TestCase
         }
     }
 
-    public function testCoroutineAndDeferWithException()
+    public function testCoroutineAndDeferWithException(): void
     {
         $container = new Container;
         $handler = m::mock(ExceptionHandlerContract::class);
@@ -118,7 +118,7 @@ class CoroutineTest extends TestCase
         $this->assertFalse(Coroutine::exists($coroutineId));
     }
 
-    public function testAfterCreatedCallbacksAreExecuted()
+    public function testAfterCreatedCallbacksAreExecuted(): void
     {
         $executed = false;
 
@@ -133,7 +133,7 @@ class CoroutineTest extends TestCase
         $this->assertTrue($executed);
     }
 
-    public function testAfterCreatedCallbacksExecuteInOrder()
+    public function testAfterCreatedCallbacksExecuteInOrder(): void
     {
         $order = [];
 
@@ -171,7 +171,7 @@ class CoroutineTest extends TestCase
         ], $observed);
     }
 
-    public function testFlushStateClearsAfterCreatedCallbacks()
+    public function testFlushStateClearsAfterCreatedCallbacks(): void
     {
         $count = 0;
 
@@ -263,7 +263,7 @@ class CoroutineTest extends TestCase
         $this->assertFalse(CoroutineContext::has(Coroutine::DETACHED_CONTEXT_KEY));
     }
 
-    public function testFlushStateRestoresExceptionReporting()
+    public function testFlushStateRestoresExceptionReporting(): void
     {
         try {
             $container = new Container;
@@ -284,7 +284,7 @@ class CoroutineTest extends TestCase
         }
     }
 
-    public function testAfterCreatedCallbackExceptionDoesNotStopOthers()
+    public function testAfterCreatedCallbackExceptionDoesNotStopOthers(): void
     {
         $container = new Container;
         $handler = m::mock(ExceptionHandlerContract::class);

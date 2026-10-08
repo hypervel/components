@@ -30,7 +30,7 @@ class IssuedAtClaimTest extends TestCase
         CarbonImmutable::setTestNow('2000-01-01T00:00:00.000000Z');
 
         $this->expectException(TokenInvalidException::class);
-        $this->expectExceptionMessage('Issued At (iat) timestamp cannot be in the future');
+        $this->expectExceptionMessageIs('Issued At (iat) timestamp cannot be in the future');
 
         $validation = new IssuedAtClaim;
 

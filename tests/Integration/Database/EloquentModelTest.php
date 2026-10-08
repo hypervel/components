@@ -29,7 +29,7 @@ class EloquentModelTest extends DatabaseTestCase
         });
     }
 
-    public function testUserCanUpdateNullableDate()
+    public function testUserCanUpdateNullableDate(): void
     {
         $user = TestModel1::create([
             'nullable_date' => null,
@@ -44,7 +44,7 @@ class EloquentModelTest extends DatabaseTestCase
         $this->assertEquals($now->toDateString(), $user->nullable_date->toDateString());
     }
 
-    public function testAttributeChanges()
+    public function testAttributeChanges(): void
     {
         $user = TestModel2::create([
             'name' => $originalName = Str::random(), 'title' => Str::random(),
@@ -73,7 +73,7 @@ class EloquentModelTest extends DatabaseTestCase
         $this->assertTrue($user->wasChanged('name'));
     }
 
-    public function testDiscardChanges()
+    public function testDiscardChanges(): void
     {
         $user = TestModel2::create([
             'name' => $originalName = Str::random(), 'title' => Str::random(),
@@ -109,7 +109,7 @@ class EloquentModelTest extends DatabaseTestCase
         $this->assertEmpty($user->getPrevious());
     }
 
-    public function testInsertRecordWithReservedWordFieldName()
+    public function testInsertRecordWithReservedWordFieldName(): void
     {
         Schema::create('actions', function (Blueprint $table) {
             $table->id();
