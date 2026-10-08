@@ -402,13 +402,13 @@ class NodeTest extends NodeTestBase
 
     public function testSiblingsUseTheConfiguredParentColumn(): void
     {
-        DB::table('custom_parent_categories')->insert([
-            ['id' => 1, '_lft' => 1, '_rgt' => 6, 'depth' => 0, 'ancestor_id' => null],
-            ['id' => 2, '_lft' => 2, '_rgt' => 3, 'depth' => 1, 'ancestor_id' => 1],
-            ['id' => 3, '_lft' => 4, '_rgt' => 5, 'depth' => 1, 'ancestor_id' => 1],
+        DB::table('custom_column_categories')->insert([
+            ['id' => 1, 'lft' => 1, 'rgt' => 6, 'level' => 0, 'ancestor_id' => null],
+            ['id' => 2, 'lft' => 2, 'rgt' => 3, 'level' => 1, 'ancestor_id' => 1],
+            ['id' => 3, 'lft' => 4, 'rgt' => 5, 'level' => 1, 'ancestor_id' => 1],
         ]);
 
-        $node = CustomParentCategoryModel::with('siblings')->findOrFail(2);
+        $node = CustomColumnCategoryModel::with('siblings')->findOrFail(2);
         $relation = $node->siblings();
 
         $this->assertEquals([3], $node->siblings->pluck('id')->all());
@@ -416,18 +416,62 @@ class NodeTest extends NodeTestBase
         $this->assertSame('ancestor_id', $node->ancestors()->getForeignKeyName());
         $this->assertSame('ancestor_id', $node->descendants()->getForeignKeyName());
         $this->assertSame(
-            'custom_parent_categories.ancestor_id',
+            'custom_column_categories.ancestor_id',
             $relation->getQualifiedForeignKeyName(),
         );
         $this->assertSame(
-            'custom_parent_categories.ancestor_id',
+            'custom_column_categories.ancestor_id',
             $node->ancestors()->getQualifiedForeignKeyName(),
         );
         $this->assertSame(
-            'custom_parent_categories.ancestor_id',
+            'custom_column_categories.ancestor_id',
             $node->descendants()->getQualifiedForeignKeyName(),
         );
-        $this->assertTrue(CustomParentCategoryModel::whereKey(2)->has('siblings')->exists());
+        $this->assertTrue(CustomColumnCategoryModel::whereKey(2)->has('siblings')->exists());
+    }
+
+    public function testCustomColumnNamesMaintainTheTree(): void
+    {
+        $tree = static fn (): array => DB::table('custom_column_categories')
+            ->orderBy('lft')
+            ->get()
+            ->mapWithKeys(static fn (object $row): array => [$row->name => [
+                (int) $row->lft,
+                (int) $row->rgt,
+                (int) $row->level,
+                $row->ancestor_id === null ? null : (int) $row->ancestor_id,
+            ]])
+            ->all();
+
+        $root = CustomColumnCategoryModel::create([
+            'name' => 'root',
+            'children' => [
+                ['name' => 'first'],
+                ['name' => 'second'],
+            ],
+        ]);
+        [$first, $second] = $root->children->all();
+
+        // The relationship and the attribute reach the custom parent column's mutator.
+        $first->children()->create(['name' => 'child']);
+        CustomColumnCategoryModel::create(['name' => 'assigned', 'ancestor_id' => $second->getKey()]);
+
+        $this->assertTrue($second->up());
+        $this->assertTrue($first->delete());
+
+        $expected = [
+            'root' => [1, 6, 0, null],
+            'second' => [2, 5, 1, $root->getKey()],
+            'assigned' => [3, 4, 2, $second->getKey()],
+        ];
+
+        $this->assertSame($expected, $tree());
+        $this->assertSame(0, CustomColumnCategoryModel::getTotalErrors());
+
+        DB::table('custom_column_categories')->update(['lft' => 0, 'rgt' => 0, 'level' => 0]);
+
+        $this->assertSame(3, CustomColumnCategoryModel::fixTree());
+        $this->assertSame($expected, $tree());
     }
 
     public function testTreeRootSelectionDistinguishesInferenceNullZeroAndEmptyString(): void
@@ -594,13 +638,39 @@ class NodeTest extends NodeTestBase
     }
 }
 
-class CustomParentCategoryModel extends Model
+class CustomColumnCategoryModel extends Model
 {
     use HasNode;
 
     public bool $timestamps = false;
 
-    protected ?string $table = 'custom_parent_categories';
+    protected ?string $table = 'custom_column_categories';
+
+    protected array $fillable = ['name', 'ancestor_id'];
+
+    /**
+     * Get the lft key name.
+     */
+    public function getLftName(): string
+    {
+        return 'lft';
+    }
+
+    /**
+     * Get the rgt key name.
+     */
+    public function getRgtName(): string
+    {
+        return 'rgt';
+    }
+
+    /**
+     * Get the depth column name.
+     */
+    public function getDepthName(): string
+    {
+        return 'level';
+    }
 
     /**
      * Get the parent ID column name.
@@ -608,6 +678,14 @@ class CustomParentCategoryModel extends Model
     public function getParentIdName(): string
     {
         return 'ancestor_id';
+    }
+
+    /**
+     * Append the node to the assigned parent.
+     */
+    public function setAncestorIdAttribute(int|string|null $value): void
+    {
+        $this->setParentIdAttribute($value);
     }
 }
 

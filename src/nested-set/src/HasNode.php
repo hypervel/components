@@ -613,7 +613,7 @@ trait HasNode
     }
 
     /**
-     * Get query for nodes before current node in reversed order.
+     * Get query for nodes before current node.
      *
      * @return QueryBuilder<static>
      */

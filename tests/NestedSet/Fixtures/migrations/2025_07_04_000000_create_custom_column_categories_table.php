@@ -12,11 +12,12 @@ return new class extends Migration {
      */
     public function up(): void
     {
-        Schema::create('custom_parent_categories', function (Blueprint $table): void {
+        Schema::create('custom_column_categories', function (Blueprint $table): void {
             $table->id();
-            $table->unsignedInteger('_lft')->default(0);
-            $table->unsignedInteger('_rgt')->default(0);
-            $table->unsignedSmallInteger('depth')->default(0);
+            $table->string('name')->nullable();
+            $table->unsignedInteger('lft')->default(0);
+            $table->unsignedInteger('rgt')->default(0);
+            $table->unsignedSmallInteger('level')->default(0);
             $table->unsignedBigInteger('ancestor_id')->nullable();
         });
     }
@@ -26,6 +27,6 @@ return new class extends Migration {
      */
     public function down(): void
     {
-        Schema::dropIfExists('custom_parent_categories');
+        Schema::dropIfExists('custom_column_categories');
     }
 };
