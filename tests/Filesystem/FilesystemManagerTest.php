@@ -1813,6 +1813,40 @@ class FilesystemManagerTest extends TestCase
         }
     }
 
+    public function testCustomDriversThatAreNotPoolableReceiveTheirPoolOptions(): void
+    {
+        $container = $this->getContainer([
+            'disks' => [
+                'custom' => [
+                    'driver' => 'custom',
+                    'root' => $this->tempDir . '/custom-unpooled',
+                    'pool' => ['max_objects' => 2],
+                ],
+                'scoped-custom' => [
+                    'driver' => 'scoped',
+                    'disk' => 'custom',
+                    'prefix' => 'scoped',
+                    'pool' => ['max_objects' => 3],
+                ],
+            ],
+        ]);
+        Container::setInstance($container);
+        $received = [];
+        $manager = new FilesystemManager($container);
+        $manager->extend('custom', function (Container $app, array $config) use (&$received): FilesystemAdapter {
+            $received[] = $config['pool'] ?? null;
+            $adapter = new LocalFilesystemAdapter($config['root']);
+
+            return new FilesystemAdapter(new Flysystem($adapter), $adapter, $config);
+        });
+
+        $this->assertNotInstanceOf(FilesystemPoolProxy::class, $manager->disk('custom'));
+        $manager->disk('scoped-custom');
+
+        // A scoped disk's own pool options replace its base disk's, as for every scoped option.
+        $this->assertSame([['max_objects' => 2], ['max_objects' => 3]], $received);
+    }
+
     public function testPoolableBuiltInDriversIncludeTheLogicalNameInConstructionIdentity(): void
     {
         $config = [

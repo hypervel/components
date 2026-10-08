@@ -1205,7 +1205,7 @@ Storage::extend('dropbox', function (Application $app, array $config, ?string $n
 
 The closure must return an instance of `Hypervel\Filesystem\FilesystemAdapter`. The `$config` variable contains the values defined in `config/filesystems.php` for the specified disk. You may omit the third argument when your driver does not need the disk name.
 
-The optional `poolable` argument determines whether Hypervel should wrap the custom driver in an object pool. This value is `false` by default. You should set it to `true` for custom drivers that hold state that should not be shared across concurrent requests, such as cloud storage SDK clients.
+The optional `poolable` argument determines whether Hypervel should wrap the custom driver in an object pool. This value is `false` by default. You should set it to `true` for custom drivers that hold state that should not be shared across concurrent requests, such as cloud storage SDK clients. A poolable driver's `pool` option configures that pool, so it is left out of `$config`; other drivers receive it like any other option.
 
 Custom whole-driver pools include the logical disk name in their construction fingerprint. If the name does not affect your custom driver and several named disks may safely share one pool, configure the same `pool.fingerprint` for each disk. A shared `pool.name` may also choose the pool's identity, but it does not replace the shared fingerprint.
 

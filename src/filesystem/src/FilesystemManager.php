@@ -243,7 +243,8 @@ class FilesystemManager implements FactoryContract
                     $descriptor['servingRoutePrefix'],
                     fn () => $resolver($this->callCustomCreator($constructionConfig, $logicalName)),
                 )
-                : $resolver($this->callCustomCreator($constructionConfig, $logicalName));
+                // The manager only consumes the pool options of poolable drivers.
+                : $resolver($this->callCustomCreator($config, $logicalName));
         }
 
         if ($hasPool && ($driver === 's3' || $driver === 'gcs')) {
