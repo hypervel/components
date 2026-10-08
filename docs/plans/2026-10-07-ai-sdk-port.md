@@ -80,7 +80,7 @@ Add these boot-only hooks on the `Ai` facade/AiManager, with individually owned 
 Ai::resolveProviderConfigUsing(
     fn (string $name, array $baseConfig): array => $accounts->providerConfig($name, $baseConfig),
 );
-Ai::resolveConversationPartitionUsing('account_id', fn (): ?string => $accounts->currentId());
+Ai::resolveConversationPartitionUsing('account_id', fn (): int|string|null => $accounts->currentId());
 Ai::resolveEmbeddingsCacheScopeUsing(fn (): ?string => $accounts->cacheScope());
 Ai::captureContextUsing($captureOperationContext);
 ```
@@ -89,7 +89,7 @@ Here `$accounts` and `$captureOperationContext` are application-supplied worker-
 
 Provider config is evaluated per operation, including default-provider and vector-query paths, without mutating global config. Return an array, not null; configured model defaults remain in that resolved record. No redundant model-default hook. Retain bounded reuse only for genuinely fixed configuration. Remove Octane/queue listeners that flush a global on-demand registry; classify remaining fake/gateway/global mutators as boot/tests only.
 
-Partition registration follows Permission's immutable boot registration: a second/conflicting/late registration throws; after registration null/empty resolution fails closed. Cache scope null means unscoped central use; an empty string is invalid and throws at operation identity resolution. Capture hook null means no wrapper. Keep each hook's documentation precise about registration and resolver lifetime.
+Partition registration follows Permission's immutable boot registration: a second/conflicting/late registration throws; values accept `int|string`, while null/empty resolution fails closed. Compare persisted and resolved partition IDs as strings, as Permission does, so database integer/string representation does not change ownership. Cache scope null means unscoped central use; an empty string is invalid and throws at operation identity resolution. Capture hook null means no wrapper. Keep each hook's documentation precise about registration and resolver lifetime.
 
 ### Deferred operation context
 
@@ -233,7 +233,7 @@ Track the separate MCP port and integration verification in `docs/todo.md`. Its 
 - Symfony YAML is runtime. AWS remains optional for the split AI package with its real minimum (`3.369.1` in the reference); update the root minimum consistently using Composer after checking current compatible versions. No MCP dependency is needed for this port. Do not add redundant bundled extension requirements or compatibility branches for unsupported library versions.
 - Use the existing `Filesystem::fileExists()` and `directoryExists()` contract methods and remove the AI capability/size fallback; `exists()` retains file-or-directory semantics.
 - Ship typed config for all consumed settings, including conversations connection/tables/title behavior, embeddings TTL, remote allowed hosts, concurrency/batching options and skill paths. Defaults belong in config or one owning optional fallback constant, respecting shallow merges of replaceable nested records.
-- Port Pest/double tests to PHPUnit/Mockery using framework base cases. Put workbench classes/routes in package Fixtures and load them only where required. Preserve meaningful test coverage and approved exclusions; no blanket workbench/test omission.
+- Port Pest/double tests to PHPUnit/Mockery using framework base cases, mirroring upstream's Feature/Unit directories under `tests/Ai` and merging custom cases into their corresponding upstream test files. Put workbench classes/routes in package Fixtures and load them only where required. Preserve meaningful test coverage and approved exclusions; no blanket workbench/test omission.
 - Register process-global optional-package cleanup via grouped `callIfExists()` calls in `AfterEachTestSubscriber`; instance/context ownership is already reset by the framework. Add facade/type fixtures where public surfaces need them. Do not invent production observability APIs solely to inspect private test state.
 - Port the upstream AI SDK page already imported at `src/docs/ai-sdk.md` in place, after implementation is complete. Read it in full and update namespaces, installation/configuration, links, examples and behavior against the final code; retain applicable upstream explanations and MCP integration content, explaining its optional package requirement. Make the MCP section reflect the package's actual availability at merge: do not link to a missing MCP documentation page or present an unavailable package as installable. Finalize those links when the MCP package and page land. Add BYOK hooks, partitions and schema examples, custom stores/claims, unknown approval outcomes, queue choices, opt-in concurrency costs, stream context, cancellation limits and session pinning. Update navigation and AI-specific cross-links to the existing database, HTTP streaming, JSON schema, filesystem and watcher pages; their framework behavior is already documented. Brief README differences and porting entries link to the canonical AI page. Remove all obsolete listener/config/shim descriptions after their code is removed; do not leave the imported page in its Laravel form or create a second AI documentation page.
 
