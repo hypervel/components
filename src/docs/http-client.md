@@ -14,6 +14,7 @@
     - [Guzzle Middleware](#guzzle-middleware)
     - [Request Callbacks](#request-callbacks)
     - [Guzzle Options](#guzzle-options)
+        - [Proxies](#proxies)
     - [Telescope Recording](#telescope-recording)
     - [OpenTelemetry Tracing](#opentelemetry-tracing)
 - [Concurrent Requests](#concurrent-requests)
@@ -722,6 +723,23 @@ $response = Http::withoutGlobalConfiguration(
 
 The callback affects only the current coroutine. For parallel requests, call `withoutGlobalConfiguration` inside each task.
 
+<a name="proxies"></a>
+#### Proxies
+
+To send outgoing requests through a proxy, configure the `proxy` option using `Http::globalOptions` during application boot. Requests made through the HTTP client will inherit this configuration:
+
+```php
+Http::globalOptions([
+    'proxy' => 'http://egress-proxy.internal:8080',
+]);
+```
+
+Alternatively, Guzzle reads the `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` environment variables. `NO_PROXY` lists destinations that should be reached directly. These are outgoing proxies, separate from the reverse proxies that forward incoming requests to your application.
+
+If your application downloads URLs supplied by users, the proxy must reject loopback, private, link-local, and reserved IPv4 and IPv6 destinations after resolving their hostnames and connect to the address it checked. Blocking hostnames is not enough, because a public hostname can resolve to a private address. A filtering proxy such as [Smokescreen](https://github.com/stripe/smokescreen) provides destination filtering; an unrestricted forwarding proxy does not.
+
+Requests using `withDestinationPolicy` reject a proxy configured for their scheme. Select their proxy through the policy instead, as described in [Egress Proxies](#egress-proxies).
+
 <a name="telescope-recording"></a>
 ### Telescope Recording
 
@@ -1068,14 +1086,14 @@ class EgressProxyPolicy extends PublicDestinationPolicy
 }
 ```
 
-A proxy URL without a port uses its scheme's default port: 80 for `http` and 443 for `https`. The policy then checks and pins the proxy's address instead of the destination's. Since proxies usually run on private addresses, allow the proxy's address using `allowedNetworks` or `allowsAddress`. Destinations written as IP addresses are still checked, but hostnames are resolved by the proxy, so the proxy itself must refuse private destinations. A filtering egress proxy such as [Smokescreen](https://github.com/stripe/smokescreen) does this.
+A proxy URL without a port uses its scheme's default port: 80 for `http` and 443 for `https`. The policy then checks and pins the proxy's address instead of the destination's. Since proxies usually run on private addresses, allow the proxy's address using `allowedNetworks` or `allowsAddress`. Destinations written as IP addresses are still checked, but hostnames are resolved by the proxy, which must enforce the [destination filtering requirements](#proxies).
 
 If the proxy cannot be resolved or refuses the connection, a `Hypervel\Http\Client\Destinations\ProxyConnectionException` is thrown. It extends `ConnectionException`, and lets you tell a failure of your own egress path apart from a failure of the destination.
 
 <a name="destination-policy-limitations"></a>
 ### Limitations
 
-Pinning relies on Guzzle's cURL transport and libcurl 7.75 or newer. Streaming is supported inside a Swoole coroutine with native cURL hooks enabled. Restricted requests may not use the PHP-stream fallback, set their own `proxy` or raw `curl` options, or use a custom handler from the `setHandler` method; such requests throw a `DisallowedDestinationException`. To write a large response directly to a file, use the `sink` method.
+Pinning relies on Guzzle's cURL transport and libcurl 7.75 or newer. Streaming is supported inside a Swoole coroutine with native cURL hooks enabled. Restricted requests may not use the PHP-stream fallback, set raw `curl` options, or use a custom handler from the `setHandler` method. A proxy configured for the request's scheme is also rejected, including through global options or `HTTP_PROXY` / `HTTPS_PROXY`; select it through the policy instead. These requests throw a `DisallowedDestinationException`. `NO_PROXY` on its own does not prevent restricted requests. Other environment proxy fallbacks, such as `all_proxy`, do not override the policy's route. To write a large response directly to a file, use the `sink` method.
 
 If the installed cURL transport lacks a required capability, a `Hypervel\Http\Client\Destinations\DestinationPolicyException` is thrown. These failures are never retried, and your retry callback is not called, because another attempt cannot change the installed transport.
 

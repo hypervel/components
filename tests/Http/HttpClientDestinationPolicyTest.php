@@ -126,6 +126,45 @@ class HttpClientDestinationPolicyTest extends TestCase
         return [[false], [true]];
     }
 
+    #[DataProvider('nonRoutingProxyEnvironments')]
+    public function testNoProxyEnvironmentDoesNotRejectADirectRequest(string $httpsProxy): void
+    {
+        $environment = [
+            'HTTP_PROXY' => '',
+            'HTTPS_PROXY' => $httpsProxy,
+            'NO_PROXY' => 'destination.invalid',
+        ];
+        $original = array_intersect_key($_SERVER, $environment);
+        $_SERVER = array_replace($_SERVER, $environment);
+
+        try {
+            $server = LoopbackHttpServer::start();
+            $response = $this->factory()
+                ->withDestinationPolicy($this->loopbackPolicy('destination.invalid'))
+                ->get("http://destination.invalid:{$server->port}/probe");
+
+            $this->assertSame('OK', $response->body());
+            $this->assertStringStartsWith('GET /probe HTTP/1.1', $server->request());
+        } finally {
+            foreach ($environment as $key => $value) {
+                unset($_SERVER[$key]);
+            }
+
+            $_SERVER = array_replace($_SERVER, $original);
+        }
+    }
+
+    /**
+     * Provide environment defaults that configure no proxy for an HTTP request.
+     */
+    public static function nonRoutingProxyEnvironments(): array
+    {
+        return [
+            'bypass only' => [''],
+            'proxy for a different scheme' => ['http://proxy.invalid:8080'],
+        ];
+    }
+
     /**
      * @param Closure(PendingRequest): PendingRequest $configure
      */
@@ -163,7 +202,7 @@ class HttpClientDestinationPolicyTest extends TestCase
         ];
         yield 'caller proxy' => [
             static fn (PendingRequest $request): PendingRequest => $request->withOptions(['proxy' => 'http://proxy.example:8080']),
-            'Destination-restricted requests cannot set the [proxy] option; select proxies in the destination policy.',
+            'Destination-restricted requests cannot use a proxy configured for this scheme; select proxies in the destination policy.',
         ];
         yield 'raw cURL options' => [
             static fn (PendingRequest $request): PendingRequest => $request->withOptions(['curl' => [CURLOPT_TCP_KEEPALIVE => 1]]),

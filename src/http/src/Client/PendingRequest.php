@@ -2001,11 +2001,17 @@ class PendingRequest implements Transient
         RequestInterface $request,
         array $options,
     ): PromiseInterface {
+        $proxy = $options['proxy'] ?? '';
+
+        if (is_array($proxy)) {
+            $proxy = $proxy[$request->getUri()->getScheme()] ?? '';
+        }
+
         // The pins only bind the cURL handler, and raw cURL or proxy options could route around them.
         $unsupported = match (true) {
             ! empty($options['stream']) && ! CurlStreamingHandler::supports($options) => 'cannot stream responses with the fallback transport; use [sink] instead',
             $this->handler !== null => 'cannot use a custom handler',
-            ($options['proxy'] ?? '') !== '' => 'cannot set the [proxy] option; select proxies in the destination policy',
+            $proxy !== '' => 'cannot use a proxy configured for this scheme; select proxies in the destination policy',
             ! empty($options['curl']) => 'cannot set raw [curl] options',
             default => null,
         };
