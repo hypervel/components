@@ -825,6 +825,44 @@ $response = (new ImageAnalyzer)->prompt(
 );
 ```
 
+<a name="remote-attachments"></a>
+#### Remote Attachments
+
+You may create an attachment from a remote URL using the file's `fromUrl` method:
+
+```php
+use Hypervel\Ai\Files\Document;
+
+$document = Document::fromUrl('https://example.com/report.pdf');
+```
+
+When the SDK downloads a remote file, it applies the HTTP client's [destination checks](/docs/{{version}}/http-client#restricting-destinations) to the URL and each redirect. Direct connections are pinned to the checked addresses. Private and reserved addresses are rejected unless the hostname or IP address is listed in `ai.remote_files.allowed_hosts`. These explicitly trusted hosts skip DNS and address checks, so they may also be used when only your proxy can resolve them. URLs containing embedded credentials, such as `https://user:password@example.com/file`, are rejected. Signed URLs with credentials in their query string remain supported.
+
+Downloads inherit your application's outgoing proxy configuration; no separate AI proxy setting is needed. When a proxy resolves the destination hostname, it must enforce the [proxy destination filtering requirements](/docs/{{version}}/http-client#proxies). The default DNS resolver has a 10-second limit per untrusted hostname lookup, separate from the HTTP client's connection and request timeouts.
+
+Downloads are limited to 32 MiB of decoded content by default. You may set a different positive byte limit, or `null` to disable the limit, in your `config/ai.php` file:
+
+```php
+'remote_files' => [
+    'allowed_hosts' => ['files.internal.example'],
+    'max_size' => 64 * 1024 * 1024,
+],
+```
+
+The limit also applies to allowed hosts and compressed responses. A blocked destination or oversized download throws an `InvalidArgumentException`. The limit applies to each file; concurrent downloads and preparing files for a provider can use additional memory.
+
+If a file requires HTTP authentication, download it using the HTTP client's authentication methods and pass the downloaded content or local path to the SDK. The attachment's `withHeaders` method configures the upload to the AI provider, not the remote download.
+
+For applications that need a custom DNS resolver, register `Hypervel\Ai\Files\UntrustedUrl::resolveUsing()` during application boot. The callback receives a hostname and returns its IP addresses; those addresses still undergo destination validation.
+
+Faked downloads still run destination checks and enforce the size limit. To keep tests independent of external DNS, register a resolver that returns a public address:
+
+```php
+use Hypervel\Ai\Files\UntrustedUrl;
+
+UntrustedUrl::resolveUsing(fn (string $host): array => ['93.184.216.34']);
+```
+
 <a name="streaming"></a>
 ### Streaming
 

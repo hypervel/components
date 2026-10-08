@@ -26,6 +26,7 @@
     - [Scheduling](#scheduling)
     - [Maintenance Mode](#maintenance-mode)
     - [HTTP Client and Concurrency](#http-client-and-concurrency)
+    - [AI SDK](#ai-sdk)
     - [Saloon](#saloon)
     - [Broadcasting](#broadcasting)
     - [JSON:API Resources](#jsonapi-resources)
@@ -515,6 +516,11 @@ For concurrent HTTP requests, replace Laravel's `Http::pool` and `Http::batch` p
 `withNtlmAuth()` and Saloon's NTLM authenticator are not provided. Integrations requiring NTLM must supply their own authentication implementation.
 
 Hypervel's `Concurrency` facade provides `coroutine`, `process`, and `sync` drivers. Laravel's `fork` driver is not available because coroutines are Hypervel's native lightweight execution model. Use the default `coroutine` driver for normal concurrent application work and reserve `process` for work that requires operating system process isolation. See the [concurrency documentation](/docs/{{version}}/concurrency#choosing-a-driver).
+
+<a name="ai-sdk"></a>
+### AI SDK
+
+Remote attachments share the HTTP client's destination checks instead of `UntrustedUrl`'s protected `validate`, `resolve`, and `isBlocked` helpers and hostname-blocklist constants. Adapt subclasses that override them. URLs with embedded credentials are rejected; fetch authenticated files explicitly before attaching them. Configure `ai.remote_files.max_size` if your downloads exceed the default 32 MiB limit. See [remote attachments](/docs/{{version}}/ai-sdk#remote-attachments).
 
 <a name="saloon"></a>
 ### Saloon

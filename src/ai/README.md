@@ -15,4 +15,6 @@ Skill discovery is cached for the fixed paths in `ai.skills.cached_paths`. Reloa
 
 The conversation migrations use Hypervel's column types, indexes, and approval claim fields. Existing Laravel conversation data requires a schema migration before use.
 
+Remote downloads share the HTTP client's destination checks. The protected `UntrustedUrl::validate()`, `resolve()`, and `isBlocked()` helpers and hostname-blocklist constants are removed; `resolveUsing()` remains available. URLs containing embedded credentials are rejected. Downloads are limited to 32 MiB of decoded content by default; configure `ai.remote_files.max_size` to change or disable the limit. See [remote attachments](https://hypervel.org/docs/ai-sdk#remote-attachments).
+
 Ported from: https://github.com/laravel/ai
