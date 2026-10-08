@@ -135,7 +135,7 @@ class Server implements OnRequestInterface, BootstrapsForServer
             }
 
             $emissionStarted = true;
-            ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/2', request: $request ?? null, streamId: $swooleRequest->streamId ?? 0);
+            ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/2', request: $request ?? null);
         } catch (CanceledException $exception) {
             $cancelled = true;
 
@@ -158,7 +158,7 @@ class Server implements OnRequestInterface, BootstrapsForServer
             try {
                 $response = $this->responses->error($this->exceptions->map($throwable));
                 $emissionStarted = true;
-                ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/2', request: $request ?? null, streamId: $swooleRequest->streamId ?? 0);
+                ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/2', request: $request ?? null);
             } catch (CanceledException $exception) {
                 $cancelled = true;
 
