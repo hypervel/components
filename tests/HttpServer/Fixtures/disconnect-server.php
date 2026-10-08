@@ -89,7 +89,7 @@ $server->init(new ServerConfig([
                         }
                     })()))->cancelOnDisconnect();
 
-                    ResponseBridge::send($response, $native, streamId: $request->streamId ?? 0);
+                    ResponseBridge::send($response, $native);
                 },
                 Event::ON_CLOSE => static function (NativeServer $server, int $connection) use (&$proxyAuthorizations): void {
                     unset($proxyAuthorizations[$connection]);
