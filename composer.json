@@ -317,6 +317,7 @@
             "Hypervel\\Workbench\\": "src/workbench/src/"
         },
         "files": [
+            "src/ai/src/functions.php",
             "src/coordinator/src/functions.php",
             "src/coroutine/src/functions.php",
             "src/engine/src/functions.php",
