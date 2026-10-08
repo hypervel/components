@@ -480,8 +480,25 @@ class PooledConnection implements PoolConnection
             $this->lease = null;
         }
 
+        $discard = false;
+
         try {
-            if ($cancellationFailure === null
+            // Callbacks may leave a raw transaction outside the framework counters.
+            if ($this->connection?->hasPhysicalTransaction()) {
+                $discard = true;
+                $this->logger->error('Database transaction was not committed or rolled back before release.');
+            }
+        } catch (CanceledException $transactionCancellation) {
+            $discard = true;
+            $cancellationFailure ??= $transactionCancellation;
+        } catch (Throwable $exception) {
+            $discard = true;
+            $ordinaryFailure ??= $exception;
+        }
+
+        try {
+            if (! $discard
+                && $cancellationFailure === null
                 && $this->connection !== null
                 && ! $this->connection->isReusable()
             ) {
@@ -494,10 +511,14 @@ class PooledConnection implements PoolConnection
             $ordinaryFailure ??= $exception;
         }
 
-        $this->availableForReuse = true;
+        $this->availableForReuse = ! $discard;
 
         try {
-            $this->pool->release($this);
+            if ($discard) {
+                $this->pool->discard($this);
+            } else {
+                $this->pool->release($this);
+            }
         } catch (CanceledException $releaseCancellation) {
             $cancellationFailure ??= $releaseCancellation;
         } catch (Throwable $exception) {
