@@ -9,7 +9,6 @@ use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\NestedSet\HasNode;
 use Hypervel\NestedSet\NestedSet;
-use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
@@ -91,75 +90,6 @@ abstract class NestedSetDatabaseTestCase extends DatabaseTestCase
         ])->isBroken());
         $this->assertFalse(UuidNestedSetNode::scoped([
             'tenant_id' => self::SECOND_TENANT,
-        ])->isBroken());
-    }
-
-    public function testCompositeDiagnosticsArePortable(): void
-    {
-        $root = $this->createUuidNode(
-            '018f3a2b-0000-7000-8000-000000000501',
-            self::FIRST_TENANT,
-            'root',
-        );
-        $this->createUuidNode(
-            '018f3a2b-0000-7000-8000-000000000502',
-            self::FIRST_TENANT,
-            'child',
-            $root,
-        );
-
-        $this->assertSame([
-            'invalid_intervals' => 0,
-            'duplicate_endpoints' => 0,
-            'missing_endpoints' => 0,
-            'crossing_intervals' => 0,
-            'missing_parent' => 0,
-            'wrong_parent' => 0,
-            'wrong_depth' => 0,
-        ], UuidNestedSetNode::scoped([
-            'tenant_id' => self::FIRST_TENANT,
-        ])->countErrors());
-    }
-
-    public function testUuidTreeRepairRemainsScopeCorrect(): void
-    {
-        $root = $this->createUuidNode(
-            '018f3a2b-0000-7000-8000-000000000301',
-            self::FIRST_TENANT,
-            'root',
-        );
-        $child = $this->createUuidNode(
-            '018f3a2b-0000-7000-8000-000000000302',
-            self::FIRST_TENANT,
-            'child',
-            $root,
-        );
-        $otherRoot = $this->createUuidNode(
-            '018f3a2b-0000-7000-8000-000000000401',
-            self::SECOND_TENANT,
-            'other root',
-        );
-
-        DB::table('nested_set_uuid_nodes')
-            ->where('id', $child->getKey())
-            ->update([
-                NestedSet::LFT => 1,
-                NestedSet::PARENT_ID => '018f3a2b-0000-7000-8000-000000000999',
-                NestedSet::DEPTH => 0,
-            ]);
-
-        UuidNestedSetNode::scoped([
-            'tenant_id' => self::FIRST_TENANT,
-        ])->fixTree();
-
-        $child->refresh();
-        $otherRoot->refresh();
-
-        $this->assertNull($child->getParentId());
-        $this->assertSame(0, $child->getDepth());
-        $this->assertSame([1, 2], $otherRoot->getBounds());
-        $this->assertFalse(UuidNestedSetNode::scoped([
-            'tenant_id' => self::FIRST_TENANT,
         ])->isBroken());
     }
 

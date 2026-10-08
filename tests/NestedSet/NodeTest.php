@@ -295,6 +295,23 @@ class NodeTest extends NodeTestBase
         ];
     }
 
+    public function testRebuildDeletionSatisfiesARestrictingParentKey(): void
+    {
+        $root = ConstrainedCategoryModel::create(['name' => 'root', 'children' => [
+            ['name' => 'branch', 'children' => [
+                ['name' => 'twig', 'children' => [['name' => 'leaf']]],
+            ]],
+            ['name' => 'other branch'],
+        ]]);
+
+        ConstrainedCategoryModel::rebuildTree([
+            ['id' => $root->getKey(), 'children' => [['name' => 'new branch']]],
+        ], delete: true);
+
+        $this->assertSame(['root', 'new branch'], ConstrainedCategoryModel::defaultOrder()->pluck('name')->all());
+        $this->assertFalse(ConstrainedCategoryModel::isBroken());
+    }
+
     public function testFailedNodeDeletionRollsBackItsDeletedDescendants(): void
     {
         ConstrainedCategoryModel::create(['name' => 'root', 'children' => [
@@ -547,14 +564,31 @@ class NodeTest extends NodeTestBase
         $this->assertSame(5, $node->fresh()->getLft());
     }
 
-    public function testFixTreeIgnoresVisibilityGlobalScopes(): void
+    public function testCountErrorsIgnoresGlobalScope(): void
     {
         $this->assertNull(GloballyScopedCategoryModel::find(8));
+        $this->assertSame(Category::countErrors(), GloballyScopedCategoryModel::countErrors());
+        $this->assertSame(0, GloballyScopedCategoryModel::getTotalErrors());
+        $this->assertFalse(GloballyScopedCategoryModel::isBroken());
 
         Category::whereKey(8)->update(['_lft' => 999]);
 
-        GloballyScopedCategoryModel::fixTree();
+        $errors = GloballyScopedCategoryModel::countErrors();
 
+        $this->assertSame(1, $errors['invalid_intervals']);
+        $this->assertSame(Category::countErrors(), $errors);
+        $this->assertTrue(GloballyScopedCategoryModel::isBroken());
+    }
+
+    public function testFixTreeIgnoresGlobalScope(): void
+    {
+        // Repair sees the hidden galaxy, so a healthy tree needs no changes.
+        $this->assertSame(0, GloballyScopedCategoryModel::fixTree());
+        $this->assertSame(0, GloballyScopedCategoryModel::fixSubtree(GloballyScopedCategoryModel::findOrFail(7)));
+
+        Category::whereKey(8)->update(['_lft' => 999]);
+
+        $this->assertGreaterThan(0, GloballyScopedCategoryModel::fixTree());
         $this->assertTreeNotBroken();
         $this->assertTrue(Category::find(8)->isDescendantOf(Category::find(7)));
     }

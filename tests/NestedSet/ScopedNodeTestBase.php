@@ -115,13 +115,23 @@ abstract class ScopedNodeTestBase extends TestCase
      */
     protected function assertTreeNotBroken(int $menuId): void
     {
-        $this->assertFalse($this->menuItem::scoped(['menu_id' => $menuId])->isBroken());
+        $this->assertSame([
+            'invalid_intervals' => 0,
+            'duplicate_endpoints' => 0,
+            'missing_endpoints' => 0,
+            'crossing_intervals' => 0,
+            'missing_parent' => 0,
+            'wrong_parent' => 0,
+            'wrong_depth' => 0,
+        ], $this->menuItem::scoped(['menu_id' => $menuId])->countErrors());
     }
 
     public function testNotBroken(): void
     {
         $this->assertTreeNotBroken(1);
         $this->assertTreeNotBroken(2);
+        $this->assertFalse($this->menuItem::scoped(['menu_id' => 1])->isBroken());
+        $this->assertFalse($this->menuItem::scoped(['menu_id' => 2])->isBroken());
     }
 
     public function testDiagnosticsRequireAConcreteScopeSelection(): void
@@ -594,9 +604,21 @@ abstract class ScopedNodeTestBase extends TestCase
         );
     }
 
-    public function testFixTreeRepairsOnlyTheSelectedScope(): void
-    {
-        DB::table('menu_items')->where('id', $this->key(5))->update(['_lft' => 3]);
+    #[DataProvider('scopedRepairs')]
+    public function testFixTreeRepairsOnlyTheSelectedScope(
+        array $changes,
+        array $errors,
+        ?int $parent,
+        int $depth,
+    ): void {
+        if (isset($changes['parent_id'])) {
+            $changes['parent_id'] = $this->key($changes['parent_id']);
+        }
+
+        DB::table('menu_items')->where('id', $this->key(5))->update($changes);
+
+        $this->assertSame($errors, array_filter($this->menuItem::scoped(['menu_id' => 1])->countErrors()));
+
         DB::flushQueryLog();
 
         $this->menuItem::scoped(['menu_id' => 1])->fixTree();
@@ -615,8 +637,34 @@ abstract class ScopedNodeTestBase extends TestCase
                 $query,
             ) === 1,
         ));
+
+        $node = $this->menuItem::findOrFail($this->key(5));
+
+        $this->assertSame($parent === null ? null : $this->key($parent), $node->getParentId());
+        $this->assertSame($depth, $node->getDepth());
         $this->assertTreeNotBroken(1);
         $this->assertOtherScopeNotAffected();
+    }
+
+    /**
+     * Get the corruptions of the first menu's child with its errors and repaired parentage.
+     */
+    public static function scopedRepairs(): array
+    {
+        return [
+            'moved left bound' => [
+                ['_lft' => 3],
+                ['invalid_intervals' => 1, 'duplicate_endpoints' => 1, 'wrong_parent' => 1],
+                2,
+                1,
+            ],
+            'parent in another scope' => [
+                ['parent_id' => 4],
+                ['missing_parent' => 1],
+                null,
+                0,
+            ],
+        ];
     }
 
     public function testSaveAsRoot(): void

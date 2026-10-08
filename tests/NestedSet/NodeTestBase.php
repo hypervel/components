@@ -2463,6 +2463,94 @@ abstract class NodeTestBase extends TestCase
     public function testCountsTreeErrors(): void
     {
         $this->assertTreeNotBroken();
+
+        $this->category::where('id', '=', $this->key(5))->update(['_lft' => 14]);
+        $this->category::where('id', '=', $this->key(8))->update(['parent_id' => $this->key(2)]);
+        $this->category::where('id', '=', $this->key(11))->update(['_lft' => 20]);
+        $this->category::where('id', '=', $this->key(4))->update(['parent_id' => $this->key(24)]);
+
+        $this->assertSame([
+            'invalid_intervals' => 1,
+            'duplicate_endpoints' => 2,
+            'missing_endpoints' => 0,
+            'crossing_intervals' => 0,
+            'missing_parent' => 1,
+            'wrong_parent' => 3,
+            'wrong_depth' => 1,
+        ], $this->category::countErrors());
+    }
+
+    public function testCountsWrongParentErrors(): void
+    {
+        $this->category::where('id', '=', $this->key(8))->update(['parent_id' => $this->key(5)]);
+
+        $this->assertSame([
+            'invalid_intervals' => 0,
+            'duplicate_endpoints' => 0,
+            'missing_endpoints' => 0,
+            'crossing_intervals' => 0,
+            'missing_parent' => 0,
+            'wrong_parent' => 1,
+            'wrong_depth' => 1,
+        ], $this->category::countErrors());
+    }
+
+    public function testCountsNestedWrongParentErrors(): void
+    {
+        $this->category::where('id', '=', $this->key(8))->update(['parent_id' => $this->key(1)]);
+
+        $errors = $this->category::countErrors();
+
+        // A misparented node counts once, however many nodes lie between it and its stored parent.
+        $this->assertSame(1, $errors['wrong_parent']);
+        $this->assertSame(1, $errors['wrong_depth']);
+
+        // With a matching depth, the node's endpoints disagree with the intervals around them.
+        $this->category::where('id', '=', $this->key(8))->update(['depth' => 1]);
+
+        $errors = $this->category::countErrors();
+
+        $this->assertSame(0, $errors['wrong_parent']);
+        $this->assertSame(0, $errors['wrong_depth']);
+        $this->assertSame(2, $errors['crossing_intervals']);
+    }
+
+    public function testIsBrokenDetectsWrongParentErrors(): void
+    {
+        $this->category::where('id', '=', $this->key(8))->update(['parent_id' => $this->key(5)]);
+
+        $this->assertTrue($this->category::isBroken());
+    }
+
+    public function testIsBrokenDetectsDuplicateErrors(): void
+    {
+        $this->category::where('id', '=', $this->key(11))->update(['_lft' => 3]);
+
+        DB::flushQueryLog();
+
+        $this->assertTrue($this->category::isBroken());
+
+        foreach (DB::getQueryLog() as $query) {
+            $this->assertStringNotContainsString('join', strtolower($query['query']));
+        }
+    }
+
+    public function testIsBrokenShortCircuitsOnOddness(): void
+    {
+        $this->category::where('id', '=', $this->key(5))->update([
+            '_lft' => 14,
+            '_rgt' => 13,
+        ]);
+
+        DB::flushQueryLog();
+
+        $this->assertTrue($this->category::isBroken());
+
+        $queries = DB::getQueryLog();
+
+        $this->assertCount(1, $queries);
+        $this->assertStringContainsString('_lft', $queries[0]['query']);
+        $this->assertStringNotContainsString('join', strtolower($queries[0]['query']));
     }
 
     public function testCountsInvalidIntervals(): void
@@ -2505,36 +2593,6 @@ abstract class NodeTestBase extends TestCase
         $this->assertSame(0, $errors['duplicate_endpoints']);
         $this->assertSame(0, $errors['missing_endpoints']);
         $this->assertGreaterThan(0, $errors['crossing_intervals']);
-    }
-
-    public function testCountsMissingAndWrongParents(): void
-    {
-        $this->category::whereKey($this->key(4))->update(['parent_id' => $this->key(24)]);
-        $this->category::whereKey($this->key(8))->update(['parent_id' => $this->key(2)]);
-
-        $errors = $this->category::countErrors();
-
-        $this->assertSame(1, $errors['missing_parent']);
-        $this->assertSame(1, $errors['wrong_parent']);
-    }
-
-    public function testWrongParentAndWrongDepthCanBeReportedTogether(): void
-    {
-        $this->category::whereKey($this->key(8))->update(['parent_id' => $this->key(5)]);
-
-        $errors = $this->category::countErrors();
-
-        $this->assertSame(1, $errors['wrong_parent']);
-        $this->assertSame(1, $errors['wrong_depth']);
-    }
-
-    public function testIsBrokenShortCircuitsBeforeExpensiveChecks(): void
-    {
-        $this->category::whereKey($this->key(3))->update(['_lft' => 0]);
-        DB::flushQueryLog();
-
-        $this->assertTrue($this->category::isBroken());
-        $this->assertCount(1, DB::getQueryLog());
     }
 
     public function testCreatesNode(): void
@@ -2872,6 +2930,25 @@ abstract class NodeTestBase extends TestCase
         $this->assertEquals(null, $node->getParentId());
     }
 
+    public function testFixTreeRepairsBranchingParentBuckets(): void
+    {
+        $this->category::query()->update([
+            '_lft' => 0,
+            '_rgt' => 0,
+            'depth' => 0,
+        ]);
+
+        $fixed = $this->category::fixTree();
+
+        $this->assertSame(11, $fixed);
+        $this->assertTreeNotBroken();
+
+        $galaxy = $this->category::find($this->key(8));
+
+        $this->assertSame(3, $galaxy->getDepth());
+        $this->assertSame($this->keys(1, 5, 7), $galaxy->getAncestors()->pluck('id')->all());
+    }
+
     public function testFixTreePromotesOrphanedBranchesToRoots(): void
     {
         $this->category::whereKey($this->key(2))->update(['parent_id' => $this->key(24)]);
@@ -2900,18 +2977,26 @@ abstract class NodeTestBase extends TestCase
 
     public function testFixTreeSelectsExplicitObserverColumns(): void
     {
-        $names = [];
+        $retrieved = [];
+        $saved = [];
 
-        $this->category::saving(function (Category $model) use (&$names): void {
-            $names[] = $model->name;
+        $this->category::retrieved(function (Category $model) use (&$retrieved): void {
+            $retrieved[] = $model->getKey();
         });
+        $this->category::saving(function (Category $model) use (&$saved): void {
+            $saved[] = [$model->getKey(), $model->name];
+        });
+
+        // Repair hydrates only the nodes it saves.
+        $this->assertSame(0, $this->category::fixTree(extraColumns: ['name']));
+        $this->assertSame([], $retrieved);
+        $this->assertSame([], $saved);
 
         $this->category::whereKey($this->key(8))->update(['_lft' => 11]);
 
-        $this->category::fixTree(extraColumns: ['name']);
-
-        $this->assertNotEmpty($names);
-        $this->assertNotContains(null, $names);
+        $this->assertSame(1, $this->category::fixTree(extraColumns: ['name']));
+        $this->assertSame([$this->key(8)], $retrieved);
+        $this->assertSame([[$this->key(8), 'galaxy']], $saved);
         $this->assertTreeNotBroken();
     }
 
@@ -2961,7 +3046,7 @@ abstract class NodeTestBase extends TestCase
         );
     }
 
-    public function testFixTreeRepairsDeepParentChainsIteratively(): void
+    public function testFixTreeHandlesDeepParentChainsIteratively(): void
     {
         DB::table('categories')->delete();
 
@@ -2981,11 +3066,12 @@ abstract class NodeTestBase extends TestCase
 
         DB::table('categories')->insert($rows);
 
-        $this->category::fixTree();
+        $fixed = $this->category::fixTree();
 
         $root = $this->category::find($this->key(1));
         $leaf = $this->category::find($this->key($count));
 
+        $this->assertSame($count, $fixed);
         $this->assertSame([1, $count * 2], $root->getBounds());
         $this->assertSame([$count, $count + 1], $leaf->getBounds());
         $this->assertSame($count - 1, $leaf->getDepth());
@@ -3042,8 +3128,17 @@ abstract class NodeTestBase extends TestCase
             ['id' => $this->key(3), 'name' => 'second', '_lft' => 4, '_rgt' => 5, 'parent_id' => $this->key(1), 'depth' => 1],
         ]);
 
-        $this->category::fixSubtree($this->category::findOrFail($this->key(1)));
+        $saving = [];
 
+        $this->category::saving(function (Category $model) use (&$saving): void {
+            $saving[] = $model->getKey();
+        });
+
+        $fixed = $this->category::fixSubtree($this->category::findOrFail($this->key(1)));
+
+        // The gap update counts the shifted child, which repair then saves back with the grown root.
+        $this->assertSame($this->keys(3, 1), $saving);
+        $this->assertSame(2, $fixed);
         $this->assertSame([1, 6], $this->category::findOrFail($this->key(1))->getBounds());
         $this->assertSame([2, 3], $this->category::findOrFail($this->key(2))->getBounds());
         $this->assertSame([4, 5], $this->category::findOrFail($this->key(3))->getBounds());
@@ -3688,6 +3783,23 @@ abstract class NodeTestBase extends TestCase
         $this->assertEquals($this->key(3), $node->getParentId());
     }
 
+    public function testRebuildTreeHandlesNestedPayloadAttributes(): void
+    {
+        $this->category::rebuildTree([
+            [
+                'id' => $this->key(1),
+                'name' => 'store v2',
+                'children' => [
+                    ['id' => $this->key(2), 'name' => 'notebooks v2'],
+                ],
+            ],
+        ]);
+
+        $this->assertTreeNotBroken();
+        $this->assertSame('store v2', $this->category::find($this->key(1))->name);
+        $this->assertSame('notebooks v2', $this->category::find($this->key(2))->name);
+    }
+
     public function testUnchangedRebuildDoesNotWriteOrReloadNodeIdentity(): void
     {
         $this->resetRebuildQueryFixture();
@@ -3765,11 +3877,20 @@ abstract class NodeTestBase extends TestCase
             ['id' => $this->key(3), 'name' => 'second', '_lft' => 4, '_rgt' => 5, 'parent_id' => $this->key(1), 'depth' => 1],
         ]);
 
-        $this->category::rebuildSubtree($this->category::findOrFail($this->key(1)), [
+        $saving = [];
+
+        $this->category::saving(function (Category $model) use (&$saving): void {
+            $saving[] = $model->getKey();
+        });
+
+        $fixed = $this->category::rebuildSubtree($this->category::findOrFail($this->key(1)), [
             ['id' => $this->key(2)],
             ['id' => $this->key(3)],
         ]);
 
+        // Both children are saved with their data; after the gap update, only the shifted child and the grown root are.
+        $this->assertSame($this->keys(2, 3, 3, 1), $saving);
+        $this->assertSame(2, $fixed);
         $this->assertSame([1, 6], $this->category::findOrFail($this->key(1))->getBounds());
         $this->assertSame([2, 3], $this->category::findOrFail($this->key(2))->getBounds());
         $this->assertSame([4, 5], $this->category::findOrFail($this->key(3))->getBounds());
@@ -3874,6 +3995,18 @@ abstract class NodeTestBase extends TestCase
         $nodes = $this->category::withTrashed()->get();
 
         $this->assertTrue($nodes->count() > 1);
+    }
+
+    public function testRebuildTreeSoftDeletesRemovedNodes(): void
+    {
+        $this->category::rebuildTree([
+            ['id' => $this->key(1), 'name' => 'store'],
+        ], true);
+
+        $deleted = $this->category::withTrashed()->find($this->key(2));
+
+        $this->assertNotNull($deleted);
+        $this->assertNotNull($deleted->{$deleted->getDeletedAtColumn()});
     }
 
     public function testRebuildFailsWithInvalidPK(): void

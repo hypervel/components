@@ -14,6 +14,7 @@ use Hypervel\NestedSet\NestedSet;
 use Hypervel\Support\Collection as BaseCollection;
 use InvalidArgumentException;
 use LogicException;
+use stdClass;
 
 class QueryBuilder extends EloquentBuilder
 {
@@ -524,9 +525,19 @@ class QueryBuilder extends EloquentBuilder
     /**
      * Create a nested set lookup that inherits the current read route.
      */
-    protected function newNestedSetLookupQuery(): self
+    protected function newNestedSetLookupQuery(?string $table = null): self
     {
-        $query = $this->model->newNestedSetQuery(); /* @phpstan-ignore method.notFound */
+        $query = $this->model->newNestedSetQuery($table); /* @phpstan-ignore method.notFound */
+
+        return $this->query->useWritePdo ? $query->useWritePdo() : $query;
+    }
+
+    /**
+     * Create a base query for wrapping lookups that inherits the current read route.
+     */
+    protected function newLookupBaseQuery(): BaseQueryBuilder
+    {
+        $query = $this->query->newQuery();
 
         return $this->query->useWritePdo ? $query->useWritePdo() : $query;
     }
@@ -645,7 +656,7 @@ class QueryBuilder extends EloquentBuilder
             'wrong_depth' => $this->getWrongDepthQuery(),
         ];
 
-        $query = $this->query->newQuery();
+        $query = $this->newLookupBaseQuery();
 
         foreach ($checks as $key => $inner) {
             $query->selectSub($inner, $key);
@@ -662,8 +673,7 @@ class QueryBuilder extends EloquentBuilder
      */
     protected function getInvalidIntervalsQuery(bool $count = true): BaseQueryBuilder
     {
-        $query = $this->model
-            ->newNestedSetQuery()
+        $query = $this->newNestedSetLookupQuery()
             ->toBase()
             ->whereNested(function (BaseQueryBuilder $inner) {
                 [$lft, $rgt] = $this->wrappedColumns();
@@ -687,13 +697,11 @@ class QueryBuilder extends EloquentBuilder
 
         // A left endpoint opens a node at its stored depth, while a right
         // endpoint closes it after one additional active level.
-        $lftQuery = $this->model
-            ->newNestedSetQuery()
+        $lftQuery = $this->newNestedSetLookupQuery()
             ->toBase()
             ->selectRaw("{$lft} as endpoint, {$depth} as expected, 1 as delta");
 
-        $rgtQuery = $this->model
-            ->newNestedSetQuery()
+        $rgtQuery = $this->newNestedSetLookupQuery()
             ->toBase()
             ->selectRaw("{$rgt} as endpoint, {$depth} + 1 as expected, -1 as delta");
 
@@ -705,8 +713,7 @@ class QueryBuilder extends EloquentBuilder
      */
     protected function getDuplicateEndpointGroupsQuery(): BaseQueryBuilder
     {
-        return $this->query
-            ->newQuery()
+        return $this->newLookupBaseQuery()
             ->fromSub($this->getEndpointEventsQuery(), 'endpoint_events')
             ->select('endpoint')
             ->groupBy('endpoint')
@@ -718,8 +725,7 @@ class QueryBuilder extends EloquentBuilder
      */
     protected function getDuplicateEndpointsQuery(): BaseQueryBuilder
     {
-        return $this->query
-            ->newQuery()
+        return $this->newLookupBaseQuery()
             ->fromSub($this->getDuplicateEndpointGroupsQuery(), 'duplicate_endpoints')
             ->selectRaw('count(*)');
     }
@@ -729,8 +735,7 @@ class QueryBuilder extends EloquentBuilder
      */
     protected function getMissingEndpointsQuery(): BaseQueryBuilder
     {
-        $statistics = $this->query
-            ->newQuery()
+        $statistics = $this->newLookupBaseQuery()
             ->fromSub($this->getEndpointEventsQuery(), 'endpoint_events')
             ->selectRaw(
                 'count(*) as endpoint_count, '
@@ -738,8 +743,7 @@ class QueryBuilder extends EloquentBuilder
                 . 'max(endpoint) as maximum_endpoint'
             );
 
-        return $this->query
-            ->newQuery()
+        return $this->newLookupBaseQuery()
             ->fromSub($statistics, 'endpoint_statistics')
             ->selectRaw(
                 'case '
@@ -756,8 +760,7 @@ class QueryBuilder extends EloquentBuilder
     {
         // Comparing each event's expected depth with the active count before
         // that endpoint detects intervals which cross instead of nest.
-        return $this->query
-            ->newQuery()
+        return $this->newLookupBaseQuery()
             ->fromSub($this->getEndpointEventsQuery(), 'endpoint_events')
             ->select(['expected'])
             ->selectRaw(
@@ -775,8 +778,7 @@ class QueryBuilder extends EloquentBuilder
             ->selectRaw('1')
             ->limit(1);
 
-        return $this->query
-            ->newQuery()
+        return $this->newLookupBaseQuery()
             ->fromSub($this->getEndpointStateQuery(), 'endpoint_state')
             ->selectRaw(
                 'case when exists (' . $duplicates->toSql()
@@ -796,8 +798,7 @@ class QueryBuilder extends EloquentBuilder
         $parentIdName = $this->model->getParentIdName(); /* @phpstan-ignore method.notFound */
         $keyName = $this->model->getKeyName();
 
-        $query = $this->model
-            ->newNestedSetQuery($childAlias)
+        $query = $this->newNestedSetLookupQuery($childAlias)
             ->toBase()
             ->from($this->model->getTable() . ' as ' . $childAlias)
             ->leftJoin(
@@ -832,8 +833,7 @@ class QueryBuilder extends EloquentBuilder
         $depthName = $this->model->getDepthName(); /* @phpstan-ignore method.notFound */
         $grammar = $this->query->getGrammar();
 
-        $query = $this->model
-            ->newNestedSetQuery($childAlias)
+        $query = $this->newNestedSetLookupQuery($childAlias)
             ->toBase()
             ->from($this->model->getTable() . ' as ' . $childAlias)
             ->join(
@@ -887,8 +887,7 @@ class QueryBuilder extends EloquentBuilder
         $depthName = $this->model->getDepthName(); /* @phpstan-ignore method.notFound */
         $grammar = $this->query->getGrammar();
 
-        $query = $this->model
-            ->newNestedSetQuery($childAlias)
+        $query = $this->newNestedSetLookupQuery($childAlias)
             ->toBase()
             ->from($this->model->getTable() . ' as ' . $childAlias)
             ->leftJoin(
@@ -1156,10 +1155,11 @@ class QueryBuilder extends EloquentBuilder
         }
 
         $model = $root ?? $this->model;
+        $parentIdName = $model->getParentIdName(); /* @phpstan-ignore method.notFound */
         $scopeColumns = array_keys($model->getNestedSetScope()); /* @phpstan-ignore method.notFound */
         $columns = array_values(array_unique([
             $model->getKeyName(),
-            $model->getParentIdName(), /* @phpstan-ignore method.notFound */
+            $parentIdName,
             $model->getLftName(), /* @phpstan-ignore method.notFound */
             $model->getRgtName(), /* @phpstan-ignore method.notFound */
             $model->getDepthName(), /* @phpstan-ignore method.notFound */
@@ -1167,21 +1167,24 @@ class QueryBuilder extends EloquentBuilder
             ...$extraColumns,
         ]));
 
-        $nodes = $model
+        // Repair reads plain rows and hydrates only the nodes it saves, so a
+        // large, mostly healthy tree is not loaded as models.
+        $rows = $model
             ->newNestedSetQuery() /* @phpstan-ignore method.notFound */
             ->useWritePdo()
             ->when($root, function (self $query) use ($root) {
                 return $query->whereDescendantOf($root);
             })
             ->defaultOrder()
+            ->toBase()
             ->get($columns);
 
         $roots = [];
         $childrenByParent = [];
         $parentOrder = [];
 
-        foreach ($nodes as $node) {
-            static::addRepairNode($roots, $childrenByParent, $parentOrder, $node);
+        foreach ($rows as $row) {
+            static::addRepairNode($roots, $childrenByParent, $parentOrder, $row, $row->{$parentIdName});
         }
 
         return $this->fixNodes($roots, $childrenByParent, $parentOrder, $root);
@@ -1190,7 +1193,7 @@ class QueryBuilder extends EloquentBuilder
     /**
      * Fix a subtree based on parentage information.
      */
-    public function fixSubtree(Model $root, array $extraColumns = []): int
+    public function fixSubtree(?Model $root, array $extraColumns = []): int
     {
         return $this->fixTree($root, $extraColumns);
     }
@@ -1204,11 +1207,11 @@ class QueryBuilder extends EloquentBuilder
         array $parentOrder,
         ?Model $parent = null,
     ): int {
+        $model = $parent ?? $this->model;
         $parentId = $parent?->getKey();
         $cut = $parent ? $parent->getLft() + 1 : 1; /* @phpstan-ignore method.notFound */
         $depth = $parent ? $parent->getDepth() + 1 : 0; /* @phpstan-ignore method.notFound */
-        $updated = [];
-        $ordered = [];
+        $placements = [];
         $moved = 0;
 
         if ($parent === null) {
@@ -1221,9 +1224,9 @@ class QueryBuilder extends EloquentBuilder
 
         $cut = static::reorderNodes(
             $childrenByParent,
-            $updated,
-            $ordered,
+            $placements,
             $nodes,
+            $model->getKeyName(),
             $parentId,
             $cut,
             $depth,
@@ -1248,9 +1251,9 @@ class QueryBuilder extends EloquentBuilder
 
             $cut = static::reorderNodes(
                 $childrenByParent,
-                $updated,
-                $ordered,
+                $placements,
                 $nodes,
+                $model->getKeyName(),
                 $parentId,
                 $cut,
                 $depth,
@@ -1258,72 +1261,148 @@ class QueryBuilder extends EloquentBuilder
         }
 
         $grown = $parent ? $cut - $parent->getRgt() : 0; /* @phpstan-ignore method.notFound */
+        $gapCut = null;
 
         if ($parent !== null && $grown !== 0) {
             $gapCut = $parent->getRgt() + 1; /* @phpstan-ignore method.notFound */
             $moved = $parent
                 ->newNestedSetQuery() /* @phpstan-ignore method.notFound */
                 ->makeGap($gapCut, $grown);
+        }
 
-            foreach ($ordered as $model) {
-                static::syncRepairNodeOriginalAfterGap($model, $gapCut, $grown);
+        $changed = 0;
+
+        foreach ($placements as $placement) {
+            if ($this->applyRepairPlacement($model, $placement, $gapCut, $grown)) {
+                ++$changed;
             }
+        }
 
-            $parent = $parent->rawNode( /* @phpstan-ignore method.notFound */
+        if ($parent !== null && $gapCut !== null) {
+            static::saveRepairNode($parent->rawNode( /* @phpstan-ignore method.notFound */
                 $parent->getLft(), /* @phpstan-ignore method.notFound */
                 $cut,
                 $parent->getParentId(), /* @phpstan-ignore method.notFound */
                 $parent->getDepth(), /* @phpstan-ignore method.notFound */
-            );
+            ));
 
-            $updated[] = $parent;
-            $ordered[] = $parent;
+            ++$changed;
         }
 
-        $nodesToSave = $parent !== null && $grown !== 0
-            ? $ordered
-            : $updated;
-
-        foreach ($nodesToSave as $model) {
-            static::saveRepairNode($model);
-        }
-
-        return count($updated) + $moved;
+        return $changed + $moved;
     }
 
     /**
-     * Sync a repair model's original bounds with the preceding gap update.
+     * Apply a repair placement and save the node when its stored values differ.
+     *
+     * Returns whether the placement differs from the values stored before any subtree gap,
+     * so rows that only the gap update shifted are counted by that update instead.
+     *
+     * @param array{0: Model|stdClass, 1: int, 2: int, 3: null|int|string, 4: int} $placement
      */
-    protected static function syncRepairNodeOriginalAfterGap(Model $model, int $cut, int $height): void
+    protected function applyRepairPlacement(Model $model, array $placement, ?int $gapCut, int $height): bool
     {
-        $attributes = $model->getAttributes();
-        $databaseAttributes = $model->getRawOriginal();
+        [$node, $lft, $rgt, $parentId, $depth] = $placement;
         $lftName = $model->getLftName(); /* @phpstan-ignore method.notFound */
         $rgtName = $model->getRgtName(); /* @phpstan-ignore method.notFound */
-        $rgt = (int) $databaseAttributes[$rgtName];
 
-        if ($rgt < $cut) {
-            return;
+        if ($node instanceof Model) {
+            static::assignRepairNode($node, $lft, $rgt, $parentId, $depth);
+
+            $changed = $node->isDirty();
+
+            if ($gapCut !== null) {
+                $attributes = $node->getAttributes();
+
+                $node->setRawAttributes(
+                    static::shiftRepairBoundsAfterGap($node->getRawOriginal(), $lftName, $rgtName, $gapCut, $height),
+                    true,
+                );
+                $node->setRawAttributes($attributes);
+            }
+
+            if ($node->isDirty()) {
+                static::saveRepairNode($node);
+            }
+
+            return $changed;
         }
 
-        // Mirror makeGap() and columnPatch(); the snapshot must match the row
-        // changed by that update before Eloquent computes repair dirtiness.
-        $lft = (int) $databaseAttributes[$lftName];
-        $databaseAttributes[$lftName] = $lft >= $cut ? $lft + $height : $lft;
-        $databaseAttributes[$rgtName] = $rgt + $height;
+        $changed = ! $this->repairRowMatches($model, $node, $placement);
 
-        $model->setRawAttributes($databaseAttributes, true);
-        $model->setRawAttributes($attributes);
+        if ($gapCut !== null) {
+            $node = (object) static::shiftRepairBoundsAfterGap((array) $node, $lftName, $rgtName, $gapCut, $height);
+        }
+
+        if (! $this->repairRowMatches($model, $node, $placement)) {
+            $repaired = $model->newFromBuilder($node);
+
+            static::assignRepairNode($repaired, $lft, $rgt, $parentId, $depth);
+            static::saveRepairNode($repaired);
+        }
+
+        return $changed;
     }
 
     /**
-     * Assign contiguous bounds and depth to a set of nodes.
+     * Determine whether a row already stores a repair placement.
+     *
+     * @param array{0: Model|stdClass, 1: int, 2: int, 3: null|int|string, 4: int} $placement
+     */
+    protected function repairRowMatches(Model $model, stdClass $row, array $placement): bool
+    {
+        $stored = [
+            1 => $row->{$model->getLftName()}, /* @phpstan-ignore method.notFound */
+            2 => $row->{$model->getRgtName()}, /* @phpstan-ignore method.notFound */
+            3 => $row->{$model->getParentIdName()}, /* @phpstan-ignore method.notFound */
+            4 => $row->{$model->getDepthName()}, /* @phpstan-ignore method.notFound */
+        ];
+
+        foreach ($stored as $index => $value) {
+            $target = $placement[$index];
+
+            // Drivers return numbers as integers or numeric strings; null stays distinct from zero.
+            if ($value === null || $target === null ? $value !== $target : (string) $value !== (string) $target) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Shift stored bounds as the preceding gap update shifted the row.
+     */
+    protected static function shiftRepairBoundsAfterGap(
+        array $attributes,
+        string $lftName,
+        string $rgtName,
+        int $cut,
+        int $height,
+    ): array {
+        $lft = $attributes[$lftName];
+        $rgt = $attributes[$rgtName];
+
+        if ($rgt === null || (int) $rgt < $cut) {
+            return $attributes;
+        }
+
+        // Mirror makeGap() and columnPatch(), so dirtiness is computed against
+        // the values that update left in the row.
+        $attributes[$lftName] = $lft !== null && (int) $lft >= $cut ? (int) $lft + $height : $lft;
+        $attributes[$rgtName] = (int) $rgt + $height;
+
+        return $attributes;
+    }
+
+    /**
+     * Place a set of nodes at contiguous bounds and depths, recording each placement in tree order.
      */
     protected static function reorderNodes(
         array &$childrenByParent,
-        array &$updated,
-        array &$ordered,
+        array &$placements,
         array $nodes,
+        string $keyName,
         int|string|null $parentId,
         int $cut,
         int $depth,
@@ -1338,23 +1417,10 @@ class QueryBuilder extends EloquentBuilder
         while ($stack !== []) {
             $frameIndex = array_key_last($stack);
 
-            if (isset($stack[$frameIndex]['model'])) {
+            if (isset($stack[$frameIndex]['node'])) {
                 $frame = array_pop($stack);
-                $model = $frame['model'];
 
-                static::assignRepairNode(
-                    $model,
-                    $frame['lft'],
-                    $cut,
-                    $frame['parent_id'],
-                    $frame['depth'],
-                );
-
-                $ordered[] = $model;
-
-                if ($model->isDirty()) {
-                    $updated[] = $model;
-                }
+                $placements[] = [$frame['node'], $frame['lft'], $cut, $frame['parent_id'], $frame['depth']];
 
                 ++$cut;
 
@@ -1367,17 +1433,17 @@ class QueryBuilder extends EloquentBuilder
                 continue;
             }
 
-            $model = $stack[$frameIndex]['nodes'][$stack[$frameIndex]['index']];
+            $node = $stack[$frameIndex]['nodes'][$stack[$frameIndex]['index']];
             ++$stack[$frameIndex]['index'];
 
             $stack[] = [
-                'model' => $model,
+                'node' => $node,
                 'lft' => $cut++,
                 'parent_id' => $stack[$frameIndex]['parent_id'],
                 'depth' => $stack[$frameIndex]['depth'],
             ];
 
-            $key = $model->getKey();
+            $key = $node->{$keyName};
 
             if ($key === null || ! array_key_exists($key, $childrenByParent)) {
                 continue;
@@ -1420,16 +1486,15 @@ class QueryBuilder extends EloquentBuilder
         array &$roots,
         array &$childrenByParent,
         array &$parentOrder,
-        Model $model,
+        Model|stdClass $node,
+        int|string|null $parentId,
     ): void {
-        $parentId = $model->getParentId(); /* @phpstan-ignore method.notFound */
-
         if ($parentId === null) {
             if ($roots === []) {
                 $parentOrder[] = null;
             }
 
-            $roots[] = $model;
+            $roots[] = $node;
 
             return;
         }
@@ -1438,7 +1503,7 @@ class QueryBuilder extends EloquentBuilder
             $parentOrder[] = $parentId;
         }
 
-        $childrenByParent[$parentId][] = $model;
+        $childrenByParent[$parentId][] = $node;
     }
 
     /**
@@ -1504,9 +1569,11 @@ class QueryBuilder extends EloquentBuilder
             $usesSoftDeletes = $model::isSoftDeletable();
 
             if ($delete && ! $usesSoftDeletes) {
+                // MySQL and MariaDB check a restricting parent key as each row is deleted.
                 $model
                     ->newNestedSetQuery() /* @phpstan-ignore method.notFound */
                     ->whereIn($model->getKeyName(), array_keys($existing))
+                    ->orderBy($model->getLftName(), 'desc') /* @phpstan-ignore method.notFound */
                     ->delete();
             } else {
                 $deletedAtColumn = $delete && $usesSoftDeletes
@@ -1528,6 +1595,7 @@ class QueryBuilder extends EloquentBuilder
                         $childrenByParent,
                         $parentOrder,
                         $existingModel,
+                        $existingModel->getParentId(), /* @phpstan-ignore method.notFound */
                     );
                 }
             }
@@ -1607,7 +1675,7 @@ class QueryBuilder extends EloquentBuilder
             $model->fill($itemData);
 
             static::saveRepairNode($model);
-            static::addRepairNode($roots, $childrenByParent, $parentOrder, $model);
+            static::addRepairNode($roots, $childrenByParent, $parentOrder, $model, $model->getParentId()); /* @phpstan-ignore method.notFound */
 
             if ($children === null) {
                 continue;
