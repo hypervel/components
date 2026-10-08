@@ -1519,7 +1519,7 @@ class PropsResolverTest extends TestCase
     {
         // Walking its properties would invent a JSON representation it does not have.
         $this->expectException(ViewException::class);
-        $this->expectExceptionMessage('Non-backed enums have no default serialization');
+        $this->expectExceptionMessageIsOrContains('Non-backed enums have no default serialization');
 
         $this->makePage(Request::create('/'), ['status' => UnitEnum::Index], preserveBigIntegers: true);
     }
