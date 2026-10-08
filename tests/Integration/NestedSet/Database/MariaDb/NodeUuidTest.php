@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\NestedSet\Database\MariaDb;
 
 use Hypervel\Testbench\Attributes\RequiresDatabase;
-use Hypervel\Tests\Integration\NestedSet\Database\NestedSetDatabaseTestCase;
+use Hypervel\Tests\NestedSet\NodeUuidTest as BaseNodeUuidTest;
 
 #[RequiresDatabase('mariadb')]
-class NestedSetDatabaseTest extends NestedSetDatabaseTestCase
+class NodeUuidTest extends BaseNodeUuidTest
 {
 }

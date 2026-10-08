@@ -17,6 +17,7 @@ return new class extends Migration {
             $table->id();
             $table->unsignedInteger('menu_id');
             $table->string('title')->nullable();
+            $table->softDeletes();
             NestedSet::columns($table, ['menu_id']);
         });
     }

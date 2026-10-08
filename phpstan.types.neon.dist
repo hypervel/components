@@ -1,6 +1,7 @@
 includes:
     - src/database/extension.neon
     - src/foundation/extension.neon
+    - src/scout/extension.neon
 
 parameters:
     level: max
@@ -8,5 +9,6 @@ parameters:
     scanDirectories:
         - src/database/src/PHPStan
         - src/foundation/src/PHPStan
+        - src/scout/src/PHPStan
     paths:
         - types

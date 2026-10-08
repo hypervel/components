@@ -1,4 +1,16 @@
+parametersSchema:
+    eloquentBuilderMacros: arrayOf(string(), string())
+
+parameters:
+    # Builder macros added by model traits' global scopes: trait => interface declaring the macros.
+    eloquentBuilderMacros:
+        Hypervel\Database\Eloquent\SoftDeletes: Hypervel\Database\PHPStan\SoftDeletingMacros
+
 services:
+    -
+        class: Hypervel\Database\PHPStan\BuilderMacroResolver
+        arguments:
+            macros: %eloquentBuilderMacros%
     -
         class: Hypervel\Database\PHPStan\ModelScopeMethodResolver
     -

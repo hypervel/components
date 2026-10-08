@@ -62,7 +62,7 @@ class HttpConnectionTest extends TestCase
 
     public function testNamedBufferedRequestsReuseConnectionsAcrossConcurrentBursts(): void
     {
-        // @TODO Unskip once Guzzle supports configurable idle-handle retention and Hypervel uses it for named buffered requests.
+        // @TODO Unskip once https://github.com/guzzle/guzzle/pull/3935 ships and Hypervel adopts it for named buffered requests.
         $this->markTestSkipped('Guzzle limits the synchronous handler to three idle handles.');
 
         $bursts = [];

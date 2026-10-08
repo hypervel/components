@@ -8,9 +8,11 @@ use Hypervel\ConnectionPool\Events\ConnectionReleasing;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Pool\PoolManager;
+use Hypervel\Database\QueryException;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
+use LogicException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 
@@ -42,6 +44,7 @@ class DatabaseConnectionLeaseLifecycleTest extends TestCase
         $resolver = $this->app->make('db.resolver');
         $pool = $this->app->make(PoolManager::class)->pool('leases');
         $connection = null;
+        $builder = null;
         $callbacks = [];
         $registeredAfterCleanup = null;
         Event::listen(ConnectionReleasing::class, static function (ConnectionReleasing $event) use (&$callbacks, $listenerFails): void {
@@ -52,9 +55,10 @@ class DatabaseConnectionLeaseLifecycleTest extends TestCase
                 throw new RuntimeException('Release listener failed after querying its owner.');
             }
         });
-        $execute = static function () use (&$connection, &$callbacks): void {
+        $execute = static function () use (&$connection, &$builder, &$callbacks): void {
             DB::setDefaultConnection('leases');
             $connection = DB::connection();
+            $builder = $connection->query()->selectRaw('1 as value');
             $connection->beginTransaction();
             $connection->afterRollBack(static function () use (&$callbacks): void {
                 $resolved = DB::connection();
@@ -82,6 +86,16 @@ class DatabaseConnectionLeaseLifecycleTest extends TestCase
             $this->assertSame(0, $connection->transactionLevel());
             $this->assertSame(0, $pool->getBorrowedCount());
             $this->assertSame(1, $pool->getIdleCount());
+
+            try {
+                $builder->first();
+                $this->fail('Expected the finished connection owner to reject a new borrow.');
+            } catch (QueryException $exception) {
+                $this->assertInstanceOf(LogicException::class, $exception->getPrevious());
+                $this->assertStringContainsString('coroutine or task that resolved it has finished', $exception->getMessage());
+            }
+
+            $this->assertSame(0, $pool->getBorrowedCount());
         } finally {
             $resolver->discardConnections();
             $pool->close();
@@ -118,13 +132,79 @@ class DatabaseConnectionLeaseLifecycleTest extends TestCase
             $resolver->releaseConnections();
 
             $this->assertSame(1, $pool->getIdleCount());
-            $this->assertNotSame($connection, DB::connection('leases'));
+            $replacement = DB::connection('leases');
+            $this->assertNotSame($connection, $replacement);
             $resolver->discardConnections();
             $this->assertSame(0, $pool->getManagedCount());
+
+            try {
+                $replacement->selectOne('select 1');
+                $this->fail('Expected the discarded connection owner to reject a new borrow.');
+            } catch (QueryException $exception) {
+                $this->assertInstanceOf(LogicException::class, $exception->getPrevious());
+                $this->assertStringContainsString('coroutine or task that resolved it has finished', $exception->getMessage());
+            }
+
+            $this->assertSame(0, $pool->getBorrowedCount());
         } finally {
             $resolver->discardConnections();
             $pool->close();
         }
+    }
+
+    #[DataProvider('rawTransactionOwners')]
+    public function testTerminalCleanupRollsBackRawTransactions(bool $coroutine, bool $releaseListener): void
+    {
+        $resolver = $this->app->make('db.resolver');
+        $pool = $this->app->make(PoolManager::class)->pool('leases');
+        $pdo = $pool->getSharedInMemorySqlitePdo();
+        $pdo->exec('create table messages (value integer)');
+        $pdo->exec('insert into messages values (1)');
+        $begin = static function () use ($pdo): void {
+            $pdo->beginTransaction();
+            $pdo->exec('insert into messages values (2)');
+        };
+
+        if ($releaseListener) {
+            Event::listen(ConnectionReleasing::class, $begin);
+        }
+
+        $execute = static function () use ($begin, $releaseListener): void {
+            DB::connection('leases')->selectOne('select 1');
+
+            if (! $releaseListener) {
+                $begin();
+            }
+        };
+
+        try {
+            if ($coroutine) {
+                $this->runInCoroutine($execute);
+            } else {
+                $execute();
+                $resolver->releaseConnections();
+            }
+
+            $this->assertFalse($pdo->inTransaction());
+            $this->assertSame(0, $pool->getManagedCount());
+            $this->assertSame([1], DB::connection('leases')->table('messages')->pluck('value')->all());
+            $this->assertSame($pdo, $pool->getSharedInMemorySqlitePdo());
+        } finally {
+            $resolver->discardConnections();
+            $pool->close();
+        }
+    }
+
+    /**
+     * Provide raw transactions started by application code or release callbacks.
+     */
+    public static function rawTransactionOwners(): array
+    {
+        return [
+            'coroutine' => [true, false],
+            'task' => [false, false],
+            'release listener' => [false, true],
+        ];
     }
 
     public function testPurgingAndReplacingAConnectionDoesNotLoseItsPreviousOwner(): void

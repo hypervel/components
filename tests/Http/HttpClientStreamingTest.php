@@ -107,7 +107,7 @@ class HttpClientStreamingTest extends TestCase
 
     public function testConcurrentFallbackRequestsKeepIndependentDeadlines(): void
     {
-        // @TODO: Remove this skip once Guzzle fixes shared StreamHandler request deadlines.
+        // @TODO: Update this version gate once https://github.com/guzzle/guzzle/pull/3934 ships.
         if (ClientInterface::MAJOR_VERSION >= 8) {
             $this->markTestSkipped('Guzzle 8 stores concurrent StreamHandler request deadlines on the shared handler.');
         }

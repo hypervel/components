@@ -48,6 +48,7 @@ class ForwardedBuilderMethodExtension implements MethodsClassReflectionExtension
     public function __construct(
         private readonly ReflectionProvider $reflectionProvider,
         private readonly ModelScopeMethodResolver $scopeMethods,
+        private readonly BuilderMacroResolver $builderMacros,
     ) {
         $this->scope = new OutOfClassScope;
     }
@@ -86,7 +87,8 @@ class ForwardedBuilderMethodExtension implements MethodsClassReflectionExtension
             return null;
         }
 
-        $cacheKey = $classReflection->getCacheKey() . ':' . strtolower($methodName);
+        // Keep the exact spelling: builder macro names are case-sensitive.
+        $cacheKey = $classReflection->getCacheKey() . ':' . $methodName;
 
         if (array_key_exists($cacheKey, $this->methods)) {
             $cachedMethod = $this->methods[$cacheKey];
@@ -117,6 +119,13 @@ class ForwardedBuilderMethodExtension implements MethodsClassReflectionExtension
         string $methodName,
     ): ?MethodReflection {
         $modelType = $this->templateType($classReflection, EloquentBuilder::class, 'TModel');
+
+        // Local macros run before named scopes in Builder::__call().
+        $macro = $this->builderMacros->resolve($classReflection, $modelType, $methodName);
+
+        if ($macro !== null) {
+            return $macro;
+        }
 
         if ($this->hasNamedScope($modelType, $methodName)) {
             return null;
@@ -174,10 +183,6 @@ class ForwardedBuilderMethodExtension implements MethodsClassReflectionExtension
             return new ForwardedFluentMethodReflection($classReflection, $method);
         }
 
-        if ($this->hasNamedScope($relatedType, $methodName)) {
-            return null;
-        }
-
         $method = $this->resolveEloquentBuilderMethod($eloquentBuilder, $methodName);
 
         if ($method !== null) {
@@ -186,7 +191,8 @@ class ForwardedBuilderMethodExtension implements MethodsClassReflectionExtension
                 : $method;
         }
 
-        if (! in_array($normalizedMethodName, self::RELATION_DOCUMENTED_FLUENT_METHODS, strict: true)) {
+        if ($this->hasNamedScope($relatedType, $methodName)
+            || ! in_array($normalizedMethodName, self::RELATION_DOCUMENTED_FLUENT_METHODS, strict: true)) {
             return null;
         }
 
