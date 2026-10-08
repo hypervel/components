@@ -11,6 +11,8 @@ Migrations add the nested set columns and indexes with one Blueprint macro match
 
 The `depth` column is required. `withDepth()` reads the stored depth instead of counting ancestors in a subquery, so global scopes that hide ancestors do not change a node's depth.
 
+Scoped models override `getScopeAttributes(): array`; Aimeos declares `?array`. `ensureSameTree()` replaces `assertSameScope()` and also requires both nodes to use the same connection and table.
+
 Only a `null` parent ID makes a node a root. Upstream also treats `0` and an empty string as root parent IDs; here they are ordinary parent keys, so a node whose key is `0` can have children. Passing `null`, `0` or an empty string to `toTree()` or `toFlatTree()` builds from the nodes with that parent ID. Aimeos infers the root from `0` or an empty string, as it does when no root is given, and does not accept `null`.
 
 The query builder's `getDepth($position)` is `depthForPosition($position)`, which returns the depth of a node inserted at that position within the selected tree. Upstream's method returns the enclosing node's depth, so it cannot tell a position inside a root from one outside every node.

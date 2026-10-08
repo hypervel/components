@@ -960,19 +960,16 @@ class QueryBuilder extends EloquentBuilder
     /**
      * Ensure every nested set scope attribute is selected.
      */
-    protected function ensureConcreteNestedSetScope(
-        string $operation = 'diagnostics',
-        ?Model $model = null,
-    ): void {
-        $model ??= $this->model;
-        $attributes = $model->getAttributes();
+    protected function ensureConcreteNestedSetScope(string $operation = 'diagnostics'): void
+    {
+        $attributes = $this->model->getAttributes();
 
-        foreach (array_keys($model->getNestedSetScope()) as $attribute) { /* @phpstan-ignore method.notFound */
+        foreach (array_keys($this->model->getNestedSetScope()) as $attribute) { /* @phpstan-ignore method.notFound */
             if (! array_key_exists($attribute, $attributes)) {
                 throw new LogicException(sprintf(
                     'Nested set %s for [%s] requires a concrete scoped([...]) selection because attribute [%s] was not selected.',
                     $operation,
-                    $model::class,
+                    $this->model::class,
                     $attribute,
                 ));
             }

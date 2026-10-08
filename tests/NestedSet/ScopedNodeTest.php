@@ -56,6 +56,10 @@ class ScopedNodeTest extends ScopedNodeTestBase
     {
         SoftDeletingMenuItem::findOrFail(2)->delete();
 
+        // The other menu's child lies within the deleted node's bounds but stays active.
+        $this->assertNull(SoftDeletingMenuItem::find(5));
+        $this->assertNotNull(SoftDeletingMenuItem::find(6));
+
         $node = SoftDeletingMenuItem::withTrashed()
             ->select(['id', 'deleted_at'])
             ->findOrFail(2);

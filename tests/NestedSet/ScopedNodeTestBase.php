@@ -722,6 +722,16 @@ abstract class ScopedNodeTestBase extends TestCase
         $this->menuItem::create(['parent_id' => $this->key(5), 'menu_id' => 2]);
     }
 
+    public function testRootInANewScopeStartsItsOwnTree(): void
+    {
+        $node = $this->menuItem::create(['menu_id' => 3]);
+
+        $this->assertSame([1, 2], $node->getBounds());
+        $this->assertSame(0, $node->getDepth());
+        $this->assertTreeNotBroken(3);
+        $this->assertOtherScopeNotAffected();
+    }
+
     public function testExistingModelCannotChangeItsNestedSetScope(): void
     {
         $node = $this->menuItem::findOrFail($this->key(5));
@@ -922,6 +932,27 @@ abstract class ScopedNodeTestBase extends TestCase
                 ->map(fn (object $row): array => (array) $row)
                 ->all(),
         );
+    }
+
+    public function testRebuildsTree(): void
+    {
+        // A payload scope value is ignored, so the new child stays in the selected menu.
+        $fixed = $this->menuItem::scoped(['menu_id' => 1])->rebuildTree([
+            ['id' => $this->key(2), 'children' => [['menu_id' => 2]]],
+        ], delete: true);
+
+        $root = $this->menuItem::findOrFail($this->key(2));
+        $child = $root->children()->sole();
+
+        $this->assertSame(2, $fixed);
+        $this->assertSame([1, 4], $root->getBounds());
+        $this->assertSame(1, $child->menu_id);
+        $this->assertSame([2, 3], $child->getBounds());
+        $this->assertSame(1, $child->getDepth());
+        $this->assertNull($this->menuItem::find($this->key(1)));
+        $this->assertNull($this->menuItem::find($this->key(5)));
+        $this->assertTreeNotBroken(1);
+        $this->assertOtherScopeNotAffected();
     }
 
     public function testAppendingToAnotherScopeFails(): void
