@@ -8,7 +8,6 @@ use Hypervel\Sentry\Features\ConsoleSchedulingIntegration;
 use Hypervel\Sentry\Features\LogIntegration;
 use Hypervel\Sentry\Features\NotificationsIntegration;
 use Hypervel\Sentry\Features\QueueIntegration;
-use Hypervel\Sentry\Features\RedisFeature;
 use Hypervel\Sentry\Features\Storage\Integration as StorageIntegration;
 
 /*
@@ -185,7 +184,6 @@ return [
     'features' => [
         LogIntegration::class,
         CacheIntegration::class,
-        RedisFeature::class,
         QueueIntegration::class,
         ConsoleIntegration::class,
         StorageIntegration::class,

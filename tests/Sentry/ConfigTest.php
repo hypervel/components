@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sentry;
 
 use Hypervel\Config\Repository;
-use Hypervel\Sentry\Features\RedisFeature;
 use Hypervel\Sentry\SentryConfig;
 use Hypervel\Sentry\Transport\HttpPoolTransport;
 use Hypervel\Sentry\Transport\HttpTransportPool;
@@ -100,13 +99,6 @@ class ConfigTest extends TestCase
             'SENTRY_LOGS_LEVEL' => 'error',
             'LOG_LEVEL' => 'info',
         ], fn (): string => $this->sentryConfig()['logs_channel_level']));
-    }
-
-    public function testRedisFeatureIsInDefaultFeaturesConfig(): void
-    {
-        $features = $this->app->make('config')->array('sentry.features');
-
-        $this->assertContains(RedisFeature::class, $features);
     }
 
     public function testStorageTelemetryIsEnabledByDefault(): void

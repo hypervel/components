@@ -14,6 +14,7 @@ use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
 use Hypervel\Queue\Events\JobQueueingFailed;
 use Hypervel\Queue\Events\WorkerStopping;
+use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Jobs\SyncJob;
 use Hypervel\Queue\SyncQueue;
 use Hypervel\Sentry\Features\QueueIntegration;
@@ -37,11 +38,17 @@ class QueueIntegrationTest extends TestCase
         ],
     ];
 
+    /**
+     * Enable tracing for all transactions.
+     */
     protected function withTracingEnabled(ApplicationContract $app): void
     {
         $app->make('config')->set('sentry.traces_sample_rate', 1.0);
     }
 
+    /**
+     * Enable tracing without queue job transactions.
+     */
     protected function withQueueJobTracingDisabled(ApplicationContract $app): void
     {
         $config = $app->make('config');
@@ -50,6 +57,20 @@ class QueueIntegrationTest extends TestCase
         $config->set('sentry.tracing.queue_job_transactions', false);
     }
 
+    /**
+     * Enable tracing with queue job transactions but without queue job spans.
+     */
+    protected function withQueueJobSpansDisabled(ApplicationContract $app): void
+    {
+        $config = $app->make('config');
+
+        $config->set('sentry.traces_sample_rate', 1.0);
+        $config->set('sentry.tracing.queue_jobs', false);
+    }
+
+    /**
+     * Disable queue breadcrumbs and spans.
+     */
     protected function withLocalQueueOutputDisabled(ApplicationContract $app): void
     {
         $config = $app->make('config');
@@ -267,6 +288,101 @@ class QueueIntegrationTest extends TestCase
         $this->assertNull($transaction);
     }
 
+    #[DefineEnvironment('withTracingEnabled')]
+    public function testNestedJobRunsWithinTheParentJobSpanAndScope(): void
+    {
+        $transaction = $this->startTransaction();
+
+        dispatch(new QueueEventsTestParentJob(new QueueEventsTestJob));
+
+        [, $parentSpan, $childSpan] = $transaction->getSpanRecorder()->getSpans();
+        $parentEvent = $this->getLastSentryEvent();
+
+        $this->assertSame($parentSpan->getSpanId(), $childSpan->getParentSpanId());
+        $this->assertSame((string) $parentSpan->getSpanId(), $parentEvent->getContexts()['trace']['span_id']);
+        $this->assertSame(['Processing queue job', 'parent'], $this->breadcrumbMessages($parentEvent->getBreadcrumbs()));
+        $this->assertSame($transaction, $this->getSentryHubFromContainer()->getSpan());
+    }
+
+    #[DefineEnvironment('withTracingEnabled')]
+    public function testCaughtNestedJobFailureKeepsTheParentJobSpanCurrent(): void
+    {
+        $transaction = $this->startTransaction();
+
+        dispatch(new QueueEventsTestParentJob(
+            new QueueEventsTestJobThatThrowsAnUnhandledExceptionWithBreadcrumb('child'),
+            catchChildFailure: true,
+        ));
+
+        [, $parentSpan, $childSpan] = $transaction->getSpanRecorder()->getSpans();
+
+        $this->assertSame($parentSpan->getSpanId(), $childSpan->getParentSpanId());
+        $this->assertSame(SpanStatus::internalError(), $childSpan->getStatus());
+        $this->assertSame(SpanStatus::ok(), $parentSpan->getStatus());
+        $this->assertSame((string) $parentSpan->getSpanId(), $this->getLastSentryEvent()->getContexts()['trace']['span_id']);
+        $this->assertSame($transaction, $this->getSentryHubFromContainer()->getSpan());
+        $this->assertSame([], $this->getCurrentSentryBreadcrumbs());
+    }
+
+    #[DefineEnvironment('withTracingEnabled')]
+    public function testPropagatedNestedJobFailureFailsTheParentJobAndKeepsTheChildScope(): void
+    {
+        $transaction = $this->startTransaction();
+        $exception = null;
+
+        try {
+            dispatch(new QueueEventsTestParentJob(new QueueEventsTestJobThatThrowsAnUnhandledExceptionWithBreadcrumb('child')));
+        } catch (Exception $exception) {
+        }
+
+        [, $parentSpan, $childSpan] = $transaction->getSpanRecorder()->getSpans();
+
+        $this->assertSame('This is a test exception', $exception?->getMessage());
+        $this->assertSame($parentSpan->getSpanId(), $childSpan->getParentSpanId());
+        $this->assertSame(SpanStatus::internalError(), $childSpan->getStatus());
+        $this->assertSame(SpanStatus::internalError(), $parentSpan->getStatus());
+        $this->assertNotNull($parentSpan->getEndTimestamp());
+        $this->assertSame($transaction, $this->getSentryHubFromContainer()->getSpan());
+        $this->assertSame(['Processing queue job', 'child'], $this->breadcrumbMessages($this->getCurrentSentryBreadcrumbs()));
+    }
+
+    #[DefineEnvironment('withTracingEnabled')]
+    public function testJobDispatchedAfterTheParentJobFailsStartsUnderTheCurrentSpan(): void
+    {
+        $transaction = $this->startTransaction();
+
+        dispatch(new QueueEventsTestParentJob(
+            new QueueEventsTestJobThatThrowsAnUnhandledExceptionWithBreadcrumb('child'),
+            catchChildFailure: true,
+            failAndDispatchAnotherJob: true,
+        ));
+
+        [, $parentSpan, $childSpan, $nextSpan] = $transaction->getSpanRecorder()->getSpans();
+
+        $this->assertSame($parentSpan->getSpanId(), $childSpan->getParentSpanId());
+        $this->assertSame($transaction->getSpanId(), $nextSpan->getParentSpanId());
+        $this->assertSame(SpanStatus::internalError(), $parentSpan->getStatus());
+        $this->assertSame(SpanStatus::ok(), $nextSpan->getStatus());
+        $this->assertSame($transaction, $this->getSentryHubFromContainer()->getSpan());
+        $this->assertSame([], $this->getCurrentSentryBreadcrumbs());
+    }
+
+    #[DefineEnvironment('withQueueJobSpansDisabled')]
+    public function testNestedJobWithoutASpanDoesNotFinishTheParentJobTransaction(): void
+    {
+        dispatch(new QueueEventsTestParentJob(new QueueEventsTestJob));
+
+        $transactions = $this->getCapturedSentryEventsOfType(EventType::transaction());
+        [[$parentEvent]] = $this->getCapturedSentryEventsOfType(EventType::event());
+
+        $this->assertCount(1, $transactions);
+        $this->assertSame(QueueEventsTestParentJob::class, $transactions[0][0]->getTransaction());
+        $this->assertSame(
+            $transactions[0][0]->getContexts()['trace']['span_id'],
+            $parentEvent->getContexts()['trace']['span_id'],
+        );
+    }
+
     /**
      * Determine if the event has a Queue feature listener.
      */
@@ -282,10 +398,28 @@ class QueueIntegrationTest extends TestCase
 
         return false;
     }
+
+    /**
+     * Get the messages of the given breadcrumbs.
+     *
+     * @param array<array-key, Breadcrumb> $breadcrumbs
+     *
+     * @return list<null|string>
+     */
+    private function breadcrumbMessages(array $breadcrumbs): array
+    {
+        return array_values(array_map(
+            static fn (Breadcrumb $breadcrumb): ?string => $breadcrumb->getMessage(),
+            $breadcrumbs,
+        ));
+    }
 }
 
 class QueueEventsTestJob implements ShouldQueue
 {
+    /**
+     * Execute the job.
+     */
     public function handle(): void
     {
     }
@@ -327,7 +461,10 @@ class QueueFeatureResolvedQueueJob extends SyncJob
     }
 }
 
-function queueEventsTestAddTestBreadcrumb($message = null): void
+/**
+ * Add a test breadcrumb with the given message.
+ */
+function queueEventsTestAddTestBreadcrumb(?string $message = null): void
 {
     addBreadcrumb(
         new Breadcrumb(
@@ -341,6 +478,9 @@ function queueEventsTestAddTestBreadcrumb($message = null): void
 
 class QueueEventsTestJobWithBreadcrumb implements ShouldQueue
 {
+    /**
+     * Execute the job.
+     */
     public function handle(): void
     {
         queueEventsTestAddTestBreadcrumb();
@@ -349,6 +489,9 @@ class QueueEventsTestJobWithBreadcrumb implements ShouldQueue
 
 class QueueEventsTestJobThatReportsAnExceptionWithBreadcrumb implements ShouldQueue
 {
+    /**
+     * Execute the job.
+     */
     public function handle(): void
     {
         queueEventsTestAddTestBreadcrumb();
@@ -359,15 +502,60 @@ class QueueEventsTestJobThatReportsAnExceptionWithBreadcrumb implements ShouldQu
 
 class QueueEventsTestJobThatThrowsAnUnhandledExceptionWithBreadcrumb implements ShouldQueue
 {
+    /**
+     * Create a new job instance.
+     */
     public function __construct(
         private ?string $message = null,
     ) {
     }
 
+    /**
+     * Execute the job.
+     */
     public function handle(): void
     {
         queueEventsTestAddTestBreadcrumb($this->message);
 
         throw new Exception('This is a test exception');
+    }
+}
+
+class QueueEventsTestParentJob implements ShouldQueue
+{
+    use InteractsWithQueue;
+
+    /**
+     * Create a new job instance.
+     */
+    public function __construct(
+        private ShouldQueue $child,
+        private bool $catchChildFailure = false,
+        private bool $failAndDispatchAnotherJob = false,
+    ) {
+    }
+
+    /**
+     * Execute the job.
+     */
+    public function handle(): void
+    {
+        queueEventsTestAddTestBreadcrumb('parent');
+
+        try {
+            dispatch($this->child);
+        } catch (Exception $exception) {
+            if (! $this->catchChildFailure) {
+                throw $exception;
+            }
+        }
+
+        if ($this->failAndDispatchAnotherJob) {
+            $this->fail();
+
+            dispatch(new QueueEventsTestJob);
+        }
+
+        captureException(new Exception('Reported by the parent job'));
     }
 }
