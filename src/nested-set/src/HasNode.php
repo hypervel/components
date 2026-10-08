@@ -7,6 +7,7 @@ namespace Hypervel\NestedSet;
 use Closure;
 use DateTimeInterface;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
+use Hypervel\Database\Eloquent\HasBuilder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Database\Eloquent\Relations\BelongsTo;
@@ -24,14 +25,15 @@ use Stringable;
 use function Hypervel\Support\enum_value;
 
 /**
- * @template TModel of Model
- *
  * @property null|int|string $parent_id
  * @property ?int $depth
  * @property ?static $parent
  */
 trait HasNode
 {
+    /** @use HasBuilder<QueryBuilder<static>> */
+    use HasBuilder;
+
     /**
      * Pending operations.
      */
@@ -49,6 +51,8 @@ trait HasNode
 
     /**
      * Create a new Eloquent query builder for the model.
+     *
+     * @return QueryBuilder<static>
      */
     public function newEloquentBuilder(BaseQueryBuilder $query): QueryBuilder
     {
@@ -496,6 +500,8 @@ trait HasNode
 
     /**
      * Relation to the parent.
+     *
+     * @return BelongsTo<static, $this>
      */
     public function parent(): BelongsTo
     {
@@ -505,6 +511,8 @@ trait HasNode
 
     /**
      * Relation to children.
+     *
+     * @return HasMany<static, $this>
      */
     public function children(): HasMany
     {
@@ -514,6 +522,8 @@ trait HasNode
 
     /**
      * Get query for descendants of the node.
+     *
+     * @return DescendantsRelation<static>
      */
     public function descendants(): DescendantsRelation
     {
@@ -522,6 +532,8 @@ trait HasNode
 
     /**
      * Get query for siblings of the node.
+     *
+     * @return SiblingsRelation<static>
      */
     public function siblings(): SiblingsRelation
     {
@@ -530,6 +542,8 @@ trait HasNode
 
     /**
      * Get the relation for the node siblings and the node itself.
+     *
+     * @return SiblingsRelation<static>
      */
     public function siblingsAndSelf(): SiblingsRelation
     {
@@ -539,7 +553,7 @@ trait HasNode
     /**
      * Get the node siblings and the node itself.
      *
-     * @return Collection<int, TModel>
+     * @return Collection<int, static>
      */
     public function getSiblingsAndSelf(array $columns = ['*']): Collection
     {
@@ -548,6 +562,8 @@ trait HasNode
 
     /**
      * Get query for siblings after the node.
+     *
+     * @return QueryBuilder<static>
      */
     public function nextSiblings(): QueryBuilder
     {
@@ -563,6 +579,8 @@ trait HasNode
 
     /**
      * Get query for siblings before the node.
+     *
+     * @return QueryBuilder<static>
      */
     public function prevSiblings(): QueryBuilder
     {
@@ -578,6 +596,8 @@ trait HasNode
 
     /**
      * Get query for nodes after current node.
+     *
+     * @return QueryBuilder<static>
      */
     public function nextNodes(): QueryBuilder
     {
@@ -594,6 +614,8 @@ trait HasNode
 
     /**
      * Get query for nodes before current node in reversed order.
+     *
+     * @return QueryBuilder<static>
      */
     public function prevNodes(): QueryBuilder
     {
@@ -610,6 +632,8 @@ trait HasNode
 
     /**
      * Get query ancestors of the node.
+     *
+     * @return AncestorsRelation<static>
      */
     public function ancestors(): AncestorsRelation
     {
@@ -1018,6 +1042,8 @@ trait HasNode
 
     /**
      * Get a new base query that includes deleted nodes.
+     *
+     * @return QueryBuilder<static>
      */
     public function newNestedSetQuery(?string $table = null): QueryBuilder
     {
@@ -1028,6 +1054,8 @@ trait HasNode
 
     /**
      * Get a new query with ordinary visibility and the concrete tree scope.
+     *
+     * @return QueryBuilder<static>
      */
     public function newScopedQuery(?string $table = null): QueryBuilder
     {
@@ -1216,6 +1244,8 @@ trait HasNode
 
     /**
      * Begin a query for one concrete nested set scope.
+     *
+     * @return QueryBuilder<static>
      */
     public static function scoped(array $attributes): QueryBuilder
     {
@@ -1229,7 +1259,8 @@ trait HasNode
     /**
      * Create a new nested set collection.
      *
-     * @return Collection<int, TModel>
+     * @param array<array-key, Model> $models
+     * @return Collection<array-key, static>
      */
     public function newCollection(array $models = []): Collection
     {
@@ -1409,10 +1440,10 @@ trait HasNode
     }
 
     /**
-     * Returns node that is next to current node without constraining to siblings.
+     * Return the node that is next to the current node without constraining to siblings.
      * This can be either a next sibling or a next sibling of the parent node.
      *
-     * @return null|TModel
+     * @return null|static
      */
     public function getNextNode(array $columns = ['*']): ?Model
     {
@@ -1420,10 +1451,10 @@ trait HasNode
     }
 
     /**
-     * Returns node that is before current node without constraining to siblings.
+     * Return the node that is before the current node without constraining to siblings.
      * This can be either a prev sibling or parent node.
      *
-     * @return null|TModel
+     * @return null|static
      */
     public function getPrevNode(array $columns = ['*']): ?Model
     {
@@ -1433,7 +1464,7 @@ trait HasNode
     /**
      * Get the node's ancestors.
      *
-     * @return Collection<int, TModel>
+     * @return Collection<int, static>
      */
     public function getAncestors(array $columns = ['*']): Collection
     {
@@ -1443,7 +1474,7 @@ trait HasNode
     /**
      * Get the node's descendants.
      *
-     * @return Collection<int, TModel>
+     * @return Collection<int, static>
      */
     public function getDescendants(array $columns = ['*']): Collection
     {
@@ -1453,7 +1484,7 @@ trait HasNode
     /**
      * Get the node's siblings.
      *
-     * @return Collection<int, TModel>
+     * @return Collection<int, static>
      */
     public function getSiblings(array $columns = ['*']): Collection
     {
@@ -1463,7 +1494,7 @@ trait HasNode
     /**
      * Get siblings after the node.
      *
-     * @return Collection<int, TModel>
+     * @return Collection<int, static>
      */
     public function getNextSiblings(array $columns = ['*']): Collection
     {
@@ -1473,7 +1504,7 @@ trait HasNode
     /**
      * Get siblings before the node.
      *
-     * @return Collection<int, TModel>
+     * @return Collection<int, static>
      */
     public function getPrevSiblings(array $columns = ['*']): Collection
     {
@@ -1483,7 +1514,7 @@ trait HasNode
     /**
      * Get the next sibling.
      *
-     * @return null|TModel
+     * @return null|static
      */
     public function getNextSibling(array $columns = ['*']): ?Model
     {
@@ -1493,7 +1524,7 @@ trait HasNode
     /**
      * Get the previous sibling.
      *
-     * @return null|TModel
+     * @return null|static
      */
     public function getPrevSibling(array $columns = ['*']): ?Model
     {

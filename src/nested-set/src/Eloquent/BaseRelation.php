@@ -10,10 +10,18 @@ use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\Query\Builder;
+use Hypervel\NestedSet\Eloquent\Collection as NestedSetCollection;
 use Hypervel\NestedSet\NestedSet;
 use InvalidArgumentException;
 use LogicException;
 
+/**
+ * Relate a node to other nodes of its own class.
+ *
+ * @template TModel of Model
+ *
+ * @extends Relation<TModel, TModel, NestedSetCollection<int, TModel>>
+ */
 abstract class BaseRelation extends Relation
 {
     /**
@@ -24,12 +32,15 @@ abstract class BaseRelation extends Relation
     /**
      * The nested-set query builder instance.
      *
-     * @var QueryBuilder
+     * @var QueryBuilder<TModel>
      */
     protected EloquentBuilder $query;
 
     /**
      * Create a new nested set relation.
+     *
+     * @param QueryBuilder<TModel> $builder
+     * @param TModel $model
      */
     public function __construct(QueryBuilder $builder, Model $model)
     {
@@ -141,6 +152,8 @@ abstract class BaseRelation extends Relation
 
     /**
      * Get the results of the relationship.
+     *
+     * @return NestedSetCollection<int, TModel>
      */
     public function getResults(): Collection
     {

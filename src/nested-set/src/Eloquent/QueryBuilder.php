@@ -16,6 +16,11 @@ use InvalidArgumentException;
 use LogicException;
 use stdClass;
 
+/**
+ * @template TModel of Model
+ *
+ * @extends EloquentBuilder<TModel>
+ */
 class QueryBuilder extends EloquentBuilder
 {
     /**
@@ -136,6 +141,8 @@ class QueryBuilder extends EloquentBuilder
 
     /**
      * Get ancestors of specified node.
+     *
+     * @return Collection<int, TModel>
      */
     public function ancestorsOf(Model|int|string $id, array $columns = ['*']): BaseCollection
     {
@@ -144,6 +151,8 @@ class QueryBuilder extends EloquentBuilder
 
     /**
      * Get ancestors and the node itself.
+     *
+     * @return Collection<int, TModel>
      */
     public function ancestorsAndSelf(Model|int|string $id, array $columns = ['*']): BaseCollection
     {
@@ -234,6 +243,8 @@ class QueryBuilder extends EloquentBuilder
 
     /**
      * Get descendants of specified node.
+     *
+     * @return Collection<int, TModel>
      */
     public function descendantsOf(Model|int|string $id, array $columns = ['*'], bool $andSelf = false): BaseCollection
     {
@@ -246,6 +257,8 @@ class QueryBuilder extends EloquentBuilder
 
     /**
      * Get descendants and the node itself.
+     *
+     * @return Collection<int, TModel>
      */
     public function descendantsAndSelf(Model|int|string $id, array $columns = ['*']): BaseCollection
     {
@@ -329,6 +342,8 @@ class QueryBuilder extends EloquentBuilder
 
     /**
      * Get the leaf nodes.
+     *
+     * @return Collection<int, TModel>
      */
     public function leaves(array $columns = ['*']): BaseCollection
     {
@@ -1706,6 +1721,8 @@ class QueryBuilder extends EloquentBuilder
 
     /**
      * Get the root node.
+     *
+     * @return null|TModel
      */
     public function root(array $columns = ['*']): ?Model
     {

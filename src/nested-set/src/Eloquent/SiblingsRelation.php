@@ -8,6 +8,11 @@ use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Query\Builder;
 
+/**
+ * @template TModel of Model
+ *
+ * @extends BaseRelation<TModel>
+ */
 class SiblingsRelation extends BaseRelation
 {
     /**
@@ -17,6 +22,9 @@ class SiblingsRelation extends BaseRelation
 
     /**
      * Create a new sibling relation.
+     *
+     * @param QueryBuilder<TModel> $builder
+     * @param TModel $model
      */
     public function __construct(QueryBuilder $builder, Model $model, bool $andSelf = false)
     {

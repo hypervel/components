@@ -8,6 +8,11 @@ use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Query\Builder;
 
+/**
+ * @template TModel of Model
+ *
+ * @extends BaseRelation<TModel>
+ */
 class DescendantsRelation extends BaseRelation
 {
     /**
@@ -31,6 +36,9 @@ class DescendantsRelation extends BaseRelation
      */
     protected function constrainEagerModels(Builder $query, array $models): void
     {
+        // Per-parent ranges keep index scans within each parent's bounds; group bounds would
+        // scan everything between them. SQLite still prepares thousands of disjoint ranges
+        // in quadratic time.
         $this->addBalancedOrConstraints($query, $models, $this->addEagerConstraint(...));
     }
 
