@@ -6,6 +6,8 @@ namespace Hypervel\Saloon\RateLimit\Traits;
 
 use Carbon\Exceptions\InvalidFormatException;
 use Hypervel\RateLimiter\AdmissionPolicy;
+use Hypervel\RateLimiter\Contracts\Decision;
+use Hypervel\RateLimiter\Cooldown;
 use Hypervel\Saloon\Http\PendingRequest;
 use Hypervel\Saloon\Http\Response;
 use Hypervel\Support\CarbonImmutable;
@@ -14,13 +16,13 @@ use UnitEnum;
 trait HasRateLimits
 {
     /**
-     * Determine if this resource defines rate limits.
+     * Determine if this resource's rate limits apply to an operation.
      *
      * @internal
      */
-    final public function usesRateLimits(): bool
+    final public function usesRateLimits(PendingRequest $pendingRequest): bool
     {
-        return true;
+        return $this->rateLimitingEnabled($pendingRequest);
     }
 
     /**
@@ -45,13 +47,23 @@ trait HasRateLimits
     }
 
     /**
-     * Determine if denied rate limits should be awaited.
+     * Resolve the identity whose limits and cooldowns this resource uses.
      *
      * @internal
      */
-    final public function shouldWaitForRateLimits(): bool
+    final public function rateLimiterName(): string
     {
-        return $this->waitForRateLimits();
+        return $this->resolveRateLimiterName();
+    }
+
+    /**
+     * Determine if a denied rate limit should be awaited.
+     *
+     * @internal
+     */
+    final public function shouldWaitForRateLimits(AdmissionPolicy|Cooldown $policy, Decision $result): bool
+    {
+        return $this->waitForRateLimits($policy, $result);
     }
 
     /**
@@ -75,6 +87,14 @@ trait HasRateLimits
     }
 
     /**
+     * Determine if this resource's rate limits apply to an operation.
+     */
+    protected function rateLimitingEnabled(PendingRequest $pendingRequest): bool
+    {
+        return true;
+    }
+
+    /**
      * Resolve the admission policies for an operation.
      *
      * @return array<array-key, AdmissionPolicy>
@@ -90,9 +110,20 @@ trait HasRateLimits
     }
 
     /**
-     * Determine if denied rate limits should be awaited.
+     * Resolve the identity whose limits and cooldowns this resource uses.
+     *
+     * Resources that return the same name share limits and cooldowns within
+     * the same store, key scope and policy identity.
      */
-    protected function waitForRateLimits(): bool
+    protected function resolveRateLimiterName(): string
+    {
+        return static::class;
+    }
+
+    /**
+     * Determine if a denied rate limit should be awaited.
+     */
+    protected function waitForRateLimits(AdmissionPolicy|Cooldown $policy, Decision $result): bool
     {
         return false;
     }
@@ -102,7 +133,7 @@ trait HasRateLimits
      */
     protected function resolveRateLimitCooldownKey(PendingRequest $pendingRequest): string
     {
-        return static::class;
+        return '';
     }
 
     /**
@@ -117,8 +148,20 @@ trait HasRateLimits
             return null;
         }
 
-        $retryAfter = trim($response->header('Retry-After'));
+        // A 429 without a usable delay still blocks for upstream's 60-second default. A valid delay that has
+        // already passed blocks nothing.
+        $seconds = $this->parseRateLimitRetryAfter(trim($response->header('Retry-After'))) ?? 60;
 
+        return $seconds > 0 ? $seconds : null;
+    }
+
+    /**
+     * Parse a Retry-After value into seconds.
+     *
+     * Return null when the value is missing, malformed or too long for the rate limiter.
+     */
+    private function parseRateLimitRetryAfter(string $retryAfter): ?int
+    {
         if ($retryAfter === '') {
             return null;
         }
@@ -224,12 +267,10 @@ trait HasRateLimits
     }
 
     /**
-     * Return a positive cooldown that the rate limiter can represent.
+     * Return a delay the rate limiter can represent, or null when it is too long.
      */
     private function checkedRateLimitCooldownSeconds(int $seconds): ?int
     {
-        return $seconds > 0 && $seconds <= intdiv(AdmissionPolicy::MAX_INTEGER, 1_000_000)
-            ? $seconds
-            : null;
+        return $seconds <= intdiv(AdmissionPolicy::MAX_INTEGER, 1_000_000) ? $seconds : null;
     }
 }

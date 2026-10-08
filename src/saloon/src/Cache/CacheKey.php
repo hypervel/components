@@ -9,7 +9,7 @@ use Hypervel\Saloon\Exceptions\BodyException;
 use Hypervel\Saloon\Http\HeaderNormalizer;
 use Hypervel\Saloon\Http\PendingRequest;
 
-final class CacheKey
+class CacheKey
 {
     /**
      * Options that can change a successful response.
@@ -50,6 +50,8 @@ final class CacheKey
             ? $this->requestIdentity($pendingRequest, $transportOptions)
             : ['custom' => $customKey];
 
+        // sha256 rather than xxh128: the identity includes credentials, and a forged collision would return another
+        // caller's cached response.
         return 'saloon:' . hash('sha256', $this->encode([$identity, 'scope' => $scope]));
     }
 

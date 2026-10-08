@@ -182,7 +182,7 @@ Build complete, long-term solutions, not MVPs or local workarounds. A broad chan
 - **Modern PHP 8.4+ with full typing** — use constructor property promotion, readonly properties, enums, match expressions, named arguments, and attributes where they fit. Every file declares `strict_types=1`; parameters, return types, properties, and class constants are natively typed wherever PHP and the inherited API permit (e.g. `resource` cannot be represented as a native PHP type). PHP does not allow return types on `__construct()` or `__destruct()`.
 - **Contract signature dependencies are lazy** — contract signatures may natively reference types from optional split packages without a reverse Composer dependency. Do not remove these types or add cyclic dependencies solely for split-package isolation.
 - **Newly written classes use dependency injection** — inject contracts (e.g. `Repository $config`, `CacheRepository $cache`) via constructor or method injection rather than helpers, facades, or `new` for framework services. Dependencies become explicit in signatures and tests swap them in directly, without facade-mocking machinery. Fall back to `Container::getInstance()->make(...)` only where injection isn't possible — static contexts and traits, like the testing package's Concerns. Helpers (`config()`, `cache()`) are fine in non-class contexts such as route and config files.
-- **Never convert ported code to dependency injection** — ported code keeps its upstream facade, helper, and instantiation style. Converting it restructures classes and breaks 1:1 upstream mergeability.
+- **Dependency access in ported code** — Preserve upstream’s facade, helper and instantiation style where the class still follows upstream’s structure closely enough for updates to apply with little rework. Use dependency injection when substantially redesigning a class for Hypervel. Do not switch existing code between these styles merely for consistency or upstream fidelity; require a concrete correctness, lifetime, testability or maintainability benefit.
 - **Use imported short class names** — applies to new and ported code, including PHPDoc annotations. Replace fully or partially qualified class references with imported short names; use aliases for naming collisions. Classes in the current namespace need no import. Keep fully qualified names where genuinely clearer, such as middleware arrays and similar config-style identifier lists.
 - **Group traits in `Concerns/`** — follow the package's existing convention if it already has a `Concerns/` or `Traits/` directory; never mix both in one package. New Hypervel-original packages always use `Concerns/`; a newly ported package keeps its upstream directory name.
 - **Use Laravel observer conventions** — place Eloquent observers in a top-level `Observers/` directory. Register model-specific observers with `#[ObservedBy(...)]`; use `observe()` only for dynamic registration or observers supplied automatically by a reusable concern.
@@ -723,15 +723,7 @@ When adding integration tests for a new service type that has no trait yet, crea
 
 #### GH workflows
 
-Each integration group has its own workflow file in `.github/workflows/`:
-
-| Workflow | Runs | Directory |
-|----------|------|-----------|
-| `engine.yml` | HTTP test servers | `tests/Integration/Engine`, `tests/Integration/HttpServer` |
-| `databases.yml` | MySQL, MariaDB, PostgreSQL, SQLite | `tests/Integration/Database`, `tests/Integration/*/Database/*` |
-| `redis.yml` | Redis, Redis Cluster, Valkey | `tests/Integration/Auth/Redis`, `tests/Integration/Broadcasting/Redis`, `tests/Integration/Cache`, `tests/Integration/Horizon`, `tests/Integration/Http/Redis`, `tests/Integration/OpenTelemetry/Redis`, `tests/Integration/Queue`, `tests/Integration/RateLimiter/Redis`, `tests/Integration/Redis`, `tests/Integration/Session/Redis`; Cache and Queue run with Redis selected, and it also reruns the listed topology-neutral Reverb state tests with Cluster and Reverb state recovery with Valkey |
-| `reverb.yml` | Redis-backed Reverb servers and state | `tests/Integration/Reverb` |
-| `scout.yml` | Meilisearch, Typesense | `tests/Integration/Scout/*` |
+Check `.github/workflows/` to determine which workflow runs the affected integration tests. When adding a test directory, update the appropriate workflow so CI actually runs it.
 
 When adding integration tests that need a new service, either add them to an existing workflow or create a new one. The workflow must start the service and set the appropriate env vars.
 

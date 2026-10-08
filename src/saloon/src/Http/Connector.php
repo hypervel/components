@@ -6,8 +6,11 @@ namespace Hypervel\Saloon\Http;
 
 use Hypervel\Container\Container;
 use Hypervel\RateLimiter\AdmissionPolicy;
+use Hypervel\RateLimiter\Contracts\Decision;
+use Hypervel\RateLimiter\Cooldown;
 use Hypervel\Saloon\Contracts\Authenticator;
 use Hypervel\Saloon\Contracts\Body\BodyRepository;
+use Hypervel\Saloon\Data\RetryPolicy;
 use Hypervel\Saloon\Enums\Method;
 use Hypervel\Saloon\Http\Faking\MockClient;
 use Hypervel\Saloon\SaloonManager;
@@ -56,6 +59,37 @@ abstract class Connector
         return $manager->send($this, $request, $mockClient);
     }
 
+    // sendAsync() is not included: pool() sends concurrently through coroutines instead of promises. Upstream's
+    // deprecated sendAndRetry() is not included either; use retry() or defaultRetryPolicy(). See the package README.
+
+    /**
+     * Prepare a request for sending through this connector.
+     *
+     * The pending request has run its hooks and request middleware but has not been finalized or sent.
+     *
+     * @template TRequestDto
+     * @param Request<TRequestDto> $request
+     * @return PendingRequest<TRequestDto>
+     */
+    public function createPendingRequest(Request $request): PendingRequest
+    {
+        /** @var SaloonManager $manager */
+        $manager = Container::getInstance()->make('saloon');
+
+        return $manager->createPendingRequest($this, $request);
+    }
+
+    /**
+     * Clear the cached response for a request without sending it.
+     */
+    public function clearCache(Request $counterpart): void
+    {
+        /** @var SaloonManager $manager */
+        $manager = Container::getInstance()->make('saloon');
+
+        $manager->clearCache($this, $counterpart);
+    }
+
     /**
      * Create a bounded request pool.
      *
@@ -79,6 +113,9 @@ abstract class Connector
     {
         return null;
     }
+
+    // sender() and defaultSender() are not included: requests are sent through the HTTP client connection. See the
+    // package README.
 
     /**
      * Resolve whether requests may replace this connector's base URL.
@@ -132,6 +169,14 @@ abstract class Connector
     final public function delayMilliseconds(): ?int
     {
         return $this->defaultDelay();
+    }
+
+    /**
+     * Get the default retry policy for requests without their own.
+     */
+    final public function retryPolicy(): ?RetryPolicy
+    {
+        return $this->defaultRetryPolicy();
     }
 
     /**
@@ -193,6 +238,14 @@ abstract class Connector
     }
 
     /**
+     * Resolve the default retry policy.
+     */
+    protected function defaultRetryPolicy(): ?RetryPolicy
+    {
+        return null;
+    }
+
+    /**
      * Resolve the default body repository.
      */
     protected function defaultBodyRepository(): ?BodyRepository
@@ -222,11 +275,11 @@ abstract class Connector
     }
 
     /**
-     * Determine if this connector defines rate limits.
+     * Determine if the connector's rate limits apply to an operation.
      *
      * @internal
      */
-    public function usesRateLimits(): bool
+    public function usesRateLimits(PendingRequest $pendingRequest): bool
     {
         return false;
     }
@@ -253,11 +306,21 @@ abstract class Connector
     }
 
     /**
-     * Determine if connector rate limits should be awaited.
+     * Resolve the identity whose limits and cooldowns the connector uses.
      *
      * @internal
      */
-    public function shouldWaitForRateLimits(): bool
+    public function rateLimiterName(): string
+    {
+        return static::class;
+    }
+
+    /**
+     * Determine if a denied connector rate limit should be awaited.
+     *
+     * @internal
+     */
+    public function shouldWaitForRateLimits(AdmissionPolicy|Cooldown $policy, Decision $result): bool
     {
         return false;
     }
@@ -269,7 +332,7 @@ abstract class Connector
      */
     public function resolveRateLimitCooldownKeyFor(PendingRequest $pendingRequest): string
     {
-        return static::class;
+        return '';
     }
 
     /**

@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\RateLimiter\AdmissionPolicy;
 use Hypervel\RateLimiter\Backoff;
 use Hypervel\RateLimiter\BackoffResult;
+use Hypervel\RateLimiter\CalendarWindow;
 use Hypervel\RateLimiter\Contracts\Store;
 use Hypervel\RateLimiter\Cooldown;
 use Hypervel\RateLimiter\CooldownResult;
@@ -103,6 +104,7 @@ class LimiterTest extends TestCase
 
         foreach ([
             Limit::perMinute(1)->cost(2),
+            CalendarWindow::perMinute(1)->cost(2),
             SlidingWindow::perMinute(1)->cost(2),
             LeakyBucket::perSecond(1)->cost(2),
         ] as $policy) {

@@ -26,10 +26,12 @@
     - [Scheduling](#scheduling)
     - [Maintenance Mode](#maintenance-mode)
     - [HTTP Client and Concurrency](#http-client-and-concurrency)
+    - [Saloon](#saloon)
     - [Broadcasting](#broadcasting)
     - [JSON:API Resources](#jsonapi-resources)
     - [CSRF Protection](#csrf-protection)
     - [Fortify](#fortify)
+    - [JWT Authentication](#jwt-authentication)
     - [Scout](#scout)
     - [Socialite](#socialite)
     - [JSON Schema](#json-schema)
@@ -514,6 +516,13 @@ For concurrent HTTP requests, replace Laravel's `Http::pool` and `Http::batch` p
 
 Hypervel's `Concurrency` facade provides `coroutine`, `process`, and `sync` drivers. Laravel's `fork` driver is not available because coroutines are Hypervel's native lightweight execution model. Use the default `coroutine` driver for normal concurrent application work and reserve `process` for work that requires operating system process isolation. See the [concurrency documentation](/docs/{{version}}/concurrency#choosing-a-driver).
 
+<a name="saloon"></a>
+### Saloon
+
+Integrations built with `saloonphp/saloon`, its Laravel plugin, and its cache, pagination, and rate limit plugins use the single `hypervel/saloon` package. Replace the `Saloon\` and `Saloon\Laravel\` namespaces with `Hypervel\Saloon\`, and the plugins' `Saloon\CachePlugin\`, `Saloon\PaginationPlugin\`, and `Saloon\RateLimitPlugin\` namespaces with `Hypervel\Saloon\Cache\`, `Hypervel\Saloon\Pagination\`, and `Hypervel\Saloon\RateLimit\`.
+
+Connectors may be shared by concurrent requests, so they are read-only. Move code that changes a connector's headers, query parameters, options, authenticator, delay, middleware, or mock client at runtime to the request, the `send` call, or the connector's `boot` method. Requests use fluent methods such as `withHeaders` and `withQueryParameters` instead of `headers()->add()` and `query()->add()`. Replace `sendAsync` and promises with pools, retry properties with `retry` or `defaultRetryPolicy`, custom senders with HTTP connections, and the rate limit plugin's limits and stores with rate limiter policies. Request exceptions extend the HTTP client's `RequestException`, so `catch (SaloonException $e)` no longer catches failed responses. See [Differences From Saloon](/docs/{{version}}/saloon#differences-from-saloon).
+
 <a name="broadcasting"></a>
 ### Broadcasting
 
@@ -535,6 +544,15 @@ Replace references to Laravel's deprecated `VerifyCsrfToken` and `ValidateCsrfTo
 User models that use Fortify's `TwoFactorAuthenticatable` trait must also implement `Hypervel\Fortify\Contracts\TwoFactorAuthenticationUser`, or two-factor challenges will fail. See [two-factor authentication](/docs/{{version}}/fortify#two-factor-authentication).
 
 Fortify ignores Laravel's `fortify.passwords` setting. Declare the password reset broker with the guard's `passwords` key in `config/auth.php` instead. See [password resets](/docs/{{version}}/fortify#password-resets). Laravel's deprecated `Laravel\Fortify\Rules\Password` rule is not available; use `Hypervel\Validation\Rules\Password`.
+
+<a name="jwt-authentication"></a>
+### JWT Authentication
+
+Applications using `tymon/jwt-auth` or `php-open-source-saver/jwt-auth` can switch to `hypervel/jwt`. Publish its `config/jwt.php` file and copy your values into it instead of reusing the old file, since some options have been renamed or removed. Replace the `JWTAuth` and `JWTFactory` facades with guard methods such as `fromUser` and `payload`, which returns the claims as an array. Set options such as subject locking and the blacklist in configuration instead of calling setters at runtime. Replace the `jwt.auth` middleware with `auth:api`, remove `jwt.check` from routes that allow guests, and replace `jwt.refresh` and `jwt.renew` with a [refresh endpoint](/docs/{{version}}/jwt#refreshing-tokens).
+
+Only the `Authorization` header is read by default. If clients send tokens in the query string, request body, or a cookie, add the matching parser to the `parser` option. See [token sources](/docs/{{version}}/jwt#token-sources).
+
+Rotate `JWT_SECRET` or your key pair when you switch, so clients sign in again. Hypervel stores revocations under different cache keys, so tokens revoked by the old application would be accepted again if they still verified.
 
 <a name="scout"></a>
 ### Scout

@@ -74,6 +74,9 @@ class ConnectionLease implements NonCopyableContext
             if (isset($this->connection)) { // @phpstan-ignore isset.initializedProperty (PDO resolvers may run during construction.)
                 $this->connection->attachPdoResources($physicalConnection);
                 $pooledConnection->dispatchConnectionEstablishedEvent();
+
+                // A listener may have reconnected and replaced the published handle.
+                $pdo = $this->connection->resolveRawPdo($read);
             }
 
             return $pdo;

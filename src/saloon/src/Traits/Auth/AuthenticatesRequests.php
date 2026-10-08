@@ -75,5 +75,8 @@ trait AuthenticatesRequests
         return $this->authenticate(new DigestAuthenticator($username, $password));
     }
 
+    // Upstream's deprecated withTokenAuth(), withQueryAuth(), withHeaderAuth() and withCertificateAuth() are not
+    // included; pass the authenticator to authenticate().
+
     // NtlmAuthenticator and withNtlmAuth() are omitted; use a custom authenticator if needed.
 }

@@ -104,11 +104,16 @@ class Fixture
             return $response;
         }
 
-        /** @var null|string $body */
         $body = $response->body()->all();
-        $contents = $body === null || $body === ''
-            ? []
-            : json_decode($body, true, 512, JSON_THROW_ON_ERROR);
+
+        if (is_array($body)) {
+            $contents = $body;
+        } else {
+            /** @var null|string $body */
+            $contents = $body === null || $body === ''
+                ? []
+                : json_decode($body, true, 512, JSON_THROW_ON_ERROR);
+        }
 
         if (! is_array($contents)) {
             throw new FixtureException('Fixture merge and through transforms require a JSON array or object body.');
@@ -122,7 +127,7 @@ class Fixture
             $contents = ($this->through)($contents);
         }
 
-        $response->body()->set(json_encode($contents, JSON_THROW_ON_ERROR));
+        $response->body()->set(is_array($body) ? $contents : json_encode($contents, JSON_THROW_ON_ERROR));
 
         return $response;
     }
@@ -134,11 +139,16 @@ class Fixture
      */
     public function store(RecordedResponse $recordedResponse): static
     {
+        // Redaction rules match the response text, so array data is encoded first rather than skipping them.
+        if (is_array($recordedResponse->data)) {
+            $recordedResponse->data = json_encode($recordedResponse->data, JSON_THROW_ON_ERROR);
+        }
+
         $recordedResponse = $this->swapSensitiveHeaders($recordedResponse);
         $recordedResponse = $this->swapSensitiveJson($recordedResponse);
         $recordedResponse = $this->swapSensitiveBodyWithRegex($recordedResponse);
         $recordedResponse = $this->beforeSave($recordedResponse);
-        $recordedResponse->context = array_merge($recordedResponse->context, $this->context->all());
+        $recordedResponse->context = array_merge($this->context->all(), $recordedResponse->context);
 
         $fixturePath = $this->getFixturePath();
         $this->files->ensureDirectoryExists(dirname($fixturePath));
@@ -197,8 +207,9 @@ class Fixture
                 continue;
             }
 
-            $replacement = $replacement instanceof Closure ? $replacement($values) : $replacement;
-            $recordedResponse->headers[$name] = is_array($replacement) ? $replacement : [$replacement];
+            $redact = static fn (string $value): string => $replacement instanceof Closure ? $replacement($value) : $replacement;
+
+            $recordedResponse->headers[$name] = is_array($values) ? array_map($redact, $values) : $redact($values);
         }
 
         return $recordedResponse;
@@ -253,7 +264,9 @@ class Fixture
     /**
      * Define sensitive response headers.
      *
-     * @return array<string, Closure(list<string>): (list<string>|string)|string>
+     * Rules apply to each value of a matching header.
+     *
+     * @return array<string, Closure(string): string|string>
      */
     protected function defineSensitiveHeaders(): array
     {

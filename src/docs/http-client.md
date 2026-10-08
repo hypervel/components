@@ -185,6 +185,8 @@ Inside a Swoole coroutine with native cURL hooks enabled, the HTTP client receiv
 
 For streaming requests, `timeout` bounds the wait for response headers. After headers arrive, a long-running stream may continue beyond that timeout. The `read_timeout` option limits idle gaps during headers and body reads, defaults to 60 seconds, and accepts `0` to wait without an idle limit. `connect_timeout` continues to limit connection establishment. Closing a response or canceling its consuming coroutine releases its active transfer.
 
+If cURL negotiates authentication for a streamed request, such as digest authentication with Guzzle 7 or the `CURLOPT_HTTPAUTH` and `CURLOPT_PROXYAUTH` cURL options, the response is returned when its first body bytes arrive or the transfer completes. The `timeout` option also covers that wait.
+
 For streamed responses, `on_stats` runs when the response is returned. The `on_trailers` callback runs once the transfer has completed, after `on_headers`. Small responses may already be complete when returned; for longer responses, trailers arrive as the body is consumed.
 
 Outside a hooked coroutine, or when you provide `stream_context` or a custom `stream_factory`, the client uses Guzzle's PHP-stream handler. This fallback requires `allow_url_fopen`, cannot use cURL destination pins or required transport sharing, and retains Guzzle's timeout behavior. In Guzzle 7, an omitted `read_timeout` uses the stream context or PHP socket timeout. Custom handlers and clients remain responsible for their own streaming support; faked responses do not need a transport.

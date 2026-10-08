@@ -375,14 +375,55 @@ class CurlStreamingHandlerTest extends TestCase
 
     public function testAbandonedResponseBodyIsReleasedWithoutCyclicGarbageCollection(): void
     {
-        $server = LoopbackHttpServer::start();
-        $response = (new Factory)->withOptions(['stream' => true])->get('http://127.0.0.1:' . $server->port);
-        $body = WeakReference::create($response->toPsrResponse()->getBody());
+        $factory = new class(new CurlFactory(0)) implements CurlFactoryInterface {
+            public ?WeakReference $handle = null;
 
-        unset($response);
+            /**
+             * Wrap the native handle factory.
+             */
+            public function __construct(private CurlFactory $factory)
+            {
+            }
 
-        $this->assertNull($body->get());
-        $this->assertNotNull($server->request());
+            /**
+             * Observe the handle without retaining request options or their callbacks.
+             */
+            public function create(RequestInterface $request, array $options): EasyHandle
+            {
+                $easy = $this->factory->create($request, $options);
+                $this->handle = WeakReference::create($easy->handle);
+
+                return $easy;
+            }
+
+            /**
+             * Release the observed transfer through the real factory.
+             */
+            public function release(EasyHandle $easy): void
+            {
+                $this->factory->release($easy);
+            }
+        };
+        $handler = new CurlStreamingHandler;
+        (new ReflectionProperty($handler, 'factory'))->setValue($handler, $factory);
+        $garbageCollectionEnabled = gc_enabled();
+        gc_disable();
+
+        try {
+            $server = LoopbackHttpServer::start();
+            $response = (new Factory)->setHandler($handler)->withOptions(['stream' => true])->get('http://127.0.0.1:' . $server->port);
+            $body = WeakReference::create($response->toPsrResponse()->getBody());
+
+            unset($response);
+
+            $this->assertNull($body->get());
+            $this->assertNull($factory->handle->get());
+            $this->assertNotNull($server->request());
+        } finally {
+            if ($garbageCollectionEnabled) {
+                gc_enable();
+            }
+        }
     }
 
     public function testNativeWaitReportsDataArrivingBetweenPerformAndSelect(): void

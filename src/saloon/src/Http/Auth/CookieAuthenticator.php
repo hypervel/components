@@ -9,16 +9,16 @@ use Hypervel\Saloon\Contracts\Authenticator;
 use Hypervel\Saloon\Http\PendingRequest;
 use SensitiveParameter;
 
-readonly class CookieAuthenticator implements Authenticator
+class CookieAuthenticator implements Authenticator
 {
     /**
      * Create a cookie authenticator.
      */
     public function __construct(
-        public string $name,
+        public readonly string $name,
         #[SensitiveParameter]
-        public string $value,
-        public ?string $domain = null,
+        public readonly string $value,
+        public readonly ?string $domain = null,
     ) {
     }
 

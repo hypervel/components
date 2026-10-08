@@ -1332,6 +1332,17 @@ class PendingRequest implements Transient
 
         $mergedOptions = $this->normalizeRequestOptions($this->mergeOptions($requestOptions, $options));
 
+        // Guzzle adds the multipart Content-Type, with the body's boundary, only when none is set. A content type
+        // without a boundary, such as one from asJson() or a connection default, cannot describe the body.
+        if (isset($mergedOptions['multipart']) && is_array($mergedOptions['headers'] ?? null)) {
+            $mergedOptions['headers'] = array_filter(
+                $mergedOptions['headers'],
+                static fn (array|string $value, string $name): bool => strcasecmp($name, 'Content-Type') !== 0
+                    || stripos(implode(', ', (array) $value), 'boundary=') !== false,
+                ARRAY_FILTER_USE_BOTH,
+            );
+        }
+
         return $this->buildClient()->{$clientMethod}($method, $url, $mergedOptions);
     }
 

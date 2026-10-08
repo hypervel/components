@@ -6,7 +6,8 @@ namespace Hypervel\Tests\Saloon;
 
 use Hypervel\Saloon\Http\Auth\CookieAuthenticator;
 use Hypervel\Saloon\Traits\OAuth2\AuthorizationCodeGrant;
-use Hypervel\Saloon\Traits\OAuth2\CreatesOAuthAuthenticator;
+use Hypervel\Saloon\Traits\OAuth2\ClientCredentialsGrant;
+use Hypervel\Saloon\Traits\OAuth2\ParsesOAuthTokenResponses;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
@@ -42,10 +43,13 @@ class SensitiveParameterTest extends TestCase
     {
         return [
             [CookieAuthenticator::class, '__construct', 'value'],
-            [CreatesOAuthAuthenticator::class, 'createOAuthAuthenticatorFromResponse', 'response'],
-            [CreatesOAuthAuthenticator::class, 'createOAuthAuthenticatorFromResponse', 'fallbackRefreshToken'],
-            [CreatesOAuthAuthenticator::class, 'createOAuthAuthenticator', 'accessToken'],
-            [CreatesOAuthAuthenticator::class, 'createOAuthAuthenticator', 'refreshToken'],
+            [ParsesOAuthTokenResponses::class, 'parseOAuthTokenResponse', 'response'],
+            [AuthorizationCodeGrant::class, 'createOAuthAuthenticatorFromResponse', 'response'],
+            [AuthorizationCodeGrant::class, 'createOAuthAuthenticatorFromResponse', 'fallbackRefreshToken'],
+            [AuthorizationCodeGrant::class, 'createOAuthAuthenticator', 'accessToken'],
+            [AuthorizationCodeGrant::class, 'createOAuthAuthenticator', 'refreshToken'],
+            [ClientCredentialsGrant::class, 'createOAuthAuthenticatorFromResponse', 'response'],
+            [ClientCredentialsGrant::class, 'createOAuthAuthenticator', 'accessToken'],
             [AuthorizationCodeGrant::class, 'validateState', 'state'],
             [AuthorizationCodeGrant::class, 'validateState', 'expectedState'],
         ];
