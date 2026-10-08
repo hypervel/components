@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Ai;
 use Hypervel\Ai\AiManager;
 use Hypervel\Ai\Contracts\Gateway\Gateway;
 use Hypervel\Ai\Enums\Lab;
+use Hypervel\Ai\Gateway\ParentInvocation;
 use Hypervel\Ai\Providers\Provider;
 use Hypervel\Config\Repository;
 use Hypervel\Context\CoroutineContext;
@@ -14,6 +15,7 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use RuntimeException;
 use WeakReference;
 
 use function Hypervel\Coroutine\parallel;
@@ -111,6 +113,42 @@ class CoroutineIsolationTest extends TestCase
         );
         $this->assertSame([['openai', 'model']], iterator_to_array(Provider::providerAndModelPairs(Lab::OpenAI, 'model')));
         $this->assertSame(['account' => null], Provider::formatProviderAndModelList($first));
+    }
+
+    public function testParentInvocationsStayLocalAndRestoreNestedFailures(): void
+    {
+        $failure = new RuntimeException('Nested tool failed.');
+
+        [$first, $second] = parallel([
+            function () use ($failure): array {
+                return ParentInvocation::within('first', 'first-tool', function () use ($failure): array {
+                    usleep(5000);
+
+                    try {
+                        ParentInvocation::within('nested', 'nested-tool', function () use ($failure): void {
+                            $this->assertSame(['nested', 'nested-tool'], ParentInvocation::current());
+
+                            throw $failure;
+                        });
+                    } catch (RuntimeException $exception) {
+                        $this->assertSame($failure, $exception);
+                    }
+
+                    return ParentInvocation::current();
+                });
+            },
+            function (): array {
+                return ParentInvocation::within('second', 'second-tool', function (): array {
+                    usleep(10000);
+
+                    return ParentInvocation::current();
+                });
+            },
+        ]);
+
+        $this->assertSame(['first', 'first-tool'], $first);
+        $this->assertSame(['second', 'second-tool'], $second);
+        $this->assertSame([null, null], ParentInvocation::current());
     }
 
     /**
