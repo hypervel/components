@@ -7,6 +7,7 @@ namespace Hypervel\Tests\NestedSet;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Eloquent\Attributes\UseEloquentBuilder;
 use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\HasBuilder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Query\Builder as BaseQueryBuilder;
 use Hypervel\NestedSet\Eloquent\QueryBuilder;
@@ -350,6 +351,11 @@ class NestedSetTestCustomBuilder extends QueryBuilder
 class NestedSetTestCustomBuilderNodeModel extends Model
 {
     use HasNode;
+
+    /** @use HasBuilder<NestedSetTestCustomBuilder<static>> */
+    use HasBuilder {
+        HasNode::newEloquentBuilder insteadof HasBuilder;
+    }
 
     protected static string $builder = QueryBuilder::class;
 

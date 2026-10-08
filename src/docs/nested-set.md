@@ -185,6 +185,33 @@ class CategoryQueryBuilder extends QueryBuilder
 }
 ```
 
+For [static analysis](/docs/{{version}}/database#static-analysis), make the builder generic and add the `HasBuilder` trait with its type. Since `HasNode` already defines `newEloquentBuilder`, keep its version when adding the trait:
+
+```php
+use Hypervel\Database\Eloquent\HasBuilder;
+
+#[UseEloquentBuilder(CategoryQueryBuilder::class)]
+class Category extends Model
+{
+    use HasNode;
+
+    /** @use HasBuilder<CategoryQueryBuilder<static>> */
+    use HasBuilder {
+        HasNode::newEloquentBuilder insteadof HasBuilder;
+    }
+}
+
+/**
+ * @template TModel of Model
+ *
+ * @extends QueryBuilder<TModel>
+ */
+class CategoryQueryBuilder extends QueryBuilder
+{
+    // ...
+}
+```
+
 <a name="custom-column-names"></a>
 ### Custom Column Names
 
@@ -816,7 +843,7 @@ To include the root node itself, retrieve it along with its descendants and take
 
 ```php
 $mobile = Category::defaultOrder()
-    ->descendantsAndSelf($mobileId)
+    ->descendantsAndSelf(5)
     ->toTree()
     ->first();
 ```

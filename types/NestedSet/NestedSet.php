@@ -40,7 +40,9 @@ class NestedSetTypeMenuItem extends Model
     use HasNode;
 
     /** @use HasBuilder<NestedSetTypeMenuBuilder<static>> */
-    use HasBuilder;
+    use HasBuilder {
+        HasNode::newEloquentBuilder insteadof HasBuilder;
+    }
 
     protected static string $builder = NestedSetTypeMenuBuilder::class;
 }
