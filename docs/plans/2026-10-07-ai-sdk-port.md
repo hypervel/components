@@ -39,6 +39,10 @@ Bring dependencies forward when useful; do not pull the whole package into one c
 
 Code-reviewed checkpoints may be committed and subsequent work may proceed before performance measurements. AI-level benchmarks remain mandatory before opening the package PR; obtain peer review of the results and make any required improvements in additional reviewed commits. Use an owner-confirmed idle window.
 
+### Required audit before further package work
+
+First finish the in-flight conversation-store work, including single-timestamp-write storage that honors overrides. Verify and obtain peer signoff on all uncommitted changes, then commit them and leave this worktree clean. Only then, implementer and peer independently audit the AI port in parallel against upstream for added recurring runtime/database costs and schema changes. This is not another general code-quality or API audit. For each finding, establish the supported need, cost, benefit and approval status; reconsider more performant designs without preserving real bugs or paying for speculative safeguards. Evaluate schema choices against actual usage rather than conventions alone. Distinguish measured regressions from unmeasured added work. After both audits finish, consolidate the findings in a second-opinion round: check the evidence, remove false positives and duplicates, and resolve substantive disagreements without expanding the audit. Then give the owner a simple, concise bullet-point summary of each remaining cost, why it exists, whether it is justified, and the recommended correction, and ping them using `notify_user`. Do this before making audit-driven changes. Follow the orchestration document for the parallel audit request.
+
 ## 1. Database integration
 
 Framework Http already releases idle database leases after request callbacks and fake selection, before real outgoing I/O, including retries and redirects. Logical connections/builders retain their state and reacquire physical sessions lazily. Transactions, cursors and explicit `withPinnedSession()` scopes prevent voluntary release; custom whole-connection drivers remain execution-owned. See [Releasing and Pinning Connections](../../src/docs/database.md#releasing-and-pinning-connections) for session-dependent usage and extension boundaries.
@@ -151,7 +155,11 @@ public function storeTurn(
 
 `StoredTurn` contains the conversation ID and nullable user/assistant message IDs. A non-null title requests creation with the supplied ID; preserve the pending ID already surfaced to stream protocols. Derive the user message from the prompt and omit it on approval resumption. One short store-owned transaction creates the conversation if necessary, stores the user/assistant or folds the paused row, cleans eligible replay data, and touches the conversation once. Generate the title before opening the transaction. Mutate agent/response stored IDs after commit. Apply the same atomic boundary to failed-turn persistence where a turn is recordable.
 
-Custom stores without this capability retain the existing sequential storage API. Do not wrap generic middleware in SQL facade transactions or impose SQL behavior on custom stores. Standalone store methods retain their behavior; internal helpers avoid repeating touches inside storeTurn.
+Transactions that write a conversation row lock it before its messages: touch an existing conversation first, or create a new one before inserting messages without a redundant timestamp update. Claim and result transactions lock only message rows. This avoids foreign-key lock upgrades deadlocking overlapping turns. Standalone user-message writes use the same order without adding a transaction; standalone assistant writes use their own short transaction because folds and replay cleanup lock message rows. Do not use the touch's affected-row count to infer existence.
+
+`storeTurn` composes the public store methods, honoring overrides and the conversation ID returned by creation. A turn-owned `ConversationTurnState` in `CoroutineContext`, implementing `NonCopyableContext`, matches the exact store and conversation and records whether its timestamp has been written. Save/restore the previous state in `finally`. Existing ordinary turns write the parent before public message dispatch; new conversations need only their insertion; approval resumes touch after the assistant's no-op check. Public assistant persistence reuses only this matching owned transaction, avoiding a nested savepoint; standalone calls retain their transaction. This preserves one timestamp write without bypassing public or protected extension methods.
+
+Custom stores without this capability retain the existing sequential storage API. Do not wrap generic middleware in SQL facade transactions or impose SQL behavior on custom stores.
 
 ### Claim approved work before executing tools
 
@@ -178,7 +186,7 @@ Remove the owner-approved protected `ResumesToolApprovals::storeApprovalResultRe
 
 Do not implement heartbeat/expiry/retry machinery for claims or promise exactly-once external effects. Existing tool-call IDs remain usable as provider/application idempotency keys. `settleAbandonedToolCalls()` only synthesizes messages; it does not prove another run is dead. Non-claimed abandoned pauses retain upstream behavior.
 
-Every read-modify-write of steps, including replay cleanup and legacy approval-result methods, must respect active claims and merge under a short row lock. Cleanup selects only rows with replay data and no active claim, then clears the marker atomically; previously emptied paused rows must not be fetched and decoded forever. Keep queries bounded to their actual conversation/partition.
+Every read-modify-write of steps, including replay cleanup and legacy approval-result methods, must respect active claims and merge under a short row lock. Scan candidates without locks in bounded ID-ordered pages selecting only needed columns, then lock the selected primary key and recheck ownership/status/pending calls; preserve the legacy mismatch payload from the newest pause. A deleted claimed row fails with ApprovalMismatchException during result recording or settlement, never falling back to inserting another turn. Cleanup selects only rows with replay data and no active claim, then clears the marker atomically; previously emptied paused rows must not be fetched and decoded forever. Include the paged candidate query in real-driver EXPLAIN checks.
 
 ### Tests
 
