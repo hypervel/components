@@ -465,13 +465,7 @@ trait Promptable
             throw new RuntimeException('No AI providers were configured.');
         }
 
-        foreach ($providers as $index => [$provider, $model]) {
-            if (! $provider instanceof Provider) {
-                $providers[$index] = [Ai::onDemandProvider($provider) ?? $provider, $model];
-            }
-        }
-
-        return $providers;
+        return Ai::resolveOnDemandProviders($providers);
     }
 
     /**

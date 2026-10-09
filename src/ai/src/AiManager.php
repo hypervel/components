@@ -153,6 +153,25 @@ class AiManager extends MultipleInstanceManager
     }
 
     /**
+     * Capture on-demand providers before an earlier failover attempt can replace them.
+     *
+     * @internal
+     *
+     * @param list<array{Provider|string, ?string}> $providers
+     * @return list<array{Provider|string, ?string}>
+     */
+    public function resolveOnDemandProviders(array $providers): array
+    {
+        foreach ($providers as $index => [$provider, $model]) {
+            if (is_string($provider)) {
+                $providers[$index] = [$this->onDemandProvider($provider) ?? $provider, $model];
+            }
+        }
+
+        return $providers;
+    }
+
+    /**
      * Forget resolved providers while retaining their configuration.
      *
      * Boot or tests only for configured providers. Their instances are shared
