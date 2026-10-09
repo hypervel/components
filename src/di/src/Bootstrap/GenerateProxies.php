@@ -31,6 +31,15 @@ class GenerateProxies
     protected static ?ClassLoader $proxyLoader = null;
 
     /**
+     * The canonical source file of each generated proxy, keyed by canonical proxy file path.
+     *
+     * Entries are kept across bootstraps because already-loaded proxy classes stay in use.
+     *
+     * @var array<string, string>
+     */
+    protected static array $proxySources = [];
+
+    /**
      * Bootstrap the AOP proxy generation.
      */
     public function bootstrap(ApplicationContract $app): void
@@ -82,6 +91,23 @@ class GenerateProxies
         }
 
         ClassMapManager::applyProxies($proxies);
+
+        foreach ($proxies as $class => $proxyFile) {
+            static::$proxySources[realpath($proxyFile)] = realpath($classMap[$class]);
+        }
+    }
+
+    /**
+     * Get the canonical source file of each generated proxy, keyed by canonical proxy file path.
+     *
+     * Stack frames report the proxy file, so code that classifies frames by path
+     * (such as application versus vendor code) should classify the source instead.
+     *
+     * @return array<string, string>
+     */
+    public static function proxySources(): array
+    {
+        return static::$proxySources;
     }
 
     /**
@@ -187,5 +213,6 @@ class GenerateProxies
         // cleanup must retain the framework proxies prepared before test discovery.
         static::$proxyLoader?->unregister();
         static::$proxyLoader = null;
+        static::$proxySources = [];
     }
 }

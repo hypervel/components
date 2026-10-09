@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Exceptions\Renderer;
 
+use GuzzleHttp\Promise\Promise;
 use Hypervel\Foundation\Exceptions\Renderer\Frame;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use ReflectionClass;
 use Symfony\Component\ErrorHandler\Exception\FlattenException;
 
 class FrameTest extends TestCase
@@ -85,4 +87,15 @@ class FrameTest extends TestCase
 
     // REMOVED: test_it_determines_if_frame_is_from_vendor_on_windows - Swoole doesn't run on Windows
     // REMOVED: windowsIsFromVendorDataProvider - Swoole doesn't run on Windows
+
+    public function testGeneratedProxyFramesAreClassifiedByTheirSourceFile(): void
+    {
+        $proxyFile = (new ReflectionClass(Promise::class))->getFileName();
+        $this->assertStringEndsWith('.proxy.php', $proxyFile);
+
+        $frame = new Frame(m::mock(FlattenException::class), [], ['file' => $proxyFile, 'line' => 10], dirname($proxyFile));
+
+        $this->assertTrue($frame->isFromVendor());
+        $this->assertSame(basename($proxyFile), $frame->file());
+    }
 }
