@@ -26,6 +26,8 @@ use PDOStatement;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use stdClass;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 use WeakReference;
 
 class DatabasePdoConnectionTest extends TestCase
@@ -999,7 +1001,8 @@ class DatabasePdoConnectionTest extends TestCase
         $this->assertNull($connection->getRawReadPdo());
     }
 
-    public function testDisconnectExhaustsCleanupAndPreservesThePhysicalFailure(): void
+    #[DataProvider('disconnectFailures')]
+    public function testDisconnectExhaustsCleanupAndPreservesThePhysicalFailure(bool $readCancels): void
     {
         $physicalFailure = new RuntimeException('physical rollback failure');
         $callbackFailure = new RuntimeException('rollback callback failure');
@@ -1010,8 +1013,18 @@ class DatabasePdoConnectionTest extends TestCase
         $pdo->expects($this->once())->method('inTransaction')->willReturn(true);
         $pdo->expects($this->once())->method('rollBack')->willThrowException($physicalFailure);
 
+        $readPdo = $this->getMockBuilder(PDOStub::class)->onlyMethods(['inTransaction', 'rollBack'])->getMock();
+        $readPdo->expects($this->once())->method('inTransaction')->willReturn(true);
+        $cancellation = new CanceledException('Read rollback canceled.');
+
+        if ($readCancels) {
+            $readPdo->expects($this->once())->method('rollBack')->willThrowException($cancellation);
+        } else {
+            $readPdo->expects($this->once())->method('rollBack')->willReturn(true);
+        }
+
         $connection = $this->getMockConnection([], $pdo);
-        $connection->setReadPdo(new PDOStub);
+        $connection->setReadPdo($readPdo);
         $manager = new DatabaseTransactionsManager;
         $connection->setTransactionManager($manager);
         $connection->beginTransaction();
@@ -1025,8 +1038,8 @@ class DatabasePdoConnectionTest extends TestCase
         try {
             $connection->disconnect();
             $this->fail('Expected disconnect cleanup to fail.');
-        } catch (RuntimeException $exception) {
-            $this->assertSame($physicalFailure, $exception);
+        } catch (Throwable $exception) {
+            $this->assertSame($readCancels ? $cancellation : $physicalFailure, $exception);
         }
 
         $this->assertTrue($rollbackCallbackCalled);
@@ -1040,6 +1053,56 @@ class DatabasePdoConnectionTest extends TestCase
         $this->assertFalse($connection->isReusable());
     }
 
+    /**
+     * Provide failures while rolling back physical handles.
+     */
+    public static function disconnectFailures(): array
+    {
+        return [
+            'write rollback fails' => [false],
+            'read cancellation wins' => [true],
+        ];
+    }
+
+    #[DataProvider('disconnectHandles')]
+    public function testDisconnectCleansOpenHandlesWithoutResolvingLazyOnes(string $read): void
+    {
+        $pdo = $this->getMockBuilder(PDOStub::class)->onlyMethods(['inTransaction', 'rollBack'])->getMock();
+        $pdo->expects($this->once())->method('inTransaction')->willReturn(true);
+        $pdo->expects($this->once())->method('rollBack')->willReturn(true);
+        $connection = new PdoConnection($pdo);
+        $readPdo = null;
+
+        if ($read === 'distinct') {
+            $readPdo = new PDO('sqlite::memory:');
+            $readPdo->beginTransaction();
+            $connection->setReadPdo($readPdo);
+        } elseif ($read === 'same') {
+            $connection->setReadPdo($pdo);
+        } else {
+            $connection->setReadPdo(function (): never {
+                $this->fail('Disconnect must not resolve a lazy read handle.');
+            });
+        }
+
+        $connection->disconnect();
+
+        if ($readPdo !== null) {
+            $this->assertFalse($readPdo->inTransaction());
+        }
+
+        $this->assertNull($connection->getRawPdo());
+        $this->assertNull($connection->getRawReadPdo());
+    }
+
+    /**
+     * Provide open, shared and unresolved read handles.
+     */
+    public static function disconnectHandles(): array
+    {
+        return [['distinct'], ['same'], ['lazy']];
+    }
+
     public function testDisconnectTreatsLostPhysicalRollbackFailureAsAlreadyTerminal(): void
     {
         $pdo = $this->getMockBuilder(PDOStub::class)
@@ -1051,7 +1114,7 @@ class DatabasePdoConnectionTest extends TestCase
         );
 
         $connection = $this->getMockConnection([], $pdo);
-        $connection->setReadPdo(new PDOStub);
+        $connection->setReadPdo(new PDO('sqlite::memory:'));
         $manager = new DatabaseTransactionsManager;
         $connection->setTransactionManager($manager);
         $manager->begin('test', 1);
@@ -1076,7 +1139,7 @@ class DatabasePdoConnectionTest extends TestCase
         );
 
         $connection = $this->getMockConnection([], $pdo);
-        $connection->setReadPdo(new PDOStub);
+        $connection->setReadPdo(new PDO('sqlite::memory:'));
         $manager = new DatabaseTransactionsManager;
         $connection->setTransactionManager($manager);
         $manager->begin('test', 1);

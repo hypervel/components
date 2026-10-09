@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Integration\RateLimiter\Database\Sqlite;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\RateLimiter\Limiter;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testbench\Attributes\RequiresDatabase;
 use Hypervel\Testbench\Attributes\WithMigration;
@@ -40,11 +41,6 @@ class DatabaseStoreTest extends DatabaseStoreTestCase
         parent::tearDownAfterClass();
     }
 
-    public function testStoreContractCooldownExtendsWithoutShorteningAndExpires(): void
-    {
-        $this->freezeTime(fn () => parent::testStoreContractCooldownExtendsWithoutShorteningAndExpires());
-    }
-
     // @TODO Remove these overrides when the first tagged Swoole release containing
     // https://github.com/swoole/swoole-src/pull/6140 is the minimum supported version.
     public function testConcurrentFirstUseAdmitsExactlyTheConfiguredCapacity(): void
@@ -65,6 +61,17 @@ class DatabaseStoreTest extends DatabaseStoreTestCase
     public function testConcurrentCooldownBlocksRetainTheLongestExpiry(): void
     {
         $this->markTestSkipped('Requires the Swoole AIO scheduler fix from PR #6140.');
+    }
+
+    /**
+     * Create a limiter with a deterministic clock for the shared contract.
+     */
+    protected function rateLimiterStoreContract(): Limiter
+    {
+        // SQLite uses PHP time, so elapsed I/O must not change back-to-back decisions.
+        $this->freezeTime();
+
+        return parent::rateLimiterStoreContract();
     }
 
     /**

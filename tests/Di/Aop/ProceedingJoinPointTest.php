@@ -15,7 +15,8 @@ class ProceedingJoinPointTest extends TestCase
             fn () => 1,
             ProceedingJoinPointTarget::class,
             'incr',
-            ['keys' => []]
+            ['keys' => []],
+            null
         );
 
         $this->assertSame(1, $obj->processOriginalMethod());
@@ -27,7 +28,8 @@ class ProceedingJoinPointTest extends TestCase
             fn () => 1,
             ProceedingJoinPointTarget::class,
             'incr',
-            ['keys' => []]
+            ['keys' => []],
+            null
         );
         $this->assertSame([], $obj->getArguments());
 
@@ -35,7 +37,8 @@ class ProceedingJoinPointTest extends TestCase
             fn () => 1,
             ProceedingJoinPointTarget::class,
             'get4',
-            ['order' => ['id', 'variadic'], 'keys' => ['id' => 1, 'variadic' => []], 'variadic' => 'variadic']
+            ['order' => ['id', 'variadic'], 'keys' => ['id' => 1, 'variadic' => []], 'variadic' => 'variadic'],
+            null
         );
         $this->assertSame([1], $obj->getArguments());
 
@@ -43,7 +46,8 @@ class ProceedingJoinPointTest extends TestCase
             fn () => 1,
             ProceedingJoinPointTarget::class,
             'get4',
-            ['order' => ['id', 'variadic'], 'keys' => ['id' => 1, 'variadic' => [2, 'foo' => 3]], 'variadic' => 'variadic']
+            ['order' => ['id', 'variadic'], 'keys' => ['id' => 1, 'variadic' => [2, 'foo' => 3]], 'variadic' => 'variadic'],
+            null
         );
         $this->assertSame([1, 2, 'foo' => 3], $obj->getArguments());
 
@@ -51,46 +55,13 @@ class ProceedingJoinPointTest extends TestCase
             fn () => 1,
             ProceedingJoinPointTarget::class,
             'get4',
-            ['order' => ['id', 'variadic'], 'keys' => ['id' => 1, 'variadic' => [2, 'foo' => 3]], 'variadic' => '']
+            ['order' => ['id', 'variadic'], 'keys' => ['id' => 1, 'variadic' => [2, 'foo' => 3]], 'variadic' => ''],
+            null
         );
         $this->assertSame([1, [2, 'foo' => 3]], $obj->getArguments());
-    }
-
-    public function testGetInstance(): void
-    {
-        $object = new ProceedingJoinPointTarget('TestName');
-
-        $joinPoint = new ProceedingJoinPoint(
-            $object->getName(...),
-            ProceedingJoinPointTarget::class,
-            'getName',
-            ['keys' => []]
-        );
-
-        $this->assertSame($object, $joinPoint->getInstance());
-    }
-
-    public function testGetInstanceReturnsNullForStaticClosure(): void
-    {
-        $joinPoint = new ProceedingJoinPoint(
-            static fn () => 'value',
-            ProceedingJoinPointTarget::class,
-            'staticMethod',
-            ['keys' => []]
-        );
-
-        $this->assertNull($joinPoint->getInstance());
     }
 }
 
 class ProceedingJoinPointTarget
 {
-    public function __construct(public string $name)
-    {
-    }
-
-    public function getName(): string
-    {
-        return $this->name;
-    }
 }

@@ -1101,7 +1101,8 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     {
         return $this->sessionPinDepth > 0
             || $this->transactions > 0
-            || $this->foreignKeyConstraintSuppressionDepth > 0;
+            || $this->foreignKeyConstraintSuppressionDepth > 0
+            || $this->hasPhysicalTransaction();
     }
 
     /**
@@ -1613,6 +1614,16 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
      * Determine whether the connection has an active physical transaction.
      */
     abstract public function inTransaction(): bool;
+
+    /**
+     * Determine whether any owned driver resource has an active transaction.
+     *
+     * @internal
+     */
+    public function hasPhysicalTransaction(): bool
+    {
+        return $this->inTransaction();
+    }
 
     /**
      * Set the transaction manager instance on the connection.

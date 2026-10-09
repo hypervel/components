@@ -32,9 +32,11 @@ use Hypervel\Testing\ParallelTesting;
 use InvalidArgumentException;
 use Mockery as m;
 use PDO;
+use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionProperty;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 use WeakReference;
 
 /**
@@ -467,7 +469,8 @@ class PooledConnectionTest extends DatabaseTestCase
         $newPooledConnection->release();
     }
 
-    public function testReleaseRollsBackOpenTransactions(): void
+    #[DataProvider('transactionOwners')]
+    public function testReleaseRollsBackOpenTransactions(bool $raw): void
     {
         $pool = new DatabasePool($this->app, 'pool_test');
 
@@ -481,13 +484,23 @@ class PooledConnectionTest extends DatabaseTestCase
             $table->string('name');
         });
 
-        $connection->beginTransaction();
+        $pdo = $connection->getPdo();
+
+        if ($raw) {
+            $pdo->beginTransaction();
+        } else {
+            $connection->beginTransaction();
+        }
+
         $connection->table('test_rollback')->insert(['name' => 'should_be_rolled_back']);
 
-        $this->assertSame(1, $connection->transactionLevel());
+        $this->assertSame($raw ? 0 : 1, $connection->transactionLevel());
 
         // Release should roll back
         $pooledConnection->release();
+
+        $this->assertFalse($pdo->inTransaction());
+        $this->assertSame($raw ? 0 : 1, $pool->getManagedCount());
 
         // Get a new connection and verify the data was rolled back
         /** @var PooledConnection $newPooledConnection */
@@ -498,6 +511,14 @@ class PooledConnectionTest extends DatabaseTestCase
         $this->assertSame(0, $newConnection->table('test_rollback')->count());
 
         $newPooledConnection->release();
+    }
+
+    /**
+     * Provide framework-managed and native transactions.
+     */
+    public static function transactionOwners(): array
+    {
+        return ['framework' => [false], 'raw PDO' => [true]];
     }
 
     public function testCleanReleasePreservesMatchingPhysicalSessionState(): void
@@ -987,6 +1008,84 @@ class PooledConnectionTest extends DatabaseTestCase
         $this->assertSame(1, $pool->getIdleCount());
 
         $pool->close();
+    }
+
+    #[DataProvider('releaseCleanupFailures')]
+    public function testRawTransactionIsDiscardedDespiteCleanupFailure(bool $cancel): void
+    {
+        config(['database.connections.pool_test.pool.events' => [ConnectionReleasing::class]]);
+        $failure = $cancel
+            ? new CanceledException('Release listener canceled.')
+            : new RuntimeException('Transaction logging failed.');
+
+        if (! $cancel) {
+            $logger = m::mock(StdoutLoggerInterface::class);
+            $logger->shouldReceive('error')->once()->andThrow($failure);
+            $this->app->instance(StdoutLoggerInterface::class, $logger);
+        }
+
+        $pool = new DatabasePool($this->app, 'pool_test');
+        $pooledConnection = $pool->borrow();
+        $pdo = $pooledConnection->getConnection()->getPdo();
+        Event::listen(ConnectionReleasing::class, static function () use ($pdo, $cancel, $failure): void {
+            $pdo->beginTransaction();
+
+            if ($cancel) {
+                throw $failure;
+            }
+        });
+
+        try {
+            try {
+                $pooledConnection->release();
+                $this->fail('Expected the cleanup failure to propagate.');
+            } catch (Throwable $exception) {
+                $this->assertSame($failure, $exception);
+            }
+
+            $this->assertFalse($pdo->inTransaction());
+            $this->assertSame(0, $pool->getManagedCount());
+            $this->assertSame(0, $pool->getBorrowedCount());
+        } finally {
+            $pool->close();
+        }
+    }
+
+    #[DataProvider('releaseCleanupFailures')]
+    public function testPhysicalTransactionInspectionFailureDiscardsTheConnection(bool $cancel): void
+    {
+        config(['database.connections.neutral' => ['driver' => 'neutral', 'database' => 'app']]);
+        $connection = new NeutralPoolConnection(1, 'app', '', ['driver' => 'neutral']);
+        $this->app->make('db.factory')->extend('neutral', static fn () => $connection);
+        $pool = new DatabasePool($this->app, 'neutral');
+        $pooledConnection = $pool->borrow();
+        $failure = $cancel
+            ? new CanceledException('Transaction inspection canceled.')
+            : new RuntimeException('Transaction inspection failed.');
+        $connection->transactionFailure = $failure;
+
+        try {
+            try {
+                $pooledConnection->release();
+                $this->fail('Expected the inspection failure to propagate.');
+            } catch (Throwable $exception) {
+                $this->assertSame($failure, $exception);
+            }
+
+            $this->assertSame(1, $connection->disconnectCalls);
+            $this->assertSame(0, $pool->getManagedCount());
+            $this->assertSame(0, $pool->getBorrowedCount());
+        } finally {
+            $pool->close();
+        }
+    }
+
+    /**
+     * Provide ordinary failures and coroutine cancellation during cleanup.
+     */
+    public static function releaseCleanupFailures(): array
+    {
+        return ['ordinary error' => [false], 'cancellation' => [true]];
     }
 
     public function testRollbackCancellationStillReturnsTheConnectionAndEscapesExactly(): void
@@ -1850,6 +1949,8 @@ class FailingReleaseDatabasePool extends DatabasePool
 
 class NeutralPoolConnection extends Connection
 {
+    public ?Throwable $transactionFailure = null;
+
     public int $pingCalls = 0;
 
     public int $disconnectCalls = 0;
@@ -1899,6 +2000,10 @@ class NeutralPoolConnection extends Connection
 
     public function inTransaction(): bool
     {
+        if ($this->transactionFailure !== null) {
+            throw $this->transactionFailure;
+        }
+
         return false;
     }
 

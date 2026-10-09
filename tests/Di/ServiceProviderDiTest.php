@@ -4,11 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Di;
 
-use Composer\Autoload\ClassLoader;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Di\Aop\AspectCollector;
 use Hypervel\Di\ClassMap\ClassMapManager;
-use Hypervel\Support\Composer;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Tests\Di\Fixtures\Aspect\NoPriorityAspect;
 use Hypervel\Tests\Di\Fixtures\Aspect\TestAspect;
@@ -48,26 +46,19 @@ class ServiceProviderDiTest extends TestCase
 
     public function testClassMapDelegatesToClassMapManager(): void
     {
-        $originalLoader = Composer::getLoader();
-        $isolatedLoader = new ClassLoader;
-        $isolatedLoader->register();
-        Composer::setLoader($isolatedLoader);
+        $provider = new ClassMapServiceProvider($this->createMockApp());
+        $provider->register();
 
-        try {
-            $provider = new ClassMapServiceProvider($this->createMockApp());
-            $provider->register();
-
-            $this->assertTrue(ClassMapManager::hasEntries());
-            $this->assertSame(
-                ['Fake\OriginalClass' => '/tmp/replacement.php'],
-                ClassMapManager::getEntries()
-            );
-        } finally {
-            $isolatedLoader->unregister();
-            Composer::setLoader($originalLoader);
-        }
+        $this->assertTrue(ClassMapManager::hasEntries());
+        $this->assertSame(
+            ['Fake\OriginalClass' => '/tmp/replacement.php'],
+            ClassMapManager::getEntries()
+        );
     }
 
+    /**
+     * Create the application contract used by the fixture providers.
+     */
     protected function createMockApp(): ApplicationContract
     {
         return m::mock(ApplicationContract::class);
@@ -76,6 +67,9 @@ class ServiceProviderDiTest extends TestCase
 
 class TestServiceProvider extends ServiceProvider
 {
+    /**
+     * Register the fixture aspect.
+     */
     public function register(): void
     {
         $this->aspects([TestAspect::class]);
@@ -84,6 +78,9 @@ class TestServiceProvider extends ServiceProvider
 
 class NoPriorityServiceProvider extends ServiceProvider
 {
+    /**
+     * Register an aspect using the default priority.
+     */
     public function register(): void
     {
         $this->aspects([NoPriorityAspect::class]);
@@ -92,6 +89,9 @@ class NoPriorityServiceProvider extends ServiceProvider
 
 class MultiAspectServiceProvider extends ServiceProvider
 {
+    /**
+     * Register multiple fixture aspects.
+     */
     public function register(): void
     {
         $this->aspects(TestAspect::class, NoPriorityAspect::class);
@@ -100,6 +100,9 @@ class MultiAspectServiceProvider extends ServiceProvider
 
 class ClassMapServiceProvider extends ServiceProvider
 {
+    /**
+     * Register the fixture replacement.
+     */
     public function register(): void
     {
         $this->classMap([

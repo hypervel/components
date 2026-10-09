@@ -663,11 +663,15 @@ class Factory
      */
     public function getConnectionHandler(string $name): callable
     {
-        $this->ensureConnectionIsRegistered($name);
+        return $this->connectionHandlers[$name] ??= $this->newConnectionHandler($name);
+    }
 
-        if (isset($this->connectionHandlers[$name])) {
-            return $this->connectionHandlers[$name];
-        }
+    /**
+     * Create an isolated transport handler with the connection's registered options.
+     */
+    public function newConnectionHandler(string $name): callable
+    {
+        $this->ensureConnectionIsRegistered($name);
 
         $config = $this->connectionConfigs[$name];
         $handlerOptions = Arr::only($config, ['transport_sharing']);
@@ -676,9 +680,7 @@ class Factory
             $handlerOptions['multiplex'] = Multiplexing::NONE;
         }
 
-        return $this->connectionHandlers[$name] = $this->createConnectionHandler(
-            $handlerOptions,
-        );
+        return $this->createConnectionHandler($handlerOptions);
     }
 
     /**

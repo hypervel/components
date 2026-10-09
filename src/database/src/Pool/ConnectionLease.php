@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Context\NonCopyableContext;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\PdoConnection;
+use LogicException;
 use PDO;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
@@ -20,6 +21,8 @@ class ConnectionLease implements NonCopyableContext
     public readonly PdoConnection $connection;
 
     protected ?PooledConnection $pooledConnection;
+
+    protected bool $ended = false;
 
     /** @var Closure(): PDO */
     protected readonly Closure $pdoResolver;
@@ -57,6 +60,10 @@ class ConnectionLease implements NonCopyableContext
     protected function resolvePdo(bool $read = false): PDO
     {
         if ($this->pooledConnection === null) {
+            if ($this->ended) {
+                throw new LogicException('This database connection is no longer available because the coroutine or task that resolved it has finished or failed to set it up. Resolve the connection where you use it.');
+            }
+
             /** @var PooledConnection $pooledConnection */
             $pooledConnection = $this->pool->borrow();
             $this->pooledConnection = $pooledConnection;
@@ -113,23 +120,25 @@ class ConnectionLease implements NonCopyableContext
     public function releaseIfIdle(): void
     {
         if (! $this->connection->hasPinnedSession()) {
-            $this->release();
+            $this->pooledConnection?->release();
         }
     }
 
     /**
-     * Settle the currently held physical session.
+     * End logical ownership and release the currently held physical session.
      */
     public function release(): void
     {
+        $this->ended = true;
         $this->pooledConnection?->release();
     }
 
     /**
-     * Discard the currently held physical session.
+     * End logical ownership and discard the currently held physical session.
      */
     public function discard(): void
     {
+        $this->ended = true;
         $this->pooledConnection?->discard();
     }
 
@@ -148,7 +157,7 @@ class ConnectionLease implements NonCopyableContext
     protected function discardAfterFailure(Throwable $exception): void
     {
         try {
-            $this->discard();
+            $this->pooledConnection?->discard();
         } catch (CanceledException $cancellation) {
             if (! $exception instanceof CanceledException) {
                 throw $cancellation;

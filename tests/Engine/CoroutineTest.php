@@ -253,6 +253,8 @@ class CoroutineTest extends TestCase
 
     public function testCoroutineListCount(): void
     {
+        $initialCount = iterator_count(Coroutine::list());
+
         Coroutine::create(function () {
             usleep(100000);
         });
@@ -262,6 +264,6 @@ class CoroutineTest extends TestCase
         Coroutine::create(function () {
             usleep(100000);
         });
-        $this->assertEquals(4, iterator_count(Coroutine::list()));
+        $this->assertSame($initialCount + 3, iterator_count(Coroutine::list()));
     }
 }

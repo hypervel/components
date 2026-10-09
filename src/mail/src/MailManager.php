@@ -22,6 +22,7 @@ use Hypervel\Mail\Transport\ResendTransport;
 use Hypervel\Mail\Transport\SesV2Transport;
 use Hypervel\ObjectPool\Concerns\HasPoolProxy;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Aws\SerializedCredentialProvider;
 use Hypervel\Support\ConfigurationUrlParser;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
@@ -479,10 +480,14 @@ class MailManager implements FactoryContract
      */
     protected function createSesV2Transport(array $config): SesV2Transport
     {
-        $config = Arr::except($config, ['transport']);
+        $config = $this->addSesCredentials(Arr::except($config, ['transport']));
+
+        if (is_callable($config['credentials'] ?? null)) {
+            $config['credentials'] = new SerializedCredentialProvider($config['credentials']);
+        }
 
         return new SesV2Transport(
-            new SesV2Client($this->addSesCredentials($config)),
+            new SesV2Client($config),
             $config['options'] ?? []
         );
     }

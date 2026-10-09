@@ -46,7 +46,6 @@ class WithCachedStateTest extends TestCase
         $this->filesystem->deleteDirectory($this->appBasePath);
         $this->filesystem->ensureDirectoryExists($this->appBasePath . '/bootstrap/cache');
         $this->filesystem->ensureDirectoryExists($this->appBasePath . '/config');
-        $this->filesystem->ensureDirectoryExists($this->appBasePath . '/storage/framework/aop');
         $this->filesystem->put($this->appBasePath . '/bootstrap/app.php', <<<'PHP'
 <?php
 

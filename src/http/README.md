@@ -19,6 +19,8 @@ JSON:API resources load requested relationships before attribute callbacks run; 
 
 Laravel's `Http::pool()` and `Http::batch()` APIs are intentionally not ported. They are built around Guzzle promise concurrency, while Hypervel uses Swoole coroutine-native concurrency through `parallel`, `Hypervel\Coroutine\Parallel`, and `defer`. See the [concurrent requests documentation](https://hypervel.org/docs/http-client#concurrent-requests).
 
+Pending Guzzle promises and active cURL multi-handlers belong to the coroutine that created their work. Create and finish each operation in that coroutine, then share completed results. See [Guzzle promises](https://hypervel.org/docs/http-client#guzzle-promises).
+
 `TrustHosts` fails closed when no trusted host patterns resolve. If the middleware is enabled and no resolver, `at()` list, or valid `app.url` host provides a trusted pattern, Hypervel rejects all hosts using a never-matching sentinel. Laravel and Symfony leave the trusted host list empty in this case, which accepts every host. Configure a valid `app.url`, `TrustHosts::at()`, or `TrustHosts::resolveHostsUsing()` when enabling the middleware.
 
 Configure trusted proxies through `$middleware->trustProxies(...)` in `bootstrap/app.php`. Hypervel does not read the legacy `trustedproxy.proxies` configuration key or include Laravel's Cloud, Forge, and Vapor host-specific proxy behavior.

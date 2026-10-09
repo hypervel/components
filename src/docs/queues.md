@@ -166,6 +166,8 @@ Hypervel uses a complete `key` and `secret` pair when both are configured, inclu
 
 The optional `credentials` setting takes precedence and may contain an AWS credential value or a supported `ecs` or `instance` provider. If you supply callable or object credentials, set `pool.fingerprint` because these values cannot form an automatic pool identity. The optional `version` setting defaults to `latest`. Within the optional `http` array, `timeout` and `connect_timeout` each default to 60 seconds, and additional AWS SDK HTTP options are preserved.
 
+Calls to the same custom credential provider run one at a time, including when it is shared with S3 or SES. Hypervel does not cache provider results. If your provider fetches the same credentials remotely for every caller, wrap it with the AWS SDK's `CredentialProvider::memoize()` to reuse them until they need refreshing. Do not share a memoized provider between callers that need different credentials, such as different tenants.
+
 When credentials come from the `ecs` or `instance` provider or from the AWS SDK's default credential chain, you may enable the optional `credential_cache` setting so that the processes and pooled connections on the same host or container share the credentials they fetch, instead of each fetching its own copy:
 
 ```php

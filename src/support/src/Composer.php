@@ -277,16 +277,14 @@ class Composer
     }
 
     /**
-     * Find the Composer autoloader from registered autoload functions.
+     * Find the application Composer autoloader registered with a vendor directory.
      */
     protected static function findLoader(): ClassLoader
     {
-        $loaders = spl_autoload_functions();
+        $loaders = ClassLoader::getRegisteredLoaders();
 
-        foreach ($loaders as $loader) {
-            if (is_array($loader) && $loader[0] instanceof ClassLoader) {
-                return $loader[0];
-            }
+        if ($loaders !== []) {
+            return reset($loaders);
         }
 
         throw new RuntimeException('Composer loader not found.');

@@ -47,6 +47,10 @@ class Aspect
             [$class, $method] = explode('::', $target);
         }
 
+        if ($ruleMethod === null && in_array($method, RewriteCollection::CLASS_EXCLUDED_METHODS, true)) {
+            return [false, null];
+        }
+
         if ($method === null) {
             if (! str_contains($ruleClass, '*')) {
                 /*
@@ -132,7 +136,7 @@ class Aspect
                 if ($isMatch) {
                     if ($method === null) {
                         $rewriteCollection->setLevel(RewriteCollection::CLASS_LEVEL);
-                        return;
+                        continue;
                     }
                     $rewriteCollection->add($method);
                 }

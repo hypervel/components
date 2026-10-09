@@ -72,8 +72,7 @@ class DatabasePool extends ConnectionPool
         }
 
         $this->config = $config;
-        $this->usesSessionLeases = $factory->getExtension($config, $connectionName->base) === null
-            && $this->hasConsistentLogicalIdentity($factory, $connectionName, $config);
+        $this->usesSessionLeases = $this->supportsSessionLeases($factory, $connectionName, $config);
 
         $poolOptions = Arr::except(
             Arr::get($poolConfig, 'pool', []),
@@ -131,23 +130,33 @@ class DatabasePool extends ConnectionPool
     }
 
     /**
-     * Determine whether selectable endpoints share the same logical database identity.
+     * Determine whether endpoints can share a logical connection without bypassing extensions.
      */
-    protected function hasConsistentLogicalIdentity(ConnectionFactory $factory, ConnectionName $name, array $config): bool
+    protected function supportsSessionLeases(ConnectionFactory $factory, ConnectionName $name, array $config): bool
     {
+        if ($factory->getExtension($config, $name->base) !== null) {
+            return false;
+        }
+
         $role = $name->isRead() && $factory->hasReadConfig($config) ? 'read' : 'write';
 
-        if (! isset($config[$role][0])) {
+        if (! isset($config[$role])) {
             return true;
         }
 
+        $records = isset($config[$role][0]) ? $config[$role] : [$config[$role]];
         $identity = null;
 
-        foreach ($config[$role] as $record) {
+        foreach ($records as $record) {
             $candidate = array_replace($config, [$role => $record]);
             $endpoint = $role === 'read'
                 ? $factory->configForRead($candidate)
                 : $factory->configForWrite($candidate);
+
+            if ($role === 'read' && $factory->getExtension($endpoint, $name->base) !== null) {
+                return false;
+            }
+
             $candidateIdentity = [$endpoint['driver'], $endpoint['database'], $endpoint['prefix']];
 
             if ($identity !== null && $identity !== $candidateIdentity) {

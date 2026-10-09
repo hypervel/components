@@ -62,6 +62,13 @@ class InteractsWithAopTest extends TestCase
         $this->assertSame([1, 'default'], $result);
     }
 
+    public function testCallWithAspectsExposesNoInstanceForStaticMethods(): void
+    {
+        AspectCollector::setAround(UsesInstanceNameAspect::class, [InteractsWithAopTarget::class . '::staticName']);
+
+        $this->assertSame('static', $this->callWithAspects(new InteractsWithAopTarget, 'staticName'));
+    }
+
     public function testCallWithAspectsHandlesVariadicParameters(): void
     {
         AspectCollector::setAround(CaptureArgumentsAspect::class, [InteractsWithAopTarget::class . '::withVariadic']);
@@ -154,6 +161,14 @@ class InteractsWithAopTarget
         return 'unknown';
     }
 
+    /**
+     * Return a value without an intercepted object instance.
+     */
+    public static function staticName(): string
+    {
+        return 'static';
+    }
+
     public function withDefaults(int $count = 1, string $label = 'default'): array
     {
         return [$count, $label];
@@ -213,7 +228,7 @@ class UsesInstanceNameAspect extends AbstractAspect
 {
     public function process(ProceedingJoinPoint $proceedingJoinPoint): mixed
     {
-        return $proceedingJoinPoint->getInstance()->name;
+        return $proceedingJoinPoint->getInstance()?->name ?? $proceedingJoinPoint->process();
     }
 }
 

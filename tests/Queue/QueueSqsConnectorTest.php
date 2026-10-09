@@ -619,15 +619,17 @@ class QueueSqsConnectorTest extends TestCase
         $this->assertNull($queue->getSqs()->getConfig('token'));
     }
 
-    public function testCallableAndObjectCredentialsPassThrough(): void
+    public function testCallableCredentialsResolveTheirResultAndCredentialObjectsPassThrough(): void
     {
         $connector = new QueueSqsConnectorStub;
-        $callable = static fn () => null;
         $object = new Credentials('key', 'secret');
+        $callable = static fn (): PromiseInterface => Create::promiseFor($object);
 
-        $this->assertSame($callable, $connector->resolveCredentials([
+        $resolved = $connector->resolveCredentials([
             'credentials' => $callable,
-        ]));
+        ]);
+
+        $this->assertSame($object, $resolved()->wait());
         $this->assertSame($object, $connector->resolveCredentials([
             'credentials' => $object,
         ]));

@@ -159,7 +159,7 @@ class ConnectionResolver implements ConnectionResolverInterface
             CoroutineContext::forget($leaseContextKey);
             unset($this->nonCoroutineConnections[$connectionOwnerName]);
 
-            $this->discardFailedConnection($pooledConnection, $exception);
+            $this->discardFailedConnection($owner ?? $pooledConnection, $exception);
 
             throw $exception;
         }
@@ -252,12 +252,12 @@ class ConnectionResolver implements ConnectionResolverInterface
     }
 
     /**
-     * Discard a failed connection while preserving cancellation precedence.
+     * Discard a failed connection owner while preserving cancellation precedence.
      */
-    protected function discardFailedConnection(PooledConnection $pooledConnection, Throwable $exception): void
+    protected function discardFailedConnection(ConnectionLease|PooledConnection $owner, Throwable $exception): void
     {
         try {
-            $pooledConnection->discard();
+            $owner->discard();
         } catch (CanceledException $cancellation) {
             if (! $exception instanceof CanceledException) {
                 throw $cancellation;

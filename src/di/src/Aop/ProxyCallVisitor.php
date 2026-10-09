@@ -8,6 +8,8 @@ use Hypervel\Di\Exceptions\InvalidDefinitionException;
 use PhpParser\Node;
 use PhpParser\Node\Arg;
 use PhpParser\Node\ArrayItem;
+use PhpParser\Node\Attribute;
+use PhpParser\Node\AttributeGroup;
 use PhpParser\Node\Expr\Array_;
 use PhpParser\Node\Expr\ArrowFunction;
 use PhpParser\Node\Expr\Assign;
@@ -219,6 +221,11 @@ class ProxyCallVisitor extends NodeVisitorAbstract
             $isTarget = array_pop($this->classLikeStack);
 
             if ($isTarget && ! $node instanceof Interface_) {
+                $node->attrGroups[] = new AttributeGroup([
+                    new Attribute(new FullyQualified(ProxySource::class), [
+                        new Arg(new String_($this->visitorMetadata->sourceFilePath)),
+                    ]),
+                ]);
                 array_unshift($node->stmts, new TraitUse([
                     new FullyQualified(ProxyMarker::class),
                 ]));
@@ -258,6 +265,7 @@ class ProxyCallVisitor extends NodeVisitorAbstract
             new Arg(new MagicConstFunction),
             new Arg($this->buildArgumentMap($node->params)),
             new Arg($this->buildForwardingClosure($node)),
+            new Arg($node->isStatic() ? new ConstFetch(new Name('null')) : new Variable('this')),
         ]);
 
         if ($this->returnsByExpression($node)) {
@@ -267,6 +275,9 @@ class ProxyCallVisitor extends NodeVisitorAbstract
         }
 
         $node->stmts = $statements;
+        $node->attrGroups[] = new AttributeGroup([
+            new Attribute(new FullyQualified(ProxyMethod::class), [new Arg(new String_($this->helperMethodName))]),
+        ]);
 
         return [$node, $helper];
     }
@@ -706,7 +717,7 @@ class ProxyCallVisitor extends NodeVisitorAbstract
     {
         $this->activeMethod = $method;
         $this->nestedFunctionStack = [];
-        $hash = substr(hash('sha256', $this->targetClassName . '::' . $method->name->toString()), 0, 12);
+        $hash = substr(hash('xxh128', $this->targetClassName . '::' . $method->name->toString()), 0, 12);
         $this->helperMethodName = $this->reserveMethodName("__hypervelAopOriginal_{$hash}");
 
         $usedVariables = [];

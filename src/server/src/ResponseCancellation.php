@@ -21,7 +21,6 @@ class ResponseCancellation
      */
     private function __construct(
         protected int $connection,
-        protected int $stream,
         protected int $coroutine,
     ) {
     }
@@ -29,7 +28,7 @@ class ResponseCancellation
     /**
      * Register the current coroutine for the duration of response production.
      */
-    public static function register(int $connection, int $stream = 0): ?self
+    public static function register(int $connection): ?self
     {
         $coroutine = Coroutine::id();
 
@@ -37,7 +36,7 @@ class ResponseCancellation
             return null;
         }
 
-        return self::$responses[$connection][$coroutine] = new self($connection, $stream, $coroutine);
+        return self::$responses[$connection][$coroutine] = new self($connection, $coroutine);
     }
 
     /**

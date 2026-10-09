@@ -34,6 +34,23 @@ class SupportComposerTest extends TestCase
         Composer::setLoader($original);
     }
 
+    public function testFindsTheApplicationLoaderAfterAnAuxiliaryLoaderIsPrepended(): void
+    {
+        $original = Composer::getLoader();
+        $auxiliary = new ClassLoader;
+        $auxiliary->setClassMapAuthoritative(true);
+        $auxiliary->register(true);
+
+        try {
+            Composer::flushState();
+
+            $this->assertSame($original, Composer::getLoader());
+        } finally {
+            $auxiliary->unregister();
+            Composer::setLoader($original);
+        }
+    }
+
     public function testDumpAutoloadRunsTheCorrectCommand(): void
     {
         $composer = $this->mockComposer(['composer', 'dump-autoload']);

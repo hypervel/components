@@ -4,16 +4,17 @@ declare(strict_types=1);
 
 namespace Hypervel\Di\ClassMap;
 
-use Hypervel\Support\Composer;
+use Composer\Autoload\ClassLoader;
+use Hypervel\Di\Aop\ProxySource;
+use ReflectionClass;
 use RuntimeException;
 
 /**
- * Manages class map overrides applied to Composer's autoloader.
+ * Keep package class replacements separate from the application's Composer map.
  *
  * Allows packages to replace classes at the autoloader level,
  * so the replacement file is loaded instead of the original.
- * Entries are applied immediately when added and fail hard
- * if the target class is already loaded.
+ * Already-loaded targets can only be registered again from the same source.
  */
 class ClassMapManager
 {
@@ -22,11 +23,13 @@ class ClassMapManager
      */
     protected static array $entries = [];
 
+    protected static ?ClassLoader $loader = null;
+
     /**
      * Add class map entries and apply them to the Composer autoloader.
      *
      * Each entry maps an original class name to the path of its replacement file.
-     * Fails immediately if any target class is already loaded.
+     * Fails if a target is already loaded from a different source.
      *
      * Boot-only. Class-map overrides mutate the worker's Composer autoloader and
      * must be registered before any target class is autoloaded.
@@ -37,6 +40,16 @@ class ClassMapManager
     {
         foreach ($map as $class => $path) {
             if (class_exists($class, false) || interface_exists($class, false) || trait_exists($class, false)) {
+                $reflection = new ReflectionClass($class);
+                $attributes = $reflection->getAttributes(ProxySource::class);
+                $source = $attributes === []
+                    ? $reflection->getFileName()
+                    : $attributes[0]->getArguments()[0];
+
+                if ($source !== false && $source === realpath($path)) {
+                    continue;
+                }
+
                 throw new RuntimeException(
                     "Cannot override class map for [{$class}]: class is already loaded. "
                     . 'Class map entries must be registered before the target class is autoloaded.'
@@ -44,9 +57,26 @@ class ClassMapManager
             }
         }
 
-        static::$entries = array_merge(static::$entries, $map);
+        if (static::$loader === null) {
+            static::$loader = new ClassLoader;
+            static::$loader->setClassMapAuthoritative(true);
+            static::$loader->register(true);
+        }
 
-        Composer::getLoader()->addClassMap($map);
+        static::$entries = array_merge(static::$entries, $map);
+        static::$loader->addClassMap($map);
+    }
+
+    /**
+     * Publish generated replacements with the lifetime of their source overrides.
+     *
+     * Boot-only. These autoload entries affect every request in the worker.
+     *
+     * @param array<string, string> $proxies
+     */
+    public static function applyProxies(array $proxies): void
+    {
+        static::$loader?->addClassMap(array_intersect_key($proxies, static::$entries));
     }
 
     /**
@@ -72,7 +102,8 @@ class ClassMapManager
      */
     public static function flushState(): void
     {
-        // Does not remove entries already applied to Composer's autoloader.
+        static::$loader?->unregister();
+        static::$loader = null;
         static::$entries = [];
     }
 }

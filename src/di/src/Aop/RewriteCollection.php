@@ -10,6 +10,8 @@ class RewriteCollection
 
     public const int METHOD_LEVEL = 2;
 
+    public const array CLASS_EXCLUDED_METHODS = ['__construct'];
+
     /**
      * Which methods can be rewritten.
      */
@@ -24,10 +26,6 @@ class RewriteCollection
      * Rewrite level.
      */
     protected int $level = self::METHOD_LEVEL;
-
-    protected array $shouldNotRewriteMethods = [
-        '__construct',
-    ];
 
     public function __construct(protected string $class)
     {
@@ -56,10 +54,7 @@ class RewriteCollection
      */
     public function shouldRewrite(string $method): bool
     {
-        if ($this->level === self::CLASS_LEVEL) {
-            if (in_array($method, $this->shouldNotRewriteMethods, true)) {
-                return false;
-            }
+        if ($this->level === self::CLASS_LEVEL && ! in_array($method, self::CLASS_EXCLUDED_METHODS, true)) {
             return true;
         }
 
@@ -110,10 +105,10 @@ class RewriteCollection
     }
 
     /**
-     * Get the methods that should never be rewritten.
+     * Get the methods excluded by class-only rules.
      */
     public function getShouldNotRewriteMethods(): array
     {
-        return $this->shouldNotRewriteMethods;
+        return self::CLASS_EXCLUDED_METHODS;
     }
 }

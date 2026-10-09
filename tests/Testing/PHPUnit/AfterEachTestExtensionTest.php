@@ -4,9 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testing\PHPUnit;
 
+use GuzzleHttp\Client;
+use GuzzleHttp\Promise\Promise;
+use Hypervel\Di\Aop\AspectCollector;
+use Hypervel\Di\Aop\ProxyMethod;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
+use ReflectionMethod;
 use Symfony\Component\Process\Process;
 
 class AfterEachTestExtensionTest extends TestCase
@@ -71,6 +76,21 @@ class AfterEachTestExtensionTest extends TestCase
         $this->assertFalse($process->isSuccessful());
         $this->assertStringContainsString('intentional final setup error', $process->getOutput());
         $this->assertSame(['cleaned'], file($marker, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES));
+    }
+
+    public function testGuzzleProxiesArePreparedWithoutActivatingInstrumentation(): void
+    {
+        $this->assertFalse(AspectCollector::hasAspects());
+        $this->assertCount(1, (new ReflectionMethod(Promise::class, '__construct'))->getAttributes(ProxyMethod::class));
+        $this->assertCount(1, (new ReflectionMethod(Client::class, 'transfer'))->getAttributes(ProxyMethod::class));
+    }
+
+    public function testOutsideGuzzleCallbacksAreDiscardedBetweenTestsAndAtShutdown(): void
+    {
+        $process = $this->runFixture('GuzzleCleanupFixture.php', []);
+
+        $this->assertTrue($process->isSuccessful(), $process->getOutput() . $process->getErrorOutput());
+        $this->assertStringNotContainsString('abandoned-callback-ran', $process->getOutput());
     }
 
     /**

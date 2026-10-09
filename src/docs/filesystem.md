@@ -110,6 +110,8 @@ The credential variables use the AWS SDK's standard names, while the region foll
 
 The optional `AWS_ROOT` value scopes the disk to a key prefix within the bucket. When it is empty, the disk operates from the bucket root.
 
+If you supply a callable `credentials` provider, calls to that provider run one at a time, including when it is shared with SQS or SES. Hypervel does not cache provider results. If your provider fetches the same credentials remotely for every caller, wrap it with the AWS SDK's `CredentialProvider::memoize()` to reuse them until they need refreshing. Do not share a memoized provider between callers that need different credentials, such as different tenants.
+
 <a name="ftp-driver-configuration"></a>
 #### FTP Driver Configuration
 

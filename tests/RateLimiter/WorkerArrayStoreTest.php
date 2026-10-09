@@ -206,8 +206,14 @@ class WorkerArrayStoreTest extends TestCase
         );
     }
 
+    /**
+     * Create a limiter with a deterministic clock for the shared contract.
+     */
     protected function rateLimiterStoreContract(): Limiter
     {
+        // Keep back-to-back decisions independent of elapsed execution time.
+        CarbonImmutable::setTestNow(CarbonImmutable::now());
+
         return $this->limiter();
     }
 

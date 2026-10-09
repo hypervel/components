@@ -20,6 +20,9 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ResponseFactoryTest extends TestCase
 {
+    // PHPUnit's output capture runs outside the test coroutine.
+    protected bool $runTestsInCoroutine = false;
+
     public function testStreamRetainsGeneratorChunksLazily(): void
     {
         $iterations = 0;
@@ -161,15 +164,13 @@ class ResponseFactoryTest extends TestCase
             }
         : static fn () => throw $failure;
         $response = $this->factory()->{$method}($callback);
-        ob_start();
+        $this->expectOutputString($method === 'eventStream' ? "event: update\ndata: first\n\n" : '');
 
         try {
             $response->sendContent();
             $this->fail('Expected response production to propagate cancellation.');
         } catch (CanceledException $exception) {
             $this->assertSame($failure, $exception);
-        } finally {
-            ob_end_clean();
         }
     }
 

@@ -15,6 +15,9 @@ use Hypervel\Tests\TestCase;
 
 class LoadEnvironmentVariablesTest extends TestCase
 {
+    // PHPUnit's output capture runs outside the test coroutine.
+    protected bool $runTestsInCoroutine = false;
+
     private string|false $originalAppEnvPutenv;
 
     private mixed $originalAppEnvServer;

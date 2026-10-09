@@ -46,7 +46,6 @@ class ResponseBridge
         bool $withBody = true,
         string $protocol = 'HTTP/1.1',
         ?Request $request = null,
-        int $streamId = 0,
     ): void {
         if ($response instanceof HasTrailers && $response instanceof BinaryFileResponse) {
             throw new RuntimeException('Binary file responses cannot emit trailers.');
@@ -84,7 +83,7 @@ class ResponseBridge
                     throw new CanceledException('The client disconnected before response production.');
                 }
 
-                $registration = ResponseCancellation::register($swooleResponse->fd, $streamId);
+                $registration = ResponseCancellation::register($swooleResponse->fd);
             }
 
             try {

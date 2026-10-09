@@ -130,7 +130,7 @@ class ClearCommand extends Command
      */
     public function flushProxies(): void
     {
-        $this->files->deleteDirectory(storage_path('framework/aop'));
+        $this->files->deleteDirectory($this->hypervel->bootstrapPath('cache/aop'));
     }
 
     /**

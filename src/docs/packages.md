@@ -319,7 +319,7 @@ public function register(): void
 
 The replacement file should define the original class name. In the example above, Composer is still being asked to load `VendorPackage\Client`; Hypervel simply tells Composer to load that class from your replacement file instead of the dependency's original file. The replacement should remain compatible with the original class's public API, since other code will still interact with it as `VendorPackage\Client`.
 
-Class map overrides mutate Composer's autoloader immediately and must be registered before the target class, interface, or trait has been loaded. If the target has already been loaded, Hypervel will throw an exception. For this reason, class map overrides should be registered in the service provider's `register` method before resolving services or referencing classes that may load the target.
+Class map overrides take effect immediately and must be registered before the target class, interface, or trait has been loaded. Register them in the service provider's `register` method before resolving services or referencing classes that may load the target. Repeating an override for the same source file is safe, including when Testbench boots another application. Attempting to replace a loaded target with a different source file throws an exception.
 
 > [!WARNING]
 > Class map overrides affect the worker's autoloader for the lifetime of the process. They should only be used for boot-time package integration, not request-specific behavior.

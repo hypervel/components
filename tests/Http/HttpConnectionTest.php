@@ -326,7 +326,8 @@ class HttpConnectionTest extends TestCase
         ];
     }
 
-    public function testTransportSharingOnlyConfiguresTheConnectionHandler(): void
+    #[DataProvider('requestModes')]
+    public function testTransportSharingOnlyConfiguresTheConnectionHandler(bool $async): void
     {
         $factory = new RecordingHttpConnectionFactory;
         $factory->registerConnection('api', [
@@ -334,8 +335,12 @@ class HttpConnectionTest extends TestCase
             'timeout' => 12,
         ]);
 
-        $factory->connection('api')->get('https://example.com');
+        $response = $factory->connection('api')->async($async)->get('https://example.com');
+        if ($async) {
+            $response = $response->wait();
+        }
 
+        $this->assertSame('handler-1', $response->body());
         $this->assertSame(
             [['transport_sharing' => TransportSharing::HANDLER_PREFER]],
             $factory->createdHandlerOptions,
@@ -344,15 +349,53 @@ class HttpConnectionTest extends TestCase
         $this->assertSame(12, $factory->invocations[0]['options']['timeout']);
     }
 
-    public function testDisablingMultiplexingConfiguresTheHandlerAndRequest(): void
+    #[DataProvider('requestModes')]
+    public function testDisablingMultiplexingConfiguresTheHandlerAndRequest(bool $async): void
     {
         $factory = new RecordingHttpConnectionFactory;
         $factory->registerConnection('api', ['multiplex' => Multiplexing::NONE]);
 
-        $factory->connection('api')->get('https://example.com');
+        $response = $factory->connection('api')->async($async)->get('https://example.com');
+        if ($async) {
+            $response = $response->wait();
+        }
 
+        $this->assertSame('handler-1', $response->body());
         $this->assertSame([['multiplex' => Multiplexing::NONE]], $factory->createdHandlerOptions);
         $this->assertSame(Multiplexing::NONE, $factory->invocations[0]['options']['multiplex']);
+    }
+
+    #[DataProvider('requestModes')]
+    public function testReplacingThePresetPreservesRegisteredTransportOptions(bool $async): void
+    {
+        $factory = new RecordingHttpConnectionFactory;
+        $factory->registerConnection('api', [
+            'multiplex' => Multiplexing::NONE,
+            'transport_sharing' => TransportSharing::HANDLER_REQUIRE,
+            'timeout' => 12,
+        ]);
+
+        $response = $factory->connection('api', [])->async($async)->get('https://example.com');
+        if ($async) {
+            $response = $response->wait();
+        }
+
+        $this->assertSame('handler-1', $response->body());
+        $this->assertSame([[
+            'transport_sharing' => TransportSharing::HANDLER_REQUIRE,
+            'multiplex' => Multiplexing::NONE,
+        ]], $factory->createdHandlerOptions);
+        $this->assertArrayNotHasKey('multiplex', $factory->invocations[0]['options']);
+        $this->assertArrayNotHasKey('transport_sharing', $factory->invocations[0]['options']);
+        $this->assertSame(30, $factory->invocations[0]['options']['timeout']);
+    }
+
+    /**
+     * Provide synchronous and asynchronous request modes.
+     */
+    public static function requestModes(): array
+    {
+        return ['sync' => [false], 'async' => [true]];
     }
 
     public function testOtherMultiplexingModesConfigureOnlyTheRequest(): void
@@ -369,15 +412,14 @@ class HttpConnectionTest extends TestCase
     public function testRegisteredAsynchronousRequestsDoNotUseTheSharedHandler(): void
     {
         $factory = new RecordingHttpConnectionFactory;
-        $factory->registerConnection('api');
+        $factory->registerConnection('api', ['multiplex' => Multiplexing::NONE]);
 
-        $factory->connection('api')->async()->buildHandlerStack();
+        $this->assertSame('handler-1', $factory->connection('api')->get('https://example.com')->body());
+        $this->assertSame('handler-2', $factory->connection('api')->async()->get('https://example.com')->wait()->body());
+        $this->assertSame('handler-3', $factory->connection('api')->async()->get('https://example.com')->wait()->body());
+        $this->assertSame('handler-1', $factory->connection('api')->get('https://example.com')->body());
 
-        $this->assertSame([], $factory->createdHandlerOptions);
-
-        $factory->connection('api')->buildHandlerStack();
-
-        $this->assertSame([[]], $factory->createdHandlerOptions);
+        $this->assertSame(array_fill(0, 3, ['multiplex' => Multiplexing::NONE]), $factory->createdHandlerOptions);
     }
 
     public function testReregisteringAConnectionReplacesItsSharedHandler(): void

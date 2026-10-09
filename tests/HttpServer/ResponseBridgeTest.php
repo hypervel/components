@@ -1238,19 +1238,19 @@ class ResponseBridgeTest extends TestCase
     }
 
     #[DataProvider('disconnectCancellationOptions')]
-    public function testDisconnectCancelsAllActiveStreamsOnOnlyThatConnection(bool $cancel, array $streams): void
+    public function testDisconnectCancelsAllActiveStreamsOnOnlyThatConnection(bool $cancel): void
     {
         $ready = new Channel(3);
         $continue = new Channel(3);
         $closed = [];
-        $produce = function (int $connection, int $stream) use ($ready, $continue, $cancel, &$closed): bool {
-            $response = new IterableStreamedResponse((function () use ($connection, $stream, $ready, $continue, &$closed): iterable {
+        $produce = function (int $connection, string $producer) use ($ready, $continue, $cancel, &$closed): bool {
+            $response = new IterableStreamedResponse((function () use ($producer, $ready, $continue, &$closed): iterable {
                 try {
                     $ready->push(true);
                     $this->assertTrue($continue->pop(2));
                     yield 'body';
                 } finally {
-                    $closed[] = [$connection, $stream];
+                    $closed[] = $producer;
                 }
             })());
             $native = $this->mockSwooleResponse();
@@ -1262,7 +1262,7 @@ class ResponseBridgeTest extends TestCase
             }
 
             try {
-                ResponseBridge::send($response, $native, streamId: $stream);
+                ResponseBridge::send($response, $native);
 
                 return false;
             } catch (CanceledException) {
@@ -1272,9 +1272,9 @@ class ResponseBridgeTest extends TestCase
 
         try {
             $results = parallel([
-                'first' => fn (): bool => $produce(10, $streams[0]),
-                'second' => fn (): bool => $produce(10, $streams[1]),
-                'other' => fn (): bool => $produce(20, 1),
+                'first' => fn (): bool => $produce(10, 'first'),
+                'second' => fn (): bool => $produce(10, 'second'),
+                'other' => fn (): bool => $produce(20, 'other'),
                 'close' => function () use ($ready, $continue, $cancel): void {
                     for ($index = 0; $index < 3; ++$index) {
                         $this->assertTrue($ready->pop(1));
@@ -1292,7 +1292,7 @@ class ResponseBridgeTest extends TestCase
             $this->assertSame($cancel, $results['first']);
             $this->assertSame($cancel, $results['second']);
             $this->assertFalse($results['other']);
-            $this->assertEqualsCanonicalizing([[10, $streams[0]], [10, $streams[1]], [20, 1]], $closed);
+            $this->assertEqualsCanonicalizing(['first', 'second', 'other'], $closed);
         } finally {
             $ready->close();
             $continue->close();
@@ -1305,9 +1305,8 @@ class ResponseBridgeTest extends TestCase
     public static function disconnectCancellationOptions(): array
     {
         return [
-            'default opt-out' => [false, [1, 3]],
-            'HTTP/2 streams' => [true, [1, 3]],
-            'pipelined HTTP/1 responses' => [true, [0, 0]],
+            'default opt-out' => [false],
+            'opt-in' => [true],
         ];
     }
 
