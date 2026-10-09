@@ -5,23 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Ai\Feature\Files;
 
 use Hypervel\Ai\Files\RemoteImage;
-use Hypervel\Ai\Files\UntrustedUrl;
 use Hypervel\Http\Client\RequestException;
 use Hypervel\Support\Facades\Http;
-use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Ai\TestCase;
 
 class RemoteFileTest extends TestCase
 {
-    /**
-     * Resolve fake download hosts without external DNS.
-     */
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        UntrustedUrl::resolveUsing(static fn (): array => ['93.184.216.34']);
-    }
-
     public function testMimeTypeFallsBackToTheResponseContentType(): void
     {
         Http::fake([

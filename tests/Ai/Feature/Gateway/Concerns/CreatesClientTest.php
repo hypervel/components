@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Ai\Feature\Gateway\Concerns;
 
 use Hypervel\Ai\AiManager;
-use Hypervel\Ai\AiServiceProvider;
 use Hypervel\Ai\Contracts\Providers\Provider;
 use Hypervel\Ai\Gateway\Concerns\CreatesClient;
 use Hypervel\Ai\Gateway\OpenAi\Concerns\CreatesOpenAiClient;
@@ -13,19 +12,11 @@ use Hypervel\Ai\Providers\Provider as BaseProvider;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Http\Client\PendingRequest;
 use Hypervel\Support\Facades\Http;
-use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Ai\TestCase;
 use Mockery as m;
 
 class CreatesClientTest extends TestCase
 {
-    /**
-     * Register the package's services.
-     */
-    protected function getPackageProviders(ApplicationContract $app): array
-    {
-        return [AiServiceProvider::class];
-    }
-
     /**
      * Configure an application-owned provider before package boot.
      */

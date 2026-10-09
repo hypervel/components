@@ -30,7 +30,7 @@ use Hypervel\JsonSchema\JsonSchemaTypeFactory;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Support\Facades\Storage;
-use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Ai\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Swoole\Coroutine\CanceledException;

@@ -14,7 +14,7 @@ use Hypervel\Http\Client\Request;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
-use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Ai\TestCase;
 use Hypervel\Tests\Http\Fixtures\LoopbackHttpServer;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -22,16 +22,6 @@ use Swoole\Coroutine\CanceledException;
 
 class UntrustedUrlTest extends TestCase
 {
-    /**
-     * Resolve fake download hosts without external DNS.
-     */
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        UntrustedUrl::resolveUsing(static fn (): array => ['93.184.216.34']);
-    }
-
     /**
      * Configure a single database pool slot for the DNS release test.
      */
