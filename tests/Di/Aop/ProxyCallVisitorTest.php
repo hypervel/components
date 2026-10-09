@@ -45,6 +45,33 @@ PHP);
         $this->assertSame('original', $target->value());
         $this->assertSame(['__construct'], Container::getInstance()->make(ConstructorRecordingAspect::class)->methods);
         $this->assertSame(['value'], Container::getInstance()->make(ClassRecordingAspect::class)->methods);
+        $this->assertSame([$target], Container::getInstance()->make(ConstructorRecordingAspect::class)->instances);
+        $this->assertSame([$target], Container::getInstance()->make(ClassRecordingAspect::class)->instances);
+    }
+
+    public function testPassesTheInterceptedInstanceForEachObjectAndNullForStaticMethods(): void
+    {
+        $class = $this->proxyClass(<<<'PHP'
+    public function value(): string
+    {
+        return 'instance';
+    }
+
+    public static function staticValue(): string
+    {
+        return 'static';
+    }
+PHP, ClassRecordingAspect::class);
+        $first = new $class;
+        $second = new $class;
+
+        $this->assertSame('instance', $first->value());
+        $this->assertSame('instance', $second->value());
+        $this->assertSame('static', $class::staticValue());
+        $this->assertSame(
+            [$first, $second, null],
+            Container::getInstance()->make(ClassRecordingAspect::class)->instances
+        );
     }
 
     public function testPreservesArgumentIntrospectionAcrossCallShapes(): void
@@ -824,12 +851,15 @@ class ClassRecordingAspect extends AbstractAspect
 {
     public array $methods = [];
 
+    public array $instances = [];
+
     /**
      * Record the intercepted method before continuing.
      */
     public function process(ProceedingJoinPoint $proceedingJoinPoint): mixed
     {
         $this->methods[] = $proceedingJoinPoint->methodName;
+        $this->instances[] = $proceedingJoinPoint->getInstance();
 
         return $proceedingJoinPoint->process();
     }

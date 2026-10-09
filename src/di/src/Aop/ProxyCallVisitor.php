@@ -260,6 +260,7 @@ class ProxyCallVisitor extends NodeVisitorAbstract
             new Arg(new MagicConstFunction),
             new Arg($this->buildArgumentMap($node->params)),
             new Arg($this->buildForwardingClosure($node)),
+            new Arg($node->isStatic() ? new ConstFetch(new Name('null')) : new Variable('this')),
         ]);
 
         if ($this->returnsByExpression($node)) {

@@ -69,7 +69,8 @@ trait InteractsWithAop
             $className,
             $method,
             $this->buildAopArguments($reflectionMethod, $arguments),
-            $reflectionMethod->getClosure($instance)
+            $reflectionMethod->getClosure($instance),
+            $reflectionMethod->isStatic() ? null : $instance
         );
     }
 
