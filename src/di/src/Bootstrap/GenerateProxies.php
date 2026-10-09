@@ -13,6 +13,7 @@ use Hypervel\Di\Aop\ProxyCallVisitor;
 use Hypervel\Di\Aop\ProxyManager;
 use Hypervel\Di\Aop\ProxyMarker;
 use Hypervel\Di\Aop\ProxyMethod;
+use Hypervel\Di\ClassMap\ClassMapManager;
 use Hypervel\Di\Exceptions\InvalidDefinitionException;
 use Hypervel\Support\Composer;
 use ReflectionClass;
@@ -35,7 +36,7 @@ class GenerateProxies
     public function bootstrap(ApplicationContract $app): void
     {
         if (AspectCollector::hasAspects()) {
-            $this->generate($app->storagePath('framework/aop/'));
+            $this->generate($app->bootstrapPath('cache/aop'));
         }
     }
 
@@ -56,7 +57,8 @@ class GenerateProxies
 
         $classMap = $this->buildClassMap();
 
-        $proxyManager = new ProxyManager($classMap, $proxyDir);
+        $replacements = ClassMapManager::getEntries();
+        $proxyManager = new ProxyManager($classMap, $proxyDir, $replacements);
         $proxies = $proxyManager->getProxies();
 
         if ($proxies === []) {
@@ -67,13 +69,19 @@ class GenerateProxies
             $this->ensureLoadedProxyCoversRules($class);
         }
 
-        if (static::$proxyLoader === null) {
-            static::$proxyLoader = new ClassLoader;
-            static::$proxyLoader->setClassMapAuthoritative(true);
-            static::$proxyLoader->register(true);
+        $ordinaryProxies = array_diff_key($proxies, $replacements);
+
+        if ($ordinaryProxies !== []) {
+            if (static::$proxyLoader === null) {
+                static::$proxyLoader = new ClassLoader;
+                static::$proxyLoader->setClassMapAuthoritative(true);
+                static::$proxyLoader->register(true);
+            }
+
+            static::$proxyLoader->addClassMap($ordinaryProxies);
         }
 
-        static::$proxyLoader->addClassMap($proxies);
+        ClassMapManager::applyProxies($proxies);
     }
 
     /**
@@ -143,6 +151,10 @@ class GenerateProxies
     {
         $loader = Composer::getLoader();
         $classMap = $loader->getClassMap();
+
+        foreach (ClassMapManager::getEntries() as $class => $path) {
+            $classMap[$class] = $path;
+        }
 
         foreach (AspectCollector::getRules() as $rule) {
             foreach ($rule['classes'] as $classRule) {

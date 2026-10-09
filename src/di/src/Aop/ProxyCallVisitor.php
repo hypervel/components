@@ -221,6 +221,11 @@ class ProxyCallVisitor extends NodeVisitorAbstract
             $isTarget = array_pop($this->classLikeStack);
 
             if ($isTarget && ! $node instanceof Interface_) {
+                $node->attrGroups[] = new AttributeGroup([
+                    new Attribute(new FullyQualified(ProxySource::class), [
+                        new Arg(new String_($this->visitorMetadata->sourceFilePath)),
+                    ]),
+                ]);
                 array_unshift($node->stmts, new TraitUse([
                     new FullyQualified(ProxyMarker::class),
                 ]));
@@ -712,7 +717,7 @@ class ProxyCallVisitor extends NodeVisitorAbstract
     {
         $this->activeMethod = $method;
         $this->nestedFunctionStack = [];
-        $hash = substr(hash('sha256', $this->targetClassName . '::' . $method->name->toString()), 0, 12);
+        $hash = substr(hash('xxh128', $this->targetClassName . '::' . $method->name->toString()), 0, 12);
         $this->helperMethodName = $this->reserveMethodName("__hypervelAopOriginal_{$hash}");
 
         $usedVariables = [];

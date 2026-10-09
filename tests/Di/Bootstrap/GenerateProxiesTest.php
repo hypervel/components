@@ -6,19 +6,26 @@ namespace Hypervel\Tests\Di\Bootstrap;
 
 use Composer\Autoload\ClassLoader;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Di\Aop\AbstractAspect;
 use Hypervel\Di\Aop\AspectCollector;
+use Hypervel\Di\Aop\AspectManager;
 use Hypervel\Di\Aop\AstVisitorRegistry;
+use Hypervel\Di\Aop\ProceedingJoinPoint;
 use Hypervel\Di\Aop\ProxyCallVisitor;
 use Hypervel\Di\Aop\VisitorMetadata;
 use Hypervel\Di\Bootstrap\GenerateProxies;
+use Hypervel\Di\ClassMap\ClassMapManager;
 use Hypervel\Di\Exceptions\InvalidDefinitionException;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Foundation\Application;
 use Hypervel\Support\Composer;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PhpParser\NodeVisitorAbstract;
+use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
+use RuntimeException;
 use Throwable;
 
 class GenerateProxiesTest extends TestCase
@@ -189,6 +196,29 @@ class GenerateProxiesTest extends TestCase
         });
     }
 
+    public function testReleasesSharingStorageKeepTheirOwnProxyFiles(): void
+    {
+        $this->withProxyFixture(function (string $className, string $sourceFile, string $overrideFile, string $proxyDir): void {
+            $first = new Application($this->tempDirectory . '/release-first');
+            $first->useStoragePath($this->tempDirectory . '/shared-storage');
+            $second = new Application($this->tempDirectory . '/release-second');
+            $second->useStoragePath($this->tempDirectory . '/shared-storage');
+            AspectCollector::setAround(OverrideSourceAspect::class, [$className . '::value']);
+
+            (new IsolatedProxyGenerator)->bootstrap($first);
+            $firstProxy = IsolatedProxyGenerator::getProxyMap()[$className];
+
+            $this->writeProxySource($overrideFile, $className, 'second-release');
+            $this->loader->addClassMap([$className => $overrideFile]);
+            (new IsolatedProxyGenerator)->bootstrap($second);
+
+            $this->assertNotSame($firstProxy, IsolatedProxyGenerator::getProxyMap()[$className]);
+            require $firstProxy;
+
+            $this->assertSame('intercepted:original-source', (new $className)->value());
+        });
+    }
+
     public function testSelectsMixedExactAndWildcardRulesInOrderWithoutDuplicates(): void
     {
         $prefix = 'Hypervel\Tests\Di\Bootstrap\Fixtures\Mixed' . bin2hex(random_bytes(4));
@@ -317,6 +347,96 @@ class GenerateProxiesTest extends TestCase
 
             $proxyFile = IsolatedProxyGenerator::getProxyMap()[$className];
             $this->assertStringContainsString('override-source', $this->filesystem->get($proxyFile));
+        });
+    }
+
+    public function testReplacementProxyDoesNotOverwriteTheOrdinaryProxy(): void
+    {
+        $this->withProxyFixture(function (string $className, string $sourceFile, string $overrideFile, string $proxyDir): void {
+            AspectCollector::setAround(OverrideSourceAspect::class, [$className . '::value']);
+
+            $this->bootstrapProxies($proxyDir);
+            $ordinaryProxy = IsolatedProxyGenerator::getProxyMap()[$className];
+            $this->writeProxySource($overrideFile, $className, 'override-source');
+            ClassMapManager::add([$className => $overrideFile]);
+
+            $this->bootstrapProxies($proxyDir);
+
+            $this->assertSame('intercepted:override-source', (new $className)->value());
+            $this->assertStringContainsString('original-source', $this->filesystem->get($ordinaryProxy));
+            $this->assertSame([$className => $overrideFile], ClassMapManager::getEntries());
+            $this->assertSame(
+                rawurlencode($className) . '.replacement.proxy.php',
+                basename((new ReflectionMethod($className, 'value'))->getFileName())
+            );
+        });
+    }
+
+    #[DataProvider('ordinaryProxyCases')]
+    public function testUnloadedReplacementProxyDoesNotSurviveReset(bool $ordinaryProxyExists): void
+    {
+        $this->withProxyFixture(function (string $className, string $sourceFile, string $overrideFile, string $proxyDir) use ($ordinaryProxyExists): void {
+            AspectCollector::setAround(OverrideSourceAspect::class, [$className . '::value']);
+
+            if ($ordinaryProxyExists) {
+                $this->bootstrapProxies($proxyDir);
+            }
+
+            $this->writeProxySource($overrideFile, $className, 'override-source');
+            ClassMapManager::add([$className => $overrideFile]);
+            $this->bootstrapProxies($proxyDir);
+
+            ClassMapManager::flushState();
+            AspectCollector::flushState();
+            AspectManager::flushState();
+
+            $this->assertSame('original-source', (new $className)->value());
+        });
+    }
+
+    /**
+     * Provide reset cases with and without a previously generated ordinary proxy.
+     */
+    public static function ordinaryProxyCases(): array
+    {
+        return [[false], [true]];
+    }
+
+    public function testLoadedOverrideProxyAcceptsOnlyItsOriginalSourceAfterReset(): void
+    {
+        $this->withProxyFixture(function (string $className, string $sourceFile, string $overrideFile, string $proxyDir): void {
+            $this->writeProxySource($overrideFile, $className, 'override-source');
+            ClassMapManager::add([$className => $overrideFile]);
+            AspectCollector::setAround(OverrideSourceAspect::class, [$className . '::value']);
+            $this->bootstrapProxies($proxyDir);
+            $this->assertSame('intercepted:override-source', (new $className)->value());
+
+            ClassMapManager::flushState();
+            ClassMapManager::add([$className => $overrideFile]);
+            $this->bootstrapProxies($proxyDir);
+
+            $this->assertSame('intercepted:override-source', (new $className)->value());
+
+            $this->expectException(RuntimeException::class);
+            $this->expectExceptionMessageIsOrContains('Cannot override class map');
+
+            ClassMapManager::add([$className => $sourceFile]);
+        });
+    }
+
+    public function testProxyKeepsPriorityOverAnOverrideRegisteredOnTheNextBoot(): void
+    {
+        $this->withProxyFixture(function (string $className, string $sourceFile, string $overrideFile, string $proxyDir): void {
+            $this->writeProxySource($overrideFile, $className, 'override-source');
+            ClassMapManager::add([$className => $overrideFile]);
+            AspectCollector::setAround(OverrideSourceAspect::class, [$className . '::value']);
+            $this->bootstrapProxies($proxyDir);
+
+            ClassMapManager::flushState();
+            ClassMapManager::add([$className => $overrideFile]);
+            $this->bootstrapProxies($proxyDir);
+
+            $this->assertSame('intercepted:override-source', (new $className)->value());
         });
     }
 
@@ -492,8 +612,8 @@ PHP);
     private function bootstrapProxies(string $proxyDir): void
     {
         $app = m::mock(ApplicationContract::class);
-        $app->shouldReceive('storagePath')
-            ->with('framework/aop/')
+        $app->shouldReceive('bootstrapPath')
+            ->with('cache/aop')
             ->andReturn($proxyDir);
 
         (new IsolatedProxyGenerator)->bootstrap($app);
@@ -528,6 +648,17 @@ class {$shortName}
     }
 }
 PHP);
+    }
+}
+
+class OverrideSourceAspect extends AbstractAspect
+{
+    /**
+     * Distinguish intercepted calls from calls through the plain replacement loader.
+     */
+    public function process(ProceedingJoinPoint $proceedingJoinPoint): mixed
+    {
+        return 'intercepted:' . $proceedingJoinPoint->process();
     }
 }
 

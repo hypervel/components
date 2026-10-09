@@ -222,7 +222,7 @@ $this->aspects(ProfileReports::class, TraceHttpRequests::class);
 <a name="proxy-generation"></a>
 ## Proxy Generation
 
-Hypervel generates AOP proxy classes automatically during application bootstrap. Generated proxies are written to the `storage/framework/aop` directory.
+Hypervel generates AOP proxy classes automatically during application bootstrap. Generated proxies are written to the `bootstrap/cache/aop` directory. Keeping these files with each release prevents overlapping deployments from overwriting another release's proxies when they share a storage directory.
 
 Target classes must not be loaded before proxy generation. Bind factories in your providers' `register` methods and create their instances during `boot` or later. Hypervel reports an error if a target was loaded too early, or if an already-loaded proxy cannot apply the current method rules. Restart workers after changing aspect rules.
 

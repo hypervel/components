@@ -15,9 +15,11 @@ use Hypervel\Di\Aop\AstVisitorRegistry;
 use Hypervel\Di\Aop\ProceedingJoinPoint;
 use Hypervel\Di\Aop\ProxyCallVisitor;
 use Hypervel\Di\Aop\ProxyMarker;
+use Hypervel\Di\Aop\ProxySource;
 use Hypervel\Di\Exceptions\InvalidDefinitionException;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use ReflectionClass;
 use ReflectionMethod;
 use RuntimeException;
 use ValueError;
@@ -315,7 +317,7 @@ PHP,
     public function testUsesCollisionFreeGeneratedNames(): void
     {
         $className = $this->className();
-        $hash = substr(hash('sha256', $className . '::target'), 0, 12);
+        $hash = substr(hash('xxh128', $className . '::target'), 0, 12);
         $source = $this->classSource($className, <<<PHP
     public function target(int \$value): int
     {
@@ -370,6 +372,10 @@ PHP);
         $this->assertSame('proxied-trait', $instance->aliasedValue());
         $this->assertSame("{closure:{$traitName}::descriptor():{$closureLine}}", $instance->descriptor());
         $this->assertContains(ProxyMarker::class, class_uses_recursive($instance));
+        $this->assertSame(
+            ['/original/GeneratedTrait.php'],
+            (new ReflectionClass($traitName))->getAttributes(ProxySource::class)[0]->getArguments()
+        );
         $this->assertFalse(method_exists($instance, '__proxyCall'));
     }
 

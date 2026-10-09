@@ -54,6 +54,18 @@ Also use `AfterEachTestExtension::bootstrap()` to generate the relevant Guzzle p
 
 Named HTTP connections must retain their handler options on async requests. Add `Factory::newConnectionHandler()` as the uncached counterpart of `getConnectionHandler()`, sharing option derivation and the existing protected construction method. Async requests use a fresh handler with registered transport settings; sync requests retain the cached handler. Per-call preset replacement changes request options, not registered transport policy. Preserve explicit client/handler bypasses. Extend existing connection tests for async option forwarding, isolation and preset replacement, and clarify this in the HTTP client guide.
 
+### Class-map overrides
+
+Store registered replacements in a separate authoritative Composer loader instead of mutating and copying the complete application map. Keep their source entries separately from the loader's generated proxy paths, and overlay the source entries onto the temporary lookup used for proxy generation. Validate all proxies before publication. Publish ordinary proxies in the persistent proxy loader and replacement proxies in the override loader, so replacement cleanup removes both plain and generated replacements. Neither loader needs re-prepending on repeat boot.
+
+Use a fixed `.replacement.proxy.php` suffix for replacement proxies, preserving ordinary proxy filenames. The separate files prevent replacement generation from overwriting a file still referenced by the persistent loader. Files remain bounded to two per class, without per-release source hashes.
+
+Keep automatic class-map cleanup between tests: unregister and clear the override loader so unloaded replacements cannot leak into the next application. Re-registering a loaded target is valid only when its actual source matches the canonical replacement path. Use reflection for ordinary classes and a generated `ProxySource` class/trait attribute for proxies, whose reflection filename points to generated code. Read the attribute without instantiating it; no persistent source registry is needed. Reject different-source replacements and internal classes.
+
+Cover ordinary and proxied same-source registration after reset, different-source rejection, unloaded override cleanup with and without an existing ordinary proxy, and proxy priority across repeated boots. Exception rendering may fall back to the accurate file path for classless frames; it does not need another merged map.
+
+Generate proxies under `bootstrap/cache/aop`, alongside the release's other compiled framework files. Shared `storage` must not let an overlapping deployment overwrite proxy files that an older release has not loaded yet. Keep explicit `generate($directory)` calls unchanged. Update cache clearing, the `about` report, Testbench cleanup, documentation and benchmark cache isolation together; verify two application bases sharing storage preserve their own generated code. Ordinary PHP files must count as cached proxies in `about`. No migration or fallback for the old directory is needed.
+
 ### Promise interception
 
 Intercept only `Promise::__construct`, `then`, `wait`, `cancel`, `resolve`, and `reject`.
@@ -125,6 +137,12 @@ Run upstream `guzzlehttp/promises` tests with production integration enabled for
 Make dependency drift visible through ordinary CI tests. Keep the existing full-suite jobs' unlocked dependency resolution unchanged; they test what an ordinary framework install resolves, currently Guzzle 8/promises 3. Add only a focused Guzzle 7/promises 2 compatibility job, constraining PSR-7 to its compatible 2.x family and running the ownership and affected AWS/broadcasting tests. Composer's `update --with` supplies temporary constraints without changing manifests. Verify real proxy interception of every targeted method, constructor ownership, and the behavioral regression suite; signature checks alone cannot detect changed scheduling semantics. Reuse PHPUnit and Composer, without a custom source-drift analyzer or another full-suite matrix. Keep upstream-suite validation reproducible with the same integration bootstrap.
 
 PHPUnit setup/teardown runs outside the test coroutine, and Foundation setup can create temporary coroutines. Create and finish pending promise work in the coroutine that drives it; do not create pending fixtures in setup and pass them into the test coroutine. Full-suite validation must catch these lifecycle mismatches. Correct fixture ownership without weakening production checks or changing the behavior a test protects. Validate package-mode bootstrap as well as the components suite.
+
+### Coroutine test deadlines
+
+Keep PHPUnit's native SIGALRM armed for non-yielding PHP code. When it has a time limit, start one deadline coroutine waiting on a private, capacity-one channel. A first-registered root defer signals completion after the other root defers; buffering prevents that signal from blocking if the deadline has expired. After the root finishes, observe remaining children with short native sleeps until they finish or the original deadline expires. Do not join test coroutines: Swoole only allows one joiner, and the code under test may need that slot. Channel and sleep timers survive `Timer::clearAll()`; respect Swoole's one-millisecond sleep minimum. Route expiry through PHPUnit's existing `TimeoutException`, including exceptions dispatched by the native signal handler during the wait callback. Cancel the root with an exception, which its invocation wrapper catches, and other children without throwing into raw callbacks. Fixtures still own terminating and reaping their external processes.
+
+Verify busy loops, sleeping tests, children blocked after the root exits, normal child completion with root and nested-child joins, and disabled limits. Assertions about coroutine counts must compare against the infrastructure's initial count. PHPUnit output assertions remain outside coroutine execution until its upstream output-buffer integration is available; track that integration in `docs/todo.md` rather than accessing private PHPUnit state.
 
 ## Documentation and future maintenance
 

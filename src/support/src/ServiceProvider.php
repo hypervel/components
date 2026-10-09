@@ -600,7 +600,7 @@ return [
      * Register class map overrides.
      *
      * Applies entries to the Composer autoloader immediately.
-     * Fails hard if any target class is already loaded.
+     * Rejects loaded targets from a different source; repeating the same override is safe.
      * Must be called during register(), before the target class is autoloaded.
      *
      * @param array<class-string, string> $map originalClass => replacementFilePath

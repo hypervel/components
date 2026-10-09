@@ -133,7 +133,7 @@ class ClearCommandTest extends TestCase
         $this->cacheManager->expects('store')->with(null)->andReturn($this->cacheRepository);
         $this->cacheRepository->expects('flush')->andReturnTrue();
 
-        $this->files->expects('deleteDirectory')->with(storage_path('framework/aop'));
+        $this->files->expects('deleteDirectory')->with($this->command->getHypervel()->bootstrapPath('cache/aop'));
 
         $this->runCommand($this->command);
     }

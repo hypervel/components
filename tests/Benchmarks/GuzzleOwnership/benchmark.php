@@ -104,7 +104,9 @@ $loader = require $root . '/vendor/autoload.php';
 $app = new Application($root);
 $storage = $options['storage'] ?? sys_get_temp_dir() . '/hypervel-guzzle-benchmark-' . getmypid();
 $app->useStoragePath($storage);
-$cachedProxies = is_dir($storage . '/framework/aop');
+$app->useBootstrapPath($storage . '/bootstrap');
+// The unchanged baseline stores generated proxies beneath storage instead.
+$cachedProxies = is_dir($app->bootstrapPath('cache/aop')) || is_dir($storage . '/framework/aop');
 (new HttpServiceProvider($app))->register();
 
 if ($variant === 'noop') {
