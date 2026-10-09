@@ -272,7 +272,7 @@ public function provider(): Provider
 ```
 
 > [!NOTE]
-> You should pass on-demand providers within an array, as shown in the examples above. If you give an on-demand provider a `name` in its configuration array, the name may not match a built-in provider or a provider defined in your `config/ai.php` configuration file.
+> You may pass an on-demand provider directly to `provider:`, or include it in a failover array. If you give an on-demand provider a `name` in its configuration array, the name may not match a built-in provider or a provider defined in your `config/ai.php` configuration file.
 
 <a name="provider-support"></a>
 ### Provider Support
@@ -3172,6 +3172,8 @@ $image = Image::of('A donut sitting on the kitchen counter')
 
 Failover only occurs when a `FailoverableException` is thrown — such as a rate limit (`RateLimitedException`), an overloaded or unavailable provider (`ProviderOverloadedException`), or insufficient credits (`InsufficientCreditsException`). Ordinary errors, like a validation or bad request error, will not trigger failover.
 
+Providers are tried in the order you supply them. Each entry is retained, including provider objects that share a name. Listing the same provider twice allows a second attempt if the first fails with a failoverable exception.
+
 When you pass a plain list of providers, such as `[Lab::OpenAI, Lab::Anthropic]`, each provider uses its default model. To specify a particular model for each provider in the failover chain, pass an associative array keyed by the provider, using the `Lab` enum's `value` as the key (enum cases cannot be used directly as PHP array keys):
 
 ```php
@@ -3185,6 +3187,23 @@ $response = (new SalesCoach)->prompt(
     ],
 );
 ```
+
+If your agent overrides the protected `getProvidersAndModels()` method, return an ordered list of provider/model pairs:
+
+```php
+use Hypervel\Ai\Enums\Lab;
+use Hypervel\Ai\Providers\Provider;
+
+protected function getProvidersAndModels(Provider|Lab|array|string|null $provider, ?string $model): array
+{
+    return [
+        [$this->accountProvider(), 'model-a'],
+        ['openai', 'gpt-4o'],
+    ];
+}
+```
+
+Unlike Laravel's name-keyed map, these pairs retain each provider object and its credentials. Calls to `prompt()` and `stream()` continue to accept the provider lists and associative arrays shown above.
 
 <a name="testing"></a>
 ## Testing
@@ -3796,4 +3815,6 @@ The Laravel AI SDK dispatches a variety of [events](/docs/{{version}}/events), i
 
 You can listen to any of these events to log or store AI SDK usage information.
 
-Queued listeners receive a serialized copy of the event. Raw uploaded files cannot be serialized. If you use queued listeners, attach uploads using the `fromUpload()` method of the matching `Hypervel\Ai\Files` class, such as `Document::fromUpload()`, `Image::fromUpload()` or `Audio::fromUpload()`, to include the file's contents. Alternatively, store the file on a disk the queue worker can access and attach it using `fromStorage()`. For usage logging, you may instead handle the event synchronously and dispatch a job containing only the values you need.
+Queued listeners require a serializable event. Raw uploaded files cannot be serialized. If you use queued listeners, attach uploads using the `fromUpload()` method of the matching `Hypervel\Ai\Files` class, such as `Document::fromUpload()`, `Image::fromUpload()` or `Audio::fromUpload()`, to include the file's contents. Alternatively, store the file on a disk the queue worker can access and attach it using `fromStorage()`.
+
+Failure and failover events also include the thrown exception, which PHP can't always serialize. For those events, or when a listener only needs a few values such as token usage, handle the event synchronously and dispatch a job containing only those values.
