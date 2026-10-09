@@ -34,6 +34,8 @@ class SentryConfig
         'sql_origin_threshold_ms' => 100,
         'views' => true,
         'http_client_requests' => true,
+        'http_client_requests_origin' => true,
+        'http_client_requests_origin_threshold_ms' => 250,
         'cache' => true,
         'storage' => true,
         'redis_commands' => false,

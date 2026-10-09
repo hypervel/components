@@ -4,15 +4,20 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sentry\Features;
 
+use Aws\Credentials\Credentials;
 use DateTimeImmutable;
+use GuzzleHttp\Promise\Create;
+use GuzzleHttp\Promise\PromiseInterface;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\ObjectPool\Factory as PoolFactory;
 use Hypervel\Filesystem\AwsS3V3Adapter;
+use Hypervel\Filesystem\ClientPooledFilesystem;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Filesystem\FilesystemAdapter;
 use Hypervel\Filesystem\FilesystemManager;
 use Hypervel\Filesystem\FilesystemPoolProxy;
 use Hypervel\Filesystem\ScopedFilesystemProxy;
+use Hypervel\ObjectPool\PoolFingerprint;
 use Hypervel\Sentry\Features\Storage\DecoratedFilesystem;
 use Hypervel\Sentry\Features\Storage\Integration;
 use Hypervel\Sentry\Features\Storage\SentryFilesystem;
@@ -486,6 +491,35 @@ class StorageIntegrationTest extends TestCase
         $manager->purge('pooled');
 
         $this->assertFalse($pools->has($pooled->getPoolName()));
+    }
+
+    public function testDecoratedCloudDisksKeepTheirPoolSettings(): void
+    {
+        $this->resetApplicationWithConfig([
+            'filesystems.disks' => Integration::configureDisks([
+                's3' => [
+                    'driver' => 's3',
+                    'region' => 'us-east-1',
+                    'bucket' => 'bucket',
+                    // A credential provider cannot define pool identity, so the disk declares its fingerprint
+                    'credentials' => static fn (): PromiseInterface => Create::promiseFor(new Credentials('key', 'secret')),
+                    'pool' => [
+                        'name' => 'decorated-s3',
+                        'fingerprint' => 'decorated-s3-credentials',
+                        'max_objects' => 3,
+                    ],
+                ],
+            ]),
+        ]);
+
+        $disk = Storage::disk('s3');
+
+        $this->assertInstanceOf(DecoratedFilesystem::class, $disk);
+        $pooled = $disk->getFilesystem();
+        $this->assertInstanceOf(ClientPooledFilesystem::class, $pooled);
+        $this->assertSame(FilesystemManager::class . ':named:decorated-s3', $pooled->getDefinition()->identity);
+        $this->assertSame(PoolFingerprint::fromExplicit('decorated-s3-credentials'), $pooled->getDefinition()->fingerprint);
+        $this->assertSame(3, $pooled->getDefinition()->options->maxObjects);
     }
 
     public function testCreatesBreadcrumbsFor(): void

@@ -14,6 +14,7 @@ use Hypervel\Contracts\Http\Kernel as HttpKernelInterface;
 use Hypervel\Contracts\View\Engine;
 use Hypervel\Contracts\View\View;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Di\Bootstrap\GenerateProxies;
 use Hypervel\Foundation\Console\AboutCommand;
 use Hypervel\Http\Request;
 use Hypervel\ObjectPool\PoolOptions;
@@ -55,6 +56,7 @@ use Sentry\DataCollection\DataCollectionPolicy;
 use Sentry\Integration as SdkIntegration;
 use Sentry\Integration\IntegrationInterface;
 use Sentry\Logger\DebugFileLogger;
+use Sentry\Options;
 use Sentry\SentrySdk;
 use Sentry\Serializer\RepresentationSerializer;
 use Sentry\State\HubInterface;
@@ -169,6 +171,8 @@ class SentryServiceProvider extends ServiceProvider
 
         $this->registerLogChannels();
 
+        // Upstream's HttpClientIntegration feature is not ported: this aspect instruments
+        // every Guzzle client, not only requests sent through the HTTP client's events.
         if ($this->isActive()) {
             $this->aspects(GuzzleHttpClientAspect::class);
         }
@@ -213,6 +217,8 @@ class SentryServiceProvider extends ServiceProvider
             }
 
             $clientBuilder = ClientBuilder::create($options);
+
+            $this->classifyProxyFiles($clientBuilder->getOptions());
 
             // Set the Hypervel SDK identifier and version
             $clientBuilder->setSdkIdentifier(Version::SDK_IDENTIFIER);
@@ -336,6 +342,67 @@ class SentryServiceProvider extends ServiceProvider
         });
 
         return $clonedScope;
+    }
+
+    /**
+     * Classify generated AOP proxy files like the source files they replace.
+     *
+     * Proxies are generated under the bootstrap cache path, so a proxied vendor class would
+     * otherwise count as application code in stack traces and span origins. An explicit include
+     * that covers a proxy still wins, because the SDK applies includes over excludes.
+     */
+    private function classifyProxyFiles(Options $options): void
+    {
+        $excludedPaths = $options->getInAppExcludedPaths();
+        $includedPaths = $options->getInAppIncludedPaths();
+        $proxyExclusions = $proxyInclusions = [];
+
+        foreach (GenerateProxies::proxySources() as $proxyFile => $sourceFile) {
+            $sourceIsInApp = $this->isInAppFile($sourceFile, $excludedPaths, $includedPaths);
+
+            if ($sourceIsInApp === $this->isInAppFile($proxyFile, $excludedPaths, $includedPaths)) {
+                continue;
+            }
+
+            if ($sourceIsInApp) {
+                $proxyInclusions[] = $proxyFile;
+            } else {
+                $proxyExclusions[] = $proxyFile;
+            }
+        }
+
+        if ($proxyExclusions !== []) {
+            $options->setInAppExcludedPaths([...$excludedPaths, ...$proxyExclusions]);
+        }
+
+        if ($proxyInclusions !== []) {
+            $options->setInAppIncludedPaths([...$includedPaths, ...$proxyInclusions]);
+        }
+    }
+
+    /**
+     * Determine if the SDK treats the given canonical file path as application code.
+     *
+     * Mirrors the path rules of the SDK's FrameBuilder::isFrameInApp().
+     *
+     * @param string[] $excludedPaths
+     * @param string[] $includedPaths
+     */
+    private function isInAppFile(string $file, array $excludedPaths, array $includedPaths): bool
+    {
+        foreach ($includedPaths as $includedPath) {
+            if (str_starts_with($file, $includedPath)) {
+                return true;
+            }
+        }
+
+        foreach ($excludedPaths as $excludedPath) {
+            if (str_starts_with($file, $excludedPath)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

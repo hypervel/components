@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sentry;
 
+use GuzzleHttp\Client;
+use GuzzleHttp\Promise\Promise;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Http\Kernel;
 use Hypervel\Di\Aop\AspectCollector;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Http\Request;
 use Hypervel\Sentry\Aspects\GuzzleHttpClientAspect;
 use Hypervel\Sentry\Facade;
@@ -16,13 +19,16 @@ use Hypervel\Sentry\Http\SetRequestIpMiddleware;
 use Hypervel\Sentry\Hub;
 use Hypervel\Sentry\SentryConfig;
 use Hypervel\Sentry\SentryServiceProvider;
+use Hypervel\Sentry\Tracing\BacktraceHelper;
 use Hypervel\Sentry\Tracing\Middleware as TracingMiddleware;
 use Hypervel\Support\Facades\Artisan;
+use Hypervel\Testing\ParallelTesting;
 use LogicException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Depends;
 use Psr\Log\LoggerInterface;
+use ReflectionClass;
 use RuntimeException;
 use Sentry\ClientInterface;
 use Sentry\Event;
@@ -299,6 +305,58 @@ class ServiceProviderTest extends TestCase
         $this->assertNotEmpty(AspectCollector::getRule(GuzzleHttpClientAspect::class));
     }
 
+    public function testGeneratedProxiesOfExcludedSourcesAreNotInApp(): void
+    {
+        $repositoryPath = dirname(__DIR__, 2);
+        $this->resetApplicationWithConfig([
+            'sentry.in_app_exclude' => [$repositoryPath . '/src', $repositoryPath . '/vendor'],
+        ]);
+
+        $this->assertSame(__FILE__, $this->firstInAppFrameFileAfterGuzzleProxyFrame());
+    }
+
+    public function testGeneratedProxiesAreClassifiedAgainstSymlinkedExclusions(): void
+    {
+        $directory = ParallelTesting::tempDir('SentryServiceProviderTest');
+        $filesystem = new Filesystem;
+        $filesystem->deleteDirectory($directory);
+        $filesystem->ensureDirectoryExists($directory);
+        $repositoryLink = $directory . '/repository';
+        symlink(dirname(__DIR__, 2), $repositoryLink);
+
+        try {
+            $this->resetApplicationWithConfig([
+                'sentry.in_app_exclude' => [$repositoryLink . '/src', $repositoryLink . '/vendor'],
+            ]);
+
+            $this->assertSame(__FILE__, $this->firstInAppFrameFileAfterGuzzleProxyFrame());
+        } finally {
+            unlink($repositoryLink);
+            $filesystem->deleteDirectory($directory);
+        }
+    }
+
+    public function testInAppIncludeCoveringGeneratedProxiesKeepsThemInApp(): void
+    {
+        $repositoryPath = dirname(__DIR__, 2);
+        $this->resetApplicationWithConfig([
+            'sentry.in_app_exclude' => [$repositoryPath . '/src', $repositoryPath . '/vendor'],
+            'sentry.in_app_include' => [dirname($this->guzzleClientProxyFile())],
+        ]);
+
+        $this->assertSame($this->guzzleClientProxyFile(), $this->firstInAppFrameFileAfterGuzzleProxyFrame());
+    }
+
+    public function testGeneratedProxiesOfIncludedSourcesStayInAppUnderABroadExclusion(): void
+    {
+        $this->resetApplicationWithConfig([
+            'sentry.in_app_exclude' => [base_path()],
+            'sentry.in_app_include' => [dirname(__DIR__, 2) . '/vendor/guzzlehttp'],
+        ]);
+
+        $this->assertSame($this->guzzleClientProxyFile(), $this->firstInAppFrameFileAfterGuzzleProxyFrame());
+    }
+
     public function testFeatureFailureIsLoggedWithoutOverwritingItsInstanceOrSkippingBoot(): void
     {
         $exception = new RuntimeException('Feature registration failed.');
@@ -346,6 +404,32 @@ class ServiceProviderTest extends TestCase
         $middleware->terminate($request, $response);
 
         $this->assertSentryTransactionCount(1);
+    }
+
+    /**
+     * Get the generated AOP proxy file of the Guzzle client.
+     */
+    private function guzzleClientProxyFile(): string
+    {
+        $proxyFile = (new ReflectionClass(Client::class))->getFileName();
+
+        $this->assertStringEndsWith('.proxy.php', $proxyFile);
+
+        return $proxyFile;
+    }
+
+    /**
+     * Get the first in-app file of a backtrace whose innermost application call runs in the Guzzle client proxy.
+     */
+    private function firstInAppFrameFileAfterGuzzleProxyFrame(): ?string
+    {
+        $frame = $this->app->make(BacktraceHelper::class)->findFirstInAppFrameForBacktrace([
+            ['file' => $this->guzzleClientProxyFile(), 'line' => 1, 'class' => Promise::class, 'function' => 'wait'],
+            ['file' => __FILE__, 'line' => __LINE__, 'class' => Client::class, 'function' => 'request'],
+            ['class' => self::class, 'function' => __FUNCTION__],
+        ]);
+
+        return $frame?->getAbsoluteFilePath();
     }
 }
 

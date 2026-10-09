@@ -171,6 +171,8 @@ class ConfigTest extends TestCase
             'SENTRY_TRACE_VIEWS_ENABLED' => '1',
             'SENTRY_TRACE_REDIS_COMMANDS' => '1',
             'SENTRY_TRACE_SQL_ORIGIN_THRESHOLD_MS' => '250',
+            'SENTRY_TRACE_HTTP_CLIENT_REQUESTS_ORIGIN_ENABLED' => '0',
+            'SENTRY_TRACE_HTTP_CLIENT_REQUESTS_ORIGIN_THRESHOLD_MS' => '0',
         ], fn (): array => $this->sentryConfig());
 
         $this->assertTrue($config['strict_trace_continuation']);
@@ -181,6 +183,8 @@ class ConfigTest extends TestCase
         $this->assertTrue($config['tracing']['views']);
         $this->assertTrue($config['tracing']['redis_commands']);
         $this->assertSame(250, $config['tracing']['sql_origin_threshold_ms']);
+        $this->assertFalse($config['tracing']['http_client_requests_origin']);
+        $this->assertSame(0, $config['tracing']['http_client_requests_origin_threshold_ms']);
     }
 
     public function testPoolWaitTimeoutDefaultIsSetForFastFail(): void
