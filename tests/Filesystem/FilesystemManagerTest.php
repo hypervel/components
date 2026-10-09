@@ -1813,6 +1813,35 @@ class FilesystemManagerTest extends TestCase
         }
     }
 
+    public function testNonPoolableWrappingDriversDelegateTheirPoolSettings(): void
+    {
+        $container = $this->getContainer([
+            'disks' => [
+                'wrapped' => [
+                    ...$this->s3Config('wrapped-bucket'),
+                    'driver' => 'wrapping',
+                    'pool' => [
+                        'name' => 'wrapped-cloud',
+                        'fingerprint' => 'wrapped-credentials',
+                        'max_objects' => 3,
+                    ],
+                ],
+            ],
+        ]);
+        Container::setInstance($container);
+        $manager = new FilesystemManager($container);
+        $manager->extend('wrapping', function (Container $app, array $config, ?string $name): Filesystem {
+            return $this->build([...$config, 'driver' => 's3'], $name);
+        });
+
+        $disk = $manager->disk('wrapped');
+
+        $this->assertInstanceOf(ClientPooledFilesystem::class, $disk);
+        $this->assertSame(FilesystemManager::class . ':named:wrapped-cloud', $disk->getDefinition()->identity);
+        $this->assertSame(PoolFingerprint::fromExplicit('wrapped-credentials'), $disk->getDefinition()->fingerprint);
+        $this->assertSame(3, $disk->getDefinition()->options->maxObjects);
+    }
+
     public function testPoolableBuiltInDriversIncludeTheLogicalNameInConstructionIdentity(): void
     {
         $config = [

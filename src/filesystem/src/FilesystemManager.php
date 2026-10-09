@@ -235,16 +235,19 @@ class FilesystemManager implements FactoryContract
         );
 
         if (isset($this->customCreators[$driver])) {
-            return $hasPool
-                ? $this->createDriverPooledDisk(
-                    $driver,
-                    $config,
-                    $logicalName,
-                    $descriptor['servingRouteDisk'],
-                    $descriptor['servingRoutePrefix'],
-                    fn () => $resolver($this->callCustomCreator($constructionConfig, $logicalName)),
-                )
-                : $resolver($this->callCustomCreator($constructionConfig, $logicalName));
+            if (! $hasPool) {
+                // A driver the manager doesn't pool may wrap one it does, so it receives the pool settings to delegate.
+                return $resolver($this->callCustomCreator($config, $logicalName));
+            }
+
+            return $this->createDriverPooledDisk(
+                $driver,
+                $config,
+                $logicalName,
+                $descriptor['servingRouteDisk'],
+                $descriptor['servingRoutePrefix'],
+                fn () => $resolver($this->callCustomCreator($constructionConfig, $logicalName)),
+            );
         }
 
         if ($hasPool && ($driver === 's3' || $driver === 'gcs')) {
