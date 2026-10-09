@@ -204,11 +204,27 @@ Bedrock's current assume-role map hashes credentials plus all additional configu
 
 ### Embeddings
 
-Use one effective identity per operation: optional scope, provider name/driver, endpoint, model/deployment, dimensions, API version and result-affecting options/account routing. Include a non-secret account/project identity when available; otherwise hash credentials cryptographically once per operation. Never expose raw keys. Same-name dynamic providers within one scope must not collide across accounts; provider-file inputs are account-owned too.
+Use one effective identity per provider attempt: optional scope, provider name/driver, endpoint, model/deployment, dimensions, API version, credentials and result-affecting configuration/options. Capture configured headers as part of that identity before applying per-request `withHeaders()` metadata. This includes fixed configuration, BYOK resolver records and on-demand provider configuration. Preserve upstream's rule that per-request headers do not affect embedding keys; document that account-selecting headers belong in the provider definition or require an appropriate application cache scope. Same-name dynamic providers within one scope must not collide across configured accounts; provider-file inputs are account-owned too.
 
-Compute normalized options/identity once per batch. Use seeded `xxh128` for internal input/key hashing, retaining cryptographic hashing at credential trust boundaries. Use `($scope === null ? '' : $scope . ':') . 'hypervel-embeddings:v1:' . $digest`, with a fixed-length digest of the structured effective identity/input. The trusted integration supplies its logical namespace; do not put secrets there. Keeping scope outside the digest lets integrations remove their owned cache entries. Document that literal key layout, preserve central/scoped separation, and never concatenate unhashed variable input fields ambiguously. Trace headers are not result identity.
+Normalize options/configuration and compute the identity digest once per batch. Use SHA-256 for the identity, input-content and cache-key digests: a forged input collision could return another caller's cached vector. No seed is needed, and keys must remain stable across workers and hosts. Hash the structured identity including credentials once; never expose raw keys. Use `($scope === null ? '' : $scope . ':') . 'hypervel-embeddings:v1:' . $digest`. The integration supplies its logical namespace; keep it outside the digest for owned-entry removal. Preserve central/scoped separation and upstream's distinct `input`/`inputs` structures for individual/batch keys. Compute keys once before lookup and reuse them after provider I/O; do no identity or key work when caching is disabled.
 
-Encode vectors losslessly as little-endian float64 with a versioned base64 envelope. Raw packed bytes are incompatible with Redis JSON serialization; base64 is portable. Apply it to individual and whole-response caches, preserving ordering, duplicates, partial hits and response metadata. Keep the public array<float> result and existing cache controls; use a new key version rather than misreading old JSON values. No float32 precision change or codec registry.
+Encode vectors losslessly as little-endian float64 in base64 strings; raw packed bytes are incompatible with Redis JSON serialization. Store individual vectors as strings and whole responses as scalar arrays containing encoded embeddings and nullable provider/model values. These are the metadata supplied by embedding gateways; retain zero usage on cache hits. Let the cache store serialize these values, without an extra JSON layer, object deserialization or codec registry. The key version owns format compatibility; no additional value version is needed. Preserve ordering, duplicates, partial hits, public array<float> results and existing cache controls.
+
+Keep cache identity and keys in local variables, passing identity into both `generateWith...` methods and keys into the read/write helpers. No pending-request state, context slot or cache-session class is needed. The owner has approved these protected signature changes:
+
+```php
+resolveProviderOptionsAndHeaders(ProviderContract $provider): array;
+generateWithSharedCaching(EmbeddingProvider $provider, string $model, int $dimensions, array $providerOptions, ?array $identity): EmbeddingsResponse;
+generateWithIndividualCaching(EmbeddingProvider $provider, string $model, int $dimensions, array $providerOptions, array $identity): EmbeddingsResponse;
+generateFromCache(string $key): ?EmbeddingsResponse;
+cacheEmbeddings(string $key, EmbeddingsResponse $response): void;
+cachedIndividualEmbeddings(array $keys): array;
+cacheIndividualEmbeddings(array $keys, array $embeddings): void;
+cacheKey(array $identity): string;
+individualCacheKey(array $identity, mixed $input): string;
+```
+
+Add `cacheIdentity(EmbeddingProvider $provider, string $model, int $dimensions, array $providerOptions): array` for the scope prefix and precomputed fingerprint. Document array shapes; retain input-index keys. The shared path receives null identity when caching is off. Resolved providers use contracts, while public provider inputs retain the concrete `Providers\Provider` boundary used by Promptable and AiManager. Cover contract-only resolved providers, configured-header/account isolation, unchanged request-header cache hits, disabled caching without resolver calls, duplicate/partial batches, float64 round-trips and provider/model restoration. Explain the protected override changes briefly in README and the rationale beside the provider helper and identity calculation; no porting-guide entry is needed for these internal helpers.
 
 Use existing cache multi-get/put APIs. Standalone Redis already has a single-script putMany; phpredis RedisCluster has no pipeline, and MULTI still exchanges a reply per command. Retain sequential Cluster TTL writes rather than multiplying pooled clients or forcing embedding keys into hot hash slots. Do not claim MGET across random Cluster slots is one server round trip.
 

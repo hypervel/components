@@ -2659,7 +2659,9 @@ Embedding generation can be cached to avoid redundant API calls for identical in
 ],
 ```
 
-When caching is enabled, embeddings are cached for 30 days. The cache key is based on the provider, model, dimensions, and input content, ensuring that identical requests return cached results while different configurations generate fresh embeddings.
+When caching is enabled, embeddings are cached for 30 days. The cache key includes the provider's name, credentials, configuration, model, dimensions, provider options, and input content. Providers using different accounts or endpoints do not share cached embeddings.
+
+Headers in the provider's configuration are included in the cache key. Headers passed to `withHeaders` apply only to the request and do not change the key. If a header selects an account, include it in the provider's configuration, including when using on-demand providers or a provider configuration resolver. Alternatively, use an application cache scope that separates those accounts.
 
 By default, each input's embedding is cached under its own key, so a later request may hit the cache for inputs it has seen before even when the set of inputs or their order has changed. To instead cache the entire set of inputs under a single key, set the `ai.caching.embeddings.individually` configuration option to `false`.
 

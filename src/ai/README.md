@@ -11,6 +11,8 @@ Documentation: https://hypervel.org/docs/ai-sdk
 
 `Promptable::getProvidersAndModels()` returns an ordered list of `[Provider|string, ?string]` pairs instead of a name-keyed map, preserving provider objects and their credentials. Update overrides to return pairs. Failover retains repeated entries as separate attempts. The public `Provider::formatProviderAndModelList()` utility retains its name-keyed return format. See [failover](https://hypervel.org/docs/ai-sdk#failover).
 
+Pending requests' protected `resolveProviderOptionsAndHeaders()` helper accepts the provider contract so custom implementations work. `PendingEmbeddingsGeneration`'s protected caching helpers receive precomputed identities or keys, keeping cache reads and writes consistent without repeated identity calculation. Subclasses overriding these helpers must match the Hypervel signatures; public generation and caching methods are unchanged.
+
 Custom conversation stores must implement `ClaimsPendingApprovals` to resume stored tool approvals safely. Ordinary conversations and stateless resumption remain available without that capability.
 
 Skill discovery is cached for the fixed paths in `ai.skills.cached_paths`. Reload the worker or flush the skill cache after changing those files; other skill sources remain dynamic.
