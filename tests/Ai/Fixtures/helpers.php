@@ -1,0 +1,402 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Ai\Fixtures;
+
+use GuzzleHttp\Promise\PromiseInterface;
+use Hypervel\Http\Client\Request;
+use Hypervel\Support\Facades\Http;
+use PHPUnit\Framework\Assert;
+
+function requiresApiKey(string ...$keys): void
+{
+    foreach ($keys as $key) {
+        if (empty(env($key))) {
+            Assert::markTestSkipped("Missing {$key} — skipping external test.");
+        }
+    }
+}
+
+function sentRequest(): Request
+{
+    [$request] = Http::recorded()->first();
+
+    return $request;
+}
+
+function multipartField(Request $request, string $name): ?string
+{
+    return collect($request->data())->firstWhere('name', $name)['contents'] ?? null;
+}
+
+function multipartNestedField(Request $request, string $name): array
+{
+    return collect($request->data())
+        ->reject(fn (array $field): bool => isset($field['filename']))
+        ->filter(fn (array $field): bool => ($field['name'] ?? null) === $name && is_array($field['contents'] ?? null))
+        ->flatMap(fn (array $field): array => array_values($field['contents']))
+        ->values()
+        ->all();
+}
+
+function fakeGroqResponse(string $text = 'Hello'): PromiseInterface
+{
+    return Http::response([
+        'id' => 'chatcmpl-123',
+        'object' => 'chat.completion',
+        'model' => 'openai/gpt-oss-20b',
+        'choices' => [[
+            'index' => 0,
+            'message' => [
+                'role' => 'assistant',
+                'content' => $text,
+            ],
+            'finish_reason' => 'stop',
+        ]],
+        'usage' => [
+            'prompt_tokens' => 1,
+            'completion_tokens' => 1,
+        ],
+    ]);
+}
+
+function fakeGroqStreamResponse(string $text = 'Hello'): PromiseInterface
+{
+    $chunk = fn (array|object $delta, ?string $finishReason = null): array => [
+        'id' => 'chatcmpl-123',
+        'object' => 'chat.completion.chunk',
+        'model' => 'openai/gpt-oss-20b',
+        'choices' => [['index' => 0, 'delta' => $delta, 'finish_reason' => $finishReason]],
+    ];
+
+    $body = implode("\n\n", [
+        'data: ' . json_encode($chunk(['role' => 'assistant', 'content' => $text])),
+        'data: ' . json_encode($chunk((object) [], 'stop')),
+        'data: [DONE]',
+    ]) . "\n\n";
+
+    return Http::response($body, 200, ['Content-Type' => 'text/event-stream']);
+}
+
+function fakeGroqStreamErrorResponse(string $message = 'Upstream exploded.'): PromiseInterface
+{
+    $body = implode("\n\n", [
+        'data: ' . json_encode(['error' => ['code' => 'server_error', 'message' => $message]]),
+        'data: [DONE]',
+    ]) . "\n\n";
+
+    return Http::response($body, 200, ['Content-Type' => 'text/event-stream']);
+}
+
+function fakeGroqStreamToolCallResponse(string $name = 'FixedNumberGenerator', string $id = 'call_123'): PromiseInterface
+{
+    $chunk = fn (array|object $delta, ?string $finishReason = null): array => [
+        'id' => 'chatcmpl-123',
+        'object' => 'chat.completion.chunk',
+        'model' => 'openai/gpt-oss-20b',
+        'choices' => [['index' => 0, 'delta' => $delta, 'finish_reason' => $finishReason]],
+    ];
+
+    $body = implode("\n\n", [
+        'data: ' . json_encode($chunk(['role' => 'assistant', 'tool_calls' => [[
+            'index' => 0,
+            'id' => $id,
+            'type' => 'function',
+            'function' => ['name' => $name, 'arguments' => ''],
+        ]]])),
+        'data: ' . json_encode($chunk(['tool_calls' => [[
+            'index' => 0,
+            'function' => ['arguments' => '{}'],
+        ]]])),
+        'data: ' . json_encode($chunk((object) [], 'tool_calls')),
+        'data: [DONE]',
+    ]) . "\n\n";
+
+    return Http::response($body, 200, ['Content-Type' => 'text/event-stream']);
+}
+
+function fakeGroqToolCallResponse(string $name = 'FixedNumberGenerator', array $arguments = [], string $id = 'call_123'): PromiseInterface
+{
+    return Http::response([
+        'id' => 'chatcmpl-tool-123',
+        'object' => 'chat.completion',
+        'model' => 'openai/gpt-oss-20b',
+        'choices' => [[
+            'index' => 0,
+            'message' => [
+                'role' => 'assistant',
+                'content' => null,
+                'tool_calls' => [[
+                    'id' => $id,
+                    'type' => 'function',
+                    'function' => [
+                        'name' => $name,
+                        'arguments' => $arguments === [] ? '{}' : json_encode($arguments),
+                    ],
+                ]],
+            ],
+            'finish_reason' => 'tool_calls',
+        ]],
+        'usage' => [
+            'prompt_tokens' => 10,
+            'completion_tokens' => 5,
+        ],
+    ]);
+}
+
+function fakeOllamaResponse(string $text = 'Hello'): PromiseInterface
+{
+    return Http::response([
+        'model' => 'llama3.1:8b',
+        'message' => [
+            'role' => 'assistant',
+            'content' => $text,
+        ],
+        'done_reason' => 'stop',
+        'done' => true,
+        'prompt_eval_count' => 1,
+        'eval_count' => 1,
+    ]);
+}
+
+function fakeAzureResponse(string $text = 'Hello'): PromiseInterface
+{
+    return Http::response([
+        'id' => 'resp_azure_123',
+        'status' => 'completed',
+        'model' => 'gpt-4o',
+        'output' => [[
+            'type' => 'message',
+            'status' => 'completed',
+            'content' => [[
+                'type' => 'output_text',
+                'text' => $text,
+            ]],
+        ]],
+        'usage' => [
+            'input_tokens' => 1,
+            'output_tokens' => 1,
+        ],
+    ]);
+}
+
+function configureOpenAiCompatible(): void
+{
+    config(['ai.providers.openai-compatible' => [
+        'driver' => 'openai-compatible',
+        'url' => 'http://localhost:1234/v1',
+        'key' => 'test-key',
+        'models' => ['text' => ['default' => 'local-model']],
+    ]]);
+}
+
+function fakeOpenAiResponse(string $text = 'Hello'): PromiseInterface
+{
+    return Http::response([
+        'id' => 'resp_123',
+        'status' => 'completed',
+        'model' => 'gpt-5.4',
+        'output' => [[
+            'type' => 'message',
+            'status' => 'completed',
+            'content' => [[
+                'type' => 'output_text',
+                'text' => $text,
+            ]],
+        ]],
+        'usage' => [
+            'input_tokens' => 1,
+            'output_tokens' => 1,
+        ],
+    ]);
+}
+
+function openAiReasoningItem(string $id, string ...$summaries): array
+{
+    return [
+        'type' => 'reasoning',
+        'id' => $id,
+        'summary' => array_map(fn (string $text): array => ['type' => 'summary_text', 'text' => $text], $summaries),
+    ];
+}
+
+function openAiReasoningTextItem(string $id, string ...$texts): array
+{
+    return [
+        'type' => 'reasoning',
+        'id' => $id,
+        'summary' => [],
+        'content' => array_map(fn (string $text): array => ['type' => 'reasoning_text', 'text' => $text], $texts),
+    ];
+}
+
+function openAiReasoningItemWithBoth(string $id, string $summary, string $text): array
+{
+    return [
+        'type' => 'reasoning',
+        'id' => $id,
+        'summary' => [['type' => 'summary_text', 'text' => $summary]],
+        'content' => [['type' => 'reasoning_text', 'text' => $text]],
+    ];
+}
+
+function fakeOpenAiReasonedResponse(array $reasoningItems, string $text = 'Hello'): PromiseInterface
+{
+    return Http::response([
+        'id' => 'resp_123',
+        'status' => 'completed',
+        'model' => 'gpt-5.4',
+        'output' => [...$reasoningItems, [
+            'type' => 'message',
+            'status' => 'completed',
+            'content' => [['type' => 'output_text', 'text' => $text]],
+        ]],
+        'usage' => [
+            'input_tokens' => 1,
+            'output_tokens' => 1,
+        ],
+    ]);
+}
+
+function fakeOpenAiReasonedToolCallResponse(array $reasoningItems): PromiseInterface
+{
+    return Http::response([
+        'id' => 'resp_tool_123',
+        'status' => 'completed',
+        'model' => 'gpt-5.4',
+        'output' => [...$reasoningItems, [
+            'type' => 'function_call',
+            'id' => 'fc_123',
+            'call_id' => 'call_123',
+            'name' => 'FixedNumberGenerator',
+            'arguments' => '{}',
+            'status' => 'completed',
+        ]],
+        'usage' => [
+            'input_tokens' => 10,
+            'output_tokens' => 5,
+        ],
+    ]);
+}
+
+function fakeOpenAiToolCallResponse(string $id = 'resp_tool_123', string $model = 'gpt-5.4'): PromiseInterface
+{
+    return Http::response([
+        'id' => $id,
+        'status' => 'completed',
+        'model' => $model,
+        'output' => [[
+            'type' => 'function_call',
+            'id' => 'fc_123',
+            'call_id' => 'call_123',
+            'name' => 'FixedNumberGenerator',
+            'arguments' => '{}',
+            'status' => 'completed',
+        ]],
+        'usage' => [
+            'input_tokens' => 10,
+            'output_tokens' => 5,
+        ],
+    ]);
+}
+
+function fakeDeepSeekResponse(string $text = 'Hello'): PromiseInterface
+{
+    return Http::response([
+        'id' => 'chatcmpl-deepseek-123',
+        'object' => 'chat.completion',
+        'model' => 'deepseek-chat',
+        'choices' => [[
+            'index' => 0,
+            'message' => [
+                'role' => 'assistant',
+                'content' => $text,
+            ],
+            'finish_reason' => 'stop',
+        ]],
+        'usage' => [
+            'prompt_tokens' => 1,
+            'completion_tokens' => 1,
+        ],
+    ]);
+}
+
+function fakeOpenRouterResponse(string $text = 'Hello'): PromiseInterface
+{
+    return Http::response([
+        'id' => 'chatcmpl-123',
+        'object' => 'chat.completion',
+        'model' => 'anthropic/claude-sonnet-4.6',
+        'choices' => [[
+            'index' => 0,
+            'message' => [
+                'role' => 'assistant',
+                'content' => $text,
+            ],
+            'finish_reason' => 'stop',
+        ]],
+        'usage' => [
+            'prompt_tokens' => 1,
+            'completion_tokens' => 1,
+        ],
+    ]);
+}
+
+function fakeOpenRouterToolCallResponse(): PromiseInterface
+{
+    return Http::response([
+        'id' => 'chatcmpl-tool-123',
+        'object' => 'chat.completion',
+        'model' => 'anthropic/claude-sonnet-4.6',
+        'choices' => [[
+            'index' => 0,
+            'message' => [
+                'role' => 'assistant',
+                'content' => null,
+                'tool_calls' => [[
+                    'id' => 'call_123',
+                    'type' => 'function',
+                    'function' => [
+                        'name' => 'FixedNumberGenerator',
+                        'arguments' => '{}',
+                    ],
+                ]],
+            ],
+            'finish_reason' => 'tool_calls',
+        ]],
+        'usage' => [
+            'prompt_tokens' => 10,
+            'completion_tokens' => 5,
+        ],
+    ]);
+}
+
+function fakeDeepSeekToolCallResponse(): PromiseInterface
+{
+    return Http::response([
+        'id' => 'chatcmpl-deepseek-tool-123',
+        'object' => 'chat.completion',
+        'model' => 'deepseek-chat',
+        'choices' => [[
+            'index' => 0,
+            'message' => [
+                'role' => 'assistant',
+                'content' => null,
+                'tool_calls' => [[
+                    'id' => 'call_123',
+                    'type' => 'function',
+                    'function' => [
+                        'name' => 'FixedNumberGenerator',
+                        'arguments' => '{}',
+                    ],
+                ]],
+            ],
+            'finish_reason' => 'tool_calls',
+        ]],
+        'usage' => [
+            'prompt_tokens' => 10,
+            'completion_tokens' => 5,
+        ],
+    ]);
+}
