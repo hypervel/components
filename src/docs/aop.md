@@ -96,7 +96,7 @@ public array $classes = [
 | --- | --- |
 | `App\Services\ReportService` | Every method of the class except `__construct` |
 | `App\Services\ReportService::generate` | A single method |
-| `App\Services\*` | Classes matching the wildcard pattern |
+| `App\Services\*` | Every method except `__construct` in classes matching the wildcard pattern |
 | `App\Services\ReportService::gen*` | Methods matching the wildcard pattern |
 
 Whenever possible, use `ClassName::class . '::method'` for exact rules so class names remain refactorable.
@@ -224,6 +224,8 @@ $this->aspects(ProfileReports::class, TraceHttpRequests::class);
 
 Hypervel generates AOP proxy classes automatically during application bootstrap. Generated proxies are written to the `storage/framework/aop` directory.
 
+Target classes must not be loaded before proxy generation. Bind factories in your providers' `register` methods and create their instances during `boot` or later. Hypervel reports an error if a target was loaded too early, or if an already-loaded proxy cannot apply the current method rules. Restart workers after changing aspect rules.
+
 If no aspects have been registered, proxy generation does nothing. Existing proxies are reused only while their content fingerprint still matches the source path and contents, aspect rules, registered AST visitors, generator implementation, PHP parser, and PHP version. Changes to any of those inputs regenerate the affected proxy during the next application bootstrap.
 
 Each targeted source file must declare exactly one named class, interface, trait, or enum. Nested anonymous classes are supported, but multiple named class-like declarations should be split into separate files before applying an aspect. Methods that return by reference cannot be intercepted because the aspect pipeline returns values rather than reference identities.
@@ -244,6 +246,8 @@ php artisan about
 ## Testing Aspects
 
 In full application or Testbench tests, target classes may already be proxied during application bootstrap. In that case, call the target method normally and the proxy will intercept the call automatically.
+
+The shared PHPUnit extension prepares the framework's Guzzle proxies before test discovery, without enabling optional Sentry or Telescope instrumentation. Application providers still determine which aspects run. For application-defined aspects, register them before first loading their targets, usually through a Testbench application provider.
 
 For focused tests where the target object is not already proxied, use the `Hypervel\Foundation\Testing\Concerns\InteractsWithAop` trait. This trait can run a method through the registered aspect pipeline without relying on generated proxy files:
 

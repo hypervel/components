@@ -124,7 +124,7 @@ class ProxyDispatcher
 
         $queue = new SplPriorityQueue;
 
-        foreach (array_unique($matchedAspects) as $aspect) {
+        foreach ($matchedAspects as $aspect) {
             $queue->insert($aspect, AspectCollector::getPriority($aspect));
         }
 

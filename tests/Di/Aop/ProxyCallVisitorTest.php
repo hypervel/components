@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Di\Aop;
 use Attribute;
 use Closure;
 use Error;
+use Hypervel\Container\Container;
 use Hypervel\Di\Aop\AbstractAspect;
 use Hypervel\Di\Aop\AspectCollector;
 use Hypervel\Di\Aop\Ast;
@@ -23,6 +24,29 @@ use ValueError;
 
 class ProxyCallVisitorTest extends TestCase
 {
+    public function testConstructorInterceptionDoesNotOptClassAspectsIntoTheConstructor(): void
+    {
+        $className = $this->className();
+        $source = $this->classSource($className, <<<'PHP'
+    public function __construct(public string $value)
+    {
+    }
+
+    public function value(): string
+    {
+        return $this->value;
+    }
+PHP);
+        AspectCollector::setAround(ConstructorRecordingAspect::class, [$className . '::__construct']);
+        $this->evaluate($this->generate($className, '/original/MixedRules.php', $source, ClassRecordingAspect::class));
+
+        $target = new $className('original');
+
+        $this->assertSame('original', $target->value());
+        $this->assertSame(['__construct'], Container::getInstance()->make(ConstructorRecordingAspect::class)->methods);
+        $this->assertSame(['value'], Container::getInstance()->make(ClassRecordingAspect::class)->methods);
+    }
+
     public function testPreservesArgumentIntrospectionAcrossCallShapes(): void
     {
         $method = <<<'PHP'
@@ -794,6 +818,25 @@ class MutatingArgumentsAspect extends AbstractAspect
 
         return $proceedingJoinPoint->process();
     }
+}
+
+class ClassRecordingAspect extends AbstractAspect
+{
+    public array $methods = [];
+
+    /**
+     * Record the intercepted method before continuing.
+     */
+    public function process(ProceedingJoinPoint $proceedingJoinPoint): mixed
+    {
+        $this->methods[] = $proceedingJoinPoint->methodName;
+
+        return $proceedingJoinPoint->process();
+    }
+}
+
+class ConstructorRecordingAspect extends ClassRecordingAspect
+{
 }
 
 #[Attribute]

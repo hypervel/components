@@ -8,6 +8,8 @@ use Hypervel\Di\Exceptions\InvalidDefinitionException;
 use PhpParser\Node;
 use PhpParser\Node\Arg;
 use PhpParser\Node\ArrayItem;
+use PhpParser\Node\Attribute;
+use PhpParser\Node\AttributeGroup;
 use PhpParser\Node\Expr\Array_;
 use PhpParser\Node\Expr\ArrowFunction;
 use PhpParser\Node\Expr\Assign;
@@ -267,6 +269,9 @@ class ProxyCallVisitor extends NodeVisitorAbstract
         }
 
         $node->stmts = $statements;
+        $node->attrGroups[] = new AttributeGroup([
+            new Attribute(new FullyQualified(ProxyMethod::class), [new Arg(new String_($this->helperMethodName))]),
+        ]);
 
         return [$node, $helper];
     }

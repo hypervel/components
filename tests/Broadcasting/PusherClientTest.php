@@ -239,7 +239,7 @@ class PusherClientTest extends TestCase
 
         try {
             new Client($options);
-        } catch (RuntimeException $exception) {
+        } catch (InvalidArgumentException|RuntimeException $exception) {
             // Required sharing depends on the installed libcurl capabilities.
             $this->expectException($exception::class);
             $this->expectExceptionMessageIs($exception->getMessage());

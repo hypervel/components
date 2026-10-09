@@ -106,6 +106,14 @@ class AfterEachTestSubscriber implements FinishedSubscriber
      */
     protected function flushFrameworkState(): void
     {
+        // Cancel while ownership aspects and the owning context still exist.
+        \Hypervel\Http\Client\Guzzle\CoroutineState::current()?->cancel();
+        \Hypervel\Http\Client\Guzzle\CoroutineOwnership::flushState();
+        $queue = \GuzzleHttp\Promise\Utils::queue();
+        if ($queue instanceof \Hypervel\Http\Client\Guzzle\CoroutineTaskQueue) {
+            $queue->resetOutside();
+        }
+
         \Carbon\Carbon::resetMacros();
         \Carbon\Carbon::resetToStringFormat();
         \Carbon\Carbon::serializeUsing(null);

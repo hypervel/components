@@ -5,11 +5,16 @@ declare(strict_types=1);
 namespace Hypervel\Di\Bootstrap;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Di\Aop\Aspect;
 use Hypervel\Di\Aop\AspectCollector;
 use Hypervel\Di\Aop\AstVisitorRegistry;
 use Hypervel\Di\Aop\ProxyCallVisitor;
 use Hypervel\Di\Aop\ProxyManager;
+use Hypervel\Di\Aop\ProxyMarker;
+use Hypervel\Di\Aop\ProxyMethod;
+use Hypervel\Di\Exceptions\InvalidDefinitionException;
 use Hypervel\Support\Composer;
+use ReflectionClass;
 
 /**
  * Generate AOP proxy classes for registered aspects.
@@ -33,6 +38,18 @@ class GenerateProxies
      */
     public function bootstrap(ApplicationContract $app): void
     {
+        if (AspectCollector::hasAspects()) {
+            $this->generate($app->storagePath('framework/aop/'));
+        }
+    }
+
+    /**
+     * Generate and register proxies in the given directory before their targets load.
+     *
+     * Boot or tests only. Loaded classes cannot be replaced in the running process.
+     */
+    public function generate(string $proxyDir): void
+    {
         if (! AspectCollector::hasAspects()) {
             return;
         }
@@ -41,12 +58,66 @@ class GenerateProxies
             AstVisitorRegistry::insert(ProxyCallVisitor::class);
         }
 
-        $proxyDir = $app->storagePath('framework/aop/');
         $classMap = $this->buildClassMap();
 
         $proxyManager = new ProxyManager($classMap, $proxyDir);
+        $proxies = $proxyManager->getProxies();
 
-        Composer::getLoader()->addClassMap($proxyManager->getProxies());
+        foreach (array_keys($proxies) as $class) {
+            $this->ensureLoadedProxyCoversRules($class);
+        }
+
+        Composer::getLoader()->addClassMap($proxies);
+    }
+
+    /**
+     * Reject already-loaded targets whose code cannot apply the registered aspects.
+     */
+    protected function ensureLoadedProxyCoversRules(string $class): void
+    {
+        if (! class_exists($class, false) && ! trait_exists($class, false)) {
+            return;
+        }
+
+        $reflection = new ReflectionClass($class);
+
+        if (! in_array(ProxyMarker::class, $reflection->getTraitNames(), true)) {
+            throw new InvalidDefinitionException(
+                "The AOP target [{$class}] was loaded before proxy generation. "
+                . 'Bind a factory in register() and instantiate it after proxy generation, during boot() or later.'
+            );
+        }
+
+        $rewritten = $helpers = [];
+
+        foreach ($reflection->getMethods() as $method) {
+            foreach ($method->getAttributes(ProxyMethod::class) as $attribute) {
+                $rewritten[$method->getName()] = true;
+                $helpers[$attribute->getArguments()[0]] = true;
+            }
+        }
+
+        $rules = Aspect::parse($class);
+
+        foreach ($reflection->getMethods() as $method) {
+            $name = $method->getName();
+
+            if (
+                $method->isAbstract()
+                || $method->getDeclaringClass()->getName() !== $class
+                || $method->getFileName() !== $reflection->getFileName()
+                || isset($helpers[$name])
+                || isset($rewritten[$name])
+                || ! $rules->shouldRewrite($name)
+            ) {
+                continue;
+            }
+
+            throw new InvalidDefinitionException(
+                "The loaded AOP proxy [{$class}::{$name}] does not intercept this method. "
+                . 'Register all applicable aspects before the class is first loaded and restart the worker after changing rules.'
+            );
+        }
     }
 
     /**

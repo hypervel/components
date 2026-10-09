@@ -167,6 +167,50 @@ class GenerateProxiesTest extends TestCase
         });
     }
 
+    public function testRejectsTargetsLoadedBeforeProxyGeneration(): void
+    {
+        $this->withProxyFixture(function (string $className, string $sourceFile, string $overrideFile, string $proxyDir): void {
+            $this->assertTrue(class_exists($className));
+            AspectCollector::setAround('TestAspect', [$className . '::value']);
+
+            $this->expectException(InvalidDefinitionException::class);
+            $this->expectExceptionMessage($className);
+            $this->expectExceptionMessage('register()');
+            $this->bootstrapProxies($proxyDir);
+        });
+    }
+
+    public function testLoadedProxiesAllowRepeatedBootsSubsetRulesAndUnrelatedAspects(): void
+    {
+        $this->withProxyFixture(function (string $className, string $sourceFile, string $overrideFile, string $proxyDir): void {
+            AspectCollector::setAround('TestAspect', [$className]);
+            $this->bootstrapProxies($proxyDir);
+            $this->assertTrue(class_exists($className));
+            $this->bootstrapProxies($proxyDir);
+
+            AspectCollector::forgetAspect('TestAspect');
+            AspectCollector::setAround('TestAspect', [$className . '::val*']);
+            AspectCollector::setAround('UnrelatedAspect', ['Missing\UnrelatedTarget']);
+            $this->bootstrapProxies($proxyDir);
+
+            $this->assertNotSame($sourceFile, (new ReflectionMethod($className, 'value'))->getFileName());
+        });
+    }
+
+    public function testLoadedProxyRejectsAdditionalMethodRequirements(): void
+    {
+        $this->withProxyFixture(function (string $className, string $sourceFile, string $overrideFile, string $proxyDir): void {
+            AspectCollector::setAround('TestAspect', [$className . '::value']);
+            $this->bootstrapProxies($proxyDir);
+            $this->assertTrue(class_exists($className));
+
+            AspectCollector::setAround('TestAspect', [$className]);
+            $this->expectException(InvalidDefinitionException::class);
+            $this->expectExceptionMessage($className . '::other');
+            $this->bootstrapProxies($proxyDir);
+        });
+    }
+
     public function testSkipsProxyPathsReturnedByFindFileAfterTheSourceMapIsFlushed(): void
     {
         $this->withPsr4ProxyFixture(function (string $className, string $proxyDir): void {
@@ -421,6 +465,11 @@ class {$shortName}
     public function value(): string
     {
         return '{$marker}';
+    }
+
+    public function other(): string
+    {
+        return 'other';
     }
 }
 PHP);
