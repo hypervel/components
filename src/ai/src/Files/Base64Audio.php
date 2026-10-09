@@ -13,6 +13,7 @@ use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Http\UploadedFile;
 use InvalidArgumentException;
 use JsonSerializable;
+use Override;
 
 class Base64Audio extends Audio implements Arrayable, JsonSerializable, StorableFile, TranscribableAudio
 {
@@ -33,6 +34,7 @@ class Base64Audio extends Audio implements Arrayable, JsonSerializable, Storable
     /**
      * Create a new instance from an uploaded file.
      */
+    #[Override]
     public static function fromUpload(UploadedFile $file, ?string $mimeType = null): self
     {
         return new self(

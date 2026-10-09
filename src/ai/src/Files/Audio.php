@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Ai\Files;
 
+use Hypervel\Http\UploadedFile;
+
 abstract class Audio extends File
 {
     /**
@@ -36,5 +38,16 @@ abstract class Audio extends File
     public static function fromStorage(string $path, ?string $disk = null): StoredAudio
     {
         return new StoredAudio($path, $disk);
+    }
+
+    /**
+     * Create a new Base64 audio using the given file upload.
+     */
+    public static function fromUpload(UploadedFile $file, ?string $mimeType = null): Base64Audio
+    {
+        return (new Base64Audio(
+            base64_encode($file->getContent()),
+            $mimeType ?? $file->getClientMimeType(),
+        ))->as($file->getClientOriginalName());
     }
 }
