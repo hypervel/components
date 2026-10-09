@@ -172,6 +172,9 @@ class NonCoroutineRuntimeTest extends TestCase
 }
 ```
 
+> [!WARNING]
+> PHPUnit's output assertions currently cannot capture output printed inside Hypervel's test coroutine. If the test does not need coroutine execution, set `$runTestsInCoroutine = false`; otherwise, an output assertion may incorrectly pass. This issue is tracked in [PHPUnit #7039](https://github.com/sebastianbergmann/phpunit/issues/7039).
+
 The standard PHPUnit `setUp` and `tearDown` methods run outside the test method's coroutine. If your setup or teardown work needs to share the same coroutine-aware lifecycle as the test method, define `setUpInCoroutine` or `tearDownInCoroutine` methods:
 
 ```php
