@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Support;
 
+use Aws\Credentials\CredentialProvider;
 use Aws\Credentials\Credentials;
 use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\Promise;
@@ -125,5 +126,57 @@ class AwsCredentialConsumerTest extends TestCase
     public static function consumers(): array
     {
         return ['SQS' => ['sqs'], 'S3' => ['s3'], 'SES v2' => ['ses']];
+    }
+
+    #[DataProvider('credentialExpirations')]
+    public function testSdkCallbacksCanReenterASharedMemoizedProvider(int $expiresIn): void
+    {
+        $fetches = 0;
+        $requests = 0;
+        $provider = CredentialProvider::memoize(static function () use (&$fetches, $expiresIn): PromiseInterface {
+            ++$fetches;
+            $promise = new Promise(static function () use (&$promise, $expiresIn): void {
+                $promise->resolve(new Credentials('key', 'secret', null, time() + $expiresIn));
+            });
+
+            return $promise;
+        });
+        $configuration = [
+            'region' => 'us-east-1',
+            'version' => 'latest',
+            'bucket' => 'credentials',
+            'credentials' => $provider,
+            'retries' => 0,
+            'http_handler' => static function (RequestInterface $request) use (&$requests): PromiseInterface {
+                ++$requests;
+                self::assertStringContainsString('Credential=key/', $request->getHeaderLine('Authorization'));
+
+                return Create::promiseFor(new Response(200, [], '<ListAllMyBucketsResult><Buckets/></ListAllMyBucketsResult>'));
+            },
+        ];
+        $manager = $this->app->make(FilesystemManager::class);
+        $first = $manager->createS3Driver($configuration)->getClient();
+        $configuration['credentials'] = [$provider, '__invoke'];
+        $second = $manager->createS3Driver($configuration)->getClient();
+
+        $pending = $first->listBucketsAsync()->then(static fn (): PromiseInterface => $second->listBucketsAsync());
+        $this->assertSame([], $first->listBuckets()['Buckets']);
+        $this->assertSame([], $pending->wait()['Buckets']);
+        $this->assertSame([[]], parallel([static fn (): array => $second->listBuckets()['Buckets']]));
+        $this->assertSame(4, $requests);
+
+        if ($expiresIn > CredentialProvider::REFRESH_WINDOW) {
+            $this->assertSame(1, $fetches);
+        } else {
+            $this->assertGreaterThan(1, $fetches);
+        }
+    }
+
+    /**
+     * Provide credentials outside and inside the SDK's refresh window.
+     */
+    public static function credentialExpirations(): array
+    {
+        return ['cached' => [3600], 'refreshing' => [30]];
     }
 }

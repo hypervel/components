@@ -21,6 +21,9 @@ class SerializedCredentialProvider
 
     protected readonly string $lockKey;
 
+    /** @var array<string, int> Lock key => owning coroutine ID */
+    protected static array $owners = [];
+
     /**
      * Create a serialized credential provider.
      */
@@ -52,8 +55,16 @@ class SerializedCredentialProvider
      */
     public function __invoke(mixed ...$arguments): PromiseInterface
     {
-        while (! Locker::lock($this->lockKey)) {
-            // The previous caller finished; compete to run the provider next.
+        // Waiting drains Guzzle callbacks, which may request credentials again.
+        $coroutine = Coroutine::id();
+        $acquiresLock = (static::$owners[$this->lockKey] ?? null) !== $coroutine;
+
+        if ($acquiresLock) {
+            while (! Locker::lock($this->lockKey)) {
+                // The previous caller finished; compete to run the provider next.
+            }
+
+            static::$owners[$this->lockKey] = $coroutine;
         }
 
         try {
@@ -68,7 +79,18 @@ class SerializedCredentialProvider
 
             return Create::rejectionFor($exception);
         } finally {
-            Locker::unlock($this->lockKey);
+            if ($acquiresLock) {
+                unset(static::$owners[$this->lockKey]);
+                Locker::unlock($this->lockKey);
+            }
         }
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$owners = [];
     }
 }

@@ -276,6 +276,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Session\Middleware\StartSession::flushState();
         \Hypervel\Session\Store::flushState();
         \Hypervel\Support\Arr::flushState();
+        \Hypervel\Support\Aws\SerializedCredentialProvider::flushState();
         \Hypervel\Support\Benchmark::flushState();
         \Hypervel\Support\BinaryCodec::flushState();
         \Hypervel\Support\ClassMetadataCache::flushState();
