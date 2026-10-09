@@ -102,7 +102,7 @@ class TransportSnapshot
             return $value;
         }
 
-        if ($seen->contains($value)) {
+        if ($seen->offsetExists($value)) {
             return new TransportReference($seen[$value]);
         }
 
@@ -134,7 +134,7 @@ class TransportSnapshot
 
             foreach ($state as $name => $member) {
                 if ($value instanceof Response && $name === "\0*\0decodeUsing" && $member instanceof Closure) {
-                    if (! $seen->contains($member)) {
+                    if (! $seen->offsetExists($member)) {
                         $closureIndex = count($this->nodes);
                         $seen[$member] = $closureIndex;
                         $this->nodes[$closureIndex] = ['kind' => 'closure', 'closure' => new SerializableClosure($member)];

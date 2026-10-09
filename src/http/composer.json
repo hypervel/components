@@ -38,6 +38,7 @@
         "hypervel/contracts": "^0.4",
         "hypervel/coroutine": "^0.4",
         "hypervel/database": "^0.4",
+        "hypervel/di": "^0.4",
         "hypervel/engine": "^0.4",
         "hypervel/macroable": "^0.4",
         "hypervel/object-pool": "^0.4",

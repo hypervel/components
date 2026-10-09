@@ -18,7 +18,7 @@ class AboutCommandTest extends TestCase
     {
         $process = remote('about --json', ['APP_ENV' => 'local', 'APP_DEBUG' => 'true'])->mustRun();
 
-        tap(json_decode($process->getOutput(), true), function ($output) {
+        tap(json_decode($process->getOutput(), true), function (array $output): void {
             Assert::assertArraySubset([
                 'php_version' => PHP_VERSION,
                 'swoole_version' => swoole_version(),
@@ -26,7 +26,7 @@ class AboutCommandTest extends TestCase
                 'debug_mode' => true,
             ], $output['environment']);
 
-            $this->assertArrayHasKey('aop_proxies', $output['cache']);
+            $this->assertTrue($output['cache']['aop_proxies']);
         });
     }
 

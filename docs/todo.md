@@ -30,6 +30,7 @@
 
 ## Testing
 
+- Integrate the resolution of [PHPUnit #7039](https://github.com/sebastianbergmann/phpunit/issues/7039) into `RunTestsInCoroutine` once available; [PR #7040](https://github.com/sebastianbergmann/phpunit/pull/7040) proposes suspend/resume output buffering. Follow the accepted upstream design, including calling `parent::invokeTestMethod()` if capture is handled there. Add regression coverage for output expectations, flushed output and buffer cleanup; update the testing guidance and reassess output-related coroutine opt-outs.
 - Lift the PHPUnit `13.3.*` pin in the root, Testbench and dogfood package manifests, and in the `hypervel/hypervel` application skeleton, once ParaTest supports PHPUnit 13.4. PHPUnit 13.4.0 made the internal `PhpHandler` constructor require an event emitter, and ParaTest 7.25.0 and Hypervel's `RunsInParallel` still construct it without one, so parallel runs fail before any test starts. When lifting the pin, pass the emitter to `PhpHandler` in `RunsInParallel`, as PHPUnit 13.4's own `Application` does.
 
 ## Filesystem

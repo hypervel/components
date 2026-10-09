@@ -163,6 +163,10 @@ The Pusher-compatible `reverb` and `pusher` connections accept an optional `log`
 
 Pusher JSONP responses are disabled by default. If a legacy client requires JSONP, you may explicitly enable it by setting the connection's `jsonp` option to `true`.
 
+You may configure Guzzle options for Pusher and Reverb through the connection's `client_options` array. The default client reuses synchronous connections. Asynchronous requests can run concurrently and reuse connections within the coroutine that sends them. If you use the SDK's `triggerAsync` or `triggerBatchAsync` methods directly, create and wait for each promise in the same coroutine.
+
+The default client does not support `max_host_connections` or `max_total_connections`, since enforcing these limits would require sharing an active transport across coroutines. Bound concurrent broadcasts using [coroutine concurrency](/docs/{{version}}/coroutines#running-work-in-parallel) or [rate limiting](/docs/{{version}}/rate-limiting) instead. If you supply a custom `handler`, you are responsible for its coroutine safety and transport configuration.
+
 Then, set the `BROADCAST_CONNECTION` environment variable to `pusher` in your application's `.env` file:
 
 ```ini

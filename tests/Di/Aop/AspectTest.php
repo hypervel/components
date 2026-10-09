@@ -8,6 +8,7 @@ use Hypervel\Di\Aop\Aspect;
 use Hypervel\Di\Aop\AspectCollector;
 use Hypervel\Di\Aop\RewriteCollection;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class AspectTest extends TestCase
 {
@@ -66,6 +67,32 @@ class AspectTest extends TestCase
 
         $res = Aspect::parse('DemoUser');
         $this->assertTrue($res->shouldRewrite('test1'));
+    }
+
+    #[DataProvider('constructorAndClassRules')]
+    public function testClassRulesPreserveExplicitConstructorInterception(array $rules): void
+    {
+        foreach ($rules as $index => $rule) {
+            AspectCollector::setAround('Aspect' . $index, [$rule]);
+        }
+
+        $collection = Aspect::parse('Demo');
+
+        $this->assertTrue($collection->shouldRewrite('__construct'));
+        $this->assertTrue($collection->shouldRewrite('test'));
+    }
+
+    /**
+     * Provide constructor and class rules in either registration order.
+     */
+    public static function constructorAndClassRules(): array
+    {
+        return [
+            [['Demo', 'Demo::__construct']],
+            [['Demo::__construct', 'Demo']],
+            [['Demo*', 'Demo::__construct']],
+            [['Demo::__construct', 'Demo*']],
+        ];
     }
 
     public function testMatchMethodPattern(): void
@@ -140,5 +167,26 @@ class AspectTest extends TestCase
         $this->assertTrue(Aspect::isMatch('Foo/Bar', 'method2', $rule));
         $this->assertFalse(Aspect::isMatch('Foo/Bar/Baz', 'method', $rule));
         $this->assertFalse(Aspect::isMatch('Foo/Bar', 'test', $rule));
+    }
+
+    #[DataProvider('constructorMatchingRules')]
+    public function testConstructorMatchingRequiresAMethodRule(string $rule, bool $matches): void
+    {
+        $this->assertSame($matches, Aspect::isMatch('Demo', '__construct', $rule));
+    }
+
+    /**
+     * Provide class-only and explicit method rules for constructors.
+     */
+    public static function constructorMatchingRules(): array
+    {
+        return [
+            ['Demo', false],
+            ['Demo*', false],
+            ['Demo::__construct', true],
+            ['Demo*::__construct', true],
+            ['Demo::*', true],
+            ['Demo*::*', true],
+        ];
     }
 }

@@ -22,6 +22,7 @@
     - [Handling Failures](#handling-failures)
     - [Per-Request Callbacks](#per-request-callbacks)
     - [Running Concurrent Requests After the Response](#running-concurrent-requests-after-the-response)
+    - [Guzzle Promises](#guzzle-promises)
 - [Connections](#connections)
 - [Restricting Destinations](#restricting-destinations)
     - [Allowing Internal Networks](#allowing-internal-networks)
@@ -960,10 +961,30 @@ defer(function () {
 })->always();
 ```
 
+<a name="guzzle-promises"></a>
+### Guzzle Promises
+
+When using Guzzle's asynchronous APIs directly, create and finish each operation in the same coroutine. This keeps its callbacks, request context, and database transactions together. For example, create the client and wait for its response inside each parallel task:
+
+```php
+use GuzzleHttp\Client;
+
+use function Hypervel\Coroutine\parallel;
+
+$responses = parallel([
+    fn () => (new Client)->getAsync('https://example.com/users')->wait(),
+    fn () => (new Client)->getAsync('https://example.com/orders')->wait(),
+]);
+```
+
+Hypervel throws a `Hypervel\Http\Exceptions\CoroutineOwnershipException` if another coroutine tries to use a pending Guzzle promise or drive a cURL multi-handler with active work. Completed results may be shared. When a coroutine exits, Hypervel cancels its unfinished native transfers and runs its queued callbacks in that same coroutine, allowing cancellation to reach dependent promises. Finish any work you need before returning from the coroutine.
+
+These checks apply to Guzzle's mutable promises and cURL multi-handlers, including those used by third-party SDKs. Custom transports and other promise implementations remain responsible for their own coroutine safety. When supplying a custom handler, keep each active multi-handler within one coroutine. Once all its transfers finish, it may be reused by another coroutine.
+
 <a name="connections"></a>
 ## Connections
 
-Hypervel's HTTP client supports named connection presets for services your application calls frequently. Synchronous requests on a registered connection share one low-level Guzzle transport handler, which retains reusable cURL handles and keep-alive connection state. Every pending request still receives a fresh Guzzle client and middleware stack, so request-specific middleware, callbacks, and options never become frozen onto the first request. Asynchronous requests use isolated handlers because a worker-lived cURL multi-handler cannot be driven safely by concurrent coroutines.
+Hypervel's HTTP client supports named connection presets for services your application calls frequently. Synchronous requests on a registered connection share one low-level Guzzle transport handler, which retains reusable cURL handles and keep-alive connection state. Every pending request still receives a fresh Guzzle client and middleware stack, so request-specific middleware, callbacks, and options never become frozen onto the first request. Asynchronous requests use isolated handlers because a worker-lived cURL multi-handler cannot be driven safely by concurrent coroutines. These handlers still use the connection's registered transport sharing and multiplexing settings.
 
 For streamed responses, each named connection keeps up to 32 idle connections per worker for reuse. Connections are opened as needed; this does not limit how many requests can run at once.
 
@@ -993,7 +1014,7 @@ The second argument is a request-option preset. It accepts normal Guzzle request
 - `handler` is rejected. Use `setHandler()` for a request-specific handler.
 - `pool` is rejected. HTTP clients are not object-pooled.
 - `max_host_connections` and `max_total_connections` are rejected. Use bounded coroutine fan-out or the rate limiter instead.
-- `transport_sharing` is consumed only while registering the connection's low-level handler. It accepts Guzzle's `TransportSharing` modes and is never passed into request options.
+- `transport_sharing` configures the connection's shared and isolated handlers. It accepts Guzzle's `TransportSharing` modes and is never passed into request options.
 - `multiplex` remains a request option. The `Multiplexing::NONE` mode also configures the connection handler so its guarantee applies to every request using that handler.
 
 The dedicated connection-cap options are rejected at every option layer. `pool`, `handler`, `cookies`, and `transport_sharing` are also rejected from global options, per-call connection overrides, fluent `withOptions()` calls, and raw `send()` options. This keeps cookie and handler ownership consistent regardless of which option layer supplied a value.
@@ -1006,7 +1027,7 @@ $response = Http::connection('github')
     ->get('/user');
 ```
 
-Option precedence is deterministic and does not depend on chaining order: factory global options are the lowest layer, followed by the registered connection preset, an optional per-call connection override, and finally fluent request options. Passing an empty per-call array intentionally clears the registered preset for that request:
+Option precedence is deterministic and does not depend on chaining order: factory global options are the lowest layer, followed by the registered connection preset, an optional per-call connection override, and finally fluent request options. Passing an empty per-call array intentionally clears the registered request preset. The connection's handler settings remain unchanged:
 
 ```php
 // Uses the registered GitHub preset...
