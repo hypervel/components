@@ -100,7 +100,7 @@ function percentiles(array $latencies): array
 $startupStarted = hrtime(true);
 $startupCpu = cpuSeconds();
 $initialResources = resources();
-require $root . '/vendor/autoload.php';
+$loader = require $root . '/vendor/autoload.php';
 $app = new Application($root);
 $storage = $options['storage'] ?? sys_get_temp_dir() . '/hypervel-guzzle-benchmark-' . getmypid();
 $app->useStoragePath($storage);
@@ -145,7 +145,10 @@ $metadata = [
         'logical_processors' => preg_match_all('/^processor\s*:/m', $cpuInfo),
     ],
     'opcache' => ini_get('opcache.enable_cli'),
+    'opcache_file_update_protection' => ini_get('opcache.file_update_protection'),
     'jit' => ini_get('opcache.jit'),
+    'autoload_classmap_entries' => count($loader->getClassMap()),
+    'autoload_classmap_authoritative' => $loader->isClassMapAuthoritative(),
     'gc_enabled' => gc_enabled(),
     'command' => $argv,
     'scenario' => $scenario,
@@ -288,7 +291,7 @@ run(static function () use ($app, $scenario, $endpoint, $settings, &$reports, &$
                 throw new RuntimeException('A middleware response event was lost.');
             }
             $latency = percentiles($latencies);
-            unset($values, $latencies);
+            unset($measured, $values, $latencies);
             gc_collect_cycles();
             $reports[] = [
                 'warmup' => $sample < 0, 'operations' => $count,

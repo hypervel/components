@@ -2,9 +2,13 @@
 
 This developer harness compares the unchanged branch base with the reviewed ownership implementation. It reports startup separately from warm operations, using the production HTTP provider and generated proxies. It is not a CI test or a prediction of remote service throughput.
 
+See [the measured results](results.md) for the ownership cost, shared AOP improvements, and resource comparisons.
+
 **Do not run measurements until the owner confirms the machine is idle and authorizes them.** Correctness checks and syntax validation can run beforehand.
 
 Use independent baseline and modified worktrees with identical installed dependency versions. The runner's `--root` selects that checkout and its autoloader, so the same harness can test both without changing baseline source. Record the Git revisions and keep the checkouts clean. Run the focused workloads with both Guzzle 8/promises 3/PSR-7 3 and Guzzle 7/promises 2/PSR-7 2; the broader consumer workloads need only the primary family unless results show a material version difference.
+
+Run `composer dump-autoload -o` in both checkouts before measuring. Installing an optimized baseline while using a previously unoptimized main checkout gives misleading startup and memory differences. Reports include class-map size and mode; exact entry counts may differ with the source changes. Pre-generate the proxies before warm comparisons and allow PHP's `opcache.file_update_protection` interval to pass, so newly written proxy files receive the same OPcache treatment as existing files. Measure cold startup separately.
 
 Start the separate origin after the idle-machine gate:
 
