@@ -1733,8 +1733,10 @@ class PendingRequest implements Transient
     {
         $handler = $this->handler;
 
-        if ($handler === null && ! $this->async && $this->connection !== null && $this->factory !== null) {
-            $handler = $this->factory->getConnectionHandler($this->connection);
+        if ($handler === null && $this->connection !== null && $this->factory !== null) {
+            $handler = $this->async
+                ? $this->factory->newConnectionHandler($this->connection)
+                : $this->factory->getConnectionHandler($this->connection);
         }
 
         $handler ??= CurlStreamingHandler::wrap(Utils::chooseHandler());
