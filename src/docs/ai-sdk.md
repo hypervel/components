@@ -111,6 +111,24 @@ XAI_API_KEY=
 
 The default models used for text, images, audio, transcription, and embeddings may also be configured in your application's `config/ai.php` configuration file.
 
+<a name="http-connections"></a>
+#### HTTP Connections
+
+The SDK registers an [HTTP connection](/docs/{{version}}/http-client#connections) for each configured provider, allowing requests to reuse connections without sharing credentials or request headers. You may customize these connections in your application's service provider `boot` method:
+
+```php
+use Hypervel\Support\Facades\Http;
+
+public function boot(): void
+{
+    Http::registerConnection('ai-providers.openai', [
+        'connect_timeout' => 10,
+    ]);
+}
+```
+
+Connection names use the provider's configured name, such as `ai-providers.openai`. On-demand providers use the shared `ai-providers` connection. Continue supplying API keys and provider-specific headers through the AI provider configuration; they remain separate for each request.
+
 <a name="custom-base-urls"></a>
 ### Custom Base URLs
 
