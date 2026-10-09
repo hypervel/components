@@ -100,6 +100,8 @@ Apply the runner to generator creation/advancement, AI-owned `each`/`then`/`catc
 
 The runner must represent a captured empty/central context too. Do not indiscriminately copy every coroutine-context entry. Synchronous calls use their caller's current context. Queue jobs use the framework's existing serialization/context lifecycle rather than serializing a stream runner.
 
+`AgentPrompt` keeps its runner protected with an internal accessor, preserves it through revisions, and excludes the live runner/recorder from serialized event payloads without mutating the running prompt. Attachments retain normal queue serialization requirements: raw uploads need explicit `fromUpload()` byte values or durable storage references for queued listeners; do not silently convert or persist them.
+
 ### Cancellation and exception correctness
 
 Trace real cancellation paths and rethrow `CanceledException` through AgentTool, approval execution, title generation, Bedrock exception conversion, filesystem tool catches and StreamProtocol masking. Clean up owned child operations. Do not add cancellation branches to unrelated catches.

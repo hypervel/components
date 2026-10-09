@@ -2524,7 +2524,7 @@ $response = Embeddings::for([
 ])->generate(Lab::Gemini);
 ```
 
-Multimodal inputs use the same [file classes used for attachments](#attachments). These files may be created from a local path, a filesystem disk, a remote URL, or Base64-encoded content. Images, documents, and videos may also be created from uploaded files, while documents may be created from raw string content:
+Multimodal inputs use the same [file classes used for attachments](#attachments). These files may be created from a local path, a filesystem disk, a remote URL, or Base64-encoded content. Images, audio, documents, and videos may also be created from uploaded files, while documents may be created from raw string content:
 
 ```php
 use Laravel\Ai\Files\Audio;
@@ -2538,7 +2538,7 @@ Image::fromUpload($request->file('photo'));
 
 Audio::fromPath('/home/laravel/clip.mp3');
 Audio::fromStorage('clip.mp3');
-Audio::fromUpload($request->file('clip.mp3'));
+Audio::fromUpload($request->file('clip'));
 
 Video::fromPath('/home/laravel/video.mp4');
 Video::fromStorage('video.mp4');
@@ -3795,3 +3795,5 @@ The Laravel AI SDK dispatches a variety of [events](/docs/{{version}}/events), i
 - `TranscriptionGenerated`
 
 You can listen to any of these events to log or store AI SDK usage information.
+
+Queued listeners receive a serialized copy of the event. Raw uploaded files cannot be serialized. If you use queued listeners, attach uploads using the `fromUpload()` method of the matching `Hypervel\Ai\Files` class, such as `Document::fromUpload()`, `Image::fromUpload()` or `Audio::fromUpload()`, to include the file's contents. Alternatively, store the file on a disk the queue worker can access and attach it using `fromStorage()`. For usage logging, you may instead handle the event synchronously and dispatch a job containing only the values you need.
