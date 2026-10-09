@@ -122,9 +122,9 @@ class CoroutineIsolationTest extends TestCase
 
         $this->assertSame(
             [[$first, null], [$second, null], ['openai', null], ['configured', 'fallback-model']],
-            iterator_to_array(Provider::providerAndModelPairs([$first, $second, Lab::OpenAI, 'configured' => 'fallback-model'])),
+            Provider::providerAndModelPairs([$first, $second, Lab::OpenAI, 'configured' => 'fallback-model']),
         );
-        $this->assertSame([['openai', 'model']], iterator_to_array(Provider::providerAndModelPairs(Lab::OpenAI, 'model')));
+        $this->assertSame([['openai', 'model']], Provider::providerAndModelPairs(Lab::OpenAI, 'model'));
         $this->assertSame(['account' => null], Provider::formatProviderAndModelList($first));
     }
 

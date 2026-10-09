@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Ai\Providers;
 
-use Generator;
 use Hypervel\Ai\AiManager;
 use Hypervel\Ai\Contracts\Gateway\Gateway;
 use Hypervel\Ai\Contracts\Providers\Provider as ProviderContract;
@@ -94,25 +93,27 @@ abstract class Provider implements Stringable, ProviderContract
     }
 
     /**
-     * Iterate provider and model pairs without discarding on-demand instances.
+     * Get provider and model pairs without discarding on-demand instances.
      *
      * @internal
      *
-     * @return Generator<int, array{self|string, ?string}>
+     * @return list<array{self|string, ?string}>
      */
-    public static function providerAndModelPairs(self|Lab|array|string $providers, ?string $model = null): Generator
+    public static function providerAndModelPairs(self|Lab|array|string $providers, ?string $model = null): array
     {
         if (! is_array($providers)) {
-            yield [$providers instanceof Lab ? $providers->value : $providers, $model];
-
-            return;
+            return [[$providers instanceof Lab ? $providers->value : $providers, $model]];
         }
 
+        $pairs = [];
+
         foreach ($providers as $key => $value) {
-            yield is_numeric($key)
+            $pairs[] = is_numeric($key)
                 ? [$value instanceof Lab ? $value->value : $value, null]
                 : [$key, $value];
         }
+
+        return $pairs;
     }
 
     /**

@@ -135,6 +135,22 @@ class AiManager extends MultipleInstanceManager
     }
 
     /**
+     * Get an on-demand provider from the current operation, if one exists.
+     *
+     * @internal
+     */
+    public function onDemandProvider(string $name): ?Provider
+    {
+        $providers = CoroutineContext::get(self::ON_DEMAND_PROVIDERS_CONTEXT_KEY, []);
+
+        if (! isset($providers[$name])) {
+            return null;
+        }
+
+        return $providers[$name]['instance'] ?? $this->instance($name);
+    }
+
+    /**
      * Forget resolved providers while retaining their configuration.
      *
      * Boot or tests only for configured providers. Their instances are shared
