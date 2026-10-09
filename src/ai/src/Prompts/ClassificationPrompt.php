@@ -1,0 +1,58 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Ai\Prompts;
+
+use Countable;
+use Hypervel\Ai\Contracts\Providers\ClassificationProvider;
+use Hypervel\Ai\Contracts\Question;
+use Hypervel\Ai\Files\File;
+use Hypervel\Http\UploadedFile;
+use Hypervel\Support\Str;
+
+class ClassificationPrompt implements Countable
+{
+    /**
+     * Create a new classification prompt instance.
+     *
+     * @param array<string, mixed>|string $state
+     * @param array<string, Question> $questions
+     * @param array<string, mixed> $providerOptions
+     * @param array<int, File|UploadedFile> $attachments
+     */
+    public function __construct(
+        public readonly string|array $state,
+        public readonly array $questions,
+        public readonly ClassificationProvider $provider,
+        public readonly string $model,
+        public readonly int $timeout = 30,
+        public readonly array $providerOptions = [],
+        public readonly array $attachments = [],
+    ) {
+    }
+
+    /**
+     * Determine if the state contains the given string.
+     */
+    public function contains(string $string): bool
+    {
+        return Str::contains(is_string($this->state) ? $this->state : (string) json_encode($this->state), $string);
+    }
+
+    /**
+     * Determine if the prompt asks a question with the given key.
+     */
+    public function asks(string $key): bool
+    {
+        return array_key_exists($key, $this->questions);
+    }
+
+    /**
+     * Get the number of questions in the prompt.
+     */
+    public function count(): int
+    {
+        return count($this->questions);
+    }
+}
