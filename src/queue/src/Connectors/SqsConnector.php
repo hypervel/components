@@ -14,6 +14,7 @@ use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Queue\AwsCredentialCache;
 use Hypervel\Queue\SqsQueue;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Aws\SerializedCredentialProvider;
 use InvalidArgumentException;
 
 class SqsConnector implements ConnectorInterface
@@ -134,7 +135,7 @@ class SqsConnector implements ConnectorInterface
         $provider = is_array($credentials) ? ($credentials['provider'] ?? null) : $credentials;
 
         if (! is_string($provider)) {
-            return $provider;
+            return is_callable($provider) ? new SerializedCredentialProvider($provider) : $provider;
         }
 
         $options = is_array($credentials) ? Arr::except($credentials, ['provider']) : [];
