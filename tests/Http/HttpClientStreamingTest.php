@@ -120,6 +120,35 @@ class HttpClientStreamingTest extends TestCase
         $this->assertSame('OK', json_decode($process->getOutput(), true, flags: JSON_THROW_ON_ERROR));
     }
 
+    public function testFallbackJsonLinesArriveBeforeTheNextChunk(): void
+    {
+        // @TODO: Enable this test for Guzzle versions that include the filtered-streaming fix.
+        $this->markTestSkipped('Guzzle holds later chunked response data until the read buffer fills or times out.');
+
+        // Without native cURL hooks, the default handler uses PHP streams.
+        $this->withStreamingServer('chunked', function (string $address): void {
+            $response = (new Factory)->withOptions(['stream' => true, 'read_timeout' => 3])
+                ->get('http://' . $address);
+
+            try {
+                $this->releaseServer($address);
+                $lines = $response->jsonLines();
+                $first = $lines->current();
+                $timedOut = $response->toPsrResponse()->getBody()->getMetadata('timed_out');
+                $this->releaseServer($address);
+
+                $this->assertSame(['id' => 1], $first);
+                $this->assertFalse($timedOut, 'The first record was withheld until the read timeout.');
+                $lines->next();
+                $this->assertSame(['id' => 2], $lines->current());
+                $lines->next();
+                $this->assertFalse($lines->valid());
+            } finally {
+                $response->close();
+            }
+        }, 0);
+    }
+
     #[DataProvider('streamingTransports')]
     public function testBufferedFirstRecordArrivesBeforeTheNextServerWrite(bool $native, string $mode): void
     {
@@ -557,9 +586,9 @@ class HttpClientStreamingTest extends TestCase
     }
 
     /**
-     * Run a hooked client against an independently controlled loopback server.
+     * Run a client against an independently controlled loopback server.
      */
-    protected function withStreamingServer(string $mode, Closure $callback): void
+    protected function withStreamingServer(string $mode, Closure $callback, int $hookFlags = SWOOLE_HOOK_ALL): void
     {
         $process = new Process([PHP_BINARY, __DIR__ . '/Fixtures/streaming-server.php', $mode]);
         $process->setTimeout(10);
@@ -582,7 +611,7 @@ class HttpClientStreamingTest extends TestCase
                 } catch (Throwable $exception) {
                     $failure = $exception;
                 }
-            }, SWOOLE_HOOK_ALL);
+            }, $hookFlags);
 
             if ($failure !== null) {
                 throw $failure;
