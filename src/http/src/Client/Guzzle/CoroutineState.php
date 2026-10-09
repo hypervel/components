@@ -77,7 +77,8 @@ class CoroutineState implements NonCopyableContext
      */
     public function cancel(): void
     {
-        foreach ($this->transfers as $transfer) {
+        foreach ($this->transfers as $identifier => $transfer) {
+            unset($this->transfers[$identifier]);
             $transfer->cancel();
         }
     }
