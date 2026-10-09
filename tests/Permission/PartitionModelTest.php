@@ -67,6 +67,23 @@ class PartitionModelTest extends PartitionTestCase
         $this->assertSame($permissionB->getKey(), PartitionedPermission::findById($permissionB->getKey())->getKey());
     }
 
+    public function testSaveOrIgnoreStampsThePartitionAndIgnoresOnlyItsOwnDuplicate(): void
+    {
+        $uniqueBy = ['workspace_id', 'name', 'guard_name'];
+        $roleA = new PartitionedRole(['name' => 'owner']);
+
+        $this->assertTrue($roleA->saveOrIgnore(uniqueBy: $uniqueBy));
+        $this->assertSame(self::PARTITION_A, $roleA->fresh()->getRawOriginal('workspace_id'));
+        $this->assertFalse((new PartitionedRole(['name' => 'owner']))->saveOrIgnore(uniqueBy: $uniqueBy));
+
+        $this->setPartition(self::PARTITION_B);
+        $roleB = new PartitionedRole(['name' => 'owner']);
+
+        $this->assertTrue($roleB->saveOrIgnore(uniqueBy: $uniqueBy));
+        $this->assertSame(self::PARTITION_B, $roleB->fresh()->getRawOriginal('workspace_id'));
+        $this->assertNotSame($roleA->getKey(), $roleB->getKey());
+    }
+
     public function testCreateRejectsAConflictingPartitionAttribute(): void
     {
         $this->expectException(PermissionPartitionViolation::class);
@@ -203,6 +220,18 @@ class PartitionModelTest extends PartitionTestCase
         $this->expectException(PermissionPartitionViolation::class);
 
         PartitionedRole::create(['name' => 'owner']);
+    }
+
+    public function testCreatedListenerCanUpdateTheNewRole(): void
+    {
+        PartitionedRole::created(static function (PartitionedRole $role): void {
+            $role->update(['name' => 'administrator']);
+        });
+
+        $role = PartitionedRole::create(['name' => 'owner'])->fresh();
+
+        $this->assertSame('administrator', $role->name);
+        $this->assertSame(self::PARTITION_A, $role->getRawOriginal('workspace_id'));
     }
 
     public function testPartitionMutatorCannotReplaceTheCapturedPartition(): void

@@ -1376,7 +1376,7 @@ The package's models and methods add the partition condition, write the partitio
 
 Lower-level database APIs skip some or all of this. When you use the query builder directly, save a generic pivot, call `toBase`, `getQuery`, or `newQueryWithoutScopes`, remove the partition scope, truncate a table, insert from a select, or force delete through a query, you must add the partition condition or value yourself, use a transaction where needed, and reset the cache of each affected partition.
 
-Eloquent's `insert`, `insertOrIgnore`, `insertGetId`, and `upsert` methods do not create models, so they skip the partition checks. Query `update`, `increment`, and `decrement` calls keep the partition condition but skip cache clearing, and must not change the partition column. Reset the current partition's cache after any of these writes.
+Eloquent's `insert`, `insertOrIgnore`, `insertGetId`, `upsert`, `fillAndInsert`, `fillAndInsertOrIgnore`, and `fillAndInsertGetId` methods bypass model saves, so they skip the partition checks. Query `update`, `increment`, and `decrement` calls keep the partition condition but skip cache clearing, and must not change the partition column. Reset the current partition's cache after any of these writes.
 
 <a name="teams"></a>
 ## Teams
