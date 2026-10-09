@@ -12,7 +12,6 @@ use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Psr7\Response;
 use GuzzleHttp\TransferStats;
 use Hypervel\Contracts\Telescope\TelescopeTag;
-use Hypervel\Foundation\Testing\Concerns\InteractsWithAop;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Json;
@@ -34,8 +33,6 @@ enum ClientRequestWatcherTestIntTag: int
 ])]
 class ClientRequestWatcherTest extends FeatureTestCase
 {
-    use InteractsWithAop;
-
     public function testClientRequestWatcherRegistersSuccessfulClientRequestAndResponse(): void
     {
         $client = $this->makeClient([
@@ -1215,53 +1212,18 @@ class ClientRequestWatcherTest extends FeatureTestCase
         return $value;
     }
 
+    /**
+     * Send the request through the generated proxy, including failed connections.
+     */
     private function executeTransfer(
         Client $client,
         RequestInterface $request,
         array $options = [],
     ): void {
-        if ($this->isAopProxied($client)) {
-            try {
-                $client->send($request, $options);
-            } catch (ConnectException) {
-                // Expected for failed connection tests.
-            }
-
-            return;
-        }
-
-        ['request' => $preparedRequest, 'options' => $preparedOptions] = $this->prepareTransferArguments(
-            $client,
-            $request,
-            $options
-        );
-
         try {
-            $this->callWithAspects($client, 'transfer', [
-                'request' => $preparedRequest,
-                'options' => $preparedOptions,
-            ])->wait();
+            $client->send($request, $options);
         } catch (ConnectException) {
             // Expected for failed connection tests.
         }
-    }
-
-    /**
-     * Mirror Guzzle's sendAsync() setup before manually invoking transfer().
-     *
-     * @return array{request: RequestInterface, options: array}
-     */
-    private function prepareTransferArguments(Client $client, RequestInterface $request, array $options): array
-    {
-        $preparedOptions = (fn (array $options): array => $this->prepareDefaults($options))
-            ->call($client, $options);
-
-        $preparedUri = (fn ($uri, array $options) => $this->buildUri($uri, $options))
-            ->call($client, $request->getUri(), $preparedOptions);
-
-        return [
-            'request' => $request->withUri($preparedUri, $request->hasHeader('Host')),
-            'options' => $preparedOptions,
-        ];
     }
 }

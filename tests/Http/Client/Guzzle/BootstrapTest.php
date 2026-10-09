@@ -79,6 +79,8 @@ class BootstrapTest extends TestCase
     {
         $process = new Process([
             PHP_BINARY,
+            '-d', 'display_errors=stderr',
+            '-d', 'log_errors=0',
             __DIR__ . '/Fixtures/bootstrap.php',
             dirname(__DIR__, 4) . '/vendor/autoload.php',
             $mode,

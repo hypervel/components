@@ -26,14 +26,9 @@ trait InteractsWithAop
     /**
      * Determine if the given instance is already running through an AOP proxy.
      *
-     * This is useful in tests that need to handle both execution paths
-     * explicitly. In isolated runs, the target class may be proxied during
-     * bootstrap and should be called normally. In larger test runs, load order
-     * may mean the original class was loaded before proxy generation, so the
-     * test must use callWithAspects() instead.
-     *
-     * Keeping this check separate makes it clear whether the test is using the
-     * real proxy path or the manual pipeline path.
+     * Call generated proxies normally. Use callWithAspects() only for focused
+     * tests that register aspects directly without generating proxies; it does
+     * not bypass bootstrap's rejection of targets loaded before generation.
      */
     protected function isAopProxied(object $instance): bool
     {
