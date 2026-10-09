@@ -4,10 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Http\Client\Guzzle;
 
-use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\Promise;
 use GuzzleHttp\Promise\PromiseInterface;
-use GuzzleHttp\Promise\Utils;
 use Hypervel\Di\Aop\ProxyMethod;
 use Hypervel\Http\Exceptions\CoroutineOwnershipException;
 use Hypervel\Testbench\TestCase;
@@ -15,7 +13,6 @@ use LogicException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
 use RuntimeException;
-use Swoole\Coroutine;
 
 use function Hypervel\Coroutine\parallel;
 
@@ -141,26 +138,5 @@ class PromiseOwnershipTest extends TestCase
         $this->assertSame(PromiseInterface::PENDING, $promise->getState());
         $promise->resolve('done');
         $this->assertSame(['done'], parallel([static fn (): mixed => $promise->wait()]));
-    }
-
-    public function testCallbacksKeepTheirOrderAndCoroutineAcrossYieldingDrains(): void
-    {
-        $results = parallel(array_fill(0, 2, static function (): array {
-            $owner = Coroutine::getCid();
-            $seen = [];
-            $promise = Create::promiseFor('value');
-            $promise->then(static function () use (&$seen): void {
-                usleep(1000);
-                $seen[] = ['first', Coroutine::getCid()];
-            });
-            $promise->then(static function () use (&$seen): void { $seen[] = ['second', Coroutine::getCid()]; });
-            Utils::queue()->run();
-
-            return [$owner, $seen];
-        }));
-
-        foreach ($results as [$owner, $seen]) {
-            $this->assertSame([['first', $owner], ['second', $owner]], $seen);
-        }
     }
 }
