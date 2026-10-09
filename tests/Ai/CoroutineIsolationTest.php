@@ -8,7 +8,9 @@ use Closure;
 use Generator;
 use Hypervel\Ai\AiManager;
 use Hypervel\Ai\Contracts\Gateway\Gateway;
+use Hypervel\Ai\Contracts\Providers\AudioProvider;
 use Hypervel\Ai\Enums\Lab;
+use Hypervel\Ai\Gateway\FakeAudioGateway;
 use Hypervel\Ai\Gateway\ParentInvocation;
 use Hypervel\Ai\Providers\Provider;
 use Hypervel\Ai\Responses\AudioResponse;
@@ -162,6 +164,27 @@ class CoroutineIsolationTest extends TestCase
         $this->assertSame(['first', 'first-tool'], $first);
         $this->assertSame(['second', 'second-tool'], $second);
         $this->assertSame([null, null], ParentInvocation::current());
+    }
+
+    public function testOverlappingCallbacksReserveSeparateSequenceEntries(): void
+    {
+        $provider = m::mock(AudioProvider::class);
+        $provider->shouldReceive('name')->andReturn('audio');
+        $gateway = new FakeAudioGateway([
+            function (): string {
+                usleep(5000);
+
+                return base64_encode('first-audio');
+            },
+            base64_encode('second-audio'),
+        ]);
+
+        $responses = parallel([
+            fn (): string => $gateway->generateAudio($provider, 'model', 'First text', 'voice')->audio,
+            fn (): string => $gateway->generateAudio($provider, 'model', 'Second text', 'voice')->audio,
+        ]);
+
+        $this->assertSame([base64_encode('first-audio'), base64_encode('second-audio')], $responses);
     }
 
     #[DataProvider('generatedResponses')]
