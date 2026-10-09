@@ -153,7 +153,7 @@ class HttpClientStreamingTest extends TestCase
                         }
                     },
                     'release' => function () use ($address, $received): mixed {
-                        $first = $received->pop(1);
+                        $first = $received->pop(3);
                         $this->releaseServer($address);
 
                         return $first;
@@ -335,90 +335,92 @@ class HttpClientStreamingTest extends TestCase
     #[DataProvider('connectionRoutes')]
     public function testNamedStreamsReuseConnectionsWithoutSharingCredentialsOrCookies(bool $proxy): void
     {
-        $process = new Process([PHP_BINARY, dirname(__DIR__) . '/HttpServer/Fixtures/disconnect-server.php', '', 'process']);
-        $process->setTimeout(10);
-        $process->start();
-        $processId = $process->getPid();
-
-        try {
-            $deadline = microtime(true) + 3;
-
-            while (! str_contains($process->getOutput(), 'READY ') && $process->isRunning() && microtime(true) < $deadline) {
-                usleep(10000);
-            }
-
-            $this->assertSame(1, preg_match('/READY (\d+)/', $process->getOutput(), $matches), $process->getErrorOutput());
-            $endpoint = 'http://127.0.0.1:' . $matches[1];
+        $this->withIdentityServer(function (int $port) use ($proxy): void {
+            $endpoint = 'http://127.0.0.1:' . $port;
             $url = ($proxy ? 'http://provider.invalid' : $endpoint) . '/identity';
-            $failure = null;
+            $factory = (new Factory)->registerConnection('provider');
+            $connections = [];
+            $tokens = ['first-account', 'second-account', 'first-account', null, 'second-account'];
 
-            run(function () use ($url, $endpoint, $proxy, &$failure): void {
-                try {
-                    $factory = (new Factory)->registerConnection('provider');
-                    $connections = [];
-                    $tokens = ['first-account', 'second-account', 'first-account', null, 'second-account'];
-
-                    for ($index = 3; $index <= CurlStreamingHandler::MAX_IDLE_CONNECTIONS; ++$index) {
-                        $tokens[] = 'account-' . $index;
-                    }
-
-                    $tokens[] = 'account-' . CurlStreamingHandler::MAX_IDLE_CONNECTIONS;
-                    $tokens[] = 'first-account';
-
-                    foreach ($tokens as $token) {
-                        $request = $factory->connection('provider')->withOptions(['stream' => true]);
-
-                        if ($proxy) {
-                            $request->withOptions([
-                                'proxy' => $endpoint,
-                                'curl' => [
-                                    CURLOPT_HTTPPROXYTUNNEL => true,
-                                    CURLOPT_PROXYHEADER => $token === null ? [] : ['Proxy-Authorization: Bearer ' . $token],
-                                ],
-                            ]);
-                        }
-
-                        if ($token !== null) {
-                            $request->withToken($token);
-                        }
-
-                        $response = $request->get($url);
-
-                        try {
-                            $identity = $response->json();
-                            $connections[] = $identity['connection'];
-                            $this->assertSame($token === null ? null : 'Bearer ' . $token, $identity['authorization']);
-                            $this->assertSame($proxy && $token !== null ? 'Bearer ' . $token : null, $identity['proxy_authorization']);
-                            $this->assertNull($identity['cookie']);
-                        } finally {
-                            $response->close();
-                        }
-                    }
-
-                    $this->assertCount($proxy ? CurlStreamingHandler::MAX_IDLE_CONNECTIONS + 2 : 1, array_unique($connections));
-                    $this->assertSame($connections[0], $connections[2]);
-                    $this->assertSame($connections[1], $connections[4]);
-                    $this->assertSame($connections[count($connections) - 3], $connections[count($connections) - 2]);
-
-                    if ($proxy) {
-                        $this->assertNotSame($connections[0], end($connections), 'The least recently used identity was not evicted.');
-                    }
-                } catch (Throwable $exception) {
-                    $failure = $exception;
-                }
-            }, SWOOLE_HOOK_ALL);
-
-            if ($failure !== null) {
-                throw $failure;
+            for ($index = 3; $index <= CurlStreamingHandler::MAX_IDLE_CONNECTIONS; ++$index) {
+                $tokens[] = 'account-' . $index;
             }
-        } finally {
-            posix_kill(-$processId, SIGKILL);
-            $process->stop(0);
-        }
+
+            $tokens[] = 'account-' . CurlStreamingHandler::MAX_IDLE_CONNECTIONS;
+            $tokens[] = 'first-account';
+
+            foreach ($tokens as $token) {
+                $request = $factory->connection('provider')->withOptions(['stream' => true]);
+
+                if ($proxy) {
+                    $request->withOptions([
+                        'proxy' => $endpoint,
+                        'curl' => [
+                            CURLOPT_HTTPPROXYTUNNEL => true,
+                            CURLOPT_PROXYHEADER => $token === null ? [] : ['Proxy-Authorization: Bearer ' . $token],
+                        ],
+                    ]);
+                }
+
+                if ($token !== null) {
+                    $request->withToken($token);
+                }
+
+                $response = $request->get($url);
+
+                try {
+                    $identity = $response->json();
+                    $connections[] = $identity['connection'];
+                    $this->assertSame($token === null ? null : 'Bearer ' . $token, $identity['authorization']);
+                    $this->assertSame($proxy && $token !== null ? 'Bearer ' . $token : null, $identity['proxy_authorization']);
+                    $this->assertNull($identity['cookie']);
+                } finally {
+                    $response->close();
+                }
+            }
+
+            $this->assertCount($proxy ? CurlStreamingHandler::MAX_IDLE_CONNECTIONS + 2 : 1, array_unique($connections));
+            $this->assertSame($connections[0], $connections[2]);
+            $this->assertSame($connections[1], $connections[4]);
+            $this->assertSame($connections[count($connections) - 3], $connections[count($connections) - 2]);
+
+            if ($proxy) {
+                $this->assertNotSame($connections[0], end($connections), 'The least recently used identity was not evicted.');
+            }
+        });
+    }
+
+    #[DataProvider('connectionRoutes')]
+    public function testNamedStreamsReuseConnectionsAcrossAlternatingOrigins(bool $proxy): void
+    {
+        $this->withIdentityServer(function (int $port) use ($proxy): void {
+            $factory = (new Factory)->registerConnection('provider');
+            $connections = [];
+
+            foreach (['first.test', 'second.test', 'first.test', 'second.test'] as $host) {
+                $response = $factory->connection('provider')->withOptions([
+                    'stream' => true,
+                    'proxy' => $proxy ? 'http://127.0.0.1:' . $port : '',
+                    'curl' => [CURLOPT_RESOLVE => ["{$host}:{$port}:127.0.0.1"]],
+                ])->get("http://{$host}:{$port}/identity");
+
+                try {
+                    $identity = $response->json();
+                    $this->assertIsInt($identity['connection']);
+                    $connections[] = $identity['connection'];
+                } finally {
+                    $response->close();
+                }
+            }
+
+            $this->assertCount($proxy ? 1 : 2, array_unique($connections));
+            $this->assertSame($connections[0], $connections[2]);
+            $this->assertSame($connections[1], $connections[3]);
+        });
     }
 
     /**
-     * Provide direct requests and connection-authenticated proxy tunnels.
+     * Provide direct and proxied requests.
      */
     public static function connectionRoutes(): array
     {
@@ -554,6 +556,44 @@ class HttpClientStreamingTest extends TestCase
     public static function idleTimeoutTransports(): array
     {
         return [[true], [false]];
+    }
+
+    /**
+     * Run a hooked client against the connection identity server.
+     */
+    protected function withIdentityServer(Closure $callback): void
+    {
+        $process = new Process([PHP_BINARY, dirname(__DIR__) . '/HttpServer/Fixtures/disconnect-server.php', '', 'process']);
+        $process->setTimeout(10);
+        $process->start();
+        $processId = $process->getPid();
+
+        try {
+            $deadline = microtime(true) + 3;
+
+            while (! str_contains($process->getOutput(), 'READY ') && $process->isRunning() && microtime(true) < $deadline) {
+                usleep(10000);
+            }
+
+            $this->assertSame(1, preg_match('/READY (\d+)/', $process->getOutput(), $matches), $process->getErrorOutput());
+            $port = (int) $matches[1];
+            $failure = null;
+
+            run(function () use ($callback, $port, &$failure): void {
+                try {
+                    $callback($port);
+                } catch (Throwable $exception) {
+                    $failure = $exception;
+                }
+            }, SWOOLE_HOOK_ALL);
+
+            if ($failure !== null) {
+                throw $failure;
+            }
+        } finally {
+            posix_kill(-$processId, SIGKILL);
+            $process->stop(0);
+        }
     }
 
     /**

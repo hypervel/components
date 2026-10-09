@@ -18,8 +18,10 @@ class CurlStreamingConnection
     /**
      * Create an isolated transport with bounded native idle retention.
      */
-    public function __construct(public readonly ?string $proxyTunnelSignature = null)
-    {
+    public function __construct(
+        public readonly string $route,
+        public readonly ?string $proxyTunnelSignature = null,
+    ) {
         $this->handle = curl_multi_init();
         curl_multi_setopt($this->handle, CURLMOPT_MAXCONNECTS, 1);
     }

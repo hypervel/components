@@ -169,21 +169,27 @@ class CurlStreamingHandler
     }
 
     /**
-     * Obtain an exclusive transport without sharing another proxy's tunnel.
+     * Obtain an exclusive transport for the request's route without sharing another proxy's tunnel.
      */
     protected function acquire(EasyHandle $easy): CurlStreamingConnection
     {
+        $uri = $easy->request->getUri();
+        // Forward proxies can reuse one connection across HTTP origins.
+        $route = $easy->effectiveProxy !== null && $uri->getScheme() === 'http'
+            ? 'proxy:' . hash('xxh128', $easy->effectiveProxy)
+            : $uri->getScheme() . '://' . $uri->getHost() . ':' . ($uri->getPort() ?? ($uri->getScheme() === 'https' ? 443 : 80));
+
         for ($index = count($this->idleConnections) - 1; $index >= 0; --$index) {
             $connection = $this->idleConnections[$index];
 
-            if ($connection->proxyTunnelSignature === $easy->proxyTunnelSignature) {
+            if ($connection->route === $route && $connection->proxyTunnelSignature === $easy->proxyTunnelSignature) {
                 array_splice($this->idleConnections, $index, 1);
 
                 return $connection;
             }
         }
 
-        return new CurlStreamingConnection($easy->proxyTunnelSignature);
+        return new CurlStreamingConnection($route, $easy->proxyTunnelSignature);
     }
 
     /**
