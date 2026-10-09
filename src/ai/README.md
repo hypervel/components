@@ -13,7 +13,7 @@ Documentation: https://hypervel.org/docs/ai-sdk
 
 Pending requests' protected `resolveProviderOptionsAndHeaders()` helper accepts the provider contract so custom implementations work. `PendingEmbeddingsGeneration`'s protected caching helpers receive precomputed identities or keys, keeping cache reads and writes consistent without repeated identity calculation. Subclasses overriding these helpers must match the Hypervel signatures; public generation and caching methods are unchanged.
 
-Custom conversation stores must implement `ClaimsPendingApprovals` to resume stored tool approvals safely. Ordinary conversations and stateless resumption remain available without that capability.
+Custom conversation stores must implement `ClaimsPendingApprovals` to resume stored tool approvals safely. Claim-owned per-result recording replaces the protected `ResumesToolApprovals::storeApprovalResultRecorderFor()` helper, which is removed. Stores read `AgentPrompt::approvalClaim()` when settling the turn. Ordinary conversations and stateless resumption remain available without that capability.
 
 Skill discovery is cached for the fixed paths in `ai.skills.cached_paths`. Reload the worker or flush the skill cache after changing those files; other skill sources remain dynamic.
 

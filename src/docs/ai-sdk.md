@@ -1205,6 +1205,30 @@ $response = (new SupportAgent)
     ->prompt('Where is order 12345?');
 ```
 
+<a name="concurrent-tools"></a>
+#### Concurrent Tools
+
+Tools run one at a time by default. If your tools can run independently, you may use the `ConcurrentTools` attribute to execute several tool calls at once:
+
+```php
+use Hypervel\Ai\Attributes\ConcurrentTools;
+use Hypervel\Ai\Contracts\Agent;
+use Hypervel\Ai\Contracts\HasTools;
+use Hypervel\Ai\Promptable;
+
+#[ConcurrentTools(max: 3)]
+class ResearchAgent implements Agent, HasTools
+{
+    use Promptable;
+
+    // ...
+}
+```
+
+The limit applies to each group of tool calls within a generation step. Results retain the model's original call order, while sub-agent output can arrive as each sub-agent produces it. If a tool fails or the stream is abandoned, the remaining tool executions are canceled and awaited before the run ends.
+
+Concurrent tools use separate coroutines and database connections; they do not share the caller's database transaction. Each tool must be safe to run alongside the others. Resuming approved tool calls remains sequential so each outcome is stored before the next approved tool executes.
+
 <a name="validating-tool-arguments"></a>
 #### Validating Tool Arguments
 

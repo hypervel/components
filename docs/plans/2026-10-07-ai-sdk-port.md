@@ -162,12 +162,15 @@ public function claimPendingApprovals(string $conversationId, array $toolCallIds
 public function recordApprovalResult(ApprovalClaim $claim, ToolResult $result): void;
 ```
 
-Carry the claim on `AgentPrompt`, as with run context. Resolve and validate the exact paused row's pending-call set in the same short transaction that conditionally sets a token where the row is paused and unclaimed. Eager validation before a stream starts does not replace this check at actual execution. No claim for an unconsumed stream; no tool/network work while a DB lock is held.
+`RunContext` owns the claim and its fixed store/conversation identity; `AgentPrompt::approvalClaim()` exposes the claim to custom stores for settlement. Stream factories capture the store and conversation ID when created; each iteration gets fresh run state and claims only when consumed. Configure protection for remembering agents using either the contract or trait. A store without the required capability throws a clear `LogicException` before execution. Resolve and validate the exact paused row's pending-call set in the same short transaction that conditionally sets a token where the row is paused and unclaimed. Eager validation before a stream starts does not replace this check at actual execution. No tool/network work while a DB lock is held. Test scoped-store handoff between coroutines and successful settlement when re-iteration follows a pre-claim failure.
+
+Remove the owner-approved protected `ResumesToolApprovals::storeApprovalResultRecorderFor()` helper: per-result claim-owned persistence replaces its aggregate write. Retain the aggregate event-capture callback and standalone `ConversationStore::storeApprovalResults()` API. Record the removal within the README's existing claims entry and at the source insertion point.
 
 | Event | Required behavior |
 |---|---|
 | Claim succeeds | Execute that owned approval continuation. |
-| Already claimed/not resumable | Reject before tool side effects with the appropriate approval exception. |
+| Already claimed/not resumable | Reject before tool side effects with `ApprovalMismatchException`. |
+| Failure before claim acquisition, including invalid decisions | Leave the paused row untouched; do not record a failed turn against it. |
 | Each completed/rejected tool | Merge its outcome under the claim token and row lock before starting the next side-effecting tool. Preserve edited arguments and result IDs. |
 | Completion, new pause or caught failure | Fold under the same token, preserve recorded outcomes and new steps, set status and clear the claim. Represent a started but unrecorded call as outcome unknown; do not make it executable again. |
 | Ordinary prompt while claimed | Use persisted outcomes plus in-memory “in progress or outcome unknown” results. Do not clear the claim, overwrite its steps or infer the owner died. Late owner results remain valid. |
@@ -179,7 +182,7 @@ Every read-modify-write of steps, including replay cleanup and legacy approval-r
 
 ### Tests
 
-Port store/model/middleware/approval tests and extend them for partition reads/writes/restoration, unresolved scope, configured tables, UUID participants, rollback without partial turns, pending-ID preservation, one touch, concurrent double resume, result recording before the next tool, ordinary prompt racing a live claim, cancellation after an external effect, re-pause and retained hard-crash claims. Cover conversation deletion removing its messages, latest-conversation lookup selecting a remaining conversation or none, and explicit continuation of a deleted ID never recovering old history or persisting orphan messages. Verify the configured-table foreign key and atomic insertion order. Test custom stores with/without the capabilities and stateless resumption. Exercise locking on real supported databases, not only SQLite or facade mocks. Do not simulate a distributed recovery service that the design does not contain.
+Port store/model/middleware/approval tests and extend them for partition reads/writes/restoration, unresolved scope, configured tables, UUID participants, rollback without partial turns, pending-ID preservation, one touch, concurrent double resume, result recording before the next tool, ordinary prompt racing a live claim, cancellation after an external effect, re-pause and retained hard-crash claims. Verify contract-only remembering agents claim, a synchronous approval mismatch leaves the row paused and permits a later valid resume, and an unconsumed stream claims nothing. Cover conversation deletion removing its messages, latest-conversation lookup selecting a remaining conversation or none, and explicit continuation of a deleted ID never recovering old history or persisting orphan messages. Verify the configured-table foreign key and atomic insertion order. Test custom stores with/without the capabilities and stateless resumption. Exercise locking on real supported databases, not only SQLite or facade mocks. Do not simulate a distributed recovery service that the design does not contain.
 
 ## 5. Provider I/O and Bedrock
 
