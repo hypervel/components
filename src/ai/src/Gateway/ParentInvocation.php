@@ -9,7 +9,7 @@ use Hypervel\Context\CoroutineContext;
 
 class ParentInvocation
 {
-    protected const string PARENT_INVOCATION_CONTEXT_KEY = '__ai.parent_invocation';
+    public const string PARENT_INVOCATION_CONTEXT_KEY = '__ai.parent_invocation';
 
     /**
      * Get the invocation and tool invocation the current run was delegated from.

@@ -7,19 +7,33 @@ namespace Hypervel\Tests\Ai;
 use Closure;
 use Generator;
 use Hypervel\Ai\AiManager;
+use Hypervel\Ai\AnonymousAgent;
+use Hypervel\Ai\Attributes\RepairToolCalls;
+use Hypervel\Ai\Contracts\Approvable;
 use Hypervel\Ai\Contracts\Gateway\Gateway;
+use Hypervel\Ai\Contracts\Gateway\StepTextGateway;
 use Hypervel\Ai\Contracts\Providers\AudioProvider;
+use Hypervel\Ai\Contracts\Providers\TextProvider;
+use Hypervel\Ai\Contracts\Tool;
 use Hypervel\Ai\Enums\Lab;
 use Hypervel\Ai\Gateway\FakeAudioGateway;
 use Hypervel\Ai\Gateway\ParentInvocation;
+use Hypervel\Ai\Gateway\StepResponse;
+use Hypervel\Ai\Gateway\TextGenerationLoop;
+use Hypervel\Ai\Gateway\TextGenerationOptions;
 use Hypervel\Ai\Providers\Provider;
 use Hypervel\Ai\Responses\AudioResponse;
+use Hypervel\Ai\Responses\Data\FinishReason;
 use Hypervel\Ai\Responses\Data\GeneratedImage;
 use Hypervel\Ai\Responses\Data\Meta;
+use Hypervel\Ai\Responses\Data\TextUsage;
+use Hypervel\Ai\Responses\Data\ToolCall;
 use Hypervel\Ai\Responses\Data\Usage;
 use Hypervel\Ai\Responses\StreamableAgentResponse;
 use Hypervel\Ai\Responses\StreamedAgentResponse;
+use Hypervel\Ai\Responses\TextResponse;
 use Hypervel\Ai\Streaming\Events\TextDelta;
+use Hypervel\Ai\Tools\Request;
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
@@ -27,6 +41,7 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Filesystem\Factory as FilesystemFactory;
 use Hypervel\Contracts\Filesystem\Filesystem;
 use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Engine\Channel;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -185,6 +200,61 @@ class CoroutineIsolationTest extends TestCase
         ]);
 
         $this->assertSame([base64_encode('first-audio'), base64_encode('second-audio')], $responses);
+    }
+
+    public function testSharedGenerationLoopKeepsRepairSettingsLocalWhileApprovalChecksSuspend(): void
+    {
+        $repairStarted = new Channel(1);
+        $ordinaryStarted = new Channel(1);
+        $tool = m::mock(Tool::class, Approvable::class);
+        $tool->shouldReceive('name')->andReturn('known');
+        $tool->shouldReceive('shouldRequestApproval')->andReturnUsing(static function (Request $request) use ($repairStarted, $ordinaryStarted): null {
+            if ($request['repair']) {
+                $repairStarted->push(true);
+                $ordinaryStarted->pop(1);
+            } else {
+                $ordinaryStarted->push(true);
+                usleep(5000);
+            }
+
+            return null;
+        });
+        $tool->shouldReceive('handle')->twice()->andReturn('done');
+        $provider = m::mock(TextProvider::class);
+        $provider->shouldReceive('name')->andReturn('provider');
+        $gateway = m::mock(StepTextGateway::class);
+        $steps = [];
+        $gateway->shouldReceive('generateTextStep')->times(4)->andReturnUsing(static function (...$arguments) use (&$steps): StepResponse {
+            $instructions = $arguments[2];
+            $step = $steps[$instructions] ?? 0;
+            $steps[$instructions] = $step + 1;
+            $calls = $step === 0 ? [new ToolCall('known', 'known', ['repair' => $instructions === 'repair'])] : [];
+
+            if ($step === 0 && $instructions === 'repair') {
+                $calls[] = new ToolCall('missing', 'missing', []);
+            }
+
+            return new StepResponse('done', $calls, $step === 0 ? FinishReason::ToolCalls : FinishReason::Stop, new TextUsage, new Meta);
+        });
+        $loop = new TextGenerationLoop($gateway);
+
+        try {
+            [$repaired, $ordinary] = parallel([
+                fn (): TextResponse => $loop->generate($provider, 'model', 'repair', tools: [$tool], options: new TextGenerationOptions(maxSteps: 2, agent: new IsolationRepairAgent('', [], []))),
+                function () use ($repairStarted, $loop, $provider, $tool): TextResponse {
+                    $repairStarted->pop(1);
+
+                    return $loop->generate($provider, 'model', 'ordinary', tools: [$tool], options: new TextGenerationOptions(maxSteps: 2));
+                },
+            ]);
+        } finally {
+            $repairStarted->close();
+            $ordinaryStarted->close();
+        }
+
+        $this->assertTrue($repaired->toolResults->firstWhere('id', 'missing')->failed);
+        $this->assertStringContainsString('Available tools: known.', $repaired->toolResults->firstWhere('id', 'missing')->result);
+        $this->assertSame('done', $ordinary->text);
     }
 
     #[DataProvider('generatedResponses')]
@@ -374,5 +444,10 @@ class CoroutineIsolationTest extends TestCase
 }
 
 class IsolationTestProvider extends Provider
+{
+}
+
+#[RepairToolCalls]
+class IsolationRepairAgent extends AnonymousAgent
 {
 }

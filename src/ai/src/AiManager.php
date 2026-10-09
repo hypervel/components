@@ -66,7 +66,7 @@ class AiManager extends MultipleInstanceManager
 
     public const string HTTP_CONNECTION = 'ai-providers';
 
-    protected const string ON_DEMAND_PROVIDERS_CONTEXT_KEY = '__ai.on_demand_providers';
+    public const string ON_DEMAND_PROVIDERS_CONTEXT_KEY = '__ai.on_demand_providers';
 
     /** @var null|Closure(string, array): array */
     protected ?Closure $providerConfigResolver = null;
