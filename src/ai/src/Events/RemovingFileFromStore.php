@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Ai\Events;
 
-use Hypervel\Ai\Providers\Provider;
+use Hypervel\Ai\Contracts\Providers\Provider;
 
 class RemovingFileFromStore
 {

@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Ai\Events;
 
 use Hypervel\Ai\Contracts\Agent;
+use Hypervel\Ai\Contracts\Providers\Provider;
 use Hypervel\Ai\Exceptions\FailoverableException;
-use Hypervel\Ai\Providers\Provider;
 
 class AgentFailedOver extends ProviderFailedOver
 {
