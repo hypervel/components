@@ -4,7 +4,7 @@ The ownership checks add measurable CPU cost. Shared AOP optimizations reduce to
 
 ## Method
 
-Baseline: unchanged `0.4` at `4f592496a605fe5028c908ae50ee12173428957b`. The reviewed G5 implementation is committed through `42f439f1c`; measurements captured its working diff over `be7c6e0b8f5737471c9e77ba0d1233668a657aac` before the final equivalent loader-creation simplification. The benchmark harness is identical for both. Each checkout has independently installed dependencies and optimized, non-authoritative Composer autoloading.
+Baseline: unchanged `0.4` at `4f592496a605fe5028c908ae50ee12173428957b`. The measured implementation is committed through `5c1c44850`, apart from the final equivalent loader-creation simplification made after measurements. The benchmark harness is identical for both. Each checkout has independently installed dependencies and optimized, non-authoritative Composer autoloading.
 
 Measurements used PHP 8.4.25, Swoole 6.2.2, cURL 8.5.0 with OpenSSL 3.0.13, Linux x86-64, and an Intel Core i7-7700 at 3.60 GHz with six logical processors exposed. CLI OPcache was enabled, JIT disabled, GC enabled, and `opcache.file_update_protection=2`. Proxy files were generated before warm comparisons and allowed to age past that interval. The loopback origin ran in a separate process; its CPU is excluded. No tests or other measurements ran concurrently.
 
@@ -82,6 +82,20 @@ The high async/Pusher wall times at concurrency 8 and 32 include the known hooke
 | Credential provider, concurrency 8 | 4.702 / 5.396 | 12.118 / 22.474 |
 
 The contended credential-provider latency includes waiting for the provider lock. This is the deliberate serialization needed for a shared provider that may retain pending work; it is not the cost of aspect dispatch alone. A memoized, already-completed credential result remains reusable.
+
+## Capacity planning
+
+The 38.03 µs added CPU measured for coroutine-parallel HTTP at concurrency 32 is per outgoing request, not per batch. Multiplying it by the outgoing request rate gives the additional CPU capacity across a deployment:
+
+| Outgoing requests per second | Additional CPU cores at 38.03 µs/request |
+| ---: | ---: |
+| 1,000 | 0.038 |
+| 10,000 | 0.380 |
+| 50,000 | 1.902 |
+
+These are arithmetic projections from the measured per-operation CPU, not throughput benchmarks at those traffic levels. Other HTTP and Pusher paths in the table add approximately 39–110 µs per outgoing request. Budgeting 40–110 µs corresponds to approximately 0.4–1.1 additional cores at 10,000 outgoing requests per second. Credential-provider contention is listed separately because it deliberately serializes shared provider calls.
+
+Retained integration code and method metadata are bounded per worker; the 124–188 KiB increase below is not added for every request. Temporary ownership tracking follows outstanding promises and native transfers and releases them as work completes or is canceled. Applications should bound outgoing concurrency and queues: the integration does not cap the amount of unfinished work an application can create.
 
 ## Investigating the remaining costs
 

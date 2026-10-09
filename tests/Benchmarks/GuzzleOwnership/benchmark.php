@@ -29,7 +29,7 @@ use function Hypervel\Coroutine\run;
 
 $options = getopt('', ['root:', 'endpoint:', 'scenario:', 'variant:', 'operations:', 'concurrency:', 'samples:', 'storage:', 'help']);
 if (isset($options['help'])) {
-    echo "Run only after owner approval of an idle machine. Output is JSON.\n"
+    echo "Run measurements on an idle machine. Output is JSON.\n"
         . "--root=/checkout --endpoint=http://127.0.0.1:PORT --scenario=promise --variant=production\n"
         . "--operations=1000 --concurrency=8 --samples=5 --storage=/tmp/guzzle-benchmark-current\n"
         . "Scenarios: idle, promise, sync, async, parallel, middleware, credentials, pusher, cancel.\n";
