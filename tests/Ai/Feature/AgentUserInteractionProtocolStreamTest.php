@@ -38,11 +38,11 @@ use Hypervel\Ai\Streaming\Protocols\AgentUserInteractionProtocol;
 use Hypervel\Support\Facades\Exceptions;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Testbench\Attributes\WithConfig;
-use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Ai\Fixtures\Agents\MultiStepToolAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\RememberingApprovableAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\RememberingAssistantAgent;
 use Hypervel\Tests\Ai\Fixtures\FakeConversationStore;
+use Hypervel\Tests\Ai\TestCase;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\Response;
 

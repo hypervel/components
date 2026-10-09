@@ -32,7 +32,7 @@ use Hypervel\Ai\Streaming\Events\ToolResult;
 use Hypervel\Ai\Streaming\Protocols\VercelDataProtocol;
 use Hypervel\Ai\Vercel\Vercel;
 use Hypervel\Support\Facades\Exceptions;
-use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Ai\TestCase;
 use RuntimeException;
 
 /**

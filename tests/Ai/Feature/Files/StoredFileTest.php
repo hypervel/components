@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Ai\Feature\Files;
 use Hypervel\Ai\Files\StoredAudio;
 use Hypervel\Ai\Files\StoredDocument;
 use Hypervel\Support\Facades\Storage;
-use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Ai\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class StoredFileTest extends TestCase

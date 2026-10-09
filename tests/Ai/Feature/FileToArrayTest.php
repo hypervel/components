@@ -12,8 +12,8 @@ use Hypervel\Ai\Files\Video;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Support\Facades\Storage;
-use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
+use Hypervel\Tests\Ai\TestCase;
 
 class FileToArrayTest extends TestCase
 {

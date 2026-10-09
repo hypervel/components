@@ -14,7 +14,7 @@ use Hypervel\Ai\Gateway\RunContext;
 use Hypervel\Ai\Tools\Request;
 use Hypervel\Contracts\JsonSchema\JsonSchema;
 use Hypervel\Events\Dispatcher;
-use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Ai\TestCase;
 use Hypervel\Validation\ValidationException;
 use Mockery as m;
 
