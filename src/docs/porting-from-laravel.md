@@ -526,6 +526,8 @@ Connectors may be shared by concurrent requests, so they are read-only. Move cod
 <a name="broadcasting"></a>
 ### Broadcasting
 
+For Pusher and Reverb, replace Guzzle's `max_host_connections` and `max_total_connections` client options with bounded coroutine concurrency or rate limiting. The default client rejects these options because their shared transport cannot be driven safely by concurrent coroutines. See [Pusher broadcasting](/docs/{{version}}/broadcasting#pusher-manual-installation).
+
 Mercure applications must configure a standalone HTTP hub. Hypervel runs on Swoole and does not use FrankenPHP's in-process `mercure_publish()` integration. See [Mercure broadcasting](/docs/{{version}}/broadcasting#mercure).
 
 <a name="jsonapi-resources"></a>
