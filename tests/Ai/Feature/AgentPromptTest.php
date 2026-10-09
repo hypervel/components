@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Ai\Feature;
 
 use Closure;
+use Hypervel\Ai\Approvals\ApprovalClaim;
 use Hypervel\Ai\Contracts\Agent;
+use Hypervel\Ai\Contracts\ClaimsPendingApprovals;
 use Hypervel\Ai\Contracts\Providers\TextProvider;
 use Hypervel\Ai\Events\AgentPrompted;
 use Hypervel\Ai\Gateway\RunContext;
@@ -30,7 +32,10 @@ class AgentPromptTest extends TestCase
         $provider = self::createConfiguredStub(TextProvider::class, ['name' => 'test-provider']);
         $runner = static fn (Closure $work): mixed => $work();
         $prompt = new AgentPrompt($agent, 'Summarize this', [], $provider, 'test-model', contextRunner: $runner);
-        $context = new RunContext('invocation', $agent, $provider, 'test-model', $this->app->make('events'), $runner);
+        $claim = new ApprovalClaim('message', 'token');
+        $store = self::createConfiguredStub(ClaimsPendingApprovals::class, ['claimPendingApprovals' => $claim]);
+        $context = new RunContext('invocation', $agent, $provider, 'test-model', $this->app->make('events'), $runner, $store, 'conversation');
+        $context->claimPendingApprovals(['call']);
         $prompt->setRunContext($context);
         $response = new AgentResponse('invocation', 'Summary', new TextUsage, new Meta);
 
@@ -40,6 +45,7 @@ class AgentPromptTest extends TestCase
             $restored = $job->data[0]->prompt;
 
             $this->assertNull($restored->runContext());
+            $this->assertNull($restored->approvalClaim());
             $this->assertNull($restored->contextRunner());
             $this->assertSame('Summarize this', $restored->prompt);
             $this->assertSame('test-provider', $restored->provider()->name());
@@ -49,6 +55,7 @@ class AgentPromptTest extends TestCase
 
         $this->assertSame($runner, $prompt->contextRunner());
         $this->assertSame($context, $prompt->runContext());
+        $this->assertSame($claim, $prompt->approvalClaim());
     }
 
     public function testPromptAndToolRevisionsPreserveTheCapturedContext(): void

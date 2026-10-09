@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Ai\Prompts;
 
 use Closure;
+use Hypervel\Ai\Approvals\ApprovalClaim;
 use Hypervel\Ai\Approvals\Decisions;
 use Hypervel\Ai\Contracts\Agent;
 use Hypervel\Ai\Contracts\Providers\TextProvider;
@@ -50,7 +51,7 @@ class AgentPrompt extends Prompt
     protected ?RunContext $runContext = null;
 
     /** @var null|Closure(Closure): mixed */
-    protected readonly ?Closure $contextRunner;
+    protected ?Closure $contextRunner;
 
     /**
      * Create an agent prompt.
@@ -219,6 +220,14 @@ class AgentPrompt extends Prompt
     }
 
     /**
+     * Get the claim a conversation store must verify when settling this continuation.
+     */
+    public function approvalClaim(): ?ApprovalClaim
+    {
+        return $this->runContext?->approvalClaim();
+    }
+
+    /**
      * Get the captured operation context runner.
      *
      * @return null|Closure(Closure): mixed
@@ -228,6 +237,18 @@ class AgentPrompt extends Prompt
     public function contextRunner(): ?Closure
     {
         return $this->contextRunner;
+    }
+
+    /**
+     * Set the operation context captured by the streaming factory.
+     *
+     * @param null|Closure(Closure): mixed $runner
+     *
+     * @internal
+     */
+    public function setContextRunner(?Closure $runner): void
+    {
+        $this->contextRunner = $runner;
     }
 
     /**
@@ -249,7 +270,7 @@ class AgentPrompt extends Prompt
 
         unset($properties["\0*\0runContext"]);
 
-        // Queued listeners restore their own context; initialize the readonly runner without capturing this operation.
+        // Queued listeners restore their own context rather than capturing this operation.
         $properties["\0*\0contextRunner"] = null;
 
         return $properties;

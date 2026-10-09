@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Ai\Gateway;
 
 use Closure;
+use Hypervel\Ai\Approvals\ApprovalClaim;
 use Hypervel\Ai\Contracts\Agent;
+use Hypervel\Ai\Contracts\ClaimsPendingApprovals;
 use Hypervel\Ai\Contracts\Providers\TextProvider;
 use Hypervel\Ai\Contracts\Tool;
 use Hypervel\Ai\Events\InvokingTool;
@@ -14,6 +16,7 @@ use Hypervel\Ai\Events\StepCompleted;
 use Hypervel\Ai\Events\StepFailed;
 use Hypervel\Ai\Events\ToolFailed;
 use Hypervel\Ai\Events\ToolInvoked;
+use Hypervel\Ai\Exceptions\ApprovalMismatchException;
 use Hypervel\Ai\Messages\Message;
 use Hypervel\Ai\Responses\AgentResponse;
 use Hypervel\Ai\Responses\Data\Meta;
@@ -28,6 +31,8 @@ class RunContext
     /** @var array<int, Step> */
     protected array $steps = [];
 
+    protected ?ApprovalClaim $approvalClaim = null;
+
     /**
      * Create the context for a generation run.
      *
@@ -40,6 +45,8 @@ class RunContext
         public readonly string $model,
         protected readonly Dispatcher $events,
         protected readonly ?Closure $contextRunner = null,
+        protected readonly ?ClaimsPendingApprovals $approvalStore = null,
+        protected readonly ?string $conversationId = null,
     ) {
     }
 
@@ -53,6 +60,50 @@ class RunContext
     public function contextRunner(): ?Closure
     {
         return $this->contextRunner;
+    }
+
+    /**
+     * Claim the stored pause before any of its tools execute.
+     *
+     * @param list<string> $toolCallIds
+     */
+    public function claimPendingApprovals(array $toolCallIds): void
+    {
+        if ($this->approvalStore === null) {
+            return;
+        }
+
+        /** @var string $conversationId The provider supplies both the store and its conversation ID. */
+        $conversationId = $this->conversationId;
+
+        $this->approvalClaim = $this->approvalStore->claimPendingApprovals($conversationId, $toolCallIds)
+            ?? throw new ApprovalMismatchException('The pending tool calls are no longer available for approval.', collect());
+    }
+
+    /**
+     * Determine whether a stored continuation failed before obtaining ownership.
+     */
+    public function hasUnclaimedApprovals(): bool
+    {
+        return $this->approvalStore !== null && $this->approvalClaim === null;
+    }
+
+    /**
+     * Get the claim that owns this continuation.
+     */
+    public function approvalClaim(): ?ApprovalClaim
+    {
+        return $this->approvalClaim;
+    }
+
+    /**
+     * Persist a completed approval result before another tool can execute.
+     */
+    public function recordApprovalResult(ToolResult $result): void
+    {
+        if ($this->approvalClaim !== null) {
+            $this->approvalStore->recordApprovalResult($this->approvalClaim, $result);
+        }
     }
 
     /**
