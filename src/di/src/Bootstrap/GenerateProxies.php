@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Di\Bootstrap;
 
+use Composer\Autoload\ClassLoader;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Di\Aop\Aspect;
 use Hypervel\Di\Aop\AspectCollector;
@@ -26,12 +27,7 @@ use ReflectionClass;
  */
 class GenerateProxies
 {
-    /**
-     * The source class map used for proxy generation.
-     *
-     * @var null|array<string, string>
-     */
-    protected static ?array $sourceClassMap = null;
+    protected static ?ClassLoader $proxyLoader = null;
 
     /**
      * Bootstrap the AOP proxy generation.
@@ -63,11 +59,21 @@ class GenerateProxies
         $proxyManager = new ProxyManager($classMap, $proxyDir);
         $proxies = $proxyManager->getProxies();
 
+        if ($proxies === []) {
+            return;
+        }
+
         foreach (array_keys($proxies) as $class) {
             $this->ensureLoadedProxyCoversRules($class);
         }
 
-        Composer::getLoader()->addClassMap($proxies);
+        if (static::$proxyLoader === null) {
+            static::$proxyLoader = new ClassLoader;
+            static::$proxyLoader->setClassMapAuthoritative(true);
+            static::$proxyLoader->register(true);
+        }
+
+        static::$proxyLoader->addClassMap($proxies);
     }
 
     /**
@@ -136,7 +142,7 @@ class GenerateProxies
     protected function buildClassMap(): array
     {
         $loader = Composer::getLoader();
-        $classMap = $this->mergeSourceClassMap($loader->getClassMap());
+        $classMap = $loader->getClassMap();
 
         foreach (AspectCollector::getRules() as $rule) {
             foreach ($rule['classes'] as $classRule) {
@@ -150,9 +156,7 @@ class GenerateProxies
 
                 if (! isset($classMap[$className])) {
                     $file = $loader->findFile($className);
-                    if ($file !== false && ! str_ends_with($file, '.proxy.php')) {
-                        // A flushed source map can leave a proxied PSR-4 class visible only through Composer's proxy entry.
-                        static::$sourceClassMap[$className] = $file;
+                    if ($file !== false) {
                         $classMap[$className] = $file;
                     }
                 }
@@ -163,41 +167,13 @@ class GenerateProxies
     }
 
     /**
-     * Merge Composer's current class map into the proxy source map.
-     *
-     * Runtime class-map overrides are legitimate source entries and may be
-     * registered after the first application boot. Generated proxy paths are
-     * excluded because they point at boot artifacts, not source files.
-     *
-     * @param array<string, string> $classMap
-     * @return array<string, string>
-     */
-    protected function mergeSourceClassMap(array $classMap): array
-    {
-        static::$sourceClassMap ??= [];
-
-        foreach ($classMap as $class => $path) {
-            if (! str_ends_with($path, '.proxy.php')) {
-                static::$sourceClassMap[$class] = $path;
-            }
-        }
-
-        return static::$sourceClassMap;
-    }
-
-    /**
-     * Flush the captured source class map.
-     *
-     * Tests only. This is for tests that swap Composer's loader before
-     * proxy generation; do not register it with the global after-test
-     * subscriber because normal test cleanup runs after proxy paths have
-     * already been added to the loader. Flushing mid-worker loses accumulated
-     * findFile() resolutions for already-proxied PSR-4 classes, so those
-     * classes are skipped from regeneration until the loader is swapped or the
-     * process restarts.
+     * Flush all static state.
      */
     public static function flushState(): void
     {
-        static::$sourceClassMap = null;
+        // Only isolated loader tests may unregister this loader. Normal after-test
+        // cleanup must retain the framework proxies prepared before test discovery.
+        static::$proxyLoader?->unregister();
+        static::$proxyLoader = null;
     }
 }

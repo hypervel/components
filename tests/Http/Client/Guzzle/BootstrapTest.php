@@ -42,7 +42,8 @@ class BootstrapTest extends TestCase
         for ($boot = 0; $boot < 2; ++$boot) {
             $process = $this->runFixture('normal');
             $this->assertTrue($process->isSuccessful(), $process->getErrorOutput());
-            $this->assertSame("cold-boot-enforced\nowner\n", $process->getOutput());
+            $parserState = $boot === 0 ? 'loaded' : 'unloaded';
+            $this->assertSame("parser:{$parserState}\nprinter:{$parserState}\ncold-boot-enforced\nowner\n", $process->getOutput());
         }
     }
 

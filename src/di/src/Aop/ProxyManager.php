@@ -122,25 +122,6 @@ class ProxyManager
     }
 
     /**
-     * Determine if a rule matches a target class name.
-     */
-    protected function isMatch(string $rule, string $target): bool
-    {
-        if (str_contains($rule, '::')) {
-            [$rule] = explode('::', $rule);
-        }
-
-        if (! str_contains($rule, '*') && $rule === $target) {
-            return true;
-        }
-
-        $preg = str_replace(['*', '\\'], ['.*', '\\\\'], $rule);
-        $pattern = "/^{$preg}$/";
-
-        return preg_match($pattern, $target) === 1;
-    }
-
-    /**
      * Determine which classes in the class map need proxy generation.
      *
      * @param array<string, string> $reflectionClassMap
@@ -153,13 +134,24 @@ class ProxyManager
         }
 
         $proxies = [];
+        $classNames = null;
 
         foreach (AspectCollector::getClassRules() as $rules) {
             foreach ($rules as $rule) {
-                foreach ($reflectionClassMap as $class => $path) {
-                    if ($this->isMatch($rule, $class)) {
-                        $proxies[$class] = true;
+                [$classRule] = explode('::', $rule, 2);
+
+                if (! str_contains($classRule, '*')) {
+                    if (isset($reflectionClassMap[$classRule])) {
+                        $proxies[$classRule] = true;
                     }
+
+                    continue;
+                }
+
+                $pattern = str_replace(['*', '\\'], ['.*', '\\\\'], $classRule);
+
+                foreach (preg_grep("/^{$pattern}$/", $classNames ??= array_keys($reflectionClassMap)) as $class) {
+                    $proxies[$class] = true;
                 }
             }
         }
@@ -258,18 +250,8 @@ class ProxyManager
     {
         $sources = [];
 
-        foreach ($this->filesystem->files(__DIR__) as $file) {
-            if ($file->getExtension() !== 'php') {
-                continue;
-            }
-
-            $path = $file->getRealPath();
-
-            if ($path === false) {
-                throw new InvalidDefinitionException('Unable to fingerprint the AOP generator source.');
-            }
-
-            $sources[$file->getFilename()] = $this->filesystem->get($path);
+        foreach (glob(__DIR__ . '/*.php') as $path) {
+            $sources[basename($path)] = $this->filesystem->get($path);
         }
 
         return hash('sha256', serialize($sources));

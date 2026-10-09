@@ -31,6 +31,9 @@ class GenerateProxiesTest extends TestCase
 
     private string $tempDirectory;
 
+    /**
+     * Prepare an isolated Composer loader and proxy directory.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -44,13 +47,17 @@ class GenerateProxiesTest extends TestCase
         $this->loader = new ClassLoader;
         $this->loader->register();
         Composer::setLoader($this->loader);
+        IsolatedProxyGenerator::flushState();
     }
 
+    /**
+     * Unregister the fixture loaders and remove generated files.
+     */
     protected function tearDown(): void
     {
         $this->loader->unregister();
         Composer::setLoader($this->originalLoader);
-        GenerateProxies::flushState();
+        IsolatedProxyGenerator::flushState();
         $this->filesystem->deleteDirectory($this->tempDirectory);
 
         parent::tearDown();
@@ -149,14 +156,14 @@ class GenerateProxiesTest extends TestCase
         $this->assertSame(1, $count);
     }
 
-    public function testRegeneratesDeletedProxyFilesFromTheCapturedSourceMap(): void
+    public function testRegeneratesDeletedProxyFilesFromTheApplicationSourceMap(): void
     {
         $this->withProxyFixture(function (string $className, string $sourceFile, string $overrideFile, string $proxyDir): void {
             AspectCollector::setAround('TestAspect', [$className . '::value']);
 
             $this->bootstrapProxies($proxyDir);
 
-            $proxyFile = $this->loader->getClassMap()[$className];
+            $proxyFile = IsolatedProxyGenerator::getProxyMap()[$className];
             $this->assertFileExists($proxyFile);
 
             $this->filesystem->deleteDirectory($proxyDir);
@@ -165,6 +172,52 @@ class GenerateProxiesTest extends TestCase
             $this->assertFileExists($proxyFile);
             $this->assertStringContainsString('original-source', $this->filesystem->get($proxyFile));
         });
+    }
+
+    public function testPublishesProxiesWithoutChangingTheApplicationClassMap(): void
+    {
+        $this->withProxyFixture(function (string $className, string $sourceFile, string $overrideFile, string $proxyDir): void {
+            $this->loader->addClassMap(['Unrelated\ClassName' => '/unrelated/ClassName.php']);
+            $originalMap = $this->loader->getClassMap();
+            AspectCollector::setAround('TestAspect', [$className . '::value']);
+
+            $this->bootstrapProxies($proxyDir);
+
+            $this->assertSame($originalMap, $this->loader->getClassMap());
+            $this->assertSame([$className], array_keys(IsolatedProxyGenerator::getProxyMap()));
+            $this->assertFileExists(IsolatedProxyGenerator::getProxyMap()[$className]);
+        });
+    }
+
+    public function testSelectsMixedExactAndWildcardRulesInOrderWithoutDuplicates(): void
+    {
+        $prefix = 'Hypervel\Tests\Di\Bootstrap\Fixtures\Mixed' . bin2hex(random_bytes(4));
+        $classes = [$prefix . '\First', $prefix . '\Second', $prefix . '\Other'];
+        $sources = [];
+        foreach ($classes as $index => $className) {
+            $source = $this->tempDirectory . '/Mixed' . $index . '.php';
+            $this->writeProxySource($source, $className, (string) $index);
+            $sources[$className] = $source;
+        }
+        $this->loader->addClassMap($sources);
+        AspectCollector::setAround('TestAspect', [
+            $classes[1] . '::val*',
+            $prefix . '\F*::value',
+            $classes[1],
+            $prefix . '\Missing*',
+        ]);
+
+        $this->bootstrapProxies($this->tempDirectory . '/aop');
+
+        $this->assertSame(
+            [$classes[1], $classes[0]],
+            array_keys(IsolatedProxyGenerator::getProxyMap())
+        );
+        $this->assertSame($sources[$classes[2]], $this->loader->getClassMap()[$classes[2]]);
+        $firstProxy = $this->filesystem->get(IsolatedProxyGenerator::getProxyMap()[$classes[0]]);
+        $secondProxy = $this->filesystem->get(IsolatedProxyGenerator::getProxyMap()[$classes[1]]);
+        $this->assertStringContainsString('ProxyDispatcher::dispatch', $firstProxy);
+        $this->assertStringContainsString('ProxyDispatcher::dispatch', $secondProxy);
     }
 
     public function testRejectsTargetsLoadedBeforeProxyGeneration(): void
@@ -211,24 +264,25 @@ class GenerateProxiesTest extends TestCase
         });
     }
 
-    public function testSkipsProxyPathsReturnedByFindFileAfterTheSourceMapIsFlushed(): void
+    public function testRegeneratesPsr4ProxiesWithoutChangingSourceResolution(): void
     {
         $this->withPsr4ProxyFixture(function (string $className, string $proxyDir): void {
             AspectCollector::setAround('TestAspect', [$className . '::value']);
 
             $this->bootstrapProxies($proxyDir);
 
-            $proxyFile = $this->loader->getClassMap()[$className];
+            $proxyFile = IsolatedProxyGenerator::getProxyMap()[$className];
             $this->assertFileExists($proxyFile);
 
-            GenerateProxies::flushState();
-
-            $this->assertArrayNotHasKey($className, $this->buildClassMap());
+            $source = $this->loader->findFile($className);
+            $this->assertSame($source, $this->buildClassMap()[$className]);
+            $this->assertNotSame($source, $proxyFile);
 
             $this->filesystem->deleteDirectory($proxyDir);
             $this->bootstrapProxies($proxyDir);
 
-            $this->assertFileDoesNotExist($proxyFile);
+            $this->assertFileExists($proxyFile);
+            $this->assertStringContainsString('psr4-source', $this->filesystem->get($proxyFile));
         });
     }
 
@@ -244,7 +298,7 @@ class GenerateProxiesTest extends TestCase
             touch($sourceFile, $sourceMtime);
             $this->bootstrapProxies($proxyDir);
 
-            $proxyFile = $this->loader->getClassMap()[$className];
+            $proxyFile = IsolatedProxyGenerator::getProxyMap()[$className];
             $this->assertStringContainsString('same-mtime-source', $this->filesystem->get($proxyFile));
         });
     }
@@ -261,7 +315,7 @@ class GenerateProxiesTest extends TestCase
 
             $this->bootstrapProxies($proxyDir);
 
-            $proxyFile = $this->loader->getClassMap()[$className];
+            $proxyFile = IsolatedProxyGenerator::getProxyMap()[$className];
             $this->assertStringContainsString('override-source', $this->filesystem->get($proxyFile));
         });
     }
@@ -272,7 +326,7 @@ class GenerateProxiesTest extends TestCase
             AspectCollector::setAround('FirstAspect', [$className . '::value']);
 
             $this->bootstrapProxies($proxyDir);
-            $proxyFile = $this->loader->getClassMap()[$className];
+            $proxyFile = IsolatedProxyGenerator::getProxyMap()[$className];
             $first = $this->filesystem->get($proxyFile);
 
             AspectCollector::setAround('SecondAspect', [$className . '::value']);
@@ -290,7 +344,7 @@ class GenerateProxiesTest extends TestCase
             AstVisitorRegistry::insert(FingerprintVisitorTwo::class, 10);
 
             $this->bootstrapProxies($proxyDir);
-            $proxyFile = $this->loader->getClassMap()[$className];
+            $proxyFile = IsolatedProxyGenerator::getProxyMap()[$className];
             $first = $this->filesystem->get($proxyFile);
 
             AstVisitorRegistry::flushState();
@@ -320,8 +374,8 @@ class GenerateProxiesTest extends TestCase
 
         $this->bootstrapProxies($proxyDir);
 
-        $firstProxy = $this->loader->getClassMap()[$firstClass];
-        $secondProxy = $this->loader->getClassMap()[$secondClass];
+        $firstProxy = IsolatedProxyGenerator::getProxyMap()[$firstClass];
+        $secondProxy = IsolatedProxyGenerator::getProxyMap()[$secondClass];
         $this->assertNotSame($firstProxy, $secondProxy);
         $this->assertSame(rawurlencode($firstClass) . '.proxy.php', basename($firstProxy));
         $this->assertSame(rawurlencode($secondClass) . '.proxy.php', basename($secondProxy));
@@ -335,7 +389,7 @@ class GenerateProxiesTest extends TestCase
             AspectCollector::setAround('TestAspect', [$className . '::value']);
             $this->bootstrapProxies($proxyDir);
 
-            $proxyFile = $this->loader->getClassMap()[$className];
+            $proxyFile = IsolatedProxyGenerator::getProxyMap()[$className];
             $lines = file($proxyFile);
             $this->assertIsArray($lines);
             $cachedBody = $lines[0] . $lines[1] . "cached-body-is-not-parsed\n";
@@ -378,6 +432,7 @@ PHP);
         }
 
         $this->assertInstanceOf(InvalidDefinitionException::class, $exception);
+        $this->assertSame([], IsolatedProxyGenerator::getProxyMap());
         $this->assertSame($validSource, $this->loader->getClassMap()[$validClass]);
         $this->assertSame($invalidSource, $this->loader->getClassMap()[$invalidClass]);
         $this->assertFileDoesNotExist(
@@ -392,7 +447,7 @@ PHP);
      */
     private function buildClassMap(): array
     {
-        return (new ReflectionMethod(GenerateProxies::class, 'buildClassMap'))->invoke(new GenerateProxies);
+        return (new ReflectionMethod(GenerateProxies::class, 'buildClassMap'))->invoke(new IsolatedProxyGenerator);
     }
 
     /**
@@ -441,7 +496,7 @@ PHP);
             ->with('framework/aop/')
             ->andReturn($proxyDir);
 
-        (new GenerateProxies)->bootstrap($app);
+        (new IsolatedProxyGenerator)->bootstrap($app);
     }
 
     /**
@@ -473,6 +528,21 @@ class {$shortName}
     }
 }
 PHP);
+    }
+}
+
+class IsolatedProxyGenerator extends GenerateProxies
+{
+    protected static ?ClassLoader $proxyLoader = null;
+
+    /**
+     * Get the proxy entries published by this fixture's loader.
+     *
+     * @return array<string, string>
+     */
+    public static function getProxyMap(): array
+    {
+        return static::$proxyLoader?->getClassMap() ?? [];
     }
 }
 

@@ -12,6 +12,8 @@ use Hypervel\Foundation\Application;
 use Hypervel\Http\Client\Guzzle\CoroutineState;
 use Hypervel\Http\Exceptions\CoroutineOwnershipException;
 use Hypervel\Http\HttpServiceProvider;
+use PhpParser\ParserFactory;
+use PhpParser\PrettyPrinter\Standard;
 use Swoole\Coroutine;
 
 require $argv[1];
@@ -27,6 +29,11 @@ $application = new Application;
 $provider = new HttpServiceProvider($application);
 $provider->register();
 (new GenerateProxies)->generate($directory);
+
+if ($mode === 'normal') {
+    echo 'parser:' . (class_exists(ParserFactory::class, false) ? 'loaded' : 'unloaded') . "\n";
+    echo 'printer:' . (class_exists(Standard::class, false) ? 'loaded' : 'unloaded') . "\n";
+}
 
 if ($mode === 'shutdown') {
     Utils::queue()->add(static function (): void {
