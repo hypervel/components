@@ -524,6 +524,8 @@ Agent overrides of `Promptable::getProvidersAndModels()` must return an ordered 
 
 Remote attachments share the HTTP client's destination checks instead of `UntrustedUrl`'s protected `validate`, `resolve`, and `isBlocked` helpers and hostname-blocklist constants. Adapt subclasses that override them. URLs with embedded credentials are rejected; fetch authenticated files explicitly before attaching them. Configure `ai.remote_files.max_size` if your downloads exceed the default 32 MiB limit. See [remote attachments](/docs/{{version}}/ai-sdk#remote-attachments).
 
+Existing conversation data needs a schema migration. Compare column types and indexes with Hypervel's migration, add the approval claim and replay columns, and resolve messages whose conversations no longer exist before adding the foreign key. See [remembering conversations](/docs/{{version}}/ai-sdk#remembering-conversations).
+
 <a name="saloon"></a>
 ### Saloon
 
