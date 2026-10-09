@@ -122,7 +122,7 @@ class HttpClientStreamingTest extends TestCase
 
     public function testFallbackJsonLinesArriveBeforeTheNextChunk(): void
     {
-        // @TODO: Enable this test for Guzzle versions that include the filtered-streaming fix.
+        // @TODO: Enable this test for versions containing https://github.com/guzzle/guzzle/pull/3936.
         $this->markTestSkipped('Guzzle holds later chunked response data until the read buffer fills or times out.');
 
         // Without native cURL hooks, the default handler uses PHP streams.
