@@ -12,7 +12,6 @@ use GuzzleHttp\Cookie\CookieJar;
 use GuzzleHttp\Cookie\SetCookie;
 use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Exception\RequestException;
-use GuzzleHttp\Exception\ResponseException;
 use GuzzleHttp\Exception\TransferException;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
@@ -33,6 +32,7 @@ use Hypervel\Http\Client\Destinations\ProxyConnectionException;
 use Hypervel\Http\Client\Events\ConnectionFailed;
 use Hypervel\Http\Client\Events\RequestSending;
 use Hypervel\Http\Client\Events\ResponseReceived;
+use Hypervel\Http\Client\Guzzle\RejectedResponse;
 use Hypervel\Http\Client\RequestException as HttpRequestException;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
@@ -2330,17 +2330,7 @@ class PendingRequest implements Transient
      */
     protected function responseFromException(Throwable $e): ?ResponseInterface
     {
-        // Guzzle 8 uses ResponseException.
-        if ($e instanceof ResponseException) {
-            return $e->getResponse();
-        }
-
-        // Guzzle 7 uses RequestException with hasResponse() true.
-        if ($e instanceof RequestException && is_callable([$e, 'hasResponse']) && $e->hasResponse()) {
-            return $e->getResponse(); // @phpstan-ignore method.notFound (Only Guzzle 7 enters this branch; its RequestException also declares getResponse.)
-        }
-
-        return null;
+        return RejectedResponse::from($e);
     }
 
     /**
