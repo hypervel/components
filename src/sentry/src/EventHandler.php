@@ -11,6 +11,7 @@ use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
+use Hypervel\Core\Events\BeforeServerFork;
 use Hypervel\Core\Events\OnWorkerExit;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Eloquent\Model;
@@ -42,6 +43,7 @@ class EventHandler
         LogEvents\MessageLogged::class => 'messageLogged',
         RoutingEvents\RouteMatched::class => 'routeMatched',
         DatabaseEvents\QueryExecuted::class => 'queryExecuted',
+        BeforeServerFork::class => 'beforeServerFork',
         OnWorkerExit::class => 'workerExit',
     ];
 
@@ -223,6 +225,16 @@ class EventHandler
             $logEntry->message,
             $logEntry->context
         ));
+    }
+
+    /**
+     * Send the telemetry buffered while the server booted.
+     *
+     * Every forked process would otherwise inherit and send its own copy.
+     */
+    protected function beforeServerForkHandler(BeforeServerFork $event): void
+    {
+        Integration::drainEvents();
     }
 
     /**

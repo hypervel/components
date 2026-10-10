@@ -8,10 +8,12 @@ use ArrayObject;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Console\Events\ScheduledTaskStarting;
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Http\Kernel as HttpKernelInterface;
 use Hypervel\Contracts\View\Engine;
 use Hypervel\Contracts\View\View;
+use Hypervel\Core\Events\BeforeWorkerStart;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Di\Bootstrap\GenerateProxies;
 use Hypervel\Foundation\Console\AboutCommand;
@@ -40,6 +42,7 @@ use Hypervel\Sentry\Tracing\Routing\TracingControllerDispatcherTracing;
 use Hypervel\Sentry\Tracing\ViewEngineDecorator;
 use Hypervel\Sentry\Transport\HttpPoolTransport;
 use Hypervel\Sentry\Transport\HttpTransportPool;
+use Hypervel\ServerProcess\Events\BeforeProcessHandle;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\View\Engines\EngineResolver;
 use Hypervel\View\Factory as ViewFactory;
@@ -97,10 +100,34 @@ class SentryServiceProvider extends ServiceProvider
     public static string $abstract = 'sentry';
 
     /**
+     * Indicates if this process is a server process that may still fork workers and processes.
+     */
+    protected bool $serverMayFork = false;
+
+    /**
+     * The client options whose connection sharing is suspended until a forked worker or process starts.
+     *
+     * @var list<Options>
+     */
+    protected array $optionsAwaitingFork = [];
+
+    /**
      * Boot the service provider.
      */
     public function boot(): void
     {
+        if ($this->serverMayFork) {
+            $this->app->make('events')->listen([BeforeWorkerStart::class, BeforeProcessHandle::class], function (): void {
+                $this->serverMayFork = false;
+
+                foreach ($this->optionsAwaitingFork as $options) {
+                    $options->setEnableShareHandle(true);
+                }
+
+                $this->optionsAwaitingFork = [];
+            });
+        }
+
         $active = $this->isActive();
         $runtimeContextStorage = $active
             ? $this->app->make(CoroutineRuntimeContextStorage::class)
@@ -238,6 +265,22 @@ class SentryServiceProvider extends ServiceProvider
 
             return $clientBuilder;
         });
+
+        // The server process boots the application, then forks every worker and process. Connections it
+        // kept in the SDK's cURL share handle would be reused by all of them at once, so it sends without
+        // sharing until a forked process restores the setting. This runs after extenders, which may choose it.
+        $this->serverMayFork = ! $this->app->runningInConsole();
+
+        if ($this->serverMayFork) {
+            $this->app->afterResolving(ClientBuilder::class, function (ClientBuilder $clientBuilder): void {
+                $options = $clientBuilder->getOptions();
+
+                if ($this->serverMayFork && $options->isShareHandleEnabled()) {
+                    $options->setEnableShareHandle(false);
+                    $this->optionsAwaitingFork[] = $options;
+                }
+            });
+        }
 
         // HubInterface singleton — coroutine-scoped hub with full integration setup
         $this->app->singleton(HubInterface::class, function (): Hub {
@@ -719,23 +762,24 @@ class SentryServiceProvider extends ServiceProvider
      */
     protected function registerLogChannels(): void
     {
-        $config = $this->app->make(ConfigRepository::class);
         $configRoot = static::$abstract;
 
-        $logChannels = $config->array('logging.channels');
+        $this->configureUsing(static function (Repository $config) use ($configRoot): void {
+            $logChannels = $config->array('logging.channels');
 
-        if (! array_key_exists('sentry', $logChannels)) {
-            $config->set('logging.channels.sentry', [
-                'driver' => 'sentry',
-            ]);
-        }
+            if (! array_key_exists('sentry', $logChannels)) {
+                $config->set('logging.channels.sentry', [
+                    'driver' => 'sentry',
+                ]);
+            }
 
-        if (! array_key_exists('sentry_logs', $logChannels)) {
-            $config->set('logging.channels.sentry_logs', [
-                'driver' => 'sentry_logs',
-                'level' => $config->string("{$configRoot}.logs_channel_level"),
-            ]);
-        }
+            if (! array_key_exists('sentry_logs', $logChannels)) {
+                $config->set('logging.channels.sentry_logs', [
+                    'driver' => 'sentry_logs',
+                    'level' => $config->string("{$configRoot}.logs_channel_level"),
+                ]);
+            }
+        });
     }
 
     /**
