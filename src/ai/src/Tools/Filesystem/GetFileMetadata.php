@@ -7,7 +7,6 @@ namespace Hypervel\Ai\Tools\Filesystem;
 use Hypervel\Ai\Attributes\Strict;
 use Hypervel\Ai\Tools\Request;
 use Hypervel\Contracts\JsonSchema\JsonSchema;
-use Hypervel\Filesystem\FilesystemAdapter;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
 
@@ -27,7 +26,6 @@ class GetFileMetadata extends FilesystemTool
      */
     public function handle(Request $request): string
     {
-        /** @var FilesystemAdapter $disk */
         $disk = $this->disk();
 
         $path = (string) $request->string('path');
@@ -44,6 +42,8 @@ class GetFileMetadata extends FilesystemTool
             'path' => $path,
             'size' => $size,
             'last_modified' => rescue(fn (): int => $disk->lastModified($path), report: false),
+            // The contract omits adapter metadata methods, which every shipped disk provides.
+            // @phpstan-ignore method.notFound
             'mime_type' => rescue(fn (): false|string => $disk->mimeType($path), report: false),
             'visibility' => rescue(fn (): string => $disk->getVisibility($path), report: false),
         ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);

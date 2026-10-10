@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Ai\Files\Concerns;
 
-use Hypervel\Filesystem\FilesystemAdapter;
 use Hypervel\Support\Facades\Storage;
 use RuntimeException;
 
@@ -34,9 +33,10 @@ trait HasStoredContent
      */
     public function mimeType(): ?string
     {
-        /** @var FilesystemAdapter $disk */
         $disk = Storage::disk($this->disk);
 
+        // The contract omits adapter metadata methods, which every shipped disk provides.
+        // @phpstan-ignore method.notFound
         return $this->mime ?? ($disk->mimeType($this->path) ?: null);
     }
 
