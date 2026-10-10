@@ -12,6 +12,7 @@ use Hypervel\Http\Client\Request;
 use Hypervel\Http\Client\RequestException;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Ai\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class AudioTest extends TestCase
 {
@@ -23,21 +24,30 @@ class AudioTest extends TestCase
         $app->make('config')->set('ai.providers.openai.key', 'test-key');
     }
 
-    public function testAudioRequestIncludesModelInputVoiceResponseFormatAndSpeed(): void
+    #[DataProvider('speechInputs')]
+    public function testAudioRequestIncludesModelInputVoiceResponseFormatAndSpeed(string $input): void
     {
         Http::fake(['*' => $this->fakeOpenAiAudioResponse()]);
-        Audio::of('Hello world')->generate(provider: 'openai', model: 'gpt-4o-mini-tts');
+        Audio::of($input)->generate(provider: 'openai', model: 'gpt-4o-mini-tts');
 
-        Http::assertSent(function (Request $request): bool {
+        Http::assertSent(function (Request $request) use ($input): bool {
             $body = json_decode($request->body(), true);
 
             return $body['model'] === 'gpt-4o-mini-tts'
-                && $body['input'] === 'Hello world'
+                && ($body['input'] ?? null) === $input
                 && $body['voice'] === 'alloy'
                 && $body['response_format'] === 'mp3'
                 && $body['speed'] == 1.0
                 && $request->url() === 'https://api.openai.com/v1/audio/speech';
         });
+    }
+
+    /**
+     * Provide text that must be sent unchanged for speech generation.
+     */
+    public static function speechInputs(): array
+    {
+        return [['Hello world'], ['0']];
     }
 
     public function testAudioRequestResolvesDefaultFemaleVoiceToAlloy(): void
