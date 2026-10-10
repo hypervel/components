@@ -1813,33 +1813,38 @@ class FilesystemManagerTest extends TestCase
         }
     }
 
-    public function testNonPoolableWrappingDriversDelegateTheirPoolSettings(): void
+    public function testCustomDriversThatAreNotPoolableReceiveTheirPoolOptions(): void
     {
         $container = $this->getContainer([
             'disks' => [
-                'wrapped' => [
-                    ...$this->s3Config('wrapped-bucket'),
-                    'driver' => 'wrapping',
-                    'pool' => [
-                        'name' => 'wrapped-cloud',
-                        'fingerprint' => 'wrapped-credentials',
-                        'max_objects' => 3,
-                    ],
+                'custom' => [
+                    'driver' => 'custom',
+                    'root' => $this->tempDir . '/custom-unpooled',
+                    'pool' => ['max_objects' => 2],
+                ],
+                'scoped-custom' => [
+                    'driver' => 'scoped',
+                    'disk' => 'custom',
+                    'prefix' => 'scoped',
+                    'pool' => ['max_objects' => 3],
                 ],
             ],
         ]);
         Container::setInstance($container);
+        $received = [];
         $manager = new FilesystemManager($container);
-        $manager->extend('wrapping', function (Container $app, array $config, ?string $name): Filesystem {
-            return $this->build([...$config, 'driver' => 's3'], $name);
+        $manager->extend('custom', function (Container $app, array $config) use (&$received): FilesystemAdapter {
+            $received[] = $config['pool'] ?? null;
+            $adapter = new LocalFilesystemAdapter($config['root']);
+
+            return new FilesystemAdapter(new Flysystem($adapter), $adapter, $config);
         });
 
-        $disk = $manager->disk('wrapped');
+        $this->assertNotInstanceOf(FilesystemPoolProxy::class, $manager->disk('custom'));
+        $manager->disk('scoped-custom');
 
-        $this->assertInstanceOf(ClientPooledFilesystem::class, $disk);
-        $this->assertSame(FilesystemManager::class . ':named:wrapped-cloud', $disk->getDefinition()->identity);
-        $this->assertSame(PoolFingerprint::fromExplicit('wrapped-credentials'), $disk->getDefinition()->fingerprint);
-        $this->assertSame(3, $disk->getDefinition()->options->maxObjects);
+        // A scoped disk's own pool options replace its base disk's, as for every scoped option.
+        $this->assertSame([['max_objects' => 2], ['max_objects' => 3]], $received);
     }
 
     public function testPoolableBuiltInDriversIncludeTheLogicalNameInConstructionIdentity(): void

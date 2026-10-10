@@ -12,6 +12,7 @@ use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Http\Client\ConnectionException;
 use Hypervel\Http\Client\CurlStreamingHandler;
 use Hypervel\Http\Client\Factory;
+use Hypervel\Http\Client\PendingRequest;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Http\Message\ResponseInterface;
@@ -56,14 +57,15 @@ class HttpClientStreamingTest extends TestCase
         ];
     }
 
-    public function testStreamingReadsAllowOtherCoroutinesToProgress(): void
+    #[DataProvider('streamingRequests')]
+    public function testStreamingReadsAllowOtherCoroutinesToProgress(Closure $request): void
     {
-        $this->withStreamingServer('delayed', function (string $address): void {
+        $this->withStreamingServer('delayed', function (string $address) use ($request): void {
             $ready = new Channel(1);
             try {
                 $results = parallel([
-                    'reader' => function () use ($address, $ready): array {
-                        $response = (new Factory)->withOptions(['stream' => true, 'read_timeout' => 3])->get('http://' . $address);
+                    'reader' => function () use ($address, $ready, $request): array {
+                        $response = $request()->withOptions(['stream' => true, 'read_timeout' => 3])->get('http://' . $address);
                         try {
                             $ready->push(true);
 
@@ -83,7 +85,23 @@ class HttpClientStreamingTest extends TestCase
             } finally {
                 $ready->close();
             }
-        });
+        }, SWOOLE_HOOK_ALL & ~SWOOLE_HOOK_NATIVE_CURL);
+    }
+
+    /**
+     * Provide requests with the default handler and through a registered connection's shared handler.
+     */
+    public static function streamingRequests(): array
+    {
+        return [
+            'default handler' => [static fn (): PendingRequest => (new Factory)->createPendingRequest()],
+            'registered connection' => [static function (): PendingRequest {
+                $factory = new Factory;
+                $factory->registerConnection('stream');
+
+                return $factory->connection('stream');
+            }],
+        ];
     }
 
     public function testConcurrentPhpStreamsReleaseTheirResponseHeaders(): void

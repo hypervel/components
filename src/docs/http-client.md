@@ -25,6 +25,7 @@
     - [Guzzle Promises](#guzzle-promises)
 - [Connections](#connections)
 - [Restricting Destinations](#restricting-destinations)
+    - [Validating URLs](#validating-destination-urls)
     - [Allowing Internal Networks](#allowing-internal-networks)
     - [Egress Proxies](#egress-proxies)
     - [Limitations](#destination-policy-limitations)
@@ -1015,9 +1016,10 @@ The second argument is a request-option preset. It accepts normal Guzzle request
 - `pool` is rejected. HTTP clients are not object-pooled.
 - `max_host_connections` and `max_total_connections` are rejected. Use bounded coroutine fan-out or the rate limiter instead.
 - `transport_sharing` configures the connection's shared and isolated handlers. It accepts Guzzle's `TransportSharing` modes and is never passed into request options.
+- `max_idle_handles` sets how many idle cURL handles the connection's synchronous buffered transport keeps for its next requests (256 by default; 0 keeps none). Each handle holds its own keep-alive connections, allowing requests from concurrent coroutines to reuse them. It does not limit concurrent requests or open sockets: handles in use are additional, and Guzzle's persistent transport sharing keeps connections in its share instead. Streamed responses use the separate retention limit described above.
 - `multiplex` remains a request option. The `Multiplexing::NONE` mode also configures the connection handler so its guarantee applies to every request using that handler.
 
-The dedicated connection-cap options are rejected at every option layer. `pool`, `handler`, `cookies`, and `transport_sharing` are also rejected from global options, per-call connection overrides, fluent `withOptions()` calls, and raw `send()` options. This keeps cookie and handler ownership consistent regardless of which option layer supplied a value.
+The dedicated connection-cap options are rejected at every option layer. `pool`, `handler`, `cookies`, `transport_sharing`, and `max_idle_handles` are also rejected from global options, per-call connection overrides, fluent `withOptions()` calls, and raw `send()` options. This keeps cookie and handler ownership consistent regardless of which option layer supplied a value.
 
 Once registered, select a connection for a request by chaining the `connection` method:
 
@@ -1059,6 +1061,15 @@ $response = Http::withDestinationPolicy(new PublicDestinationPolicy)
 The policy resolves the destination's hostname, rejects the request if any of its addresses are private or reserved, and then connects only to the addresses it checked. Since the connection is pinned to those addresses, a hostname whose DNS answer changes after the check cannot send the request somewhere else. Each redirect is checked the same way before it is followed.
 
 If a destination is not allowed, a `Hypervel\Http\Client\Destinations\DisallowedDestinationException` is thrown, and the request is never retried. If the destination's hostname cannot be resolved, a `Hypervel\Http\Client\Destinations\DestinationResolutionException` is thrown instead. It extends `ConnectionException`, so it is reported like any other connection failure and retried when you configure retries using `retry()`. The time spent resolving the hostname counts against the request's timeout and connect timeout.
+
+<a name="validating-destination-urls"></a>
+### Validating URLs
+
+You may check a URL before storing it, such as when a user saves a webhook endpoint, using the policy's `validate` method. It throws a `DisallowedDestinationException` for a URL the policy would never send to, including a private address written as an IP address. Hostnames are not resolved, since their addresses may change before a request is sent; each request checks them when it resolves them:
+
+```php
+(new PublicDestinationPolicy)->validate($request->input('url'));
+```
 
 <a name="allowing-internal-networks"></a>
 ### Allowing Internal Networks

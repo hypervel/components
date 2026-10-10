@@ -377,6 +377,24 @@ class PoolManagerTest extends TestCase
         $this->assertFalse($poolManager->has('cache'));
     }
 
+    public function testExistingReturnsOnlyOpenPoolsWithoutCreatingThem(): void
+    {
+        $poolManager = new PoolManager($this->mockContainerWithPools());
+
+        $this->assertNull($poolManager->existing('default'));
+        $this->assertSame([], $poolManager->getPools());
+
+        $pool = $poolManager->pool('default');
+
+        $this->assertSame($pool, $poolManager->existing('default'));
+        $this->assertSame($pool, $poolManager->existing('default::write'));
+
+        $poolManager->purge('default');
+
+        $this->assertNull($poolManager->existing('default'));
+        $this->assertSame([], $poolManager->getPools());
+    }
+
     public function testPurgeAll(): void
     {
         $container = $this->mockContainerWithPools();

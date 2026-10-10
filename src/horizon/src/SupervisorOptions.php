@@ -40,14 +40,14 @@ class SupervisorOptions
      * @param int $minProcesses the minimum number of processes to assign per working when auto-scaling
      * @param int $memory the maximum amount of RAM the worker may consume
      * @param int $timeout the maximum number of seconds a child worker may run
-     * @param int $sleep the number of seconds to wait in between polling the queue
+     * @param float $sleep the number of seconds to wait in between polling the queue
      * @param int $maxTries the maximum amount of times a job may be attempted
      * @param bool $force indicates if the worker should run in maintenance mode
      * @param int $nice the process priority
      * @param int $balanceCooldown the number of seconds to wait in between auto-scaling attempts
      * @param int $balanceMaxShift the maximum number of processes to increase or decrease per one scaling
      * @param int $parentId the parent process identifier
-     * @param int $rest the number of seconds to rest between jobs
+     * @param float $rest the number of seconds to rest between jobs
      * @param ?string $autoScalingStrategy indicates whether auto-scaling strategy should use "time" (time-to-complete), "size" (total count of jobs), or "log" (logarithmic job count) strategies
      * @param bool $json indicates if the workers should output their information as JSON
      * @param int $concurrency the number of jobs each worker process may run at once
@@ -65,14 +65,14 @@ class SupervisorOptions
         public int $minProcesses = 1,
         public int $memory = 128,
         public int $timeout = 60,
-        public int $sleep = 3,
+        public float $sleep = 3,
         public int $maxTries = 0,
         public bool $force = false,
         public int $nice = 0,
         public int $balanceCooldown = 3,
         public int $balanceMaxShift = 1,
         public int $parentId = 0,
-        public int $rest = 0,
+        public float $rest = 0,
         public ?string $autoScalingStrategy = 'time',
         public bool $json = false,
         public int $concurrency = 1,

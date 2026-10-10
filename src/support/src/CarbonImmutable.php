@@ -13,6 +13,7 @@ use Hypervel\Support\Traits\DateHelpers;
  * these methods preserve subclasses at runtime.
  *
  * @method static addDay()
+ * @method static addDays(int|float $value = 1)
  * @method static addMicrosecond()
  * @method static addMicroseconds(int|float $value = 1)
  * @method static addMinute()

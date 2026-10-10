@@ -560,6 +560,8 @@ $result = wait(function () {
 
 The requested timeout still cancels the child. If the child stops within the cleanup period, `wait` throws `WaitTimeoutException` as usual. If the child remains active after that period, `wait` continues waiting until it exits and then throws `ChildTerminationTimeoutException`. This exception extends `WaitTimeoutException`, so an existing catch for `WaitTimeoutException` handles both cases.
 
+The same holds when the waiting coroutine is itself canceled: `wait` cancels the child, waits until it has exited, including any cleanup that waits on I/O, and then lets the cancellation continue. Without `waitForChildTermination`, the cancellation continues at once while the child finishes on its own.
+
 > [!WARNING]
 > Waiting for child termination has no secondary timeout. A child that catches cancellation and does not finish can keep the waiting coroutine blocked indefinitely.
 

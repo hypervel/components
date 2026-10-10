@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Database\Postgres;
 
 use Hypervel\Database\Query\JoinClause;
+use Hypervel\Database\QueryException;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
@@ -29,6 +30,16 @@ class DatabasePostgresConnectionTest extends PostgresTestCase
     protected function destroyDatabaseMigrations(): void
     {
         Schema::drop('json_table');
+    }
+
+    public function testBoundStringsContainingNullBytesAreRejected(): void
+    {
+        // @TODO Remove this skip once PDO_PGSQL rejects NUL-containing strings instead of silently truncating them upstream.
+        $this->markTestSkipped('PDO_PGSQL silently truncates bound strings containing NUL bytes.');
+
+        $this->expectException(QueryException::class);
+
+        DB::table('json_table')->insert(['label' => "hello\0world"]);
     }
 
     #[DataProvider('jsonWhereNullDataProvider')]

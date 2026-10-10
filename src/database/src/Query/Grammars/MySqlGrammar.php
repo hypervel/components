@@ -443,7 +443,7 @@ class MySqlGrammar extends Grammar
      */
     protected function compileUpdateWithoutJoins(Builder $query, string $table, string $columns, string $where): string
     {
-        $sql = parent::compileUpdateWithoutJoins($query, $table, $columns, $where);
+        $sql = parent::compileUpdateWithoutJoins($query, $this->compileUpdatedTable($query, $table), $columns, $where);
 
         if (! empty($query->orders)) {
             $sql .= ' ' . $this->compileOrders($query, $query->orders);
@@ -454,6 +454,22 @@ class MySqlGrammar extends Grammar
         }
 
         return $sql;
+    }
+
+    /**
+     * Compile an update statement with joins into SQL.
+     */
+    protected function compileUpdateWithJoins(Builder $query, string $table, string $columns, string $where): string
+    {
+        return parent::compileUpdateWithJoins($query, $this->compileUpdatedTable($query, $table), $columns, $where);
+    }
+
+    /**
+     * Compile the table an update statement changes, with the query's index hint.
+     */
+    protected function compileUpdatedTable(Builder $query, string $table): string
+    {
+        return $query->indexHint === null ? $table : $table . ' ' . $this->compileIndexHint($query, $query->indexHint);
     }
 
     /**

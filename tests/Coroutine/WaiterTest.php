@@ -335,6 +335,63 @@ class WaiterTest extends TestCase
         }
     }
 
+    public function testStrictParentCancellationPropagatesOnlyAfterTheChildFinishesItsCleanup(): void
+    {
+        $waiter = new Waiter;
+        $childStarted = new Channel(1);
+        $childBlocker = new Channel(1);
+        $cleanupStarted = new Channel(1);
+        $releaseCleanup = new Channel(1);
+        $childCoroutineId = null;
+        $childExited = false;
+        $outcome = new Channel(1);
+
+        $parent = EngineCoroutine::create(function () use (
+            $waiter,
+            $childStarted,
+            $childBlocker,
+            $cleanupStarted,
+            $releaseCleanup,
+            &$childCoroutineId,
+            &$childExited,
+            $outcome,
+        ): void {
+            try {
+                $waiter->wait(function () use ($childStarted, $childBlocker, $cleanupStarted, $releaseCleanup, &$childCoroutineId, &$childExited): void {
+                    $childCoroutineId = Coroutine::id();
+                    $childStarted->push(true);
+
+                    try {
+                        $childBlocker->pop();
+                    } finally {
+                        // Cleanup that yields, such as releasing an external resource.
+                        $cleanupStarted->push(true);
+                        $releaseCleanup->pop();
+                        $childExited = true;
+                    }
+                }, waitForChildTermination: true);
+            } catch (CanceledException $exception) {
+                $outcome->push([$exception, $childExited, Coroutine::exists($childCoroutineId)]);
+            }
+        });
+
+        try {
+            $this->assertTrue($childStarted->pop(1));
+            $this->assertTrue(EngineCoroutine::cancelById($parent->getId(), throwException: true));
+            $this->assertTrue($cleanupStarted->pop(1));
+            $this->assertFalse($outcome->pop(0.05));
+            $releaseCleanup->push(true);
+            [$exception, $exitedFirst, $childAlive] = $outcome->pop(1);
+        } finally {
+            $this->releaseAndJoin([$childBlocker, $releaseCleanup], [$childCoroutineId, $parent->getId()]);
+        }
+
+        $this->assertInstanceOf(CanceledException::class, $exception);
+        $this->assertNotSame('Waiting for a child coroutine was canceled.', $exception->getMessage());
+        $this->assertTrue($exitedFirst);
+        $this->assertFalse($childAlive);
+    }
+
     public function testIndependentChildCancellationIsWrappedForTheActiveOwner(): void
     {
         $waiter = new Waiter;
@@ -645,5 +702,79 @@ class WaiterTest extends TestCase
             $exception->getMessage(),
         );
         $this->assertFalse(Coroutine::exists($childCoroutineId));
+    }
+
+    #[DataProvider('timeoutCleanupCancellations')]
+    public function testStrictParentCancellationDuringTheTimeoutCleanupWaitsForTheChild(?float $pause): void
+    {
+        $waiter = new Waiter;
+        $cleanupStarted = new Channel(1);
+        $releaseCleanup = new Channel(1);
+        $childCoroutineId = null;
+        $childExited = false;
+        $outcome = new Channel(1);
+
+        $parent = EngineCoroutine::create(function () use ($waiter, $cleanupStarted, $releaseCleanup, &$childCoroutineId, &$childExited, $outcome): void {
+            try {
+                $waiter->wait(function () use ($cleanupStarted, $releaseCleanup, &$childCoroutineId, &$childExited): void {
+                    $childCoroutineId = Coroutine::id();
+
+                    try {
+                        Coroutine::sleep(1);
+                    } finally {
+                        $cleanupStarted->push(true);
+                        $releaseCleanup->pop();
+                        $childExited = true;
+                    }
+                }, timeout: 0.001, waitForChildTermination: true);
+            } catch (Throwable $exception) {
+                $outcome->push([$exception, $childExited, Coroutine::exists($childCoroutineId)]);
+            }
+        });
+
+        try {
+            // The timeout canceled the child, whose cleanup has started.
+            $this->assertTrue($cleanupStarted->pop(1));
+
+            if ($pause !== null) {
+                Coroutine::sleep($pause);
+            }
+
+            $this->assertTrue(EngineCoroutine::cancelById($parent->getId(), throwException: true));
+            $this->assertFalse($outcome->pop(0.05));
+            $releaseCleanup->push(true);
+            [$exception, $exitedFirst, $childAlive] = $outcome->pop(1);
+        } finally {
+            $this->releaseAndJoin([$releaseCleanup], [$childCoroutineId, $parent->getId()]);
+        }
+
+        $this->assertSame(CanceledException::class, $exception::class);
+        $this->assertTrue($exitedFirst);
+        $this->assertFalse($childAlive);
+    }
+
+    public static function timeoutCleanupCancellations(): array
+    {
+        return [
+            // Canceling the child switched to it, and the parent has not resumed yet.
+            'while canceling the child' => [null],
+            'while waiting for the cleanup' => [0.01],
+        ];
+    }
+
+    /**
+     * Release the waits a test controls and join the coroutines it started, whatever its assertions found.
+     *
+     * @param list<Channel> $channels
+     * @param list<null|int> $coroutineIds
+     */
+    private function releaseAndJoin(array $channels, array $coroutineIds): void
+    {
+        foreach ($channels as $channel) {
+            $channel->close();
+        }
+
+        // The child's own wait is at most a one-second sleep.
+        Coroutine::join(array_values(array_filter($coroutineIds, is_int(...))), 2);
     }
 }

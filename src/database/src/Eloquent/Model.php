@@ -21,6 +21,7 @@ use Hypervel\Coroutine\Mutex;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionName;
 use Hypervel\Database\ConnectionResolverInterface as Resolver;
+use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\Eloquent\Attributes\Boot;
 use Hypervel\Database\Eloquent\Attributes\Connection as ConnectionAttribute;
 use Hypervel\Database\Eloquent\Attributes\Initialize;
@@ -290,6 +291,13 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * @var array<class-string<static>, class-string<Builder<static>>|false>
      */
     protected static array $resolvedBuilderClasses = [];
+
+    /**
+     * Cache of whether each model class resolves its connection without overriding the resolution methods.
+     *
+     * @var array<class-string<self>, bool>
+     */
+    protected static array $resolvesDefaultConnections = [];
 
     /**
      * Cache of resolved class attributes.
@@ -2391,6 +2399,26 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     }
 
     /**
+     * Get the date format of the query grammar of the model's connection.
+     *
+     * Through the database manager this holds no pooled connection once the
+     * connection's pool knows the format, so date casts in coroutines that run
+     * no query borrow nothing. Models that override how their connection is
+     * resolved get the format from that connection.
+     */
+    public function getConnectionDateFormat(): string
+    {
+        $resolvesDefaultConnections = static::$resolvesDefaultConnections[static::class] ??= (new ReflectionMethod(static::class, 'getConnection'))->class === self::class
+            && (new ReflectionMethod(static::class, 'resolveConnection'))->class === self::class;
+
+        if ($resolvesDefaultConnections && static::$resolver instanceof DatabaseManager) {
+            return static::$resolver->connectionDateFormat($this->getConnectionName());
+        }
+
+        return $this->getConnection()->getQueryGrammar()->getDateFormat();
+    }
+
+    /**
      * Get the current connection name for the model.
      */
     public function getConnectionName(): ?string
@@ -2934,6 +2962,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         static::$bootedCallbacks = [];
         static::$traitInitializers = [];
         static::$globalScopes = [];
+        static::$resolvesDefaultConnections = [];
         static::$classAttributes = [];
         static::$classDeclaredAttributes = [];
         static::$classPropertyDeclarers = [];

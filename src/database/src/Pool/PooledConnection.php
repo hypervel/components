@@ -397,6 +397,9 @@ class PooledConnection implements PoolConnection
         $this->driverConnectionConfigured = false;
 
         if ($this->connection instanceof Connection) {
+            // The pool's recorded date format may have come from this connection's grammar.
+            $this->pool->forgetDateFormat();
+
             try {
                 $this->connection->disconnect();
             } finally {
@@ -449,6 +452,22 @@ class PooledConnection implements PoolConnection
     }
 
     /**
+     * Record the physical holder's grammar format without borrowing a session.
+     *
+     * A fresh logical lease is built from the same factory configuration as
+     * the holder, so owner-specific grammar changes must not reach the pool.
+     * Without leases the holder is the caller-visible connection itself.
+     *
+     * @internal
+     */
+    public function recordDateFormat(): void
+    {
+        if (! $this->invalid && $this->connection instanceof Connection) {
+            $this->pool->recordDateFormat($this->connection);
+        }
+    }
+
+    /**
      * Release the connection back to the pool.
      */
     public function release(): void
@@ -462,6 +481,9 @@ class PooledConnection implements PoolConnection
             } else {
                 $this->prepareForRelease();
             }
+
+            // Recorded after the listeners, which may still change a shared connection's grammar.
+            $this->recordDateFormat();
         } catch (CanceledException $cancellation) {
             $cancellationFailure = $cancellation;
             $this->markInvalid();
@@ -593,6 +615,8 @@ class PooledConnection implements PoolConnection
     protected function markInvalid(): void
     {
         $this->invalid = true;
+        // Date casts must not keep using a format its replacement may not have.
+        $this->pool->forgetDateFormat();
     }
 
     /**
@@ -646,18 +670,21 @@ class PooledConnection implements PoolConnection
      */
     protected function refresh(Connection $connection): void
     {
+        $this->pool->forgetDateFormat();
+
         try {
             $connection->refreshFrom($this->makeConnection());
+
+            // The resolver already owns a refreshed connection, so notify immediately.
+            $this->connectionEstablishedEventPending = true;
+            $this->dispatchConnectionEstablishedEvent();
         } catch (Throwable $exception) {
             $this->markInvalid();
 
             throw $exception;
         }
 
-        // The resolver already owns a refreshed connection, so notify immediately.
-        $this->connectionEstablishedEventPending = true;
-        $this->dispatchConnectionEstablishedEvent();
-
+        $this->recordDateFormat();
         $this->stampGeneration(hrtime(true) / 1e9);
     }
 }

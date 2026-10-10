@@ -38,10 +38,10 @@ function parallel(array $callables, int $concurrent = 0, bool|array $copyContext
  *                                        Objects stored directly in context are shared by reference by default. Values implementing
  *                                        Hypervel\Context\ReplicableContext are copied via replicate(), while values implementing
  *                                        Hypervel\Context\NonCopyableContext are omitted.
- * @param bool $waitForChildTermination Wait without a limit when a cancelled child exceeds the cleanup allowance
+ * @param bool $waitForChildTermination Wait without a limit for a canceled child to terminate: after the cleanup allowance on timeout, and before the waiting coroutine's own cancellation propagates
  * @return TReturn
  * @throws WaitTimeoutException When the wait times out
- * @throws ChildTerminationTimeoutException When a cancelled child outlives the cleanup allowance in strict mode
+ * @throws ChildTerminationTimeoutException When a canceled child outlives the cleanup allowance in strict mode
  */
 function wait(
     Closure $closure,

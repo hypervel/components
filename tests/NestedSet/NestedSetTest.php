@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\NestedSet;
 
+use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Eloquent\Attributes\UseEloquentBuilder;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\HasBuilder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Query\Builder as BaseQueryBuilder;
+use Hypervel\Database\Query\Grammars\Grammar as QueryGrammar;
 use Hypervel\NestedSet\Eloquent\QueryBuilder;
 use Hypervel\NestedSet\HasNode;
 use Hypervel\NestedSet\NestedSet;
@@ -184,6 +186,15 @@ class NestedSetTest extends TestCase
 
     public function testScopeValuesAreNormalizedForSqlAndBucketIdentity(): void
     {
+        // Dates use the connection grammar's own format, which a custom grammar may change.
+        $grammar = m::mock(QueryGrammar::class);
+        $grammar->shouldReceive('getDateFormat')->andReturn('d/m/Y H:i:s');
+        $connection = m::mock(Connection::class);
+        $connection->shouldReceive('getQueryGrammar')->andReturn($grammar);
+        $resolver = m::mock(ConnectionResolverInterface::class);
+        $resolver->shouldReceive('connection')->andReturn($connection);
+        Model::setConnectionResolver($resolver);
+
         $model = new NestedSetTestScopeNodeModel;
         $model->setRawAttributes([
             'first' => NestedSetTestScope::One,
@@ -196,7 +207,7 @@ class NestedSetTest extends TestCase
         $this->assertSame([
             'first' => 1,
             'second' => 1,
-            'third' => '2026-01-02 03:04:05',
+            'third' => '02/01/2026 03:04:05',
             'fourth' => 'value',
             'fifth' => null,
         ], $model->getNestedSetScope());

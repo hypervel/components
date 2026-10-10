@@ -43,7 +43,7 @@ class Waiter
      *                                        Objects stored directly in context are shared by reference by default. Values implementing
      *                                        Hypervel\Context\ReplicableContext are copied via replicate(), while values implementing
      *                                        Hypervel\Context\NonCopyableContext are omitted.
-     * @param bool $waitForChildTermination Wait without a limit when a canceled child exceeds the cleanup allowance
+     * @param bool $waitForChildTermination Wait without a limit for a canceled child to terminate: after the cleanup allowance on timeout, and before the waiting coroutine's own cancellation propagates
      * @return TReturn
      * @throws WaitTimeoutException When the wait times out
      * @throws ChildTerminationTimeoutException When a canceled child outlives the cleanup allowance in strict mode
@@ -86,40 +86,47 @@ class Waiter
                 Coroutine::forkOwned($callable, $wrapper, is_array($copyContext) ? $copyContext : []);
             }
         } catch (CanceledException $exception) {
-            $this->cancelChild($childCoroutineId, $childCancellationRequested);
+            $this->cancelChild($childCoroutineId, $childCancellationRequested, $waitForChildTermination);
             throw $exception;
         }
 
         try {
             $result = $channel->pop($timeout);
         } catch (CanceledException $exception) {
-            $this->cancelChild($childCoroutineId, $childCancellationRequested);
+            $this->cancelChild($childCoroutineId, $childCancellationRequested, $waitForChildTermination);
             throw $exception;
         }
 
         if ($result === false && $channel->isCanceled()) {
             $exception = new CanceledException('Waiting for a child coroutine was canceled.');
-            $this->cancelChild($childCoroutineId, $childCancellationRequested);
+            $this->cancelChild($childCoroutineId, $childCancellationRequested, $waitForChildTermination);
             throw $exception;
         }
 
         if ($result === false && $channel->isTimeout()) {
-            // Throw into the operation so an interrupted wait cannot be ignored accidentally,
-            // then give the child a bounded interval to unwind and run deferred cleanup.
-            $this->cancelChild($childCoroutineId, $childCancellationRequested);
-            $joined = Coroutine::join([$childCoroutineId], $this->pushTimeout);
+            try {
+                // Throw into the operation so an interrupted wait cannot be ignored accidentally,
+                // then give the child a bounded interval to unwind and run deferred cleanup.
+                $this->cancelChild($childCoroutineId, $childCancellationRequested);
+                $joined = Coroutine::join([$childCoroutineId], $this->pushTimeout);
+            } catch (CanceledException $exception) {
+                $this->cancelChild($childCoroutineId, $childCancellationRequested, $waitForChildTermination);
+                throw $exception;
+            }
 
             if (! $joined && EngineCoroutine::isCanceled()) {
-                throw new CanceledException('Waiting for a child coroutine was canceled.');
+                $exception = new CanceledException('Waiting for a child coroutine was canceled.');
+                $this->cancelChild($childCoroutineId, $childCancellationRequested, $waitForChildTermination);
+                throw $exception;
             }
 
             // A false join may mean either timeout or a missing coroutine, so only
             // existence proves that the child survived the cleanup allowance.
             if ($waitForChildTermination && Coroutine::exists($childCoroutineId)) {
-                $joined = Coroutine::join([$childCoroutineId]);
+                $cancellation = $this->awaitChildTermination($childCoroutineId);
 
-                if (! $joined && EngineCoroutine::isCanceled()) {
-                    throw new CanceledException('Waiting for a child coroutine was canceled.');
+                if ($cancellation !== null) {
+                    throw $cancellation;
                 }
 
                 // The wait already timed out, so discard any result produced during the extended unwind.
@@ -136,13 +143,13 @@ class Waiter
         try {
             $joined = Coroutine::join([$childCoroutineId]);
         } catch (CanceledException $exception) {
-            $this->cancelChild($childCoroutineId, $childCancellationRequested);
+            $this->cancelChild($childCoroutineId, $childCancellationRequested, $waitForChildTermination);
             throw $exception;
         }
 
         if (! $joined && EngineCoroutine::isCanceled()) {
             $exception = new CanceledException('Waiting for a child coroutine was canceled.');
-            $this->cancelChild($childCoroutineId, $childCancellationRequested);
+            $this->cancelChild($childCoroutineId, $childCancellationRequested, $waitForChildTermination);
             throw $exception;
         }
 
@@ -163,15 +170,44 @@ class Waiter
     }
 
     /**
-     * Cancel the owned child once when it is still active.
+     * Cancel the owned child once when it is still active, and wait for it to terminate when required.
      */
-    protected function cancelChild(?int $childCoroutineId, bool &$cancellationRequested): void
+    protected function cancelChild(?int $childCoroutineId, bool &$cancellationRequested, bool $waitForTermination = false): void
     {
-        if ($cancellationRequested || $childCoroutineId === null || ! Coroutine::exists($childCoroutineId)) {
+        if ($childCoroutineId === null) {
             return;
         }
 
-        $cancellationRequested = true;
-        EngineCoroutine::cancelById($childCoroutineId, throwException: true);
+        if (! $cancellationRequested && Coroutine::exists($childCoroutineId)) {
+            $cancellationRequested = true;
+            EngineCoroutine::cancelById($childCoroutineId, throwException: true);
+        }
+
+        if ($waitForTermination) {
+            $this->awaitChildTermination($childCoroutineId);
+        }
+    }
+
+    /**
+     * Wait until the child has terminated, however often the waiting coroutine is canceled meanwhile.
+     *
+     * @return null|CanceledException the waiting coroutine's first cancellation during the wait
+     */
+    protected function awaitChildTermination(int $childCoroutineId): ?CanceledException
+    {
+        $cancellation = null;
+
+        // Each cancellation interrupts the join, so join again until the child is gone.
+        while (Coroutine::exists($childCoroutineId)) {
+            try {
+                if (! Coroutine::join([$childCoroutineId]) && EngineCoroutine::isCanceled()) {
+                    $cancellation ??= new CanceledException('Waiting for a child coroutine was canceled.');
+                }
+            } catch (CanceledException $exception) {
+                $cancellation ??= $exception;
+            }
+        }
+
+        return $cancellation;
     }
 }

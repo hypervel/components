@@ -379,6 +379,24 @@ class PooledConnectionTest extends DatabaseTestCase
         $this->assertFalse($pooledConnection->check());
     }
 
+    public function testReconnectingForgetsTheRecordedDateFormat(): void
+    {
+        $pool = new DatabasePool($this->app, 'pool_test');
+
+        /** @var PooledConnection $pooledConnection */
+        $pooledConnection = $pool->borrow();
+        $pooledConnection->release();
+
+        $this->assertSame('Y-m-d H:i:s', $pool->recordedDateFormat());
+
+        /** @var PooledConnection $pooledConnection */
+        $pooledConnection = $pool->borrow();
+        $pooledConnection->reconnect();
+        $this->assertNull($pool->recordedDateFormat());
+        $pooledConnection->release();
+        $this->assertSame('Y-m-d H:i:s', $pool->recordedDateFormat());
+    }
+
     public function testCloseForgetsTheConnectionWhenTransactionCleanupFails(): void
     {
         $pool = new DatabasePool($this->app, 'pool_test');
@@ -960,19 +978,22 @@ class PooledConnectionTest extends DatabaseTestCase
         $this->app->make('config')->set('database.connections.pool_test.pool.events', [
             ConnectionReleasing::class,
         ]);
+        $pool = new DatabasePool($this->app, 'pool_test');
+        $pool->borrow()->release();
+        $this->assertSame('Y-m-d H:i:s', $pool->recordedDateFormat());
+
         $failure = new RuntimeException('Release listener failed.');
         $this->app->make(Dispatcher::class)->listen(
             ConnectionReleasing::class,
             static fn () => throw $failure
         );
-        $pool = new DatabasePool($this->app, 'pool_test');
-
         /** @var PooledConnection $pooledConnection */
         $pooledConnection = $pool->borrow();
         $pooledConnection->release();
 
         $this->assertTrue($this->isInvalid($pooledConnection));
         $this->assertSame(1, $pool->getIdleCount());
+        $this->assertNull($pool->recordedDateFormat());
 
         $pool->close();
     }
@@ -1514,6 +1535,7 @@ class PooledConnectionTest extends DatabaseTestCase
         $pooledConnection->release();
 
         $this->assertSame(0, $connection->getErrorCount());
+        $this->assertNull($pool->recordedDateFormat());
 
         /** @var PooledConnection $nextPooledConnection */
         $nextPooledConnection = $pool->borrow();

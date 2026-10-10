@@ -22,10 +22,10 @@ class ListenerOptions extends WorkerOptions
         array|int $backoff = 0,
         int $memory = 128,
         int $timeout = 60,
-        int $sleep = 3,
+        float $sleep = 3,
         int $maxTries = 1,
         bool $force = false,
-        int $rest = 0
+        float $rest = 0
     ) {
         $this->environment = $environment;
 

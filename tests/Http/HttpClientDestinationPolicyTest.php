@@ -77,6 +77,24 @@ class HttpClientDestinationPolicyTest extends TestCase
         $this->assertStringContainsString("Host: destination.invalid.:{$server->port}\r\n", (string) $server->request());
     }
 
+    public function testAPinnedRequestLeavesNoPinsForTheNextRequestOnItsConnection(): void
+    {
+        $server = LoopbackHttpServer::start([[], []]);
+        $factory = $this->factory();
+        $factory->registerConnection('api');
+
+        $response = $factory->connection('api')
+            ->withDestinationPolicy($this->loopbackPolicy('destination.invalid'))
+            ->get("http://destination.invalid:{$server->port}/pinned");
+
+        $this->assertSame('OK', $response->body());
+
+        // The next request reuses the connection's handle and shared DNS cache, so it resolves the host itself and fails.
+        $this->expectException(ConnectionException::class);
+
+        $factory->connection('api')->get("http://destination.invalid:{$server->port}/unpinned");
+    }
+
     #[DataProvider('streamModes')]
     public function testResolvesEveryRedirectAgain(bool $stream): void
     {

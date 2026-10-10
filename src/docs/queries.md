@@ -394,6 +394,17 @@ $users = DB::table('users')
     ->get();
 ```
 
+Index hints apply to update statements as well. For example, MariaDB and MySQL may read a small table in full when an update names many of its rows, locking every row they read inside a transaction. Forcing the primary key keeps such an update to the rows it names:
+
+```php
+DB::table('orders')
+    ->forceIndex('primary')
+    ->whereIn('id', $orderIds)
+    ->update(['status' => 'shipped']);
+```
+
+SQLite treats a forced index as a requirement rather than a preference: a query fails if the index does not exist, or if SQLite cannot use it for the query, such as a partial index whose condition the query's constraints do not imply.
+
 <a name="raw-expressions"></a>
 ## Raw Expressions
 
@@ -1606,6 +1617,19 @@ DB::table('users')->insert([
     ['email' => 'picard@example.com', 'votes' => 0],
     ['email' => 'janeway@example.com', 'votes' => 0],
 ]);
+```
+
+Each database limits how many values one statement may bind. When inserting many records at once, you may split them using the connection's `maxBindings` method, which returns the limit of the connection's database:
+
+```php
+if ($records !== []) {
+    $connection = DB::connection();
+    $perStatement = intdiv($connection->maxBindings(), count($records[0]));
+
+    foreach (array_chunk($records, $perStatement) as $chunk) {
+        $connection->table('users')->insert($chunk);
+    }
+}
 ```
 
 The `insertOrIgnore` method will ignore errors while inserting records into the database. When using this method, you should be aware that duplicate record errors will be ignored and other types of errors may also be ignored depending on the database engine. For example, `insertOrIgnore` will [bypass MySQL's strict mode](https://dev.mysql.com/doc/refman/en/sql-mode.html#ignore-effect-on-execution):

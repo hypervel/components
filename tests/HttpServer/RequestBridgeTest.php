@@ -125,15 +125,15 @@ class RequestBridgeTest extends TestCase
         $this->assertSame('/abs', $request->getPathInfo());
     }
 
-    public function testTrailingSlashIsTrimmedBeforeAFragment(): void
+    public function testTrailingSlashIsKeptBeforeAFragment(): void
     {
         $request = RequestBridge::createFromSwoole($this->createSwooleRequest(
             server: ['request_method' => 'get', 'request_uri' => '/path/#frag'],
             header: ['host' => 'example.com'],
         ));
 
-        $this->assertSame('/path#frag', $request->server->get('REQUEST_URI'));
-        $this->assertSame('/path', $request->getPathInfo());
+        $this->assertSame('/path/#frag', $request->server->get('REQUEST_URI'));
+        $this->assertSame('/path/', $request->getPathInfo());
     }
 
     public function testAbsoluteFormRootKeepsItsPath(): void
@@ -147,15 +147,15 @@ class RequestBridgeTest extends TestCase
         $this->assertSame('/', $request->getPathInfo());
     }
 
-    public function testAbsoluteFormTrailingSlashIsTrimmedOnThePathOnly(): void
+    public function testAbsoluteFormKeepsItsTrailingSlash(): void
     {
         $request = RequestBridge::createFromSwoole($this->createSwooleRequest(
             server: ['request_method' => 'get', 'request_uri' => 'http://example.com/abs/'],
             header: ['host' => 'example.com'],
         ));
 
-        $this->assertSame('http://example.com/abs', $request->server->get('REQUEST_URI'));
-        $this->assertSame('/abs', $request->getPathInfo());
+        $this->assertSame('http://example.com/abs/', $request->server->get('REQUEST_URI'));
+        $this->assertSame('/abs/', $request->getPathInfo());
     }
 
     public function testCreateFromSwooleWithCookies(): void
@@ -371,7 +371,7 @@ class RequestBridgeTest extends TestCase
     }
 
     #[DataProvider('requestUriProvider')]
-    public function testRequestUriIsNormalized(array $server, string $expected): void
+    public function testRequestUriAndPathKeepTheTargetAsReceived(array $server, string $expectedUri, string $expectedPath): void
     {
         $swooleRequest = $this->createSwooleRequest(
             server: ['request_method' => 'get', ...$server],
@@ -380,31 +380,38 @@ class RequestBridgeTest extends TestCase
 
         $request = RequestBridge::createFromSwoole($swooleRequest);
 
-        $this->assertSame($expected, $request->server->get('REQUEST_URI'));
-        $this->assertSame($expected, $request->getRequestUri());
+        // Like Laravel's, the request keeps its trailing slashes; route matching trims them itself.
+        $this->assertSame($expectedUri, $request->server->get('REQUEST_URI'));
+        $this->assertSame($expectedUri, $request->getRequestUri());
+        $this->assertSame($expectedPath, $request->getPathInfo());
     }
 
     public static function requestUriProvider(): iterable
     {
         yield 'split query and trailing slash' => [
             ['request_uri' => '/users/', 'query_string' => 'page=1'],
-            '/users?page=1',
+            '/users/?page=1',
+            '/users/',
         ];
         yield 'split root query' => [
             ['request_uri' => '/', 'query_string' => 'page=1'],
             '/?page=1',
+            '/',
         ];
         yield 'already combined query' => [
             ['request_uri' => '/users/?page=1', 'query_string' => 'page=1'],
-            '/users?page=1',
+            '/users/?page=1',
+            '/users/',
         ];
         yield 'all-slash path' => [
             ['request_uri' => '//'],
-            '/',
+            '//',
+            '//',
         ];
         yield 'all-slash path with split query' => [
             ['request_uri' => '///', 'query_string' => 'page=1'],
-            '/?page=1',
+            '///?page=1',
+            '///',
         ];
     }
 

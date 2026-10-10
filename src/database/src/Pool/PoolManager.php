@@ -85,6 +85,20 @@ class PoolManager
     }
 
     /**
+     * Get the open pool for the given connection name, without creating one.
+     */
+    public function existing(string $name): ?DatabasePool
+    {
+        $pool = $this->pools[$name] ?? null;
+
+        if ($pool === null || $pool->isClosed()) {
+            $pool = $this->pools[$this->getPoolName($name)] ?? null;
+        }
+
+        return $pool === null || $pool->isClosed() ? null : $pool;
+    }
+
+    /**
      * Get the existing pools keyed by their physical connection names.
      *
      * @return array<string, DatabasePool>

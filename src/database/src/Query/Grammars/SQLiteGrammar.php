@@ -170,7 +170,8 @@ class SQLiteGrammar extends Grammar
     {
         [$field, $path] = $this->wrapJsonFieldAndPath($column);
 
-        return 'exists (select 1 from json_each(' . $field . $path . ') where ' . $this->wrap('json_each.value') . ' is ' . $value . ')';
+        // "json_each" is the table-valued function's alias, not a table, so it never takes the table prefix.
+        return 'exists (select 1 from json_each(' . $field . $path . ') where ' . $this->wrapValue('json_each') . '.' . $this->wrapValue('value') . ' is ' . $value . ')';
     }
 
     /**
@@ -201,6 +202,19 @@ class SQLiteGrammar extends Grammar
         }
 
         return parent::compileUpdate($query, $values);
+    }
+
+    /**
+     * Compile an update statement without joins into SQL.
+     *
+     * A forced index applies to the updated table, as SQLite's "indexed by"
+     * clause allows.
+     */
+    protected function compileUpdateWithoutJoins(Builder $query, string $table, string $columns, string $where): string
+    {
+        $hint = $query->indexHint === null ? '' : $this->compileIndexHint($query, $query->indexHint);
+
+        return parent::compileUpdateWithoutJoins($query, $hint === '' ? $table : "{$table} {$hint}", $columns, $where);
     }
 
     /**
