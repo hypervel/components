@@ -330,7 +330,11 @@ trait Promptable
                     return;
                 }
 
-                $event->{$now ? 'broadcastNow' : 'broadcast'}($channels);
+                if ($now) {
+                    $event->broadcastNow($channels);
+                } else {
+                    $event->broadcast($channels, now: false);
+                }
             });
     }
 
