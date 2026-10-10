@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Ai\Gateway\AzureOpenAi;
 
+use Hypervel\Ai\Contracts\Files\StorableFile;
 use Hypervel\Ai\Contracts\Gateway\EmbeddingGateway;
 use Hypervel\Ai\Contracts\Gateway\ImageGateway;
 use Hypervel\Ai\Contracts\Gateway\StepTextGateway;
@@ -30,8 +31,10 @@ use Hypervel\Ai\Responses\EmbeddingsResponse;
 use Hypervel\Ai\Responses\ImageResponse;
 use Hypervel\Ai\Tools\ToolNameResolver;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Http\Client\Response;
+use Hypervel\Http\UploadedFile;
 use Hypervel\JsonSchema\JsonSchemaTypeFactory;
-use LogicException;
+use InvalidArgumentException;
 
 class AzureOpenAiGateway implements EmbeddingGateway, ImageGateway, StepTextGateway
 {
@@ -90,8 +93,6 @@ class AzureOpenAiGateway implements EmbeddingGateway, ImageGateway, StepTextGate
      * @param null|'1:1'|'2:3'|'3:2' $size
      * @param null|'high'|'low'|'medium' $quality
      * @param array<string, mixed> $providerOptions
-     *
-     * @throws LogicException if attachments are passed; Azure OpenAI does not support image edits
      */
     public function generateImage(
         ImageProvider $provider,
@@ -104,19 +105,17 @@ class AzureOpenAiGateway implements EmbeddingGateway, ImageGateway, StepTextGate
         array $providerOptions = [],
     ): ImageResponse {
         /** @var ImageProvider&Provider $provider */
-        if (filled($attachments)) {
-            throw new LogicException('Azure OpenAI does not support image editing.');
-        }
-
         $response = $this->withErrorHandling(
             $provider->name(),
-            fn () => $this->client($provider, $timeout ?? 120)->post('images/generations', [
-                ...$providerOptions,
-                'model' => $model,
-                'prompt' => $prompt,
-                'moderation' => 'low',
-                ...$provider->defaultImageOptions($size, $quality),
-            ]),
+            fn () => filled($attachments)
+                ? $this->sendImageEditRequest($provider, $model, $prompt, $attachments, $size, $quality, $timeout, $providerOptions)
+                : $this->client($provider, $timeout ?? 120)->post('images/generations', [
+                    ...$providerOptions,
+                    'model' => $model,
+                    'prompt' => $prompt,
+                    'moderation' => 'low',
+                    ...$provider->defaultImageOptions($size, $quality),
+                ]),
         );
 
         $data = $response->json();
@@ -124,11 +123,47 @@ class AzureOpenAiGateway implements EmbeddingGateway, ImageGateway, StepTextGate
         return new ImageResponse(
             collect($data['data'] ?? [])->map(fn (array $image): GeneratedImage => new GeneratedImage(
                 $image['b64_json'] ?? '',
-                'image/png',
+                'image/' . ($data['output_format'] ?? 'png'),
             )),
             $this->extractImageUsage($data),
             new Meta($provider->name(), $model),
         );
+    }
+
+    /**
+     * Send an image edit request with attachments.
+     *
+     * @param array<string, mixed> $providerOptions
+     */
+    protected function sendImageEditRequest(
+        ImageProvider $provider,
+        string $model,
+        string $prompt,
+        array $attachments,
+        ?string $size,
+        ?string $quality,
+        ?int $timeout,
+        array $providerOptions = [],
+    ): Response {
+        /** @var ImageProvider&Provider $provider */
+        $request = $this->client($provider, $timeout ?? 120);
+
+        foreach ($attachments as $attachment) {
+            $content = match (true) {
+                $attachment instanceof Image && $attachment instanceof StorableFile => $attachment->content(),
+                $attachment instanceof UploadedFile => $attachment->get(),
+                default => throw new InvalidArgumentException('Unsupported image attachment type [' . get_debug_type($attachment) . ']'),
+            };
+
+            $request->attach('image[]', $content, 'image.png');
+        }
+
+        return $request->post('images/edits', [
+            ...$providerOptions,
+            'model' => $model,
+            'prompt' => $prompt,
+            ...$provider->defaultImageOptions($size, $quality),
+        ]);
     }
 
     /**
