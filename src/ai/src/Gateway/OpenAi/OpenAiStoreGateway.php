@@ -1,0 +1,134 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Ai\Gateway\OpenAi;
+
+use DateInterval;
+use Hypervel\Ai\Contracts\Gateway\StoreGateway;
+use Hypervel\Ai\Contracts\Providers\FileProvider;
+use Hypervel\Ai\Contracts\Providers\StoreProvider;
+use Hypervel\Ai\Gateway\Concerns\HandlesFailoverErrors;
+use Hypervel\Ai\Gateway\OpenAi\Concerns\CreatesOpenAiClient;
+use Hypervel\Ai\Providers\Provider;
+use Hypervel\Ai\Responses\Data\StoreFileCounts;
+use Hypervel\Ai\Store;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Facades\Date;
+
+class OpenAiStoreGateway implements StoreGateway
+{
+    use CreatesOpenAiClient;
+    use HandlesFailoverErrors;
+
+    /**
+     * Get a vector store by its ID.
+     */
+    public function getStore(StoreProvider $provider, string $storeId): Store
+    {
+        /** @var FileProvider&Provider&StoreProvider $provider */
+        $response = $this->withErrorHandling(
+            $provider->name(),
+            fn () => $this->client($provider)
+                ->get("vector_stores/{$storeId}")
+        );
+
+        return new Store(
+            provider: $provider,
+            id: $response->json('id'),
+            name: $response->json('name'),
+            fileCounts: new StoreFileCounts(
+                completed: $response->json('file_counts.completed'),
+                pending: $response->json('file_counts.in_progress'),
+                failed: $response->json('file_counts.failed'),
+            ),
+            ready: $response->json('status') === 'completed',
+        );
+    }
+
+    /**
+     * Create a new vector store.
+     */
+    public function createStore(
+        StoreProvider $provider,
+        string $name,
+        ?string $description = null,
+        ?Collection $fileIds = null,
+        ?DateInterval $expiresWhenIdleFor = null,
+    ): Store {
+        /** @var Provider&StoreProvider $provider */
+        $fileIds ??= new Collection;
+
+        $response = $this->withErrorHandling(
+            $provider->name(),
+            fn () => $this->client($provider)
+                ->post('vector_stores', array_filter([
+                    'name' => $name,
+                    'metadata' => filled($description) ? ['description' => $description] : null,
+                    'file_ids' => $fileIds->values()->all(),
+                    'expires_after' => $expiresWhenIdleFor instanceof DateInterval ? [
+                        'anchor' => 'last_active_at',
+                        'days' => $this->intervalToDays($expiresWhenIdleFor),
+                    ] : null,
+                ]))
+        );
+
+        return $this->getStore($provider, $response->json('id'));
+    }
+
+    /**
+     * Add a file to a vector store.
+     */
+    public function addFile(StoreProvider $provider, string $storeId, string $fileId, array $metadata = []): string
+    {
+        /** @var Provider&StoreProvider $provider */
+        $response = $this->withErrorHandling(
+            $provider->name(),
+            fn () => $this->client($provider)
+                ->post("vector_stores/{$storeId}/files", array_filter([
+                    'file_id' => $fileId,
+                    'attributes' => filled($metadata) ? (object) $metadata : null,
+                ]))
+        );
+
+        return $response->json('id');
+    }
+
+    /**
+     * Remove a file from a vector store.
+     */
+    public function removeFile(StoreProvider $provider, string $storeId, string $documentId): bool
+    {
+        /** @var Provider&StoreProvider $provider */
+        $response = $this->withErrorHandling(
+            $provider->name(),
+            fn () => $this->client($provider)
+                ->delete("vector_stores/{$storeId}/files/{$documentId}")
+        );
+
+        return $response->json('deleted', false);
+    }
+
+    /**
+     * Delete a vector store by its ID.
+     */
+    public function deleteStore(StoreProvider $provider, string $storeId): bool
+    {
+        /** @var Provider&StoreProvider $provider */
+        $response = $this->withErrorHandling(
+            $provider->name(),
+            fn () => $this->client($provider)
+                ->delete("vector_stores/{$storeId}")
+        );
+
+        return $response->json('deleted', false);
+    }
+
+    /**
+     * Convert a DateInterval to days.
+     */
+    protected function intervalToDays(DateInterval $interval): int
+    {
+        return max(1, (int) Date::now()->diff(Date::now()->add($interval))->days);
+    }
+}
