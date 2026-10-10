@@ -1464,6 +1464,12 @@ class PropsResolverTest extends TestCase
         $this->assertSame($marker, $page['props']['nested']['money']->cents);
         $this->assertSame($marker, $page['props']['wrapped']->money->cents);
         $this->assertSame($marker, $page['props']['collection']['id']);
+
+        $money->cents = 900719925474099989;
+
+        $page = $this->makePage(Request::create('/'), ['money' => $money], preserveBigIntegers: true);
+
+        $this->assertSame(['$bigint' => '900719925474099989'], $page['props']['money']->cents);
     }
 
     public function testSelfReferencingObjectsDoNotRecurseForever(): void

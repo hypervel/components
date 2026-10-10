@@ -31,6 +31,13 @@ trait PreservesBigIntegers
     protected bool $preserveBigIntegers = false;
 
     /**
+     * Whether each encountered class serializes as its public properties.
+     *
+     * @var array<class-string, bool>
+     */
+    protected static array $plainJsonClasses = [];
+
+    /**
      * Wrap big integers only when this response opted in.
      */
     protected function encodeBigIntegersWhenEnabled(mixed $value): mixed
@@ -137,12 +144,18 @@ trait PreservesBigIntegers
             return true;
         }
 
+        $cached = static::$plainJsonClasses[$value::class] ?? null;
+
+        if ($cached !== null) {
+            return $cached;
+        }
+
         foreach ([$value::class, ...class_parents($value)] as $class) {
             if ((new ReflectionClass($class))->isInternal()) {
-                return false;
+                return static::$plainJsonClasses[$value::class] = false;
             }
         }
 
-        return true;
+        return static::$plainJsonClasses[$value::class] = true;
     }
 }

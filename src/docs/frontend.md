@@ -177,17 +177,23 @@ Big integer support is disabled by default. You may enable it for every response
 INERTIA_PRESERVE_BIG_INTEGERS=true
 ```
 
-You may also enable it for a single response using the `preserveBigIntegers` method. Passing `false` opts a single response out when the option is enabled:
+You may also enable it for a single response using the `preserveBigIntegers` method:
 
 ```php
 return Inertia::render('orders/show', [
     'order' => $order,
 ])->preserveBigIntegers();
+```
 
+Passing `false` opts a single response out when the option is enabled:
+
+```php
 return Inertia::render('reports/index', $props)->preserveBigIntegers(false);
 ```
 
 Only integers outside the safe range become a `BigInt`, so the same prop may arrive as a number or a `BigInt`, depending on its value. Flash data receives the same treatment as props. Arrays, models, collections, API resources, `JsonSerializable` values, and the public properties of your own classes are inspected for large integers, while built-in PHP classes such as `DateTime` are left untouched.
+
+When enabled, Inertia reserves objects with a string `$bigint` property as integer markers. Avoid that shape in your own props and flash data, since the client converts the entire object to a `BigInt`.
 
 A `BigInt` submitted through the router, a form, or Precognition is sent as its digits, so your controller receives a numeric string that the `integer` validation rule and the request's `integer` method handle as usual. The `useHttp` hook does not convert `BigInt` values, so convert them to strings before sending them.
 

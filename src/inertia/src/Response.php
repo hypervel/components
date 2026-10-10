@@ -312,5 +312,6 @@ class Response implements Responsable
     public static function flushState(): void
     {
         static::flushMacros();
+        static::$plainJsonClasses = [];
     }
 }
