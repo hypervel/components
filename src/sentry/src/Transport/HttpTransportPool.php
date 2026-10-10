@@ -6,10 +6,7 @@ namespace Hypervel\Sentry\Transport;
 
 use Hypervel\ObjectPool\ObjectPool;
 use Hypervel\ObjectPool\PoolOptions;
-use Hypervel\Sentry\Version;
-use Sentry\HttpClient\HttpClient;
-use Sentry\HttpClient\HttpClientInterface;
-use Sentry\Options;
+use Sentry\ClientBuilder;
 use Sentry\Serializer\PayloadSerializer;
 use Sentry\Transport\HttpTransport;
 
@@ -22,7 +19,7 @@ class HttpTransportPool extends ObjectPool
      * Create a pool of reusable Sentry HTTP transports.
      */
     public function __construct(
-        protected Options $sentryOptions,
+        protected ClientBuilder $clientBuilder,
         PoolOptions $poolOptions,
     ) {
         parent::__construct($poolOptions);
@@ -30,22 +27,20 @@ class HttpTransportPool extends ObjectPool
 
     /**
      * Create an HTTP transport with its own rate-limit state.
+     *
+     * Transports are created on first use, after the builder has been customized, so they use its
+     * configured HTTP client and logger like the SDK's own transport. Without a configured client,
+     * the builder creates a separate SDK client for each transport.
      */
     protected function createObject(): HttpTransport
     {
-        return new HttpTransport(
-            $this->sentryOptions,
-            $this->getHttpClient(),
-            new PayloadSerializer($this->sentryOptions),
-            $this->sentryOptions->getLogger()
-        );
-    }
+        $options = $this->clientBuilder->getOptions();
 
-    /**
-     * Create the SDK HTTP client.
-     */
-    protected function getHttpClient(): HttpClientInterface
-    {
-        return new HttpClient(Version::SDK_IDENTIFIER, Version::getSdkVersion());
+        return new HttpTransport(
+            $options,
+            $this->clientBuilder->getHttpClient(),
+            new PayloadSerializer($options),
+            $this->clientBuilder->getLogger()
+        );
     }
 }

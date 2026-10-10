@@ -506,7 +506,7 @@ $this->app->extend(ClientBuilder::class, function (ClientBuilder $clientBuilder)
 });
 ```
 
-The builder is already configured with Hypervel's pooled transport. Replacing the transport also replaces the asynchronous delivery described below.
+The builder uses Hypervel's pooled transport by default. Setting your own transport on the builder replaces the asynchronous delivery described below. Setting an HTTP client keeps it, since the pooled transports send through your client. A transport or HTTP client you provide is shared by concurrent requests, so it must be safe for concurrent use.
 
 <a name="delivery-and-shutdown"></a>
 ## Delivery and Shutdown

@@ -14,7 +14,6 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionProperty;
 use RuntimeException;
 use Sentry\ClientBuilder;
-use Sentry\Transport\TransportInterface;
 
 class ConfigTest extends TestCase
 {
@@ -32,7 +31,7 @@ class ConfigTest extends TestCase
         /** @var ClientBuilder $builder */
         $builder = $this->app->make(ClientBuilder::class);
 
-        $transport = $this->getTransportFromBuilder($builder);
+        $transport = $builder->getTransport();
 
         $this->assertInstanceOf(HttpPoolTransport::class, $transport);
 
@@ -52,7 +51,7 @@ class ConfigTest extends TestCase
         ]);
 
         $builder = $this->app->make(ClientBuilder::class);
-        $pool = $this->getPoolFromTransport($this->getTransportFromBuilder($builder));
+        $pool = $this->getPoolFromTransport($builder->getTransport());
 
         $this->assertNull($pool->getOptions()->maxLifetime);
         $this->assertNull($pool->getOptions()->maxIdleTime);
@@ -192,21 +191,10 @@ class ConfigTest extends TestCase
         // Default config should have a low wait_timeout for backpressure
         /** @var ClientBuilder $builder */
         $builder = $this->app->make(ClientBuilder::class);
-        $transport = $this->getTransportFromBuilder($builder);
-        $pool = $this->getPoolFromTransport($transport);
+        $pool = $this->getPoolFromTransport($builder->getTransport());
 
         // Should be 10ms or less for fast-fail backpressure
         $this->assertLessThanOrEqual(0.01, $pool->getOptions()->waitTimeout);
-    }
-
-    /**
-     * Get the transport configured on the client builder.
-     */
-    private function getTransportFromBuilder(ClientBuilder $builder): TransportInterface
-    {
-        $reflection = new ReflectionProperty($builder, 'transport');
-
-        return $reflection->getValue($builder);
     }
 
     /**

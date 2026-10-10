@@ -223,15 +223,18 @@ class SentryServiceProvider extends ServiceProvider
             $clientBuilder->setSdkIdentifier(Version::SDK_IDENTIFIER);
             $clientBuilder->setSdkVersion(Version::getSdkVersion());
 
-            // Set the pooled transport for async sending via Swoole coroutines
-            $poolConfig = $this->app->make('config')->array("{$configRoot}.pool");
-            $transport = new HttpPoolTransport(
-                new HttpTransportPool(
-                    $clientBuilder->getOptions(),
-                    $this->sentryPoolOptions($poolConfig),
-                )
-            );
-            $clientBuilder->setTransport($transport);
+            // Make the pooled transport the default transport option for async sending via Swoole coroutines,
+            // so a transport configured in the options or set on the builder takes precedence as in the SDK
+            $sentryOptions = $clientBuilder->getOptions();
+
+            if ($sentryOptions->getTransport() === null) {
+                $poolConfig = $this->app->make('config')->array("{$configRoot}.pool");
+
+                $sentryOptions->setTransport(new HttpPoolTransport(
+                    new HttpTransportPool($clientBuilder, $this->sentryPoolOptions($poolConfig)),
+                    $sentryOptions,
+                ));
+            }
 
             return $clientBuilder;
         });
