@@ -85,6 +85,22 @@ class WorkCommandTest extends TestCase
         ];
     }
 
+    public function testFractionalSleepAndRestSecondsAreKept(): void
+    {
+        $command = new WorkCommandOutputStub(
+            $this->app,
+            $this->app->make('config'),
+            m::mock(Worker::class),
+            $this->app->make('cache'),
+        );
+        $command->setInput(new ArrayInput(['--sleep' => '0.5', '--rest' => '0.25'], $command->getDefinition()));
+
+        $options = $command->workerOptions();
+
+        $this->assertSame(0.5, $options->sleep);
+        $this->assertSame(0.25, $options->rest);
+    }
+
     #[DataProvider('queueStatusOutputProvider')]
     public function testQueueStatusOutputUsesTheCurrentCommand(bool $json): void
     {
@@ -279,5 +295,13 @@ class WorkCommandOutputStub extends WorkCommand
     public function writeJobOutput(Job $job, string $status): void
     {
         $this->writeOutputForCli($job, $status);
+    }
+
+    /**
+     * Expose the worker options the command gathers from its input.
+     */
+    public function workerOptions(): WorkerOptions
+    {
+        return $this->gatherWorkerOptions();
     }
 }

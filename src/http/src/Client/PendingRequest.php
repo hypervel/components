@@ -75,6 +75,11 @@ class PendingRequest implements Transient
     protected const string PREPARED_BODY_OPTION = 'hypervel_prepared_body';
 
     /**
+     * The largest faked body write to a sink, matching cURL's default maximum write size.
+     */
+    protected const int STUB_SINK_CHUNK_SIZE = 16384;
+
+    /**
      * The Guzzle client instance.
      */
     protected ?ClientInterface $client = null;
@@ -1190,7 +1195,7 @@ class PendingRequest implements Transient
                 }
 
                 if (($response = $this->responseFromException($e)) !== null) {
-                    return $this->populateResponse($this->newResponse($response));
+                    return $this->marshalAsyncTransportExceptionWithResponse($e, $response);
                 }
 
                 if ($e instanceof TransferException && method_exists($e, 'getRequest')) { // @phpstan-ignore function.alreadyNarrowedType (Guzzle 7's base TransferException has no getRequest method.)
@@ -1236,7 +1241,7 @@ class PendingRequest implements Transient
 
         if ($response instanceof RequestException
             && ($psrResponse = $this->responseFromException($response)) !== null) {
-            $response = $this->populateResponse($this->newResponse($psrResponse));
+            $response = $this->marshalAsyncTransportExceptionWithResponse($response, $psrResponse);
         }
 
         try {
@@ -1885,13 +1890,40 @@ class PendingRequest implements Transient
 
                 $response = is_array($response) ? Factory::response($response) : $response;
 
+                /** @var null|callable $onHeaders */
+                $onHeaders = $options['on_headers'] ?? null;
                 $sink = $options['sink'] ?? null;
 
-                if ($sink !== null) {
-                    return $response->then($this->sinkStubHandler($sink));
+                if ($onHeaders === null && $sink === null) {
+                    return $response;
                 }
 
-                return $response;
+                // Faked responses reach on_headers and the sink as transported ones do: headers first, then the body.
+                return $response->then(function (ResponseInterface $psrResponse) use ($request, $onHeaders, $sink): ResponseInterface {
+                    if (is_string($sink) && ! is_dir(dirname($sink))) {
+                        $message = sprintf('Directory %s does not exist for sink value of %s', dirname($sink), $sink);
+
+                        // Guzzle 8 treats this as a request failure; Guzzle 7 throws a RuntimeException.
+                        throw class_exists(ResponseException::class)
+                            ? new RequestException($message, $request)
+                            : new RuntimeException($message);
+                    }
+
+                    if ($onHeaders !== null) {
+                        try {
+                            // Guzzle 8 also passes the request.
+                            if (class_exists(ResponseException::class)) {
+                                $onHeaders($psrResponse, $request);
+                            } else {
+                                $onHeaders($psrResponse);
+                            }
+                        } catch (Throwable $e) {
+                            throw $this->transferExceptionWithResponse('An error was encountered during the on_headers event', $request, $psrResponse, $e);
+                        }
+                    }
+
+                    return $sink === null ? $psrResponse : $this->sinkStubHandler($sink)($psrResponse, $request);
+                });
             };
         };
     }
@@ -1899,55 +1931,61 @@ class PendingRequest implements Transient
     /**
      * Get the sink stub handler callback.
      *
+     * A sink that stops accepting the body fails the request as a transport
+     * would, with the response, so the callback also takes the request. A
+     * subclass decorating the callback may still pass the response alone, as
+     * Laravel's callback takes it; the request being sent is used then.
+     *
      * @param resource|StreamInterface|string $sink
+     * @return Closure(ResponseInterface, ?RequestInterface=): ResponseInterface
      */
     protected function sinkStubHandler(mixed $sink): Closure
     {
-        return function (ResponseInterface $psrResponse) use ($sink): ResponseInterface {
+        $sentRequest = $this->request?->toPsrRequest();
+
+        return function (ResponseInterface $psrResponse, ?RequestInterface $request = null) use ($sink, $sentRequest): ResponseInterface {
+            /** @var RequestInterface $request */
+            $request ??= $sentRequest;
             $body = $psrResponse->getBody()->getContents();
             $length = strlen($body);
 
-            if (is_string($sink)) {
-                if (@file_put_contents($sink, $body) !== $length) {
-                    throw new RuntimeException("Unable to write response body to sink [{$sink}].");
-                }
-
-                return $psrResponse;
-            }
-
-            if (is_resource($sink)) {
-                $offset = 0;
-
-                while ($offset < $length) {
-                    $written = @fwrite($sink, $offset === 0 ? $body : substr($body, $offset));
-
-                    if ($written === false || $written === 0) {
-                        throw new RuntimeException('Unable to write to stream');
+            try {
+                if (is_string($sink)) {
+                    if (@file_put_contents($sink, $body) !== $length) {
+                        throw new RuntimeException("Unable to write response body to sink [{$sink}].");
                     }
 
-                    $offset += $written;
+                    return $psrResponse;
+                }
+            } catch (Throwable $exception) {
+                throw $this->sinkFailure($exception, $request, $psrResponse);
+            }
+
+            $resource = is_resource($sink);
+
+            for ($offset = 0; $offset < $length; $offset += self::STUB_SINK_CHUNK_SIZE) {
+                $chunk = substr($body, $offset, self::STUB_SINK_CHUNK_SIZE);
+
+                try {
+                    $written = $resource ? @fwrite($sink, $chunk) : $sink->write($chunk);
+
+                    if ($written === false) {
+                        throw new RuntimeException('Unable to write to stream');
+                    }
+                } catch (Throwable $exception) {
+                    throw $this->sinkFailure($exception, $request, $psrResponse);
                 }
 
+                if ($written !== strlen($chunk)) {
+                    throw $this->transferExceptionWithResponse('Unable to write to stream', $request, $psrResponse);
+                }
+            }
+
+            if ($resource) {
                 if (stream_get_meta_data($sink)['seekable'] && ! @rewind($sink)) {
                     throw new RuntimeException('Unable to rewind stream');
                 }
-
-                return $psrResponse;
-            }
-
-            $offset = 0;
-
-            while ($offset < $length) {
-                $written = $sink->write($offset === 0 ? $body : substr($body, $offset));
-
-                if ($written === 0) {
-                    throw new RuntimeException('Unable to write to stream');
-                }
-
-                $offset += $written;
-            }
-
-            if ($sink->isSeekable()) {
+            } elseif ($sink->isSeekable()) {
                 $sink->rewind();
             }
 
@@ -2344,6 +2382,28 @@ class PendingRequest implements Transient
     }
 
     /**
+     * Create the exception a transport raises when a request fails after its response's headers arrived.
+     */
+    protected function transferExceptionWithResponse(string $message, RequestInterface $request, ResponseInterface $response, ?Throwable $previous = null): RequestException
+    {
+        // Guzzle 8 carries the response on ResponseException, Guzzle 7 on RequestException.
+        return class_exists(ResponseException::class)
+            ? new ResponseException($message, $request, $response, $previous)
+            : new RequestException($message, $request, $response, $previous); // @phpstan-ignore argument.type (Only Guzzle 7 reaches this branch; its RequestException takes the response third.)
+    }
+
+    /**
+     * Create the exception a transport raises when its sink fails to write a response body.
+     */
+    protected function sinkFailure(Throwable $exception, RequestInterface $request, ResponseInterface $response): Throwable
+    {
+        // Guzzle 8 rejects with the response; Guzzle 7's cURL write callback lets the exception escape.
+        return class_exists(ResponseException::class)
+            ? $this->transferExceptionWithResponse($exception->getMessage(), $request, $response, $exception)
+            : $exception;
+    }
+
+    /**
      * Handle the given transport exception.
      *
      * @throws ConnectionException
@@ -2370,6 +2430,16 @@ class PendingRequest implements Transient
         $response = $this->populateResponse($this->newResponse($response));
 
         throw $response->toException() ?? new ConnectionException($e->getMessage(), 0, $e);
+    }
+
+    /**
+     * Preserve an asynchronous transfer failure even when its response status is successful.
+     */
+    protected function marshalAsyncTransportExceptionWithResponse(Throwable $e, ResponseInterface $response): Response|ConnectionException
+    {
+        $response = $this->populateResponse($this->newResponse($response));
+
+        return $response->failed() ? $response : new ConnectionException($e->getMessage(), 0, $e);
     }
 
     /**

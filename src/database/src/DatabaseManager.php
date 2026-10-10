@@ -104,6 +104,34 @@ class DatabaseManager implements ConnectionResolverInterface
     }
 
     /**
+     * Get the query grammar date format of a connection.
+     *
+     * The pooled resolver answers without holding a connection once its pool
+     * knows the format; other resolvers resolve the connection as usual.
+     */
+    public function connectionDateFormat(UnitEnum|string|null $name = null): string
+    {
+        if ($name instanceof UnitEnum) {
+            $name = (string) enum_value($name);
+        }
+
+        $name = $name === null || $name === ''
+            ? $this->getDefaultConnection()
+            : $name;
+
+        $resolver = $this->app->make('db.resolver');
+
+        if ($resolver instanceof ConnectionResolver) {
+            return $resolver->connectionDateFormat($name);
+        }
+
+        /** @var Connection $connection */
+        $connection = $resolver->connection($name);
+
+        return $connection->getQueryGrammar()->getDateFormat();
+    }
+
+    /**
      * Resolve a connection directly without using the connection pool.
      *
      * This method is used by SimpleConnectionResolver for testing and Capsule

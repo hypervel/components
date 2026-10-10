@@ -106,7 +106,7 @@ jobs:
       - name: Run ownership and affected consumer tests
         run: >-
           vendor/bin/paratest -c phpunit.xml.dist
-          --filter '(Guzzle|PusherClientTest|AwsCredentialConsumerTest|SerializedCredentialProvider|HttpConnectionTest|CurlStreamingHandlerTest|HttpClientStreamingTest|AfterEachTestExtensionTest|GenerateProxiesTest|ServiceProviderDiTest)'
+          --filter '(Guzzle|PusherClientTest|AwsCredentialConsumerTest|SerializedCredentialProvider|HttpClientTest|HttpConnectionTest|HttpClientDestinationPolicyTest|CurlStreamingHandlerTest|HttpClientStreamingTest|AfterEachTestExtensionTest|GenerateProxiesTest|ServiceProviderDiTest)'
 
   wayfinder_tests:
     runs-on: ubuntu-latest

@@ -8047,6 +8047,14 @@ SQL, ['"John"'])->andReturn(1);
         $this->assertEquals(['en'], $builder->getBindings());
     }
 
+    public function testWhereJsonContainsSqliteKeepsTheJsonEachAliasUnprefixed(): void
+    {
+        $builder = $this->getSQLiteBuilder(prefix: 'prefix_');
+        $builder->select('*')->from('users')->whereJsonContains('users.options', 'en');
+
+        $this->assertSame('select * from "prefix_users" where exists (select 1 from json_each("prefix_users"."options") where "json_each"."value" is ?)', $builder->toSql());
+    }
+
     public function testWhereJsonDoesntContainMySql(): void
     {
         $builder = $this->getMySqlBuilder();
@@ -8404,6 +8412,33 @@ SQL, ['"John"'])->andReturn(1);
         $this->assertSame('select `foo` from `users` ignore index (test_index)', $builder->toSql());
     }
 
+    public function testIndexHintsOnMySqlUpdates(): void
+    {
+        $builder = $this->getMySqlBuilder();
+        $builder->getConnection()->expects('update')->with('update `users` use index (test_index) set `email` = ? where `id` = ?', ['foo', 1])->andReturn(1);
+        $this->assertSame(1, $builder->from('users')->useIndex('test_index')->where('id', 1)->update(['email' => 'foo']));
+
+        $builder = $this->getMySqlBuilder();
+        $builder->getConnection()->expects('update')->with('update `users` ignore index (test_index) set `email` = ? where `id` = ?', ['foo', 1])->andReturn(1);
+        $this->assertSame(1, $builder->from('users')->ignoreIndex('test_index')->where('id', 1)->update(['email' => 'foo']));
+
+        $builder = $this->getMySqlBuilder();
+        $builder->getConnection()->expects('update')->with('update `users` force index (primary) set `email` = ? where `id` in (?, ?) order by `id` asc limit 2', ['foo', 1, 2])->andReturn(2);
+        $this->assertSame(2, $builder->from('users')->forceIndex('primary')->whereIn('id', [1, 2])->orderBy('id')->limit(2)->update(['email' => 'foo']));
+
+        $builder = $this->getMySqlBuilder(prefix: 'prefix_');
+        $builder->getConnection()->expects('update')->with('update `prefix_users` as `prefix_u` force index (primary) set `email` = ? where `prefix_u`.`id` = ?', ['foo', 1])->andReturn(1);
+        $this->assertSame(1, $builder->from('users as u')->forceIndex('primary')->where('u.id', 1)->update(['email' => 'foo']));
+
+        $builder = $this->getMySqlBuilder();
+        $builder->getConnection()->expects('update')->with('update `users` force index (primary) inner join `orders` on `users`.`id` = `orders`.`user_id` set `email` = ? where `users`.`id` = ?', ['foo', 1])->andReturn(1);
+        $this->assertSame(1, $builder->from('users')->forceIndex('primary')->join('orders', 'users.id', '=', 'orders.user_id')->where('users.id', 1)->update(['email' => 'foo']));
+
+        $builder = $this->getMariaDbBuilder();
+        $builder->getConnection()->expects('update')->with('update `users` force index (primary) set `email` = ? where `id` = ?', ['foo', 1])->andReturn(1);
+        $this->assertSame(1, $builder->from('users')->forceIndex('primary')->where('id', 1)->update(['email' => 'foo']));
+    }
+
     public function testUseIndexSqlite(): void
     {
         $builder = $this->getSQLiteBuilder();
@@ -8423,6 +8458,30 @@ SQL, ['"John"'])->andReturn(1);
         $builder = $this->getSQLiteBuilder();
         $builder->select('foo')->from('users')->ignoreIndex('test_index');
         $this->assertSame('select "foo" from "users"', $builder->toSql());
+    }
+
+    public function testIndexHintsOnSqliteUpdates(): void
+    {
+        $builder = $this->getSQLiteBuilder();
+        $builder->getConnection()->expects('update')->with('update "users" indexed by test_index set "email" = ? where "id" = ?', ['foo', 1])->andReturn(1);
+        $this->assertSame(1, $builder->from('users')->forceIndex('test_index')->where('id', 1)->update(['email' => 'foo']));
+
+        // SQLite has no other hints, so they leave an update as it is.
+        $builder = $this->getSQLiteBuilder();
+        $builder->getConnection()->expects('update')->with('update "users" set "email" = ? where "id" = ?', ['foo', 1])->andReturn(1);
+        $this->assertSame(1, $builder->from('users')->useIndex('test_index')->where('id', 1)->update(['email' => 'foo']));
+
+        // A limited update selects its rows in a subquery, which takes the hint.
+        $builder = $this->getSQLiteBuilder();
+        $builder->getConnection()->expects('update')->with('update "users" set "email" = ? where "rowid" in (select "users"."rowid" from "users" indexed by test_index where "id" > ? order by "id" asc limit 3)', ['foo', 1])->andReturn(1);
+        $this->assertSame(1, $builder->from('users')->forceIndex('test_index')->where('id', '>', 1)->orderBy('id')->limit(3)->update(['email' => 'foo']));
+
+        // So does a joined update, whose join bindings come before its where bindings.
+        $builder = $this->getSQLiteBuilder();
+        $builder->getConnection()->expects('update')->with('update "users" set "email" = ? where "rowid" in (select "users"."rowid" from "users" indexed by test_index inner join "orders" on "users"."id" = "orders"."user_id" and "orders"."status" = ? where "users"."id" = ?)', ['foo', 'paid', 1])->andReturn(1);
+        $this->assertSame(1, $builder->from('users')->forceIndex('test_index')->join('orders', static function (JoinClause $join): void {
+            $join->on('users.id', '=', 'orders.user_id')->where('orders.status', '=', 'paid');
+        })->where('users.id', 1)->update(['email' => 'foo']));
     }
 
     public function testClone(): void

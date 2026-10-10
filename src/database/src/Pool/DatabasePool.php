@@ -46,6 +46,13 @@ class DatabasePool extends ConnectionPool
     protected ?PDO $sharedInMemorySqlitePdo = null;
 
     /**
+     * The query grammar date format new borrowers start from, recorded from the pool's physical connections.
+     *
+     * Date casts in coroutines that hold no connection read it instead of borrowing one.
+     */
+    protected ?string $dateFormat = null;
+
+    /**
      * Create a database connection pool.
      */
     public function __construct(Container $container, string $name)
@@ -119,6 +126,36 @@ class DatabasePool extends ConnectionPool
     public function getSharedInMemorySqlitePdo(): ?PDO
     {
         return $this->sharedInMemorySqlitePdo;
+    }
+
+    /**
+     * Record the query grammar date format of one of the pool's connections.
+     *
+     * @internal
+     */
+    public function recordDateFormat(Connection $connection): void
+    {
+        $this->dateFormat = $connection->getQueryGrammar()->getDateFormat();
+    }
+
+    /**
+     * Forget the recorded date format, once a connection of the pool has been closed or replaced.
+     *
+     * @internal
+     */
+    public function forgetDateFormat(): void
+    {
+        $this->dateFormat = null;
+    }
+
+    /**
+     * Get the recorded query grammar date format, if a connection recorded one since the last was closed.
+     *
+     * @internal
+     */
+    public function recordedDateFormat(): ?string
+    {
+        return $this->dateFormat;
     }
 
     /**
