@@ -1785,9 +1785,9 @@ The generated middleware will be placed in your application's `app/Ai/Middleware
 namespace App\Ai\Agents;
 
 use App\Ai\Middleware\LogPrompts;
-use Laravel\Ai\Contracts\Agent;
-use Laravel\Ai\Contracts\HasMiddleware;
-use Laravel\Ai\Promptable;
+use Hypervel\Ai\Contracts\Agent;
+use Hypervel\Ai\Contracts\HasMiddleware;
+use Hypervel\Ai\Promptable;
 
 class SalesCoach implements Agent, HasMiddleware
 {
@@ -1815,8 +1815,8 @@ Each middleware class should define a `handle` method that receives a `PendingSt
 namespace App\Ai\Middleware;
 
 use Closure;
-use Illuminate\Support\Facades\Log;
-use Laravel\Ai\PendingStep;
+use Hypervel\Ai\PendingStep;
+use Hypervel\Support\Facades\Log;
 
 class LogPrompts
 {
@@ -1831,6 +1831,8 @@ class LogPrompts
     }
 }
 ```
+
+Middleware resolved from class names follows the normal container lifetime rules; shared middleware should be stateless. Middleware wraps each model step, not individual tool calls or child-agent runs. It can stop further model work by throwing, but does not interrupt a provider request that is already running.
 
 In addition to the `provider`, `model`, `instructions`, `messages`, and `tools` that are about to be sent, the step exposes the steps that have already completed, their combined usage, and the progress of the run:
 
@@ -1860,7 +1862,7 @@ Or, you may keep a long tool calling loop within the context window by summarizi
 
 ```php
 use App\Ai\Agents\Summarizer;
-use Laravel\Ai\Messages\UserMessage;
+use Hypervel\Ai\Messages\UserMessage;
 
 public function handle(PendingStep $step, Closure $next)
 {
@@ -1885,7 +1887,7 @@ Messages passed to the `withMessages` method only change what is sent for the cu
 You may use the `then` method to execute code once the model has answered the step, before its tool calls are executed. This works for both synchronous and streaming responses:
 
 ```php
-use Laravel\Ai\Gateway\StepResponse;
+use Hypervel\Ai\Gateway\StepResponse;
 
 public function handle(PendingStep $step, Closure $next)
 {
@@ -1896,6 +1898,21 @@ public function handle(PendingStep $step, Closure $next)
 ```
 
 Middleware must return the result of `$next`, or its own `StepResponse` to answer the step without invoking the model, such as when serving a cached response. Returning any other value will throw a `LogicException`.
+
+You may also attach middleware when invoking an agent, without changing its class. The `withMiddleware` method appends middleware that runs before the agent's declared middleware, in the order supplied:
+
+```php
+use App\Ai\Agents\SalesCoach;
+use App\Ai\Middleware\EnforceGenerationBudget;
+
+$response = SalesCoach::make()
+    ->withMiddleware([EnforceGenerationBudget::class])
+    ->prompt('Review this sales call.');
+```
+
+You may pass middleware class names, instances, or closures. Middleware added this way remains on the agent instance for subsequent calls. A stream captures the added middleware when it is created, so adding more middleware afterwards does not change that stream.
+
+When queuing an agent or using queued AI event listeners, middleware objects and values captured by closures must be serializable.
 
 <a name="anonymous-agents"></a>
 ### Anonymous Agents
