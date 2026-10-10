@@ -145,21 +145,6 @@ function fakeGroqToolCallResponse(string $name = 'FixedNumberGenerator', array $
     ]);
 }
 
-function fakeOllamaResponse(string $text = 'Hello'): PromiseInterface
-{
-    return Http::response([
-        'model' => 'llama3.1:8b',
-        'message' => [
-            'role' => 'assistant',
-            'content' => $text,
-        ],
-        'done_reason' => 'stop',
-        'done' => true,
-        'prompt_eval_count' => 1,
-        'eval_count' => 1,
-    ]);
-}
-
 function fakeAzureResponse(string $text = 'Hello'): PromiseInterface
 {
     return Http::response([
@@ -179,16 +164,6 @@ function fakeAzureResponse(string $text = 'Hello'): PromiseInterface
             'output_tokens' => 1,
         ],
     ]);
-}
-
-function configureOpenAiCompatible(): void
-{
-    config(['ai.providers.openai-compatible' => [
-        'driver' => 'openai-compatible',
-        'url' => 'http://localhost:1234/v1',
-        'key' => 'test-key',
-        'models' => ['text' => ['default' => 'local-model']],
-    ]]);
 }
 
 function fakeOpenAiResponse(string $text = 'Hello'): PromiseInterface
