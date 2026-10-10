@@ -103,6 +103,7 @@ laravel/ai:
   checked_through: 767e37a1ba57a0b007b9908fc32583e47b06e13c
   last_reviewed_pr: 1108
   sync_date: '2026-10-10'
+  notes: "PR #1110 (OpenRouter reasoning replay) is already ported beyond checked_through; compare it with the existing implementation and regression tests rather than reapplying it."
 
 laravel/scout:
   branch: 11.x
