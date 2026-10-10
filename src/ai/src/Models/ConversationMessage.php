@@ -63,7 +63,6 @@ class ConversationMessage extends Model
         'meta' => 'array',
         'status' => MessageStatus::class,
         'has_replay_blocks' => 'boolean',
-        'approval_claimed_at' => 'datetime',
     ];
 
     /**

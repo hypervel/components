@@ -1975,9 +1975,11 @@ class DatabaseConversationStoreTest extends TestCase
         [$conversationId, $messageId] = $this->pause($store);
 
         $this->assertNull($store->claimPendingApprovals($conversationId, ['wrong-call']));
+        $this->travel(1)->minute();
         $claim = $store->claimPendingApprovals($conversationId, ['call-1']);
 
         $this->assertSame($messageId, $claim->messageId);
+        $this->assertDatabaseHas('agent_conversation_messages', ['id' => $messageId, 'updated_at' => now()->toDateTimeString()]);
         $this->assertNull($store->claimPendingApprovals($conversationId, ['call-1']));
         $this->assertSame([], $store->pendingApprovalsFor($conversationId));
     }
@@ -1999,7 +2001,9 @@ class DatabaseConversationStoreTest extends TestCase
         $store->storeTurn($conversationId, null, null, null, $this->prompt(), $this->response());
         $this->assertDatabaseHas('agent_conversation_messages', ['id' => $messageId, 'approval_claim' => $claim->token, 'has_replay_blocks' => true]);
 
+        $this->travel(1)->minute();
         $store->recordApprovalResult($claim, new ToolResult('call-1', 'send_email', ['to' => 'updated@example.com'], 'Sent', 'result-1'));
+        $this->assertDatabaseHas('agent_conversation_messages', ['id' => $messageId, 'updated_at' => now()->toDateTimeString()]);
         $steps = json_decode(DB::table('agent_conversation_messages')->where('id', $messageId)->value('steps'), true);
         $this->assertSame('Sent', $steps[0]['tool_calls'][0]['result']);
         $this->assertSame(['to' => 'updated@example.com'], $steps[0]['tool_calls'][0]['arguments']);
@@ -2313,13 +2317,12 @@ function createConversationSchema(?string $connection = null): void
         $table->string('agent');
         $table->string('role');
         $table->longText('content');
-        $table->jsonb('attachments');
-        $table->jsonb('steps');
-        $table->jsonb('usage');
-        $table->jsonb('meta');
+        $table->longText('attachments');
+        $table->longText('steps');
+        $table->longText('usage');
+        $table->longText('meta');
         $table->string('status');
         $table->uuid('approval_claim')->nullable();
-        $table->timestamp('approval_claimed_at')->nullable();
         $table->boolean('has_replay_blocks')->default(false);
         $table->timestamps();
     });

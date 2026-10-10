@@ -51,19 +51,18 @@ return new class extends AiMigration {
             $table->string('agent');
             $table->string('role');
             $table->longText('content');
-            $table->jsonb('attachments');
-            $table->jsonb('steps');
-            $table->jsonb('usage');
-            $table->jsonb('meta');
+            $table->longText('attachments');
+            $table->longText('steps');
+            $table->longText('usage');
+            $table->longText('meta');
             $table->string('status');
             $table->uuid('approval_claim')->nullable();
-            $table->timestamp('approval_claimed_at')->nullable();
             $table->boolean('has_replay_blocks')->default(false);
             $table->timestamps();
 
             $table->index(['account_id', 'conversation_id', 'id'], 'conversation_messages_index');
             $table->index(['account_id', 'participant_type', 'participant_id', 'agent', 'id'], 'participant_index');
-            $table->index(['account_id', 'conversation_id', 'role', 'status', 'id'], 'conversation_status_index');
+            $table->index(['account_id', 'conversation_id', 'status', 'id'], 'conversation_status_index');
             $table->index(['account_id', 'conversation_id', 'has_replay_blocks', 'id'], 'conversation_replay_index');
         });
     }

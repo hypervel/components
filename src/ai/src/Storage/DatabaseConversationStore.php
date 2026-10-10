@@ -339,7 +339,6 @@ class DatabaseConversationStore implements ClaimsPendingApprovals, ConversationS
             'meta' => json_encode($this->mergedMeta($paused, $response, $exception)),
             'status' => $this->statusFor($response, $exception),
             'approval_claim' => null,
-            'approval_claimed_at' => null,
             'has_replay_blocks' => $steps->contains(fn (array $step): bool => $step['replay_blocks'] !== []),
             'updated_at' => $now,
         ]);
@@ -793,7 +792,7 @@ class DatabaseConversationStore implements ClaimsPendingApprovals, ConversationS
                 ->whereNull('approval_claim')
                 ->update([
                     'approval_claim' => $claim->token,
-                    'approval_claimed_at' => now(),
+                    'updated_at' => now(),
                 ]);
 
             return $claimed === 1 ? $claim : null;
