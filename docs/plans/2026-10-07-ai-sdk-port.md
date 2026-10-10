@@ -107,6 +107,28 @@ The runner must represent a captured empty/central context too. Do not indiscrim
 
 `AgentPrompt` keeps its runner protected with an internal accessor, preserves it through revisions, and excludes the live runner/recorder from serialized event payloads without mutating the running prompt. Attachments retain normal queue serialization requirements: raw uploads need explicit `fromUpload()` byte values or durable storage references for queued listeners; do not silently convert or persist them.
 
+### Runtime agent middleware
+
+Add `Promptable::withMiddleware(array $middleware): static` for caller-supplied policy checks, budgets and instrumentation without changing the agent class. This is additive: preserve `Agent`, `HasMiddleware`, prompt/stream/queue signatures and protected middleware hooks. Calls append entries; runtime middleware runs outside declared middleware, in insertion order, and persists on that agent instance like `withTools()`.
+
+```php
+$response = ResearchAgent::make()
+    ->withMiddleware([EnforceGenerationBudget::class])
+    ->prompt('Research the proposed change.');
+```
+
+`EnforceGenerationBudget` is an application middleware using the existing `handle(PendingStep $step, Closure $next)` API, not a new framework service. Accept the existing middleware forms: closures, class strings and objects with `handle()`. Class-string resolution retains the normal container lifetime rules.
+
+- Store closures as `SerializableClosure` instances in a protected instance list; retain strings/objects unchanged. Capture the list once alongside tools in `prompt()` and `streamPrompt()`, including lazy failover factories. Later calls to `withMiddleware()` must not change an already-created invocation. Preserve ordinary object-reference semantics rather than deep-cloning middleware objects.
+- Carry the wrapped list in an optional final `AgentPrompt` constructor argument, defaulting to `[]`, and preserve it through `revise()` and `withTools()`. Keep wrappers through serialization: prompt-bearing queued events and `StartingStep` (which carries options) must both remain serializable. Captured values and middleware objects still obey ordinary queue serialization requirements.
+- Add a default-empty middleware list to `TextGenerationOptions` and an immutable `withMiddleware()` method that replaces that runtime list, wrapping raw closures and retaining existing wrappers. Keep `forAgent()` unchanged. `GeneratesText` and `StreamsText` apply the captured list only when nonempty, avoiding an extra options allocation on ordinary calls. Existing option copies preserve it.
+- `TextGenerationLoop::middlewareFor()` unwraps runtime closures once per run and prepends them to declared middleware. Preserve `runStep()` and its `StepResult` normalization. Do not add a registry, context slot, redundant getter, serialization filtering or middleware subsystem. Contract-only agents retain the empty default and their existing declared middleware.
+- Middleware wraps model steps, not individual tools, approval execution or an entire nested agent tree. It may use the existing `StepResult::then()` for response checks. Do not present it as immediate interruption of ongoing I/O or change tool exception handling. No added database/network calls, polling or per-token processing.
+
+Extend the existing middleware, prompt, stream and queue tests: runtime/declared ordering and repeated configuration; unchanged declared-only and contract-only behavior; snapshot membership through lazy failover and prompt revisions; queued-agent execution; serialization of both prompt-bearing events and `StartingStep`. Cover buffered and streamed step completion using existing fakes and fixtures, without duplicating the provider matrix.
+
+Update `src/docs/ai-sdk.md` in place with the fluent API, ordering/lifetime, lazy capture, queue requirements and model-step boundary. This opt-in addition needs no README compatibility entry or Laravel porting-guide entry.
+
 ### Cancellation and exception correctness
 
 Trace real cancellation paths and rethrow `CanceledException` through AgentTool, approval execution, title generation, Bedrock exception conversion, filesystem tool catches and StreamProtocol masking. Clean up owned child operations. Do not add cancellation branches to unrelated catches.
