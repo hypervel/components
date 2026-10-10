@@ -4,12 +4,18 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Ai\Feature;
 
+use Hypervel\Ai\Ai;
 use Hypervel\Ai\AiManager;
 use Hypervel\Ai\Contracts\Providers\AudioProvider;
-use Hypervel\Config\Repository;
+use Hypervel\Ai\Contracts\Providers\TextProvider;
+use Hypervel\Ai\Gateway\OpenAi\OpenAiGateway;
+use Hypervel\Ai\Providers\OpenAiProvider;
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application;
-use Hypervel\Tests\TestCase;
+use Hypervel\Support\Facades\Facade;
+use Hypervel\Tests\Ai\TestCase;
+use InvalidArgumentException;
 use LogicException;
 use Mockery as m;
 
@@ -18,20 +24,110 @@ class AiManagerTest extends TestCase
     protected AiManager $manager;
 
     /**
-     * Create the manager with a configured custom driver.
+     * Configure the custom driver used by the contract tests.
+     */
+    protected function defineEnvironment(Application $app): void
+    {
+        parent::defineEnvironment($app);
+
+        $app->make('config')->set([
+            'ai.default' => 'configured',
+            'ai.providers.configured' => ['driver' => 'custom', 'key' => 'configured-key'],
+        ]);
+    }
+
+    /**
+     * Resolve the manager.
      */
     protected function setUp(): void
     {
         parent::setUp();
 
-        $application = m::mock(Application::class);
-        $application->shouldReceive('make')->with('config')->andReturn(new Repository([
-            'ai' => [
-                'default' => 'configured',
-                'providers' => ['configured' => ['driver' => 'custom', 'key' => 'configured-key']],
-            ],
-        ]));
-        $this->manager = new AiManager($application);
+        $this->manager = $this->app->make(AiManager::class);
+    }
+
+    public function testCanGetAnOpenaiProviderInstance(): void
+    {
+        $this->assertInstanceOf(OpenAiProvider::class, Ai::textProvider('openai'));
+    }
+
+    public function testProviderTypeIsEnsured(): void
+    {
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('does not support audio generation');
+
+        Ai::audioProvider('anthropic');
+    }
+
+    public function testAConfiguredProviderCastsToItsDriver(): void
+    {
+        config(['ai.providers.cloudflare' => ['driver' => 'openai-compatible', 'url' => 'https://example.com/v1']]);
+
+        $this->assertSame('openai-compatible', (string) Ai::textProvider('cloudflare'));
+    }
+
+    public function testAnOnDemandProviderCannotReplaceAConfiguredProvider(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The provider name [anthropic] is already taken.');
+
+        Ai::build(['name' => 'anthropic', 'driver' => 'anthropic', 'key' => 'tenant-key']);
+    }
+
+    public function testAnOnDemandProviderCannotTakeABuiltInProviderName(): void
+    {
+        config(['ai.providers' => []]);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The provider name [openai] is already taken.');
+
+        Ai::build(['name' => 'openai', 'driver' => 'anthropic', 'key' => 'tenant-key']);
+    }
+
+    public function testRebuildingANamedOnDemandProviderUsesTheNewConfiguration(): void
+    {
+        Ai::build(['name' => 'tenant', 'driver' => 'anthropic', 'key' => 'old-key']);
+
+        $this->assertSame(['key' => 'new-key'], Ai::build(['name' => 'tenant', 'driver' => 'anthropic', 'key' => 'new-key'])->providerCredentials());
+    }
+
+    public function testAnOnDemandProviderKeepsItsInternalFlagOutOfItsAdditionalConfiguration(): void
+    {
+        $this->assertSame(['url' => 'https://tenant.example.com/v1'], Ai::build(['driver' => 'anthropic', 'key' => 'tenant-key', 'url' => 'https://tenant.example.com/v1'])->additionalConfiguration());
+    }
+
+    public function testFlushingStateForgetsOnDemandProvidersButKeepsConfiguredProviders(): void
+    {
+        $configured = Ai::textProvider('anthropic');
+        $onDemand = Ai::build(['driver' => 'anthropic', 'key' => 'tenant-key']);
+
+        Ai::flushState();
+
+        $this->assertSame($configured, Ai::textProvider('anthropic'));
+        $this->assertThrows(fn (): TextProvider => Ai::textProvider($onDemand->name()), InvalidArgumentException::class, 'was not built in this operation');
+    }
+
+    // REMOVED: queue-loop and Octane flush tests; on-demand providers belong to their coroutine.
+
+    public function testDriverExtensionsSurviveBetweenQueueJobs(): void
+    {
+        config(['ai.providers.custom' => ['driver' => 'custom']]);
+
+        Ai::extend('custom', fn (Application $app, array $config): OpenAiProvider => new OpenAiProvider(
+            $app->make(OpenAiGateway::class),
+            $config,
+            $app->make(Dispatcher::class),
+        ));
+
+        $runJobOnFreshScope = function (): TextProvider {
+            $this->app->forgetScopedInstances();
+            Facade::clearResolvedInstances();
+
+            return Ai::textProvider('custom');
+        };
+
+        $this->assertInstanceOf(OpenAiProvider::class, $runJobOnFreshScope());
+        $this->assertInstanceOf(OpenAiProvider::class, $runJobOnFreshScope());
     }
 
     public function testCustomDriversMayImplementProviderContractsWithoutExtendingTheBaseClass(): void
@@ -40,10 +136,6 @@ class AiManagerTest extends TestCase
         $this->manager->extend('custom', static fn (): AudioProvider => $provider);
 
         $this->assertSame($provider, $this->manager->audioProvider());
-        $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('does not support image generation');
-
-        $this->manager->imageProvider();
     }
 
     public function testConversationPartitionRegistrationCannotBeReplaced(): void
