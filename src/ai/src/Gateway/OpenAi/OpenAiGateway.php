@@ -94,7 +94,7 @@ class OpenAiGateway implements Gateway, StepTextGateway
         return new ImageResponse(
             collect($data['data'] ?? [])->map(fn (array $image): GeneratedImage => new GeneratedImage(
                 $image['b64_json'] ?? '',
-                'image/png',
+                'image/' . ($data['output_format'] ?? 'png'),
             )),
             $this->extractImageUsage($data),
             new Meta($provider->name(), $model),
@@ -158,14 +158,14 @@ class OpenAiGateway implements Gateway, StepTextGateway
             $request = $request->attach($field, $content, 'image.png');
         }
 
-        return $request->post('images/edits', array_merge($providerOptions, array_filter([
+        return $request->post('images/edits', array_merge($providerOptions, [
             'model' => $model,
             'prompt' => $prompt,
             ...$provider->defaultImageOptions($size, $quality),
             ...($isGptImage
                 ? ['moderation' => 'low']
                 : ['response_format' => 'b64_json']),
-        ])));
+        ]));
     }
 
     /**
