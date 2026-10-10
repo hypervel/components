@@ -9,6 +9,8 @@ Documentation: https://hypervel.org/docs/ai-sdk
 
 Agent and stream-event `broadcast()` methods deliver events immediately by default. Pass `now: false` to queue individual events; queued generation remains available. See [broadcasting](https://hypervel.org/docs/ai-sdk#broadcasting).
 
+Queued AI jobs' `failed()` hooks accept `?Throwable` so manual failures without an exception reach their callbacks. Overrides must accept null as well.
+
 `Promptable::getProvidersAndModels()` returns an ordered list of `[Provider|string, ?string]` pairs instead of a name-keyed map, preserving provider objects and their credentials. Update overrides to return pairs. Failover retains repeated entries as separate attempts. The public `Provider::formatProviderAndModelList()` utility retains its name-keyed return format. See [failover](https://hypervel.org/docs/ai-sdk#failover).
 
 Pending requests' protected `resolveProviderOptionsAndHeaders()` helper accepts the provider contract so custom implementations work. `PendingEmbeddingsGeneration`'s protected caching helpers receive precomputed identities or keys, keeping cache reads and writes consistent without repeated identity calculation. Subclasses overriding these helpers must match the Hypervel signatures; public generation and caching methods are unchanged.
