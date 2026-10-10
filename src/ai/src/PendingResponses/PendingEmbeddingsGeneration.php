@@ -247,9 +247,11 @@ class PendingEmbeddingsGeneration
         $response = $this->cacheStore()->get($key);
 
         if (! is_null($response)) {
-            return new EmbeddingsResponse(array_map($this->decodeEmbedding(...), $response['embeddings']), new Usage, new Meta(
-                provider: $response['provider'],
-                model: $response['model'],
+            $response = json_decode((string) $response, true);
+
+            return new EmbeddingsResponse($response['embeddings'], new Usage, new Meta(
+                provider: $response['meta']['provider'],
+                model: $response['meta']['model'],
             ));
         }
 
@@ -263,11 +265,7 @@ class PendingEmbeddingsGeneration
     {
         $this->cacheStore()->put(
             $key,
-            [
-                'embeddings' => array_map($this->encodeEmbedding(...), $response->embeddings),
-                'provider' => $response->meta->provider,
-                'model' => $response->meta->model,
-            ],
+            json_encode($response),
             $this->cacheSeconds ?? Config::integer('ai.caching.embeddings.seconds', self::DEFAULT_CACHE_SECONDS)
         );
     }
@@ -290,7 +288,7 @@ class PendingEmbeddingsGeneration
 
         foreach ($keys as $index => $key) {
             if (! is_null($values[$key] ?? null)) {
-                $embeddings[$index] = $this->decodeEmbedding($values[$key]);
+                $embeddings[$index] = json_decode((string) $values[$key], true);
             }
         }
 
@@ -308,33 +306,13 @@ class PendingEmbeddingsGeneration
         $values = [];
 
         foreach ($embeddings as $index => $embedding) {
-            $values[$keys[$index]] = $this->encodeEmbedding($embedding);
+            $values[$keys[$index]] = json_encode($embedding);
         }
 
         $this->cacheStore()->setMultiple(
             $values,
             $this->cacheSeconds ?? Config::integer('ai.caching.embeddings.seconds', self::DEFAULT_CACHE_SECONDS)
         );
-    }
-
-    /**
-     * Encode a vector without rounding its floating-point values.
-     *
-     * @param array<float> $embedding
-     */
-    protected function encodeEmbedding(array $embedding): string
-    {
-        return base64_encode(pack('e*', ...$embedding));
-    }
-
-    /**
-     * Decode a cached vector.
-     *
-     * @return list<float>
-     */
-    protected function decodeEmbedding(string $embedding): array
-    {
-        return array_values(unpack('e*', base64_decode($embedding)));
     }
 
     /**
