@@ -274,8 +274,7 @@ class AgentEventsTest extends TestCase
 
         $response = (new AssistantAgent)->stream('Hi');
 
-        foreach ($response as $event) {
-        }
+        foreach ($response as $event);
 
         Event::assertDispatchedTimes(StartingStep::class, 1);
 
@@ -561,8 +560,7 @@ class AgentEventsTest extends TestCase
 
         $response = (new AssistantAgent)->stream('Hi', provider: ['primary', 'backup']);
 
-        foreach ($response as $event) {
-        }
+        foreach ($response as $event);
 
         Event::assertDispatched(StepFailed::class);
         Event::assertDispatched(AgentFailedOver::class);
@@ -615,8 +613,7 @@ class AgentEventsTest extends TestCase
         $response = (new AssistantAgent)->stream('Hi', provider: ['primary', 'backup']);
 
         $this->assertThrows(function () use ($response): void {
-            foreach ($response as $event) {
-            }
+            foreach ($response as $event);
         }, RateLimitedException::class);
 
         Event::assertDispatchedTimes(AgentFailedOver::class, 1);
@@ -654,8 +651,7 @@ class AgentEventsTest extends TestCase
         $response = (new AssistantAgent)->stream('Hi', provider: 'only');
 
         $this->assertThrows(function () use ($response): void {
-            foreach ($response as $event) {
-            }
+            foreach ($response as $event);
         }, RateLimitedException::class);
 
         Event::assertDispatchedTimes(AgentFailed::class, 1);
@@ -693,8 +689,7 @@ class AgentEventsTest extends TestCase
         $response = (new AssistantAgent)->stream('Hi');
 
         $this->assertThrows(function () use ($response): void {
-            foreach ($response as $event) {
-            }
+            foreach ($response as $event);
         }, RuntimeException::class, 'Stream exploded.');
 
         Event::assertDispatched(StepFailed::class);
@@ -718,8 +713,7 @@ class AgentEventsTest extends TestCase
         $response = (new AssistantAgent)->stream('Hi', provider: 'only');
 
         $this->assertThrows(function () use ($response): void {
-            foreach ($response as $event) {
-            }
+            foreach ($response as $event);
         }, StreamErrorException::class, 'Upstream exploded.');
 
         // The provider reported the error in the stream rather than throwing, but the step still has to close...
