@@ -19,6 +19,8 @@ use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
 use PDO;
+use PHPUnit\Framework\Attributes\TestWith;
+use RuntimeException;
 use UnitEnum;
 
 use function Hypervel\Coroutine\run;
@@ -159,6 +161,46 @@ class EloquentDateFormatPoolingTest extends TestCase
             $this->assertSame('Y-m-d H:i:s', (new DatedModel)->getDateFormat());
             $this->assertSame(0, $pool->getBorrowedCount());
         });
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testSharedReconnectRecordsTheNewFormatOnlyAfterListenersSucceed(bool $fail): void
+    {
+        DB::extend('pool_test', static fn (array $config): SQLiteConnection => new SQLiteConnection(
+            new PDO('sqlite:' . $config['database']),
+            $config['database'],
+            $config['prefix'],
+            $config,
+        ));
+        $pool = $this->app->make(PoolManager::class)->pool('pool_test');
+
+        run(function () use ($pool, $fail): void {
+            $connection = DB::connection('pool_test');
+            $this->assertSame('Y-m-d H:i:s', $pool->recordedDateFormat());
+            $failure = new RuntimeException('Listener refused the replacement session.');
+            Event::listen(ConnectionEstablished::class, function (ConnectionEstablished $event) use ($pool, $fail, $failure): void {
+                $this->assertNull($pool->recordedDateFormat());
+                $event->connection->setQueryGrammar(new TimestampGrammar($event->connection));
+
+                if ($fail) {
+                    throw $failure;
+                }
+            });
+
+            $caught = null;
+
+            try {
+                $connection->reconnect();
+            } catch (RuntimeException $exception) {
+                $caught = $exception;
+            }
+
+            $this->assertSame($fail ? $failure : null, $caught);
+            $this->assertSame($fail ? null : 'U', $pool->recordedDateFormat());
+        });
+
+        $this->assertSame($fail ? null : 'U', $pool->recordedDateFormat());
     }
 
     public function testModelFormatsAndOverriddenConnectionsKeepTheirOwnDateFormats(): void

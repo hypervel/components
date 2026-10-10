@@ -670,18 +670,21 @@ class PooledConnection implements PoolConnection
      */
     protected function refresh(Connection $connection): void
     {
+        $this->pool->forgetDateFormat();
+
         try {
             $connection->refreshFrom($this->makeConnection());
+
+            // The resolver already owns a refreshed connection, so notify immediately.
+            $this->connectionEstablishedEventPending = true;
+            $this->dispatchConnectionEstablishedEvent();
         } catch (Throwable $exception) {
             $this->markInvalid();
 
             throw $exception;
         }
 
-        // The resolver already owns a refreshed connection, so notify immediately.
-        $this->connectionEstablishedEventPending = true;
-        $this->dispatchConnectionEstablishedEvent();
-
+        $this->recordDateFormat();
         $this->stampGeneration(hrtime(true) / 1e9);
     }
 }

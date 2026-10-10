@@ -1622,11 +1622,13 @@ DB::table('users')->insert([
 Each database limits how many values one statement may bind. When inserting many records at once, you may split them using the connection's `maxBindings` method, which returns the limit of the connection's database:
 
 ```php
-$connection = DB::connection();
-$perStatement = intdiv($connection->maxBindings(), count($records[0]));
+if ($records !== []) {
+    $connection = DB::connection();
+    $perStatement = intdiv($connection->maxBindings(), count($records[0]));
 
-foreach (array_chunk($records, $perStatement) as $chunk) {
-    $connection->table('users')->insert($chunk);
+    foreach (array_chunk($records, $perStatement) as $chunk) {
+        $connection->table('users')->insert($chunk);
+    }
 }
 ```
 

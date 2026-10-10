@@ -683,6 +683,8 @@ SQLite JSON-path updates replace assigned objects and retain JSON null. Review a
 
 Database connections are persistent, pooled worker resources. Define every connection in `config/database.php` before the application boots. Dynamic connection creation through `DB::build()` and `DB::connectUsing()` is not supported. Review pool sizing and any database session state against the [database documentation](/docs/{{version}}/database#connection-pooling).
 
+To use a custom query grammar on every connection, register a connection subclass with `Connection::resolverFor()` that overrides `getDefaultQueryGrammar()`. On connections that support early release, `setQueryGrammar()` changes only the current coroutine's connection, and `ConnectionEstablished` runs only when a new database session opens, so neither applies a grammar to every caller. See [extending database connections](/docs/{{version}}/database#extending-database-connections).
+
 Outgoing framework HTTP requests release idle database sessions automatically. Wrap code that depends on the same session across an HTTP call, such as temporary tables, session locks or retained raw PDOs, in `DB::withPinnedSession()`. Active transactions remain pinned automatically. See [releasing and pinning connections](/docs/{{version}}/database#releasing-and-pinning-connections).
 
 When a package constructs `DatabaseStore`, `DatabaseSessionHandler`, `DatabaseQueue`, or `DatabaseBatchRepository` directly, pass the database connection resolver and configured connection name instead of retaining a resolved connection. Framework-configured drivers already use this form.

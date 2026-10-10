@@ -54,6 +54,7 @@ use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
 use Hypervel\Support\Uri;
 use Hypervel\Testing\ParallelTesting;
+use Hypervel\Tests\Http\Fixtures\LoopbackHttpServer;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use JsonException;
@@ -3381,44 +3382,110 @@ class HttpClientTest extends TestCase
 
     public function testSinkToPsrStreamWhenFaked(): void
     {
-        $this->factory->fakeSequence()->push('abc123');
+        $body = str_repeat('abc123', 6000);
+        $this->factory->fakeSequence()->push($body);
 
-        $stream = Utils::streamFor('');
+        $stream = new PrefixWriteStream(Utils::streamFor(''), 16384);
 
         $this->factory->sink($stream)->get('https://example.com');
 
         $this->assertSame(0, $stream->tell());
-        $this->assertSame('abc123', $stream->getContents());
+        $this->assertSame($body, $stream->getContents());
     }
 
-    public function testPartialPsrSinkWritesTheCompleteBody(): void
+    #[TestWith(['missing_directory'])]
+    #[TestWith(['path_write'])]
+    #[TestWith(['throwing_stream'])]
+    #[TestWith(['short_write'])]
+    #[TestWith(['resource'])]
+    public function testFakeSinkFailuresMatchTheInstalledTransport(string $case): void
     {
-        $this->factory->fakeSequence()->push('abc123');
+        $directory = ParallelTesting::tempDir('HttpClientSinkParity');
+        $filesystem = new Filesystem;
+        $filesystem->deleteDirectory($directory);
+        $filesystem->ensureDirectoryExists($directory);
+        $outcomes = [];
 
-        $inner = Utils::streamFor('');
-        $stream = new PrefixWriteStream($inner, 2);
+        try {
+            run(function () use ($case, $directory, &$outcomes): void {
+                foreach ([false, true] as $fake) {
+                    $factory = new Factory;
+                    $factory->record();
+                    $url = 'http://127.0.0.1:1/';
 
-        $this->factory->sink($stream)->get('https://example.com');
+                    if ($fake) {
+                        $factory->fake(['*' => Factory::response('abc123')]);
+                    } elseif ($case !== 'missing_directory') {
+                        $server = LoopbackHttpServer::start([['body' => 'abc123']]);
+                        $url = 'http://127.0.0.1:' . $server->port . '/';
+                    }
 
-        $this->assertSame(3, $stream->writeCount);
-        $this->assertSame(0, $stream->tell());
-        $this->assertSame('abc123', $stream->getContents());
+                    $sink = match ($case) {
+                        'missing_directory' => $directory . '/missing/body',
+                        'path_write' => $directory,
+                        'throwing_stream' => new ThrowingWriteStream(Utils::streamFor('')),
+                        'short_write' => new PrefixWriteStream(Utils::streamFor(''), 2),
+                        'resource' => fopen('php://memory', 'r'),
+                    };
+                    $failure = null;
+                    $headersSeen = false;
+
+                    try {
+                        $factory->sink($sink)->timeout(2)->withOptions([
+                            'on_headers' => function () use (&$headersSeen): void {
+                                $headersSeen = true;
+                            },
+                        ])->get($url);
+                    } catch (Throwable $exception) {
+                        $failure = $exception;
+                    } finally {
+                        if (is_resource($sink)) {
+                            fclose($sink);
+                        } elseif ($sink instanceof StreamInterface) {
+                            $sink->close();
+                        }
+                    }
+
+                    $pair = $factory->recorded()->first();
+                    $outcomes[] = [$failure, $headersSeen, $pair === null ? null : $pair[1]?->status()];
+                }
+            });
+        } finally {
+            $filesystem->deleteDirectory($directory);
+        }
+
+        foreach ($outcomes as [$failure, $headersSeen]) {
+            $this->assertNotNull($failure, 'Both the real and fake sink writes must fail.');
+            $this->assertSame($case !== 'missing_directory', $headersSeen);
+
+            if ($case === 'missing_directory' && $failure instanceof ConnectionException) {
+                // A refused connection also has no headers, but carries a different transport exception.
+                $this->assertSame(GuzzleRequestException::class, $failure->getPrevious()::class);
+            }
+        }
+
+        $this->assertSame($outcomes[0][0]::class, $outcomes[1][0]::class);
+        $this->assertSame($outcomes[0][2], $outcomes[1][2]);
     }
 
-    public function testZeroProgressPsrSinkFailsLikeATransportAndRecordsTheResponse(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testZeroProgressPsrSinkFailsLikeATransportAndRecordsTheResponse(bool $async): void
     {
         $this->factory->fakeSequence()->push('abc123');
         $stream = new PrefixWriteStream(Utils::streamFor(''), 0);
 
         try {
-            $this->factory->sink($stream)->get('https://example.com');
-            $this->fail('ConnectionException was not thrown.');
-        } catch (ConnectionException $exception) {
-            $this->assertSame('Unable to write to stream', $exception->getMessage());
-            // Guzzle 8 carries the response on its ResponseException, Guzzle 7 on its RequestException.
-            $this->assertInstanceOf(GuzzleRequestException::class, $exception->getPrevious());
-            $this->assertSame(200, $exception->getPrevious()->getResponse()?->getStatusCode());
+            $result = $this->factory->sink($stream)->async($async)->get('https://example.com');
+            $exception = $async ? $result->wait() : null;
+        } catch (ConnectionException $failure) {
+            $exception = $failure;
         }
+
+        $this->assertInstanceOf(ConnectionException::class, $exception);
+        $this->assertSame('Unable to write to stream', $exception->getMessage());
+        $this->assertInstanceOf(GuzzleRequestException::class, $exception->getPrevious());
+        $this->assertSame(200, $exception->getPrevious()->getResponse()?->getStatusCode());
 
         $this->factory->assertSentCount(1);
         $this->factory->assertSent(fn (Request $request, ?Response $response): bool => $request->url() === 'https://example.com'
@@ -3465,24 +3532,54 @@ class HttpClientTest extends TestCase
         $this->assertSame('abc123', (string) $stream);
     }
 
-    public function testOnHeadersFailuresOnFakedResponsesFailLikeATransport(): void
+    #[TestWith([false, 200])]
+    #[TestWith([true, 200])]
+    #[TestWith([true, 302])]
+    public function testOnHeadersFailuresOnFakedResponsesFailLikeATransport(bool $async, int $status): void
     {
-        $this->factory->fakeSequence()->push('abc123');
+        $this->factory->fakeSequence()->push('abc123', $status);
         $failure = new RuntimeException('Refused.');
 
         try {
-            $this->factory->withOptions([
+            $result = $this->factory->async($async)->withOptions([
                 'on_headers' => function () use ($failure): void {
                     throw $failure;
                 },
             ])->get('https://example.com');
-            $this->fail('ConnectionException was not thrown.');
-        } catch (ConnectionException $exception) {
-            $this->assertSame('An error was encountered during the on_headers event', $exception->getMessage());
-            $this->assertSame($failure, $exception->getPrevious()?->getPrevious());
+            $exception = $async ? $result->wait() : null;
+        } catch (ConnectionException $caught) {
+            $exception = $caught;
         }
 
-        $this->factory->assertSent(fn (Request $request, ?Response $response): bool => $response?->status() === 200);
+        $this->assertInstanceOf(ConnectionException::class, $exception);
+        $this->assertSame('An error was encountered during the on_headers event', $exception->getMessage());
+        $this->assertSame($failure, $exception->getPrevious()?->getPrevious());
+        $this->factory->assertSent(fn (Request $request, ?Response $response): bool => $response?->status() === $status);
+    }
+
+    public function testAsyncResponseBearingFailuresCanRetryWithoutReportingAConnectionFailure(): void
+    {
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->andReturnTrue();
+        $events->shouldReceive('dispatch')->with(m::type(RequestSending::class))->twice();
+        $events->shouldReceive('dispatch')->with(m::type(ResponseReceived::class))->once();
+        $events->shouldNotReceive('dispatch')->with(m::type(ConnectionFailedEvent::class));
+        $factory = new Factory($events);
+        $factory->fakeSequence()->push('first')->push('second');
+        $seen = 0;
+        $failure = new RuntimeException('Refused the first response.');
+
+        $response = $factory->async()->retry(2, 0)->withOptions([
+            'on_headers' => function () use (&$seen, $failure): void {
+                if (++$seen === 1) {
+                    throw $failure;
+                }
+            },
+        ])->get('https://example.com')->wait();
+
+        $this->assertSame('second', $response->body());
+        $factory->assertSentCount(2);
+        $this->assertSame([200, 200], $factory->recorded()->map(fn (array $pair) => $pair[1]?->status())->all());
     }
 
     public function testNonseekableResourceSinkReceivesTheCompleteBody(): void
@@ -3578,49 +3675,6 @@ class HttpClientTest extends TestCase
         } catch (RuntimeException $exception) {
             $this->assertSame($failure, $exception);
         }
-    }
-
-    public function testFailedFakePathSinkIsRecordedAndPropagated(): void
-    {
-        $directory = ParallelTesting::tempDir('HttpClientFailedSink');
-        $filesystem = new Filesystem;
-        $filesystem->deleteDirectory($directory);
-        $sink = $directory . '/missing/sunk.txt';
-
-        $this->factory->fake(['*' => $this->factory::response('abc123')]);
-
-        try {
-            $this->factory->sink($sink)->get('https://example.com');
-            $this->fail('RuntimeException was not thrown.');
-        } catch (RuntimeException $exception) {
-            $this->assertSame("Unable to write response body to sink [{$sink}].", $exception->getMessage());
-        } finally {
-            $filesystem->deleteDirectory($directory);
-        }
-
-        $this->factory->assertSentCount(1);
-        $this->factory->assertSent(fn (Request $request, ?Response $response) => $request->url() === 'https://example.com'
-            && $response === null);
-    }
-
-    public function testFailedFakeResourceSinkFailsLikeATransportAndRecordsTheResponse(): void
-    {
-        $sink = fopen('php://memory', 'r');
-
-        $this->factory->fake(['*' => $this->factory::response('abc123')]);
-
-        try {
-            $this->factory->sink($sink)->get('https://example.com');
-            $this->fail('ConnectionException was not thrown.');
-        } catch (ConnectionException $exception) {
-            $this->assertSame('Unable to write to stream', $exception->getMessage());
-        } finally {
-            fclose($sink);
-        }
-
-        $this->factory->assertSentCount(1);
-        $this->factory->assertSent(fn (Request $request, ?Response $response) => $request->url() === 'https://example.com'
-            && $response?->status() === 200);
     }
 
     public function testCanAssertAgainstOrderOfHttpRequestsWithUrlStrings(): void
@@ -7202,6 +7256,18 @@ class PrefixWriteStream implements StreamInterface
         ++$this->writeCount;
 
         return $this->stream->write(substr($string, 0, $this->prefixLength));
+    }
+}
+
+class ThrowingWriteStream implements StreamInterface
+{
+    use StreamDecoratorTrait;
+
+    protected StreamInterface $stream;
+
+    public function write($string): int
+    {
+        throw new RuntimeException('Sink write failed.');
     }
 }
 
