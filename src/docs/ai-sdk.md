@@ -1339,7 +1339,7 @@ The simplest way to create a similarity search tool is using the `usingModel` me
 
 ```php
 use App\Models\Document;
-use Laravel\Ai\Tools\SimilaritySearch;
+use Hypervel\Ai\Tools\SimilaritySearch;
 
 public function tools(): iterable
 {
@@ -1367,7 +1367,7 @@ For more control, you may create a similarity search tool with a custom closure 
 
 ```php
 use App\Models\Document;
-use Laravel\Ai\Tools\SimilaritySearch;
+use Hypervel\Ai\Tools\SimilaritySearch;
 
 public function tools(): iterable
 {
