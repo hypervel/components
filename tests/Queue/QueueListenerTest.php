@@ -6,8 +6,10 @@ namespace Hypervel\Tests\Queue;
 
 use Hypervel\Queue\Listener;
 use Hypervel\Queue\ListenerOptions;
+use Hypervel\Support\Sleep;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use RuntimeException;
 use Symfony\Component\Process\Process;
 
 use function Hypervel\Support\artisan_binary;
@@ -34,6 +36,29 @@ class QueueListenerTest extends TestCase
         $listener->expects('stop');
 
         $listener->runProcess($process, 1);
+    }
+
+    public function testListenRestsForFractionalSecondsBetweenWorkers(): void
+    {
+        Sleep::fake();
+        $stop = new RuntimeException('Stop listening.');
+        $runs = 0;
+        $listener = m::mock(Listener::class)->makePartial();
+        $listener->allows('makeProcess')->andReturn(m::mock(Process::class));
+        $listener->expects('runProcess')->twice()->andReturnUsing(static function () use (&$runs, $stop): void {
+            if (++$runs === 2) {
+                throw $stop;
+            }
+        });
+
+        try {
+            $listener->listen('connection', 'queue', new ListenerOptions(rest: 0.25));
+            $this->fail('The listener should have stopped.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($stop, $exception);
+        }
+
+        Sleep::assertSequence([Sleep::usleep(250_000)]);
     }
 
     public function testMakeProcessCorrectlyFormatsCommandLine(): void

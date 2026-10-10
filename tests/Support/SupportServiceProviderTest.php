@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Support;
 
 use Hypervel\Config\Repository as ConfigRepository;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Configuration\ConfigMutationTracker;
@@ -520,6 +521,40 @@ class SupportServiceProviderTest extends TestCase
         $this->assertSame('package-prefix', $config->get('flat.prefix'));
     }
 
+    public function testConfigureUsingComputesAgainAgainstTheRebuiltConfiguration(): void
+    {
+        $masterConfig = new ConfigRepository(['computed' => ['record' => 10]]);
+        $tracker = new ConfigMutationTracker;
+        $tracker->observe($masterConfig);
+        $app = m::mock(Application::class)->makePartial();
+        $app->shouldReceive('configurationIsCached')->andReturn(false);
+        $app->shouldReceive('make')->with('config')->andReturn($masterConfig);
+        $app->shouldReceive('make')->with(ConfigMutationTracker::class)->andReturn($tracker);
+
+        (new ServiceProviderForTestingComputed($app))->register();
+
+        $this->assertSame(20, $masterConfig->get('computed.buffer'));
+
+        // A worker whose environment changed the input computes the value from it.
+        $workerConfig = new ConfigRepository(['computed' => ['record' => 15]]);
+        $tracker->replay($workerConfig);
+
+        $this->assertSame(30, $workerConfig->get('computed.buffer'));
+    }
+
+    public function testConfigureUsingSkipsWhenConfigIsCached(): void
+    {
+        $app = m::mock(Application::class)->makePartial();
+        $app->shouldReceive('configurationIsCached')->andReturn(true);
+        $app->shouldReceive('make')->with('config')->never();
+        $app->shouldReceive('make')->with(ConfigMutationTracker::class)->never();
+
+        // Cached configuration already holds the computed value, so neither the configuration nor the tracker is touched.
+        (new ServiceProviderForTestingComputed($app))->register();
+
+        $this->addToAssertionCount(1);
+    }
+
     public function testLoadTranslationsFromWithoutNamespace(): void
     {
         $translator = m::mock(Translator::class);
@@ -716,6 +751,16 @@ class ServiceProviderForTestingReplace extends ServiceProvider
     public function register(): void
     {
         $this->replaceConfigRecursivelyFrom(__DIR__ . '/Fixtures/config/package_flat.php', 'flat');
+    }
+}
+
+class ServiceProviderForTestingComputed extends ServiceProvider
+{
+    public function register(): void
+    {
+        $this->configureUsing(static function (Repository $config): void {
+            $config->set('computed.buffer', $config->integer('computed.record') * 2);
+        });
     }
 }
 

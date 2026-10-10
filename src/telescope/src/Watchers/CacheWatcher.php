@@ -18,42 +18,16 @@ use Hypervel\Telescope\Telescope;
 class CacheWatcher extends Watcher
 {
     /**
-     * Indicates if the cache event is enabled.
-     */
-    protected static bool $eventsEnabled = false;
-
-    /**
      * Register the watcher.
      */
     public function register(Application $app): void
     {
-        if (! static::$eventsEnabled) {
-            return;
-        }
-
         $event = $app->make(Dispatcher::class);
 
         $event->listen(CacheHit::class, [$this, 'recordCacheHit']);
         $event->listen(CacheMissed::class, [$this, 'recordCacheMissed']);
         $event->listen(KeyWritten::class, [$this, 'recordKeyWritten']);
         $event->listen(KeyForgotten::class, [$this, 'recordKeyForgotten']);
-    }
-
-    /**
-     * Enable Cache events.
-     *
-     * Boot-only. Must be called before the Cache is initialized. Mutates
-     * process-global config and a static flag; runtime use races across
-     * coroutines.
-     */
-    public static function enableCacheEvents(Application $app): void
-    {
-        $config = $app->make('config');
-        foreach (array_keys($config->array('cache.stores')) as $store) {
-            $config->set("cache.stores.{$store}.events", true);
-        }
-
-        static::$eventsEnabled = true;
     }
 
     /**
@@ -155,13 +129,5 @@ class CacheWatcher extends Watcher
             'framework/schedule*',
             'telescope:*',
         ]), $event->key);
-    }
-
-    /**
-     * Flush all static state.
-     */
-    public static function flushState(): void
-    {
-        static::$eventsEnabled = false;
     }
 }

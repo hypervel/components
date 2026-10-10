@@ -1212,6 +1212,24 @@ class FilesystemManagerTest extends TestCase
         $this->assertInstanceOf(FilesystemPoolProxy::class, $filesystem->disk('local'));
     }
 
+    #[TestWith(['ftp'])]
+    #[TestWith(['sftp'])]
+    public function testConnectionHoldingDisksArePooledWhole(string $driver): void
+    {
+        // Each adapter keeps one connection, which concurrent coroutines must not share.
+        $filesystem = new FilesystemManager($this->getContainer([
+            'disks' => [
+                'remote' => [
+                    'driver' => $driver,
+                    'host' => 'files.example.com',
+                    'username' => 'hypervel',
+                ],
+            ],
+        ]));
+
+        $this->assertInstanceOf(FilesystemPoolProxy::class, $filesystem->disk('remote'));
+    }
+
     public function testS3DisksWithTheSameClientConfigShareOneClientPoolAcrossBuckets(): void
     {
         $container = $this->getContainer([
@@ -1811,6 +1829,40 @@ class FilesystemManagerTest extends TestCase
             $this->assertArrayNotHasKey('pool', $receivedConfig);
             $this->assertSame('same', $receivedConfig['marker']);
         }
+    }
+
+    public function testCustomDriversThatAreNotPoolableReceiveTheirPoolOptions(): void
+    {
+        $container = $this->getContainer([
+            'disks' => [
+                'custom' => [
+                    'driver' => 'custom',
+                    'root' => $this->tempDir . '/custom-unpooled',
+                    'pool' => ['max_objects' => 2],
+                ],
+                'scoped-custom' => [
+                    'driver' => 'scoped',
+                    'disk' => 'custom',
+                    'prefix' => 'scoped',
+                    'pool' => ['max_objects' => 3],
+                ],
+            ],
+        ]);
+        Container::setInstance($container);
+        $received = [];
+        $manager = new FilesystemManager($container);
+        $manager->extend('custom', function (Container $app, array $config) use (&$received): FilesystemAdapter {
+            $received[] = $config['pool'] ?? null;
+            $adapter = new LocalFilesystemAdapter($config['root']);
+
+            return new FilesystemAdapter(new Flysystem($adapter), $adapter, $config);
+        });
+
+        $this->assertNotInstanceOf(FilesystemPoolProxy::class, $manager->disk('custom'));
+        $manager->disk('scoped-custom');
+
+        // A scoped disk's own pool options replace its base disk's, as for every scoped option.
+        $this->assertSame([['max_objects' => 2], ['max_objects' => 3]], $received);
     }
 
     public function testPoolableBuiltInDriversIncludeTheLogicalNameInConstructionIdentity(): void

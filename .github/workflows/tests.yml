@@ -71,6 +71,43 @@ jobs:
           OTEL_SDK_DISABLED: true
         run: vendor/bin/testbench package:test --parallel
 
+  guzzle_7_compatibility:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: "!contains(github.event.head_commit.message, '[skip ci]') && !contains(github.event.head_commit.message, '[ci skip]')"
+    name: Guzzle 7 and promises 2
+
+    container:
+      image: ghcr.io/hypervel/components-ci:php8.4-swoole6.2.2
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Log trigger context
+        uses: ./.github/actions/log-trigger-context
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: /root/.composer/cache
+          key: composer-guzzle7-${{ hashFiles('composer.json') }}
+          restore-keys: composer-guzzle7-
+
+      - name: Install the supported Guzzle 7 dependency family
+        run: |
+          COMPOSER_MEMORY_LIMIT=-1 composer update --prefer-dist -n -o \
+            --with 'guzzlehttp/guzzle:^7.15.2' \
+            --with 'guzzlehttp/promises:^2.5.2' \
+            --with 'guzzlehttp/psr7:^2.13'
+
+      - name: Run ownership and affected consumer tests
+        run: >-
+          vendor/bin/paratest -c phpunit.xml.dist
+          --filter '(Guzzle|PusherClientTest|AwsCredentialConsumerTest|SerializedCredentialProvider|HttpClientTest|HttpConnectionTest|HttpClientDestinationPolicyTest|CurlStreamingHandlerTest|HttpClientStreamingTest|BedrockHttpHandlerTest|UntrustedUrlTest|AfterEachTestExtensionTest|GenerateProxiesTest|ServiceProviderDiTest)'
+
   wayfinder_tests:
     runs-on: ubuntu-latest
     timeout-minutes: 20

@@ -336,6 +336,35 @@ class PublicDestinationPolicyTest extends TestCase
         yield 'invalid host' => ['https://-example.com'];
     }
 
+    public function testValidationChecksAddressLiteralsWithoutResolvingHostnames(): void
+    {
+        $policy = new FakeDestinationPolicy(
+            allowedNetworks: ['10.0.0.0/8'],
+            allowedAddresses: ['192.168.0.9'],
+            proxy: 'https://proxy.example:8443',
+        );
+
+        $policy->validate('https://target.example/orders');
+        $policy->validate('https://[2001:4860:4860::8888]/');
+        $policy->validate('https://10.0.0.9/');
+        $policy->validate('https://192.168.0.9/');
+
+        $this->assertSame([], $policy->resolvedHosts);
+
+        $this->expectException(DisallowedDestinationException::class);
+        $this->expectExceptionMessage('disallowed address [169.254.169.254]');
+
+        $policy->validate('http://169.254.169.254/latest/meta-data');
+    }
+
+    #[DataProvider('invalidUrls')]
+    public function testValidationRejectsInvalidDestinationUrls(string $url): void
+    {
+        $this->expectException(DisallowedDestinationException::class);
+
+        (new FakeDestinationPolicy)->validate($url);
+    }
+
     public function testRejectsAProxyUrlWithAPath(): void
     {
         $policy = new FakeDestinationPolicy(proxy: 'https://proxy.example/egress');

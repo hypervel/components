@@ -513,6 +513,8 @@ Maintenance views prepared with `down --render` are served by running Hypervel w
 
 For concurrent HTTP requests, replace Laravel's `Http::pool` and `Http::batch` patterns with Hypervel's coroutine helpers, typically `parallel` from `Hypervel\Coroutine`. See the [HTTP client documentation](/docs/{{version}}/http-client#concurrent-requests) for examples.
 
+Create and finish pending Guzzle operations within one coroutine; share completed results instead of pending promises or active multi-handlers. Hypervel enforces this for Guzzle's mutable promises and cURL multi-handlers. Register SDK clients lazily in service providers so their classes load after proxy generation. See [Guzzle promises](/docs/{{version}}/http-client#guzzle-promises) and [proxy generation](/docs/{{version}}/aop#proxy-generation).
+
 `withNtlmAuth()` and Saloon's NTLM authenticator are not provided. Integrations requiring NTLM must supply their own authentication implementation.
 
 Hypervel's `Concurrency` facade provides `coroutine`, `process`, and `sync` drivers. Laravel's `fork` driver is not available because coroutines are Hypervel's native lightweight execution model. Use the default `coroutine` driver for normal concurrent application work and reserve `process` for work that requires operating system process isolation. See the [concurrency documentation](/docs/{{version}}/concurrency#choosing-a-driver).
@@ -539,6 +541,8 @@ Connectors may be shared by concurrent requests, so they are read-only. Move cod
 
 <a name="broadcasting"></a>
 ### Broadcasting
+
+For Pusher and Reverb, replace Guzzle's `max_host_connections` and `max_total_connections` client options with bounded coroutine concurrency or rate limiting. The default client rejects these options because their shared transport cannot be driven safely by concurrent coroutines. See [Pusher broadcasting](/docs/{{version}}/broadcasting#pusher-manual-installation).
 
 Mercure applications must configure a standalone HTTP hub. Hypervel runs on Swoole and does not use FrankenPHP's in-process `mercure_publish()` integration. See [Mercure broadcasting](/docs/{{version}}/broadcasting#mercure).
 
@@ -668,6 +672,8 @@ Hypervel's `Filesystem::hash()` method uses `xxh128` by default. Pass `md5` expl
 
 Custom filesystem contract implementations must also provide `fileExists()` and `directoryExists()`. The existing `exists()` method continues to accept either a file or a directory. See [retrieving files](/docs/{{version}}/filesystem#retrieving-files).
 
+S3, Google Cloud Storage, FTP, SFTP, and poolable custom disks are pooled, so they do not hand out objects that outlive an operation. Replace `getAdapter()` and `getDriver()` with `withAdapter()` and `withDriver()`, and an S3 or Google Cloud Storage disk's `getClient()` with `withClient()`; each callback receives the borrowed object. Methods a pooled disk does not support throw instead of forwarding to the driver. See [driver pools](/docs/{{version}}/filesystem#driver-pools).
+
 Unlike Laravel, Hypervel honors `read-only` on scoped disk records. Remove that option from any scoped disk that must accept writes.
 
 Rename any configured disk called `ondemand`; Hypervel reserves that name for [on-demand disk fakes](/docs/{{version}}/filesystem#on-demand-disks).
@@ -692,6 +698,8 @@ MySQL and MariaDB connection configs must specify `strict` or `modes`; they cann
 SQLite JSON-path updates replace assigned objects and retain JSON null. Review any reliance on Laravel's object merging or null-key deletion when [updating JSON columns](/docs/{{version}}/queries#updating-json-columns).
 
 Database connections are persistent, pooled worker resources. Define every connection in `config/database.php` before the application boots. Dynamic connection creation through `DB::build()` and `DB::connectUsing()` is not supported. Review pool sizing and any database session state against the [database documentation](/docs/{{version}}/database#connection-pooling).
+
+To use a custom query grammar on every connection, register a connection subclass with `Connection::resolverFor()` that overrides `getDefaultQueryGrammar()`. On connections that support early release, `setQueryGrammar()` changes only the current coroutine's connection, and `ConnectionEstablished` runs only when a new database session opens, so neither applies a grammar to every caller. See [extending database connections](/docs/{{version}}/database#extending-database-connections).
 
 Outgoing framework HTTP requests release idle database sessions automatically. Wrap code that depends on the same session across an HTTP call, such as temporary tables, session locks or retained raw PDOs, in `DB::withPinnedSession()`. Active transactions remain pinned automatically. See [releasing and pinning connections](/docs/{{version}}/database#releasing-and-pinning-connections).
 

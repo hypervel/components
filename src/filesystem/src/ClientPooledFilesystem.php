@@ -147,7 +147,7 @@ class ClientPooledFilesystem implements Cloud, InvalidatesPool
     }
 
     /**
-     * Open a stream that owns its client lease until closure.
+     * Open a stream that retains its client lease while needed.
      *
      * @param Closure(FilesystemAdapter): mixed $operation
      * @return null|resource
@@ -162,13 +162,7 @@ class ClientPooledFilesystem implements Cloud, InvalidatesPool
             $lease->releaseAfterFailure($operationException);
         }
 
-        if (! is_resource($stream)) {
-            $lease->release();
-
-            return $stream;
-        }
-
-        return LeasedStream::wrap($stream, $lease);
+        return $this->releaseOrWrapStream($stream, $lease);
     }
 
     /**

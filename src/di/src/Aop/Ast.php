@@ -12,21 +12,17 @@ use PhpParser\PrettyPrinterAbstract;
 
 class Ast
 {
-    private Parser $astParser;
+    private ?Parser $astParser = null;
 
-    private PrettyPrinterAbstract $printer;
-
-    public function __construct()
-    {
-        $this->astParser = (new ParserFactory)->createForNewestSupportedVersion();
-        $this->printer = new Standard;
-    }
+    private ?PrettyPrinterAbstract $printer = null;
 
     /**
      * Parse PHP code into an AST.
      */
     public function parse(string $code): ?array
     {
+        $this->astParser ??= (new ParserFactory)->createForNewestSupportedVersion();
+
         return $this->astParser->parse($code);
     }
 
@@ -38,7 +34,7 @@ class Ast
      */
     public function proxy(string $className, string $sourceFilePath, string $sourceCode): string
     {
-        $stmts = $this->astParser->parse($sourceCode) ?? [];
+        $stmts = $this->parse($sourceCode) ?? [];
         $traverser = new NodeTraverser;
         $visitorMetadata = new VisitorMetadata($className, $sourceFilePath);
 
@@ -51,6 +47,7 @@ class Ast
         }
 
         $modifiedStmts = $traverser->traverse($stmts);
+        $this->printer ??= new Standard;
 
         return $this->printer->prettyPrintFile($modifiedStmts);
     }

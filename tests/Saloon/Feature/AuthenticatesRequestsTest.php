@@ -4,13 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Saloon\Feature;
 
-use GuzzleHttp\Promise\PromiseInterface;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
-use Hypervel\Http\Client\Factory;
-use Hypervel\Http\Client\Request as HttpRequest;
 use Hypervel\Saloon\SaloonServiceProvider;
-use Hypervel\Support\Facades\Http;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Http\Fixtures\LoopbackHttpServer;
 use Hypervel\Tests\Saloon\Fixtures\Connectors\TestConnector;
 use Hypervel\Tests\Saloon\Fixtures\Requests\UserRequest;
 
@@ -24,31 +21,27 @@ class AuthenticatesRequestsTest extends TestCase
         return [SaloonServiceProvider::class];
     }
 
-    // Upstream inspects the auth option in Guzzle middleware added through its sender. Guzzle's auth middleware
-    // consumes that option before the transport, so this answers its unauthenticated probe with a digest challenge
-    // and asserts the credentials Guzzle sends in reply.
+    // Digest negotiation runs below Saloon, in cURL or Guzzle middleware depending on the Guzzle version.
+    // Assert the real exchange instead of upstream's sender option, which middleware can consume.
     public function testYouCanProvideDigestAuthenticationAndGuzzleWillSendIt(): void
     {
-        $connector = new TestConnector;
+        $server = LoopbackHttpServer::start([
+            ['status' => 401, 'headers' => ['WWW-Authenticate' => 'Digest realm="saloon", nonce="nonce", qop="auth"']],
+            ['body' => 'authenticated'],
+        ]);
+        $connector = new TestConnector('http://127.0.0.1:' . $server->port);
         $request = new UserRequest;
 
         $request->withDigestAuth('Sammyjo20', 'Cowboy1');
 
-        $authorization = [];
-
-        Http::fake(function (HttpRequest $request) use (&$authorization): PromiseInterface {
-            $authorization[] = $request->header('Authorization');
-
-            return count($authorization) === 1
-                ? Factory::response('', 401, ['WWW-Authenticate' => 'Digest realm="saloon", nonce="nonce", qop="auth"'])
-                : Factory::response();
-        });
-
         $response = $connector->send($request);
 
         $this->assertSame(200, $response->status());
-        $this->assertCount(2, $authorization);
-        $this->assertSame([], $authorization[0]);
-        $this->assertStringStartsWith('Digest username="Sammyjo20", realm="saloon", nonce="nonce"', $authorization[1][0]);
+        $this->assertStringNotContainsString('Authorization:', $server->request());
+        $authenticated = $server->request();
+        $this->assertStringContainsString('Authorization: Digest ', $authenticated);
+        $this->assertStringContainsString('username="Sammyjo20"', $authenticated);
+        $this->assertStringContainsString('realm="saloon"', $authenticated);
+        $this->assertStringContainsString('nonce="nonce"', $authenticated);
     }
 }

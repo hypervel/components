@@ -79,6 +79,6 @@ abstract class SelectElement implements AccessoryContract
             'action_id' => $this->actionId,
             'placeholder' => $this->placeholder?->toArray(),
             'focus_on_load' => $this->focusOnLoad,
-        ], static fn ($value): bool => $value !== null);
+        ], static fn (mixed $value): bool => $value !== null);
     }
 }

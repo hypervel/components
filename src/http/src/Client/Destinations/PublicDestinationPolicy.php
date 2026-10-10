@@ -97,6 +97,24 @@ class PublicDestinationPolicy implements DestinationPolicy
     }
 
     /**
+     * Validate a destination URL without resolving it, such as before storing one a user entered.
+     *
+     * A host given as an address literal is authorized now. A hostname is not
+     * resolved, so its addresses are checked when a request resolves them.
+     *
+     * @throws DisallowedDestinationException
+     */
+    public function validate(string $url): void
+    {
+        $uri = $this->normalizeUri($url);
+        $address = $this->addressHost($uri->getHost());
+
+        if (filter_var($address, FILTER_VALIDATE_IP) !== false) {
+            $this->authorizeAddress($uri, $address);
+        }
+    }
+
+    /**
      * Return an approved proxy for the destination.
      *
      * Applications that require trusted egress proxies may extend this policy

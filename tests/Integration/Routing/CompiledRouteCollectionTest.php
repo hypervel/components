@@ -6,12 +6,14 @@ namespace Hypervel\Tests\Integration\Routing;
 
 use ArrayIterator;
 use Hypervel\Http\Request;
+use Hypervel\HttpServer\RequestBridge;
 use Hypervel\Routing\CompiledRouteCollection;
 use Hypervel\Routing\Route;
 use Hypervel\Routing\RouteCollection;
 use Hypervel\Routing\Router;
 use Hypervel\Support\Arr;
 use PHPUnit\Framework\Attributes\TestWith;
+use Swoole\Http\Request as SwooleRequest;
 use Symfony\Component\HttpFoundation\Exception\SuspiciousOperationException;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -592,7 +594,9 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $compiled['compiled'][4] = static fn (
             int $condition,
             SymfonyRequestContext $context
-        ): bool => $condition === -1 && $context->getQueryString() === 'token=1';
+        ): bool => $condition === -1
+            && $context->getQueryString() === 'token=1'
+            && $context->getPathInfo() === '/conditional';
         $collection = (new CompiledRouteCollection($compiled['compiled'], $compiled['attributes']))
             ->setRouter($this->router)
             ->setContainer($this->app);
@@ -600,6 +604,11 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertSame(
             'conditional',
             $collection->match(Request::create('/conditional?token=1'))->getName()
+        );
+        // Conditions see the trimmed path that is matched, as Laravel's trimmed matching request gives them.
+        $this->assertSame(
+            'conditional',
+            $collection->match(Request::create('/conditional/?token=1'))->getName()
         );
 
         $this->expectException(NotFoundHttpException::class);
@@ -822,6 +831,25 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $request->getPathInfo();
 
         $this->assertSame('foo', $this->collection()->match($request)->getName());
+    }
+
+    public function testServerRequestsMatchWithoutTheirTrailingSlashButKeepIt(): void
+    {
+        $this->routeCollection->add(
+            $this->newRoute('GET', 'users/{user}', ['uses' => 'FooController@index', 'as' => 'user'])
+        );
+
+        foreach (['compiled' => $this->collection(), 'plain' => $this->routeCollection] as $kind => $routes) {
+            $swooleRequest = SwooleRequest::create();
+            $swooleRequest->parse("GET /users/7/?tab=1 HTTP/1.1\r\nHost: example.com\r\n\r\n");
+            $request = RequestBridge::createFromSwoole($swooleRequest);
+
+            $route = $routes->match($request);
+
+            $this->assertSame(['user', ['user' => '7']], [$route->getName(), $route->parameters()], $kind);
+            // The request keeps the target it arrived with, as Laravel's does, for anything that reads it.
+            $this->assertSame(['/users/7/?tab=1', '/users/7/'], [$request->getRequestUri(), $request->getPathInfo()], $kind);
+        }
     }
 
     public function testRouteWithSamePathAndSameMethodButDiffDomainNameWithOptionsMethod(): void

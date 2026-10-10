@@ -10,7 +10,7 @@ use LogicException;
 
 class PlainTextOnlyTextObjectTest extends TestCase
 {
-    public function testArrayable(): void
+    public function testItIsArrayable(): void
     {
         $object = new PlainTextOnlyTextObject('A message *with some bold text* and _some italicized text_.');
 
@@ -20,7 +20,7 @@ class PlainTextOnlyTextObjectTest extends TestCase
         ], $object->toArray());
     }
 
-    public function testTextHasAtLeastOneCharacter(): void
+    public function testTheTextHasAMinimumLengthOf1Character(): void
     {
         $this->expectException(LogicException::class);
         $this->expectExceptionMessageIs('Text must be at least 1 character(s) long.');
@@ -28,7 +28,7 @@ class PlainTextOnlyTextObjectTest extends TestCase
         new PlainTextOnlyTextObject('');
     }
 
-    public function testTextTruncatedOverThreeThousandCharacters(): void
+    public function testTheTextGetsTruncatedWhenItExceeds3000Characters(): void
     {
         $object = new PlainTextOnlyTextObject(str_repeat('a', 3001));
 
@@ -65,7 +65,7 @@ class PlainTextOnlyTextObjectTest extends TestCase
         new PlainTextOnlyTextObject(str_repeat('a', 3001) . "\xFF");
     }
 
-    public function testEscapeEmojiColonFormat(): void
+    public function testItCanIndicateThatEmojisShouldBeEscapedIntoTheColonEmojiFormat(): void
     {
         $object = new PlainTextOnlyTextObject('Spooky time! 👻');
         $object->emoji();

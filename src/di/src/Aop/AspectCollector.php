@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Di\Aop;
 
+use Hypervel\Support\ClassMetadataCache;
+use ReflectionProperty;
+
 /**
  * Static registry of aspect class rules and priorities.
  *
@@ -20,6 +23,32 @@ class AspectCollector
      * @var array<string, array{priority: int, classes: array<int, string>}>
      */
     protected static array $aspectRules = [];
+
+    /**
+     * Register an aspect using its public default targeting rules and priority.
+     *
+     * Boot-only. Register before proxy generation; loaded classes cannot be rewritten.
+     *
+     * @param class-string $aspect
+     */
+    public static function register(string $aspect): void
+    {
+        $reflectionClass = ClassMetadataCache::reflectClass($aspect);
+        $properties = $reflectionClass->getProperties(ReflectionProperty::IS_PUBLIC);
+
+        $classes = [];
+        $priority = null;
+
+        foreach ($properties as $property) {
+            if ($property->getName() === 'classes') {
+                $classes = $property->getDefaultValue();
+            } elseif ($property->getName() === 'priority') {
+                $priority = $property->getDefaultValue();
+            }
+        }
+
+        static::setAround($aspect, $classes, $priority);
+    }
 
     /**
      * Register an aspect with its class targeting rules.

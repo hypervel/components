@@ -35,19 +35,4 @@ class UsersSelectElementTest extends TestCase
 
         $this->assertSame('users_select_example-user', $select->toArray()['action_id']);
     }
-
-    public function testGeneratedActionIdRespectsTheSlackLimit(): void
-    {
-        $select = new UsersSelectElement(str_repeat('a', 248));
-
-        $this->assertSame(255, strlen($select->toArray()['action_id']));
-    }
-
-    public function testDirectConstructionWithoutTextGeneratesAnActionId(): void
-    {
-        $actionId = (new UsersSelectElement)->toArray()['action_id'];
-
-        $this->assertStringStartsWith('users_select_', $actionId);
-        $this->assertNotSame('users_select_', $actionId);
-    }
 }

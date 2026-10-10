@@ -23,7 +23,7 @@ class TextObject extends PlainTextOnlyTextObject
     protected ?bool $verbatim = null;
 
     /**
-     * Changes the formatting of this text object to mrkdwn.
+     * Change the formatting of this text object to mrkdwn.
      */
     public function markdown(): static
     {

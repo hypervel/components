@@ -10,7 +10,7 @@ use InvalidArgumentException;
 class PlainTextOnlyTextObject implements ObjectContract
 {
     /**
-     * The formatting to use for this text object.
+     * The text for this text object.
      */
     protected string $text;
 

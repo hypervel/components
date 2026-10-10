@@ -4,11 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Inertia;
 
+use Hypervel\Contracts\Http\Kernel as HttpKernelContract;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Http\JsonResponse;
+use Hypervel\Http\RedirectResponse;
 use Hypervel\Http\Request;
+use Hypervel\Http\Response as BaseResponse;
 use Hypervel\Inertia\AlwaysProp;
 use Hypervel\Inertia\Inertia;
 use Hypervel\Inertia\Middleware;
+use Hypervel\Inertia\Response;
 use Hypervel\Inertia\Ssr\HttpGateway;
 use Hypervel\Inertia\Support\Header;
 use Hypervel\Routing\Route as RouteInstance;
@@ -19,8 +24,11 @@ use Hypervel\Support\MessageBag;
 use Hypervel\Support\ViewErrorBag;
 use Hypervel\Tests\Inertia\Fixtures\CustomUrlResolverMiddleware;
 use Hypervel\Tests\Inertia\Fixtures\ExampleMiddleware;
+use Hypervel\Tests\Inertia\Fixtures\PrecognitiveRequestMiddleware;
 use Hypervel\Tests\Inertia\Fixtures\SsrExceptMiddleware;
+use Hypervel\Tests\Inertia\Fixtures\StorePartialReloadsMiddleware;
 use Hypervel\Tests\Inertia\Fixtures\WithAllErrorsMiddleware;
+use Hypervel\Tests\Inertia\Fixtures\WithoutPreviousLocationMiddleware;
 use LogicException;
 use PHPUnit\Framework\Attributes\After;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -512,6 +520,193 @@ class MiddlewareTest extends TestCase
         ]);
     }
 
+    public function testInertiaVisitsAreStoredAsThePreviousUrlAndRoute(): void
+    {
+        config()->set('inertia.store_previous_url', true);
+
+        $this->preparePreviousLocationEndpoints();
+
+        $this->get('/initial')->assertOk();
+
+        $this->get('/users?filter=active', [
+            'X-Inertia' => 'true',
+            'X-Requested-With' => 'XMLHttpRequest',
+        ])->assertOk();
+
+        $this->assertPreviousLocation($this->baseUrl . '/users?filter=active', 'users.index');
+    }
+
+    public function testInertiaVisitsAreNotStoredAsThePreviousUrlAndRouteByDefault(): void
+    {
+        $this->preparePreviousLocationEndpoints();
+
+        $this->get('/initial')->assertOk();
+
+        $this->get('/users', [
+            'X-Inertia' => 'true',
+            'X-Requested-With' => 'XMLHttpRequest',
+        ])->assertOk();
+
+        $this->assertPreviousLocation($this->baseUrl . '/initial', 'initial');
+    }
+
+    public function testEmptyInertiaVisitsRedirectToThePreviousLocationWithoutAReferrer(): void
+    {
+        config()->set('inertia.store_previous_url', true);
+
+        $this->preparePreviousLocationEndpoints();
+
+        Route::middleware([StartSession::class, Middleware::class])
+            ->get('/empty', fn (): BaseResponse => response(''));
+
+        $this->get('/initial')->assertOk();
+
+        $this->get('/empty', [
+            'X-Inertia' => 'true',
+            'X-Requested-With' => 'XMLHttpRequest',
+        ])->assertRedirect('/initial');
+    }
+
+    public function testInertiaPrefetchVisitsAreNotStoredAsThePreviousUrlAndRoute(): void
+    {
+        config()->set('inertia.store_previous_url', true);
+
+        $this->preparePreviousLocationEndpoints();
+
+        $this->get('/initial')->assertOk();
+
+        $this->get('/users', [
+            'X-Inertia' => 'true',
+            'X-Requested-With' => 'XMLHttpRequest',
+            'Purpose' => 'prefetch',
+        ])->assertOk();
+
+        $this->assertPreviousLocation($this->baseUrl . '/initial', 'initial');
+    }
+
+    public function testNonInertiaAjaxRequestsAreNotStoredAsThePreviousUrlAndRoute(): void
+    {
+        config()->set('inertia.store_previous_url', true);
+
+        $this->preparePreviousLocationEndpoints();
+
+        $this->get('/initial')->assertOk();
+
+        $this->get('/users', [
+            'X-Requested-With' => 'XMLHttpRequest',
+        ])->assertOk();
+
+        $this->assertPreviousLocation($this->baseUrl . '/initial', 'initial');
+    }
+
+    public function testNonGetInertiaRequestsAreNotStoredAsThePreviousUrlAndRoute(): void
+    {
+        config()->set('inertia.store_previous_url', true);
+
+        $this->preparePreviousLocationEndpoints();
+
+        $this->get('/initial')->assertOk();
+
+        $this->post('/users', [], [
+            'X-Inertia' => 'true',
+            'X-Requested-With' => 'XMLHttpRequest',
+        ])->assertOk();
+
+        $this->assertPreviousLocation($this->baseUrl . '/initial', 'initial');
+    }
+
+    public function testPrecognitiveInertiaRequestsAreNotStoredAsThePreviousUrlAndRoute(): void
+    {
+        config()->set('inertia.store_previous_url', true);
+
+        $this->preparePreviousLocationEndpoints();
+
+        $this->get('/initial')->assertOk();
+
+        $this->get('/users', [
+            'X-Inertia' => 'true',
+            'X-Requested-With' => 'XMLHttpRequest',
+            'Precognition' => 'true',
+        ])->assertSuccessful();
+
+        $this->assertPreviousLocation($this->baseUrl . '/initial', 'initial');
+    }
+
+    public function testPartialReloadsAreNotStoredAsThePreviousUrlAndRoute(): void
+    {
+        config()->set('inertia.store_previous_url', true);
+
+        $this->preparePreviousLocationEndpoints();
+
+        $this->get('/initial')->assertOk();
+
+        $this->get('/users', [
+            'X-Inertia' => 'true',
+            'X-Requested-With' => 'XMLHttpRequest',
+        ])->assertOk();
+
+        $this->get('/users?page=2', [
+            'X-Inertia' => 'true',
+            'X-Requested-With' => 'XMLHttpRequest',
+            'X-Inertia-Partial-Component' => 'Users/Index',
+            'X-Inertia-Partial-Data' => 'users',
+        ])->assertOk();
+
+        $this->assertPreviousLocation($this->baseUrl . '/users', 'users.index');
+    }
+
+    public function testPartialVisitsToAnotherComponentAreStoredAsThePreviousUrlAndRoute(): void
+    {
+        config()->set('inertia.store_previous_url', true);
+
+        $this->preparePreviousLocationEndpoints();
+
+        $this->get('/initial')->assertOk();
+
+        $this->get('/users', [
+            'X-Inertia' => 'true',
+            'X-Requested-With' => 'XMLHttpRequest',
+            'X-Inertia-Partial-Component' => 'Dashboard',
+            'X-Inertia-Partial-Data' => 'users',
+        ])->assertOk();
+
+        $this->assertPreviousLocation($this->baseUrl . '/users', 'users.index');
+    }
+
+    public function testPartialReloadsCanBeStoredAsThePreviousUrlAndRoute(): void
+    {
+        config()->set('inertia.store_previous_url', true);
+
+        $this->preparePreviousLocationEndpoints(StorePartialReloadsMiddleware::class);
+
+        $this->get('/initial')->assertOk();
+
+        $this->get('/users?page=2', [
+            'X-Inertia' => 'true',
+            'X-Requested-With' => 'XMLHttpRequest',
+            'X-Inertia-Partial-Component' => 'Users/Index',
+            'X-Inertia-Partial-Data' => 'users',
+        ])->assertOk();
+
+        $this->assertPreviousLocation($this->baseUrl . '/users?page=2', 'users.index');
+    }
+
+    public function testStoringThePreviousUrlAndRouteCanBeDisabled(): void
+    {
+        config()->set('inertia.store_previous_url', true);
+
+        $this->preparePreviousLocationEndpoints(WithoutPreviousLocationMiddleware::class);
+
+        $this->get('/initial')->assertOk();
+
+        $this->get('/users', [
+            'X-Inertia' => 'true',
+            'X-Requested-With' => 'XMLHttpRequest',
+        ])->assertOk();
+
+        $this->assertPreviousLocation($this->baseUrl . '/initial', 'initial');
+    }
+
     public function testRedirectWithHashFragmentReturns409ForInertiaRequests(): void
     {
         Route::middleware([StartSession::class, Middleware::class])->get('/action', function () {
@@ -580,6 +775,137 @@ class MiddlewareTest extends TestCase
         ]);
 
         $response->assertRedirect($this->baseUrl . '/article#section');
+    }
+
+    public function testDeferredCallbacksRunWhenAFragmentRedirectIsReturned(): void
+    {
+        $called = false;
+
+        Route::middleware([StartSession::class, Middleware::class])->post('/action', function () use (&$called): RedirectResponse {
+            defer(function () use (&$called): void {
+                $called = true;
+            });
+
+            return redirect('/article#section');
+        });
+
+        $response = $this->post('/action', [], [
+            'X-Inertia' => 'true',
+        ]);
+
+        $response->assertStatus(409);
+        $response->assertHeader('X-Inertia-Redirect', $this->baseUrl . '/article#section');
+        $this->assertTrue($called);
+    }
+
+    public function testDeferredCallbacksRunWhenALocationVisitIsReturned(): void
+    {
+        $called = false;
+
+        Route::middleware([StartSession::class, Middleware::class])->post('/action', function () use (&$called): SymfonyResponse {
+            defer(function () use (&$called): void {
+                $called = true;
+            });
+
+            return Inertia::location('https://inertiajs.com');
+        });
+
+        $response = $this->post('/action', [], [
+            'X-Inertia' => 'true',
+        ]);
+
+        $response->assertStatus(409);
+        $response->assertHeader('X-Inertia-Location', 'https://inertiajs.com');
+        $this->assertTrue($called);
+    }
+
+    public function testDeferredCallbacksRunWhenTheMiddlewareIsRegisteredGlobally(): void
+    {
+        $called = false;
+
+        $kernel = $this->app->make(HttpKernelContract::class);
+        $kernel->pushMiddleware(Middleware::class);
+
+        Route::middleware(StartSession::class)->post('/action', function () use (&$called): RedirectResponse {
+            defer(function () use (&$called): void {
+                $called = true;
+            });
+
+            return redirect('/article#section');
+        });
+
+        $response = $this->post('/action', [], [
+            'X-Inertia' => 'true',
+        ]);
+
+        $response->assertStatus(409);
+        $this->assertTrue($called);
+    }
+
+    public function testDeferredCallbacksAreSkippedWhenAControlHeaderIsSetOnAFailedResponse(): void
+    {
+        $called = false;
+
+        Route::middleware([StartSession::class, Middleware::class])->post('/action', function () use (&$called): BaseResponse {
+            defer(function () use (&$called): void {
+                $called = true;
+            });
+
+            return response('', 500, ['X-Inertia-Redirect' => '/article#section']);
+        });
+
+        $response = $this->post('/action', [], [
+            'X-Inertia' => 'true',
+        ]);
+
+        $response->assertStatus(500);
+        $this->assertFalse($called);
+    }
+
+    public function testDeferredCallbacksAreSkippedOnAVersionMismatchReload(): void
+    {
+        $called = false;
+
+        $middleware = new ExampleMiddleware('1234');
+
+        Route::middleware(StartSession::class)->get('/', function (Request $request) use ($middleware, &$called): SymfonyResponse {
+            return $middleware->handle($request, function (Request $request) use (&$called): SymfonyResponse {
+                defer(function () use (&$called): void {
+                    $called = true;
+                });
+
+                return Inertia::render('User/Edit')->toResponse($request);
+            });
+        });
+
+        $response = $this->get('/', [
+            'X-Inertia' => 'true',
+            'X-Inertia-Version' => '4321',
+        ]);
+
+        $response->assertStatus(409);
+        $response->assertHeader('X-Inertia-Location', $this->baseUrl);
+        $this->assertFalse($called);
+    }
+
+    public function testDeferredCallbacksAreSkippedOnAFailedResponse(): void
+    {
+        $called = false;
+
+        Route::middleware([StartSession::class, Middleware::class])->post('/action', function () use (&$called): never {
+            defer(function () use (&$called): void {
+                $called = true;
+            });
+
+            abort(500);
+        });
+
+        $response = $this->post('/action', [], [
+            'X-Inertia' => 'true',
+        ]);
+
+        $response->assertStatus(500);
+        $this->assertFalse($called);
     }
 
     public function testMiddlewareRegistersSsrExceptPaths(): void
@@ -652,6 +978,8 @@ class MiddlewareTest extends TestCase
     }
 
     /**
+     * Register an Inertia endpoint handled by the given or an example middleware.
+     *
      * @param array<string, mixed> $shared
      */
     private function prepareMockEndpoint(int|string|null $version = null, array $shared = [], ?Middleware $middleware = null): RouteInstance
@@ -664,6 +992,44 @@ class MiddlewareTest extends TestCase
             return $middleware->handle($request, function ($request) {
                 return Inertia::render('User/Edit', ['user' => ['name' => 'Jonathan']])->toResponse($request);
             });
+        });
+    }
+
+    /**
+     * Assert the previous URL and route stored in the session.
+     */
+    private function assertPreviousLocation(string $url, string $route): void
+    {
+        $response = $this->post('/inspect-previous');
+
+        $response->assertJsonPath('url', $url);
+        $response->assertJsonPath('route', $route);
+    }
+
+    /**
+     * Register the routes used by the previous location tests.
+     *
+     * @param class-string<Middleware> $middleware
+     */
+    private function preparePreviousLocationEndpoints(string $middleware = Middleware::class): void
+    {
+        Route::middleware([StartSession::class, $middleware])->get('/initial', function (): BaseResponse {
+            return response('Initial page');
+        })->name('initial');
+
+        Route::middleware([
+            StartSession::class,
+            PrecognitiveRequestMiddleware::class,
+            $middleware,
+        ])->match(['GET', 'POST'], '/users', function (): Response {
+            return Inertia::render('Users/Index');
+        })->name('users.index');
+
+        Route::middleware(StartSession::class)->post('/inspect-previous', function (Request $request): JsonResponse {
+            return response()->json([
+                'url' => $request->session()->previousUrl(),
+                'route' => $request->session()->previousRoute(),
+            ]);
         });
     }
 }

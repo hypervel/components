@@ -143,6 +143,70 @@ Your local environment is always allowed, so a gate can never lock you out of De
 
 The gate only controls who may view entries. Requests are recorded no matter who makes them, so only enable the recorder outside your local environment when untrusted visitors can't reach the application.
 
+#### Previous URL
+
+Hypervel's session middleware doesn't store the previous URL and route for Inertia visits, since they are sent as AJAX requests, so `session()->previousUrl()`, `session()->previousUri()`, and `session()->previousRoute()` return the last full page load. The `back()` helper is unaffected, as it resolves the previous location from the request's `Referer` header. You may enable the `store_previous_url` option in your application's `config/inertia.php` configuration file to store the previous location for Inertia visits as well:
+
+```php
+'store_previous_url' => true,
+```
+
+Prefetch requests and [partial reloads](https://inertiajs.com/docs/partial-reloads) are excluded, since deferred props, polling, and infinite scroll requests aren't navigations the user came from. You may customize which visits are stored by overriding the `shouldStoreCurrentUrl` method in your `HandleInertiaRequests` middleware:
+
+```php
+use Hypervel\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
+
+/**
+ * Determine if the visit should be stored as the previous location.
+ */
+public function shouldStoreCurrentUrl(Request $request, Response $response): bool
+{
+    return parent::shouldStoreCurrentUrl($request, $response)
+        && ! $request->routeIs('admin.*');
+}
+```
+
+#### Big Integers
+
+JavaScript rounds integers outside its safe range while parsing JSON, so an ID such as `900719925474099988` from a 64-bit database column reaches your components as `900719925474100000`. Inertia can keep these values exact by delivering them as native `BigInt` values. This requires the Inertia client-side adapter at `^3.8`, with nothing to configure on the client.
+
+Big integer support is disabled by default. You may enable it for every response using the `preserve_big_integers` option in your application's `config/inertia.php` configuration file, or the `INERTIA_PRESERVE_BIG_INTEGERS` environment variable:
+
+```ini
+INERTIA_PRESERVE_BIG_INTEGERS=true
+```
+
+You may also enable it for a single response using the `preserveBigIntegers` method:
+
+```php
+return Inertia::render('orders/show', [
+    'order' => $order,
+])->preserveBigIntegers();
+```
+
+Passing `false` opts a single response out when the option is enabled:
+
+```php
+return Inertia::render('reports/index', $props)->preserveBigIntegers(false);
+```
+
+Only integers outside the safe range become a `BigInt`, so the same prop may arrive as a number or a `BigInt`, depending on its value. Flash data receives the same treatment as props. Arrays, models, collections, API resources, `JsonSerializable` values, and the public properties of your own classes are inspected for large integers, while built-in PHP classes such as `DateTime` are left untouched.
+
+When enabled, Inertia reserves objects with a string `$bigint` property as integer markers. Avoid that shape in your own props and flash data, since the client converts the entire object to a `BigInt`.
+
+A `BigInt` submitted through the router, a form, or Precognition is sent as its digits, so your controller receives a numeric string that the `integer` validation rule and the request's `integer` method handle as usual. The `useHttp` hook does not convert `BigInt` values, so convert them to strings before sending them.
+
+Inertia's testing helpers turn big integers back into integers, so you may assert against the same values you passed to the response:
+
+```php
+use Hypervel\Inertia\Testing\AssertableInertia;
+
+$response->assertInertia(fn (AssertableInertia $page) => $page
+    ->where('order.id', 900719925474099988)
+);
+```
+
 <a name="inertia-starter-kits"></a>
 ### Starter Kits
 

@@ -101,7 +101,7 @@ class SlackAttachment
     /**
      * The attachment's callback ID.
      */
-    public string $callbackId = '';
+    public ?string $callbackId = null;
 
     /**
      * Set the title of the attachment.
@@ -159,7 +159,8 @@ class SlackAttachment
      */
     public function field(Closure|string $title, string $content = ''): static
     {
-        if (is_callable($title)) {
+        // Titles such as "Date" also name PHP functions, so is_callable() would call them.
+        if ($title instanceof Closure) {
             $callback = $title;
 
             $callback($attachmentField = new SlackAttachmentField);

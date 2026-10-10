@@ -891,6 +891,12 @@ php artisan inertia:start-ssr --runtime=bun
 
 You may also configure the runtime using the `INERTIA_SSR_RUNTIME` environment variable. Runtime values may be executable names or absolute paths.
 
+To stop the SSR server, such as when deploying a new version of your application, you may use the `inertia:stop-ssr` command. Your process monitor, such as Supervisor, is responsible for restarting the SSR server after it stops. By default, the command fails when the SSR server is not running. You may pass the `--graceful` option to return a successful exit code instead, which is useful in deployment scripts that may run before the SSR server has started:
+
+```shell
+php artisan inertia:stop-ssr --graceful
+```
+
 The `hot_url` option within your application's `inertia.ssr` configuration may be used to specify the SSR server URL while Vite is running. This option may also be configured using the `INERTIA_SSR_HOT_URL` environment variable. The `connect_timeout` and `timeout` options control how many seconds Hypervel waits for the SSR server; you may set either option to `null` to use the HTTP client's global timeout instead. The `backoff` option determines how long a worker skips SSR after a connection failure or malformed response.
 
 For more control, you may use the `Inertia::configureSsrRequestUsing` method, typically from a service provider. The closure receives the `PendingRequest` before it is sent, so you may add retries, headers, or any other option supported by Hypervel's [HTTP client](/docs/{{version}}/http-client):
