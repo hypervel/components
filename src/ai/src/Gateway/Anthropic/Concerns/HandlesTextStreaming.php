@@ -319,6 +319,19 @@ trait HandlesTextStreaming
             }
         }
 
+        // A successful HTTP transfer can still contain an unfinished provider response.
+        if ($stopReason === '') {
+            yield (new Error(
+                $this->generateEventId(),
+                'incomplete_stream',
+                'The provider stream ended before the response was complete.',
+                false,
+                time(),
+            ))->withInvocationId($invocationId);
+
+            return;
+        }
+
         // Closed once the step is over rather than once per block, so the step is one message...
         if ($textStartEmitted) {
             yield (new TextEnd(

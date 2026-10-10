@@ -18,20 +18,10 @@ class PromptCacheTest extends TestCase
 {
     use AnthropicHelpers;
 
-    /**
-     * Fake the provider response.
-     */
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        Http::fake([
-            'api.anthropic.com/*' => $this->fakeTextResponse(),
-        ]);
-    }
-
     public function testCacheInstructionsAttributeConvertsInstructionsToACachedBlock(): void
     {
+        Http::fake(['api.anthropic.com/*' => $this->fakeTextResponse()]);
+
         (new #[CacheInstructions] class(withTools: false) extends PromptCacheAgent {})->prompt('Hi', provider: 'anthropic');
 
         Http::assertSent(function ($request): bool {
@@ -47,6 +37,8 @@ class PromptCacheTest extends TestCase
 
     public function testCacheToolDefinitionsAttributeStampsTheLastTool(): void
     {
+        Http::fake(['api.anthropic.com/*' => $this->fakeTextResponse()]);
+
         (new #[CacheToolDefinitions] class extends PromptCacheAgent {})->prompt('Hi', provider: 'anthropic');
 
         Http::assertSent(function ($request): bool {
@@ -59,6 +51,8 @@ class PromptCacheTest extends TestCase
 
     public function testBothTargetsMayBeCachedTogether(): void
     {
+        Http::fake(['api.anthropic.com/*' => $this->fakeTextResponse()]);
+
         (new #[CacheInstructions] #[CacheToolDefinitions] class extends PromptCacheAgent {})->prompt('Hi', provider: 'anthropic');
 
         Http::assertSent(function ($request): bool {
@@ -92,6 +86,8 @@ class PromptCacheTest extends TestCase
 
     public function testAnAgentWithoutCacheAttributesLeavesThePayloadUntouched(): void
     {
+        Http::fake(['api.anthropic.com/*' => $this->fakeTextResponse()]);
+
         (new PromptCacheAgent)->prompt('Hi', provider: 'anthropic');
 
         Http::assertSent(function ($request): bool {
@@ -104,6 +100,8 @@ class PromptCacheTest extends TestCase
 
     public function testProviderOptionsStillMergeAlongsideCacheAttributes(): void
     {
+        Http::fake(['api.anthropic.com/*' => $this->fakeTextResponse()]);
+
         (new #[CacheInstructions] class(options: ['thinking' => ['type' => 'enabled', 'budget_tokens' => 10000]]) extends PromptCacheAgent {})
             ->prompt('Hi', provider: 'anthropic');
 
@@ -117,6 +115,8 @@ class PromptCacheTest extends TestCase
 
     public function testATargetMayRequestTheExtendedTtl(): void
     {
+        Http::fake(['api.anthropic.com/*' => $this->fakeTextResponse()]);
+
         (new #[CacheInstructions('5m')] #[CacheToolDefinitions('1h')] class extends PromptCacheAgent {})->prompt('Hi', provider: 'anthropic');
 
         Http::assertSent(function ($request): bool {
@@ -129,6 +129,8 @@ class PromptCacheTest extends TestCase
 
     public function testAnOmittedTtlUsesTheProviderDefault(): void
     {
+        Http::fake(['api.anthropic.com/*' => $this->fakeTextResponse()]);
+
         (new #[CacheInstructions] class extends PromptCacheAgent {})->prompt('Hi', provider: 'anthropic');
 
         Http::assertSent(fn ($request): bool => $request->data()['system'][0]['cache_control'] === ['type' => 'ephemeral']);
@@ -136,18 +138,24 @@ class PromptCacheTest extends TestCase
 
     public function testALongerInstructionsTtlRequiresTheToolsCacheToUseTheSameTtl(): void
     {
+        Http::preventStrayRequests();
+
         $this->expectException(InvalidArgumentException::class);
         (new #[CacheInstructions('1h')] #[CacheToolDefinitions('5m')] class extends PromptCacheAgent {})->prompt('Hi', provider: 'anthropic');
     }
 
     public function testALongerAutomaticCacheTtlRequiresExplicitBreakpointsToUseTheSameTtl(): void
     {
+        Http::preventStrayRequests();
+
         $this->expectException(InvalidArgumentException::class);
         (new #[CacheInstructions] class(options: ['cache_control' => ['type' => 'ephemeral', 'ttl' => '1h']]) extends PromptCacheAgent {})->prompt('Hi', provider: 'anthropic');
     }
 
     public function testBreakpointsSurviveProviderOptionsThatOverrideTheSameKeys(): void
     {
+        Http::fake(['api.anthropic.com/*' => $this->fakeTextResponse()]);
+
         (new #[CacheInstructions] #[CacheToolDefinitions] class(options: ['system' => 'Overridden instructions.', 'tools' => [['name' => 'custom', 'description' => '', 'input_schema' => ['type' => 'object']]]]) extends PromptCacheAgent {})->prompt('Hi', provider: 'anthropic');
 
         Http::assertSent(function ($request): bool {
@@ -165,6 +173,8 @@ class PromptCacheTest extends TestCase
 
     public function testTheToolsTargetIsANoOpWhenTheRequestCarriesNoTools(): void
     {
+        Http::fake(['api.anthropic.com/*' => $this->fakeTextResponse()]);
+
         (new PromptCacheStructuredAgent)->prompt('Iron', provider: 'anthropic');
 
         Http::assertSent(fn ($request): bool => ! array_key_exists('tools', $request->data()));

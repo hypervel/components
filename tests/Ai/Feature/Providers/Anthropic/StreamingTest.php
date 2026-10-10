@@ -156,15 +156,16 @@ class StreamingTest extends TestCase
                     status: 200,
                     headers: ['Content-Type' => 'text/event-stream'],
                 ),
-                Http::response([
-                    'id' => 'msg_2',
-                    'type' => 'message',
-                    'role' => 'assistant',
-                    'model' => 'claude-sonnet-4-6',
-                    'content' => [['type' => 'text', 'text' => 'The number is 72019']],
-                    'stop_reason' => 'end_turn',
-                    'usage' => ['input_tokens' => 20, 'output_tokens' => 10],
-                ]),
+                Http::response(
+                    body: $this->ssePayload([
+                        $this->messageStart(),
+                        $this->contentBlockStart(0, ['type' => 'text', 'text' => '']),
+                        $this->contentBlockDelta(0, ['type' => 'text_delta', 'text' => 'The number is 72019']),
+                        $this->contentBlockStop(0),
+                        $this->messageDelta('end_turn', 10),
+                    ]),
+                    headers: ['Content-Type' => 'text/event-stream'],
+                ),
             ]),
         ]);
 
@@ -175,6 +176,7 @@ class StreamingTest extends TestCase
         $this->assertNotEmpty($toolCallEvents);
         $this->assertSame('FixedNumberGenerator', $toolCallEvents[0]->toolCall->name);
         $this->assertSame('toolu_1', $toolCallEvents[0]->toolCall->id);
+        $this->assertSame('The number is 72019', TextDelta::combine($events));
     }
 
     public function testStreamingHandlesThinkingBlocks(): void
@@ -333,6 +335,23 @@ class StreamingTest extends TestCase
         $this->assertInstanceOf(Error::class, $error);
         $this->assertSame('overloaded_error', $error->type);
         $this->assertSame('Server overloaded', $error->message);
+    }
+
+    public function testStreamEndingBeforeTheCompletionEventThrows(): void
+    {
+        Http::fake(['api.anthropic.com/*' => Http::response(
+            body: $this->ssePayload([
+                $this->messageStart(),
+                $this->contentBlockStart(0, ['type' => 'text', 'text' => '']),
+                $this->contentBlockDelta(0, ['type' => 'text_delta', 'text' => 'Partial answer']),
+            ]),
+            headers: ['Content-Type' => 'text/event-stream'],
+        )]);
+
+        $this->expectException(StreamErrorException::class);
+        $this->expectExceptionMessage('The provider stream ended before the response was complete.');
+
+        $this->collectStreamEvents();
     }
 
     public function testStreamingCapturesInputTokensFromMessageStart(): void
