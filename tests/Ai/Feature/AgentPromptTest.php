@@ -15,6 +15,7 @@ use Hypervel\Ai\Prompts\AgentPrompt;
 use Hypervel\Ai\Responses\AgentResponse;
 use Hypervel\Ai\Responses\Data\Meta;
 use Hypervel\Ai\Responses\Data\TextUsage;
+use Hypervel\Ai\Support\PendingConversationTitle;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Events\CallQueuedListener;
 use Hypervel\Support\Facades\Event;
@@ -37,6 +38,8 @@ class AgentPromptTest extends TestCase
         $context = new RunContext('invocation', $agent, $provider, 'test-model', $this->app->make('events'), $runner, $store, 'conversation');
         $context->claimPendingApprovals(['call']);
         $prompt->setRunContext($context);
+        $prompt->setPendingConversationTitle($title = new PendingConversationTitle(fn (): string => 'Conversation title', $runner));
+        $title->value();
         $response = new AgentResponse('invocation', 'Summary', new TextUsage, new Meta);
 
         event(new AgentPrompted('invocation', $prompt, $response));
@@ -47,6 +50,7 @@ class AgentPromptTest extends TestCase
             $this->assertNull($restored->runContext());
             $this->assertNull($restored->approvalClaim());
             $this->assertNull($restored->contextRunner());
+            $this->assertNull($restored->pendingConversationTitle());
             $this->assertSame('Summarize this', $restored->prompt);
             $this->assertSame('test-provider', $restored->provider()->name());
 
@@ -56,6 +60,7 @@ class AgentPromptTest extends TestCase
         $this->assertSame($runner, $prompt->contextRunner());
         $this->assertSame($context, $prompt->runContext());
         $this->assertSame($claim, $prompt->approvalClaim());
+        $this->assertSame($title, $prompt->pendingConversationTitle());
     }
 
     public function testPromptAndToolRevisionsPreserveTheCapturedContext(): void
@@ -69,9 +74,12 @@ class AgentPromptTest extends TestCase
             'test-model',
             contextRunner: $runner,
         );
+        $prompt->markAsStreaming();
 
         $this->assertSame($runner, $prompt->prepend('Instructions')->contextRunner());
         $this->assertSame($runner, $prompt->withTools([])->contextRunner());
+        $this->assertTrue($prompt->prepend('Instructions')->isStreaming());
+        $this->assertTrue($prompt->withTools([])->isStreaming());
     }
 }
 

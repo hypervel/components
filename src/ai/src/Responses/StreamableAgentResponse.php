@@ -163,6 +163,22 @@ class StreamableAgentResponse implements IteratorAggregate, Responsable
     }
 
     /**
+     * Wrap each execution of the producer, including its creation and disposal.
+     *
+     * @param Closure(Closure(): iterable<StreamEvent>): Generator<int, StreamEvent> $wrapper
+     *
+     * @internal
+     */
+    public function wrapProducer(Closure $wrapper): static
+    {
+        $producer = $this->generator;
+
+        $this->generator = fn (): Generator => $wrapper($producer);
+
+        return $this;
+    }
+
+    /**
      * Run work in the captured operation context, when one was supplied.
      */
     protected function runInContext(Closure $callback): mixed

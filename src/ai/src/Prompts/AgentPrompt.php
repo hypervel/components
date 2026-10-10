@@ -14,6 +14,7 @@ use Hypervel\Ai\Exceptions\FailoverableException;
 use Hypervel\Ai\Gateway\RunContext;
 use Hypervel\Ai\Messages\Message;
 use Hypervel\Ai\Providers\Tools\ProviderTool;
+use Hypervel\Ai\Support\PendingConversationTitle;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Throwable;
@@ -49,6 +50,10 @@ class AgentPrompt extends Prompt
     protected readonly bool $isFinalAttempt;
 
     protected ?RunContext $runContext = null;
+
+    protected bool $streaming = false;
+
+    protected ?PendingConversationTitle $pendingConversationTitle = null;
 
     /** @var null|Closure(Closure): mixed */
     protected ?Closure $contextRunner;
@@ -126,7 +131,7 @@ class AgentPrompt extends Prompt
             $attachments = new Collection($attachments);
         }
 
-        return new self(
+        $revised = new self(
             $this->agent,
             $prompt,
             $attachments ?? $this->attachments,
@@ -142,6 +147,10 @@ class AgentPrompt extends Prompt
             $this->tools,
             $this->contextRunner,
         );
+
+        $revised->streaming = $this->streaming;
+
+        return $revised;
     }
 
     /**
@@ -155,7 +164,7 @@ class AgentPrompt extends Prompt
             return $this;
         }
 
-        return new self(
+        $revised = new self(
             $this->agent,
             $this->prompt,
             $this->attachments,
@@ -171,6 +180,10 @@ class AgentPrompt extends Prompt
             [...$tools],
             $this->contextRunner,
         );
+
+        $revised->streaming = $this->streaming;
+
+        return $revised;
     }
 
     /**
@@ -197,6 +210,46 @@ class AgentPrompt extends Prompt
     public function isFinalAttempt(): bool
     {
         return $this->isFinalAttempt;
+    }
+
+    /**
+     * Mark this prompt for lazy streaming execution.
+     *
+     * @internal
+     */
+    public function markAsStreaming(): void
+    {
+        $this->streaming = true;
+    }
+
+    /**
+     * Determine whether provider execution is deferred until stream consumption.
+     *
+     * @internal
+     */
+    public function isStreaming(): bool
+    {
+        return $this->streaming;
+    }
+
+    /**
+     * Attach the title request owned by the current attempt.
+     *
+     * @internal
+     */
+    public function setPendingConversationTitle(?PendingConversationTitle $title): void
+    {
+        $this->pendingConversationTitle = $title;
+    }
+
+    /**
+     * Get the title request owned by the current attempt.
+     *
+     * @internal
+     */
+    public function pendingConversationTitle(): ?PendingConversationTitle
+    {
+        return $this->pendingConversationTitle;
     }
 
     /**
@@ -268,7 +321,7 @@ class AgentPrompt extends Prompt
     {
         $properties = get_mangled_object_vars($this);
 
-        unset($properties["\0*\0runContext"]);
+        unset($properties["\0*\0runContext"], $properties["\0*\0pendingConversationTitle"]);
 
         // Queued listeners restore their own context rather than capturing this operation.
         $properties["\0*\0contextRunner"] = null;

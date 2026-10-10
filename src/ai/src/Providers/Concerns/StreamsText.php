@@ -37,6 +37,7 @@ trait StreamsText
      */
     public function stream(AgentPrompt $prompt): StreamableAgentResponse
     {
+        $prompt->markAsStreaming();
         $prompt->setContextRunner($prompt->contextRunner() ?? Ai::captureContext());
 
         $invocationId = $prompt->invocationId ?? (string) Str::uuid7();
