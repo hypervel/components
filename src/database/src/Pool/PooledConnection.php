@@ -157,8 +157,6 @@ class PooledConnection implements PoolConnection
      */
     protected function forgetDriverConnection(): void
     {
-        $this->pool->forgetDateFormat();
-
         /** @var null|PdoConnection $connection */
         $connection = $this->connection;
 
@@ -464,7 +462,7 @@ class PooledConnection implements PoolConnection
      */
     public function recordDateFormat(): void
     {
-        if ($this->connection instanceof Connection) {
+        if (! $this->invalid && $this->connection instanceof Connection) {
             $this->pool->recordDateFormat($this->connection);
         }
     }
@@ -617,6 +615,8 @@ class PooledConnection implements PoolConnection
     protected function markInvalid(): void
     {
         $this->invalid = true;
+        // Date casts must not keep using a format its replacement may not have.
+        $this->pool->forgetDateFormat();
     }
 
     /**
