@@ -26,6 +26,8 @@ Apply these discussed differences and explain them proportionately:
 
 Record deliberate lasting public differences briefly in the relevant package README and link to canonical docs. Explain affected edge cases in feature docs, and put actual migration/adaptation requirements in `src/docs/porting-from-laravel.md`. Do not catalogue internal optimizations or bug fixes as public API redesigns. Any additional compatibility change discovered during implementation needs owner approval.
 
+The owner has deferred nested tool-argument object/list preservation, including Bedrock's nested-value loss. Retain upstream array decoding and Vercel request handling; document the limitation under README `Known Issues` and consider upstream developments through normal syncs, with no separate follow-up task. Keep the agreed top-level object-encoding fixes in provider mappers and Vercel output; these require no API changes.
+
 ## Implementation checkpoints
 
 Establish the source/test checklist and dependency metadata first. Use approximately **40–60 changed files since the last checkpoint** as a prompt to choose a coherent review boundary, not a quota or hard limit. The implementer uses judgment: complex changes may warrant an earlier review, while related files may stay together in a larger group. There are no fixed feature assignments or checkpoint count, and choosing a boundary needs no second-opinion loop. Each checkpoint consists of verification, code review until signoff, and commits before proceeding.
