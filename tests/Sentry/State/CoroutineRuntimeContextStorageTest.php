@@ -55,11 +55,13 @@ class CoroutineRuntimeContextStorageTest extends TestCase
 
         [$inherited, $childRuntimeContext] = $childReady->pop();
 
-        $this->assertTrue($inherited);
-        $this->assertSame($runtimeContext, $childRuntimeContext);
-        $this->assertNull($storage->remove());
-
-        $releaseChild->push(true);
+        try {
+            $this->assertTrue($inherited);
+            $this->assertSame($runtimeContext, $childRuntimeContext);
+            $this->assertNull($storage->remove());
+        } finally {
+            $releaseChild->push(true);
+        }
 
         $this->assertSame($runtimeContext, $childResult->pop());
     }

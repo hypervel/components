@@ -91,14 +91,18 @@ class HubTest extends TestCase
             $releaseFirst->pop();
             $results->push($this->scopeTags($hub));
         });
-        $this->assertTrue($firstReady->pop(1.0));
+        try {
+            $this->assertTrue($firstReady->pop(1.0));
 
-        Coroutine::create(function () use ($hub, $results): void {
-            $results->push($this->scopeTags($hub));
-        });
+            Coroutine::create(function () use ($hub, $results): void {
+                $results->push($this->scopeTags($hub));
+            });
 
-        $secondTags = $results->pop(1.0);
-        $releaseFirst->push(true);
+            $secondTags = $results->pop(1.0);
+        } finally {
+            $releaseFirst->push(true);
+        }
+
         $firstTags = $results->pop(1.0);
 
         $this->assertSame(['baseline' => 'yes'], $secondTags);

@@ -214,10 +214,12 @@ class CoroutineContextPropagationTest extends TestCase
             }));
         });
 
-        $this->assertTrue($grandchildReady->pop(1.0));
-        Coroutine::join([$childId]);
-
-        $releaseGrandchild->push(true);
+        try {
+            $this->assertTrue($grandchildReady->pop(1.0));
+            Coroutine::join([$childId]);
+        } finally {
+            $releaseGrandchild->push(true);
+        }
 
         $this->assertSame($runtimeContext, $grandchildResult->pop(1.0));
         Coroutine::join([$grandchildId->pop(1.0)]);
@@ -260,15 +262,17 @@ class CoroutineContextPropagationTest extends TestCase
             $releaseChild->pop();
         });
 
-        $this->assertTrue($childReady->pop(1.0));
+        try {
+            $this->assertTrue($childReady->pop(1.0));
 
-        SentrySdk::endContext();
+            SentrySdk::endContext();
 
-        $this->assertSame(0, $this->countCapturedEvents(EventType::logs()));
-        $this->assertSame(0, $this->countCapturedEvents(EventType::metrics()));
-
-        $releaseChild->push(true);
-        Coroutine::join([$childId]);
+            $this->assertSame(0, $this->countCapturedEvents(EventType::logs()));
+            $this->assertSame(0, $this->countCapturedEvents(EventType::metrics()));
+        } finally {
+            $releaseChild->push(true);
+            Coroutine::join([$childId]);
+        }
 
         $this->assertSharedTelemetryFlushedOnce();
     }
