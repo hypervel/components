@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Inertia\Commands;
 
+use Hypervel\Http\Client\Destinations\DestinationPolicyException;
+use Hypervel\Http\Client\Destinations\DisallowedDestinationException;
 use Hypervel\Http\Client\Request;
 use Hypervel\Inertia\Ssr\HttpGateway;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Inertia\TestCase;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class StopSsrTest extends TestCase
 {
@@ -80,7 +83,30 @@ class StopSsrTest extends TestCase
 
         $this->expectOutputString('');
 
-        $this->artisan('inertia:stop-ssr')->run();
+        $this->artisan('inertia:stop-ssr')
+            ->doesntExpectOutputToContain('Hello from another service')
+            ->run();
+    }
+
+    #[TestWith([DisallowedDestinationException::class])]
+    #[TestWith([DestinationPolicyException::class])]
+    public function testHealthChecksFailWhenTheSsrDestinationIsBlocked(string $exceptionClass): void
+    {
+        Http::fake([
+            $this->healthUrl => static fn (): never => throw new $exceptionClass('Blocked SSR destination.'),
+        ]);
+
+        $this->artisan('inertia:check-ssr')
+            ->expectsOutput('Inertia SSR server is not running.')
+            ->assertExitCode(1);
+
+        $this->artisan('inertia:stop-ssr')
+            ->expectsOutput('Unable to connect to Inertia SSR server.')
+            ->assertExitCode(1);
+
+        $this->artisan('inertia:stop-ssr', ['--graceful' => true])
+            ->expectsOutput('Unable to connect to Inertia SSR server.')
+            ->assertExitCode(1);
     }
 
     public function testSucceedsWhenTheSsrServerStops(): void

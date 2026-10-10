@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Foundation\Http\Middleware\Concerns\ExcludesPaths;
 use Hypervel\Http\Client\ConnectionException;
+use Hypervel\Http\Client\HttpClientException;
 use Hypervel\Http\Client\PendingRequest;
 use Hypervel\Http\Client\RequestException;
 use Hypervel\Http\Request;
@@ -258,7 +259,9 @@ class HttpGateway implements ConfiguresSsrRequests, DisablesSsr, ExcludesSsrPath
 
         try {
             return $pendingRequest->get($this->getProductionUrl('/health'))->successful();
-        } catch (RequestException) {
+        } catch (ConnectionException $exception) {
+            throw $exception;
+        } catch (HttpClientException) {
             return false;
         }
     }
