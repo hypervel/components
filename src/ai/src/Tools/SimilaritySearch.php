@@ -71,7 +71,7 @@ class SimilaritySearch implements Approvable, Tool, Transient
 
             return $pendingQuery
                 ->get()
-                ->map(fn (mixed $model): array => Arr::except($model->toArray(), [$column]));
+                ->map(fn (Model $model): array => Arr::except($model->toArray(), [$column]));
         });
     }
 

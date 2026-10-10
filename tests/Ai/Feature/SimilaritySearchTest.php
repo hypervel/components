@@ -9,6 +9,7 @@ use Hypervel\Ai\Reranking;
 use Hypervel\Ai\Responses\Data\RankedDocument;
 use Hypervel\Ai\Tools\Request;
 use Hypervel\Ai\Tools\SimilaritySearch;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\Ai\TestCase;
 use InvalidArgumentException;
@@ -176,20 +177,7 @@ class FakeQueryBuilder
     }
 }
 
-class FakeModel
+class FakeModel extends Model
 {
-    /**
-     * Create a model with the given attributes.
-     */
-    public function __construct(protected array $attributes)
-    {
-    }
-
-    /**
-     * Get the model attributes as an array.
-     */
-    public function toArray(): array
-    {
-        return $this->attributes;
-    }
+    protected array $guarded = [];
 }
