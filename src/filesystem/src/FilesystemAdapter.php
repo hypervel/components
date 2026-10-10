@@ -68,6 +68,13 @@ class FilesystemAdapter implements CloudFilesystemContract
     }
 
     /**
+     * The stream context option identifying a range over an independent buffer.
+     *
+     * @internal
+     */
+    public const string BUFFERED_STREAM_CONTEXT_OPTION = 'buffered';
+
+    /**
      * The filesystem configuration.
      */
     protected array $config;
@@ -735,8 +742,14 @@ class FilesystemAdapter implements CloudFilesystemContract
 
             $psrStream = Utils::streamFor($stream);
             $limitedStream = new LimitStream($psrStream, $length, $psrStream->tell());
+            $range = StreamWrapper::getResource($limitedStream);
 
-            return StreamWrapper::getResource($limitedStream);
+            if (in_array(stream_get_meta_data($stream)['stream_type'], ['TEMP', 'MEMORY'], true)) {
+                // Only mark this new wrapper; a driver's stream may share the default context.
+                stream_context_set_option($range, 'hypervel', self::BUFFERED_STREAM_CONTEXT_OPTION, true);
+            }
+
+            return $range;
         } catch (CanceledException $exception) {
             if (is_resource($stream)) {
                 fclose($stream);
