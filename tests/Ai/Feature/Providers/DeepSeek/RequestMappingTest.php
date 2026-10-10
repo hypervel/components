@@ -207,8 +207,7 @@ class RequestMappingTest extends TestCase
 
         $stream = agent()->stream('Hello', provider: 'deepseek');
 
-        foreach ($stream as $event) {
-        }
+        foreach ($stream as $event);
 
         Http::assertSent(function (Request $request): bool {
             $body = json_decode($request->body(), true);
