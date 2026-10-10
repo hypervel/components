@@ -489,11 +489,11 @@ class TextGenerationLoopTest extends TestCase
         $this->assertCount(6, $settled);
         $this->assertInstanceOf(ToolResultMessage::class, $settled[1]);
         $this->assertSame('call-1', $settled[1]->toolResults->first()->id);
-        $this->assertStringContainsString('not approved', $settled[1]->toolResults->first()->result);
+        $this->assertStringContainsString('not executed', $settled[1]->toolResults->first()->result);
         $this->assertSame('Never mind, do something else.', $settled[2]->content);
         $this->assertInstanceOf(ToolResultMessage::class, $settled[4]);
         $this->assertSame('call-2', $settled[4]->toolResults->first()->id);
-        $this->assertStringContainsString('not approved', $settled[4]->toolResults->first()->result);
+        $this->assertStringContainsString('not executed', $settled[4]->toolResults->first()->result);
         $this->assertSame('Never mind that either, just say hi.', $settled[5]->content);
         $this->assertSame('Sure, moving on.', $response->text);
     }
@@ -1210,7 +1210,7 @@ class TextGenerationLoopTest extends TestCase
         $this->assertSame([['value' => 'approved']], $tool->handledArguments);
         $this->assertInstanceOf(ToolResultMessage::class, $settled);
         $this->assertSame('call-old', $settled->toolResults->first()->id);
-        $this->assertStringContainsString('not approved', $settled->toolResults->first()->result);
+        $this->assertStringContainsString('not executed', $settled->toolResults->first()->result);
         $this->assertSame('done', $response->text);
     }
 

@@ -72,7 +72,7 @@ trait HandlesToolApprovals
     }
 
     /**
-     * Settle unresolved tool calls from abandoned pauses so the history remains replayable, optionally leaving the latest assistant turn for a resume to decide.
+     * Settle unresolved historical tool calls so the history remains replayable, optionally leaving the latest assistant turn for a resume to decide.
      *
      * @param Message[] $messages
      * @return Message[]
@@ -113,7 +113,7 @@ trait HandlesToolApprovals
                 $toolCall->id,
                 $toolCall->name,
                 $toolCall->arguments,
-                'This tool call was not executed because it was not approved before the conversation continued.',
+                'This tool call was not executed before the conversation continued.',
                 $toolCall->resultId,
                 denied: true,
             ));
