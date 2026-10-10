@@ -49,6 +49,8 @@ return [
     // @see: https://docs.sentry.io/platforms/php/guides/laravel/configuration/options/#traces_sample_rate
     'traces_sample_rate' => $tracesSampleRate === null ? null : (float) $tracesSampleRate,
 
+    // Profiles can include work from other requests running at the same time in the same worker,
+    // whether profiling is enabled here or by a `profiles_sampler` callback.
     // @see: https://docs.sentry.io/platforms/php/guides/laravel/configuration/options/#profiles_sample_rate
     'profiles_sample_rate' => $profilesSampleRate === null ? null : (float) $profilesSampleRate,
 

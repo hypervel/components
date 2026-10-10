@@ -258,6 +258,9 @@ Returning `1.0` when the parent transaction was sampled keeps distributed traces
 
 Profiling may be configured with `SENTRY_PROFILES_SAMPLE_RATE` or a `profiles_sampler` callback. Profiles are only collected for sampled transactions.
 
+> [!WARNING]
+> Profiling is disabled by default. A profile can include work from other requests running at the same time in the same worker, whether profiling is enabled with `SENTRY_PROFILES_SAMPLE_RATE` or a `profiles_sampler` callback. Error reporting and tracing are not affected.
+
 <a name="distributed-tracing"></a>
 ### Distributed Tracing
 
