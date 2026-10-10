@@ -259,9 +259,10 @@ class CompiledRouteCollection extends AbstractRouteCollection
      * metadata are resolved only when the compiled route table requires them.
      *
      * No request duplication needed — trailing slashes are trimmed via rtrim()
-     * on the path string and passed to match() directly, avoiding the overhead
-     * of cloning the entire Request object. RequestBridge also normalizes
-     * trailing slashes for real HTTP requests upstream.
+     * on the path string, which is matched and given to compiled conditions as
+     * the trimmed request Laravel matches against would give it. The request
+     * itself keeps the URI it arrived with, avoiding the overhead of cloning
+     * the entire Request object.
      *
      * @throws MethodNotAllowedHttpException
      * @throws NotFoundHttpException
@@ -269,8 +270,7 @@ class CompiledRouteCollection extends AbstractRouteCollection
     public function match(Request $request): Route
     {
         $method = $request->getMethod();
-        $pathInfo = $request->getPathInfo();
-        $path = rtrim($pathInfo, '/') ?: '/';
+        $path = rtrim($request->getPathInfo(), '/') ?: '/';
         $skipStaticRoutes = false;
         $result = null;
         $route = null;
@@ -304,7 +304,7 @@ class CompiledRouteCollection extends AbstractRouteCollection
                     scheme: $request->getScheme(),
                     httpPort: $request->isSecure() ? 443 : (int) $request->getPort(),
                     httpsPort: $request->isSecure() ? (int) $request->getPort() : 443,
-                    path: $pathInfo,
+                    path: $path,
                     queryString: $request->server->get('QUERY_STRING', ''),
                 );
             } else {

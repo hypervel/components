@@ -110,6 +110,8 @@ The credential variables use the AWS SDK's standard names, while the region foll
 
 The optional `AWS_ROOT` value scopes the disk to a key prefix within the bucket. When it is empty, the disk operates from the bucket root.
 
+If you supply a callable `credentials` provider, calls to that provider run one at a time, including when it is shared with SQS or SES. Hypervel does not cache provider results. If your provider fetches the same credentials remotely for every caller, wrap it with the AWS SDK's `CredentialProvider::memoize()` to reuse them until they need refreshing. Do not share a memoized provider between callers that need different credentials, such as different tenants.
+
 <a name="ftp-driver-configuration"></a>
 #### FTP Driver Configuration
 
@@ -1207,7 +1209,7 @@ Storage::extend('dropbox', function (Application $app, array $config, ?string $n
 
 The closure must return an instance of `Hypervel\Filesystem\FilesystemAdapter`. The `$config` variable contains the values defined in `config/filesystems.php` for the specified disk. You may omit the third argument when your driver does not need the disk name.
 
-The optional `poolable` argument determines whether Hypervel should wrap the custom driver in an object pool. This value is `false` by default. You should set it to `true` for custom drivers that hold state that should not be shared across concurrent requests, such as cloud storage SDK clients.
+The optional `poolable` argument determines whether Hypervel should wrap the custom driver in an object pool. This value is `false` by default. You should set it to `true` for custom drivers that hold state that should not be shared across concurrent requests, such as cloud storage SDK clients. A poolable driver's `pool` option configures that pool, so it is left out of `$config`; other drivers receive it like any other option.
 
 Custom whole-driver pools include the logical disk name in their construction fingerprint. If the name does not affect your custom driver and several named disks may safely share one pool, configure the same `pool.fingerprint` for each disk. A shared `pool.name` may also choose the pool's identity, but it does not replace the shared fingerprint.
 

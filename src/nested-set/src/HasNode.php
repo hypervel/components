@@ -1207,11 +1207,7 @@ trait HasNode
         return match (true) {
             $value === null, is_int($value), is_string($value) => $value,
             is_bool($value) => (int) $value,
-            // Mirror Grammar::getDateFormat() without resolving a
-            // connection for each eager result.
-            $value instanceof DateTimeInterface => $value->format(
-                $this->dateFormat ?: 'Y-m-d H:i:s',
-            ),
+            $value instanceof DateTimeInterface => $value->format($this->getDateFormat()),
             $value instanceof Stringable => (string) $value,
             default => throw new LogicException(sprintf(
                 'Nested set model [%s] has unsupported scope value [%s] for attribute [%s].',

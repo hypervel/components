@@ -39,6 +39,7 @@ use Hypervel\Http\Client\ResponseSequence;
  * @method static void macro(string $name, callable|object $macro)
  * @method static mixed macroCall(string $method, array $parameters)
  * @method static void mixin(object $mixin, bool $replace = true)
+ * @method static callable newConnectionHandler(string $name)
  * @method static bool preventingStrayRequests()
  * @method static \GuzzleHttp\Psr7\Response psr7Response(null|array|resource|\Psr\Http\Message\StreamInterface|string $body = null, int $status = 200, array $headers = [])
  * @method static \Hypervel\Http\Client\Factory record()

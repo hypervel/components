@@ -27,4 +27,4 @@ purge:
   directories:
     - public/build
     - public/vendor/*
-    - storage/framework/aop
+    - bootstrap/cache/aop

@@ -60,15 +60,13 @@ class HttpConnectionTest extends TestCase
         $this->assertCount(10, $factory->invocations);
     }
 
-    public function testNamedBufferedRequestsReuseConnectionsAcrossConcurrentBursts(): void
+    #[DataProvider('pooledRequestOptions')]
+    public function testNamedBufferedRequestsReuseConnectionsAcrossConcurrentBursts(array $options): void
     {
-        // @TODO Unskip once https://github.com/guzzle/guzzle/pull/3935 ships and Hypervel adopts it for named buffered requests.
-        $this->markTestSkipped('Guzzle limits the synchronous handler to three idle handles.');
-
         $bursts = [];
         $failure = null;
 
-        run(function () use (&$bursts, &$failure): void {
+        run(function () use ($options, &$bursts, &$failure): void {
             $server = new Server('127.0.0.1', 0, false, false);
             $ready = new Channel(4);
             $arrived = 0;
@@ -97,7 +95,7 @@ class HttpConnectionTest extends TestCase
             try {
                 for ($burst = 0; $burst < 2; ++$burst) {
                     $bursts[] = parallel(array_fill(0, 4, fn (): string => $factory->connection('api')
-                        ->withOptions(['proxy' => '', 'version' => '1.1'])
+                        ->withOptions(['proxy' => '', 'version' => '1.1', ...$options])
                         ->timeout(3)->get($url)->throw()->body()));
                 }
             } catch (Throwable $exception) {
@@ -116,6 +114,17 @@ class HttpConnectionTest extends TestCase
         $this->assertCount(4, array_unique($bursts[0]));
         $this->assertCount(4, array_unique($bursts[1]));
         $this->assertCount(4, array_unique(array_merge(...$bursts)), 'The second burst opened another connection instead of reusing all four warm connections.');
+    }
+
+    /**
+     * Provide requests with default and explicit TLS settings.
+     */
+    public static function pooledRequestOptions(): array
+    {
+        return [
+            'default' => [[]],
+            'explicit TLS version' => [['crypto_method' => STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT]],
+        ];
     }
 
     public function testEachRequestKeepsItsOwnMiddlewareStack(): void
@@ -321,38 +330,143 @@ class HttpConnectionTest extends TestCase
             'handler' => ['handler', static fn () => null],
             'cookies' => ['cookies', true],
             'transport sharing' => ['transport_sharing', TransportSharing::HANDLER_PREFER],
+            'max idle handles' => ['max_idle_handles', 8],
             'host connection cap' => ['max_host_connections', 5],
             'total connection cap' => ['max_total_connections', 10],
         ];
     }
 
-    public function testTransportSharingOnlyConfiguresTheConnectionHandler(): void
+    #[DataProvider('requestModes')]
+    public function testHandlerOptionsOnlyConfigureTheConnectionHandler(bool $async): void
     {
         $factory = new RecordingHttpConnectionFactory;
         $factory->registerConnection('api', [
             'transport_sharing' => TransportSharing::HANDLER_PREFER,
+            'max_idle_handles' => 8,
             'timeout' => 12,
         ]);
 
-        $factory->connection('api')->get('https://example.com');
+        $response = $factory->connection('api')->async($async)->get('https://example.com');
+        if ($async) {
+            $response = $response->wait();
+        }
 
+        $this->assertSame('handler-1', $response->body());
         $this->assertSame(
-            [['transport_sharing' => TransportSharing::HANDLER_PREFER]],
+            [['transport_sharing' => TransportSharing::HANDLER_PREFER, 'max_idle_handles' => 8]],
             $factory->createdHandlerOptions,
         );
         $this->assertArrayNotHasKey('transport_sharing', $factory->invocations[0]['options']);
+        $this->assertArrayNotHasKey('max_idle_handles', $factory->invocations[0]['options']);
         $this->assertSame(12, $factory->invocations[0]['options']['timeout']);
+        $this->assertSame(['timeout' => 12], $factory->getConnectionOptions('api'));
     }
 
-    public function testDisablingMultiplexingConfiguresTheHandlerAndRequest(): void
+    #[DataProvider('invalidIdleHandleLimits')]
+    public function testRegisteredConnectionsRejectInvalidIdleHandleLimits(mixed $limit): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The [max_idle_handles] connection option must be an integer of 0 or more.');
+
+        (new Factory)->registerConnection('api', ['max_idle_handles' => $limit]);
+    }
+
+    /**
+     * Provide invalid idle handle limits.
+     */
+    public static function invalidIdleHandleLimits(): array
+    {
+        return [
+            'negative' => [-1],
+            'numeric string' => ['8'],
+            'float' => [8.0],
+        ];
+    }
+
+    public function testAConnectionKeepingNoIdleHandlesReconnectsForEveryRequest(): void
+    {
+        $ports = [];
+        $failure = null;
+
+        run(static function () use (&$ports, &$failure): void {
+            $server = new Server('127.0.0.1', 0, false, false);
+            $server->handle('/', static function (ServerRequest $request, ServerResponse $response): void {
+                $response->end((string) $request->server['remote_port']);
+            });
+            Coroutine::create(fn (): bool => $server->start());
+            $factory = new Factory;
+            $factory->registerConnection('api', ['transport_sharing' => TransportSharing::NONE, 'max_idle_handles' => 0]);
+
+            try {
+                for ($request = 0; $request < 3; ++$request) {
+                    $ports[] = $factory->connection('api')->withOptions(['proxy' => '', 'version' => '1.1'])
+                        ->timeout(3)->get("http://127.0.0.1:{$server->port}/")->throw()->body();
+                }
+            } catch (Throwable $exception) {
+                $failure = $exception;
+            } finally {
+                $factory->forgetConnectionHandlers();
+                $server->shutdown();
+            }
+        });
+
+        if ($failure !== null) {
+            throw $failure;
+        }
+
+        $this->assertCount(3, array_unique($ports));
+    }
+
+    #[DataProvider('requestModes')]
+    public function testDisablingMultiplexingConfiguresTheHandlerAndRequest(bool $async): void
     {
         $factory = new RecordingHttpConnectionFactory;
         $factory->registerConnection('api', ['multiplex' => Multiplexing::NONE]);
 
-        $factory->connection('api')->get('https://example.com');
+        $response = $factory->connection('api')->async($async)->get('https://example.com');
+        if ($async) {
+            $response = $response->wait();
+        }
 
+        $this->assertSame('handler-1', $response->body());
         $this->assertSame([['multiplex' => Multiplexing::NONE]], $factory->createdHandlerOptions);
         $this->assertSame(Multiplexing::NONE, $factory->invocations[0]['options']['multiplex']);
+    }
+
+    #[DataProvider('requestModes')]
+    public function testReplacingThePresetPreservesRegisteredTransportOptions(bool $async): void
+    {
+        $factory = new RecordingHttpConnectionFactory;
+        $factory->registerConnection('api', [
+            'multiplex' => Multiplexing::NONE,
+            'transport_sharing' => TransportSharing::HANDLER_REQUIRE,
+            'max_idle_handles' => 8,
+            'timeout' => 12,
+        ]);
+
+        $response = $factory->connection('api', [])->async($async)->get('https://example.com');
+        if ($async) {
+            $response = $response->wait();
+        }
+
+        $this->assertSame('handler-1', $response->body());
+        $this->assertSame([[
+            'transport_sharing' => TransportSharing::HANDLER_REQUIRE,
+            'max_idle_handles' => 8,
+            'multiplex' => Multiplexing::NONE,
+        ]], $factory->createdHandlerOptions);
+        $this->assertArrayNotHasKey('multiplex', $factory->invocations[0]['options']);
+        $this->assertArrayNotHasKey('transport_sharing', $factory->invocations[0]['options']);
+        $this->assertArrayNotHasKey('max_idle_handles', $factory->invocations[0]['options']);
+        $this->assertSame(30, $factory->invocations[0]['options']['timeout']);
+    }
+
+    /**
+     * Provide synchronous and asynchronous request modes.
+     */
+    public static function requestModes(): array
+    {
+        return ['sync' => [false], 'async' => [true]];
     }
 
     public function testOtherMultiplexingModesConfigureOnlyTheRequest(): void
@@ -369,15 +483,14 @@ class HttpConnectionTest extends TestCase
     public function testRegisteredAsynchronousRequestsDoNotUseTheSharedHandler(): void
     {
         $factory = new RecordingHttpConnectionFactory;
-        $factory->registerConnection('api');
+        $factory->registerConnection('api', ['multiplex' => Multiplexing::NONE]);
 
-        $factory->connection('api')->async()->buildHandlerStack();
+        $this->assertSame('handler-1', $factory->connection('api')->get('https://example.com')->body());
+        $this->assertSame('handler-2', $factory->connection('api')->async()->get('https://example.com')->wait()->body());
+        $this->assertSame('handler-3', $factory->connection('api')->async()->get('https://example.com')->wait()->body());
+        $this->assertSame('handler-1', $factory->connection('api')->get('https://example.com')->body());
 
-        $this->assertSame([], $factory->createdHandlerOptions);
-
-        $factory->connection('api')->buildHandlerStack();
-
-        $this->assertSame([[]], $factory->createdHandlerOptions);
+        $this->assertSame(array_fill(0, 3, ['multiplex' => Multiplexing::NONE]), $factory->createdHandlerOptions);
     }
 
     public function testReregisteringAConnectionReplacesItsSharedHandler(): void

@@ -27,6 +27,7 @@ use Hypervel\Http\Client\Factory;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
+use LogicException;
 use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
@@ -237,30 +238,47 @@ class DatabaseConnectionLeaseTest extends TestCase
     }
 
     #[DataProvider('pinnedScopes')]
-    public function testSessionDependentScopesPreventEarlyRelease(string $scope): void
+    public function testSessionDependentScopesPreventEarlyRelease(string $scope, string $name): void
     {
-        $connection = DB::connection('leases');
-        $check = function () use ($connection): void {
+        $connection = DB::connection($name);
+        $pool = $this->app->make(PoolManager::class)->pool($name);
+        $check = function () use ($connection, $pool): void {
             $this->assertSame(1, $connection->selectOne('select 1 as value')->value);
             DB::releaseIdleConnections();
-            $this->assertSame(0, $this->pool()->getIdleCount());
-            (new Factory)->setHandler(function (): PromiseInterface {
-                $this->assertSame(0, $this->pool()->getIdleCount());
+            $this->assertSame(0, $pool->getIdleCount());
+            (new Factory)->setHandler(function () use ($pool): PromiseInterface {
+                $this->assertSame(0, $pool->getIdleCount());
 
                 return Create::promiseFor(new Response(200));
             })->get('http://example.test');
         };
 
-        match ($scope) {
-            'explicit' => $connection->withPinnedSession(
-                fn () => $connection->withPinnedSession($check)
-            ),
-            'transaction' => $connection->transaction($check),
-            'foreign keys' => $connection->getSchemaBuilder()->withoutForeignKeyConstraints($check),
-        };
+        if (in_array($scope, ['native transaction', 'SQL transaction', 'read transaction'], true)) {
+            $pdo = $scope === 'read transaction' ? $connection->getReadPdo() : $connection->getPdo();
+
+            if ($scope === 'SQL transaction') {
+                $pdo->exec('BEGIN');
+            } else {
+                $pdo->beginTransaction();
+            }
+
+            try {
+                $check();
+            } finally {
+                $pdo->rollBack();
+            }
+        } else {
+            match ($scope) {
+                'explicit' => $connection->withPinnedSession(
+                    fn () => $connection->withPinnedSession($check)
+                ),
+                'transaction' => $connection->transaction($check),
+                'foreign keys' => $connection->getSchemaBuilder()->withoutForeignKeyConstraints($check),
+            };
+        }
 
         DB::releaseIdleConnections();
-        $this->assertSame(1, $this->pool()->getIdleCount());
+        $this->assertSame(1, $pool->getIdleCount());
     }
 
     /**
@@ -268,7 +286,14 @@ class DatabaseConnectionLeaseTest extends TestCase
      */
     public static function pinnedScopes(): array
     {
-        return [['explicit'], ['transaction'], ['foreign keys']];
+        return [
+            ['explicit', 'leases'],
+            ['transaction', 'leases'],
+            ['foreign keys', 'leases'],
+            ['native transaction', 'leases'],
+            ['SQL transaction', 'leases'],
+            ['read transaction', 'physical_leases'],
+        ];
     }
 
     public function testAnAbandonedCursorReleasesItsPin(): void
@@ -475,23 +500,47 @@ class DatabaseConnectionLeaseTest extends TestCase
         $this->assertSame('primary', $write->getConfig('host'));
     }
 
-    public function testConfigFirstExtensionsRetainWholeConnectionOwnership(): void
+    #[DataProvider('configFirstExtensions')]
+    public function testConfigFirstExtensionsRetainWholeConnectionOwnership(bool $read, bool $listed): void
     {
         $constructions = 0;
-        DB::extend('physical_leases', static function (array $config) use (&$constructions): PostgresConnection {
+        $created = null;
+
+        if ($read) {
+            $record = ['driver' => 'custom_read'];
+            config(['database.connections.physical_leases.read' => $listed ? [$record] : $record]);
+        }
+
+        DB::extend($read ? 'custom_read' : 'physical_leases', static function (array $config) use (&$constructions, &$created): PostgresConnection {
             ++$constructions;
 
-            return new PostgresConnection(new PDO('sqlite::memory:'), $config['database'], '', $config);
+            return $created = new PostgresConnection(new PDO('sqlite::memory:'), $config['database'], '', $config);
         });
-        $connection = DB::connection('physical_leases');
+        $name = $read ? 'physical_leases::read' : 'physical_leases';
+        $connection = DB::connection($name);
         $connection->selectOne('select 1');
 
         DB::releaseIdleConnections();
 
-        $this->assertSame(0, $this->app->make(PoolManager::class)->pool('physical_leases')->getIdleCount());
-        $this->assertSame($connection, DB::connection('physical_leases'));
+        $pool = $this->app->make(PoolManager::class)->pool($name);
+        $this->assertFalse($pool->usesSessionLeases());
+        $this->assertSame(0, $pool->getIdleCount());
+        $this->assertSame($created, $connection);
+        $this->assertSame($connection, DB::connection($name));
         $this->assertSame(2, $connection->selectOne('select 2 as value')->value);
         $this->assertSame(1, $constructions);
+    }
+
+    /**
+     * Provide named and effective read-driver extensions.
+     */
+    public static function configFirstExtensions(): array
+    {
+        return [
+            'named PDO extension' => [false, false],
+            'single read PDO extension' => [true, false],
+            'listed read PDO extension' => [true, true],
+        ];
     }
 
     public function testSessionCapabilitiesAreResolvedAgainAfterEarlyRelease(): void
@@ -551,8 +600,10 @@ class DatabaseConnectionLeaseTest extends TestCase
 
         $failure = $cancel ? new CanceledException('listener canceled') : new RuntimeException('listener failed');
         $fail = true;
-        Event::listen(ConnectionEstablished::class, static function (ConnectionEstablished $event) use ($failure, &$fail): void {
+        $retained = null;
+        Event::listen(ConnectionEstablished::class, static function (ConnectionEstablished $event) use ($failure, &$fail, &$retained): void {
             if ($event->connection->getName() === 'leases' && $fail) {
+                $retained = $event->connection;
                 $fail = false;
                 throw $failure;
             }
@@ -571,6 +622,17 @@ class DatabaseConnectionLeaseTest extends TestCase
         }
 
         $this->assertSame(0, $this->pool()->getManagedCount());
+
+        if (! $reacquire) {
+            try {
+                $retained->getPdo();
+                $this->fail('Expected the failed initial owner to reject a new borrow.');
+            } catch (LogicException) {
+            }
+
+            $this->assertSame(0, $this->pool()->getManagedCount());
+        }
+
         $connection ??= DB::connection('leases');
         $this->assertSame(1, $connection->selectOne('select 1 as value')->value);
         DB::releaseIdleConnections();

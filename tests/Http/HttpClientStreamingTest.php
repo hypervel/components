@@ -12,6 +12,7 @@ use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Http\Client\ConnectionException;
 use Hypervel\Http\Client\CurlStreamingHandler;
 use Hypervel\Http\Client\Factory;
+use Hypervel\Http\Client\PendingRequest;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Http\Message\ResponseInterface;
@@ -56,14 +57,15 @@ class HttpClientStreamingTest extends TestCase
         ];
     }
 
-    public function testStreamingReadsAllowOtherCoroutinesToProgress(): void
+    #[DataProvider('streamingRequests')]
+    public function testStreamingReadsAllowOtherCoroutinesToProgress(Closure $request): void
     {
-        $this->withStreamingServer('delayed', function (string $address): void {
+        $this->withStreamingServer('delayed', function (string $address) use ($request): void {
             $ready = new Channel(1);
             try {
                 $results = parallel([
-                    'reader' => function () use ($address, $ready): array {
-                        $response = (new Factory)->withOptions(['stream' => true, 'read_timeout' => 3])->get('http://' . $address);
+                    'reader' => function () use ($address, $ready, $request): array {
+                        $response = $request()->withOptions(['stream' => true, 'read_timeout' => 3])->get('http://' . $address);
                         try {
                             $ready->push(true);
 
@@ -83,7 +85,23 @@ class HttpClientStreamingTest extends TestCase
             } finally {
                 $ready->close();
             }
-        });
+        }, SWOOLE_HOOK_ALL & ~SWOOLE_HOOK_NATIVE_CURL);
+    }
+
+    /**
+     * Provide requests with the default handler and through a registered connection's shared handler.
+     */
+    public static function streamingRequests(): array
+    {
+        return [
+            'default handler' => [static fn (): PendingRequest => (new Factory)->createPendingRequest()],
+            'registered connection' => [static function (): PendingRequest {
+                $factory = new Factory;
+                $factory->registerConnection('stream');
+
+                return $factory->connection('stream');
+            }],
+        ];
     }
 
     public function testConcurrentPhpStreamsReleaseTheirResponseHeaders(): void
@@ -118,6 +136,35 @@ class HttpClientStreamingTest extends TestCase
 
         $this->assertSame(0, $process->getExitCode(), $process->getErrorOutput());
         $this->assertSame('OK', json_decode($process->getOutput(), true, flags: JSON_THROW_ON_ERROR));
+    }
+
+    public function testFallbackJsonLinesArriveBeforeTheNextChunk(): void
+    {
+        // @TODO: Enable this test for versions containing https://github.com/guzzle/guzzle/pull/3936.
+        $this->markTestSkipped('Guzzle holds later chunked response data until the read buffer fills or times out.');
+
+        // Without native cURL hooks, the default handler uses PHP streams.
+        $this->withStreamingServer('chunked', function (string $address): void {
+            $response = (new Factory)->withOptions(['stream' => true, 'read_timeout' => 3])
+                ->get('http://' . $address);
+
+            try {
+                $this->releaseServer($address);
+                $lines = $response->jsonLines();
+                $first = $lines->current();
+                $timedOut = $response->toPsrResponse()->getBody()->getMetadata('timed_out');
+                $this->releaseServer($address);
+
+                $this->assertSame(['id' => 1], $first);
+                $this->assertFalse($timedOut, 'The first record was withheld until the read timeout.');
+                $lines->next();
+                $this->assertSame(['id' => 2], $lines->current());
+                $lines->next();
+                $this->assertFalse($lines->valid());
+            } finally {
+                $response->close();
+            }
+        }, 0);
     }
 
     #[DataProvider('streamingTransports')]
@@ -557,9 +604,9 @@ class HttpClientStreamingTest extends TestCase
     }
 
     /**
-     * Run a hooked client against an independently controlled loopback server.
+     * Run a client against an independently controlled loopback server.
      */
-    protected function withStreamingServer(string $mode, Closure $callback): void
+    protected function withStreamingServer(string $mode, Closure $callback, int $hookFlags = SWOOLE_HOOK_ALL): void
     {
         $process = new Process([PHP_BINARY, __DIR__ . '/Fixtures/streaming-server.php', $mode]);
         $process->setTimeout(10);
@@ -582,7 +629,7 @@ class HttpClientStreamingTest extends TestCase
                 } catch (Throwable $exception) {
                     $failure = $exception;
                 }
-            }, SWOOLE_HOOK_ALL);
+            }, $hookFlags);
 
             if ($failure !== null) {
                 throw $failure;

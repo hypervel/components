@@ -767,18 +767,30 @@ class PdoConnection extends Connection
     protected function disconnectDriverResources(): void
     {
         $pdo = $this->getRawPdo();
+        $readPdo = $this->getRawReadPdo();
         $exception = null;
 
         try {
-            if ($pdo instanceof PDO && $pdo->inTransaction()) {
-                $pdo->rollBack();
-                $this->invalidateSessionState($pdo);
-            }
-        } catch (Throwable $throwable) {
-            $this->markSessionStateUnknown($pdo);
+            foreach ($readPdo === $pdo ? [$pdo] : [$pdo, $readPdo] as $handle) {
+                if (! $handle instanceof PDO) {
+                    continue;
+                }
 
-            if (! $this->causedByLostConnection($throwable)) {
-                $exception = $throwable;
+                try {
+                    if ($handle->inTransaction()) {
+                        $handle->rollBack();
+                        $this->invalidateSessionState($handle);
+                    }
+                } catch (Throwable $throwable) {
+                    $this->markSessionStateUnknown($handle);
+
+                    if (! $this->causedByLostConnection($throwable)
+                        && ($exception === null
+                            || ($throwable instanceof CanceledException && ! $exception instanceof CanceledException))
+                    ) {
+                        $exception = $throwable;
+                    }
+                }
             }
         } finally {
             $this->forgetDriverResources();
@@ -881,6 +893,19 @@ class PdoConnection extends Connection
     }
 
     /**
+     * Determine whether either open PDO handle has an active transaction.
+     *
+     * @internal
+     */
+    public function hasPhysicalTransaction(): bool
+    {
+        return $this->inTransaction()
+            || ($this->readPdo instanceof PDO
+                && $this->readPdo !== $this->pdo
+                && $this->readPdo->inTransaction());
+    }
+
+    /**
      * Run the statement to start a new transaction.
      */
     protected function executeBeginTransactionStatement(): void
@@ -979,8 +1004,6 @@ class PdoConnection extends Connection
 
     /**
      * Get the maximum number of bindings supported by one statement.
-     *
-     * @internal
      */
     public function maxBindings(): int
     {

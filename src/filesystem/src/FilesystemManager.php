@@ -17,6 +17,7 @@ use Hypervel\Contracts\ObjectPool\InvalidatesPool;
 use Hypervel\ObjectPool\Concerns\HasPoolProxy;
 use Hypervel\ObjectPool\PoolDefinition;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Aws\SerializedCredentialProvider;
 use Hypervel\Support\RebindsCallbacksToSelf;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
@@ -243,7 +244,8 @@ class FilesystemManager implements FactoryContract
                     $descriptor['servingRoutePrefix'],
                     fn () => $resolver($this->callCustomCreator($constructionConfig, $logicalName)),
                 )
-                : $resolver($this->callCustomCreator($constructionConfig, $logicalName));
+                // The manager only consumes the pool options of poolable drivers.
+                : $resolver($this->callCustomCreator($config, $logicalName));
         }
 
         if ($hasPool && ($driver === 's3' || $driver === 'gcs')) {
@@ -560,6 +562,10 @@ class FilesystemManager implements FactoryContract
      */
     protected function createS3Client(array $clientConfig): S3Client
     {
+        if (is_callable($clientConfig['credentials'] ?? null)) {
+            $clientConfig['credentials'] = new SerializedCredentialProvider($clientConfig['credentials']);
+        }
+
         return new S3Client($clientConfig);
     }
 

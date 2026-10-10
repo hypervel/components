@@ -7,6 +7,10 @@ namespace Hypervel\Broadcasting;
 use Ably\AblyRest;
 use Closure;
 use GuzzleHttp\Client as GuzzleClient;
+use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Multiplexing;
+use GuzzleHttp\Promise\PromiseInterface;
+use GuzzleHttp\Utils;
 use Hypervel\Broadcasting\Broadcasters\AblyBroadcaster;
 use Hypervel\Broadcasting\Broadcasters\Broadcaster as BaseBroadcaster;
 use Hypervel\Broadcasting\Broadcasters\LogBroadcaster;
@@ -17,6 +21,7 @@ use Hypervel\Broadcasting\Broadcasters\RedisBroadcaster;
 use Hypervel\Broadcasting\Mercure\CreatesMercureDrivers;
 use Hypervel\Bus\DispatchLockContext;
 use Hypervel\Bus\UniqueLock;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Broadcasting\Broadcaster;
 use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactoryContract;
 use Hypervel\Contracts\Broadcasting\ShouldBeUnique;
@@ -42,6 +47,7 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Queue\Concerns\ResolvesQueueRoutes;
 use Hypervel\Support\RebindsCallbacksToSelf;
 use InvalidArgumentException;
+use Psr\Http\Message\RequestInterface;
 use Psr\Log\LoggerInterface;
 use Pusher\Pusher;
 use ReflectionException;
@@ -61,6 +67,8 @@ class BroadcastManager implements BroadcastingFactoryContract
     use ReadsQueueAttributes;
     use RebindsCallbacksToSelf;
     use ResolvesQueueRoutes;
+
+    protected const string PUSHER_HANDLERS_CONTEXT_KEY = '__broadcasting.pusher_handlers';
 
     /**
      * The array of resolved broadcast drivers.
@@ -395,16 +403,50 @@ class BroadcastManager implements BroadcastingFactoryContract
      */
     public function pusher(array $config): Pusher
     {
-        $guzzleClient = new GuzzleClient(
-            array_merge(
-                [
-                    'connect_timeout' => 10,
-                    'crypto_method' => STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT,
-                    'timeout' => 30,
-                ],
-                $config['client_options'] ?? [],
-            ),
+        $clientOptions = array_merge(
+            [
+                'connect_timeout' => 10,
+                'crypto_method' => STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT,
+                'timeout' => 30,
+            ],
+            $config['client_options'] ?? [],
         );
+
+        if (! isset($clientOptions['handler'])) {
+            foreach (['max_host_connections', 'max_total_connections'] as $option) {
+                if (isset($clientOptions[$option])) {
+                    throw new InvalidArgumentException(
+                        "The [{$option}] broadcasting client option requires a shared multi-handler, which is unsafe across coroutines. Bound coroutine concurrency or use rate limiting instead."
+                    );
+                }
+            }
+
+            $handlerOptions = Arr::only($clientOptions, ['transport_sharing']);
+            unset($clientOptions['transport_sharing']);
+
+            if (($clientOptions['multiplex'] ?? null) === Multiplexing::NONE) {
+                $handlerOptions['multiplex'] = Multiplexing::NONE;
+            }
+
+            $sharedHandler = Utils::chooseHandler($handlerOptions)(...);
+
+            // Async transfers may share a multi-handler only within their owning coroutine.
+            $clientOptions['handler'] = HandlerStack::create(
+                static function (RequestInterface $request, array $options) use ($sharedHandler, $handlerOptions): PromiseInterface {
+                    if (! empty($options['synchronous'])) {
+                        return $sharedHandler($request, $options);
+                    }
+
+                    $context = CoroutineContext::get(self::PUSHER_HANDLERS_CONTEXT_KEY)
+                        ?? CoroutineContext::set(self::PUSHER_HANDLERS_CONTEXT_KEY, new PusherHandlerContext);
+                    $handler = $context->handlers[$sharedHandler] ??= Utils::chooseHandler($handlerOptions);
+
+                    return $handler($request, $options);
+                },
+            );
+        }
+
+        $guzzleClient = new GuzzleClient($clientOptions);
 
         $pusher = new Pusher(
             $config['key'],

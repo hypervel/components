@@ -46,6 +46,13 @@ class DatabasePool extends ConnectionPool
     protected ?PDO $sharedInMemorySqlitePdo = null;
 
     /**
+     * The query grammar date format new borrowers start from, recorded from the pool's physical connections.
+     *
+     * Date casts in coroutines that hold no connection read it instead of borrowing one.
+     */
+    protected ?string $dateFormat = null;
+
+    /**
      * Create a database connection pool.
      */
     public function __construct(Container $container, string $name)
@@ -72,8 +79,7 @@ class DatabasePool extends ConnectionPool
         }
 
         $this->config = $config;
-        $this->usesSessionLeases = $factory->getExtension($config, $connectionName->base) === null
-            && $this->hasConsistentLogicalIdentity($factory, $connectionName, $config);
+        $this->usesSessionLeases = $this->supportsSessionLeases($factory, $connectionName, $config);
 
         $poolOptions = Arr::except(
             Arr::get($poolConfig, 'pool', []),
@@ -123,6 +129,36 @@ class DatabasePool extends ConnectionPool
     }
 
     /**
+     * Record the query grammar date format of one of the pool's connections.
+     *
+     * @internal
+     */
+    public function recordDateFormat(Connection $connection): void
+    {
+        $this->dateFormat = $connection->getQueryGrammar()->getDateFormat();
+    }
+
+    /**
+     * Forget the recorded date format, once a connection of the pool has been closed or replaced.
+     *
+     * @internal
+     */
+    public function forgetDateFormat(): void
+    {
+        $this->dateFormat = null;
+    }
+
+    /**
+     * Get the recorded query grammar date format, if a connection recorded one since the last was closed.
+     *
+     * @internal
+     */
+    public function recordedDateFormat(): ?string
+    {
+        return $this->dateFormat;
+    }
+
+    /**
      * Determine whether callers can return physical sessions before execution ends.
      */
     public function usesSessionLeases(): bool
@@ -131,23 +167,33 @@ class DatabasePool extends ConnectionPool
     }
 
     /**
-     * Determine whether selectable endpoints share the same logical database identity.
+     * Determine whether endpoints can share a logical connection without bypassing extensions.
      */
-    protected function hasConsistentLogicalIdentity(ConnectionFactory $factory, ConnectionName $name, array $config): bool
+    protected function supportsSessionLeases(ConnectionFactory $factory, ConnectionName $name, array $config): bool
     {
+        if ($factory->getExtension($config, $name->base) !== null) {
+            return false;
+        }
+
         $role = $name->isRead() && $factory->hasReadConfig($config) ? 'read' : 'write';
 
-        if (! isset($config[$role][0])) {
+        if (! isset($config[$role])) {
             return true;
         }
 
+        $records = isset($config[$role][0]) ? $config[$role] : [$config[$role]];
         $identity = null;
 
-        foreach ($config[$role] as $record) {
+        foreach ($records as $record) {
             $candidate = array_replace($config, [$role => $record]);
             $endpoint = $role === 'read'
                 ? $factory->configForRead($candidate)
                 : $factory->configForWrite($candidate);
+
+            if ($role === 'read' && $factory->getExtension($endpoint, $name->base) !== null) {
+                return false;
+            }
+
             $candidateIdentity = [$endpoint['driver'], $endpoint['database'], $endpoint['prefix']];
 
             if ($identity !== null && $identity !== $candidateIdentity) {

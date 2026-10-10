@@ -27,12 +27,16 @@ class ProxyManager
     private ?string $commonFingerprint = null;
 
     /**
+     * Generate proxies from the supplied source map.
+     *
      * @param array<string, string> $classMap Map of class names to their source file paths
      * @param string $proxyDir Directory where proxy files are written
+     * @param array<string, string> $replacements Source overrides whose proxies need separate files
      */
     public function __construct(
         protected array $classMap = [],
-        protected string $proxyDir = ''
+        protected string $proxyDir = '',
+        protected array $replacements = []
     ) {
         $this->filesystem = new Filesystem;
         $this->proxies = $this->generateProxyFiles($this->initProxiesByReflectionClassMap(
@@ -118,26 +122,8 @@ class ProxyManager
         return rtrim($this->getProxyDir(), '/\\')
             . DIRECTORY_SEPARATOR
             . rawurlencode($className)
+            . (isset($this->replacements[$className]) ? '.replacement' : '')
             . '.proxy.php';
-    }
-
-    /**
-     * Determine if a rule matches a target class name.
-     */
-    protected function isMatch(string $rule, string $target): bool
-    {
-        if (str_contains($rule, '::')) {
-            [$rule] = explode('::', $rule);
-        }
-
-        if (! str_contains($rule, '*') && $rule === $target) {
-            return true;
-        }
-
-        $preg = str_replace(['*', '\\'], ['.*', '\\\\'], $rule);
-        $pattern = "/^{$preg}$/";
-
-        return preg_match($pattern, $target) === 1;
     }
 
     /**
@@ -153,13 +139,24 @@ class ProxyManager
         }
 
         $proxies = [];
+        $classNames = null;
 
         foreach (AspectCollector::getClassRules() as $rules) {
             foreach ($rules as $rule) {
-                foreach ($reflectionClassMap as $class => $path) {
-                    if ($this->isMatch($rule, $class)) {
-                        $proxies[$class] = true;
+                [$classRule] = explode('::', $rule, 2);
+
+                if (! str_contains($classRule, '*')) {
+                    if (isset($reflectionClassMap[$classRule])) {
+                        $proxies[$classRule] = true;
                     }
+
+                    continue;
+                }
+
+                $pattern = str_replace(['*', '\\'], ['.*', '\\\\'], $classRule);
+
+                foreach (preg_grep("/^{$pattern}$/", $classNames ??= array_keys($reflectionClassMap)) as $class) {
+                    $proxies[$class] = true;
                 }
             }
         }
@@ -197,7 +194,7 @@ class ProxyManager
      */
     private function fingerprint(string $className, string $sourceFilePath, string $sourceCode): string
     {
-        return hash('sha256', serialize([
+        return hash('xxh128', serialize([
             'common' => $this->commonFingerprint ??= $this->buildCommonFingerprint(),
             'class' => $className,
             'source_path' => $sourceFilePath,
@@ -210,7 +207,7 @@ class ProxyManager
      */
     private function buildCommonFingerprint(): string
     {
-        return hash('sha256', serialize([
+        return hash('xxh128', serialize([
             'aspect_rules' => AspectCollector::getRules(),
             'visitors' => $this->visitorFingerprints(),
             'aop_source' => $this->aopSourceFingerprint(),
@@ -258,21 +255,11 @@ class ProxyManager
     {
         $sources = [];
 
-        foreach ($this->filesystem->files(__DIR__) as $file) {
-            if ($file->getExtension() !== 'php') {
-                continue;
-            }
-
-            $path = $file->getRealPath();
-
-            if ($path === false) {
-                throw new InvalidDefinitionException('Unable to fingerprint the AOP generator source.');
-            }
-
-            $sources[$file->getFilename()] = $this->filesystem->get($path);
+        foreach (glob(__DIR__ . '/*.php') as $path) {
+            $sources[basename($path)] = $this->filesystem->get($path);
         }
 
-        return hash('sha256', serialize($sources));
+        return hash('xxh128', serialize($sources));
     }
 
     /**
@@ -300,7 +287,7 @@ class ProxyManager
         $fingerprint = trim(substr($header, strlen(self::FINGERPRINT_HEADER)));
 
         return str_starts_with($header, self::FINGERPRINT_HEADER)
-            && preg_match('/^[a-f0-9]{64}$/D', $fingerprint) === 1
+            && preg_match('/^[a-f0-9]{32}$/D', $fingerprint) === 1
                 ? $fingerprint
                 : null;
     }
