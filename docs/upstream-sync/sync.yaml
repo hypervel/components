@@ -98,6 +98,12 @@ laravel/reverb:
   last_reviewed_pr: 410
   sync_date: '2026-10-03'
 
+laravel/ai:
+  branch: 1.x
+  checked_through: 767e37a1ba57a0b007b9908fc32583e47b06e13c
+  last_reviewed_pr: 1108
+  sync_date: '2026-10-10'
+
 laravel/scout:
   branch: 11.x
   checked_through: ce2542f5a7297d21975ddcd7115dbf798fd8ba00
