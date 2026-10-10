@@ -11,7 +11,7 @@ class FileSearchQuery
     /**
      * The defined filters.
      *
-     * @var array<int, array{type: string, key: string, value: mixed}>
+     * @var array<int, array{type: 'eq'|'in'|'ne'|'nin', key: string, value: mixed}>
      */
     protected array $filters = [];
 
@@ -78,7 +78,7 @@ class FileSearchQuery
     /**
      * Get the filters as an array.
      *
-     * @return array<int, array{type: string, key: string, value: mixed}>
+     * @return array<int, array{type: 'eq'|'in'|'ne'|'nin', key: string, value: mixed}>
      */
     public function toArray(): array
     {

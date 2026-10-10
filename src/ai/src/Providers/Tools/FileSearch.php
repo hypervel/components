@@ -13,7 +13,7 @@ class FileSearch extends ProviderTool
     /**
      * The file search filters.
      *
-     * @var array<int, array{type: string, key: string, value: mixed}>
+     * @var array<int, array{type: 'eq'|'in'|'ne'|'nin', key: string, value: mixed}>
      */
     public array $filters = [];
 
@@ -44,7 +44,7 @@ class FileSearch extends ProviderTool
      * Resolve the filters from the given value.
      *
      * @param null|array|(Closure(FileSearchQuery): mixed) $where
-     * @return array<int, array{type: string, key: string, value: mixed}>
+     * @return array<int, array{type: 'eq'|'in'|'ne'|'nin', key: string, value: mixed}>
      */
     protected function resolveFilters(Closure|array|null $where): array
     {
@@ -55,7 +55,7 @@ class FileSearch extends ProviderTool
         if (is_array($where)) {
             return (new Collection($where))->map(fn (mixed $value, int|string $key): array => [
                 'type' => 'eq',
-                'key' => $key,
+                'key' => (string) $key,
                 'value' => $value,
             ])->values()->all();
         }
