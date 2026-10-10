@@ -6,8 +6,10 @@ namespace Hypervel\Tests\Sentry;
 
 use Closure;
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Context\RequestContext;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Request;
+use Hypervel\Sentry\Http\HypervelRequestFetcher;
 use Hypervel\Sentry\Hub;
 use Hypervel\Sentry\State\CoroutineRuntimeContextStorage;
 use Hypervel\Sentry\Transport\HttpPoolTransport;
@@ -19,6 +21,7 @@ use Sentry\State\Layer;
 use Sentry\State\Scope;
 use Swoole\Coroutine\Channel;
 
+use function Sentry\captureMessage;
 use function Sentry\logger;
 use function Sentry\traceMetrics;
 
@@ -32,8 +35,7 @@ class CoroutineContextPropagationTest extends TestCase
             $scope->setTag('owner', 'parent');
         });
         $span = $this->startTransaction();
-        $request = Request::create('/test?owner=parent');
-        CoroutineContext::set(Request::class, $request);
+        CoroutineContext::set(Request::class, Request::create('/parent'));
 
         /** @var list<Layer> $parentStack */
         $parentStack = CoroutineContext::get(Hub::CONTEXT_STACK_KEY);
@@ -42,26 +44,24 @@ class CoroutineContextPropagationTest extends TestCase
         Coroutine::create(function () use ($hub, $results): void {
             /** @var list<Layer> $stack */
             $stack = CoroutineContext::get(Hub::CONTEXT_STACK_KEY);
-            /** @var Request $request */
-            $request = CoroutineContext::get(Request::class);
             $hub->configureScope(static function (Scope $scope): void {
                 $scope->setTag('child', 'first');
             });
-            $request->query->set('owner', 'first');
+            captureMessage('child message');
 
-            $results->push([$stack, $request, $this->scopeTags($hub)]);
+            $results->push([$stack, RequestContext::has(), $this->scopeTags($hub)]);
         });
 
         Coroutine::create(function () use ($hub, $results): void {
             $results->push([
                 CoroutineContext::get(Hub::CONTEXT_STACK_KEY),
-                CoroutineContext::get(Request::class),
+                RequestContext::has(),
                 $this->scopeTags($hub),
             ]);
         });
 
-        [$firstStack, $firstRequest, $firstTags] = $results->pop(1.0);
-        [$secondStack, $secondRequest, $secondTags] = $results->pop(1.0);
+        [$firstStack, $firstHasRequest, $firstTags] = $results->pop(1.0);
+        [$secondStack, $secondHasRequest, $secondTags] = $results->pop(1.0);
 
         foreach ([$firstStack, $secondStack] as $childStack) {
             $this->assertNotSame($parentStack, $childStack);
@@ -76,18 +76,15 @@ class CoroutineContextPropagationTest extends TestCase
             $this->assertSame($span, end($childStack)->getScope()->getSpan());
         }
 
-        $this->assertNotSame($request, $firstRequest);
-        $this->assertNotSame($request, $secondRequest);
-        $this->assertNotSame($firstRequest, $secondRequest);
-        $this->assertSame('first', $firstRequest->query('owner'));
-        $this->assertSame('parent', $secondRequest->query('owner'));
-        $this->assertSame('parent', $request->query('owner'));
+        $this->assertFalse($firstHasRequest);
+        $this->assertFalse($secondHasRequest);
+        $this->assertSame('http://localhost/parent', $this->getLastSentryEvent()->getRequest()['url']);
         $this->assertSame(['owner' => 'parent', 'child' => 'first'], $firstTags);
         $this->assertSame(['owner' => 'parent'], $secondTags);
         $this->assertSame(['owner' => 'parent'], $this->scopeTags($hub));
     }
 
-    public function testForkClonesTheInstalledContextSnapshot(): void
+    public function testForkKeepsTheParentRequestAndClonesTheScopeStack(): void
     {
         $hub = $this->getSentryHubFromContainer();
         $hub->pushScope();
@@ -100,7 +97,7 @@ class CoroutineContextPropagationTest extends TestCase
         Coroutine::fork(static function () use ($result): void {
             $result->push([
                 CoroutineContext::get(Hub::CONTEXT_STACK_KEY),
-                CoroutineContext::get(Request::class),
+                RequestContext::getOrNull(),
             ]);
         });
 
@@ -109,7 +106,7 @@ class CoroutineContextPropagationTest extends TestCase
         $this->assertNotSame($parentStack, $childStack);
         $this->assertNotSame($parentStack[0], $childStack[0]);
         $this->assertNotSame($parentStack[0]->getScope(), $childStack[0]->getScope());
-        $this->assertNotSame($request, $childRequest);
+        $this->assertSame($request, $childRequest);
     }
 
     public function testSelectiveForkStillPropagatesSentryInfrastructureContext(): void
@@ -124,16 +121,38 @@ class CoroutineContextPropagationTest extends TestCase
         Coroutine::fork(static function () use ($result): void {
             $result->push([
                 CoroutineContext::get(Hub::CONTEXT_STACK_KEY),
-                CoroutineContext::get(Request::class),
+                RequestContext::has(),
+                HypervelRequestFetcher::currentRequest(),
                 CoroutineContext::get('selected'),
             ]);
         }, ['selected']);
 
-        [$childStack, $childRequest, $selected] = $result->pop(1.0);
+        [$childStack, $childHasRequest, $sentryRequest, $selected] = $result->pop(1.0);
 
         $this->assertNotNull($childStack);
-        $this->assertNotSame($request, $childRequest);
+        $this->assertFalse($childHasRequest);
+        $this->assertSame($request, $sentryRequest);
         $this->assertSame('value', $selected);
+    }
+
+    public function testCreatedDescendantsKeepTheRequestUntilAChildInstallsItsOwn(): void
+    {
+        $request = Request::create('/parent');
+        CoroutineContext::set(Request::class, $request);
+        $childRequest = Request::create('/child');
+        $observed = [];
+
+        Coroutine::create(static function () use ($childRequest, &$observed): void {
+            Coroutine::create(static function () use (&$observed): void {
+                $observed['grandchild'] = [RequestContext::has(), HypervelRequestFetcher::currentRequest()];
+            });
+
+            RequestContext::set($childRequest);
+            $observed['child'] = HypervelRequestFetcher::currentRequest();
+        });
+
+        $this->assertSame([false, $request], $observed['grandchild']);
+        $this->assertSame($childRequest, $observed['child']);
     }
 
     public function testChildWithoutParentRequestContextGetsNull(): void
@@ -142,7 +161,7 @@ class CoroutineContextPropagationTest extends TestCase
         $result = new Channel(1);
 
         Coroutine::create(static function () use ($result): void {
-            $result->push(CoroutineContext::get(Request::class) ?? 'missing');
+            $result->push(HypervelRequestFetcher::currentRequest() ?? 'missing');
         });
 
         $this->assertSame('missing', $result->pop(1.0));
@@ -285,7 +304,7 @@ class CoroutineContextPropagationTest extends TestCase
             static function () use ($result): void {
                 $result->push([
                     CoroutineContext::get(Hub::CONTEXT_STACK_KEY),
-                    CoroutineContext::get(Request::class),
+                    HypervelRequestFetcher::currentRequest(),
                     app(CoroutineRuntimeContextStorage::class)->get(),
                 ]);
             },
@@ -299,11 +318,7 @@ class CoroutineContextPropagationTest extends TestCase
             detached: $detached,
         );
 
-        [$stack, $request, $runtimeContext] = $result->pop(1.0);
-
-        $this->assertNull($stack);
-        $this->assertNull($request);
-        $this->assertNull($runtimeContext);
+        $this->assertSame([null, null, null], $result->pop(1.0));
         Coroutine::join([$childId]);
 
         SentrySdk::endContext();
@@ -338,7 +353,7 @@ class CoroutineContextPropagationTest extends TestCase
                 static function () use ($hub, &$observed): void {
                     $observed = [
                         CoroutineContext::get(Hub::CONTEXT_STACK_KEY),
-                        CoroutineContext::get(Request::class),
+                        HypervelRequestFetcher::currentRequest(),
                         app(CoroutineRuntimeContextStorage::class)->get(),
                     ];
                     $hub->configureScope(static function (Scope $scope): void {

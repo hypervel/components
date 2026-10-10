@@ -6,8 +6,11 @@ namespace Hypervel\Tests\Sentry\EventHandler;
 
 use Hypervel\Auth\Authenticatable;
 use Hypervel\Auth\Events\Authenticated;
+use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Auth\Authenticatable as AuthenticatableContract;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Http\Request;
 use Hypervel\Tests\Sentry\TestCase;
 use Swoole\Coroutine\CanceledException;
 
@@ -38,6 +41,22 @@ class AuthEventsTest extends TestCase
         $this->assertEquals(123, $scope->getUser()->getId());
         $this->assertEquals('username', $scope->getUser()->getUsername());
         $this->assertEquals('foo@example.com', $scope->getUser()->getEmail());
+        $this->assertNull($scope->getUser()->getIpAddress());
+    }
+
+    public function testAuthenticatedEventInAChildCoroutineUsesTheInheritedRequestAddress(): void
+    {
+        RequestContext::set(Request::create('/', server: ['REMOTE_ADDR' => '203.0.113.10']));
+        $user = new AuthEventsTestUserModel;
+        $user->forceFill(['id' => 123]);
+        $ipAddress = null;
+
+        Coroutine::create(function () use ($user, &$ipAddress): void {
+            $this->dispatchHypervelEvent(new Authenticated('test', $user));
+            $ipAddress = $this->getCurrentSentryScope()->getUser()?->getIpAddress();
+        });
+
+        $this->assertSame('203.0.113.10', $ipAddress);
     }
 
     public function testAuthenticatedEventPropagatesCancellationFromUserAccessor(): void

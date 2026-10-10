@@ -120,6 +120,9 @@ class CoroutineRuntimeContextStorageTest extends TestCase
         $this->assertFalse($storage->inheritFrom(new ArrayObject, new ArrayObject));
     }
 
+    /**
+     * Create a runtime context for storage tests.
+     */
     private function createRuntimeContext(): RuntimeContext
     {
         return new RuntimeContext('test', new Hub);

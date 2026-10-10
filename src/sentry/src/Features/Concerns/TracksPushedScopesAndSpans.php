@@ -150,7 +150,7 @@ trait TracksPushedScopesAndSpans
     /**
      * Context key prefix for per-class span tracking state.
      */
-    public const string SPANS_CONTEXT_PREFIX = '__sentry.spans.';
+    protected const string SPANS_CONTEXT_PREFIX = '__sentry.spans.';
 
     /**
      * Build a coroutine Context key scoped to this class.

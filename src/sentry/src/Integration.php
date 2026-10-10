@@ -117,6 +117,8 @@ class Integration implements IntegrationInterface
 
     /**
      * Flush buffered events and wait for the captured delivery generation.
+     *
+     * @internal
      */
     public static function drainEvents(?int $timeout = null): Result
     {

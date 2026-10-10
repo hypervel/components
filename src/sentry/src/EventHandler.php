@@ -6,7 +6,6 @@ namespace Hypervel\Sentry;
 
 use Hypervel\Auth\Events as AuthEvents;
 use Hypervel\Contracts\Auth\Authenticatable;
-use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher;
@@ -16,10 +15,10 @@ use Hypervel\Core\Events\OnWorkerExit;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Events as DatabaseEvents;
-use Hypervel\Http\Request;
 use Hypervel\Log\Events as LogEvents;
 use Hypervel\Routing\Events as RoutingEvents;
 use Hypervel\Sanctum\Events as Sanctum;
+use Hypervel\Sentry\Http\HypervelRequestFetcher;
 use Hypervel\Sentry\Tracing\Middleware;
 use Hypervel\Sentry\Transport\HttpPoolTransport;
 use RuntimeException;
@@ -314,15 +313,11 @@ class EventHandler
             ];
         }
 
-        try {
-            $request = $this->container->make('request');
-            $ipAddress = $request->ip();
+        // The container falls back to a default request with a fake local address where no request is set
+        $ipAddress = HypervelRequestFetcher::currentRequest()?->ip();
 
-            if ($ipAddress !== null) {
-                $userData['ip_address'] = $ipAddress;
-            }
-        } catch (BindingResolutionException) {
-            // If there is no request bound we cannot get the IP address from it
+        if ($ipAddress !== null) {
+            $userData['ip_address'] = $ipAddress;
         }
 
         Integration::configureScope(static function (Scope $scope) use ($userData): void {

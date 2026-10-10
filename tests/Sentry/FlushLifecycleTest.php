@@ -329,6 +329,9 @@ class FlushLifecycleCommand extends Command
 {
     protected ?string $signature = 'test:command';
 
+    /**
+     * Execute the console command.
+     */
     public function handle(): void
     {
     }

@@ -28,10 +28,8 @@ class ServiceProviderListenerRegistrationTest extends TestCase
     public function testQueryExecutedIsNotRegisteredWhenSqlBreadcrumbsAndTracingAreDisabled(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry' => $this->sentryConfigWith([
-                'breadcrumbs.sql_queries' => false,
-                'tracing.sql_queries' => false,
-            ]),
+            'sentry.breadcrumbs.sql_queries' => false,
+            'sentry.tracing.sql_queries' => false,
         ]);
 
         $this->assertFalse(app('events')->hasListeners(QueryExecuted::class));
@@ -42,10 +40,8 @@ class ServiceProviderListenerRegistrationTest extends TestCase
     public function testQueryExecutedIsRegisteredForBreadcrumbsWithoutTracing(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry' => $this->sentryConfigWith([
-                'breadcrumbs.sql_queries' => true,
-                'tracing.sql_queries' => false,
-            ]),
+            'sentry.breadcrumbs.sql_queries' => true,
+            'sentry.tracing.sql_queries' => false,
         ]);
 
         $this->assertTrue(app('events')->hasListeners(QueryExecuted::class));
@@ -55,10 +51,8 @@ class ServiceProviderListenerRegistrationTest extends TestCase
     public function testQueryExecutedIsRegisteredForTracingWithoutBreadcrumbs(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry' => $this->sentryConfigWith([
-                'breadcrumbs.sql_queries' => false,
-                'tracing.sql_queries' => true,
-            ]),
+            'sentry.breadcrumbs.sql_queries' => false,
+            'sentry.tracing.sql_queries' => true,
         ]);
 
         $this->assertTrue(app('events')->hasListeners(QueryExecuted::class));
@@ -68,9 +62,7 @@ class ServiceProviderListenerRegistrationTest extends TestCase
     public function testMessageLoggedIsNotRegisteredWhenLogBreadcrumbsAreDisabled(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry' => $this->sentryConfigWith([
-                'breadcrumbs.logs' => false,
-            ]),
+            'sentry.breadcrumbs.logs' => false,
         ]);
 
         $this->assertSame(0, $this->countMethodListeners(MessageLogged::class, 'messageLogged'));
@@ -79,9 +71,7 @@ class ServiceProviderListenerRegistrationTest extends TestCase
     public function testMessageLoggedIsRegisteredWhenLogBreadcrumbsAreEnabled(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry' => $this->sentryConfigWith([
-                'breadcrumbs.logs' => true,
-            ]),
+            'sentry.breadcrumbs.logs' => true,
         ]);
 
         $this->assertTrue(app('events')->hasListeners(MessageLogged::class));

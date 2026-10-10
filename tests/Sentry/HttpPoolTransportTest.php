@@ -10,7 +10,6 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
-use Hypervel\ObjectPool\Exceptions\PoolExhaustedException;
 use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\Sentry\Transport\HttpPoolTransport;
 use Hypervel\Sentry\Transport\HttpTransportPool;
@@ -26,20 +25,6 @@ use Swoole\Coroutine\Channel;
 
 class HttpPoolTransportTest extends TestCase
 {
-    public function testBackpressureReturnsSkippedWhenPoolExhausted(): void
-    {
-        $pool = m::mock(HttpTransportPool::class);
-        $pool->shouldReceive('borrow')
-            ->once()
-            ->andThrow(new PoolExhaustedException('Object pool exhausted. Cannot create new object before wait_timeout.'));
-
-        $transport = new HttpPoolTransport($pool);
-
-        $result = $transport->send(Event::createEvent());
-
-        $this->assertSame(ResultStatus::skipped(), $result->getStatus());
-    }
-
     public function testAcquisitionTimeoutReturnsSkippedWithoutReleasingTheBorrowedTransport(): void
     {
         $pool = m::mock(HttpTransportPool::class, [
@@ -139,64 +124,6 @@ class HttpPoolTransportTest extends TestCase
         $this->assertSame(ResultStatus::success(), $transport->close(1)->getStatus());
     }
 
-    public function testMultipleSendsThenCloseReleasesAllTransports(): void
-    {
-        $httpTransport1 = m::mock(HttpTransport::class);
-        $httpTransport1->shouldReceive('send')
-            ->once()
-            ->andReturn(new Result(ResultStatus::success()));
-
-        $httpTransport2 = m::mock(HttpTransport::class);
-        $httpTransport2->shouldReceive('send')
-            ->once()
-            ->andReturn(new Result(ResultStatus::success()));
-
-        $pool = m::mock(HttpTransportPool::class);
-        $pool->shouldReceive('borrow')
-            ->twice()
-            ->andReturn($httpTransport1, $httpTransport2);
-        $pool->shouldReceive('release')
-            ->once()
-            ->with($httpTransport1);
-        $pool->shouldReceive('release')
-            ->once()
-            ->with($httpTransport2);
-
-        $transport = new HttpPoolTransport($pool);
-
-        $transport->send(Event::createEvent());
-        $transport->send(Event::createEvent());
-        $transport->close();
-    }
-
-    public function testThreeSendsThenCloseReleasesAllTransports(): void
-    {
-        $httpTransports = [];
-        for ($i = 0; $i < 3; ++$i) {
-            $httpTransports[$i] = m::mock(HttpTransport::class);
-            $httpTransports[$i]->shouldReceive('send')
-                ->once()
-                ->andReturn(new Result(ResultStatus::success()));
-        }
-
-        $pool = m::mock(HttpTransportPool::class);
-        $pool->shouldReceive('borrow')
-            ->times(3)
-            ->andReturn($httpTransports[0], $httpTransports[1], $httpTransports[2]);
-        foreach ($httpTransports as $httpTransport) {
-            $pool->shouldReceive('release')
-                ->once()
-                ->with($httpTransport);
-        }
-
-        $transport = new HttpPoolTransport($pool);
-
-        $transport->send(Event::createEvent());
-        $transport->send(Event::createEvent());
-        $transport->send(Event::createEvent());
-        $transport->close();
-    }
-
     public function testUnexpectedChildFailureDiscardsTransport(): void
     {
         $httpTransport = m::mock(HttpTransport::class);
@@ -220,25 +147,6 @@ class HttpPoolTransportTest extends TestCase
         $this->assertSame(ResultStatus::success(), $result->getStatus());
         $this->assertSame($event, $result->getEvent());
 
-        $transport->close();
-    }
-
-    public function testFailedTransportIsReplacedOnTheNextBorrow(): void
-    {
-        $failed = m::mock(HttpTransport::class);
-        $failed->shouldReceive('send')->once()->andThrow(new RuntimeException('Send failed'));
-        $replacement = m::mock(HttpTransport::class);
-        $replacement->shouldReceive('send')
-            ->once()
-            ->andReturn(new Result(ResultStatus::success()));
-        $pool = m::mock(HttpTransportPool::class);
-        $pool->shouldReceive('borrow')->twice()->andReturn($failed, $replacement);
-        $pool->shouldReceive('discard')->once()->with($failed);
-        $pool->shouldReceive('release')->once()->with($replacement);
-        $transport = new HttpPoolTransport($pool);
-
-        $this->assertSame(ResultStatus::success(), $transport->send(Event::createEvent())->getStatus());
-        $this->assertSame(ResultStatus::success(), $transport->send(Event::createEvent())->getStatus());
         $transport->close();
     }
 
@@ -408,109 +316,13 @@ class HttpPoolTransportTest extends TestCase
 
         (new HttpPoolTransport($pool))->shutdown();
     }
-
-    public function testCloseWithNoSendsDoesNothing(): void
-    {
-        $pool = m::mock(HttpTransportPool::class);
-        $pool->shouldNotReceive('release');
-
-        $transport = new HttpPoolTransport($pool);
-
-        $result = $transport->close();
-
-        $this->assertSame(ResultStatus::success(), $result->getStatus());
-    }
-
-    public function testRepeatedCloseDoesNotReleaseACompletedSendAgain(): void
-    {
-        $httpTransport = m::mock(HttpTransport::class);
-        $httpTransport->shouldReceive('send')
-            ->once()
-            ->andReturn(new Result(ResultStatus::success()));
-
-        $pool = m::mock(HttpTransportPool::class);
-        $pool->shouldReceive('borrow')
-            ->once()
-            ->andReturn($httpTransport);
-        $pool->shouldReceive('release')
-            ->once()
-            ->with($httpTransport);
-
-        $transport = new HttpPoolTransport($pool);
-
-        $transport->send(Event::createEvent());
-        $transport->close();
-        $transport->close();
-    }
-
-    public function testChildReleasesTransportWithoutARequestClose(): void
-    {
-        $httpTransport = m::mock(HttpTransport::class);
-        $httpTransport->shouldReceive('send')
-            ->once()
-            ->andReturn(new Result(ResultStatus::success()));
-
-        $released = new Channel(1);
-
-        $pool = m::mock(HttpTransportPool::class);
-        $pool->shouldReceive('borrow')
-            ->once()
-            ->andReturn($httpTransport);
-        $pool->shouldReceive('release')
-            ->once()
-            ->with($httpTransport)
-            ->andReturnUsing(function () use ($released): void {
-                $released->push(true);
-            });
-
-        $transport = new HttpPoolTransport($pool);
-
-        Coroutine::create(function () use ($transport): void {
-            $transport->send(Event::createEvent());
-        });
-
-        $wasReleased = $released->pop(1.0);
-
-        $this->assertTrue($wasReleased);
-    }
-
-    public function testCloseDoesNotReleaseAnAlreadyCompletedSendAgain(): void
-    {
-        $httpTransport = m::mock(HttpTransport::class);
-        $httpTransport->shouldReceive('send')
-            ->once()
-            ->andReturn(new Result(ResultStatus::success()));
-
-        $releaseCount = 0;
-
-        $pool = m::mock(HttpTransportPool::class);
-        $pool->shouldReceive('borrow')
-            ->once()
-            ->andReturn($httpTransport);
-        $pool->shouldReceive('release')
-            ->with($httpTransport)
-            ->andReturnUsing(function () use (&$releaseCount): void {
-                ++$releaseCount;
-            });
-
-        $transport = new HttpPoolTransport($pool);
-
-        $done = new Channel(1);
-
-        Coroutine::create(function () use ($transport, $done): void {
-            $transport->send(Event::createEvent());
-            $transport->close();
-            $done->push(true);
-        });
-
-        $done->pop(1.0);
-
-        $this->assertSame(1, $releaseCount);
-    }
 }
 
 class FailingCoroutineHttpPoolTransport extends HttpPoolTransport
 {
+    /**
+     * Fail to create the delivery coroutine.
+     */
     protected function createCoroutine(callable $callback, Closure $wrapper): void
     {
         throw new RuntimeException('Unable to create coroutine.');

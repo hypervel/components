@@ -104,6 +104,9 @@ class HttpTransportPoolTest extends TestCase
 
 class InspectableHttpTransportPool extends HttpTransportPool
 {
+    /**
+     * Create the HTTP client the pool gives each transport.
+     */
     public function createHttpClient(): HttpClientInterface
     {
         return $this->getHttpClient();
@@ -112,6 +115,9 @@ class InspectableHttpTransportPool extends HttpTransportPool
 
 class ScriptedHttpTransportPool extends HttpTransportPool
 {
+    /**
+     * Create a pool whose transports share the given HTTP client.
+     */
     public function __construct(
         Options $sentryOptions,
         PoolOptions $poolOptions,
@@ -120,6 +126,9 @@ class ScriptedHttpTransportPool extends HttpTransportPool
         parent::__construct($sentryOptions, $poolOptions);
     }
 
+    /**
+     * Get the scripted HTTP client.
+     */
     protected function getHttpClient(): HttpClientInterface
     {
         return $this->httpClient;

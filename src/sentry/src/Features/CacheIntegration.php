@@ -19,7 +19,6 @@ use Hypervel\Cache\Events\RetrievingManyKeys;
 use Hypervel\Cache\Events\WritingKey;
 use Hypervel\Cache\Events\WritingManyKeys;
 use Hypervel\Context\CoroutineContext;
-use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Session\Session;
 use Hypervel\Coroutine\Coroutine;
@@ -31,6 +30,7 @@ use Hypervel\Redis\RedisManager;
 use Hypervel\Sentry\Features\Concerns\ResolvesEventOrigin;
 use Hypervel\Sentry\Features\Concerns\TracksPushedScopesAndSpans;
 use Hypervel\Sentry\Features\Concerns\WorksWithSpans;
+use Hypervel\Sentry\Http\HypervelRequestFetcher;
 use Hypervel\Sentry\Integration;
 use Hypervel\Support\Str;
 use Sentry\Breadcrumb;
@@ -413,7 +413,7 @@ class CacheIntegration extends Feature
      */
     private function getSessionKeyFromCurrentRequest(): ?string
     {
-        $request = RequestContext::getOrNull();
+        $request = HypervelRequestFetcher::currentRequest();
 
         if ($request === null) {
             return null;

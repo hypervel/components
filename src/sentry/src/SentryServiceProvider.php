@@ -609,7 +609,7 @@ class SentryServiceProvider extends ServiceProvider
     /**
      * Register the coroutine context propagation hook.
      *
-     * Copy isolated Sentry scope and request values into child coroutines.
+     * Copy the Sentry scope stack into child coroutines and pass them the request for Sentry.
      */
     protected function registerCoroutineContextPropagation(
         CoroutineRuntimeContextStorage $runtimeContextStorage,
@@ -642,13 +642,17 @@ class SentryServiceProvider extends ServiceProvider
                 );
             }
 
-            /** @var ?Request $request */
-            $request = $context[Request::class]
-                ?? $parentContext[Request::class]
-                ?? null;
+            // Events in the child still carry the request, without Sentry changing the
+            // application request context the child sees.
+            if (! isset($context[HypervelRequestFetcher::REQUEST_CONTEXT_KEY])) {
+                /** @var ?Request $request */
+                $request = $parentContext[Request::class]
+                    ?? $parentContext[HypervelRequestFetcher::REQUEST_CONTEXT_KEY]
+                    ?? null;
 
-            if ($request !== null) {
-                $context[Request::class] = clone $request;
+                if ($request !== null) {
+                    $context[HypervelRequestFetcher::REQUEST_CONTEXT_KEY] = $request;
+                }
             }
 
             if ($runtimeContextStorage->inheritFrom($context, $parentContext)) {

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry\Http;
 
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\RequestContext;
 use Hypervel\Http\Request;
 use InvalidArgumentException;
@@ -18,14 +19,32 @@ use Symfony\Component\HttpFoundation\File\UploadedFile as SymfonyUploadedFile;
 class HypervelRequestFetcher implements RequestFetcherInterface
 {
     /**
+     * The context key of the request a child coroutine inherits for Sentry only.
+     *
+     * Child coroutines keep a reference to the request that started them under this key,
+     * leaving the application's request context as the framework set it.
+     */
+    public const string REQUEST_CONTEXT_KEY = '__sentry.request';
+
+    /**
+     * Get the current request, or the request the current coroutine inherited for Sentry.
+     *
+     * @internal
+     */
+    public static function currentRequest(): ?Request
+    {
+        return RequestContext::getOrNull() ?? CoroutineContext::get(self::REQUEST_CONTEXT_KEY);
+    }
+
+    /**
      * Fetch the current request as a PSR-7 server request for Sentry.
      */
     public function fetchRequest(): ?ServerRequestInterface
     {
-        // If there is no request in the current coroutine we are not dealing
-        // with a HTTP request and there is no request to fetch for us so we
-        // can exit early.
-        if (! RequestContext::has()) {
+        $request = self::currentRequest();
+
+        // Without a request we are not dealing with an HTTP request
+        if ($request === null) {
             return null;
         }
 
@@ -33,7 +52,6 @@ class HypervelRequestFetcher implements RequestFetcherInterface
         // request in the worker-shared container as upstream's SetRequestMiddleware does.
         // Symfony's PSR-7 bridge is not used because it decodes every JSON body, which
         // Sentry only reads for legacy error events with bodies within the size limit.
-        $request = RequestContext::get();
         $queryString = $request->server->getString('QUERY_STRING');
 
         // The URI uses the query string as it was received
