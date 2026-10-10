@@ -46,14 +46,6 @@ class AiManagerTest extends TestCase
         $this->manager->imageProvider();
     }
 
-    public function testProviderConfigResolverCannotBeInstalledAfterResolvingConfiguration(): void
-    {
-        $this->manager->getInstanceConfig('configured');
-
-        $this->expectException(LogicException::class);
-        $this->manager->resolveProviderConfigUsing(static fn (string $name, array $config): array => $config);
-    }
-
     public function testConversationPartitionRegistrationCannotBeReplaced(): void
     {
         $this->manager->resolveConversationPartitionUsing('account_id', static fn (): string => 'first');

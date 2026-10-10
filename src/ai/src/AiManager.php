@@ -82,8 +82,6 @@ class AiManager extends MultipleInstanceManager
     /** @var null|Closure(): ?Closure */
     protected ?Closure $contextCapture = null;
 
-    protected bool $operationsStarted = false;
-
     /**
      * Build an on-demand provider instance from the given configuration.
      *
@@ -109,8 +107,6 @@ class AiManager extends MultipleInstanceManager
      */
     public function instance(Provider|string|null $name = null): mixed
     {
-        $this->operationsStarted = true;
-
         if ($name instanceof Provider) {
             return $name;
         }
@@ -662,7 +658,6 @@ class AiManager extends MultipleInstanceManager
      */
     public function getInstanceConfig(string $name): array
     {
-        $this->operationsStarted = true;
         $providers = CoroutineContext::get(self::ON_DEMAND_PROVIDERS_CONTEXT_KEY, []);
         $config = $providers[$name]['config'] ?? $this->config->get('ai.providers.' . $name);
 
@@ -697,8 +692,8 @@ class AiManager extends MultipleInstanceManager
      */
     public function resolveProviderConfigUsing(Closure $resolver): void
     {
-        if ($this->operationsStarted || $this->providerConfigResolver !== null) {
-            throw new LogicException('The AI provider configuration resolver must be registered once before using AI.');
+        if ($this->providerConfigResolver !== null) {
+            throw new LogicException('The AI provider configuration resolver is already registered.');
         }
 
         $this->providerConfigResolver = $resolver;
@@ -713,8 +708,8 @@ class AiManager extends MultipleInstanceManager
      */
     public function resolveConversationPartitionUsing(string $column, Closure $resolver): void
     {
-        if ($this->operationsStarted || $this->conversationPartitionResolver !== null) {
-            throw new LogicException('The AI conversation partition resolver must be registered once before using AI.');
+        if ($this->conversationPartitionResolver !== null) {
+            throw new LogicException('The AI conversation partition resolver is already registered.');
         }
 
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/D', $column) !== 1) {
@@ -730,8 +725,6 @@ class AiManager extends MultipleInstanceManager
      */
     public function conversationPartitionColumn(): ?string
     {
-        $this->operationsStarted = true;
-
         return $this->conversationPartitionColumn;
     }
 
@@ -740,8 +733,6 @@ class AiManager extends MultipleInstanceManager
      */
     public function conversationPartition(): int|string|null
     {
-        $this->operationsStarted = true;
-
         if ($this->conversationPartitionResolver === null) {
             return null;
         }
@@ -764,8 +755,8 @@ class AiManager extends MultipleInstanceManager
      */
     public function resolveEmbeddingsCacheScopeUsing(Closure $resolver): void
     {
-        if ($this->operationsStarted || $this->embeddingsCacheScopeResolver !== null) {
-            throw new LogicException('The AI embeddings cache scope resolver must be registered once before using AI.');
+        if ($this->embeddingsCacheScopeResolver !== null) {
+            throw new LogicException('The AI embeddings cache scope resolver is already registered.');
         }
 
         $this->embeddingsCacheScopeResolver = $resolver;
@@ -776,7 +767,6 @@ class AiManager extends MultipleInstanceManager
      */
     public function embeddingsCacheScope(): ?string
     {
-        $this->operationsStarted = true;
         $scope = $this->embeddingsCacheScopeResolver === null ? null : ($this->embeddingsCacheScopeResolver)();
 
         if ($scope === '') {
@@ -800,8 +790,8 @@ class AiManager extends MultipleInstanceManager
      */
     public function captureContextUsing(Closure $capture): void
     {
-        if ($this->operationsStarted || $this->contextCapture !== null) {
-            throw new LogicException('The AI context capture callback must be registered once before using AI.');
+        if ($this->contextCapture !== null) {
+            throw new LogicException('The AI context capture callback is already registered.');
         }
 
         $this->contextCapture = $capture;
@@ -814,8 +804,6 @@ class AiManager extends MultipleInstanceManager
      */
     public function captureContext(): ?Closure
     {
-        $this->operationsStarted = true;
-
         return $this->contextCapture === null ? null : ($this->contextCapture)();
     }
 
