@@ -1551,8 +1551,8 @@ If the `name` is omitted, the name of the skill's directory will be used. Skills
 To give an agent access to your skills, implement the `HasSkills` interface and return your skill sources from the `skills` method:
 
 ```php
-use Laravel\Ai\Contracts\HasSkills;
-use Laravel\Ai\Skills\Skill;
+use Hypervel\Ai\Contracts\HasSkills;
+use Hypervel\Ai\Skills\Skill;
 
 class SupportAgent implements Agent, HasSkills
 {
@@ -1573,6 +1573,12 @@ class SupportAgent implements Agent, HasSkills
 ```
 
 Sources may be directories, `Skill` instances, or closures returning skills, which are only invoked once the agent needs them. When two skills share a name, the source listed first takes precedence.
+
+Hypervel caches skill definitions from the directories listed in `ai.skills.cached_paths`, which defaults to `[resource_path('skills')]`. To cache other fixed directories, such as `base_path('.agents/skills')`, add them to this list. [Reload your services](/docs/{{version}}/deployment#reloading-services) after changing these definitions. If your application loads skills during boot, restart the full service instead of only reloading its workers. Other directories, closures, and directly supplied skills are not cached across tool instances, and bundled files are read when requested.
+
+For skills that change while your application is running, use an uncached directory or a closure. You may also disable discovery caching by setting `ai.skills.cached_paths` to an empty array in your configuration.
+
+During development, the [file watcher](/docs/{{version}}/watcher) already watches `resources/skills/**` and restarts the server when those files change. If you add other directories to `cached_paths`, add them to its watched paths too; consult the watcher's [driver guidance](/docs/{{version}}/watcher#choosing-a-driver) when choosing a driver.
 
 The agent receives a `LoadSkill` tool that lists each skill's name and description, loading a skill's full instructions and bundled text files only when a prompt calls for it. Binary files and files larger than 256 KB are not returned.
 
