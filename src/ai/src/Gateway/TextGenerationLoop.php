@@ -68,6 +68,7 @@ use Hypervel\Support\ClassMetadataCache;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Str;
+use Laravel\SerializableClosure\SerializableClosure;
 use LogicException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
@@ -452,13 +453,23 @@ class TextGenerationLoop
     }
 
     /**
-     * The middleware wrapping each step, as declared by the agent being run.
+     * Get the runtime and declared middleware wrapping each generation step.
      *
      * @return array<int, mixed>
      */
     protected function middlewareFor(?TextGenerationOptions $options): array
     {
-        return $options?->agent instanceof HasMiddleware ? $options->agent->middleware() : [];
+        $declared = $options?->agent instanceof HasMiddleware ? $options->agent->middleware() : [];
+
+        if ($options === null || $options->middleware === []) {
+            return $declared;
+        }
+
+        // Keep runtime closures wrapped on agents, prompts and options for queued jobs and listeners.
+        return [...array_map(
+            static fn (object|string $pipe): object|string => $pipe instanceof SerializableClosure ? $pipe->getClosure() : $pipe,
+            $options->middleware,
+        ), ...$declared];
     }
 
     /**

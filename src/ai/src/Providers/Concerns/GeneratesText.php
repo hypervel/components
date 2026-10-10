@@ -77,15 +77,22 @@ trait GeneratesText
                     }
 
                     $schema = $agent instanceof HasStructuredOutput ? $agent->schema(new JsonSchemaTypeFactory) : null;
+                    $instructions = (string) $agent->instructions();
+                    $tools = $this->resolveTools($prompt);
+                    $options = TextGenerationOptions::forAgent($agent);
+
+                    if ($prompt->middleware !== []) {
+                        $options = $options->withMiddleware($prompt->middleware);
+                    }
 
                     $response = $this->textGenerationLoop()->generate(
                         $this,
                         $prompt->model,
-                        (string) $agent->instructions(),
+                        $instructions,
                         $messages,
-                        $this->resolveTools($prompt),
+                        $tools,
                         $schema,
-                        TextGenerationOptions::forAgent($agent),
+                        $options,
                         $prompt->timeout,
                         $this->resumableApprovalFor($prompt),
                         $this->approvalResultRecorderFor($prompt, $resolvedApprovalResults),

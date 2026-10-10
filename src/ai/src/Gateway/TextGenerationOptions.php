@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Ai\Gateway;
 
+use Closure;
 use Hypervel\Ai\Attributes\CacheInstructions;
 use Hypervel\Ai\Attributes\CacheToolDefinitions;
 use Hypervel\Ai\Attributes\MaxSteps;
@@ -15,12 +16,18 @@ use Hypervel\Ai\Contracts\HasProviderOptions;
 use Hypervel\Ai\Enums\Lab;
 use Hypervel\Ai\ToolChoice;
 use Hypervel\Support\ClassMetadataCache;
+use Laravel\SerializableClosure\SerializableClosure;
 use ReflectionClass;
 
 class TextGenerationOptions
 {
+    /** @var array<int, object|string> */
+    public readonly array $middleware;
+
     /**
      * Create text generation options.
+     *
+     * @param array<int, object|string> $middleware
      */
     public function __construct(
         public readonly ?int $maxSteps = null,
@@ -32,7 +39,15 @@ class TextGenerationOptions
         public readonly ?CacheInstructions $cacheInstructions = null,
         public readonly ?CacheToolDefinitions $cacheToolDefinitions = null,
         public readonly ?array $providerOptions = null,
+        array $middleware = [],
     ) {
+        foreach ($middleware as $key => $pipe) {
+            if ($pipe instanceof Closure) {
+                $middleware[$key] = new SerializableClosure($pipe);
+            }
+        }
+
+        $this->middleware = $middleware;
     }
 
     /**
@@ -79,6 +94,16 @@ class TextGenerationOptions
     public function withProviderOptions(?array $providerOptions): self
     {
         return $this->with(['providerOptions' => $providerOptions]);
+    }
+
+    /**
+     * Create a copy using the given runtime middleware.
+     *
+     * @param array<int, object|string> $middleware
+     */
+    public function withMiddleware(array $middleware): self
+    {
+        return $this->with(['middleware' => $middleware]);
     }
 
     /**

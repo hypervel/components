@@ -4,14 +4,18 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Ai\Unit\Gateway\TextGenerationOptionsTest;
 
+use Closure;
 use Error;
 use Hypervel\Ai\Contracts\Agent;
 use Hypervel\Ai\Contracts\HasProviderOptions;
 use Hypervel\Ai\Enums\Lab;
+use Hypervel\Ai\Gateway\StepResult;
 use Hypervel\Ai\Gateway\TextGenerationOptions;
+use Hypervel\Ai\PendingStep;
 use Hypervel\Ai\Promptable;
 use Hypervel\Ai\ToolChoice;
 use Hypervel\Tests\TestCase;
+use Laravel\SerializableClosure\SerializableClosure;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class TextGenerationOptionsTest extends TestCase
@@ -100,6 +104,17 @@ class TextGenerationOptionsTest extends TestCase
 
         $agent->steps = 5;
         $this->assertSame(5, TextGenerationOptions::forAgent($agent)->maxSteps);
+    }
+
+    public function testDirectlyConstructedMiddlewareRemainsSerializableThroughOptionCopies(): void
+    {
+        $options = new TextGenerationOptions(middleware: [
+            static fn (PendingStep $step, Closure $next): StepResult => $next($step),
+        ]);
+
+        $restored = unserialize(serialize($options->withMaxTokens(100)));
+
+        $this->assertInstanceOf(SerializableClosure::class, $restored->middleware[0]);
     }
 }
 

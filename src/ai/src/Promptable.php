@@ -69,6 +69,13 @@ trait Promptable
     protected ?SerializableClosure $runtimeTools = null;
 
     /**
+     * The runtime middleware wrapping the agent's declared middleware.
+     *
+     * @var array<int, object|string>
+     */
+    protected array $runtimeMiddleware = [];
+
+    /**
      * Create a new instance of the agent.
      */
     public static function make(mixed ...$arguments): static
@@ -96,6 +103,8 @@ trait Promptable
 
         $tools = $this->resolveAgentTools();
 
+        $middleware = $this->runtimeMiddleware;
+
         $invocationId = (string) Str::uuid7();
 
         $providers = $approvalDecisions !== null
@@ -113,7 +122,8 @@ trait Promptable
             $parentInvocationId,
             $parentToolInvocationId,
             $messages,
-            $tools
+            $tools,
+            $middleware
         ): AgentResponse {
             return $provider->prompt(
                 new AgentPrompt(
@@ -130,6 +140,7 @@ trait Promptable
                     isFinalAttempt: $isFinalAttempt,
                     messages: $messages,
                     tools: $tools,
+                    middleware: $middleware,
                 )
             );
         };
@@ -180,6 +191,8 @@ trait Promptable
 
         $tools = $this->resolveAgentTools();
 
+        $middleware = $this->runtimeMiddleware;
+
         $invocationId = (string) Str::uuid7();
 
         [$parentInvocationId, $parentToolInvocationId] = ParentInvocation::current();
@@ -202,6 +215,7 @@ trait Promptable
                     messages: $messages,
                     tools: $tools,
                     contextRunner: $contextRunner,
+                    middleware: $middleware,
                 )
             )->usingContext($contextRunner);
         }
@@ -211,7 +225,7 @@ trait Promptable
 
         $outer = new StreamableAgentResponse(
             $invocationId,
-            function () use ($providers, $prompt, $approvalDecisions, $attachments, $resolvedTimeout, $invocationId, $parentInvocationId, $parentToolInvocationId, $messages, $tools, $contextRunner, &$outer): Generator {
+            function () use ($providers, $prompt, $approvalDecisions, $attachments, $resolvedTimeout, $invocationId, $parentInvocationId, $parentToolInvocationId, $messages, $tools, $middleware, $contextRunner, &$outer): Generator {
                 $lastException = null;
 
                 foreach ($this->iterateProvidersWithFailover($providers) as [$provider, $model, $isFinalAttempt]) {
@@ -234,6 +248,7 @@ trait Promptable
                                 messages: $messages,
                                 tools: $tools,
                                 contextRunner: $contextRunner,
+                                middleware: $middleware,
                             )
                         )->usingContext($contextRunner);
 
@@ -398,6 +413,20 @@ trait Promptable
         }
 
         $this->runtimeTools = new SerializableClosure($tools);
+
+        return $this;
+    }
+
+    /**
+     * Append middleware that wraps the agent's declared middleware for this instance.
+     *
+     * @param array<int, object|string> $middleware
+     */
+    public function withMiddleware(array $middleware): static
+    {
+        foreach ($middleware as $pipe) {
+            $this->runtimeMiddleware[] = $pipe instanceof Closure ? new SerializableClosure($pipe) : $pipe;
+        }
 
         return $this;
     }

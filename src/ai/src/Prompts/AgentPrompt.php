@@ -17,6 +17,7 @@ use Hypervel\Ai\Providers\Tools\ProviderTool;
 use Hypervel\Ai\Support\PendingConversationTitle;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
+use Laravel\SerializableClosure\SerializableClosure;
 use Throwable;
 
 class AgentPrompt extends Prompt
@@ -38,6 +39,13 @@ class AgentPrompt extends Prompt
      * @var null|array<int, Agent|ProviderTool|Tool>
      */
     public readonly ?array $tools;
+
+    /**
+     * The runtime middleware for this run, wrapping the agent's declared middleware.
+     *
+     * @var array<int, object|string>
+     */
+    public readonly array $middleware;
 
     public readonly ?int $timeout;
 
@@ -63,6 +71,7 @@ class AgentPrompt extends Prompt
      *
      * @param bool $isFinalAttempt whether the caller has run out of providers to retry this prompt against
      * @param null|Closure(Closure): mixed $contextRunner
+     * @param array<int, object|string> $middleware
      */
     public function __construct(
         Agent $agent,
@@ -79,6 +88,7 @@ class AgentPrompt extends Prompt
         ?array $messages = null,
         ?array $tools = null,
         ?Closure $contextRunner = null,
+        array $middleware = [],
     ) {
         parent::__construct($prompt, $provider, $model, $approvalDecisions);
 
@@ -86,6 +96,14 @@ class AgentPrompt extends Prompt
         $this->attachments = Collection::make($attachments);
         $this->messages = $messages;
         $this->tools = $tools;
+
+        foreach ($middleware as $key => $pipe) {
+            if ($pipe instanceof Closure) {
+                $middleware[$key] = new SerializableClosure($pipe);
+            }
+        }
+
+        $this->middleware = $middleware;
         $this->timeout = $timeout;
         $this->invocationId = $invocationId;
         $this->parentInvocationId = $parentInvocationId;
@@ -146,6 +164,7 @@ class AgentPrompt extends Prompt
             $this->messages,
             $this->tools,
             $this->contextRunner,
+            $this->middleware,
         );
 
         $revised->streaming = $this->streaming;
@@ -179,6 +198,7 @@ class AgentPrompt extends Prompt
             $this->messages,
             [...$tools],
             $this->contextRunner,
+            $this->middleware,
         );
 
         $revised->streaming = $this->streaming;

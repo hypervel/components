@@ -90,15 +90,22 @@ trait StreamsText
                             }
 
                             try {
+                                $instructions = (string) $agent->instructions();
+                                $options = TextGenerationOptions::forAgent($agent);
+
+                                if ($prompt->middleware !== []) {
+                                    $options = $options->withMiddleware($prompt->middleware);
+                                }
+
                                 foreach ($this->textGenerationLoop()->stream(
                                     $invocationId,
                                     $this,
                                     $prompt->model,
-                                    (string) $agent->instructions(),
+                                    $instructions,
                                     $messages,
                                     $tools,
                                     null,
-                                    TextGenerationOptions::forAgent($agent),
+                                    $options,
                                     $prompt->timeout,
                                     $approval,
                                     $recordApprovalResults,
