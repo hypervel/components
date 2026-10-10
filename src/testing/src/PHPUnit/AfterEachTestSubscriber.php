@@ -355,6 +355,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
     protected function flushAiState(): void
     {
         $this->callIfExists(\Hypervel\Ai\Files\UntrustedUrl::class, 'flushState');
+        $this->callIfExists(\Hypervel\Ai\Tools\LoadSkill::class, 'flushState');
         $this->callIfExists(\Hypervel\Ai\Tools\Request::class, 'flushMacros');
     }
 

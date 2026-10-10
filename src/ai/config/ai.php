@@ -85,7 +85,8 @@ return [
     |--------------------------------------------------------------------------
     |
     | Skills in these directories are cached for the worker lifetime. Reload
-    | workers after changing them. Skills from other paths are read afresh.
+    | services after changing them. Other paths are read afresh. Set this
+    | list to an empty array to disable skill discovery caching entirely.
     |
     */
 
