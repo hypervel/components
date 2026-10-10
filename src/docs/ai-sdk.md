@@ -709,6 +709,36 @@ foreach ($store->pendingApprovalsFor($conversationId) as $approval) {
 
 These methods are defined by the `PaginatesConversations`, `VerifiesConversationOwnership`, and `ResolvesPendingApprovals` contracts. The included database store implements all three, while a custom store may implement only the contracts it needs.
 
+<a name="restricting-conversation-writes"></a>
+#### Restricting Conversation Writes
+
+You may extend `DatabaseConversationStore` and override its `ensureWriteAllowed` method to restrict writes while still allowing history to be read. The store calls this method before saving conversations, messages, and tool approval results. For example, your application may define a `write-conversations` gate and check it in a custom store:
+
+```php
+namespace App\Ai\Storage;
+
+use Hypervel\Ai\Storage\DatabaseConversationStore;
+use Hypervel\Contracts\Auth\Access\Gate;
+
+class AuthorizedConversationStore extends DatabaseConversationStore
+{
+    public function __construct(protected Gate $gate, ?string $connection = null)
+    {
+        parent::__construct($connection);
+    }
+
+    /**
+     * Authorize conversation writes.
+     */
+    protected function ensureWriteAllowed(): void
+    {
+        $this->gate->authorize('write-conversations');
+    }
+}
+```
+
+Bind your store to `Hypervel\Ai\Contracts\ConversationStore` in an application service provider, passing the configured `ai.conversations.connection` to its constructor. This hook applies to writes through the store, including approval claims; direct model and query builder writes need their own authorization.
+
 <a name="structured-output"></a>
 ### Structured Output
 
