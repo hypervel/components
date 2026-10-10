@@ -9,6 +9,11 @@ use GuzzleHttp\Client;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Cookie\CookieJar;
 use GuzzleHttp\Exception\ConnectException;
+use GuzzleHttp\Handler\CurlFactory;
+use GuzzleHttp\Handler\CurlHandler;
+use GuzzleHttp\Handler\CurlShareHandleState;
+use GuzzleHttp\Handler\CurlVersion;
+use GuzzleHttp\Handler\Proxy;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use GuzzleHttp\Multiplexing;
@@ -16,6 +21,7 @@ use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\Psr7\Response as Psr7Response;
 use GuzzleHttp\TransferStats;
+use GuzzleHttp\TransportSharing;
 use GuzzleHttp\Utils;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Events\Dispatcher;
@@ -37,6 +43,11 @@ class Factory
     use Macroable {
         __call as macroCall;
     }
+
+    /**
+     * The idle cURL handles a registered connection keeps for reuse by default.
+     */
+    public const int DEFAULT_MAX_IDLE_HANDLES = 256;
 
     protected const string GLOBAL_CONFIGURATION_DISABLED_CONTEXT_KEY_PREFIX = '__http.global_configuration_disabled.';
 
@@ -663,7 +674,7 @@ class Factory
         }
 
         $config = $this->connectionConfigs[$name];
-        $handlerOptions = Arr::only($config, ['transport_sharing']);
+        $handlerOptions = Arr::only($config, ['transport_sharing', 'max_idle_handles']);
 
         if (($config['multiplex'] ?? null) === Multiplexing::NONE) {
             $handlerOptions['multiplex'] = Multiplexing::NONE;
@@ -676,10 +687,57 @@ class Factory
 
     /**
      * Create a low-level transport handler for a connection.
+     *
+     * Guzzle's synchronous cURL handler keeps three idle easy handles, and
+     * each keeps its own keep-alive connections, so a connection used by
+     * concurrent coroutines would reconnect for most requests. Guzzle still
+     * selects and validates the handler; synchronous requests it would send
+     * through cURL use a handler that keeps "max_idle_handles" instead.
      */
     protected function createConnectionHandler(array $options): callable
     {
-        return Utils::chooseHandler($options);
+        $maxIdleHandles = $options['max_idle_handles'] ?? self::DEFAULT_MAX_IDLE_HANDLES;
+        unset($options['max_idle_handles']);
+
+        $upstream = Utils::chooseHandler($options);
+        $handler = $this->createIdleHandleRetainingHandler($options['transport_sharing'] ?? null, $maxIdleHandles);
+
+        if ($handler === null) {
+            return $upstream;
+        }
+
+        // Guzzle 7 alone sends TLS 1.2 requests that its cURL cannot honor to its stream handler.
+        // @phpstan-ignore function.impossibleType (the method exists in Guzzle 7, not in the installed Guzzle 8)
+        if (method_exists(Proxy::class, 'wrapTlsFallback')) {
+            $handler = Proxy::wrapTlsFallback($handler, $upstream);
+        }
+
+        return Proxy::wrapStreaming(Proxy::wrapSync($upstream, $handler), $upstream);
+    }
+
+    /**
+     * Create a synchronous cURL handler that keeps the given number of idle handles, or null when Guzzle would not send through cURL.
+     *
+     * Guzzle offers no handler option for the idle handle limit, so this
+     * builds the handler its selection would, through its internal share
+     * state and version checks.
+     */
+    protected function createIdleHandleRetainingHandler(mixed $transportSharing, int $maxIdleHandles): ?CurlHandler
+    {
+        if (! function_exists('curl_exec') || ! defined('CURLOPT_CUSTOMREQUEST') || ! CurlVersion::supportsCurlHandler()) {
+            return null;
+        }
+
+        try {
+            $shareState = CurlShareHandleState::fromOption($transportSharing);
+        } catch (InvalidArgumentException) {
+            // Guzzle validated the same sharing when it selected its handler, which stays correct on its own.
+            return null;
+        }
+
+        return new CurlHandler([
+            'handle_factory' => new CurlFactory($maxIdleHandles, $shareState->mode ?? TransportSharing::NONE, $shareState),
+        ]);
     }
 
     /**
@@ -716,7 +774,7 @@ class Factory
     {
         $this->ensureConnectionIsRegistered($name);
 
-        return Arr::except($this->connectionConfigs[$name], ['transport_sharing']);
+        return Arr::except($this->connectionConfigs[$name], ['transport_sharing', 'max_idle_handles']);
     }
 
     /**
@@ -764,6 +822,10 @@ class Factory
     protected function validateConnectionConfig(array $config): void
     {
         ReservedOptions::reject($config, true, 'registered connection configuration');
+
+        if (array_key_exists('max_idle_handles', $config) && (! is_int($config['max_idle_handles']) || $config['max_idle_handles'] < 0)) {
+            throw new InvalidArgumentException('The [max_idle_handles] connection option must be an integer of 0 or more.');
+        }
     }
 
     /**

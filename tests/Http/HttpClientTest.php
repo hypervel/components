@@ -3347,7 +3347,9 @@ class HttpClientTest extends TestCase
             $this->fail('ConnectionException was not thrown.');
         } catch (ConnectionException $exception) {
             $this->assertSame('Unable to write to stream', $exception->getMessage());
-            $this->assertInstanceOf(ResponseException::class, $exception->getPrevious());
+            // Guzzle 8 carries the response on its ResponseException, Guzzle 7 on its RequestException.
+            $this->assertInstanceOf(GuzzleRequestException::class, $exception->getPrevious());
+            $this->assertSame(200, $exception->getPrevious()->getResponse()?->getStatusCode());
         }
 
         $this->factory->assertSentCount(1);
@@ -3385,12 +3387,13 @@ class HttpClientTest extends TestCase
         $seen = null;
 
         $this->factory->sink($stream)->withOptions([
-            'on_headers' => function (ResponseInterface $response, RequestInterface $request) use ($stream, &$seen): void {
-                $seen = [$response->getStatusCode(), $response->getHeaderLine('X-Fake'), (string) $request->getUri(), $stream->getSize()];
+            // Guzzle 8 also passes the request, as its transports do.
+            'on_headers' => function (ResponseInterface $response, ?RequestInterface $request = null) use ($stream, &$seen): void {
+                $seen = [$response->getStatusCode(), $response->getHeaderLine('X-Fake'), $request === null ? null : (string) $request->getUri(), $stream->getSize()];
             },
         ])->get('https://example.com');
 
-        $this->assertSame([201, 'yes', 'https://example.com', 0], $seen);
+        $this->assertSame([201, 'yes', class_exists(ResponseException::class) ? 'https://example.com' : null, 0], $seen);
         $this->assertSame('abc123', (string) $stream);
     }
 

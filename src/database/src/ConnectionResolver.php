@@ -68,15 +68,7 @@ class ConnectionResolver implements ConnectionResolverInterface
      */
     public function connection(UnitEnum|string|null $name = null): ConnectionInterface
     {
-        if ($name instanceof UnitEnum) {
-            $name = (string) enum_value($name);
-        }
-
-        $name = $name === null || $name === ''
-            ? $this->getDefaultConnection()
-            : $name;
-
-        $connectionName = ConnectionName::parse($name);
+        $connectionName = ConnectionName::parse($this->connectionName($name));
         $connectionOwnerName = $connectionName->requested;
         $contextKey = $this->getContextKey($connectionOwnerName);
 
@@ -131,6 +123,9 @@ class ConnectionResolver implements ConnectionResolverInterface
             // deferred release, since a listener failure discards the wrapper.
             $pooledConnection->dispatchConnectionEstablishedEvent();
 
+            // Recorded after the listeners, which may have customized the grammar.
+            $pool->recordDateFormat($connection);
+
             if (Coroutine::inCoroutine()) {
                 Coroutine::defer(function () use ($pooledConnection, $contextKey): void {
                     CoroutineContext::forget($contextKey);
@@ -149,6 +144,46 @@ class ConnectionResolver implements ConnectionResolverInterface
         }
 
         return $connection;
+    }
+
+    /**
+     * Get the query grammar date format of a connection without holding one.
+     *
+     * A connection the current coroutine holds answers for itself. Otherwise
+     * the format its pool recorded from the connections it handed out and got
+     * back is used, so formatting or parsing a date never borrows a connection
+     * for the rest of the coroutine. Before the pool has recorded one, the
+     * connection is resolved as usual.
+     */
+    public function connectionDateFormat(UnitEnum|string|null $name = null): string
+    {
+        $name = $this->connectionName($name);
+        $connectionName = ConnectionName::parse($name);
+        $held = CoroutineContext::get($this->getContextKey($connectionName->requested));
+
+        if ($held instanceof Connection) {
+            return $held->getQueryGrammar()->getDateFormat();
+        }
+
+        $pool = $this->poolManager->existing($connectionName->requested);
+
+        if ($pool !== null) {
+            // Role aliases of a shared in-memory PDO are held under the pool's own name.
+            $held = $pool->getSharedInMemorySqlitePdo() === null ? null : CoroutineContext::get($this->getContextKey($pool->getName()));
+
+            if ($held instanceof Connection) {
+                return $held->getQueryGrammar()->getDateFormat();
+            }
+
+            if (($format = $pool->recordedDateFormat()) !== null) {
+                return $format;
+            }
+        }
+
+        /** @var Connection $connection */
+        $connection = $this->connection($name);
+
+        return $connection->getQueryGrammar()->getDateFormat();
     }
 
     /**
@@ -205,6 +240,18 @@ class ConnectionResolver implements ConnectionResolverInterface
         } else {
             CoroutineContext::set(self::DEFAULT_CONNECTION_CONTEXT_KEY, $name);
         }
+    }
+
+    /**
+     * Get the connection name a request resolves to: the given name, or the current default.
+     */
+    protected function connectionName(UnitEnum|string|null $name): string
+    {
+        if ($name instanceof UnitEnum) {
+            $name = (string) enum_value($name);
+        }
+
+        return $name === null || $name === '' ? $this->getDefaultConnection() : $name;
     }
 
     /**

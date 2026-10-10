@@ -22,6 +22,7 @@ use Hypervel\Database\MySqlConnection;
 use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Pool\DatabasePool;
 use Hypervel\Database\Pool\PooledConnection;
+use Hypervel\Database\Query\Grammars\SQLiteGrammar;
 use Hypervel\Database\SessionConfigurator;
 use Hypervel\Database\SQLiteConnection;
 use Hypervel\Engine\Channel;
@@ -374,6 +375,28 @@ class PooledConnectionTest extends DatabaseTestCase
 
         $this->assertTrue($result);
         $this->assertFalse($pooledConnection->check());
+    }
+
+    public function testThePoolRecordsTheDateFormatOfReturnedConnectionsUntilOneIsClosed(): void
+    {
+        $pool = new DatabasePool($this->app, 'pool_test');
+
+        /** @var PooledConnection $pooledConnection */
+        $pooledConnection = $pool->borrow();
+        $connection = $pooledConnection->getConnection();
+        // A grammar replaced while the connection is held is the one its next borrower gets.
+        $connection->setQueryGrammar(new PooledConnectionTestTimestampGrammar($connection));
+
+        $pooledConnection->release();
+
+        $this->assertSame('U', $pool->recordedDateFormat());
+
+        /** @var PooledConnection $pooledConnection */
+        $pooledConnection = $pool->borrow();
+        $pooledConnection->discard();
+
+        // The connection that grammar belonged to is gone, and its replacement starts with the default grammar.
+        $this->assertNull($pool->recordedDateFormat());
     }
 
     public function testCloseForgetsTheConnectionWhenTransactionCleanupFails(): void
@@ -1980,5 +2003,16 @@ class CancellablePingConnection extends NeutralPoolConnection
         }
 
         return true;
+    }
+}
+
+class PooledConnectionTestTimestampGrammar extends SQLiteGrammar
+{
+    /**
+     * Store dates as Unix timestamps.
+     */
+    public function getDateFormat(): string
+    {
+        return 'U';
     }
 }

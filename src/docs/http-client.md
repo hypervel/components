@@ -997,9 +997,10 @@ The second argument is a request-option preset. It accepts normal Guzzle request
 - `pool` is rejected. HTTP clients are not object-pooled.
 - `max_host_connections` and `max_total_connections` are rejected. Use bounded coroutine fan-out or the rate limiter instead.
 - `transport_sharing` is consumed only while registering the connection's low-level handler. It accepts Guzzle's `TransportSharing` modes and is never passed into request options.
+- `max_idle_handles` is also consumed only while registering the connection's handler. It sets how many idle cURL handles the connection keeps for its next requests (256 by default; 0 keeps none). Each handle holds its own keep-alive connections, so requests from concurrent coroutines reuse their connections when this covers how many of them use the connection at once. It does not limit concurrent requests or open sockets: handles in use are additional, and Guzzle's persistent transport sharing keeps connections in its share instead.
 - `multiplex` remains a request option. The `Multiplexing::NONE` mode also configures the connection handler so its guarantee applies to every request using that handler.
 
-The dedicated connection-cap options are rejected at every option layer. `pool`, `handler`, `cookies`, and `transport_sharing` are also rejected from global options, per-call connection overrides, fluent `withOptions()` calls, and raw `send()` options. This keeps cookie and handler ownership consistent regardless of which option layer supplied a value.
+The dedicated connection-cap options are rejected at every option layer. `pool`, `handler`, `cookies`, `transport_sharing`, and `max_idle_handles` are also rejected from global options, per-call connection overrides, fluent `withOptions()` calls, and raw `send()` options. This keeps cookie and handler ownership consistent regardless of which option layer supplied a value.
 
 Once registered, select a connection for a request by chaining the `connection` method:
 

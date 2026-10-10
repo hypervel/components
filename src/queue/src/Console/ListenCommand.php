@@ -99,10 +99,10 @@ class ListenCommand extends Command
             backoff: (int) $backoff,
             memory: (int) $this->option('memory'),
             timeout: (int) $this->option('timeout'),
-            sleep: (int) $this->option('sleep'),
+            sleep: (float) $this->option('sleep'),
             maxTries: (int) $this->option('tries'),
             force: (bool) $this->option('force'),
-            rest: (int) $this->option('rest')
+            rest: (float) $this->option('rest')
         );
     }
 

@@ -12,11 +12,13 @@ use GuzzleHttp\Psr7\Response as Psr7Response;
 use GuzzleHttp\TransportSharing;
 use Hypervel\Http\Client\Factory;
 use Hypervel\Http\Client\PendingRequest;
+use Hypervel\Tests\Http\Fixtures\KeepAliveHttpServer;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Http\Message\RequestInterface;
 use ReflectionMethod;
+use Swoole\Coroutine;
 
 use function Hypervel\Coroutine\parallel;
 use function Hypervel\Coroutine\run;
@@ -257,27 +259,108 @@ class HttpConnectionTest extends TestCase
             'handler' => ['handler', static fn () => null],
             'cookies' => ['cookies', true],
             'transport sharing' => ['transport_sharing', TransportSharing::HANDLER_PREFER],
+            'max idle handles' => ['max_idle_handles', 8],
             'host connection cap' => ['max_host_connections', 5],
             'total connection cap' => ['max_total_connections', 10],
         ];
     }
 
-    public function testTransportSharingOnlyConfiguresTheConnectionHandler(): void
+    public function testHandlerOptionsOnlyConfigureTheConnectionHandler(): void
     {
         $factory = new RecordingHttpConnectionFactory;
         $factory->registerConnection('api', [
             'transport_sharing' => TransportSharing::HANDLER_PREFER,
+            'max_idle_handles' => 8,
             'timeout' => 12,
         ]);
 
         $factory->connection('api')->get('https://example.com');
 
         $this->assertSame(
-            [['transport_sharing' => TransportSharing::HANDLER_PREFER]],
+            [['transport_sharing' => TransportSharing::HANDLER_PREFER, 'max_idle_handles' => 8]],
             $factory->createdHandlerOptions,
         );
         $this->assertArrayNotHasKey('transport_sharing', $factory->invocations[0]['options']);
-        $this->assertSame(12, $factory->invocations[0]['options']['timeout']);
+        $this->assertArrayNotHasKey('max_idle_handles', $factory->invocations[0]['options']);
+        $this->assertSame(['timeout' => 12], $factory->getConnectionOptions('api'));
+    }
+
+    #[DataProvider('invalidIdleHandleLimits')]
+    public function testRegisteredConnectionsRejectInvalidIdleHandleLimits(mixed $limit): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The [max_idle_handles] connection option must be an integer of 0 or more.');
+
+        (new Factory)->registerConnection('api', ['max_idle_handles' => $limit]);
+    }
+
+    public static function invalidIdleHandleLimits(): array
+    {
+        return [
+            'negative' => [-1],
+            'numeric string' => ['8'],
+            'float' => [8.0],
+        ];
+    }
+
+    #[DataProvider('pooledRequestOptions')]
+    public function testYieldingConcurrentRequestsReuseTheConnectionsTheyReturn(array $options): void
+    {
+        $accepted = null;
+
+        run(static function () use ($options, &$accepted): void {
+            $server = KeepAliveHttpServer::start();
+            $factory = new Factory;
+            $factory->registerConnection('api');
+
+            try {
+                parallel(array_fill(0, 10, static function () use ($factory, $server, $options): void {
+                    for ($request = 0; $request < 5; ++$request) {
+                        // Coroutines doing other work between requests return their handles at different times.
+                        Coroutine::sleep(0.001);
+                        $factory->connection('api')->withOptions($options)->get("http://127.0.0.1:{$server->port}/")->throw();
+                    }
+                }));
+
+                $accepted = $server->accepted();
+            } finally {
+                $server->stop();
+            }
+        });
+
+        // Guzzle's own handler keeps three idle handles, so most of these requests would reconnect.
+        $this->assertLessThanOrEqual(10, $accepted);
+    }
+
+    public static function pooledRequestOptions(): array
+    {
+        return [
+            'default' => [[]],
+            'explicit TLS version' => [['crypto_method' => STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT]],
+        ];
+    }
+
+    public function testAConnectionKeepingNoIdleHandlesReconnectsForEveryRequest(): void
+    {
+        $accepted = null;
+
+        run(static function () use (&$accepted): void {
+            $server = KeepAliveHttpServer::start();
+            $factory = new Factory;
+            $factory->registerConnection('api', ['transport_sharing' => TransportSharing::NONE, 'max_idle_handles' => 0]);
+
+            try {
+                for ($request = 0; $request < 3; ++$request) {
+                    $factory->connection('api')->get("http://127.0.0.1:{$server->port}/")->throw();
+                }
+
+                $accepted = $server->accepted();
+            } finally {
+                $server->stop();
+            }
+        });
+
+        $this->assertSame(3, $accepted);
     }
 
     public function testDisablingMultiplexingConfiguresTheHandlerAndRequest(): void

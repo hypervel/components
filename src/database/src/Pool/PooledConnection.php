@@ -306,6 +306,9 @@ class PooledConnection implements PoolConnection
         $this->connectionEstablishedEventPending = false;
 
         if ($this->connection instanceof Connection) {
+            // The pool's recorded date format may have come from this connection's grammar.
+            $this->pool->forgetDateFormat();
+
             try {
                 $this->connection->disconnect();
             } finally {
@@ -360,6 +363,11 @@ class PooledConnection implements PoolConnection
                 if ($dispatcher->hasListeners(ConnectionReleasing::class)) {
                     $dispatcher->dispatch(new ConnectionReleasing($this));
                 }
+            }
+
+            // Recorded after the listeners, which may still change the connection's grammar.
+            if ($this->connection instanceof Connection) {
+                $this->pool->recordDateFormat($this->connection);
             }
         } catch (CanceledException $cancellation) {
             $cancellationFailure = $cancellation;
