@@ -42,6 +42,8 @@ class StreamedAgentResponse extends AgentResponse
         $pendingApprovals = [];
         $steps = null;
 
+        // Keep this single pass aligned with TextDelta::combine(), ReasoningDelta::combine(),
+        // Citation::combine() and StreamEnd::combineUsage() when syncing upstream changes.
         foreach ($events as $event) {
             if ($event instanceof StreamStart) {
                 // Content-block message IDs may change mid-sentence; only a new step separates text.
