@@ -19,7 +19,7 @@ class EventsSubscriberTest extends TestCase
         $d->subscribe($subs);
     }
 
-    public function testEventSubscribeCanReturnMappings()
+    public function testEventSubscribeCanReturnMappings(): void
     {
         $d = new Dispatcher;
         $d->subscribe(DeclarativeSubscriber::class);

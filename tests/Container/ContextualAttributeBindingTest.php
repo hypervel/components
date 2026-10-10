@@ -98,6 +98,28 @@ class ContextualAttributeBindingTest extends TestCase
         $this->assertTrue($resolution->dependency->param);
     }
 
+    public function testGiveAttributeCanExtractAPropertyPath(): void
+    {
+        $container = new Container;
+
+        $resolution = $container->make(GivePropertyTest::class);
+
+        $this->assertTrue($resolution->param);
+        $this->assertNull($resolution->missing);
+        $this->assertFalse($container->isScoped(GivePropertyTest::class));
+    }
+
+    public function testGivePropertyRejectsScalarValues(): void
+    {
+        $container = new Container;
+        $container->bind(GiveScalarSource::class, fn (): int => 123);
+
+        $this->expectException(BindingResolutionException::class);
+        $this->expectExceptionMessageIs('Cannot extract property path [id] from scalar [int] resolved by [Hypervel\Container\Attributes\Give].');
+
+        $container->make(ScalarGivePropertyTest::class);
+    }
+
     public function testScalarDependencyCanBeResolvedFromAttributeBinding(): void
     {
         $container = new Container;
@@ -139,6 +161,48 @@ class ContextualAttributeBindingTest extends TestCase
         $class = $container->make(ContainerTestHasConfigValueWithResolvePropertyAndAfterCallback::class);
 
         $this->assertSame('Developer', $class->person->role);
+    }
+
+    public function testContextualParametersResolveInTheClassBuildContext(): void
+    {
+        $container = new Container;
+        $container->bind(ContainerTestContract::class, ContainerTestImplB::class);
+        $container->when(ContainerTestHasContextualDependencies::class)
+            ->needs(ContainerTestContract::class)
+            ->give(ContainerTestImplA::class);
+        $callbacks = 0;
+        $container->afterResolvingAttribute(
+            ContainerTestResolvesContractThroughContainer::class,
+            function () use (&$callbacks): void {
+                ++$callbacks;
+            },
+        );
+
+        $values = $container->resolveContextualParameters(ContainerTestHasContextualDependencies::class);
+
+        $this->assertSame(['dependency', 'person'], array_keys($values));
+        $this->assertInstanceOf(ContainerTestImplA::class, $values['dependency']);
+        $this->assertSame('Developer', $values['person']->role);
+        $this->assertSame(1, $callbacks);
+
+        // The class's build context ends with the call.
+        $this->assertInstanceOf(ContainerTestImplB::class, $container->make(ContainerTestContract::class));
+
+        $selected = $container->resolveContextualParameters(ContainerTestHasContextualDependencies::class, ['person']);
+
+        $this->assertSame(['person'], array_keys($selected));
+        $this->assertSame(1, $callbacks);
+    }
+
+    public function testContextualParametersLeaveVariadicParametersToTheBuild(): void
+    {
+        $container = new Container;
+        $container->singleton('config', fn (): Repository => new Repository(['names' => ['a', 'b']]));
+
+        $values = $container->resolveContextualParameters(ContainerTestHasVariadicContextualDependency::class);
+
+        $this->assertSame([], $values);
+        $this->assertSame(['a', 'b'], $container->buildWith(ContainerTestHasVariadicContextualDependency::class, $values)->names);
     }
 
     public function testAuthedAttribute(): void
@@ -790,6 +854,46 @@ final class ContainerTestParameterAwareAttribute implements ContextualAttribute
     }
 }
 
+#[Attribute(Attribute::TARGET_PARAMETER)]
+final class ContainerTestResolvesContractThroughContainer implements ContextualAttribute
+{
+    /**
+     * Resolve the contract through the container.
+     */
+    public static function resolve(self $attribute, Container $container): ContainerTestContract
+    {
+        return $container->make(ContainerTestContract::class);
+    }
+}
+
+final class ContainerTestHasContextualDependencies
+{
+    /**
+     * Create a new test fixture.
+     */
+    public function __construct(
+        #[ContainerTestResolvesContractThroughContainer]
+        public ContainerTestContract $dependency,
+        public string $plain,
+        #[ContainerTestConfigValueWithResolveAndAfter]
+        public object $person,
+    ) {
+    }
+}
+
+class ContainerTestHasVariadicContextualDependency
+{
+    public array $names;
+
+    /**
+     * Create a new test fixture.
+     */
+    public function __construct(#[Config('names')] string ...$names)
+    {
+        $this->names = $names;
+    }
+}
+
 final class ContainerTestHasConfigValueWithResolvePropertyAndAfterCallback
 {
     /**
@@ -1156,6 +1260,36 @@ final readonly class GiveTestComplex
     public function __construct(
         #[Give(ComplexDependency::class, ['param' => true])]
         public ContainerTestContract $dependency
+    ) {
+    }
+}
+
+final readonly class GivePropertyTest
+{
+    /**
+     * Create a new test fixture.
+     */
+    public function __construct(
+        #[Give(ComplexDependency::class, ['param' => true], property: 'param')]
+        public bool $param,
+        #[Give(ComplexDependency::class, ['param' => true], property: 'missing')]
+        public ?string $missing,
+    ) {
+    }
+}
+
+interface GiveScalarSource
+{
+}
+
+final readonly class ScalarGivePropertyTest
+{
+    /**
+     * Create a new test fixture.
+     */
+    public function __construct(
+        #[Give(GiveScalarSource::class, property: 'id')]
+        public ?int $id,
     ) {
     }
 }

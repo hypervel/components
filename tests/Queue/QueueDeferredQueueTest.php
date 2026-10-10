@@ -40,7 +40,7 @@ class QueueDeferredQueueTest extends TestCase
 {
     protected bool $runTestsInCoroutine = false;
 
-    public function testPushShouldDefer()
+    public function testPushShouldDefer(): void
     {
         unset($_SERVER['__deferred.test']);
 
@@ -119,7 +119,7 @@ class QueueDeferredQueueTest extends TestCase
         $this->assertSame('before', DeferredQueueSnapshotHandler::$receivedValue);
     }
 
-    public function testFailedJobGetsHandledWhenAnExceptionIsThrown()
+    public function testFailedJobGetsHandledWhenAnExceptionIsThrown(): void
     {
         unset($_SERVER['__deferred.failed']);
 
@@ -179,7 +179,7 @@ class QueueDeferredQueueTest extends TestCase
         }
     }
 
-    public function testItAddsATransactionCallbackForAfterCommitJobs()
+    public function testItAddsATransactionCallbackForAfterCommitJobs(): void
     {
         $deferred = new DeferredQueue;
         $deferred->setConnectionName('deferred');
@@ -192,7 +192,7 @@ class QueueDeferredQueueTest extends TestCase
         run(fn () => $deferred->push(new DeferredQueueAfterCommitJob));
     }
 
-    public function testItAddsATransactionCallbackForInterfaceBasedAfterCommitJobs()
+    public function testItAddsATransactionCallbackForInterfaceBasedAfterCommitJobs(): void
     {
         $deferred = new DeferredQueue;
         $deferred->setConnectionName('deferred');
@@ -205,7 +205,7 @@ class QueueDeferredQueueTest extends TestCase
         run(fn () => $deferred->push(new DeferredQueueAfterCommitInterfaceJob));
     }
 
-    public function testItAddsATransactionCallbackForAfterCommitUniqueJobs()
+    public function testItAddsATransactionCallbackForAfterCommitUniqueJobs(): void
     {
         $deferred = new DeferredQueue;
         $deferred->setConnectionName('deferred');
@@ -239,7 +239,7 @@ class QueueDeferredQueueTest extends TestCase
         run(fn () => $deferred->push($job));
     }
 
-    public function testItAddsATransactionCallbackForInterfaceBasedAfterCommitUniqueJobs()
+    public function testItAddsATransactionCallbackForInterfaceBasedAfterCommitUniqueJobs(): void
     {
         $deferred = new DeferredQueue;
         $deferred->setConnectionName('deferred');
@@ -256,7 +256,7 @@ class QueueDeferredQueueTest extends TestCase
         run(fn () => $deferred->push($job));
     }
 
-    public function testLaterSchedulesJobWithDelay()
+    public function testLaterSchedulesJobWithDelay(): void
     {
         $timer = m::mock(Timer::class);
         $timer->shouldReceive('after')
@@ -279,7 +279,7 @@ class QueueDeferredQueueTest extends TestCase
         $this->assertEquals(['foo' => 'bar'], $_SERVER['__deferred.later.test'][1]);
     }
 
-    public function testLaterWithDateInterval()
+    public function testLaterWithDateInterval(): void
     {
         CarbonImmutable::setTestNow('2024-01-01 12:00:00');
 
@@ -333,7 +333,7 @@ class QueueDeferredQueueTest extends TestCase
         CarbonImmutable::setTestNow();
     }
 
-    public function testLaterAddsTransactionCallbackForAfterCommitJobs()
+    public function testLaterAddsTransactionCallbackForAfterCommitJobs(): void
     {
         $timer = m::mock(Timer::class);
         $timer->shouldReceive('after')->once()->with(5.0, m::type('Closure'))->andReturn(1);
@@ -355,7 +355,7 @@ class QueueDeferredQueueTest extends TestCase
         run(fn () => $deferred->later(5, new DeferredQueueAfterCommitJob));
     }
 
-    public function testLaterAddsTransactionCallbackForInterfaceBasedAfterCommitJobs()
+    public function testLaterAddsTransactionCallbackForInterfaceBasedAfterCommitJobs(): void
     {
         $timer = m::mock(Timer::class);
         $timer->shouldReceive('after')->once()->with(5.0, m::type('Closure'))->andReturn(1);
@@ -377,7 +377,7 @@ class QueueDeferredQueueTest extends TestCase
         run(fn () => $deferred->later(5, new DeferredQueueAfterCommitInterfaceJob));
     }
 
-    public function testLaterAddsTransactionCallbackForAfterCommitUniqueJobs()
+    public function testLaterAddsTransactionCallbackForAfterCommitUniqueJobs(): void
     {
         $timer = m::mock(Timer::class);
         $timer->shouldReceive('after')->once()->with(5.0, m::type('Closure'))->andReturn(1);
@@ -427,7 +427,7 @@ class QueueDeferredQueueTest extends TestCase
         run(fn () => $deferred->later(5, $job));
     }
 
-    public function testLaterAddsTransactionCallbackForInterfaceBasedAfterCommitUniqueJobs()
+    public function testLaterAddsTransactionCallbackForInterfaceBasedAfterCommitUniqueJobs(): void
     {
         $timer = m::mock(Timer::class);
         $timer->shouldReceive('after')->once()->with(5.0, m::type('Closure'))->andReturn(1);
@@ -452,7 +452,7 @@ class QueueDeferredQueueTest extends TestCase
         run(fn () => $deferred->later(5, $job));
     }
 
-    public function testLaterClampsNegativeIntegerDelay()
+    public function testLaterClampsNegativeIntegerDelay(): void
     {
         $timer = m::mock(Timer::class);
         $timer->shouldReceive('after')->once()->with(0.0, m::type('Closure'))->andReturn(1);
@@ -480,7 +480,7 @@ class QueueDeferredQueueTest extends TestCase
         CarbonImmutable::setTestNow();
     }
 
-    public function testLaterFailedJobGetsHandledWhenAnExceptionIsThrown()
+    public function testLaterFailedJobGetsHandledWhenAnExceptionIsThrown(): void
     {
         unset($_SERVER['__deferred.failed']);
 
@@ -517,7 +517,7 @@ class QueueDeferredQueueTest extends TestCase
         $this->assertTrue($_SERVER['__deferred.failed']);
     }
 
-    public function testLaterDoesNotExecuteJobWhenWorkerIsClosing()
+    public function testLaterDoesNotExecuteJobWhenWorkerIsClosing(): void
     {
         unset($_SERVER['__deferred.later.test']);
 

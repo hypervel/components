@@ -120,7 +120,7 @@ class UpgradeForTeamsCommand extends Command
      */
     protected function getMigrationPath(?string $date = null): string
     {
-        $date = $date ?: date('Y_m_d_His');
+        $date = $date ?: now()->format('Y_m_d_His');
 
         return database_path("migrations/{$date}_{$this->migrationSuffix}");
     }

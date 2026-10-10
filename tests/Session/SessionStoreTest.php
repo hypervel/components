@@ -1316,7 +1316,7 @@ class SessionStoreTest extends TestCase
         $session = $this->getSession();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to generate URI instance for previous URL. No previous URL detected.');
+        $this->expectExceptionMessageIs('Unable to generate URI instance for previous URL. No previous URL detected.');
 
         $session->previousUri();
     }

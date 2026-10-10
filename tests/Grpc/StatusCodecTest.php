@@ -198,7 +198,7 @@ class StatusCodecTest extends TestCase
     public function testRejectsStatusOnANonFinalResponseEvent(): void
     {
         $this->expectException(ProtocolException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'The peer sent grpc-status before the response stream ended.',
         );
 

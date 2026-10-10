@@ -6,6 +6,7 @@
 includes:
   - src/database/extension.neon
   - src/foundation/extension.neon
+  - src/scout/extension.neon
 
 parameters:
   tmpDir: .cache/phpstan
@@ -57,7 +58,7 @@ parameters:
     - '#Access to an undefined property Hypervel\\Database\\Schema\\ForeignIdColumnDefinition::\$#'
     - '#Call to an undefined method Hypervel\\Database\\Schema\\ForeignIdColumnDefinition::#'
 
-    # NodeTrait methods - mixed in at app level, not on base Model class
+    # HasNode methods - mixed in at app level, not on base Model class
     - message: '#Call to an undefined method Hypervel\\Database\\Eloquent\\Model::new(ScopedQuery|NestedSetQuery)\(\)#'
       path: src/nested-set/*
 

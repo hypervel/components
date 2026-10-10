@@ -105,7 +105,7 @@ class DeadlineTest extends TestCase
     public function testRejectsANegativeAbsoluteDeadline(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The absolute deadline cannot be negative.');
+        $this->expectExceptionMessageIs('The absolute deadline cannot be negative.');
 
         Deadline::usingClock(-1, static fn (): int => 0);
     }

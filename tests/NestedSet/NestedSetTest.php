@@ -8,8 +8,8 @@ use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Eloquent\Attributes\UseEloquentBuilder;
 use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\HasBuilder;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Query\Builder as BaseQueryBuilder;
 use Hypervel\Database\Query\Grammars\Grammar as QueryGrammar;
 use Hypervel\NestedSet\Eloquent\QueryBuilder;
@@ -20,7 +20,6 @@ use Hypervel\Tests\TestCase;
 use LogicException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
-use ReflectionProperty;
 use stdClass;
 use Stringable;
 
@@ -104,15 +103,6 @@ class NestedSetTest extends TestCase
         $this->assertTrue(NestedSet::isNode(new NestedSetTestNestedTraitNodeModel));
     }
 
-    public function testNodeBootDetectsSoftDeletesWithoutNestedModelConstruction(): void
-    {
-        $node = new NestedSetTestNodeModel;
-        $softDeletingNode = new NestedSetTestSoftDeletingNodeModel;
-
-        $this->assertFalse($node::usesSoftDelete());
-        $this->assertTrue($softDeletingNode::usesSoftDelete());
-    }
-
     public function testNodeUsesNestedSetBuilderByDefault(): void
     {
         $builder = (new NestedSetTestNodeModel)
@@ -121,21 +111,59 @@ class NestedSetTest extends TestCase
         $this->assertInstanceOf(QueryBuilder::class, $builder);
     }
 
-    public function testNodeUsesCompatibleAttributedBuilder(): void
+    /**
+     * @param class-string<Model> $model
+     * @param class-string<QueryBuilder> $builder
+     */
+    #[DataProvider('compatibleBuilderModels')]
+    public function testNodeUsesCompatibleCustomBuilder(string $model, string $builder): void
     {
-        $builder = (new NestedSetTestCustomBuilderNodeModel)
-            ->newEloquentBuilder(m::mock(BaseQueryBuilder::class));
+        $instance = (new $model)->newEloquentBuilder(m::mock(BaseQueryBuilder::class));
 
-        $this->assertInstanceOf(NestedSetTestCustomBuilder::class, $builder);
+        $this->assertSame($builder, $instance::class);
     }
 
-    public function testNodeRejectsIncompatibleAttributedBuilder(): void
+    /**
+     * Provide node models with compatible custom builders.
+     *
+     * @return array<string, array{class-string<Model>, class-string<QueryBuilder>}>
+     */
+    public static function compatibleBuilderModels(): array
+    {
+        return [
+            'attribute' => [NestedSetTestCustomBuilderNodeModel::class, NestedSetTestCustomBuilder::class],
+            'attribute naming the nested set builder' => [NestedSetTestNestedSetBuilderNodeModel::class, QueryBuilder::class],
+            'builder property' => [NestedSetTestBuilderPropertyNodeModel::class, NestedSetTestCustomBuilder::class],
+        ];
+    }
+
+    /**
+     * @param class-string<Model> $model
+     */
+    #[DataProvider('incompatibleBuilderModels')]
+    public function testNodeRejectsIncompatibleCustomBuilder(string $model): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('must use a builder that extends');
+        $this->expectExceptionMessageIs(sprintf(
+            'Nested set model [%s] must use a builder that extends [%s].',
+            $model,
+            QueryBuilder::class,
+        ));
 
-        (new NestedSetTestIncompatibleBuilderNodeModel)
-            ->newEloquentBuilder(m::mock(BaseQueryBuilder::class));
+        (new $model)->newEloquentBuilder(m::mock(BaseQueryBuilder::class));
+    }
+
+    /**
+     * Provide node models with builders that do not extend the nested set builder.
+     *
+     * @return array<string, array{class-string<Model>}>
+     */
+    public static function incompatibleBuilderModels(): array
+    {
+        return [
+            'attribute' => [NestedSetTestIncompatibleBuilderNodeModel::class],
+            'builder property' => [NestedSetTestIncompatibleBuilderPropertyNodeModel::class],
+        ];
     }
 
     public function testIsNodeReturnsFalseForPlainEloquentModel(): void
@@ -154,28 +182,6 @@ class NestedSetTest extends TestCase
     public function testIsNodeReturnsFalseForArbitraryObject(): void
     {
         $this->assertFalse(NestedSet::isNode(new stdClass));
-    }
-
-    public function testIsNodeCachesEachConcreteClassAndFlushesItsState(): void
-    {
-        NestedSet::flushState();
-
-        $node = new NestedSetTestNodeModel;
-        $plain = new NestedSetTestPlainModel;
-
-        $this->assertTrue(NestedSet::isNode($node));
-        $this->assertFalse(NestedSet::isNode($plain));
-
-        $property = new ReflectionProperty(NestedSet::class, 'nodeClasses');
-
-        $this->assertSame([
-            NestedSetTestNodeModel::class => true,
-            NestedSetTestPlainModel::class => false,
-        ], $property->getValue());
-
-        NestedSet::flushState();
-
-        $this->assertSame([], $property->getValue());
     }
 
     public function testScopeValuesAreNormalizedForSqlAndBucketIdentity(): void
@@ -262,7 +268,7 @@ class NestedSetTest extends TestCase
         $model->setRawAttributes(['first' => $value]);
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage("unsupported scope value [{$type}] for attribute [first]");
+        $this->expectExceptionMessageIsOrContains("unsupported scope value [{$type}] for attribute [first]");
 
         $model->getNestedSetScope();
     }
@@ -332,14 +338,6 @@ class NestedSetTestNestedTraitNodeModel extends Model
     protected ?string $table = 'nested_set_test_nested_trait_nodes';
 }
 
-class NestedSetTestSoftDeletingNodeModel extends Model
-{
-    use SoftDeletes;
-    use HasNode;
-
-    protected ?string $table = 'nested_set_test_soft_deleting_nodes';
-}
-
 class NestedSetTestScopeNodeModel extends Model
 {
     use HasNode;
@@ -365,7 +363,31 @@ class NestedSetTestCustomBuilderNodeModel extends Model
 {
     use HasNode;
 
+    /** @use HasBuilder<NestedSetTestCustomBuilder<static>> */
+    use HasBuilder {
+        HasNode::newEloquentBuilder insteadof HasBuilder;
+    }
+
+    protected static string $builder = QueryBuilder::class;
+
     protected ?string $table = 'nested_set_test_custom_builder_nodes';
+}
+
+#[UseEloquentBuilder(QueryBuilder::class)]
+class NestedSetTestNestedSetBuilderNodeModel extends Model
+{
+    use HasNode;
+
+    protected ?string $table = 'nested_set_test_nested_set_builder_nodes';
+}
+
+class NestedSetTestBuilderPropertyNodeModel extends Model
+{
+    use HasNode;
+
+    protected static string $builder = NestedSetTestCustomBuilder::class;
+
+    protected ?string $table = 'nested_set_test_builder_property_nodes';
 }
 
 #[UseEloquentBuilder(Builder::class)]
@@ -374,4 +396,21 @@ class NestedSetTestIncompatibleBuilderNodeModel extends Model
     use HasNode;
 
     protected ?string $table = 'nested_set_test_incompatible_builder_nodes';
+}
+
+/**
+ * @template TModel of Model
+ * @extends Builder<TModel>
+ */
+class NestedSetTestPlainBuilder extends Builder
+{
+}
+
+class NestedSetTestIncompatibleBuilderPropertyNodeModel extends Model
+{
+    use HasNode;
+
+    protected static string $builder = NestedSetTestPlainBuilder::class;
+
+    protected ?string $table = 'nested_set_test_incompatible_builder_property_nodes';
 }

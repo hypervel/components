@@ -6,7 +6,7 @@ namespace Hypervel\Tests\View\Blade;
 
 class BladeWhileStatementsTest extends AbstractBladeTestCase
 {
-    public function testWhileStatementsAreCompiled()
+    public function testWhileStatementsAreCompiled(): void
     {
         $string = '@while ($foo)
 test
@@ -17,7 +17,7 @@ test
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
 
-    public function testNestedWhileStatementsAreCompiled()
+    public function testNestedWhileStatementsAreCompiled(): void
     {
         $string = '@while ($foo)
 @while ($bar)

@@ -7,6 +7,7 @@ Documentation: https://hypervel.org/docs/database
 
 ## Differences From Laravel
 
+- Outgoing framework HTTP requests return idle database sessions to their pools. Code using temporary tables, session locks or retained raw PDOs across these calls must use `withPinnedSession()`; ordinary queries and active transactions keep their behavior. See [releasing and pinning connections](https://hypervel.org/docs/database#releasing-and-pinning-connections).
 - MySQL and MariaDB connections require `strict` or `modes` in their configuration instead of implicitly inheriting the server's SQL mode, so SQL literals can be escaped correctly.
 - Laravel's external database pooler support uses a `::direct` connection suffix. Hypervel instead uses normal named connections for each endpoint and `migrations_connection` for schema and migration paths. This keeps direct and pooled endpoints as normal configured connections with their own pool settings, so Hypervel does not support Laravel's `::direct` suffix.
 - Laravel exposes PDO methods on its base connection class. Hypervel's base `Connection` is driver-neutral, while PDO-backed drivers extend `PdoConnection`. Code that requires direct PDO access should accept or narrow to `PdoConnection`. When bringing in Laravel database updates, keep driver-neutral connection behavior on `Connection`, PDO mechanics on `PdoConnection`, and driver-specific behavior on the matching connection, grammar, schema builder, or processor.

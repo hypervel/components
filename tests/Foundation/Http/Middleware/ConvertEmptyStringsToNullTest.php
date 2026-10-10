@@ -11,7 +11,7 @@ use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
 
 class ConvertEmptyStringsToNullTest extends TestCase
 {
-    public function testConvertsEmptyStringsToNull()
+    public function testConvertsEmptyStringsToNull(): void
     {
         $middleware = new ConvertEmptyStringsToNull;
         $symfonyRequest = new SymfonyRequest([
@@ -27,7 +27,7 @@ class ConvertEmptyStringsToNullTest extends TestCase
         });
     }
 
-    public function testSkipConvertsEmptyStringsToNull()
+    public function testSkipConvertsEmptyStringsToNull(): void
     {
         $middleware = new ConvertEmptyStringsToNull;
         ConvertEmptyStringsToNull::skipWhen(fn ($request) => $request->baz === '');

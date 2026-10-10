@@ -14,11 +14,11 @@ use function Hypervel\Testbench\remote;
 
 class AboutCommandTest extends TestCase
 {
-    public function testItCanDisplayAboutCommandAsJson()
+    public function testItCanDisplayAboutCommandAsJson(): void
     {
         $process = remote('about --json', ['APP_ENV' => 'local', 'APP_DEBUG' => 'true'])->mustRun();
 
-        tap(json_decode($process->getOutput(), true), function ($output) {
+        tap(json_decode($process->getOutput(), true), function (array $output): void {
             Assert::assertArraySubset([
                 'php_version' => PHP_VERSION,
                 'swoole_version' => swoole_version(),
@@ -26,7 +26,7 @@ class AboutCommandTest extends TestCase
                 'debug_mode' => true,
             ], $output['environment']);
 
-            $this->assertArrayHasKey('aop_proxies', $output['cache']);
+            $this->assertTrue($output['cache']['aop_proxies']);
         });
     }
 
@@ -43,7 +43,7 @@ class AboutCommandTest extends TestCase
     }
 
     #[WithEnv('VIEW_COMPILED_PATH', __DIR__ . '/Fixtures/compiled-views')]
-    public function testItRespectsCustomPathForCompiledViews()
+    public function testItRespectsCustomPathForCompiledViews(): void
     {
         $process = remote('about --json', ['APP_ENV' => 'local'])->mustRun();
 
@@ -54,7 +54,7 @@ class AboutCommandTest extends TestCase
         });
     }
 
-    public function testItReportsCompiledViewsWhenCached()
+    public function testItReportsCompiledViewsWhenCached(): void
     {
         remote('view:cache')->mustRun();
 

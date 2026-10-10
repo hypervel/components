@@ -3443,7 +3443,7 @@ EOT,
         ]);
 
         $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('Failed asserting that the collection at [foos.2] matches the given collection.');
+        $this->expectExceptionMessageIsOrContains('Failed asserting that the collection at [foos.2] matches the given collection.');
 
         $response->assertViewHas('foos', $expected);
     }
@@ -3525,7 +3525,7 @@ EOT,
         $response = TestResponse::fromBaseResponse(new Response('<p>Hello World</p>'));
 
         $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Failed asserting that the expected value "<strong></strong>" contains visible text.'
         );
 
@@ -3541,7 +3541,7 @@ EOT,
         ));
 
         $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('No validation errors were provided.');
+        $this->expectExceptionMessageIsOrContains('No validation errors were provided.');
 
         $response->assertInvalid();
     }
@@ -3555,7 +3555,7 @@ EOT,
         ));
 
         $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('No validation errors were provided.');
+        $this->expectExceptionMessageIsOrContains('No validation errors were provided.');
 
         $response->assertOnlyInvalid();
     }
@@ -3567,7 +3567,7 @@ EOT,
         $response = new TestResponseWithSession(new Response, $store);
 
         $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('Session has unexpected key [present].');
+        $this->expectExceptionMessageIsOrContains('Session has unexpected key [present].');
 
         $response->assertSessionMissingInput('present');
     }
@@ -3587,7 +3587,7 @@ EOT,
         $response = new TestResponseWithSession(new Response, $store);
 
         $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('Session is missing expected key [missing].');
+        $this->expectExceptionMessageIsOrContains('Session is missing expected key [missing].');
 
         $response->assertSessionHasAll(['missing' => null]);
     }
@@ -3599,7 +3599,7 @@ EOT,
         $response = new TestResponseWithSession(new Response, $store);
 
         $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('Session is missing expected key [present].');
+        $this->expectExceptionMessageIsOrContains('Session is missing expected key [present].');
 
         $response->assertSessionHasAll(['present' => null]);
     }
@@ -3650,7 +3650,7 @@ EOT,
         ));
 
         $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('Invalid JSON was returned from the route.');
+        $this->expectExceptionMessageIs('Invalid JSON was returned from the route.');
 
         $response->decodeResponseJson();
     }

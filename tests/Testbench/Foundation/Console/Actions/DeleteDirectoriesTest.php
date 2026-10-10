@@ -91,7 +91,7 @@ class DeleteDirectoriesTest extends TestCase
         $components->expects('task')->with('Directory [b] has been deleted');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to delete directories [a].');
+        $this->expectExceptionMessageIs('Unable to delete directories [a].');
 
         (new DeleteDirectories(
             filesystem: $filesystem,

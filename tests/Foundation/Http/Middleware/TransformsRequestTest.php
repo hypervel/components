@@ -33,7 +33,7 @@ class TransformsRequestTest extends TestCase
         $this->assertSame(['name' => 'Taylor'], $bag->all());
     }
 
-    public function testTransformOncePerKeyWhenMethodIsGet()
+    public function testTransformOncePerKeyWhenMethodIsGet(): void
     {
         $middleware = new TruncateInput;
         $symfonyRequest = new SymfonyRequest([
@@ -49,7 +49,7 @@ class TransformsRequestTest extends TestCase
         });
     }
 
-    public function testTransformOncePerKeyWhenMethodIsPost()
+    public function testTransformOncePerKeyWhenMethodIsPost(): void
     {
         $middleware = new ManipulateInput;
         $symfonyRequest = new SymfonyRequest(
@@ -69,7 +69,7 @@ class TransformsRequestTest extends TestCase
         });
     }
 
-    public function testTransformOncePerArrayKeysWhenMethodIsPost()
+    public function testTransformOncePerArrayKeysWhenMethodIsPost(): void
     {
         $middleware = new ManipulateArrayInput;
         $symfonyRequest = new SymfonyRequest(
@@ -91,7 +91,7 @@ class TransformsRequestTest extends TestCase
         });
     }
 
-    public function testTransformOncePerKeyWhenContentTypeIsJson()
+    public function testTransformOncePerKeyWhenContentTypeIsJson(): void
     {
         $middleware = new ManipulateInput;
         $symfonyRequest = new SymfonyRequest(

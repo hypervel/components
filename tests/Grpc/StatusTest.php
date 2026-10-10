@@ -26,7 +26,7 @@ class StatusTest extends TestCase
     public function testRejectsRichDetailsForSuccessfulStatus(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('An OK gRPC status cannot contain rich error details.');
+        $this->expectExceptionMessageIs('An OK gRPC status cannot contain rich error details.');
 
         new Status(StatusCode::Ok, '', new RichStatus);
     }
@@ -38,7 +38,7 @@ class StatusTest extends TestCase
             ->setMessage('Missing');
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The rich status code must match the gRPC status code.');
+        $this->expectExceptionMessageIs('The rich status code must match the gRPC status code.');
 
         new Status(StatusCode::InvalidArgument, 'Missing', $details);
     }
@@ -50,7 +50,7 @@ class StatusTest extends TestCase
             ->setMessage('Different');
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The rich status message must match the gRPC status message.');
+        $this->expectExceptionMessageIs('The rich status message must match the gRPC status message.');
 
         new Status(StatusCode::InvalidArgument, 'Invalid', $details);
     }

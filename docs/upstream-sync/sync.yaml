@@ -126,23 +126,23 @@ laravel/tinker:
 
 laravel/wayfinder:
   branch: main
-  checked_through: null
-  last_reviewed_pr: null
-  sync_date: null
+  checked_through: dd454ed0a7fba5debbcbd8f3da06a2b4a7fae6b8
+  last_reviewed_pr: 295
+  sync_date: '2026-10-03'
   notes: Track main for applicable fixes. Wayfinder next and its Surveyor, Ranger and Structure Discoverer dependency ports are deferred until Wayfinder v1. At each sync, check whether v1 has been released; if so, notify the owner and obtain approval before changing the tracked branch or beginning those ports.
 
 laravel/docs:
   branch: 13.x
-  checked_through: null
-  last_reviewed_pr: null
-  sync_date: null
+  checked_through: 156fc7fde114548640e13c39aa79b991291c3f91
+  last_reviewed_pr: 11395
+  sync_date: '2026-10-03'
   notes: Shared documentation for the framework and Laravel packages. Reconcile upstream changes with existing Hypervel documentation, including independently written coverage. Replace custom wording for equivalent content with upstream wording, adapting it for Hypervel and preserving enhancements and intentional differences absent upstream. Do not duplicate existing coverage.
 
 inertiajs/inertia-laravel:
   branch: 3.x
-  checked_through: null
-  last_reviewed_pr: null
-  sync_date: null
+  checked_through: 4da52b72da39396cad1d3ec8523b6c649009456e
+  last_reviewed_pr: 918
+  sync_date: '2026-10-03'
 
 inertiajs/docs:
   branch: main
@@ -153,68 +153,80 @@ inertiajs/docs:
 
 spatie/laravel-data:
   branch: main
-  checked_through: null
+  checked_through: ce296f22861dc1237ce468754cc7f46d3ac34ad5
   last_reviewed_pr: null
-  sync_date: null
+  sync_date: '2026-10-03'
+  notes: Hypervel replaces upstream's data pipes and resolvers with a fixed engine. The pipes and DataFromSomethingResolver map to Support/Creation/DataCreator and its per-operation ConstructionState; the validation resolvers and built-in rule inferrers map to Support/Validation/DataValidationCompiler and DataValidator; TransformedDataResolver and VisibleDataFieldsResolver map to Support/Transformation/DataTransformer and PartialTree. DataCreator's direct construction from DataClass creation recipes and DataTransformer's bulk copy are deliberate fast paths, so apply upstream behavior changes to them as well as to the general paths, and compare tests/Benchmarks/Data/benchmark.php results before and after. Upstream tests for those replaced classes live in the matching upstream feature tests or in the owning engine's tests under tests/Data/Support. Upstream's ide.json code-generation metadata for the Laravel Idea PhpStorm plugin is not ported.
 
 spatie/laravel-permission:
   branch: main
-  checked_through: null
+  checked_through: 6615eefac655efcd652fe394a20cbdf4f72c609f
   last_reviewed_pr: null
-  sync_date: null
+  sync_date: '2026-10-05'
+  notes: Upstream Pest files map to PHPUnit classes at the same paths under tests/Permission, with each it()/test() description as the method name. Upstream's permission.testing migration flag, which adds the roles team column while teams are off so cases can enable teams mid-test, is not ported; those cases enable teams before migrating through the DefineEnvironment attribute's usesTeams method. The CACHE_DRIVER cache-driver test runs map to CACHE_STORE. Passport::actingAsClient() maps to TestCase::actingAsClient() with the PassportGuard fixture because Hypervel has no Passport package. Upstream's single cached permission collection maps to PermissionRegistrar's catalog payload (getSerializedPermissionsForCache() stores role keys per permission; permissionCatalog() and modelClassCatalog() hydrate it) plus the per-model assignment caches (rememberModel*()), which are filled through Cache\ModelCacheCoordinator and invalidated after commit; apply upstream cache or loading changes to both. Upstream relation definitions map to the Role and Permission relation methods built through BuildsPermissionRelations, whose Partitioned* relations add partition and team constraints and loaded-relation tracking. Upstream's detach-then-attach syncs map to HasRoles::syncRoles() and HasPermissions::synchronizePermissionAssignments(), which read the current pivots and write only the differences, keeping each permission's is_denied effect. Upstream docs map to sections of src/docs/permission.md; the example app, PhpStorm, UI options, schema diagram, upgrade and project pages are not ported. Upstream's ide.json code-generation metadata for the Laravel Idea PhpStorm plugin is not ported either.
 
 aimeos/laravel-nestedset:
   branch: master
-  checked_through: null
-  last_reviewed_pr: null
-  sync_date: null
+  checked_through: 90ea384febeaaa97967f43b1af9661d4edf2354a
+  last_reviewed_pr: 25
+  sync_date: '2026-10-08'
+  notes: The only tracked Nested Set upstream; lazychaser/laravel-nestedset and lunarphp/nestedset are not tracked because Aimeos carries their applicable fixes. src/NodeTrait.php maps to src/nested-set/src/HasNode.php; QueryBuilder, Collection and the relations map to src/nested-set/src/Eloquent; NestedSet and NestedSetServiceProvider keep their names. Hypervel keeps the original package's grouped method order rather than Aimeos's sort by visibility and name, so find upstream changes by method name. Upstream tests keep their class names in tests/NestedSet; tests/models map to tests/NestedSet/Fixtures/Models, and tests/data to the bases' getMockCategories() and getMockMenuItems(). Add ported cases to the shared bases, which also run on MySQL, MariaDB and PostgreSQL through the subclasses in tests/Integration/NestedSet/Database. README.md maps to src/docs/nested-set.md.
 
 PHP-Open-Source-Saver/jwt-auth:
   branch: main
-  checked_through: null
-  last_reviewed_pr: null
-  sync_date: null
+  checked_through: 1bdb72de5e60fcb02264d7aba4bd4608939e3798
+  last_reviewed_pr: 301
+  sync_date: '2026-10-07'
+  notes: Primary reference for the first-party hypervel/jwt package, which tracks useful capabilities, fixes and tested behavior rather than an exact API; tymondesigns/jwt-auth below is processed after it. Source mapping into src/jwt/src - JWT, JWTAuth, JWTGuard and Providers/Auth to JwtGuard; Manager to JwtManager and the Jwt facade; Factory, Claims, Payload and Support to ClaimFactory and array payloads; Validators/PayloadValidator and claim checks to Validations, which JwtManager runs; Validators/TokenValidator to the Lcobucci provider's parsing; Providers/JWT to Providers; Providers/Storage to Storage/CacheStorage; Http/Parser to Http/Parser and TokenExtractor; the service providers to JwtServiceProvider; Console and EnvHelperTrait to Console and Hypervel\Support\Env; config/config.php to config/jwt.php. Upstream middleware has no class. Tests map to tests/Jwt by owning class - Providers/JWT, TokenTest and Validators/TokenValidatorTest to Providers; Claims, FactoryTest, PayloadTest and Validators/PayloadValidatorTest to ClaimFactoryTest, JwtManagerTest and Validations; BlacklistTest and Providers/Storage to BlacklistTest and Storage/CacheStorageTest; ManagerTest to JwtManagerTest; JWTGuardTest, JWTAuthTest and Providers/Auth to the JwtGuard*Test files; Http/ParserTest and Middleware to Http/ParserTest, JwtServiceProviderTest and JwtGuardContextTest; LaravelServiceProviderTest to JwtServiceProviderTest; DefaultConfigValuesTest to JwtConfigTest; Console/EnvHelperTraitTest to tests/Support/EnvFileTest and Console. Upstream docs map to src/docs/jwt.md. Adapt changes to array payloads, configuration in place of runtime setters on shared services, and per-request guard state in CoroutineContext. src/jwt/README.md lists the deliberate differences and their equivalents; check them before applying an upstream change they affect, and keep it current.
+
+tymondesigns/jwt-auth:
+  branch: 2.x
+  checked_through: 6c70930a92710d97e8e52b182fca2176097f33be
+  last_reviewed_pr: 2292
+  sync_date: '2026-10-07'
+  notes: Original package behind hypervel/jwt, processed after PHP-Open-Source-Saver/jwt-auth with the same source, test and docs mapping. It still receives independent fixes; compare each change with the fork's version and the Hypervel code before adapting it, without duplicating the fork's tests.
 
 saloonphp/saloon:
   branch: v4
-  checked_through: null
-  last_reviewed_pr: null
-  sync_date: null
+  checked_through: 2f45e526f9d1d10a138f864492b074b046d2e52e
+  last_reviewed_pr: 564
+  sync_date: '2026-10-07'
+  notes: Core of the unified hypervel/saloon package, together with the four plugin entries and shared documentation below. Upstream's connector send path and senders map to SaloonManager and Http/Sender, which use Hypervel's HTTP client; pools use coroutines. The PendingRequest constructor lifecycle maps to SaloonManager::createPendingRequest (properties merge in the PendingRequest constructor and plugins boot after it), mock clients are selected and matched in SaloonManager::send after request middleware rather than stored on the pending request, and Helpers/URLHelper maps to Http/UrlResolver. Upstream's Config maps to the manager's global middleware, the saloon.connection settings and the framework Date, Sleep and Http stray-request APIs; Helpers/RequestExceptionHelper maps to Response::newRequestException. Upstream's retry loop and DelayMiddleware map to SaloonManager::send, and its retry properties and handleRetry() methods map to Data/RetryPolicy and the defaultRetryPolicy() hooks. Helpers/OAuth2/OAuthConfig maps to the immutable Data/OAuthConfig, and token-response parsing shared by the OAuth grant traits lives in Traits/OAuth2/ParsesOAuthTokenResponses. Assess upstream changes against these framework integrations and preserve supported SDK-generator extension points. Upstream tests and fixtures map to the same paths under tests/Saloon/{Unit,Feature,Fixtures}; cases that call upstream's live test API use the engine test server under tests/Integration/Saloon instead. src/saloon/README.md lists the deliberate public differences across all five entries, with their reasons and Hypervel equivalents; check them against current source before applying an upstream change they affect, and keep the README current.
 
 saloonphp/laravel-plugin:
   branch: v4
-  checked_through: null
-  last_reviewed_pr: null
-  sync_date: null
-  notes: Integrated into src/saloon.
+  checked_through: 47d06ef8621a5a25a2041e4a9004d96539db3f34
+  last_reviewed_pr: 89
+  sync_date: '2026-10-07'
+  notes: Part of the unified src/saloon package; reconcile alongside the core entry rather than creating a separate package. Provider, config, console, facade and event changes map to SaloonServiceProvider, config/saloon.php, Console, Facades and Events. Upstream's Http directory holds a MockClient subclass and observability middleware rather than a sender. Fakes and fixture recording map to SaloonManager and Http/Faking, SaloonManager dispatches the request events, and Telescope support comes from the framework HTTP client watcher through Http/Sender's Telescope tags. Tests map to tests/Saloon/Hypervel and use the core fixtures, which the plugin's fixtures copy. The plugin's Feature/PoolTest and Feature/RequestTest repeat core cases, so merge their new or changed cases into tests/Saloon/Feature/PoolTest and tests/Integration/Saloon/Feature/{PoolTest,RequestTest}, keeping plugin-specific setup such as Saloon::fake(), rather than adding separate copies.
 
 saloonphp/cache-plugin:
   branch: v3
-  checked_through: null
-  last_reviewed_pr: null
-  sync_date: null
-  notes: Integrated into src/saloon.
+  checked_through: 5a036bae401dab95b41c514dcd87b25bc4600b24
+  last_reviewed_pr: 17
+  sync_date: '2026-10-07'
+  notes: Part of the unified src/saloon package. Upstream's CacheMiddleware and CacheRecorderMiddleware map to SaloonManager::send(), which reads the cache before matching the mock client and writes after the response, and clearCache() maps to SaloonManager::clearCache(); keys come from Cache/CacheKey. Drivers map to framework cache stores selected by Cacheable::cacheStore(); assess driver changes against that integration instead of duplicating them. Connectors implement Cacheable and override cacheKey() and cacheableMethods() rather than using HasCaching. SaloonServiceProvider allows CachedResponse through the cache's serializable-class policy. Tests map to tests/Saloon/Cache/{Feature,Fixtures}, with the real-request case in tests/Integration/Saloon/Cache.
 
 saloonphp/pagination-plugin:
   branch: v2
-  checked_through: null
-  last_reviewed_pr: null
-  sync_date: null
-  notes: Integrated into src/saloon.
+  checked_through: a61822ca93c1207008941822b00df1d8740a4096
+  last_reviewed_pr: 17
+  sync_date: '2026-10-07'
+  notes: Part of the unified src/saloon package, under Pagination. Request-owned pagination, link paginators and the protected paginator state ($pageNumber, $startPage, $perPageLimit, $currentResponse, $currentPageLoaded, $pooling) are used by SDK generators; check affected consumers when adapting upstream changes. Upstream's async iteration maps to Paginator::pool(), so async test cases traverse through pool(). The infinite-loop check runs in Paginator::current(), not request middleware, because a middleware closure would keep the paginator alive through its own request. Upstream tests map to tests/Saloon/Pagination/Feature, with the public superhero API faked by Fixtures/SuperheroApi; Hypervel-only cases are in tests/Saloon/Pagination/PaginatorTest.
 
 saloonphp/rate-limit-plugin:
   branch: v2
-  checked_through: null
-  last_reviewed_pr: null
-  sync_date: null
-  notes: Integrated into src/saloon.
+  checked_through: aed5ff488e4dc2b7c1fc19ba40e16f139d658126
+  last_reviewed_pr: 31
+  sync_date: '2026-10-07'
+  notes: Part of the unified src/saloon package. Upstream rate-limit behavior maps to RateLimit and SaloonManager using Hypervel's rate-limiter policies and stores; assess changes against those framework services. Upstream's limiter middleware, too-many-attempts limit and store records become admission before transport, a cooldown recorded from the transport response, and Saloon::inspectRateLimit(). Feature/HasRateLimitsTest, Unit/{Destruct,Helper}Test and Laravel/Feature/JobMiddlewareTest map to tests/Saloon/RateLimit/{Feature,Unit,Hypervel/Feature}; ported cases fake the transport with Http::fake(), because Saloon fakes consume no capacity, and assert through inspectRateLimit() instead of store records. Unit/{Limit,Bucket,LimitStore}Test, Feature/Stores and Laravel/Feature/LaravelStoreTest test classes replaced by the rate limiter's Limit, CalendarWindow and LeakyBucket policies and its stores, so compare their changes with tests/RateLimiter (including its shared store contract) and tests/Integration/RateLimiter instead of porting them. RateLimitTest keeps the fake, cache and policy-group cases.
 
 Sammyjo20/saloon-docs:
   branch: v3
-  checked_through: null
-  last_reviewed_pr: null
-  sync_date: null
-  notes: Shared documentation for Saloon and its plugins.
+  checked_through: 8ea96847141fe60e24eb9dda2eb0e27a59c6bebd
+  last_reviewed_pr: 92
+  sync_date: '2026-10-07'
+  notes: Shared documentation for the unified src/saloon package and all four plugin entries above. Reconcile applicable core and plugin pages into the existing sections of the single src/docs/saloon.md rather than separate plugin guides, keeping Hypervel's additions and checking examples against current source, in Laravel-style prose matching the guide. The v3 branch includes v4 guidance. Installation commands, supported versions, upgrade guides, release notes, showcase, tutorials, the book and the third-party Lawman and SDK generator pages have no Hypervel equivalent; check them only for behavior the guide must still describe.
 
 getsentry/sentry-laravel:
   branch: master

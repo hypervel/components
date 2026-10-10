@@ -159,7 +159,7 @@ class TaskTest extends TestCase
     public function testRejectsNegativeLogLimit(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The task log limit must be zero or greater.');
+        $this->expectExceptionMessageIs('The task log limit must be zero or greater.');
 
         new Task(limit: -1);
     }
@@ -235,7 +235,7 @@ class TaskTest extends TestCase
         $this->assertSame(10, $task->limit);
     }
 
-    public function testRendersTaskAndReturnsValue()
+    public function testRendersTaskAndReturnsValue(): void
     {
         Prompt::fake();
 
@@ -253,7 +253,7 @@ class TaskTest extends TestCase
         Prompt::assertOutputContains('Running...');
     }
 
-    public function testReturnsNullWhenCallbackDoesNotReturnValue()
+    public function testReturnsNullWhenCallbackDoesNotReturnValue(): void
     {
         Prompt::fake();
 
@@ -287,7 +287,7 @@ class TaskTest extends TestCase
         }
     }
 
-    public function testCoroutinePathRendersLoggerOutput()
+    public function testCoroutinePathRendersLoggerOutput(): void
     {
         Prompt::fake();
 
@@ -304,7 +304,7 @@ class TaskTest extends TestCase
         Prompt::assertOutputContains('hello world');
     }
 
-    public function testCoroutinePathRendersStableMessages()
+    public function testCoroutinePathRendersStableMessages(): void
     {
         Prompt::fake();
 
@@ -322,7 +322,7 @@ class TaskTest extends TestCase
         Prompt::assertOutputContains('✔');
     }
 
-    public function testCoroutinePathUpdatesLabel()
+    public function testCoroutinePathUpdatesLabel(): void
     {
         Prompt::fake();
 
@@ -397,7 +397,7 @@ class TaskTest extends TestCase
         Prompt::assertOutputContains('after commit');
     }
 
-    public function testReceivesLogLinesIntoRingBuffer()
+    public function testReceivesLogLinesIntoRingBuffer(): void
     {
         $task = new Task(label: 'Test', limit: 3);
 
@@ -414,7 +414,7 @@ class TaskTest extends TestCase
         $this->assertSame('line four', $task->logs[2]);
     }
 
-    public function testWrapsLongLinesAndRespectsLimit()
+    public function testWrapsLongLinesAndRespectsLimit(): void
     {
         Prompt::fake();
 
@@ -430,7 +430,7 @@ class TaskTest extends TestCase
         $this->assertLessThanOrEqual(3, count($task->logs));
     }
 
-    public function testReplacesPartialLinesOnEachUpdate()
+    public function testReplacesPartialLinesOnEachUpdate(): void
     {
         Prompt::fake();
 

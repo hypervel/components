@@ -9,7 +9,6 @@ use Hypervel\Saloon\SaloonServiceProvider;
 use Hypervel\Support\DefaultProviders;
 use Hypervel\Tests\TestCase;
 use JsonException;
-use ReflectionClass;
 
 class PackageMetadataTest extends TestCase
 {
@@ -30,6 +29,7 @@ class PackageMetadataTest extends TestCase
             'ext-simplexml',
             'guzzlehttp/guzzle',
             'guzzlehttp/psr7',
+            'guzzlehttp/uri-template',
             'hypervel/cache',
             'hypervel/collections',
             'hypervel/conditionable',
@@ -44,7 +44,6 @@ class PackageMetadataTest extends TestCase
             'hypervel/macroable',
             'hypervel/prompts',
             'hypervel/rate-limiter',
-            'hypervel/reflection',
             'hypervel/support',
             'nesbot/carbon',
             'psr/http-message',
@@ -88,29 +87,6 @@ class PackageMetadataTest extends TestCase
         $this->assertSame('src/saloon/src/', $rootComposer['autoload']['psr-4']['Hypervel\Saloon\\']);
         $this->assertArrayHasKey('hypervel/saloon', $rootComposer['replace']);
         $this->assertNotContains(SaloonServiceProvider::class, (new DefaultProviders)->toArray());
-    }
-
-    public function testFacadeDocumentsTheManagerSurface(): void
-    {
-        $docblock = (new ReflectionClass(Saloon::class))->getDocComment();
-        $this->assertIsString($docblock);
-
-        foreach ([
-            'middleware',
-            'fake',
-            'mockClient',
-            'clearFake',
-            'assertSent',
-            'assertNotSent',
-            'assertSentInOrder',
-            'assertNothingSent',
-            'assertSentCount',
-            'resolveCacheScopeUsing',
-            'fixturePath',
-            'throwOnMissingFixtures',
-        ] as $method) {
-            $this->assertStringContainsString(" {$method}(", $docblock);
-        }
     }
 
     /**

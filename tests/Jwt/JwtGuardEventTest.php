@@ -19,12 +19,14 @@ use Hypervel\Http\Request;
 use Hypervel\Jwt\ClaimFactory;
 use Hypervel\Jwt\Contracts\ManagerContract;
 use Hypervel\Jwt\Exceptions\JwtException;
+use Hypervel\Jwt\Exceptions\TokenExpiredException;
 use Hypervel\Jwt\Http\Parser\AuthHeaders;
 use Hypervel\Jwt\Http\Parser\InputSource;
 use Hypervel\Jwt\Http\Parser\Parser;
 use Hypervel\Jwt\JwtGuard;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class JwtGuardEventTest extends TestCase
 {
@@ -99,6 +101,42 @@ class JwtGuardEventTest extends TestCase
         $this->assertFalse($guard->attempt(['email' => 'foo@example.test']));
     }
 
+    #[DataProvider('credentialCheckEventProvider')]
+    public function testCredentialChecksWithoutLoginDoNotDispatchTheLoginEvent(string $method, array $expectedEvents): void
+    {
+        $user = $this->user(1);
+
+        $provider = m::mock(UserProvider::class);
+        $provider->shouldReceive('retrieveByCredentials')->once()->andReturn($user);
+        $provider->shouldReceive('validateCredentials')->once()->andReturnTrue();
+
+        $dispatched = [];
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->andReturnTrue();
+        $events->shouldReceive('dispatch')->andReturnUsing(function (object $event) use (&$dispatched): void {
+            $dispatched[] = $event::class;
+        });
+
+        $guard = $this->createGuard(provider: $provider);
+        $guard->setDispatcher($events);
+
+        $this->assertTrue($guard->{$method}(['email' => 'foo@example.test']));
+        $this->assertSame($expectedEvents, $dispatched);
+    }
+
+    /**
+     * Provide credential checks that do not log in and the events each dispatches.
+     *
+     * @return array<string, array{string, array<int, class-string>}>
+     */
+    public static function credentialCheckEventProvider(): array
+    {
+        return [
+            'validate' => ['validate', [Attempting::class, Validated::class]],
+            'once' => ['once', [Attempting::class, Validated::class, Authenticated::class]],
+        ];
+    }
+
     public function testLoginAndAuthenticatedEventsAreDispatchedWhenListening(): void
     {
         $user = $this->user(1);
@@ -130,21 +168,141 @@ class JwtGuardEventTest extends TestCase
         $this->assertSame($user, $dispatched[1]->user);
     }
 
-    public function testLogoutEventIsDispatchedWhenListening(): void
+    public function testAuthenticatedEventIsDispatchedOnceWhenTheTokenUserResolves(): void
     {
         $user = $this->user(1);
 
+        $provider = m::mock(UserProvider::class);
+        $provider->shouldReceive('retrieveById')->with(1)->once()->andReturn($user);
+
         $jwtManager = m::mock(ManagerContract::class);
+        $jwtManager->shouldReceive('decode')->with('token')->once()->andReturn(['sub' => 1]);
+
+        $events = $this->dispatcherListeningFor(Authenticated::class, function (Authenticated $event) use ($user): bool {
+            return $event->guard === 'jwt' && $event->user === $user;
+        });
+
+        $guard = $this->createGuard(
+            provider: $provider,
+            jwtManager: $jwtManager,
+            request: $this->requestWithToken('token'),
+        );
+        $guard->setDispatcher($events);
+
+        $this->assertSame($user, $guard->user());
+        $this->assertSame($user, $guard->user());
+    }
+
+    public function testNoEventIsDispatchedWhenTheTokenUserIsMissing(): void
+    {
+        $provider = m::mock(UserProvider::class);
+        $provider->shouldReceive('retrieveById')->with(1)->once()->andReturnNull();
+
+        $jwtManager = m::mock(ManagerContract::class);
+        $jwtManager->shouldReceive('decode')->with('token')->once()->andReturn(['sub' => 1]);
+
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners', 'dispatch')->never();
+
+        $guard = $this->createGuard(
+            provider: $provider,
+            jwtManager: $jwtManager,
+            request: $this->requestWithToken('token'),
+        );
+        $guard->setDispatcher($events);
+
+        $this->assertNull($guard->user());
+    }
+
+    public function testOnceUsingIdDispatchesTheAuthenticatedEvent(): void
+    {
+        $user = $this->user(1);
+
+        $provider = m::mock(UserProvider::class);
+        $provider->shouldReceive('retrieveById')->with(1)->once()->andReturn($user);
+
+        $events = $this->dispatcherListeningFor(Authenticated::class, function (Authenticated $event) use ($user): bool {
+            return $event->guard === 'jwt' && $event->user === $user;
+        });
+
+        $guard = $this->createGuard(provider: $provider);
+        $guard->setDispatcher($events);
+
+        $this->assertSame($user, $guard->onceUsingId(1));
+    }
+
+    public function testIssuingTokensWithoutLoginDispatchesNoEvents(): void
+    {
+        $user = $this->user(1);
+
+        $provider = m::mock(UserProvider::class);
+        $provider->shouldReceive('retrieveById')->with(1)->once()->andReturn($user);
+
+        $jwtManager = m::mock(ManagerContract::class);
+        $jwtManager->shouldReceive('encode')->twice()->andReturn('token');
+
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners', 'dispatch')->never();
+
+        $guard = $this->createGuard(provider: $provider, jwtManager: $jwtManager);
+        $guard->setDispatcher($events);
+
+        $this->assertSame('token', $guard->fromUser($user));
+        $this->assertSame('token', $guard->tokenById(1));
+    }
+
+    public function testLogoutEventIncludesTheTokenUserWhenListening(): void
+    {
+        $user = $this->user(1);
+
+        $provider = m::mock(UserProvider::class);
+        $provider->shouldReceive('retrieveById')->with(1)->once()->andReturn($user);
+
+        $jwtManager = m::mock(ManagerContract::class);
+        $jwtManager->shouldReceive('decode')->with('token')->once()->andReturn(['sub' => 1]);
+        $jwtManager->shouldReceive('hasBlacklistEnabled')->once()->andReturnTrue();
         $jwtManager->shouldReceive('invalidate')->with('token', false)->once()->andReturnTrue();
 
         $events = $this->dispatcherListeningFor(Logout::class, function (Logout $event) use ($user): bool {
             return $event->guard === 'jwt' && $event->user === $user;
         });
 
-        $guard = $this->createGuard(jwtManager: $jwtManager, request: $this->requestWithToken('token'));
-        $guard->setUser($user);
+        $guard = $this->createGuard(
+            provider: $provider,
+            jwtManager: $jwtManager,
+            request: $this->requestWithToken('token'),
+        );
         $guard->setDispatcher($events);
         $guard->logout();
+    }
+
+    public function testLogoutWithAnExpiredTokenInvalidatesItAndDispatchesLogoutWithoutAUser(): void
+    {
+        $provider = m::mock(UserProvider::class);
+        $provider->shouldNotReceive('retrieveById');
+
+        $jwtManager = m::mock(ManagerContract::class);
+        $jwtManager->shouldReceive('decode')
+            ->with('token')
+            ->once()
+            ->andThrow(new TokenExpiredException('Token has expired'));
+        $jwtManager->shouldReceive('hasBlacklistEnabled')->once()->andReturnTrue();
+        $jwtManager->shouldReceive('invalidate')->with('token', false)->once()->andReturnTrue();
+
+        $events = $this->dispatcherListeningFor(Logout::class, function (Logout $event): bool {
+            return $event->guard === 'jwt' && $event->user === null;
+        });
+
+        $guard = $this->createGuard(
+            provider: $provider,
+            jwtManager: $jwtManager,
+            request: $this->requestWithToken('token'),
+        );
+        $guard->setDispatcher($events);
+        $guard->logout();
+
+        $this->assertNull($guard->getToken());
+        $this->assertNull($guard->user());
     }
 
     public function testLogoutEventIsNotDispatchedWhenInvalidationFails(): void
@@ -152,6 +310,7 @@ class JwtGuardEventTest extends TestCase
         $user = $this->user(1);
 
         $jwtManager = m::mock(ManagerContract::class);
+        $jwtManager->shouldReceive('hasBlacklistEnabled')->once()->andReturnTrue();
         $jwtManager->shouldReceive('invalidate')
             ->with('token', false)
             ->once()
@@ -214,17 +373,19 @@ class JwtGuardEventTest extends TestCase
         }
 
         return new JwtGuard(
-            'jwt',
-            $provider ?? m::mock(UserProvider::class),
-            $jwtManager ?? m::mock(ManagerContract::class),
-            new ClaimFactory(new Repository([
+            name: 'jwt',
+            provider: $provider ?? m::mock(UserProvider::class),
+            jwtManager: $jwtManager ?? m::mock(ManagerContract::class),
+            claimFactory: new ClaimFactory(new Repository([
                 'jwt' => [
                     'issuer' => null,
                     'lock_subject' => false,
                 ],
             ])),
-            new Parser([new AuthHeaders, new InputSource]),
-            $this->app,
+            parser: new Parser([new AuthHeaders, new InputSource]),
+            app: $this->app,
+            rehashOnLogin: false,
+            timeboxDuration: 0,
         );
     }
 

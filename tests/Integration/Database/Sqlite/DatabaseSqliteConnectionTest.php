@@ -97,7 +97,7 @@ class DatabaseSqliteConnectionTest extends SqliteTestCase
     }
 
     #[DataProvider('jsonContainsKeyDataProvider')]
-    public function testWhereJsonContainsKey($count, $column)
+    public function testWhereJsonContainsKey($count, $column): void
     {
         DB::table('json_table')->insert([
             ['json_col' => '{"foo":{"bar":["baz"]}}'],

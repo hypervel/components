@@ -76,7 +76,7 @@ class DatabaseEloquentPolymorphicIntegrationTest extends TestCase
         parent::tearDown();
     }
 
-    public function testItLoadsRelationshipsAutomatically()
+    public function testItLoadsRelationshipsAutomatically(): void
     {
         $this->seedData();
 
@@ -86,7 +86,7 @@ class DatabaseEloquentPolymorphicIntegrationTest extends TestCase
         $this->assertTrue($like->likeable->is(Comment::first()));
     }
 
-    public function testItLoadsChainedRelationshipsAutomatically()
+    public function testItLoadsChainedRelationshipsAutomatically(): void
     {
         $this->seedData();
 
@@ -96,7 +96,7 @@ class DatabaseEloquentPolymorphicIntegrationTest extends TestCase
         $this->assertTrue($like->likeable->commentable->is(Post::first()));
     }
 
-    public function testItLoadsNestedRelationshipsAutomatically()
+    public function testItLoadsNestedRelationshipsAutomatically(): void
     {
         $this->seedData();
 
@@ -108,7 +108,7 @@ class DatabaseEloquentPolymorphicIntegrationTest extends TestCase
         $this->assertTrue($like->likeable->owner->is(User::first()));
     }
 
-    public function testItLoadsNestedRelationshipsOnDemand()
+    public function testItLoadsNestedRelationshipsOnDemand(): void
     {
         $this->seedData();
 
@@ -120,7 +120,7 @@ class DatabaseEloquentPolymorphicIntegrationTest extends TestCase
         $this->assertTrue($like->likeable->owner->is(User::first()));
     }
 
-    public function testItLoadsNestedMorphRelationshipsOnDemand()
+    public function testItLoadsNestedMorphRelationshipsOnDemand(): void
     {
         $this->seedData();
 
@@ -140,7 +140,7 @@ class DatabaseEloquentPolymorphicIntegrationTest extends TestCase
         $this->assertTrue($likes[1]->likeable->relationLoaded('comments'));
     }
 
-    public function testItLoadsNestedMorphRelationshipCountsOnDemand()
+    public function testItLoadsNestedMorphRelationshipCountsOnDemand(): void
     {
         $this->seedData();
 

@@ -10,7 +10,7 @@ use stdClass;
 
 class SupportOptionalTest extends TestCase
 {
-    public function testGetExistItemOnObject()
+    public function testGetExistItemOnObject(): void
     {
         $expected = 'test';
 
@@ -22,7 +22,7 @@ class SupportOptionalTest extends TestCase
         $this->assertEquals($expected, $optional->item);
     }
 
-    public function testGetNotExistItemOnObject()
+    public function testGetNotExistItemOnObject(): void
     {
         $targetObj = new stdClass;
 
@@ -31,7 +31,7 @@ class SupportOptionalTest extends TestCase
         $this->assertNull($optional->item);
     }
 
-    public function testIssetExistItemOnObject()
+    public function testIssetExistItemOnObject(): void
     {
         $targetObj = new stdClass;
         $targetObj->item = '';
@@ -41,7 +41,7 @@ class SupportOptionalTest extends TestCase
         $this->assertTrue(isset($optional->item));
     }
 
-    public function testIssetNotExistItemOnObject()
+    public function testIssetNotExistItemOnObject(): void
     {
         $targetObj = new stdClass;
 
@@ -50,7 +50,7 @@ class SupportOptionalTest extends TestCase
         $this->assertFalse(isset($optional->item));
     }
 
-    public function testGetExistItemOnArray()
+    public function testGetExistItemOnArray(): void
     {
         $expected = 'test';
 
@@ -63,7 +63,7 @@ class SupportOptionalTest extends TestCase
         $this->assertEquals($expected, $optional['item']);
     }
 
-    public function testGetNotExistItemOnArray()
+    public function testGetNotExistItemOnArray(): void
     {
         $targetObj = [];
 
@@ -72,7 +72,7 @@ class SupportOptionalTest extends TestCase
         $this->assertNull($optional['item']);
     }
 
-    public function testIssetExistItemOnArray()
+    public function testIssetExistItemOnArray(): void
     {
         $targetArr = [
             'item' => '',
@@ -84,7 +84,7 @@ class SupportOptionalTest extends TestCase
         $this->assertTrue(isset($optional->item));
     }
 
-    public function testIssetNotExistItemOnArray()
+    public function testIssetNotExistItemOnArray(): void
     {
         $targetArr = [];
 
@@ -94,7 +94,7 @@ class SupportOptionalTest extends TestCase
         $this->assertFalse(isset($optional->item));
     }
 
-    public function testIssetExistItemOnNull()
+    public function testIssetExistItemOnNull(): void
     {
         $targetNull = null;
 
@@ -103,7 +103,7 @@ class SupportOptionalTest extends TestCase
         $this->assertFalse(isset($optional->item));
     }
 
-    public function testFlushStateClearsMacros()
+    public function testFlushStateClearsMacros(): void
     {
         Optional::macro('flushable', fn () => true);
         $this->assertTrue(Optional::hasMacro('flushable'));

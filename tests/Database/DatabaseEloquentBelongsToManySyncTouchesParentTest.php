@@ -84,7 +84,7 @@ class DatabaseEloquentBelongsToManySyncTouchesParentTest extends TestCase
         User::create(['id' => 3, 'email' => 'anoni-mous@gmail.com']);
     }
 
-    public function testSyncWithDetachedValuesShouldTouch()
+    public function testSyncWithDetachedValuesShouldTouch(): void
     {
         $this->seedData();
 

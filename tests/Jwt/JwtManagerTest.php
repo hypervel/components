@@ -9,6 +9,7 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Foundation\Application;
 use Hypervel\Jwt\ClaimFactory;
 use Hypervel\Jwt\Contracts\BlacklistContract;
+use Hypervel\Jwt\Contracts\ValidationContract;
 use Hypervel\Jwt\Exceptions\JwtException;
 use Hypervel\Jwt\Exceptions\TokenBlacklistedException;
 use Hypervel\Jwt\Exceptions\TokenExpiredException;
@@ -17,6 +18,8 @@ use Hypervel\Jwt\JwtManager;
 use Hypervel\Jwt\Providers\Lcobucci;
 use Hypervel\Jwt\Providers\Provider;
 use Hypervel\Jwt\Validations\ExpiredClaim;
+use Hypervel\Jwt\Validations\IssuedAtClaim;
+use Hypervel\Jwt\Validations\IssuerClaim;
 use Hypervel\Jwt\Validations\NotBeforeClaim;
 use Hypervel\Jwt\Validations\RequiredClaims;
 use Hypervel\Support\CarbonImmutable;
@@ -27,6 +30,7 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Mockery\MockInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
+use SensitiveParameterValue;
 use Symfony\Component\Uid\Uuid;
 
 class JwtManagerTest extends TestCase
@@ -123,9 +127,6 @@ class JwtManagerTest extends TestCase
             'jwt' => [
                 'blacklist_enabled' => false,
                 'driver' => 'lcobucci',
-                'providers' => [
-                    'jwt' => Lcobucci::class,
-                ],
                 'secret' => null,
                 'algo' => Provider::ALGO_RS256,
                 'keys' => [
@@ -149,18 +150,45 @@ class JwtManagerTest extends TestCase
         $this->assertSame('value', $payload['custom']);
     }
 
-    public function testConstructorDoesNotResolveBlacklistWhenBlacklistIsDisabled(): void
+    public function testCustomDriverCanReplaceTheLcobucciDriver(): void
     {
-        $container = m::mock(Container::class);
-        $config = m::mock(Repository::class);
+        $this->config->shouldReceive('boolean')->with('jwt.blacklist_enabled')->andReturnFalse();
+        $this->config->shouldReceive('string')->with('jwt.driver')->andReturn('lcobucci');
 
-        $container->shouldReceive('make')->once()->with('config')->andReturn($config);
-        $container->shouldReceive('make')->with(BlacklistContract::class)->never();
-        $config->shouldReceive('boolean')->once()->with('jwt.blacklist_enabled')->andReturnFalse();
+        $manager = new JwtManager($this->container, $this->claimFactory);
+        $provider = $this->provider;
 
-        $manager = new JwtManager($container, m::mock(ClaimFactory::class));
+        $manager->extend('lcobucci', static fn (): Lcobucci => $provider);
+
+        $this->assertSame($provider, $manager->driver());
+    }
+
+    public function testDisabledBlacklistIsNeverResolved(): void
+    {
+        $token = 'foo.bar.baz';
+        $refreshedToken = 'baz.bar.foo';
+        $payload = ['sub' => 1, 'iat' => $this->testNowTimestamp];
+
+        $this->mockContainer();
+        $this->mockConfig();
+        $this->container->shouldReceive('make')->with(BlacklistContract::class)->never();
+
+        $this->config->shouldReceive('boolean')->with('jwt.blacklist_enabled')->andReturnFalse();
+        $this->config->shouldReceive('array')->with('jwt.validations')->andReturn([ValidationStub::class]);
+        $this->config->shouldReceive('array')->with('jwt')->andReturn([]);
+        $this->config->shouldReceive('get')->with('jwt.refresh_ttl')->andReturn(20160);
+        $this->config->shouldReceive('get')->with('jwt.ttl')->andReturn(120);
+        $this->config->shouldReceive('boolean')->with('jwt.refresh_iat')->andReturnFalse();
+        $this->config->shouldReceive('array')->with('jwt.persistent_claims')->andReturn([]);
+        $this->claimFactory->shouldReceive('refresh')->once()->andReturn($payload);
+        $this->provider->shouldReceive('decode')->twice()->with($token)->andReturn($payload);
+        $this->provider->shouldReceive('encode')->once()->with($payload)->andReturn($refreshedToken);
+
+        $manager = $this->createManager();
 
         $this->assertFalse($manager->hasBlacklistEnabled());
+        $this->assertSame($payload, $manager->decode($token));
+        $this->assertSame($refreshedToken, $manager->refresh($token));
     }
 
     public function testDecodeAToken(): void
@@ -187,7 +215,7 @@ class JwtManagerTest extends TestCase
     public function testThrowExceptionWhenTokenIsBlacklisted(): void
     {
         $this->expectException(TokenBlacklistedException::class);
-        $this->expectExceptionMessage('The token has been blacklisted');
+        $this->expectExceptionMessageIs('The token has been blacklisted');
 
         $token = 'foo.bar.baz';
         $payload = [
@@ -257,7 +285,7 @@ class JwtManagerTest extends TestCase
     public function testRefreshDoesNotInvalidateOldTokenWhenEncodingReplacementFails(): void
     {
         $this->expectException(JwtException::class);
-        $this->expectExceptionMessage('signing failed');
+        $this->expectExceptionMessageIs('signing failed');
 
         $token = 'foo.bar.baz';
         $payload = [
@@ -329,7 +357,7 @@ class JwtManagerTest extends TestCase
     public function testDecodeStillRejectsExpiredTokensWhenExpiredClaimValidationIsEnabled(): void
     {
         $this->expectException(TokenExpiredException::class);
-        $this->expectExceptionMessage('Token has expired');
+        $this->expectExceptionMessageIs('Token has expired');
 
         $payload = [
             'sub' => 1,
@@ -345,24 +373,75 @@ class JwtManagerTest extends TestCase
         $this->createManager()->decode('foo.bar.baz');
     }
 
+    public function testCustomValidationsAreResolvedFromTheContainerOnceAndReused(): void
+    {
+        $token = 'foo.bar.baz';
+        $payload = ['sub' => 1, 'ver' => 1];
+        $versions = new JwtManagerTokenVersions([1 => 1]);
+        $resolutions = 0;
+
+        $application = new Application;
+        $application->instance('config', new Repository([
+            'jwt' => [
+                'blacklist_enabled' => false,
+                'driver' => 'dummy',
+                'validations' => [JwtManagerTokenVersionValidation::class],
+            ],
+        ]));
+        $application->instance(JwtManagerTokenVersions::class, $versions);
+        $application->resolving(JwtManagerTokenVersionValidation::class, function () use (&$resolutions): void {
+            ++$resolutions;
+        });
+
+        $provider = $this->provider;
+        $provider->shouldReceive('decode')->times(3)->with($token)->andReturn($payload);
+
+        $manager = new JwtManager($application, $this->claimFactory);
+        $manager->extend('dummy', static fn (): Lcobucci => $provider);
+
+        $this->assertSame($payload, $manager->decode($token));
+        $this->assertSame($payload, $manager->decode($token));
+        $this->assertSame(1, $resolutions);
+
+        $versions->current[1] = 2;
+
+        $this->expectException(TokenInvalidException::class);
+        $this->expectExceptionMessageIs('Token version is outdated.');
+
+        $manager->decode($token);
+    }
+
     public function testRefreshSkipsTemporalValidationsInsideRefreshWindow(): void
     {
         $token = 'foo.bar.baz';
         $refreshedToken = 'baz.bar.foo';
         $payload = [
             'sub' => 1,
+            'iss' => 'http://example.com',
             'exp' => $this->testNowTimestamp - 3600,
-            'iat' => $this->testNowTimestamp,
+            'nbf' => $this->testNowTimestamp - 7200,
+            'iat' => $this->testNowTimestamp - 7200,
         ];
         $refreshPayload = [
             'sub' => 1,
-            'iat' => $this->testNowTimestamp,
+            'iss' => 'http://example.com',
+            'iat' => $this->testNowTimestamp - 7200,
             'exp' => $this->testNowTimestamp + 7200,
         ];
 
         $this->config->shouldReceive('boolean')->with('jwt.blacklist_enabled')->andReturnFalse();
-        $this->config->shouldReceive('array')->with('jwt.validations')->andReturn([RequiredClaims::class, ExpiredClaim::class]);
-        $this->config->shouldReceive('array')->with('jwt')->andReturn(['required_claims' => ['iat', 'sub']]);
+        $this->config->shouldReceive('array')->with('jwt.validations')->andReturn([
+            RequiredClaims::class,
+            ExpiredClaim::class,
+            IssuerClaim::class,
+            IssuedAtClaim::class,
+            NotBeforeClaim::class,
+        ]);
+        $this->config->shouldReceive('array')->with('jwt')->andReturn([
+            'required_claims' => ['iat', 'sub'],
+            'issuer' => 'http://example.com',
+            'leeway' => 0,
+        ]);
         $this->config->shouldReceive('get')->with('jwt.refresh_ttl')->andReturn(20160);
         $this->config->shouldReceive('get')->with('jwt.ttl')->andReturn(120);
         $this->config->shouldReceive('boolean')->with('jwt.refresh_iat')->andReturnFalse();
@@ -381,25 +460,70 @@ class JwtManagerTest extends TestCase
         $this->assertSame($refreshedToken, $this->createManager()->refresh($token));
     }
 
-    public function testRefreshRejectsFutureNotBeforeClaim(): void
+    #[DataProvider('futureTimestampClaimProvider')]
+    public function testRefreshRejectsFutureTimestampClaimsBeyondTheLeeway(string $validation, string $claim): void
     {
-        $this->expectException(JwtException::class);
-        $this->expectExceptionMessage('Not Before (nbf) timestamp cannot be in the future');
+        $this->expectException(TokenInvalidException::class);
+        $this->expectExceptionMessageIsOrContains("({$claim}) timestamp cannot be in the future");
 
         $token = 'foo.bar.baz';
         $payload = [
             'sub' => 1,
             'iat' => $this->testNowTimestamp,
-            'nbf' => $this->testNowTimestamp + 3600,
+            $claim => $this->testNowTimestamp + 61,
+        ];
+
+        $this->config->shouldReceive('boolean')->with('jwt.blacklist_enabled')->andReturnTrue();
+        $this->config->shouldReceive('array')->with('jwt.validations')->andReturn([RequiredClaims::class, $validation]);
+        $this->config->shouldReceive('array')->with('jwt')->andReturn(['required_claims' => ['iat', 'sub'], 'leeway' => 60]);
+        $this->provider->shouldReceive('decode')->once()->with($token)->andReturn($payload);
+        $this->provider->shouldReceive('encode')->never();
+        $this->blacklist->shouldReceive('add')->never();
+
+        $this->createManager()->refresh($token);
+    }
+
+    #[DataProvider('futureTimestampClaimProvider')]
+    public function testRefreshAcceptsFutureTimestampClaimsWithinTheLeeway(string $validation, string $claim): void
+    {
+        $token = 'foo.bar.baz';
+        $refreshedToken = 'baz.bar.foo';
+        $payload = [
+            'sub' => 1,
+            'iat' => $this->testNowTimestamp,
+            $claim => $this->testNowTimestamp + 60,
+        ];
+        $refreshPayload = [
+            'sub' => 1,
+            'iat' => $this->testNowTimestamp,
         ];
 
         $this->config->shouldReceive('boolean')->with('jwt.blacklist_enabled')->andReturnFalse();
-        $this->config->shouldReceive('array')->with('jwt.validations')->andReturn([RequiredClaims::class, NotBeforeClaim::class]);
-        $this->config->shouldReceive('array')->with('jwt')->andReturn(['required_claims' => ['iat', 'sub'], 'leeway' => 0]);
+        $this->config->shouldReceive('array')->with('jwt.validations')->andReturn([RequiredClaims::class, $validation]);
+        $this->config->shouldReceive('array')->with('jwt')->andReturn(['required_claims' => ['iat', 'sub'], 'leeway' => 60]);
+        $this->config->shouldReceive('get')->with('jwt.refresh_ttl')->andReturn(20160);
+        $this->config->shouldReceive('integer')->with('jwt.leeway')->andReturn(60);
+        $this->config->shouldReceive('get')->with('jwt.ttl')->andReturn(120);
+        $this->config->shouldReceive('boolean')->with('jwt.refresh_iat')->andReturnTrue();
+        $this->config->shouldReceive('array')->with('jwt.persistent_claims')->andReturn([]);
+        $this->claimFactory->shouldReceive('refresh')->once()->with($payload, 120, true, false, [], [])->andReturn($refreshPayload);
         $this->provider->shouldReceive('decode')->once()->with($token)->andReturn($payload);
-        $this->provider->shouldReceive('encode')->never();
+        $this->provider->shouldReceive('encode')->once()->with($refreshPayload)->andReturn($refreshedToken);
 
-        $this->createManager()->refresh($token);
+        $this->assertSame($refreshedToken, $this->createManager()->refresh($token));
+    }
+
+    /**
+     * Provide validations that reject future timestamps during refresh.
+     *
+     * @return array<string, array{class-string, string}>
+     */
+    public static function futureTimestampClaimProvider(): array
+    {
+        return [
+            'not before' => [NotBeforeClaim::class, 'nbf'],
+            'issued at' => [IssuedAtClaim::class, 'iat'],
+        ];
     }
 
     public function testRefreshAllowsPastNotBeforeClaim(): void
@@ -476,10 +600,11 @@ class JwtManagerTest extends TestCase
         ));
     }
 
-    public function testRefreshThrowsWhenRefreshWindowHasExpired(): void
+    #[DataProvider('expiredRefreshWindowLeewayProvider')]
+    public function testRefreshThrowsWhenRefreshWindowHasExpired(int $leeway): void
     {
         $this->expectException(TokenExpiredException::class);
-        $this->expectExceptionMessage('Token has expired and can no longer be refreshed');
+        $this->expectExceptionMessageIs('Token has expired and can no longer be refreshed');
 
         $token = 'foo.bar.baz';
         $payload = [
@@ -495,12 +620,56 @@ class JwtManagerTest extends TestCase
         $this->config->shouldReceive('array')->with('jwt.validations')->andReturn([ValidationStub::class]);
         $this->config->shouldReceive('array')->with('jwt')->andReturn([]);
         $this->config->shouldReceive('get')->with('jwt.refresh_ttl')->andReturn(10);
+        $this->config->shouldReceive('integer')->with('jwt.leeway')->andReturn($leeway);
         $this->provider->shouldReceive('decode')->once()->with('foo.bar.baz')->andReturn($payload);
         $this->provider->shouldReceive('encode')->never();
         $this->blacklist->shouldReceive('has')->with($payload)->andReturn(false);
         $this->blacklist->shouldReceive('add')->never();
 
         $this->createManager()->refresh($token);
+    }
+
+    /**
+     * Provide leeways shorter than the 60-second overrun of the refresh window.
+     *
+     * @return array<string, array{int}>
+     */
+    public static function expiredRefreshWindowLeewayProvider(): array
+    {
+        return [
+            'no leeway' => [0],
+            'leeway shorter than the overrun' => [59],
+        ];
+    }
+
+    public function testRefreshWindowIncludesTheLeeway(): void
+    {
+        $token = 'foo.bar.baz';
+        $refreshedToken = 'baz.bar.foo';
+        $payload = [
+            'sub' => 1,
+            'exp' => $this->testNowTimestamp - 3600,
+            'iat' => $this->testNowTimestamp - 660,
+        ];
+        $refreshPayload = [
+            'sub' => 1,
+            'iat' => $this->testNowTimestamp - 660,
+            'exp' => $this->testNowTimestamp + 7200,
+        ];
+
+        $this->config->shouldReceive('boolean')->with('jwt.blacklist_enabled')->andReturnFalse();
+        $this->config->shouldReceive('array')->with('jwt.validations')->andReturn([ValidationStub::class]);
+        $this->config->shouldReceive('array')->with('jwt')->andReturn([]);
+        $this->config->shouldReceive('get')->with('jwt.refresh_ttl')->andReturn(10);
+        $this->config->shouldReceive('integer')->with('jwt.leeway')->andReturn(60);
+        $this->config->shouldReceive('get')->with('jwt.ttl')->andReturn(120);
+        $this->config->shouldReceive('boolean')->with('jwt.refresh_iat')->andReturnFalse();
+        $this->config->shouldReceive('array')->with('jwt.persistent_claims')->andReturn([]);
+        $this->claimFactory->shouldReceive('refresh')->once()->with($payload, 120, false, false, [], [])->andReturn($refreshPayload);
+        $this->provider->shouldReceive('decode')->once()->with($token)->andReturn($payload);
+        $this->provider->shouldReceive('encode')->once()->with($refreshPayload)->andReturn($refreshedToken);
+
+        $this->assertSame($refreshedToken, $this->createManager()->refresh($token));
     }
 
     public function testRefreshWindowCanBeDisabled(): void
@@ -547,7 +716,7 @@ class JwtManagerTest extends TestCase
     public function testRefreshRejectsMissingIssuedAtBeforeAnInfiniteRefreshWindow(array $issuedAt): void
     {
         $this->expectException(TokenInvalidException::class);
-        $this->expectExceptionMessage('Issued At (iat) claim is required to refresh a token.');
+        $this->expectExceptionMessageIs('Issued At (iat) claim is required to refresh a token.');
 
         $payload = [
             'sub' => 1,
@@ -580,7 +749,7 @@ class JwtManagerTest extends TestCase
     public function testRefreshFailsWhenTheOldTokenCannotBeInvalidated(): void
     {
         $this->expectException(JwtException::class);
-        $this->expectExceptionMessage('Unable to invalidate token because the blacklist write failed.');
+        $this->expectExceptionMessageIs('Unable to invalidate token because the blacklist write failed.');
 
         $payload = [
             'sub' => 1,
@@ -652,7 +821,7 @@ class JwtManagerTest extends TestCase
     public function testInvalidateThrowsWhenBlacklistPersistenceFails(bool $forceForever, string $method): void
     {
         $this->expectException(JwtException::class);
-        $this->expectExceptionMessage('Unable to invalidate token because the blacklist write failed.');
+        $this->expectExceptionMessageIs('Unable to invalidate token because the blacklist write failed.');
 
         $payload = [
             'sub' => 1,
@@ -673,6 +842,38 @@ class JwtManagerTest extends TestCase
             'finite' => [false, 'add'],
             'forever' => [true, 'addForever'],
         ];
+    }
+
+    public function testFailedInvalidationKeepsTheTokenOutOfTheExceptionTrace(): void
+    {
+        $token = 'header.payload.signature';
+        $payload = ['sub' => 1, 'iat' => $this->testNowTimestamp, 'jti' => 'foo'];
+        $exception = null;
+
+        $this->config->shouldReceive('boolean')->with('jwt.blacklist_enabled')->andReturnTrue();
+        $this->provider->shouldReceive('decode')->once()->with($token)->andReturn($payload);
+        $this->blacklist->shouldReceive('add')->once()->with($payload)->andReturnFalse();
+
+        $manager = $this->createManager();
+        $ignoreArguments = ini_set('zend.exception_ignore_args', '0');
+
+        try {
+            $manager->invalidate($token);
+        } catch (JwtException $exception) {
+        } finally {
+            ini_set('zend.exception_ignore_args', $ignoreArguments);
+        }
+
+        $this->assertInstanceOf(JwtException::class, $exception);
+
+        $frames = array_values(array_filter(
+            $exception->getTrace(),
+            static fn (array $frame): bool => ($frame['class'] ?? null) === JwtManager::class && $frame['function'] === 'invalidate',
+        ));
+
+        $this->assertCount(1, $frames);
+        $this->assertInstanceOf(SensitiveParameterValue::class, $frames[0]['args'][0]);
+        $this->assertSame($token, $frames[0]['args'][0]->getValue());
     }
 
     public function testInvalidateDoesNotReadTheBlacklistBeforeWriting(): void
@@ -698,13 +899,27 @@ class JwtManagerTest extends TestCase
     public function testThrowAnExceptionWhenEnableBlacklistIsSetToFalse(): void
     {
         $this->expectException(JwtException::class);
-        $this->expectExceptionMessage('You must have the blacklist enabled to invalidate a token.');
+        $this->expectExceptionMessageIs('You must have the blacklist enabled to invalidate a token.');
 
         $token = 'foo.bar.baz';
 
         $this->config->shouldReceive('boolean')->with('jwt.blacklist_enabled')->andReturnFalse();
 
         $this->createManager()->invalidate($token);
+    }
+
+    public function testGetTheBlacklist(): void
+    {
+        $this->mockContainer();
+        $this->mockConfig();
+        $this->container->shouldReceive('make')->once()->with(BlacklistContract::class)->andReturn($this->blacklist);
+
+        $this->config->shouldReceive('boolean')->with('jwt.blacklist_enabled')->andReturnFalse();
+
+        $manager = $this->createManager();
+
+        $this->assertSame($this->blacklist, $manager->blacklist());
+        $this->assertSame($this->blacklist, $manager->blacklist());
     }
 
     private function setTestNow(): void
@@ -717,6 +932,10 @@ class JwtManagerTest extends TestCase
     private function mockContainer(): void
     {
         $this->container = m::mock(Container::class);
+
+        $this->container->shouldReceive('make')
+            ->with(m::type('string'), m::hasKey('config'))
+            ->andReturnUsing(static fn (string $class, array $parameters): object => new $class($parameters['config']));
     }
 
     private function mockConfig(): void
@@ -746,6 +965,7 @@ class JwtManagerTest extends TestCase
     private function createManager(): JwtManager
     {
         $this->config->shouldReceive('string')->with('jwt.driver')->andReturn('dummy');
+        $this->config->shouldReceive('integer')->with('jwt.leeway')->andReturn(0)->byDefault();
 
         $manager = new JwtManager($this->container, $this->claimFactory);
         $provider = $this->provider;
@@ -758,5 +978,39 @@ class JwtManagerTest extends TestCase
     private function mockUuid(string $value): void
     {
         Str::createUuidsUsing(fn () => Uuid::fromString($value));
+    }
+}
+
+class JwtManagerTokenVersions
+{
+    /**
+     * Create a new token version store.
+     *
+     * @param array<int, int> $current
+     */
+    public function __construct(
+        public array $current = [],
+    ) {
+    }
+}
+
+class JwtManagerTokenVersionValidation implements ValidationContract
+{
+    /**
+     * Create a new token version validation.
+     */
+    public function __construct(
+        protected JwtManagerTokenVersions $versions,
+    ) {
+    }
+
+    /**
+     * Validate that the token carries the user's current token version.
+     */
+    public function validate(array $payload): void
+    {
+        if ($payload['ver'] !== $this->versions->current[$payload['sub']]) {
+            throw new TokenInvalidException('Token version is outdated.');
+        }
     }
 }

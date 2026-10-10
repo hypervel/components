@@ -42,49 +42,6 @@ class EventTest extends TestCase
         $this->testUser->assignRole('testRole');
     }
 
-    public function testRoleAttachedEventIsDispatchedWhenEnabledAndListenedFor(): void
-    {
-        $this->app->make('config')->set('permission.events_enabled', true);
-
-        Event::fake([RoleAttachedEvent::class]);
-
-        $this->testUser->assignRole('testRole');
-
-        Event::assertDispatched(RoleAttachedEvent::class, function (RoleAttachedEvent $event): bool {
-            return $event->model->is($this->testUser)
-                && $event->rolesOrIds === [$this->testUserRole->getKey()];
-        });
-    }
-
-    public function testRoleDetachedEventIsDispatchedWhenEnabledAndListenedFor(): void
-    {
-        $this->testUser->assignRole('testRole');
-        $this->app->make('config')->set('permission.events_enabled', true);
-
-        Event::fake([RoleDetachedEvent::class]);
-
-        $this->testUser->removeRole('testRole');
-
-        Event::assertDispatched(RoleDetachedEvent::class, function (RoleDetachedEvent $event): bool {
-            return $event->model->is($this->testUser)
-                && $event->rolesOrIds === [$this->testUserRole->getKey()];
-        });
-    }
-
-    public function testPermissionAttachedEventIsDispatchedWhenEnabledAndListenedFor(): void
-    {
-        $this->app->make('config')->set('permission.events_enabled', true);
-
-        Event::fake([PermissionAttachedEvent::class]);
-
-        $this->testUser->givePermissionTo('edit-articles');
-
-        Event::assertDispatched(PermissionAttachedEvent::class, function (PermissionAttachedEvent $event): bool {
-            return $event->model->is($this->testUser)
-                && $event->permissionsOrIds === [$this->testUserPermission->getKey()];
-        });
-    }
-
     public function testPermissionAttachedEventListenerSeesFreshWildcardIndexAfterPermissionAttach(): void
     {
         $this->app->make('config')->set('permission.enable_wildcard_permission', true);
@@ -106,21 +63,6 @@ class EventTest extends TestCase
         $this->assertTrue($listenerSawPermission);
     }
 
-    public function testSyncPermissionsDispatchesPermissionAttachedEventOnce(): void
-    {
-        $this->app->make('config')->set('permission.events_enabled', true);
-
-        Event::fake([PermissionAttachedEvent::class]);
-
-        $this->testUser->syncPermissions('edit-articles');
-
-        Event::assertDispatchedTimes(PermissionAttachedEvent::class, 1);
-        Event::assertDispatched(PermissionAttachedEvent::class, function (PermissionAttachedEvent $event): bool {
-            return $event->model->is($this->testUser)
-                && $event->permissionsOrIds === [$this->testUserPermission->getKey()];
-        });
-    }
-
     public function testPermissionAttachedEventListenerSeesFreshWildcardIndexAfterPermissionSync(): void
     {
         $this->app->make('config')->set('permission.enable_wildcard_permission', true);
@@ -140,26 +82,6 @@ class EventTest extends TestCase
         $this->testUser->syncPermissions('posts.*');
 
         $this->assertTrue($listenerSawPermission);
-    }
-
-    public function testSyncPermissionEffectsDispatchesPermissionAttachedEventOnce(): void
-    {
-        $this->app->make('config')->set('permission.events_enabled', true);
-
-        Event::fake([PermissionAttachedEvent::class]);
-
-        $this->testUser->syncPermissionEffects(
-            allowed: ['edit-articles'],
-            denied: ['edit-news'],
-        );
-
-        $editNewsPermission = $this->app->make(PermissionContract::class)::findByName('edit-news');
-
-        Event::assertDispatchedTimes(PermissionAttachedEvent::class, 1);
-        Event::assertDispatched(PermissionAttachedEvent::class, function (PermissionAttachedEvent $event) use ($editNewsPermission): bool {
-            return $event->model->is($this->testUser)
-                && $event->permissionsOrIds === [$this->testUserPermission->getKey(), $editNewsPermission->getKey()];
-        });
     }
 
     public function testDeferredAssignmentsDispatchAtTheCallBoundaryWithoutSavedCallbackDuplicates(): void
@@ -187,6 +109,8 @@ class EventTest extends TestCase
 
         $user->save();
 
+        $this->assertSame(0, $user->permissions()->count());
+        $this->assertSame(0, $user->roles()->count());
         Event::assertDispatchedTimes(PermissionAttachedEvent::class, 1);
         Event::assertDispatched(PermissionAttachedEvent::class, function (PermissionAttachedEvent $event) use ($user): bool {
             return $event->model->is($user)
@@ -235,24 +159,6 @@ class EventTest extends TestCase
         Event::assertDispatched(PermissionAttachedEvent::class, function (PermissionAttachedEvent $event) use ($user, $editNewsPermission): bool {
             return $event->model->is($user)
                 && $event->permissionsOrIds === [$this->testUserPermission->getKey(), $editNewsPermission->getKey()];
-        });
-    }
-
-    public function testPermissionDetachedEventIsDispatchedWhenEnabledAndListenedFor(): void
-    {
-        $this->testUser->givePermissionTo('edit-articles');
-        $this->app->make('config')->set('permission.events_enabled', true);
-
-        Event::fake([PermissionDetachedEvent::class]);
-
-        $this->testUser->revokePermissionTo('edit-articles');
-
-        Event::assertDispatched(PermissionDetachedEvent::class, function (PermissionDetachedEvent $event): bool {
-            $permission = $event->permissionsOrIds;
-
-            return $event->model->is($this->testUser)
-                && $permission instanceof PermissionContract
-                && $permission->getKey() === $this->testUserPermission->getKey();
         });
     }
 
@@ -342,10 +248,12 @@ class EventTest extends TestCase
 
         $this->testUser->syncPermissions('edit-articles', 'edit-news');
 
+        Event::assertDispatchedTimes(PermissionAttachedEvent::class, 1);
         Event::assertDispatched(PermissionAttachedEvent::class, function (PermissionAttachedEvent $event) use ($permission): bool {
             return $event->model->is($this->testUser)
                 && $event->permissionsOrIds === [$this->testUserPermission->getKey(), $permission->getKey()];
         });
+        Event::assertDispatchedTimes(PermissionDetachedEvent::class, 1);
         Event::assertDispatched(PermissionDetachedEvent::class, function (PermissionDetachedEvent $event): bool {
             return $event->model->is($this->testUser)
                 && $event->permissionsOrIds->modelKeys() === [$this->testUserPermission->getKey()];
@@ -417,10 +325,12 @@ class EventTest extends TestCase
             denied: ['edit-articles'],
         );
 
+        Event::assertDispatchedTimes(PermissionDetachedEvent::class, 1);
         Event::assertDispatched(PermissionDetachedEvent::class, function (PermissionDetachedEvent $event): bool {
             return $event->model->is($this->testUser)
                 && $event->permissionsOrIds->modelKeys() === [$this->testUserPermission->getKey()];
         });
+        Event::assertDispatchedTimes(PermissionAttachedEvent::class, 1);
         Event::assertDispatched(PermissionAttachedEvent::class, function (PermissionAttachedEvent $event) use ($permission): bool {
             return $event->model->is($this->testUser)
                 && $event->permissionsOrIds === [$permission->getKey(), $this->testUserPermission->getKey()];

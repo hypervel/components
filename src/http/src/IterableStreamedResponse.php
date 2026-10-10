@@ -19,6 +19,8 @@ class IterableStreamedResponse extends StreamedResponse
     /** @var null|iterable<string> */
     private array|Traversable|null $chunks = null;
 
+    protected bool $cancelOnDisconnect = false;
+
     /**
      * Create a new iterable streamed response.
      *
@@ -29,6 +31,24 @@ class IterableStreamedResponse extends StreamedResponse
         parent::__construct(null, $status, $headers);
 
         $this->setChunks($chunks);
+    }
+
+    /**
+     * Cancel response production when the client connection closes.
+     */
+    public function cancelOnDisconnect(bool $cancel = true): static
+    {
+        $this->cancelOnDisconnect = $cancel;
+
+        return $this;
+    }
+
+    /**
+     * Determine whether disconnects should cancel response production.
+     */
+    public function shouldCancelOnDisconnect(): bool
+    {
+        return $this->cancelOnDisconnect;
     }
 
     /**

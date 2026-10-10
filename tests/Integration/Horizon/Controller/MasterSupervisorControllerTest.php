@@ -15,7 +15,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 
 class MasterSupervisorControllerTest extends ControllerTestCase
 {
-    public function testMasterSupervisorListingWithoutSupervisors()
+    public function testMasterSupervisorListingWithoutSupervisors(): void
     {
         $master = new MasterSupervisor;
         $master->name = 'risa';
@@ -33,7 +33,7 @@ class MasterSupervisorControllerTest extends ControllerTestCase
         ]);
     }
 
-    public function testMasterSupervisorListingWithSupervisors()
+    public function testMasterSupervisorListingWithSupervisors(): void
     {
         $master = new MasterSupervisor;
         $master->name = 'risa';
@@ -67,7 +67,7 @@ class MasterSupervisorControllerTest extends ControllerTestCase
         ]);
     }
 
-    public function testMasterSupervisorWithCustomNameListingWithSupervisors()
+    public function testMasterSupervisorWithCustomNameListingWithSupervisors(): void
     {
         $master = new MasterSupervisor;
         $master->name = 'risa:production';

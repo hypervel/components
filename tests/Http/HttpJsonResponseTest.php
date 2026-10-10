@@ -140,7 +140,7 @@ class HttpJsonResponseTest extends TestCase
     public function testRawJsonRejectsValuesSymfonyDoesNotAccept(mixed $data): void
     {
         $this->expectException(TypeError::class);
-        $this->expectExceptionMessage('If $json is set to true');
+        $this->expectExceptionMessageIsOrContains('If $json is set to true');
 
         new JsonResponse($data, json: true);
     }

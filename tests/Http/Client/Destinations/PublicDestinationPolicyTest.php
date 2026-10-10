@@ -44,7 +44,7 @@ class PublicDestinationPolicyTest extends TestCase
         $policy = new FakeDestinationPolicy(['example.com' => [$address]]);
 
         $this->expectException(DisallowedDestinationException::class);
-        $this->expectExceptionMessage('disallowed address');
+        $this->expectExceptionMessageIsOrContains('disallowed address');
 
         $policy->resolve('https://example.com', self::TIMEOUT_SECONDS);
     }
@@ -82,7 +82,7 @@ class PublicDestinationPolicyTest extends TestCase
         ]);
 
         $this->expectException(DisallowedDestinationException::class);
-        $this->expectExceptionMessage('disallowed address');
+        $this->expectExceptionMessageIsOrContains('disallowed address');
 
         $policy->resolve('https://example.com', self::TIMEOUT_SECONDS);
     }
@@ -120,7 +120,7 @@ class PublicDestinationPolicyTest extends TestCase
         $this->assertSame(['10.0.0.9', 'fd00::9'], $destination->addresses);
 
         $this->expectException(DisallowedDestinationException::class);
-        $this->expectExceptionMessage('disallowed address [192.168.0.9]');
+        $this->expectExceptionMessageIsOrContains('disallowed address [192.168.0.9]');
 
         $policy->resolve('https://other.example', self::TIMEOUT_SECONDS);
     }
@@ -208,13 +208,9 @@ class PublicDestinationPolicyTest extends TestCase
             CURLOPT_PROXY => '',
         ] + $destination->curlOptions());
 
-        try {
-            $this->assertSame('OK', curl_exec($curl));
-            $this->assertSame(0, curl_errno($curl));
-            $this->assertStringContainsString("Host: target.invalid:{$server->port}\r\n", (string) $server->request());
-        } finally {
-            curl_close($curl);
-        }
+        $this->assertSame('OK', curl_exec($curl));
+        $this->assertSame(0, curl_errno($curl));
+        $this->assertStringContainsString("Host: target.invalid:{$server->port}\r\n", (string) $server->request());
     }
 
     public function testDirectPinningPreservesTheHostWithoutSharedDnsResidue(): void
@@ -239,29 +235,20 @@ class PublicDestinationPolicyTest extends TestCase
             CURLOPT_SHARE => $share,
         ] + $destination->curlOptions());
 
-        try {
-            $this->assertSame('OK', curl_exec($first));
-            $this->assertSame(0, curl_errno($first));
-            $this->assertStringContainsString("Host: target.invalid:{$port}\r\n", (string) $server->request());
+        $this->assertSame('OK', curl_exec($first));
+        $this->assertSame(0, curl_errno($first));
+        $this->assertStringContainsString("Host: target.invalid:{$port}\r\n", (string) $server->request());
 
-            $followUp = curl_init((string) $destination->uri);
-            curl_setopt_array($followUp, [
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_TIMEOUT => 2,
-                CURLOPT_PROXY => '',
-                CURLOPT_SHARE => $share,
-            ]);
+        $followUp = curl_init((string) $destination->uri);
+        curl_setopt_array($followUp, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 2,
+            CURLOPT_PROXY => '',
+            CURLOPT_SHARE => $share,
+        ]);
 
-            try {
-                $this->assertFalse(curl_exec($followUp));
-                $this->assertSame(CURLE_COULDNT_RESOLVE_HOST, curl_errno($followUp));
-            } finally {
-                curl_close($followUp);
-            }
-        } finally {
-            curl_close($first);
-            curl_share_close($share);
-        }
+        $this->assertFalse(curl_exec($followUp));
+        $this->assertSame(CURLE_COULDNT_RESOLVE_HOST, curl_errno($followUp));
     }
 
     public function testProxyPinningPreservesTheProxyAndTargetHosts(): void
@@ -283,18 +270,14 @@ class PublicDestinationPolicyTest extends TestCase
             CURLOPT_PROXY => $destination->proxy,
         ] + $destination->curlOptions());
 
-        try {
-            $this->assertSame('OK', curl_exec($curl));
-            $this->assertSame(0, curl_errno($curl));
-            $request = (string) $server->request();
-            $this->assertStringStartsWith(
-                "GET http://target.invalid/probe HTTP/1.1\r\n",
-                $request,
-            );
-            $this->assertStringContainsString("Host: target.invalid\r\n", $request);
-        } finally {
-            curl_close($curl);
-        }
+        $this->assertSame('OK', curl_exec($curl));
+        $this->assertSame(0, curl_errno($curl));
+        $request = (string) $server->request();
+        $this->assertStringStartsWith(
+            "GET http://target.invalid/probe HTTP/1.1\r\n",
+            $request,
+        );
+        $this->assertStringContainsString("Host: target.invalid\r\n", $request);
     }
 
     #[DataProvider('invalidUrls')]
@@ -353,7 +336,7 @@ class PublicDestinationPolicyTest extends TestCase
         $policy = new FakeDestinationPolicy(proxy: 'https://proxy.example/egress');
 
         $this->expectException(DisallowedDestinationException::class);
-        $this->expectExceptionMessage('Proxy URLs cannot contain a path or query string.');
+        $this->expectExceptionMessageIs('Proxy URLs cannot contain a path or query string.');
 
         $policy->resolve('https://target.example', self::TIMEOUT_SECONDS);
     }
@@ -363,7 +346,7 @@ class PublicDestinationPolicyTest extends TestCase
         $policy = new FakeDestinationPolicy(['example.com' => ['not-an-ip']]);
 
         $this->expectException(DestinationResolutionException::class);
-        $this->expectExceptionMessage('invalid address');
+        $this->expectExceptionMessageIsOrContains('invalid address');
 
         $policy->resolve('https://example.com', self::TIMEOUT_SECONDS);
     }
@@ -393,7 +376,7 @@ class PublicDestinationPolicyTest extends TestCase
         ]);
 
         $this->expectException(DestinationResolutionException::class);
-        $this->expectExceptionMessage('The host [example.com] did not resolve to an address.');
+        $this->expectExceptionMessageIs('The host [example.com] did not resolve to an address.');
 
         $policy->resolve('https://example.com', self::TIMEOUT_SECONDS);
     }
@@ -401,7 +384,7 @@ class PublicDestinationPolicyTest extends TestCase
     public function testProductionResolverRejectsEveryLocalhostAddress(): void
     {
         $this->expectException(DisallowedDestinationException::class);
-        $this->expectExceptionMessage('disallowed address');
+        $this->expectExceptionMessageIsOrContains('disallowed address');
 
         (new PublicDestinationPolicy)->resolve(
             'http://localhost',

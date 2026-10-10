@@ -35,7 +35,7 @@ class DatabaseSchemaBlueprintTest extends SqliteTestCase
         $this->artisan('migrate:install');
     }
 
-    public function testRenamingAndChangingColumnsWork()
+    public function testRenamingAndChangingColumnsWork(): void
     {
         DB::connection()->getSchemaBuilder()->create('users', function ($table) {
             $table->string('name');
@@ -60,7 +60,7 @@ class DatabaseSchemaBlueprintTest extends SqliteTestCase
         $this->assertEquals($expected, $queries);
     }
 
-    public function testRenamingColumnsWorks()
+    public function testRenamingColumnsWorks(): void
     {
         $schema = DB::connection()->getSchemaBuilder();
 
@@ -148,7 +148,7 @@ class DatabaseSchemaBlueprintTest extends SqliteTestCase
         ], $blueprint->toSql());
     }
 
-    public function testChangingColumnWithCollationWorks()
+    public function testChangingColumnWithCollationWorks(): void
     {
         DB::connection()->getSchemaBuilder()->create('users', function ($table) {
             $table->string('age');
@@ -185,7 +185,7 @@ class DatabaseSchemaBlueprintTest extends SqliteTestCase
         $this->assertEquals($expected, $queries);
     }
 
-    public function testChangingCharColumnsWork()
+    public function testChangingCharColumnsWork(): void
     {
         DB::connection()->getSchemaBuilder()->create('users', function ($table) {
             $table->string('name');
@@ -207,7 +207,7 @@ class DatabaseSchemaBlueprintTest extends SqliteTestCase
         $this->assertEquals($expected, $getSql('SQLite'));
     }
 
-    public function testChangingPrimaryAutoincrementColumnsToNonAutoincrementColumnsWork()
+    public function testChangingPrimaryAutoincrementColumnsToNonAutoincrementColumnsWork(): void
     {
         DB::connection()->getSchemaBuilder()->create('users', function ($table) {
             $table->increments('id');
@@ -229,7 +229,7 @@ class DatabaseSchemaBlueprintTest extends SqliteTestCase
         $this->assertEquals($expected, $getSql('SQLite'));
     }
 
-    public function testChangingDoubleColumnsWork()
+    public function testChangingDoubleColumnsWork(): void
     {
         DB::connection()->getSchemaBuilder()->create('products', function ($table) {
             $table->integer('price');
@@ -251,7 +251,7 @@ class DatabaseSchemaBlueprintTest extends SqliteTestCase
         $this->assertEquals($expected, $getSql('SQLite'));
     }
 
-    public function testChangingColumnsWithDefaultWorks()
+    public function testChangingColumnsWithDefaultWorks(): void
     {
         DB::connection()->getSchemaBuilder()->create('products', function ($table) {
             $table->integer('changed_col');
@@ -276,7 +276,7 @@ class DatabaseSchemaBlueprintTest extends SqliteTestCase
         $this->assertEquals($expected, $getSql('SQLite'));
     }
 
-    public function testRenameIndexWorks()
+    public function testRenameIndexWorks(): void
     {
         DB::connection()->getSchemaBuilder()->create('users', function ($table) {
             $table->string('name');
@@ -414,7 +414,7 @@ class DatabaseSchemaBlueprintTest extends SqliteTestCase
         });
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Cannot rebuild table [items] because index [items_active_index] references a dropped column.',
         );
 
@@ -1243,7 +1243,7 @@ SQL);
         return ['concrete' => [false], 'contract' => [true]];
     }
 
-    public function testAddUniqueIndexWithoutNameWorks()
+    public function testAddUniqueIndexWithoutNameWorks(): void
     {
         DB::connection()->getSchemaBuilder()->create('users', function ($table) {
             $table->string('name')->nullable();
@@ -1281,7 +1281,7 @@ SQL);
         $this->assertEquals($expected, $getSql('SQLite'));
     }
 
-    public function testAddUniqueIndexWithNameWorks()
+    public function testAddUniqueIndexWithNameWorks(): void
     {
         DB::connection()->getSchemaBuilder()->create('users', function ($table) {
             $table->string('name')->nullable();
@@ -1342,7 +1342,7 @@ SQL);
         ], $blueprint->toSql());
     }
 
-    public function testAddColumnNamedCreateWorks()
+    public function testAddColumnNamedCreateWorks(): void
     {
         Schema::create('users', function (Blueprint $table) {
             $table->string('name');
@@ -1355,7 +1355,7 @@ SQL);
         $this->assertTrue(Schema::hasColumn('users', 'create'));
     }
 
-    public function testDropIndexOnColumnChangeWorks()
+    public function testDropIndexOnColumnChangeWorks(): void
     {
         DB::connection()->getSchemaBuilder()->create('users', function ($table) {
             $table->string('name')->nullable();

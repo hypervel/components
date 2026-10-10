@@ -8,6 +8,9 @@ use function Hypervel\Coroutine\parallel;
 
 class CoroutineIsolationTest extends TestCase
 {
+    // REMOVED: upstream's Integration/OctaneListenerTest. Hypervel has no Octane reset listener
+    // because team IDs and loaded permission collections are coroutine-local.
+
     public function testTeamIdIsIsolatedPerCoroutine(): void
     {
         [$first, $second] = parallel([

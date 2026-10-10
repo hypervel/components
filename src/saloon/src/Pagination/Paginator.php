@@ -110,27 +110,7 @@ abstract class Paginator implements Countable, Iterator
 
         $this->request = clone $request;
         $this->request->middleware()
-            ->onResponse(static fn (Response $response): Response => $response->throw())
-            ->onResponse(function (Response $response): void {
-                if (! $this->detectInfiniteLoop || $this->pooling) {
-                    return;
-                }
-
-                // Retrying the current page replaces its checksum instead of counting as another page.
-                $this->lastFiveBodyChecksums[$this->currentPage] = hash('xxh128', $response->body());
-
-                if (count($this->lastFiveBodyChecksums) < 5) {
-                    return;
-                }
-
-                if (count(array_unique($this->lastFiveBodyChecksums)) === 1) {
-                    throw new PaginationException(
-                        'Potential infinite loop detected because the last five pages had the same body.',
-                    );
-                }
-
-                unset($this->lastFiveBodyChecksums[array_key_first($this->lastFiveBodyChecksums)]);
-            });
+            ->onResponse(static fn (Response $response): Response => $response->throw());
     }
 
     /**
@@ -147,6 +127,24 @@ abstract class Paginator implements Countable, Iterator
         $request = $this->applyPagination(clone $this->request);
 
         $response = $this->connector->send($request);
+
+        // Checked here instead of in request middleware, where the callback would keep the paginator alive through
+        // its own request and every response.
+        if ($this->detectInfiniteLoop && ! $this->pooling) {
+            // Loading a page again after a mapping failure replaces its checksum instead of adding another page.
+            $this->lastFiveBodyChecksums[$this->currentPage] = $this->getBodyChecksum($response);
+
+            if (count($this->lastFiveBodyChecksums) >= 5) {
+                if (count(array_unique($this->lastFiveBodyChecksums)) === 1) {
+                    throw new PaginationException(
+                        'Potential infinite loop detected! The last 5 pages have had exactly the same body. You can use the $detectInfiniteLoop property on your paginator to disable this check.',
+                    );
+                }
+
+                unset($this->lastFiveBodyChecksums[array_key_first($this->lastFiveBodyChecksums)]);
+            }
+        }
+
         $this->currentPageItems = $this->pageItems($response);
         // Keep the preceding response until mapping succeeds so a failed load retries the same page.
         $this->currentResponse = $response;
@@ -392,6 +390,16 @@ abstract class Paginator implements Countable, Iterator
         }
 
         return $count;
+    }
+
+    /**
+     * Get the checksum of the response body.
+     *
+     * @param Response<mixed> $response
+     */
+    protected function getBodyChecksum(Response $response): string
+    {
+        return hash('xxh128', $response->body());
     }
 
     /**

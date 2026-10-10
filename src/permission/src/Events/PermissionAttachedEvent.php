@@ -18,6 +18,8 @@ class PermissionAttachedEvent
     use SerializesModels;
 
     /**
+     * Create a new event instance.
+     *
      * Internally the HasPermissions trait passes an array of permission ids (e.g. ints or UUIDs).
      * Theoretically one could register the event to other places and pass an Eloquent record.
      * So a Listener should inspect the type of $permissionsOrIds received before using.

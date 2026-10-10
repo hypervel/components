@@ -22,6 +22,11 @@ class StreamBodyRepository implements BodyRepository
     protected mixed $stream = null;
 
     /**
+     * The stream that wraps a resource body.
+     */
+    protected ?StreamInterface $resourceStream = null;
+
+    /**
      * Create a stream body repository.
      *
      * @param null|resource|StreamInterface $value
@@ -41,6 +46,13 @@ class StreamBodyRepository implements BodyRepository
     {
         if (isset($value) && ! $value instanceof StreamInterface && ! is_resource($value)) {
             throw new InvalidArgumentException('The body value must be a resource, null, or an instance of ' . StreamInterface::class . '.');
+        }
+
+        // A Guzzle stream closes its resource when destroyed, so a resource is wrapped once, when it is supplied.
+        // Copies of the repository and every conversion then share one wrapper, which closes the resource only when
+        // nothing uses it, and setting the same resource again keeps that wrapper.
+        if ($value !== $this->stream) {
+            $this->resourceStream = is_resource($value) ? Utils::streamFor($value) : null;
         }
 
         $this->stream = $value;
@@ -91,6 +103,6 @@ class StreamBodyRepository implements BodyRepository
     {
         return $this->stream instanceof StreamInterface
             ? $this->stream
-            : Utils::streamFor($this->stream);
+            : $this->resourceStream ?? Utils::streamFor();
     }
 }

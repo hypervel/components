@@ -29,7 +29,7 @@ class EloquentLazyEagerLoadingTest extends DatabaseTestCase
         });
     }
 
-    public function testItBasic()
+    public function testItBasic(): void
     {
         $one = Model1::create();
         $one->twos()->create();

@@ -9,14 +9,14 @@ use Hypervel\Tests\TestCase;
 
 class HttpTest extends TestCase
 {
-    public function testHttpPackRequest()
+    public function testHttpPackRequest(): void
     {
         $data = Http::packRequest('GET', '/', ['Content-Type' => 'application/json'], 'Hello World');
 
         $this->assertSame("GET / HTTP/1.1\r\nContent-Type: application/json\r\n\r\nHello World", $data);
     }
 
-    public function testHttpPackResponse()
+    public function testHttpPackResponse(): void
     {
         $data = Http::packResponse(200, 'OK', ['Content-Type' => 'application/json'], 'Hello World');
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Data\Http\ResourceResponseTest;
 
 use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Data\Attributes\MapOutputName;
 use Hypervel\Data\Concerns\BaseData as BaseDataConcern;
 use Hypervel\Data\Concerns\IncludeableData as IncludeableDataConcern;
 use Hypervel\Data\Concerns\TransformableData as TransformableDataConcern;
@@ -21,9 +22,12 @@ use Hypervel\Data\Http\Resources\DataResource;
 use Hypervel\Data\Lazy;
 use Hypervel\Data\PaginatedDataCollection;
 use Hypervel\Data\Resource;
+use Hypervel\Data\Support\Transformation\DataTransformer;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
+use Hypervel\Pagination\Cursor;
 use Hypervel\Pagination\CursorPaginator;
+use Hypervel\Pagination\LengthAwarePaginator;
 use Hypervel\Pagination\Paginator;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
@@ -96,6 +100,16 @@ class ResourceResponseTest extends ResourceResponseTestCase
         $this->assertStringContainsString('https://hypervel.org/data', $response->getContent());
         $this->assertSame('applied', $response->headers->get('X-Data-Hook'));
         $this->assertSame($data, $response->getOriginalContent());
+    }
+
+    public function testCollectionResponseHookIsDelegatedWithoutChangingTheOriginal(): void
+    {
+        $collection = new CreatedResponseCollection(ResponseData::class, [['id' => 1, 'name' => 'Taylor']]);
+        $response = $collection->toResponse(Request::create('/', 'POST'));
+
+        $this->assertSame(201, $response->getStatusCode());
+        $this->assertSame([['id' => 1, 'name' => 'Taylor']], $response->getData(true));
+        $this->assertSame($collection[0], $response->getOriginalContent()[0]);
     }
 
     public function testAllowedRequestIncludesAreAppliedToResponseTransformation(): void
@@ -210,14 +224,54 @@ class ResourceResponseTest extends ResourceResponseTestCase
         );
     }
 
+    public function testPaginatedResponsesMatchTheirJsonOutput(): void
+    {
+        $paginated = (new PaginatedDataCollection(
+            ResponseData::class,
+            new LengthAwarePaginator(
+                [['id' => 1, 'name' => 'Taylor']],
+                3,
+                1,
+                2,
+                ['path' => '/items'],
+            ),
+        ))->wrap('items');
+        // The output renames the cursor's ordering field, so the cursor must come from the original items.
+        $cursorPaginated = new CursorPaginatedDataCollection(
+            MappedCursorResponseData::class,
+            new CursorPaginator(
+                [['id' => 2, 'name' => 'Abigail'], ['id' => 3, 'name' => 'Ada']],
+                1,
+                null,
+                ['path' => '/cursor-items', 'parameters' => ['id']],
+            ),
+        );
+        $cursorItem = $cursorPaginated->items()->getCollection()[0];
+
+        $paginatedResponse = $paginated->toResponse(Request::create('/items'));
+        $cursorResponse = $cursorPaginated->toResponse(Request::create('/cursor-items'));
+        $cursorBody = $cursorResponse->getData(true);
+
+        $this->assertSame(['items', 'links', 'meta'], array_keys($paginatedResponse->getData(true)));
+        $this->assertJsonStringEqualsJsonString($paginated->toJson(), $paginatedResponse->getContent());
+        $this->assertSame(['data', 'links', 'meta'], array_keys($cursorBody));
+        $this->assertSame([['identifier' => 2, 'name' => 'Abigail']], $cursorBody['data']);
+        $this->assertSame(2, Cursor::fromEncoded($cursorBody['meta']['next_cursor'])->parameter('id'));
+        $this->assertJsonStringEqualsJsonString($cursorPaginated->toJson(), $cursorResponse->getContent());
+        $this->assertSame($cursorItem, $cursorPaginated->items()->getCollection()[0]);
+        $this->assertSame($cursorItem, $cursorResponse->getOriginalContent()[0]);
+    }
+
     public function testCollectionJsonOptionsUseTheDeclaredItemClassWithoutInstantiation(): void
     {
+        $transformer = $this->app->make(DataTransformer::class);
         $collection = new DataCollection(AbstractJsonOptionsData::class, []);
         $resource = new DataCollectionResource(
             $collection,
             new Collection,
             [],
             null,
+            $transformer,
         );
         $dtoCollection = new DataCollection(ConstructorRequiredDto::class, []);
         $dtoResource = new DataCollectionResource(
@@ -225,6 +279,7 @@ class ResourceResponseTest extends ResourceResponseTestCase
             new Collection,
             [],
             null,
+            $transformer,
         );
 
         $this->assertSame(JSON_UNESCAPED_SLASHES, $resource->jsonOptions());
@@ -318,6 +373,19 @@ class ResponseData extends Data
     }
 }
 
+class MappedCursorResponseData extends Data
+{
+    /**
+     * Create a response item whose cursor field is renamed in the output.
+     */
+    public function __construct(
+        #[MapOutputName('identifier')]
+        public int $id,
+        public string $name,
+    ) {
+    }
+}
+
 class ResponseResource extends Resource
 {
     public function __construct(
@@ -362,6 +430,17 @@ class HookedResponseData extends Data
     public function withResponse(Request $request, JsonResponse $response): void
     {
         $response->headers->set('X-Data-Hook', 'applied');
+    }
+}
+
+class CreatedResponseCollection extends DataCollection
+{
+    /**
+     * Customize the outgoing resource response.
+     */
+    public function withResponse(Request $request, JsonResponse $response): void
+    {
+        $response->setStatusCode(201);
     }
 }
 

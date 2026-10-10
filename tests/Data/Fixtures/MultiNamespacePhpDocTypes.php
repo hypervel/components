@@ -22,4 +22,13 @@ namespace Hypervel\Tests\Data\Fixtures\Second {
     class MultiNamespaceSecond
     {
     }
+
+    /**
+     * Create an anonymous class whose parent belongs to the first namespace.
+     */
+    function multiNamespaceAnonymous(): object
+    {
+        return new class extends \Hypervel\Tests\Data\Fixtures\First\MultiNamespaceFirst {
+        };
+    }
 }

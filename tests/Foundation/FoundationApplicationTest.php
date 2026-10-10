@@ -165,7 +165,7 @@ class FoundationApplicationTest extends TestCase
         $this->assertArrayHasKey($class, $app->getLoadedProviders());
     }
 
-    public function testClassesAreBoundWhenServiceProviderIsRegistered()
+    public function testClassesAreBoundWhenServiceProviderIsRegistered(): void
     {
         $app = new Application;
         $app->register($provider = new class($app) extends ServiceProvider {
@@ -182,7 +182,7 @@ class FoundationApplicationTest extends TestCase
         $this->assertNotSame($instance, $app->make(AbstractClass::class));
     }
 
-    public function testSingletonsAreCreatedWhenServiceProviderIsRegistered()
+    public function testSingletonsAreCreatedWhenServiceProviderIsRegistered(): void
     {
         $app = new Application;
         $app->register($provider = new class($app) extends ServiceProvider {
@@ -230,7 +230,7 @@ class FoundationApplicationTest extends TestCase
         $this->assertFalse($app->providerIsLoaded(ApplicationBasicServiceProviderStub::class));
     }
 
-    public function testDisabledServiceProviderIsNotRegisteredOrTracked()
+    public function testDisabledServiceProviderIsNotRegisteredOrTracked(): void
     {
         $app = new Application;
         $app->register($provider = new ApplicationDisabledServiceProviderStub($app));
@@ -241,7 +241,7 @@ class FoundationApplicationTest extends TestCase
         $this->assertSame([], $app->getProviders(get_class($provider)));
     }
 
-    public function testDisabledServiceProviderBindingsArrayIsSkipped()
+    public function testDisabledServiceProviderBindingsArrayIsSkipped(): void
     {
         $app = new Application;
         $app->register(new class($app) extends ServiceProvider {
@@ -258,7 +258,7 @@ class FoundationApplicationTest extends TestCase
         $this->assertFalse($app->bound(AbstractClass::class));
     }
 
-    public function testDisabledServiceProviderSingletonsArrayIsSkipped()
+    public function testDisabledServiceProviderSingletonsArrayIsSkipped(): void
     {
         $app = new Application;
         $app->register(new class($app) extends ServiceProvider {
@@ -275,7 +275,7 @@ class FoundationApplicationTest extends TestCase
         $this->assertFalse($app->bound(AbstractClass::class));
     }
 
-    public function testDisabledServiceProviderIsNotBootedWhenAppAlreadyBooted()
+    public function testDisabledServiceProviderIsNotBootedWhenAppAlreadyBooted(): void
     {
         $app = new Application;
         $app->boot();
@@ -289,7 +289,7 @@ class FoundationApplicationTest extends TestCase
 
     // REMOVED: Deferred-provider tests; providers register once when the worker boots.
 
-    public function testEnvironment()
+    public function testEnvironment(): void
     {
         $app = new Application;
         $app->instance('env', 'foo');
@@ -307,7 +307,7 @@ class FoundationApplicationTest extends TestCase
         $this->assertFalse($app->environment(['qux', 'bar']));
     }
 
-    public function testEnvironmentHelpers()
+    public function testEnvironmentHelpers(): void
     {
         $local = new Application;
         $local->instance('env', 'local');
@@ -331,7 +331,7 @@ class FoundationApplicationTest extends TestCase
         $this->assertFalse($testing->isProduction());
     }
 
-    public function testDebugHelper()
+    public function testDebugHelper(): void
     {
         $debugOff = new Application;
         $debugOff->instance('config', new Repository(['app' => ['debug' => false]]));
@@ -366,7 +366,7 @@ class FoundationApplicationTest extends TestCase
         $this->assertArrayHasKey(0, $app->make('events')->getListeners('bootstrapped: Hypervel\Foundation\Bootstrap\RegisterFacades'));
     }
 
-    public function testTerminationTests()
+    public function testTerminationTests(): void
     {
         $app = new Application;
 
@@ -447,7 +447,7 @@ class FoundationApplicationTest extends TestCase
         $this->assertSame(['first', 'cancelling'], $called);
     }
 
-    public function testTerminationCallbacksCanAcceptAtNotation()
+    public function testTerminationCallbacksCanAcceptAtNotation(): void
     {
         $app = new Application;
         $app->terminating(ConcreteTerminator::class . '@terminate');
@@ -457,7 +457,7 @@ class FoundationApplicationTest extends TestCase
         $this->assertEquals(1, ConcreteTerminator::$counter);
     }
 
-    public function testBootingCallbacks()
+    public function testBootingCallbacks(): void
     {
         $application = new Application;
 
@@ -480,7 +480,7 @@ class FoundationApplicationTest extends TestCase
         $this->assertEquals(2, $counter);
     }
 
-    public function testBootedCallbacks()
+    public function testBootedCallbacks(): void
     {
         $application = new Application;
 
@@ -791,7 +791,7 @@ class FoundationApplicationTest extends TestCase
         $this->assertFalse($app->foo());
     }
 
-    public function testUseConfigPath()
+    public function testUseConfigPath(): void
     {
         $app = new Application;
         $app->useConfigPath(__DIR__ . '/Fixtures/config');
@@ -878,7 +878,7 @@ class FoundationApplicationTest extends TestCase
         $app->abort(400, 'Request is bad');
     }
 
-    public function testAbortAcceptsHeaders()
+    public function testAbortAcceptsHeaders(): void
     {
         try {
             $app = new Application;
@@ -1062,7 +1062,7 @@ class FoundationApplicationTest extends TestCase
         $this->assertSame('auth.password.broker', $app->getAlias(PasswordBroker::class));
     }
 
-    public function testAddAbsoluteCachePathPrefixReturnsSelf()
+    public function testAddAbsoluteCachePathPrefixReturnsSelf(): void
     {
         $app = new Application;
 

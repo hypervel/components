@@ -34,6 +34,7 @@ final readonly class TransformationContext
         public WrapExecutionType $wrapExecutionType = WrapExecutionType::Disabled,
         public int $depth = 0,
         public ?int $maxDepth = null,
+        public bool $throwWhenMaxDepthReached = true,
     ) {
     }
 
@@ -76,6 +77,7 @@ final readonly class TransformationContext
             wrapExecutionType: $this->wrapExecutionType,
             depth: $this->depth,
             maxDepth: $this->maxDepth,
+            throwWhenMaxDepthReached: $this->throwWhenMaxDepthReached,
         );
     }
 
@@ -97,6 +99,7 @@ final readonly class TransformationContext
             wrapExecutionType: $wrapExecutionType,
             depth: $this->depth,
             maxDepth: $this->maxDepth,
+            throwWhenMaxDepthReached: $this->throwWhenMaxDepthReached,
         );
     }
 
@@ -145,6 +148,7 @@ final readonly class TransformationContext
             wrapExecutionType: $wrapExecutionType ?? $this->wrapExecutionType,
             depth: $this->depth + 1,
             maxDepth: $this->maxDepth,
+            throwWhenMaxDepthReached: $this->throwWhenMaxDepthReached,
         );
     }
 

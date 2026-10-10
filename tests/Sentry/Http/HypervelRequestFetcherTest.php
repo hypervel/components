@@ -30,7 +30,7 @@ class HypervelRequestFetcherTest extends SentryTestCase
         $this->assertInstanceOf(ServerRequestInterface::class, $request);
     }
 
-    public function testFlushStateClearsPsrHttpFactoryCache()
+    public function testFlushStateClearsPsrHttpFactoryCache(): void
     {
         $this->get('/');
 

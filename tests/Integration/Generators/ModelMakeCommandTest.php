@@ -27,7 +27,7 @@ class ModelMakeCommandTest extends TestCase
         'tests/Feature/Models/FooTest.php',
     ];
 
-    public function testItCanGenerateModelFile()
+    public function testItCanGenerateModelFile(): void
     {
         $this->artisan('make:model', ['name' => 'Foo'])
             ->assertExitCode(0);
@@ -52,7 +52,7 @@ class ModelMakeCommandTest extends TestCase
         $this->assertFilenameNotExists('tests/Feature/Models/FooTest.php');
     }
 
-    public function testItCanGenerateModelFileWithPivotOption()
+    public function testItCanGenerateModelFileWithPivotOption(): void
     {
         $this->artisan('make:model', ['name' => 'Foo', '--pivot' => true])
             ->assertExitCode(0);
@@ -86,7 +86,7 @@ class ModelMakeCommandTest extends TestCase
         $this->assertFilenameExists('database/factories/FooFactory.php');
     }
 
-    public function testItCanGenerateModelFileWithMorphPivotOption()
+    public function testItCanGenerateModelFileWithMorphPivotOption(): void
     {
         $this->artisan('make:model', ['name' => 'Foo', '--morph-pivot' => true])
             ->assertExitCode(0);
@@ -120,7 +120,7 @@ class ModelMakeCommandTest extends TestCase
         $this->assertFilenameExists('database/factories/FooFactory.php');
     }
 
-    public function testItCanGenerateModelFileWithControllerOption()
+    public function testItCanGenerateModelFileWithControllerOption(): void
     {
         $this->artisan('make:model', ['name' => 'Foo', '--controller' => true])
             ->assertExitCode(0);
@@ -152,7 +152,7 @@ class ModelMakeCommandTest extends TestCase
         $this->assertFilenameNotExists('database/seeders/FooSeeder.php');
     }
 
-    public function testItCanGenerateModelFileWithFactoryOption()
+    public function testItCanGenerateModelFileWithFactoryOption(): void
     {
         $this->artisan('make:model', ['name' => 'Foo', '--factory' => true])
             ->assertExitCode(0);
@@ -176,7 +176,7 @@ class ModelMakeCommandTest extends TestCase
         $this->assertFilenameNotExists('database/seeders/FooSeeder.php');
     }
 
-    public function testItCanGenerateModelFileWithFactoryOptionForDeepFolder()
+    public function testItCanGenerateModelFileWithFactoryOptionForDeepFolder(): void
     {
         $this->artisan('make:model', ['name' => 'Foo/Bar', '--factory' => true])
             ->assertExitCode(0);
@@ -200,7 +200,7 @@ class ModelMakeCommandTest extends TestCase
         $this->assertFilenameNotExists('database/seeders/Foo/BarSeeder.php');
     }
 
-    public function testItGeneratesModelWithHasFactoryTraitWhenUsingAllOption()
+    public function testItGeneratesModelWithHasFactoryTraitWhenUsingAllOption(): void
     {
         $this->artisan('make:model', ['name' => 'Foo', '--all' => true])
             ->expectsQuestion('A App\Models\Foo model does not exist. Do you want to generate it?', false)
@@ -226,7 +226,7 @@ class ModelMakeCommandTest extends TestCase
         $this->assertMigrationFileExists('create_foos_table.php');
     }
 
-    public function testItCanGenerateModelFileWithMigrationOption()
+    public function testItCanGenerateModelFileWithMigrationOption(): void
     {
         $this->artisan('make:model', ['name' => 'Foo', '--migration' => true])
             ->assertExitCode(0);
@@ -262,7 +262,7 @@ class ModelMakeCommandTest extends TestCase
         $this->assertFilenameExists('database/migrations/2026_07_13_155456_create_aaas_table.php');
     }
 
-    public function testItCanGenerateModelFileWithSeederOption()
+    public function testItCanGenerateModelFileWithSeederOption(): void
     {
         $this->artisan('make:model', ['name' => 'Foo', '--seed' => true])
             ->assertExitCode(0);
@@ -278,7 +278,7 @@ class ModelMakeCommandTest extends TestCase
         $this->assertFilenameExists('database/seeders/FooSeeder.php');
     }
 
-    public function testItCanGenerateNestedModelFileWithControllerOption()
+    public function testItCanGenerateNestedModelFileWithControllerOption(): void
     {
         $this->artisan('make:model', ['name' => 'Foo/Bar', '--controller' => true])
             ->assertExitCode(0);
@@ -299,7 +299,7 @@ class ModelMakeCommandTest extends TestCase
         $this->assertFilenameNotExists('database/seeders/FooSeeder.php');
     }
 
-    public function testItCanGenerateModelFileWithTest()
+    public function testItCanGenerateModelFileWithTest(): void
     {
         $this->artisan('make:model', ['name' => 'Foo', '--test' => true])
             ->assertExitCode(0);
@@ -316,7 +316,7 @@ class ModelMakeCommandTest extends TestCase
         $this->assertFilenameExists('tests/Feature/Models/FooTest.php');
     }
 
-    public function testItAsksForAdditionalComponentsForExistingModel()
+    public function testItAsksForAdditionalComponentsForExistingModel(): void
     {
         $this->artisan('make:model', ['name' => 'Foo'])
             ->assertExitCode(0);

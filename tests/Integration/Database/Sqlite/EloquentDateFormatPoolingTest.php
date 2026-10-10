@@ -8,13 +8,17 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Events\ConnectionEstablished;
 use Hypervel\Database\Pool\PoolManager;
 use Hypervel\Database\Query\Grammars\SQLiteGrammar;
+use Hypervel\Database\SQLiteConnection;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
+use PDO;
 use UnitEnum;
 
 use function Hypervel\Coroutine\run;
@@ -60,19 +64,100 @@ class EloquentDateFormatPoolingTest extends TestCase
         });
     }
 
-    public function testDateCastsUseTheGrammarAConnectionHadWhenItWasReturned(): void
+    public function testDateCastsKeepCustomGrammarsWithinTheirLogicalOwner(): void
     {
-        run(static function (): void {
+        run(function (): void {
             $connection = DB::connection('pool_test');
             $connection->setQueryGrammar(new TimestampGrammar($connection));
+
+            $this->assertSame('U', (new DatedModel)->getDateFormat());
         });
 
         run(function (): void {
             $model = new DatedModel;
             $model->updated_at = CarbonImmutable::createFromTimestamp(1_767_225_600);
 
-            $this->assertSame('1767225600', $model->getAttributes()['updated_at']);
+            $this->assertSame('2026-01-01 00:00:00', $model->getAttributes()['updated_at']);
             $this->assertFalse(CoroutineContext::has('__database.connection.pool_test'));
+        });
+    }
+
+    public function testColdDateReadsReturnOnlyTheirOwnIdleSession(): void
+    {
+        $manager = $this->app->make(PoolManager::class);
+        $pool = $manager->pool('pool_test');
+        $otherPool = $manager->pool('other');
+
+        run(function () use ($pool, $otherPool): void {
+            $other = DB::connection('other');
+            $this->assertSame(1, $otherPool->getBorrowedCount());
+            $this->assertNull($pool->recordedDateFormat());
+
+            $this->assertSame('Y-m-d H:i:s', (new DatedModel)->getDateFormat());
+            $this->assertSame(0, $pool->getBorrowedCount());
+            $this->assertSame(1, $otherPool->getBorrowedCount());
+            $this->assertSame($other, DB::connection('other'));
+
+            // Reusing the logical connection after a format-only lookup reacquires a session.
+            DB::connection('pool_test')->select('select 1');
+            $this->assertSame(1, $pool->getBorrowedCount());
+            DB::disconnect('pool_test');
+            $this->assertNull($pool->recordedDateFormat());
+        });
+
+        run(function () use ($pool): void {
+            $this->assertSame('Y-m-d H:i:s', (new DatedModel)->getDateFormat());
+            $this->assertSame(0, $pool->getBorrowedCount());
+        });
+    }
+
+    public function testEstablishedListenersCustomizeOnlyTheirLogicalOwner(): void
+    {
+        Event::listen(ConnectionEstablished::class, static function (ConnectionEstablished $event): void {
+            $event->connection->setQueryGrammar(new TimestampGrammar($event->connection));
+        });
+
+        run(function (): void {
+            $this->assertSame('U', (new DatedModel)->getDateFormat());
+            $this->assertSame(0, $this->app->make(PoolManager::class)->pool('pool_test')->getBorrowedCount());
+        });
+
+        run(function (): void {
+            $this->assertSame('Y-m-d H:i:s', (new DatedModel)->getDateFormat());
+            $this->assertFalse(CoroutineContext::has('__database.connection.pool_test'));
+        });
+    }
+
+    public function testSharedConnectionsRecordListenerAndReturnedGrammarChanges(): void
+    {
+        DB::extend('pool_test', static fn (array $config): SQLiteConnection => new SQLiteConnection(
+            new PDO('sqlite:' . $config['database']),
+            $config['database'],
+            $config['prefix'],
+            $config,
+        ));
+        Event::listen(ConnectionEstablished::class, static function (ConnectionEstablished $event): void {
+            $event->connection->setQueryGrammar(new TimestampGrammar($event->connection));
+        });
+        $pool = $this->app->make(PoolManager::class)->pool('pool_test');
+        $this->assertFalse($pool->usesSessionLeases());
+
+        run(function () use ($pool): void {
+            $this->assertSame('U', (new DatedModel)->getDateFormat());
+            $this->assertSame(1, $pool->getBorrowedCount());
+        });
+
+        run(function () use ($pool): void {
+            $this->assertSame('U', (new DatedModel)->getDateFormat());
+            $this->assertSame(0, $pool->getBorrowedCount());
+
+            $connection = DB::connection('pool_test');
+            $connection->setQueryGrammar(new SQLiteGrammar($connection));
+        });
+
+        run(function () use ($pool): void {
+            $this->assertSame('Y-m-d H:i:s', (new DatedModel)->getDateFormat());
+            $this->assertSame(0, $pool->getBorrowedCount());
         });
     }
 
@@ -105,6 +190,7 @@ class EloquentDateFormatPoolingTest extends TestCase
                 'max_idle_time' => 60.0,
             ],
         ]);
+        $app->make('config')->set('database.connections.other', $app->make('config')->array('database.connections.pool_test'));
     }
 }
 

@@ -7,7 +7,9 @@ namespace Hypervel\Tests\Di\ClassMap;
 use Composer\Autoload\ClassLoader;
 use Countable;
 use Hypervel\Di\ClassMap\ClassMapManager;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Composer;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use RuntimeException;
 
@@ -17,6 +19,13 @@ class ClassMapManagerTest extends TestCase
 
     private ClassLoader $isolatedLoader;
 
+    private Filesystem $files;
+
+    private string $directory;
+
+    /**
+     * Prepare isolated source files and an application loader.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -25,12 +34,20 @@ class ClassMapManagerTest extends TestCase
         $this->isolatedLoader = new ClassLoader;
         $this->isolatedLoader->register();
         Composer::setLoader($this->isolatedLoader);
+        $this->files = new Filesystem;
+        $this->directory = ParallelTesting::tempDir('ClassMapManagerTest');
+        $this->files->deleteDirectory($this->directory);
+        $this->files->ensureDirectoryExists($this->directory);
     }
 
+    /**
+     * Restore the application loader and remove fixture sources.
+     */
     protected function tearDown(): void
     {
         $this->isolatedLoader->unregister();
         Composer::setLoader($this->originalLoader);
+        $this->files->deleteDirectory($this->directory);
 
         parent::tearDown();
     }
@@ -42,29 +59,40 @@ class ClassMapManagerTest extends TestCase
 
     public function testAddRegistersEntriesAndAppliesToAutoloader(): void
     {
-        $fakePath = '/tmp/fake_replacement.php';
+        $class = __NAMESPACE__ . '\Replacement' . bin2hex(random_bytes(4));
+        $path = $this->directory . '/Replacement.php';
+        $this->writeSource($path, $class, 'replacement');
+        $applicationMap = $this->isolatedLoader->getClassMap();
 
-        // Use a class name that definitely doesn't exist
-        ClassMapManager::add([
-            'Hypervel\Tests\Di\ClassMap\NonExistentClassForTesting' => $fakePath,
-        ]);
+        ClassMapManager::add([$class => $path]);
 
         $this->assertTrue(ClassMapManager::hasEntries());
-        $this->assertSame(
-            ['Hypervel\Tests\Di\ClassMap\NonExistentClassForTesting' => $fakePath],
-            ClassMapManager::getEntries()
-        );
+        $this->assertSame([$class => $path], ClassMapManager::getEntries());
+        $this->assertSame($applicationMap, $this->isolatedLoader->getClassMap());
+        $this->assertSame('replacement', (new $class)->value());
+    }
 
-        // Verify it was added to Composer's class map
-        $composerMap = Composer::getLoader()->getClassMap();
-        $this->assertSame($fakePath, $composerMap['Hypervel\Tests\Di\ClassMap\NonExistentClassForTesting']);
+    public function testLoadedReplacementCanBeRegisteredAgainAfterReset(): void
+    {
+        $class = __NAMESPACE__ . '\Repeated' . bin2hex(random_bytes(4));
+        $path = $this->directory . '/Repeated.php';
+        $this->writeSource($path, $class, 'repeated');
+        ClassMapManager::add([$class => $path]);
+        $this->assertSame('repeated', (new $class)->value());
+
+        ClassMapManager::flushState();
+        $equivalentPath = $this->directory . '/./Repeated.php';
+        ClassMapManager::add([$class => $equivalentPath]);
+
+        $this->assertSame([$class => $equivalentPath], ClassMapManager::getEntries());
+        $this->assertSame('repeated', (new $class)->value());
     }
 
     public function testAddThrowsWhenClassAlreadyLoaded(): void
     {
         // This test class itself is already loaded
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Cannot override class map for [' . self::class . ']');
+        $this->expectExceptionMessageIsOrContains('Cannot override class map for [' . self::class . ']');
 
         ClassMapManager::add([
             self::class => '/tmp/replacement.php',
@@ -74,7 +102,7 @@ class ClassMapManagerTest extends TestCase
     public function testAddThrowsWhenInterfaceAlreadyLoaded(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Cannot override class map');
+        $this->expectExceptionMessageIsOrContains('Cannot override class map');
 
         ClassMapManager::add([
             Countable::class => '/tmp/replacement.php',
@@ -84,7 +112,7 @@ class ClassMapManagerTest extends TestCase
     public function testAddThrowsWhenTraitAlreadyLoaded(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Cannot override class map');
+        $this->expectExceptionMessageIsOrContains('Cannot override class map');
 
         ClassMapManager::add([
             LoadedTraitForClassMapTest::class => '/tmp/replacement.php',
@@ -108,14 +136,43 @@ class ClassMapManagerTest extends TestCase
 
     public function testFlushStateRemovesAllEntries(): void
     {
-        ClassMapManager::add([
-            'Fake\ClassA' => '/tmp/a.php',
-        ]);
+        $class = __NAMESPACE__ . '\Unloaded' . bin2hex(random_bytes(4));
+        $original = $this->directory . '/Original.php';
+        $replacement = $this->directory . '/Replacement.php';
+        $this->writeSource($original, $class, 'original');
+        $this->writeSource($replacement, $class, 'replacement');
+        $this->isolatedLoader->addClassMap([$class => $original]);
+        ClassMapManager::add([$class => $replacement]);
 
         ClassMapManager::flushState();
 
         $this->assertFalse(ClassMapManager::hasEntries());
         $this->assertSame([], ClassMapManager::getEntries());
+        $this->assertSame('original', (new $class)->value());
+    }
+
+    /**
+     * Write a class source that identifies the implementation being loaded.
+     */
+    private function writeSource(string $path, string $class, string $value): void
+    {
+        $shortName = substr($class, strrpos($class, '\\') + 1);
+        $namespace = __NAMESPACE__;
+        $this->files->put($path, <<<PHP
+<?php
+
+declare(strict_types=1);
+
+namespace {$namespace};
+
+class {$shortName}
+{
+    public function value(): string
+    {
+        return '{$value}';
+    }
+}
+PHP);
     }
 }
 

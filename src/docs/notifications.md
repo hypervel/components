@@ -1369,7 +1369,13 @@ class User extends Authenticatable
 <a name="slack-prerequisites"></a>
 ### Prerequisites
 
-Before sending Slack notifications, you must create a [Slack App](https://api.slack.com/apps?new_app=1) for your Slack workspace.
+Before sending Slack notifications, install the Slack notification channel using Composer:
+
+```shell
+composer require hypervel/slack-notification-channel
+```
+
+Next, create a [Slack App](https://api.slack.com/apps?new_app=1) for your Slack workspace.
 
 If you only need to send notifications to the same Slack workspace that the App is created in, you should ensure that your App has the `chat:write`, `chat:write.public`, and `chat:write.customize` scopes. These scopes can be added from the "OAuth & Permissions" App management tab within Slack.
 
@@ -1388,6 +1394,26 @@ Next, copy the App's "Bot User OAuth Token" and place it within a `slack` config
 #### App Distribution
 
 If your application will be sending notifications to external Slack workspaces that are owned by your application's users, you will need to "distribute" your App via Slack. App distribution can be managed from your App's "Manage Distribution" tab within Slack. Once your App has been distributed, you may use [Socialite](/docs/{{version}}/socialite) to [obtain Slack Bot tokens](/docs/{{version}}/socialite#slack-bot-scopes) on behalf of your application's users.
+
+<a name="slack-http-client"></a>
+#### HTTP Client
+
+Slack API notifications use Hypervel's [HTTP client](/docs/{{version}}/http-client) and its `slack-notifications` connection. The connection is registered automatically and uses the HTTP client's default connection timeout of 10 seconds and request timeout of 30 seconds. You may customize its options in your application's `AppServiceProvider`:
+
+```php
+use Hypervel\Http\Client\Factory;
+use Hypervel\Notifications\Slack\SlackChannel;
+
+/**
+ * Bootstrap any application services.
+ */
+public function boot(Factory $http): void
+{
+    $http->registerConnection(SlackChannel::CONNECTION, [
+        'timeout' => 15,
+    ]);
+}
+```
 
 <a name="formatting-slack-notifications"></a>
 ### Formatting Slack Notifications
@@ -1942,6 +1968,13 @@ class LogFailedNotification
     }
 }
 ```
+
+<a name="queued-notification-event-listeners"></a>
+#### Queued Notification Event Listeners
+
+[Queued listeners](/docs/{{version}}/events#queued-event-listeners) for `NotificationDelivered`, `NotificationSent`, and `NotificationFailed` can use the usual response and exception APIs with the default HTTP transports. Hypervel omits argument values from the stack traces of exceptions it prepares for queueing; the original exception remains unchanged.
+
+If your notification uses a response or exception that cannot be serialized, such as a response with a live or file-backed body, handle the event synchronously and dispatch a job containing only the data it needs.
 
 <a name="custom-channels"></a>
 ## Custom Channels

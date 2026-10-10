@@ -22,6 +22,7 @@ use Hypervel\Server\ServerInterface;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -237,7 +238,7 @@ class ServerTest extends TestCase
         $nativeServer->expects('on')->with(Event::ON_WORKER_START, m::type('callable'))->andReturnFalse();
 
         $this->expectException(ServerException::class);
-        $this->expectExceptionMessage('Failed to register event [workerStart] on server [test].');
+        $this->expectExceptionMessageIs('Failed to register event [workerStart] on server [test].');
 
         $this->server(m::mock(Container::class))->registerEvents($nativeServer, [
             Event::ON_WORKER_START => static function (): void {
@@ -249,14 +250,84 @@ class ServerTest extends TestCase
     {
         $nativePort = m::mock(SwoolePort::class);
         $nativePort->expects('on')->with(Event::ON_REQUEST, m::type('callable'))->andReturnFalse();
+        $server = $this->server(m::mock(Container::class));
+        $server->useNativeServer(m::mock(SwooleServer::class));
 
         $this->expectException(ServerException::class);
-        $this->expectExceptionMessage('Failed to register event [request] on server [test].');
+        $this->expectExceptionMessageIs('Failed to register event [request] on server [test].');
 
-        $this->server(m::mock(Container::class))->registerEvents($nativePort, [
+        $server->registerEvents($nativePort, [
             Event::ON_REQUEST => static function (SwooleRequest $request, SwooleResponse $response): void {
             },
         ]);
+    }
+
+    #[DataProvider('responseCancellationModes')]
+    public function testDisconnectHandlingPreservesApplicationCallbacksAndRespectsServerModes(int $mode, array $settings, bool $supported): void
+    {
+        $registered = [];
+        $received = [];
+        $applicationCallback = static function (SwooleServer $server, int $connection, int $reactor) use (&$received): void {
+            $received = [$server, $connection, $reactor];
+        };
+        $nativeServer = m::mock(SwooleServer::class);
+        $nativeServer->mode = $mode;
+        $nativeServer->setting = $settings;
+        $nativeServer->expects('on')->twice()->andReturnUsing(
+            static function (string $event, callable $callback) use (&$registered): bool {
+                $registered[$event] = $callback;
+
+                return true;
+            },
+        );
+
+        $this->server(m::mock(Container::class))->registerEvents($nativeServer, [
+            Event::ON_REQUEST => static function (): void {
+            },
+            Event::ON_CLOSE => $applicationCallback,
+        ]);
+
+        $this->assertSame($supported, $registered[Event::ON_CLOSE] !== $applicationCallback);
+        $registered[Event::ON_CLOSE]($nativeServer, 123, 2);
+        $this->assertSame([$nativeServer, 123, 2], $received);
+    }
+
+    /**
+     * Provide modes with and without connection ownership in the serving worker.
+     */
+    public static function responseCancellationModes(): array
+    {
+        return [
+            'base mode' => [SWOOLE_BASE, [], true],
+            'default process mode' => [SWOOLE_PROCESS, [], true],
+            'IP dispatch' => [SWOOLE_PROCESS, ['dispatch_mode' => 4], true],
+            'connection balancing' => [SWOOLE_PROCESS, ['dispatch_mode' => 8], true],
+            'round robin' => [SWOOLE_PROCESS, ['dispatch_mode' => 1], false],
+            'queue dispatch' => [SWOOLE_PROCESS, ['dispatch_mode' => 3], false],
+            'coroutines disabled' => [SWOOLE_PROCESS, ['enable_coroutine' => false], false],
+        ];
+    }
+
+    public function testResponseDisconnectCallbackIsInstalledWithoutAnApplicationCallback(): void
+    {
+        $registered = [];
+        $nativeServer = m::mock(SwooleServer::class);
+        $nativeServer->mode = SWOOLE_PROCESS;
+        $nativeServer->expects('on')->twice()->andReturnUsing(
+            static function (string $event, callable $callback) use (&$registered): bool {
+                $registered[$event] = $callback;
+
+                return true;
+            },
+        );
+
+        $this->server(m::mock(Container::class))->registerEvents($nativeServer, [
+            Event::ON_REQUEST => static function (): void {
+            },
+        ]);
+
+        $this->assertArrayHasKey(Event::ON_CLOSE, $registered);
+        $registered[Event::ON_CLOSE]($nativeServer, 123, 2);
     }
 
     public function testMainServerSettingsFailureStopsConfiguration(): void
@@ -267,7 +338,7 @@ class ServerTest extends TestCase
         $server->createWith($nativeServer);
 
         $this->expectException(ServerException::class);
-        $this->expectExceptionMessage('Failed to configure server [http].');
+        $this->expectExceptionMessageIs('Failed to configure server [http].');
 
         $server->init(new ServerConfig([
             'servers' => [
@@ -387,7 +458,7 @@ class ServerTest extends TestCase
         $server->createWith($nativeServer);
 
         $this->expectException(ServerException::class);
-        $this->expectExceptionMessage('Failed to listen on server port [127.0.0.1:8001].');
+        $this->expectExceptionMessageIs('Failed to listen on server port [127.0.0.1:8001].');
 
         $server->init(new ServerConfig([
             'servers' => [
@@ -400,7 +471,7 @@ class ServerTest extends TestCase
     public function testUnsupportedServerTypeUsesThePackageInvalidArgumentException(): void
     {
         $this->expectException(ServerInvalidArgumentException::class);
-        $this->expectExceptionMessage('Server type is invalid.');
+        $this->expectExceptionMessageIs('Server type is invalid.');
 
         $this->server(m::mock(Container::class))->init(new ServerConfig([
             'servers' => [
@@ -417,7 +488,7 @@ class ServerTest extends TestCase
         $server->useNativeServer($nativeServer);
 
         $this->expectException(ServerException::class);
-        $this->expectExceptionMessage('Failed to start the Swoole server.');
+        $this->expectExceptionMessageIs('Failed to start the Swoole server.');
 
         $server->start();
     }

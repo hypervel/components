@@ -22,12 +22,12 @@ class ClosureCommandTest extends TestCase
         })->describe('Greet a user by name');
     }
 
-    public function testItCanRunClosureCommand()
+    public function testItCanRunClosureCommand(): void
     {
         $this->artisan('inspire')->expectsOutput('We must ship. - Taylor Otwell');
     }
 
-    public function testPurposeSetsDescription()
+    public function testPurposeSetsDescription(): void
     {
         $command = new ClosureCommand('test:purpose', function () {});
         $command->purpose('A purpose description');
@@ -35,7 +35,7 @@ class ClosureCommandTest extends TestCase
         $this->assertSame('A purpose description', $command->getDescription());
     }
 
-    public function testDescribeSetsDescription()
+    public function testDescribeSetsDescription(): void
     {
         $command = new ClosureCommand('test:describe', function () {});
         $command->describe('A describe description');
@@ -43,7 +43,7 @@ class ClosureCommandTest extends TestCase
         $this->assertSame('A describe description', $command->getDescription());
     }
 
-    public function testPurposeAndDescribeAreEquivalent()
+    public function testPurposeAndDescribeAreEquivalent(): void
     {
         $commandA = new ClosureCommand('test:a', function () {});
         $commandA->purpose('Same description');
@@ -54,7 +54,7 @@ class ClosureCommandTest extends TestCase
         $this->assertSame($commandA->getDescription(), $commandB->getDescription());
     }
 
-    public function testClosureCommandReceivesArguments()
+    public function testClosureCommandReceivesArguments(): void
     {
         $this->artisan('greet', ['name' => 'Taylor'])->expectsOutput('Hello, Taylor!');
     }

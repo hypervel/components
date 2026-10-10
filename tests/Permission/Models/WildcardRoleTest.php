@@ -4,18 +4,21 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Permission\Models;
 
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Permission\Models\Permission;
 use Hypervel\Tests\Permission\TestCase;
 
 class WildcardRoleTest extends TestCase
 {
-    protected function setUp(): void
+    protected function defineEnvironment(ApplicationContract $app): void
     {
-        parent::setUp();
+        parent::defineEnvironment($app);
 
-        $this->app->make('config')->set('permission.enable_wildcard_permission', true);
-        $this->flushPermissionState();
+        $app->make('config')->set('permission.enable_wildcard_permission', true);
+    }
 
+    protected function setUpInCoroutine(): void
+    {
         Permission::create(['name' => 'other-permission']);
         Permission::create(['name' => 'wrong-guard-permission', 'guard_name' => 'admin']);
     }
@@ -91,5 +94,20 @@ class WildcardRoleTest extends TestCase
         $permission = Permission::findByName('wrong-guard-permission', 'admin');
 
         $this->assertFalse($this->testUserRole->hasPermissionTo($permission));
+    }
+
+    public function testDeniedPermissionsWinOverWildcardMatches(): void
+    {
+        Permission::create(['name' => 'posts.*']);
+        Permission::create(['name' => 'posts.delete']);
+        Permission::create(['name' => 'news.*']);
+        Permission::create(['name' => 'news.create']);
+
+        $this->testUserRole->givePermissionTo('posts.*', 'news.create');
+        $this->testUserRole->denyPermissionTo('posts.delete', 'news.*');
+
+        $this->assertTrue($this->testUserRole->hasPermissionTo('posts.create'));
+        $this->assertFalse($this->testUserRole->hasPermissionTo('posts.delete.123'));
+        $this->assertFalse($this->testUserRole->hasPermissionTo('news.create'));
     }
 }

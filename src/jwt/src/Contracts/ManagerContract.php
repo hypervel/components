@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Jwt\Contracts;
 
+use SensitiveParameter;
+
 interface ManagerContract
 {
     /**
@@ -14,12 +16,13 @@ interface ManagerContract
     /**
      * Decode a token into its payload.
      */
-    public function decode(string $token, bool $validate = true, bool $checkBlacklist = true): array;
+    public function decode(#[SensitiveParameter] string $token, bool $validate = true, bool $checkBlacklist = true): array;
 
     /**
      * Refresh a token.
      */
     public function refresh(
+        #[SensitiveParameter]
         string $token,
         bool $forceForever = false,
         bool $resetClaims = false,
@@ -30,7 +33,7 @@ interface ManagerContract
     /**
      * Invalidate a token.
      */
-    public function invalidate(string $token, bool $forceForever = false): bool;
+    public function invalidate(#[SensitiveParameter] string $token, bool $forceForever = false): bool;
 
     /**
      * Determine if the blacklist is enabled.

@@ -73,6 +73,11 @@
             "providers": [
                 "Hypervel\\Scout\\ScoutServiceProvider"
             ]
+        },
+        "phpstan": {
+            "includes": [
+                "extension.neon"
+            ]
         }
     }
 }

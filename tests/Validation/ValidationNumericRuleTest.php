@@ -14,7 +14,7 @@ use PHPUnit\Framework\Attributes\TestWith;
 
 class ValidationNumericRuleTest extends TestCase
 {
-    public function testDefaultNumericRule()
+    public function testDefaultNumericRule(): void
     {
         $rule = Rule::numeric();
         $this->assertSame('numeric', (string) $rule);
@@ -23,7 +23,7 @@ class ValidationNumericRuleTest extends TestCase
         $this->assertSame('numeric', (string) $rule);
     }
 
-    public function testBetweenRule()
+    public function testBetweenRule(): void
     {
         $rule = Rule::numeric()->between(1, 10);
         $this->assertSame('numeric|between:1,10', (string) $rule);
@@ -32,7 +32,7 @@ class ValidationNumericRuleTest extends TestCase
         $this->assertSame('numeric|between:1.5,10.5', (string) $rule);
     }
 
-    public function testDecimalRule()
+    public function testDecimalRule(): void
     {
         $rule = Rule::numeric()->decimal(2, 4);
         $this->assertSame('numeric|decimal:2,4', (string) $rule);
@@ -47,13 +47,13 @@ class ValidationNumericRuleTest extends TestCase
         $this->assertSame('numeric|different:"some_field"', (string) $rule);
     }
 
-    public function testDigitsRule()
+    public function testDigitsRule(): void
     {
         $rule = Rule::numeric()->digits(10);
         $this->assertSame('numeric|integer|digits:10', (string) $rule);
     }
 
-    public function testDigitsBetweenRule()
+    public function testDigitsBetweenRule(): void
     {
         $rule = Rule::numeric()->digitsBetween(2, 10);
         $this->assertSame('numeric|integer|digits_between:2,10', (string) $rule);
@@ -71,7 +71,7 @@ class ValidationNumericRuleTest extends TestCase
         $this->assertSame('numeric|gte:"some_field"', (string) $rule);
     }
 
-    public function testIntegerRule()
+    public function testIntegerRule(): void
     {
         $rule = Rule::numeric()->integer();
         $this->assertSame('numeric|integer', (string) $rule);
@@ -92,7 +92,7 @@ class ValidationNumericRuleTest extends TestCase
         $this->assertSame('numeric|lte:"some_field"', (string) $rule);
     }
 
-    public function testMaxRule()
+    public function testMaxRule(): void
     {
         $rule = Rule::numeric()->max(10);
         $this->assertSame('numeric|max:10', (string) $rule);
@@ -101,13 +101,13 @@ class ValidationNumericRuleTest extends TestCase
         $this->assertSame('numeric|max:10.5', (string) $rule);
     }
 
-    public function testMaxDigitsRule()
+    public function testMaxDigitsRule(): void
     {
         $rule = Rule::numeric()->maxDigits(10);
         $this->assertSame('numeric|max_digits:10', (string) $rule);
     }
 
-    public function testMinRule()
+    public function testMinRule(): void
     {
         $rule = Rule::numeric()->min(10);
         $this->assertSame('numeric|min:10', (string) $rule);
@@ -116,13 +116,13 @@ class ValidationNumericRuleTest extends TestCase
         $this->assertSame('numeric|min:10.5', (string) $rule);
     }
 
-    public function testMinDigitsRule()
+    public function testMinDigitsRule(): void
     {
         $rule = Rule::numeric()->minDigits(10);
         $this->assertSame('numeric|min_digits:10', (string) $rule);
     }
 
-    public function testMultipleOfRule()
+    public function testMultipleOfRule(): void
     {
         $rule = Rule::numeric()->multipleOf(10);
         $this->assertSame('numeric|multiple_of:10', (string) $rule);
@@ -134,7 +134,7 @@ class ValidationNumericRuleTest extends TestCase
         $this->assertSame('numeric|same:"some_field"', (string) $rule);
     }
 
-    public function testSizeRule()
+    public function testSizeRule(): void
     {
         $rule = Rule::numeric()->exactly(10);
         $this->assertSame('numeric|integer|size:10', (string) $rule);
@@ -182,7 +182,7 @@ class ValidationNumericRuleTest extends TestCase
         $this->assertTrue($validator->fails());
     }
 
-    public function testNumericValidation()
+    public function testNumericValidation(): void
     {
         $trans = new Translator(new ArrayLoader, 'en');
 
@@ -378,7 +378,7 @@ class ValidationNumericRuleTest extends TestCase
         $this->assertEmpty($validator->errors()->first('numeric'));
     }
 
-    public function testUniquenessValidation()
+    public function testUniquenessValidation(): void
     {
         $rule = Rule::numeric()->integer()->digits(2)->exactly(2);
         $this->assertSame('numeric|integer|digits:2|size:2', (string) $rule);

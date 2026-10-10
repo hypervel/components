@@ -31,6 +31,8 @@ class TransformationContextFactory implements Transient
 
     protected ?int $maxDepth;
 
+    protected bool $throwWhenMaxDepthReached;
+
     protected readonly ?int $configuredMaxDepth;
 
     protected PartialsDefinition $partialDefinitions;
@@ -42,6 +44,7 @@ class TransformationContextFactory implements Transient
     {
         $this->configuredMaxDepth = $config->maxTransformationDepth;
         $this->maxDepth = $this->configuredMaxDepth;
+        $this->throwWhenMaxDepthReached = $config->throwWhenMaxTransformationDepthReached;
         $this->partialDefinitions = new PartialsDefinition;
     }
 
@@ -100,6 +103,7 @@ class TransformationContextFactory implements Transient
                 transformers: $this->transformers,
                 wrapExecutionType: $this->wrapExecutionType,
                 maxDepth: $this->maxDepth,
+                throwWhenMaxDepthReached: $this->throwWhenMaxDepthReached,
             );
         }
 
@@ -127,6 +131,7 @@ class TransformationContextFactory implements Transient
             transformers: $this->transformers,
             wrapExecutionType: $this->wrapExecutionType,
             maxDepth: $this->maxDepth,
+            throwWhenMaxDepthReached: $this->throwWhenMaxDepthReached,
         );
     }
 
@@ -214,10 +219,13 @@ class TransformationContextFactory implements Transient
 
     /**
      * Set the maximum nested transformation depth.
+     *
+     * @param bool $throw Whether reaching the depth throws instead of returning an empty array
      */
-    public function maxDepth(?int $maxDepth): static
+    public function maxDepth(?int $maxDepth, bool $throw = true): static
     {
         $this->maxDepth = $maxDepth;
+        $this->throwWhenMaxDepthReached = $throw;
 
         return $this;
     }

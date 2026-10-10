@@ -240,7 +240,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
     /**
      * Tests...
      */
-    public function testBasicModelRetrieval()
+    public function testBasicModelRetrieval(): void
     {
         User::insert([['id' => 1, 'email' => 'taylorotwell@gmail.com'], ['id' => 2, 'email' => 'abigailotwell@gmail.com']]);
 
@@ -449,7 +449,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame(0, $retrieved);
     }
 
-    public function testBasicModelCollectionRetrieval()
+    public function testBasicModelCollectionRetrieval(): void
     {
         User::insert([['id' => 1, 'email' => 'taylorotwell@gmail.com'], ['id' => 2, 'email' => 'abigailotwell@gmail.com']]);
 
@@ -463,7 +463,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('abigailotwell@gmail.com', $models[1]->email);
     }
 
-    public function testPaginatedModelCollectionRetrieval()
+    public function testPaginatedModelCollectionRetrieval(): void
     {
         User::insert([
             ['id' => 1, 'email' => 'taylorotwell@gmail.com'],
@@ -512,7 +512,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame(1, $simplePaginator->first()->getKey());
     }
 
-    public function testPaginatedModelCollectionRetrievalUsingCallablePerPage()
+    public function testPaginatedModelCollectionRetrievalUsingCallablePerPage(): void
     {
         User::insert([
             ['id' => 1, 'email' => 'taylorotwell@gmail.com'],
@@ -577,7 +577,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('bar@gmail.com', $models[1]->email);
     }
 
-    public function testPaginatedModelCollectionRetrievalWhenNoElements()
+    public function testPaginatedModelCollectionRetrievalWhenNoElements(): void
     {
         Paginator::currentPageResolver(function () {
             return 1;
@@ -595,7 +595,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertCount(0, $models);
     }
 
-    public function testPaginatedModelCollectionRetrievalWhenNoElementsAndDefaultPerPage()
+    public function testPaginatedModelCollectionRetrievalWhenNoElementsAndDefaultPerPage(): void
     {
         $models = User::oldest('id')->paginate();
 
@@ -603,7 +603,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertInstanceOf(LengthAwarePaginator::class, $models);
     }
 
-    public function testCountForPaginationWithGrouping()
+    public function testCountForPaginationWithGrouping(): void
     {
         User::insert([
             ['id' => 1, 'email' => 'taylorotwell@gmail.com'],
@@ -617,7 +617,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertEquals(3, $query->getCountForPagination());
     }
 
-    public function testCountForPaginationWithGroupingAndSubSelects()
+    public function testCountForPaginationWithGroupingAndSubSelects(): void
     {
         User::insert([
             ['id' => 1, 'email' => 'taylorotwell@gmail.com'],
@@ -637,7 +637,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertEquals(4, $query->getCountForPagination());
     }
 
-    public function testCursorPaginatedModelCollectionRetrieval()
+    public function testCursorPaginatedModelCollectionRetrieval(): void
     {
         User::insert([
             ['id' => 1, 'email' => 'taylorotwell@gmail.com'],
@@ -672,7 +672,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertTrue($models->hasPages());
     }
 
-    public function testPreviousCursorPaginatedModelCollectionRetrieval()
+    public function testPreviousCursorPaginatedModelCollectionRetrieval(): void
     {
         User::insert([
             ['id' => 1, 'email' => 'taylorotwell@gmail.com'],
@@ -695,7 +695,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertTrue($models->hasPages());
     }
 
-    public function testCursorPaginatedModelCollectionRetrievalWhenNoElements()
+    public function testCursorPaginatedModelCollectionRetrievalWhenNoElements(): void
     {
         CursorPaginator::currentCursorResolver(function () {
             return null;
@@ -713,7 +713,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertCount(0, $models);
     }
 
-    public function testCursorPaginatedModelCollectionRetrievalWhenNoElementsAndDefaultPerPage()
+    public function testCursorPaginatedModelCollectionRetrievalWhenNoElementsAndDefaultPerPage(): void
     {
         $models = User::oldest('id')->cursorPaginate();
 
@@ -721,7 +721,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertInstanceOf(CursorPaginator::class, $models);
     }
 
-    public function testFirstOrNew()
+    public function testFirstOrNew(): void
     {
         $user1 = User::firstOrNew(
             ['name' => 'Dries Vints'],
@@ -731,7 +731,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('Nuno Maduro', $user1->name);
     }
 
-    public function testFirstOrCreate()
+    public function testFirstOrCreate(): void
     {
         $user1 = User::firstOrCreate(['email' => 'taylorotwell@gmail.com']);
 
@@ -764,7 +764,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('Nuno Maduro', $user4->name);
     }
 
-    public function testCreateOrFirst()
+    public function testCreateOrFirst(): void
     {
         $user1 = UniqueUser::createOrFirst(['email' => 'taylorotwell@gmail.com']);
 
@@ -797,7 +797,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('Nuno Maduro', $user4->name);
     }
 
-    public function testCreateOrFirstNonAttributeFieldViolation()
+    public function testCreateOrFirstNonAttributeFieldViolation(): void
     {
         // 'email' and 'screen_name' are unique and independent of each other.
         UniqueUser::create([
@@ -818,7 +818,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         );
     }
 
-    public function testCreateOrFirstWithinTransaction()
+    public function testCreateOrFirstWithinTransaction(): void
     {
         $user1 = UniqueUser::create(['email' => 'taylorotwell@gmail.com']);
 
@@ -834,7 +834,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         });
     }
 
-    public function testUpdateOrCreate()
+    public function testUpdateOrCreate(): void
     {
         $user1 = User::create(['email' => 'taylorotwell@gmail.com']);
 
@@ -856,7 +856,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertEquals(2, User::count());
     }
 
-    public function testUpdateOrCreateOnDifferentConnection()
+    public function testUpdateOrCreateOnDifferentConnection(): void
     {
         User::create(['email' => 'taylorotwell@gmail.com']);
 
@@ -874,7 +874,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertEquals(2, User::on('second_connection')->count());
     }
 
-    public function testCheckAndCreateMethodsOnMultiConnections()
+    public function testCheckAndCreateMethodsOnMultiConnections(): void
     {
         User::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
         User::on('second_connection')->find(
@@ -903,7 +903,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertEquals(2, User::on('second_connection')->count());
     }
 
-    public function testCreatingModelWithEmptyAttributes()
+    public function testCreatingModelWithEmptyAttributes(): void
     {
         $model = NonIncrementing::create([]);
 
@@ -911,7 +911,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertFalse($model->wasRecentlyCreated);
     }
 
-    public function testChunk()
+    public function testChunk(): void
     {
         User::insert([
             ['name' => 'First', 'email' => 'first@example.com'],
@@ -937,7 +937,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertEquals(2, $chunks);
     }
 
-    public function testChunksWithLimitsWhereLimitIsLessThanTotal()
+    public function testChunksWithLimitsWhereLimitIsLessThanTotal(): void
     {
         User::insert([
             ['name' => 'First', 'email' => 'first@example.com'],
@@ -962,7 +962,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertEquals(1, $chunks);
     }
 
-    public function testChunksWithLimitsWhereLimitIsMoreThanTotal()
+    public function testChunksWithLimitsWhereLimitIsMoreThanTotal(): void
     {
         User::insert([
             ['name' => 'First', 'email' => 'first@example.com'],
@@ -990,7 +990,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertEquals(2, $chunks);
     }
 
-    public function testChunksWithOffset()
+    public function testChunksWithOffset(): void
     {
         User::insert([
             ['name' => 'First', 'email' => 'first@example.com'],
@@ -1015,7 +1015,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertEquals(1, $chunks);
     }
 
-    public function testChunksWithOffsetWhereMoreThanTotal()
+    public function testChunksWithOffsetWhereMoreThanTotal(): void
     {
         User::insert([
             ['name' => 'First', 'email' => 'first@example.com'],
@@ -1032,7 +1032,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertEquals(0, $chunks);
     }
 
-    public function testChunksWithLimitsAndOffsets()
+    public function testChunksWithLimitsAndOffsets(): void
     {
         User::insert([
             ['name' => 'First', 'email' => 'first@example.com'],
@@ -1064,7 +1064,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertEquals(2, $chunks);
     }
 
-    public function testChunkByIdWithLimits()
+    public function testChunkByIdWithLimits(): void
     {
         User::insert([
             ['name' => 'First', 'email' => 'first@example.com'],
@@ -1089,7 +1089,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertEquals(1, $chunks);
     }
 
-    public function testChunkByIdWithOffsets()
+    public function testChunkByIdWithOffsets(): void
     {
         User::insert([
             ['name' => 'First', 'email' => 'first@example.com'],
@@ -1114,7 +1114,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertEquals(1, $chunks);
     }
 
-    public function testChunkByIdWithLimitsAndOffsets()
+    public function testChunkByIdWithLimitsAndOffsets(): void
     {
         User::insert([
             ['name' => 'First', 'email' => 'first@example.com'],
@@ -1216,7 +1216,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame(['Fifth', 'Fourth', 'Third'], $users->pluck('name')->all());
     }
 
-    public function testChunkByIdWithNonIncrementingKey()
+    public function testChunkByIdWithNonIncrementingKey(): void
     {
         NonIncrementingSecond::insert([
             ['name' => ' First'],
@@ -1237,7 +1237,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertEquals(2, $i);
     }
 
-    public function testEachByIdWithNonIncrementingKey()
+    public function testEachByIdWithNonIncrementingKey(): void
     {
         NonIncrementingSecond::insert([
             ['name' => ' First'],
@@ -1256,7 +1256,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame([[' First', 0], [' Second', 1], [' Third', 2]], $users);
     }
 
-    public function testPluck()
+    public function testPluck(): void
     {
         User::insert([
             ['id' => 1, 'email' => 'taylorotwell@gmail.com'],
@@ -1270,7 +1270,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertEquals([1 => 'taylorotwell@gmail.com', 2 => 'abigailotwell@gmail.com'], $keyed);
     }
 
-    public function testPluckWithJoin()
+    public function testPluckWithJoin(): void
     {
         $user1 = User::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
         $user2 = User::create(['id' => 2, 'email' => 'abigailotwell@gmail.com']);
@@ -1285,7 +1285,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertEquals(['abigailotwell@gmail.com' => 'First post', 'taylorotwell@gmail.com' => 'Second post'], $query->pluck('posts.name', 'users.email AS user_email')->all());
     }
 
-    public function testPluckWithColumnNameContainingASpace()
+    public function testPluckWithColumnNameContainingASpace(): void
     {
         UserWithSpaceInColumnName::insert([
             ['id' => 1, 'email address' => 'taylorotwell@gmail.com'],
@@ -1357,7 +1357,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame([1, 1], $join->modelKeys());
     }
 
-    public function testFindOrFail()
+    public function testFindOrFail(): void
     {
         User::insert([
             ['id' => 1, 'email' => 'taylorotwell@gmail.com'],
@@ -1417,7 +1417,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         User::findOrFail(new Collection([1, 1, 2, 3]));
     }
 
-    public function testOneToOneRelationship()
+    public function testOneToOneRelationship(): void
     {
         $user = User::create(['email' => 'taylorotwell@gmail.com']);
         $user->post()->create(['name' => 'First Post']);
@@ -1432,7 +1432,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('First Post', $post->name);
     }
 
-    public function testIssetLoadsInRelationshipIfItIsntLoadedAlready()
+    public function testIssetLoadsInRelationshipIfItIsntLoadedAlready(): void
     {
         $user = User::create(['email' => 'taylorotwell@gmail.com']);
         $user->post()->create(['name' => 'First Post']);
@@ -1440,7 +1440,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertTrue(isset($user->post->name));
     }
 
-    public function testOneToManyRelationship()
+    public function testOneToManyRelationship(): void
     {
         $user = User::create(['email' => 'taylorotwell@gmail.com']);
         $user->posts()->create(['name' => 'First Post']);
@@ -1459,7 +1459,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('taylorotwell@gmail.com', $post2->user->email);
     }
 
-    public function testBasicModelHydration()
+    public function testBasicModelHydration(): void
     {
         $user = new User(['email' => 'taylorotwell@gmail.com']);
         $user->setConnection('second_connection');
@@ -1478,7 +1478,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertCount(1, $models);
     }
 
-    public function testFirstOrNewOnHasOneRelationShip()
+    public function testFirstOrNewOnHasOneRelationShip(): void
     {
         $user1 = User::create(['email' => 'taylorotwell@gmail.com']);
         $post1 = $user1->post()->firstOrNew(['name' => 'First Post'], ['name' => 'New Post']);
@@ -1493,7 +1493,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame($post->id, $post2->id);
     }
 
-    public function testFirstOrCreateOnHasOneRelationShip()
+    public function testFirstOrCreateOnHasOneRelationShip(): void
     {
         $user1 = User::create(['email' => 'taylorotwell@gmail.com']);
         $post1 = $user1->post()->firstOrCreate(['name' => 'First Post'], ['name' => 'New Post']);
@@ -1508,7 +1508,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame($post->id, $post2->id);
     }
 
-    public function testHasOnSelfReferencingBelongsToManyRelationship()
+    public function testHasOnSelfReferencingBelongsToManyRelationship(): void
     {
         $user = User::create(['email' => 'taylorotwell@gmail.com']);
         $user->friends()->create(['email' => 'abigailotwell@gmail.com']);
@@ -1521,7 +1521,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('taylorotwell@gmail.com', $results->first()->email);
     }
 
-    public function testWhereHasOnSelfReferencingBelongsToManyRelationship()
+    public function testWhereHasOnSelfReferencingBelongsToManyRelationship(): void
     {
         $user = User::create(['email' => 'taylorotwell@gmail.com']);
         $user->friends()->create(['email' => 'abigailotwell@gmail.com']);
@@ -1534,7 +1534,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('taylorotwell@gmail.com', $results->first()->email);
     }
 
-    public function testWithWhereHasOnSelfReferencingBelongsToManyRelationship()
+    public function testWithWhereHasOnSelfReferencingBelongsToManyRelationship(): void
     {
         $user = User::create(['email' => 'taylorotwell@gmail.com']);
         $user->friends()->create(['email' => 'abigailotwell@gmail.com']);
@@ -1549,7 +1549,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame(['abigailotwell@gmail.com'], $results->first()->friends->pluck('email')->unique()->toArray());
     }
 
-    public function testHasOnNestedSelfReferencingBelongsToManyRelationship()
+    public function testHasOnNestedSelfReferencingBelongsToManyRelationship(): void
     {
         $user = User::create(['email' => 'taylorotwell@gmail.com']);
         $friend = $user->friends()->create(['email' => 'abigailotwell@gmail.com']);
@@ -1561,7 +1561,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('taylorotwell@gmail.com', $results->first()->email);
     }
 
-    public function testWhereHasOnNestedSelfReferencingBelongsToManyRelationship()
+    public function testWhereHasOnNestedSelfReferencingBelongsToManyRelationship(): void
     {
         $user = User::create(['email' => 'taylorotwell@gmail.com']);
         $friend = $user->friends()->create(['email' => 'abigailotwell@gmail.com']);
@@ -1575,7 +1575,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('taylorotwell@gmail.com', $results->first()->email);
     }
 
-    public function testWithWhereHasOnNestedSelfReferencingBelongsToManyRelationship()
+    public function testWithWhereHasOnNestedSelfReferencingBelongsToManyRelationship(): void
     {
         $user = User::create(['email' => 'taylorotwell@gmail.com']);
         $friend = $user->friends()->create(['email' => 'abigailotwell@gmail.com']);
@@ -1592,7 +1592,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame(['foo@gmail.com'], $results->first()->friends->pluck('friends')->flatten()->pluck('email')->unique()->toArray());
     }
 
-    public function testHasOnSelfReferencingBelongsToManyRelationshipWithWherePivot()
+    public function testHasOnSelfReferencingBelongsToManyRelationshipWithWherePivot(): void
     {
         $user = User::create(['email' => 'taylorotwell@gmail.com']);
         $user->friends()->create(['email' => 'abigailotwell@gmail.com']);
@@ -1603,7 +1603,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('taylorotwell@gmail.com', $results->first()->email);
     }
 
-    public function testHasOnNestedSelfReferencingBelongsToManyRelationshipWithWherePivot()
+    public function testHasOnNestedSelfReferencingBelongsToManyRelationshipWithWherePivot(): void
     {
         $user = User::create(['email' => 'taylorotwell@gmail.com']);
         $friend = $user->friends()->create(['email' => 'abigailotwell@gmail.com']);
@@ -1615,7 +1615,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('taylorotwell@gmail.com', $results->first()->email);
     }
 
-    public function testHasOnSelfReferencingBelongsToRelationship()
+    public function testHasOnSelfReferencingBelongsToRelationship(): void
     {
         $parentPost = Post::create(['name' => 'Parent Post', 'user_id' => 1]);
         Post::create(['name' => 'Child Post', 'parent_id' => $parentPost->id, 'user_id' => 2]);
@@ -1626,7 +1626,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('Child Post', $results->first()->name);
     }
 
-    public function testAggregatedValuesOfDatetimeField()
+    public function testAggregatedValuesOfDatetimeField(): void
     {
         User::insert([
             ['id' => 1, 'email' => 'test1@test.test', 'created_at' => '2016-08-10 09:21:00', 'updated_at' => CarbonImmutable::now()],
@@ -1637,7 +1637,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('2016-08-01 12:00:00', User::min('created_at'));
     }
 
-    public function testWhereHasOnSelfReferencingBelongsToRelationship()
+    public function testWhereHasOnSelfReferencingBelongsToRelationship(): void
     {
         $parentPost = Post::create(['name' => 'Parent Post', 'user_id' => 1]);
         Post::create(['name' => 'Child Post', 'parent_id' => $parentPost->id, 'user_id' => 2]);
@@ -1650,7 +1650,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('Child Post', $results->first()->name);
     }
 
-    public function testWithWhereHasOnSelfReferencingBelongsToRelationship()
+    public function testWithWhereHasOnSelfReferencingBelongsToRelationship(): void
     {
         $parentPost = Post::create(['name' => 'Parent Post', 'user_id' => 1]);
         Post::create(['name' => 'Child Post', 'parent_id' => $parentPost->id, 'user_id' => 2]);
@@ -1665,7 +1665,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('Parent Post', $results->first()->parentPost->name);
     }
 
-    public function testHasOnNestedSelfReferencingBelongsToRelationship()
+    public function testHasOnNestedSelfReferencingBelongsToRelationship(): void
     {
         $grandParentPost = Post::create(['name' => 'Grandparent Post', 'user_id' => 1]);
         $parentPost = Post::create(['name' => 'Parent Post', 'parent_id' => $grandParentPost->id, 'user_id' => 2]);
@@ -1677,7 +1677,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('Child Post', $results->first()->name);
     }
 
-    public function testWhereHasOnNestedSelfReferencingBelongsToRelationship()
+    public function testWhereHasOnNestedSelfReferencingBelongsToRelationship(): void
     {
         $grandParentPost = Post::create(['name' => 'Grandparent Post', 'user_id' => 1]);
         $parentPost = Post::create(['name' => 'Parent Post', 'parent_id' => $grandParentPost->id, 'user_id' => 2]);
@@ -1691,7 +1691,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('Child Post', $results->first()->name);
     }
 
-    public function testWithWhereHasOnNestedSelfReferencingBelongsToRelationship()
+    public function testWithWhereHasOnNestedSelfReferencingBelongsToRelationship(): void
     {
         $grandParentPost = Post::create(['name' => 'Grandparent Post', 'user_id' => 1]);
         $parentPost = Post::create(['name' => 'Parent Post', 'parent_id' => $grandParentPost->id, 'user_id' => 2]);
@@ -1709,7 +1709,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('Grandparent Post', $results->first()->parentPost->parentPost->name);
     }
 
-    public function testHasOnSelfReferencingHasManyRelationship()
+    public function testHasOnSelfReferencingHasManyRelationship(): void
     {
         $parentPost = Post::create(['name' => 'Parent Post', 'user_id' => 1]);
         Post::create(['name' => 'Child Post', 'parent_id' => $parentPost->id, 'user_id' => 2]);
@@ -1720,7 +1720,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('Parent Post', $results->first()->name);
     }
 
-    public function testWhereHasOnSelfReferencingHasManyRelationship()
+    public function testWhereHasOnSelfReferencingHasManyRelationship(): void
     {
         $parentPost = Post::create(['name' => 'Parent Post', 'user_id' => 1]);
         Post::create(['name' => 'Child Post', 'parent_id' => $parentPost->id, 'user_id' => 2]);
@@ -1733,7 +1733,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('Parent Post', $results->first()->name);
     }
 
-    public function testWithWhereHasOnSelfReferencingHasManyRelationship()
+    public function testWithWhereHasOnSelfReferencingHasManyRelationship(): void
     {
         $parentPost = Post::create(['name' => 'Parent Post', 'user_id' => 1]);
         Post::create(['name' => 'Child Post', 'parent_id' => $parentPost->id, 'user_id' => 2]);
@@ -1748,7 +1748,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame(['Child Post'], $results->first()->childPosts->pluck('name')->unique()->toArray());
     }
 
-    public function testHasOnNestedSelfReferencingHasManyRelationship()
+    public function testHasOnNestedSelfReferencingHasManyRelationship(): void
     {
         $grandParentPost = Post::create(['name' => 'Grandparent Post', 'user_id' => 1]);
         $parentPost = Post::create(['name' => 'Parent Post', 'parent_id' => $grandParentPost->id, 'user_id' => 2]);
@@ -1760,7 +1760,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('Grandparent Post', $results->first()->name);
     }
 
-    public function testWhereHasOnNestedSelfReferencingHasManyRelationship()
+    public function testWhereHasOnNestedSelfReferencingHasManyRelationship(): void
     {
         $grandParentPost = Post::create(['name' => 'Grandparent Post', 'user_id' => 1]);
         $parentPost = Post::create(['name' => 'Parent Post', 'parent_id' => $grandParentPost->id, 'user_id' => 2]);
@@ -1774,7 +1774,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('Grandparent Post', $results->first()->name);
     }
 
-    public function testWithWhereHasOnNestedSelfReferencingHasManyRelationship()
+    public function testWithWhereHasOnNestedSelfReferencingHasManyRelationship(): void
     {
         $grandParentPost = Post::create(['name' => 'Grandparent Post', 'user_id' => 1]);
         $parentPost = Post::create(['name' => 'Parent Post', 'parent_id' => $grandParentPost->id, 'user_id' => 2]);
@@ -1791,7 +1791,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame(['Child Post'], $results->first()->childPosts->pluck('childPosts')->flatten()->pluck('name')->unique()->toArray());
     }
 
-    public function testHasWithNonWhereBindings()
+    public function testHasWithNonWhereBindings(): void
     {
         $user = User::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
 
@@ -1806,7 +1806,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertEquals($questionMarksCount, $bindingsCount);
     }
 
-    public function testHasOnMorphToRelationship()
+    public function testHasOnMorphToRelationship(): void
     {
         $post = Post::create(['name' => 'Morph Post', 'user_id' => 1]);
         (new Photo)->imageable()->associate($post)->fill(['name' => 'Morph Photo'])->save();
@@ -1816,7 +1816,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertEquals(1, $photos->count());
     }
 
-    public function testBelongsToManyRelationshipModelsAreProperlyHydratedWithSoleQuery()
+    public function testBelongsToManyRelationshipModelsAreProperlyHydratedWithSoleQuery(): void
     {
         $user = UserWithCustomFriendPivot::create(['email' => 'taylorotwell@gmail.com']);
         $user->friends()->create(['email' => 'abigailotwell@gmail.com']);
@@ -1830,14 +1830,14 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertInstanceOf(FriendPivot::class, $soleFriend->pivot);
     }
 
-    public function testBelongsToManyRelationshipMissingModelExceptionWithSoleQueryWorks()
+    public function testBelongsToManyRelationshipMissingModelExceptionWithSoleQueryWorks(): void
     {
         $this->expectException(ModelNotFoundException::class);
         $user = UserWithCustomFriendPivot::create(['email' => 'taylorotwell@gmail.com']);
         $user->friends()->where('email', 'abigailotwell@gmail.com')->sole();
     }
 
-    public function testBelongsToManyRelationshipModelsAreProperlyHydratedOverChunkedRequest()
+    public function testBelongsToManyRelationshipModelsAreProperlyHydratedOverChunkedRequest(): void
     {
         $user = User::create(['email' => 'taylorotwell@gmail.com']);
         $friend = $user->friends()->create(['email' => 'abigailotwell@gmail.com']);
@@ -1850,7 +1850,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         });
     }
 
-    public function testBelongsToManyRelationshipModelsAreProperlyHydratedOverEachRequest()
+    public function testBelongsToManyRelationshipModelsAreProperlyHydratedOverEachRequest(): void
     {
         $user = User::create(['email' => 'taylorotwell@gmail.com']);
         $friend = $user->friends()->create(['email' => 'abigailotwell@gmail.com']);
@@ -1862,7 +1862,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         });
     }
 
-    public function testBelongsToManyRelationshipModelsAreProperlyHydratedOverCursorRequest()
+    public function testBelongsToManyRelationshipModelsAreProperlyHydratedOverCursorRequest(): void
     {
         $user = User::create(['email' => 'taylorotwell@gmail.com']);
         $friend = $user->friends()->create(['email' => 'abigailotwell@gmail.com']);
@@ -1874,7 +1874,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         }
     }
 
-    public function testWhereAttachedTo()
+    public function testWhereAttachedTo(): void
     {
         User::insert([
             ['email' => 'user1@gmail.com'],
@@ -1906,7 +1906,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertTrue($achievedByUser1or2->contains($achievement3));
     }
 
-    public function testBasicHasManyEagerLoading()
+    public function testBasicHasManyEagerLoading(): void
     {
         $user = User::create(['email' => 'taylorotwell@gmail.com']);
         $user->posts()->create(['name' => 'First Post']);
@@ -1918,7 +1918,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('taylorotwell@gmail.com', $post->first()->user->email);
     }
 
-    public function testBasicNestedSelfReferencingHasManyEagerLoading()
+    public function testBasicNestedSelfReferencingHasManyEagerLoading(): void
     {
         $user = User::create(['email' => 'taylorotwell@gmail.com']);
         $post = $user->posts()->create(['name' => 'First Post']);
@@ -1938,7 +1938,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('taylorotwell@gmail.com', $post->first()->parentPost->user->email);
     }
 
-    public function testBasicMorphManyRelationship()
+    public function testBasicMorphManyRelationship(): void
     {
         $user = User::create(['email' => 'taylorotwell@gmail.com']);
         $user->photos()->create(['name' => 'Avatar 1']);
@@ -1968,7 +1968,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('First Post', $photos[3]->imageable->name);
     }
 
-    public function testMorphMapIsUsedForCreatingAndFetchingThroughRelation()
+    public function testMorphMapIsUsedForCreatingAndFetchingThroughRelation(): void
     {
         Relation::morphMap([
             'user' => User::class,
@@ -1999,7 +1999,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('post', $post->photos[1]->imageable_type);
     }
 
-    public function testMorphMapIsUsedWhenFetchingParent()
+    public function testMorphMapIsUsedWhenFetchingParent(): void
     {
         Relation::morphMap([
             'user' => User::class,
@@ -2014,7 +2014,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertInstanceOf(User::class, $photo->imageable);
     }
 
-    public function testMorphMapIsMergedByDefault()
+    public function testMorphMapIsMergedByDefault(): void
     {
         $map1 = [
             'user' => User::class,
@@ -2029,7 +2029,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertEquals(array_merge($map1, $map2), Relation::morphMap());
     }
 
-    public function testMorphMapOverwritesCurrentMap()
+    public function testMorphMapOverwritesCurrentMap(): void
     {
         $map1 = [
             'user' => User::class,
@@ -2044,14 +2044,14 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertEquals($map2, Relation::morphMap());
     }
 
-    public function testEmptyMorphToRelationship()
+    public function testEmptyMorphToRelationship(): void
     {
         $photo = new Photo;
 
         $this->assertNull($photo->imageable);
     }
 
-    public function testSaveOrFail()
+    public function testSaveOrFail(): void
     {
         $date = '1970-01-01';
         $post = new Post([
@@ -2062,7 +2062,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertEquals(1, Post::count());
     }
 
-    public function testSavingJSONFields()
+    public function testSavingJSONFields(): void
     {
         $model = WithJSON::create(['json' => ['x' => 0]]);
         $this->assertEquals(['x' => 0], $model->json);
@@ -2095,7 +2095,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $post->saveOrFail();
     }
 
-    public function testMultiInsertsWithDifferentValues()
+    public function testMultiInsertsWithDifferentValues(): void
     {
         $date = '1970-01-01';
         $result = Post::insert([
@@ -2107,7 +2107,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertEquals(2, Post::count());
     }
 
-    public function testMultiInsertsWithSameValues()
+    public function testMultiInsertsWithSameValues(): void
     {
         $date = '1970-01-01';
         $result = Post::insert([
@@ -2119,7 +2119,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertEquals(2, Post::count());
     }
 
-    public function testNestedTransactions()
+    public function testNestedTransactions(): void
     {
         $user = User::create(['email' => 'taylor@laravel.com']);
         $this->connection()->transaction(function () use ($user) {
@@ -2137,7 +2137,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         });
     }
 
-    public function testNestedTransactionsUsingSaveOrFailWillSucceed()
+    public function testNestedTransactionsUsingSaveOrFailWillSucceed(): void
     {
         $user = User::create(['email' => 'taylor@laravel.com']);
         $this->connection()->transaction(function () use ($user) {
@@ -2154,7 +2154,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         });
     }
 
-    public function testNestedTransactionsUsingSaveOrFailWillFails()
+    public function testNestedTransactionsUsingSaveOrFailWillFails(): void
     {
         $user = User::create(['email' => 'taylor@laravel.com']);
         $this->connection()->transaction(function () use ($user) {
@@ -2172,7 +2172,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         });
     }
 
-    public function testToArrayIncludesDefaultFormattedTimestamps()
+    public function testToArrayIncludesDefaultFormattedTimestamps(): void
     {
         $model = new User;
 
@@ -2187,7 +2187,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('2012-12-05T00:00:00.000000Z', $array['updated_at']);
     }
 
-    public function testToArrayIncludesCustomFormattedTimestamps()
+    public function testToArrayIncludesCustomFormattedTimestamps(): void
     {
         $model = new UserWithCustomDateSerialization;
 
@@ -2202,7 +2202,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('05-12-12', $array['updated_at']);
     }
 
-    public function testIncrementingPrimaryKeysAreCastToIntegersByDefault()
+    public function testIncrementingPrimaryKeysAreCastToIntegersByDefault(): void
     {
         User::create(['email' => 'taylorotwell@gmail.com']);
 
@@ -2210,7 +2210,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertIsInt($user->id);
     }
 
-    public function testDefaultIncrementingPrimaryKeyIntegerCastCanBeOverwritten()
+    public function testDefaultIncrementingPrimaryKeyIntegerCastCanBeOverwritten(): void
     {
         UserWithStringCastId::create(['email' => 'taylorotwell@gmail.com']);
 
@@ -2218,7 +2218,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertIsString($user->id);
     }
 
-    public function testRelationsArePreloadedInGlobalScope()
+    public function testRelationsArePreloadedInGlobalScope(): void
     {
         $user = UserWithGlobalScope::create(['email' => 'taylorotwell@gmail.com']);
         $user->posts()->create(['name' => 'My Post']);
@@ -2228,14 +2228,14 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertCount(1, $result->getRelations());
     }
 
-    public function testModelIgnoredByGlobalScopeCanBeRefreshed()
+    public function testModelIgnoredByGlobalScopeCanBeRefreshed(): void
     {
         $user = UserWithOmittingGlobalScope::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
 
         $this->assertNotNull($user->fresh());
     }
 
-    public function testGlobalScopeCanBeRemovedByOtherGlobalScope()
+    public function testGlobalScopeCanBeRemovedByOtherGlobalScope(): void
     {
         $user = UserWithGlobalScopeRemovingOtherScope::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
         $user->delete();
@@ -2243,7 +2243,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertNotNull(UserWithGlobalScopeRemovingOtherScope::find($user->id));
     }
 
-    public function testForPageBeforeIdCorrectlyPaginates()
+    public function testForPageBeforeIdCorrectlyPaginates(): void
     {
         User::insert([
             ['id' => 1, 'email' => 'taylorotwell@gmail.com'],
@@ -2259,7 +2259,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertEquals(1, $results->first()->id);
     }
 
-    public function testForPageAfterIdCorrectlyPaginates()
+    public function testForPageAfterIdCorrectlyPaginates(): void
     {
         User::insert([
             ['id' => 1, 'email' => 'taylorotwell@gmail.com'],
@@ -2275,7 +2275,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertEquals(2, $results->first()->id);
     }
 
-    public function testMorphToRelationsAcrossDatabaseConnections()
+    public function testMorphToRelationsAcrossDatabaseConnections(): void
     {
         $item = null;
 
@@ -2290,7 +2290,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertInstanceOf(Item::class, $item);
     }
 
-    public function testEagerLoadedMorphToRelationsOnAnotherDatabaseConnection()
+    public function testEagerLoadedMorphToRelationsOnAnotherDatabaseConnection(): void
     {
         Post::create(['id' => 1, 'name' => 'Default Connection Post', 'user_id' => 1]);
         Photo::create(['id' => 1, 'imageable_type' => Post::class, 'imageable_id' => 1, 'name' => 'Photo']);
@@ -2307,7 +2307,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('Second Connection Post', $secondConnectionPost->name);
     }
 
-    public function testBelongsToManyCustomPivot()
+    public function testBelongsToManyCustomPivot(): void
     {
         $john = UserWithCustomFriendPivot::create(['id' => 1, 'name' => 'John Doe', 'email' => 'johndoe@example.com']);
         $jane = UserWithCustomFriendPivot::create(['id' => 2, 'name' => 'Jane Doe', 'email' => 'janedoe@example.com']);
@@ -2331,7 +2331,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('Jule Doe', $johnWithFriends->friends->find(4)->pivot->friend->name);
     }
 
-    public function testIsAfterRetrievingTheSameModel()
+    public function testIsAfterRetrievingTheSameModel(): void
     {
         $saved = User::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
         $retrieved = User::find(1);
@@ -2339,7 +2339,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertTrue($saved->is($retrieved));
     }
 
-    public function testFreshMethodOnModel()
+    public function testFreshMethodOnModel(): void
     {
         $now = CarbonImmutable::now()->startOfSecond();
         $nowSerialized = $now->toJSON();
@@ -2414,7 +2414,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertNull($freshNotStoredUser);
     }
 
-    public function testFreshMethodOnCollection()
+    public function testFreshMethodOnCollection(): void
     {
         User::insert([['id' => 1, 'email' => 'taylorotwell@gmail.com'], ['id' => 2, 'email' => 'taylorotwell@gmail.com']]);
 
@@ -2435,7 +2435,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('dev@mathieutu.ovh', $refreshedUsers[1]->email);
     }
 
-    public function testTimestampsUsingDefaultDateFormat()
+    public function testTimestampsUsingDefaultDateFormat(): void
     {
         $model = new User;
         $model->setDateFormat('Y-m-d H:i:s'); // Default MySQL/PostgreSQL/SQLite date format
@@ -2446,7 +2446,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('2017-11-14 08:23:19', $model->fromDateTime($model->getAttribute('created_at')));
     }
 
-    public function testTimestampsUsingDefaultSqlServerDateFormat()
+    public function testTimestampsUsingDefaultSqlServerDateFormat(): void
     {
         $model = new User;
         $model->setDateFormat('Y-m-d H:i:s.v'); // Default SQL Server date format
@@ -2459,7 +2459,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('2017-11-14 08:23:19.734', $model->fromDateTime($model->getAttribute('updated_at')));
     }
 
-    public function testTimestampsUsingCustomDateFormat()
+    public function testTimestampsUsingCustomDateFormat(): void
     {
         // Simulating using custom precisions with timestamps(4)
         $model = new User;
@@ -2474,7 +2474,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('2017-11-14 08:23:19.734800', $model->fromDateTime($model->getAttribute('updated_at')));
     }
 
-    public function testTimestampsUsingOldSqlServerDateFormat()
+    public function testTimestampsUsingOldSqlServerDateFormat(): void
     {
         $model = new User;
         $model->setDateFormat('Y-m-d H:i:s.000'); // Old SQL Server date format
@@ -2538,7 +2538,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('2020-09-11 00:00:00.000000', $date->format('Y-m-d H:i:s.u'), 'the date should respect the whole format');
     }
 
-    public function testUpdatingChildModelTouchesParent()
+    public function testUpdatingChildModelTouchesParent(): void
     {
         $before = CarbonImmutable::now();
 
@@ -2556,7 +2556,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertTrue($future->isSameDay($user->fresh()->updated_at), 'It is not touching models related timestamps.');
     }
 
-    public function testMultiLevelTouchingWorks()
+    public function testMultiLevelTouchingWorks(): void
     {
         $before = CarbonImmutable::now();
 
@@ -2574,7 +2574,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertTrue($future->isSameDay($user->fresh()->updated_at), 'It is not touching models related timestamps.');
     }
 
-    public function testDeletingChildModelTouchesParentTimestamps()
+    public function testDeletingChildModelTouchesParentTimestamps(): void
     {
         $before = CarbonImmutable::now();
 
@@ -2591,7 +2591,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertTrue($future->isSameDay($user->fresh()->updated_at), 'It is not touching models related timestamps.');
     }
 
-    public function testTouchingChildModelUpdatesParentsTimestamps()
+    public function testTouchingChildModelUpdatesParentsTimestamps(): void
     {
         $before = CarbonImmutable::now();
 
@@ -2609,7 +2609,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertTrue($future->isSameDay($user->fresh()->updated_at), 'It is not touching models related timestamps.');
     }
 
-    public function testTouchingChildModelRespectsParentNoTouching()
+    public function testTouchingChildModelRespectsParentNoTouching(): void
     {
         $before = CarbonImmutable::now();
 
@@ -2636,7 +2636,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         );
     }
 
-    public function testUpdatingChildPostRespectsNoTouchingDefinition()
+    public function testUpdatingChildPostRespectsNoTouchingDefinition(): void
     {
         $before = CarbonImmutable::now();
 
@@ -2656,7 +2656,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertTrue($before->isSameDay($user->fresh()->updated_at), 'It is touching models relationships when it should be disabled.');
     }
 
-    public function testUpdatingModelInTheDisabledScopeTouchesItsOwnTimestamps()
+    public function testUpdatingModelInTheDisabledScopeTouchesItsOwnTimestamps(): void
     {
         $before = CarbonImmutable::now();
 
@@ -2676,7 +2676,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertTrue($before->isSameDay($user->fresh()->updated_at), 'It is touching models when it should be disabled.');
     }
 
-    public function testDeletingChildModelRespectsTheNoTouchingRule()
+    public function testDeletingChildModelRespectsTheNoTouchingRule(): void
     {
         $before = CarbonImmutable::now();
 
@@ -2695,7 +2695,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertTrue($before->isSameDay($user->fresh()->updated_at), 'It is touching models when it should be disabled.');
     }
 
-    public function testRespectedMultiLevelTouchingChain()
+    public function testRespectedMultiLevelTouchingChain(): void
     {
         $before = CarbonImmutable::now();
 
@@ -2715,7 +2715,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertTrue($before->isSameDay($user->fresh()->updated_at), 'It is touching models when it should be disabled.');
     }
 
-    public function testTouchesGreatParentEvenWhenParentIsInNoTouchScope()
+    public function testTouchesGreatParentEvenWhenParentIsInNoTouchScope(): void
     {
         $before = CarbonImmutable::now();
 
@@ -2735,7 +2735,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertTrue($future->isSameDay($user->fresh()->updated_at), 'It is touching models when it should be disabled.');
     }
 
-    public function testCanNestCallsOfNoTouching()
+    public function testCanNestCallsOfNoTouching(): void
     {
         $before = CarbonImmutable::now();
 
@@ -2757,7 +2757,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertTrue($before->isSameDay($user->fresh()->updated_at), 'It is touching models when it should be disabled.');
     }
 
-    public function testCanPassArrayOfModelsToIgnore()
+    public function testCanPassArrayOfModelsToIgnore(): void
     {
         $before = CarbonImmutable::now();
 
@@ -2777,7 +2777,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertTrue($before->isSameDay($user->fresh()->updated_at), 'It is touching models when it should be disabled.');
     }
 
-    public function testWhenBaseModelIsIgnoredAllChildModelsAreIgnored()
+    public function testWhenBaseModelIsIgnoredAllChildModelsAreIgnored(): void
     {
         $this->assertFalse(Model::isIgnoringTouch());
         $this->assertFalse(IgnoringTouchUser::isIgnoringTouch());
@@ -2791,7 +2791,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertFalse(Model::isIgnoringTouch());
     }
 
-    public function testChildModelsAreIgnored()
+    public function testChildModelsAreIgnored(): void
     {
         $this->assertFalse(Model::isIgnoringTouch());
         $this->assertFalse(IgnoringTouchUser::isIgnoringTouch());
@@ -2808,7 +2808,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertFalse(Model::isIgnoringTouch());
     }
 
-    public function testPivotsCanBeRefreshed()
+    public function testPivotsCanBeRefreshed(): void
     {
         FriendLevel::create(['id' => 1, 'level' => 'acquaintance']);
         FriendLevel::create(['id' => 2, 'level' => 'friend']);
@@ -2830,7 +2830,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertEquals(2, $pivot->friend_level_id);
     }
 
-    public function testMorphPivotsCanBeRefreshed()
+    public function testMorphPivotsCanBeRefreshed(): void
     {
         $post = Post::create(['name' => 'MorphToMany Post', 'user_id' => 1]);
         $post->tags()->create(['id' => 1, 'name' => 'News']);
@@ -2855,7 +2855,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('primary', $pivot->taxonomy);
     }
 
-    public function testTouchingChaperonedChildModelUpdatesParentTimestamps()
+    public function testTouchingChaperonedChildModelUpdatesParentTimestamps(): void
     {
         $before = CarbonImmutable::now();
 
@@ -2873,7 +2873,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertTrue($future->isSameDay($one->fresh()->updated_at), 'It is not touching chaperoned models related timestamps.');
     }
 
-    public function testTouchingBiDirectionalChaperonedModelUpdatesAllRelatedTimestamps()
+    public function testTouchingBiDirectionalChaperonedModelUpdatesAllRelatedTimestamps(): void
     {
         $before = CarbonImmutable::now();
 
@@ -2956,7 +2956,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         });
     }
 
-    public function testCanFillAndInsertWithUniqueStringIds()
+    public function testCanFillAndInsertWithUniqueStringIds(): void
     {
         Str::createUuidsUsingSequence([
             '00000000-0000-7000-0000-000000000000',
@@ -3003,7 +3003,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('22222222-0000-7000-0000-000000000000', $chris->uuid);
     }
 
-    public function testFillAndInsertOrIgnore()
+    public function testFillAndInsertOrIgnore(): void
     {
         Str::createUuidsUsingSequence([
             '00000000-0000-7000-0000-000000000000',
@@ -3034,7 +3034,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         );
     }
 
-    public function testFillAndInsertGetId()
+    public function testFillAndInsertGetId(): void
     {
         Str::createUuidsUsingSequence([
             '00000000-0000-7000-0000-000000000000',

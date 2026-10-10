@@ -14,8 +14,6 @@ use Hypervel\Tests\Permission\Fixtures\Models\Role;
 
 class HasRolesWithCustomModelsTest extends HasRolesTest
 {
-    protected int $resetDatabaseQuery = 0;
-
     protected function setUpInCoroutine(): void
     {
         $this->setUpCustomModels();
@@ -78,26 +76,7 @@ class HasRolesWithCustomModelsTest extends HasRolesTest
         $this->assertSame(0, ConstructionCountingPermission::$constructionCount);
     }
 
-    public function testFindOrCreateRestoresSoftDeletedRole(): void
-    {
-        $role = Role::create(['name' => 'restorable-role']);
-        $roleId = $role->getKey();
-        $role->givePermissionTo($this->testUserPermission);
-        $this->testUser->assignRole($role);
-
-        $role->delete();
-
-        $restoredRole = Role::findOrCreate('restorable-role');
-
-        $this->assertSame($roleId, $restoredRole->getKey());
-        $this->assertFalse($restoredRole->trashed());
-        $this->assertNull($restoredRole->deleted_at);
-        $this->assertSame(1, Role::withTrashed()->where('name', 'restorable-role')->count());
-        $this->assertTrue($restoredRole->hasPermissionTo($this->testUserPermission));
-        $this->assertTrue($this->testUser->fresh()->hasRole($restoredRole));
-    }
-
-    public function testItDoesNotDetachPermissionsWhenSoftDeleting(): void
+    public function testItDoesntDetachPermissionsWhenSoftDeleting(): void
     {
         $this->testUserRole->givePermissionTo($this->testUserPermission);
 
@@ -105,7 +84,9 @@ class HasRolesWithCustomModelsTest extends HasRolesTest
         $this->testUserRole->delete();
         DB::disableQueryLog();
 
-        $this->assertCount(1 + $this->resetDatabaseQuery, DB::getQueryLog());
+        // A database cache store invalidates the role catalog when deleting and again when deleted
+        // (lock, delete and release each).
+        $this->assertCount($this->usesDatabaseCacheStore() ? 7 : 1, DB::getQueryLog());
 
         $role = Role::onlyTrashed()->find($this->testUserRole->getKey());
 
@@ -117,7 +98,7 @@ class HasRolesWithCustomModelsTest extends HasRolesTest
         );
     }
 
-    public function testItDoesNotDetachUsersWhenSoftDeleting(): void
+    public function testItDoesntDetachUsersWhenSoftDeleting(): void
     {
         $this->testUser->assignRole($this->testUserRole);
         $registrar = app(PermissionRegistrar::class);
@@ -127,7 +108,9 @@ class HasRolesWithCustomModelsTest extends HasRolesTest
         $this->testUserRole->delete();
         DB::disableQueryLog();
 
-        $this->assertCount(1 + $this->resetDatabaseQuery, DB::getQueryLog());
+        // A database cache store invalidates the role catalog when deleting and again when deleted
+        // (lock, delete and release each).
+        $this->assertCount($this->usesDatabaseCacheStore() ? 7 : 1, DB::getQueryLog());
 
         $role = Role::onlyTrashed()->find($this->testUserRole->getKey());
 
@@ -152,7 +135,9 @@ class HasRolesWithCustomModelsTest extends HasRolesTest
         $this->testUserRole->forceDelete();
         DB::disableQueryLog();
 
-        $this->assertCount(3 + $this->resetDatabaseQuery, DB::getQueryLog());
+        // A database cache store invalidates the role catalog once for the delete transaction
+        // (lock, delete and release) and writes a new model assignment token.
+        $this->assertCount($this->usesDatabaseCacheStore() ? 7 : 3, DB::getQueryLog());
 
         $this->assertNull(Role::withTrashed()->find($roleId));
         $this->assertSame(
@@ -170,7 +155,26 @@ class HasRolesWithCustomModelsTest extends HasRolesTest
         $this->assertNotSame($token, $registrar->modelAssignmentCacheToken());
     }
 
-    public function testItTouchesWhenAssigningNewRoles(): void
+    public function testFindOrCreateRestoresSoftDeletedRole(): void
+    {
+        $role = Role::create(['name' => 'restorable-role']);
+        $roleId = $role->getKey();
+        $role->givePermissionTo($this->testUserPermission);
+        $this->testUser->assignRole($role);
+
+        $role->delete();
+
+        $restoredRole = Role::findOrCreate('restorable-role');
+
+        $this->assertSame($roleId, $restoredRole->getKey());
+        $this->assertFalse($restoredRole->trashed());
+        $this->assertNull($restoredRole->deleted_at);
+        $this->assertSame(1, Role::withTrashed()->where('name', 'restorable-role')->count());
+        $this->assertTrue($restoredRole->hasPermissionTo($this->testUserPermission));
+        $this->assertTrue($this->testUser->fresh()->hasRole($restoredRole));
+    }
+
+    public function testItShouldTouchWhenAssigningNewRoles(): void
     {
         CarbonImmutable::setTestNow('2021-07-19 10:13:14');
 

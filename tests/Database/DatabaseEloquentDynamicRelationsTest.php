@@ -14,7 +14,7 @@ use Hypervel\Tests\Database\DynamicRelationModel2 as Related;
 
 class DatabaseEloquentDynamicRelationsTest extends TestCase
 {
-    public function testBasicDynamicRelations()
+    public function testBasicDynamicRelations(): void
     {
         DynamicRelationModel::resolveRelationUsing('dynamicRel_2', fn () => new FakeHasManyRel);
         $model = new DynamicRelationModel;
@@ -22,7 +22,7 @@ class DatabaseEloquentDynamicRelationsTest extends TestCase
         $this->assertEquals(['many' => 'related'], $model->getRelationValue('dynamicRel_2'));
     }
 
-    public function testBasicDynamicRelationsOverride()
+    public function testBasicDynamicRelationsOverride(): void
     {
         // Dynamic Relations can override each other.
         DynamicRelationModel::resolveRelationUsing('dynamicRelConflict', fn ($m) => $m->hasOne(Related::class));
@@ -35,7 +35,7 @@ class DatabaseEloquentDynamicRelationsTest extends TestCase
         $this->assertTrue($model->isRelation('dynamicRelConflict'));
     }
 
-    public function testInharitedDynamicRelations()
+    public function testInharitedDynamicRelations(): void
     {
         DynamicRelationModel::resolveRelationUsing('inheritedDynamicRel', fn () => new FakeHasManyRel);
         $model = new DynamicRelationModel;
@@ -48,7 +48,7 @@ class DatabaseEloquentDynamicRelationsTest extends TestCase
         $this->assertEquals($model->inheritedDynamicRel, $model4->inheritedDynamicRel);
     }
 
-    public function testInheritedDynamicRelationsOverride()
+    public function testInheritedDynamicRelationsOverride(): void
     {
         // Inherited Dynamic Relations can be overridden
         DynamicRelationModel::resolveRelationUsing('dynamicRelConflict', fn ($m) => $m->hasOne(Related::class));
@@ -61,7 +61,7 @@ class DatabaseEloquentDynamicRelationsTest extends TestCase
         $this->assertInstanceOf(HasMany::class, $model4->dynamicRelConflict());
     }
 
-    public function testDynamicRelationsCanNotHaveTheSameNameAsNormalRelations()
+    public function testDynamicRelationsCanNotHaveTheSameNameAsNormalRelations(): void
     {
         $model = new DynamicRelationModel;
 
@@ -73,7 +73,7 @@ class DatabaseEloquentDynamicRelationsTest extends TestCase
         $this->assertTrue($model->isRelation('hardCodedRelation'));
     }
 
-    public function testRelationResolvers()
+    public function testRelationResolvers(): void
     {
         $model1 = new DynamicRelationModel;
         $model3 = new DynamicRelationModel3;

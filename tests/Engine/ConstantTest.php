@@ -9,7 +9,7 @@ use Hypervel\Tests\TestCase;
 
 class ConstantTest extends TestCase
 {
-    public function testEngine()
+    public function testEngine(): void
     {
         $this->assertSame('Swoole', Constant::ENGINE);
     }

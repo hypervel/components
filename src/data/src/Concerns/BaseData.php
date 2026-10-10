@@ -12,6 +12,7 @@ use Hypervel\Data\Contracts\BaseData as BaseDataContract;
 use Hypervel\Data\CursorPaginatedDataCollection;
 use Hypervel\Data\DataCollection;
 use Hypervel\Data\PaginatedDataCollection;
+use Hypervel\Data\Support\Creation\CreationContext;
 use Hypervel\Data\Support\Creation\CreationContextFactory;
 use Hypervel\Data\Support\Creation\DataCreator;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
@@ -67,7 +68,7 @@ trait BaseData
      * @template TCollectValue of BaseDataContract
      * @template TModelValue of Model
      *
-     * @param AbstractCursorPaginator<TKey, TValue>|AbstractPaginator<TKey, TValue>|array<TKey, TValue>|Collection<TKey, TValue>|CursorPaginatedDataCollection<TKey, TCollectValue>|CursorPaginatorContract<TKey, TValue>|DataCollection<TKey, TCollectValue>|EloquentCollection<TKey, TModelValue>|Enumerable<TKey, TValue>|LazyCollection<TKey, TValue>|LengthAwarePaginatorContract<TKey, TValue>|PaginatedDataCollection<TKey, TCollectValue>|PaginatorContract<TKey, TValue>|Traversable<TKey, TValue> $items
+     * @param null|AbstractCursorPaginator<TKey, TValue>|AbstractPaginator<TKey, TValue>|array<TKey, TValue>|Collection<TKey, TValue>|CursorPaginatedDataCollection<TKey, TCollectValue>|CursorPaginatorContract<TKey, TValue>|DataCollection<TKey, TCollectValue>|EloquentCollection<TKey, TModelValue>|Enumerable<TKey, TValue>|LazyCollection<TKey, TValue>|LengthAwarePaginatorContract<TKey, TValue>|PaginatedDataCollection<TKey, TCollectValue>|PaginatorContract<TKey, TValue>|Traversable<TKey, TValue> $items null collects an empty `$into` target
      * @param null|'array'|class-string $into
      * @return (
      *     $into is null
@@ -135,19 +136,17 @@ trait BaseData
     }
 
     // REMOVED: Deprecated collection() and Enumerable forwarding; use collect() and toCollection().
-    // REMOVED: Factories cannot inherit mutable in-flight creation contexts; every call starts fresh.
-
     /**
-     * Create a fresh data construction factory.
+     * Create a fresh data construction factory, optionally with another creation's options.
      *
      * @return CreationContextFactory<static>
      */
-    public static function factory(): CreationContextFactory
+    public static function factory(?CreationContext $creationContext = null): CreationContextFactory
     {
         /** @var CreationContextFactory<static> $factory */
         $factory = Container::getInstance()
             ->make(DataCreator::class)
-            ->factory(static::class);
+            ->factory(static::class, $creationContext);
 
         return $factory;
     }
@@ -160,7 +159,18 @@ trait BaseData
         return [];
     }
 
-    // REMOVED: Configurable pipelines and prepareForPipeline(); use named factories and factory hooks.
+    /**
+     * Prepare one normalized payload before its properties are read.
+     *
+     * @param array<array-key, mixed> $properties
+     * @return array<array-key, mixed>
+     */
+    public static function prepareForPipeline(array $properties): array
+    {
+        return $properties;
+    }
+
+    // REMOVED: Configurable pipelines; use named factories, prepareForPipeline(), and factory hooks.
 
     /**
      * Create a data object from the current request.

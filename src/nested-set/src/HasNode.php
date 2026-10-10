@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\NestedSet;
 
+use Closure;
 use DateTimeInterface;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
+use Hypervel\Database\Eloquent\HasBuilder;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Database\Eloquent\Relations\BelongsTo;
 use Hypervel\Database\Eloquent\Relations\HasMany;
 use Hypervel\Database\Query\Builder as BaseQueryBuilder;
@@ -22,14 +25,15 @@ use Stringable;
 use function Hypervel\Support\enum_value;
 
 /**
- * @template TModel of Model
- *
  * @property null|int|string $parent_id
  * @property ?int $depth
  * @property ?static $parent
  */
 trait HasNode
 {
+    /** @use HasBuilder<QueryBuilder<static>> */
+    use HasBuilder;
+
     /**
      * Pending operations.
      */
@@ -41,12 +45,14 @@ trait HasNode
     protected bool $moved = false;
 
     /**
-     * Whether the node is being deleted by an evented descendant cascade.
+     * Whether the node is being deleted or restored by an ancestor's evented cascade.
      */
-    protected bool $deletingAsDescendant = false;
+    protected bool $cascadingAsDescendant = false;
 
     /**
      * Create a new Eloquent query builder for the model.
+     *
+     * @return QueryBuilder<static>
      */
     public function newEloquentBuilder(BaseQueryBuilder $query): QueryBuilder
     {
@@ -54,10 +60,12 @@ trait HasNode
             ??= $this->resolveCustomBuilderClass();
 
         if ($builderClass === false) {
-            return new QueryBuilder($query);
+            $builderClass = static::$builder === EloquentBuilder::class
+                ? QueryBuilder::class
+                : static::$builder;
         }
 
-        if (! is_subclass_of($builderClass, QueryBuilder::class)) {
+        if (! is_a($builderClass, QueryBuilder::class, true)) {
             throw new LogicException(sprintf(
                 'Nested set model [%s] must use a builder that extends [%s].',
                 static::class,
@@ -72,41 +80,75 @@ trait HasNode
     }
 
     /**
-     * Bootstrap node events.
+     * Fire the given event for the model, keeping the tree consistent around its observers.
+     *
+     * Upstream maintains the tree from listeners registered in bootNodeTrait(). A custom
+     * $dispatchesEvents result skips those listeners, and listeners cannot act after every
+     * deleting observer has allowed a delete, so the maintenance runs here instead.
      */
-    public static function bootHasNode(): void
+    protected function fireModelEvent(string $event, bool $halt = true): mixed
     {
-        static::saving(function ($model): void {
-            $model->callPendingActions();
-        });
+        // Quiet and event-free operations skip tree maintenance, as they skip listeners.
+        // Descendants changed by an ancestor's evented cascade only notify observers.
+        if (! in_array($event, ['saving', 'deleting', 'deleted', 'restoring', 'restored'], true)
+            || ! isset(static::$dispatcher)
+            || static::eventsDisabled()
+            || ($this->cascadingAsDescendant && $event !== 'saving')
+        ) {
+            return parent::fireModelEvent($event, $halt);
+        }
 
-        static::deleting(function ($model): void {
-            if (! $model->deletingAsDescendant) {
-                $model->prepareForNestedSetMutation();
-            }
-        });
+        switch ($event) {
+            case 'saving':
+                $this->callPendingAction();
+                break;
+            case 'deleting':
+                $persisted = $this->findPersistedNodeAttributes($this->getMutationIdentityColumns());
 
-        static::deleted(function ($model): void {
-            if (! $model->deletingAsDescendant) {
-                $model->deleteDescendants();
-            }
-        });
+                // An ancestor's delete may already have removed the row.
+                if ($persisted === null) {
+                    return false;
+                }
 
-        // The restore events are supplied by SoftDeletes rather than Model.
-        if (static::isSoftDeletable()) {
-            static::restoring(function ($model): void {
-                $model->prepareForNestedSetMutation([$model->getDeletedAtColumn()]);
-            });
+                $this->prepareFromPersistedAttributes($persisted);
 
-            static::restored(function ($model): void {
+                $result = parent::fireModelEvent($event, $halt);
+
+                // Remove descendants once every observer has allowed the delete, and
+                // before the node's own row so restricting parent keys are satisfied.
+                if ($result !== false && $this->hardDeleting()) {
+                    $this->deleteDescendants();
+                }
+
+                return $result;
+            case 'deleted':
+                if ($this->hardDeleting()) {
+                    $height = $this->getRgt() - $this->getLft() + 1;
+
+                    $this->newNestedSetQuery()->makeGap($this->getRgt() + 1, -$height);
+
+                    // In case the user wants to re-create the node
+                    $this->makeRoot();
+                } else {
+                    $this->deleteDescendants();
+                }
+
+                break;
+            case 'restoring':
+                $this->prepareForNestedSetMutation([$this->getDeletedAtColumn()]);
+                break;
+            case 'restored':
                 /** @var null|DateTimeInterface|int|string $deletedAt */
-                $deletedAt = $model->getPrevious()[$model->getDeletedAtColumn()] ?? null;
+                $deletedAt = $this->getPrevious()[$this->getDeletedAtColumn()] ?? null;
 
                 if ($deletedAt !== null) {
-                    $model->restoreDescendants($deletedAt);
+                    $this->restoreDescendants($deletedAt);
                 }
-            });
+
+                break;
         }
+
+        return parent::fireModelEvent($event, $halt);
     }
 
     /**
@@ -122,7 +164,7 @@ trait HasNode
     /**
      * Call pending action.
      */
-    protected function callPendingActions(): void
+    protected function callPendingAction(): void
     {
         $this->moved = false;
 
@@ -136,7 +178,7 @@ trait HasNode
             return;
         }
 
-        $action = array_shift($this->pending);
+        $action = $this->pending[0];
 
         if ($action === 'raw') {
             $this->ensureNestedSetScopeIsUnchanged();
@@ -146,11 +188,46 @@ trait HasNode
         }
 
         $method = 'action' . ucfirst($action);
-        $parameters = $this->pending;
+        $parameters = array_slice($this->pending, 1);
 
         $this->pending = [];
 
-        $this->moved = call_user_func_array([$this, $method], $parameters);
+        $this->moved = $this->{$method}(...$parameters);
+    }
+
+    /**
+     * Save the model to the database.
+     */
+    public function save(array $options = []): bool
+    {
+        return $this->restorePendingActionUnlessSaved(fn (): bool => parent::save($options));
+    }
+
+    /**
+     * Save the model to the database, ignoring specific unique constraint conflicts.
+     */
+    public function saveOrIgnore(array $options = [], array|string|null $uniqueBy = null): bool
+    {
+        return $this->restorePendingActionUnlessSaved(fn (): bool => parent::saveOrIgnore($options, $uniqueBy));
+    }
+
+    /**
+     * Run a save, restoring its consumed action when the save does not complete.
+     */
+    protected function restorePendingActionUnlessSaved(Closure $save): bool
+    {
+        $pending = $this->pending;
+        $saved = false;
+
+        try {
+            return $saved = $save();
+        } finally {
+            // Like dirty attributes, the action survives a save that did not complete,
+            // unless an observer queued a new one.
+            if (! $saved && $this->pending === []) {
+                $this->pending = $pending;
+            }
+        }
     }
 
     /**
@@ -241,7 +318,7 @@ trait HasNode
      */
     protected function actionAppendOrPrependPrepared(self $parent, bool $prepend = false): bool
     {
-        $this->ensureNodeInTree($parent)
+        $this->assertNodeExists($parent)
             ->assertNotDescendant($parent)
             ->ensureSameTree($parent)
             ->setParent($parent)
@@ -295,7 +372,7 @@ trait HasNode
     {
         $node->prepareForNestedSetMutation();
 
-        $this->ensureNodeInTree($node)
+        $this->assertNodeExists($node)
             ->assertNotDescendant($node)
             ->ensureSameTree($node)
             ->setParentFromSibling($node)
@@ -337,8 +414,15 @@ trait HasNode
             ...$this->getMutationIdentityColumns(),
             ...$extraColumns,
         ]));
-        $persisted = $this->getPersistedNodeAttributes($columns);
 
+        $this->prepareFromPersistedAttributes($this->getPersistedNodeAttributes($columns));
+    }
+
+    /**
+     * Prepare an existing model for a structural mutation from its persisted row.
+     */
+    protected function prepareFromPersistedAttributes(array $persisted): void
+    {
         $this->ensureNestedSetScopeIsUnchanged($persisted);
         $this->applyPersistedNodeAttributes($persisted);
         $this->ensureConcreteNestedSetScope('mutation');
@@ -359,6 +443,15 @@ trait HasNode
      */
     protected function getPersistedNodeAttributes(array $columns): array
     {
+        return $this->findPersistedNodeAttributes($columns)
+            ?? throw (new ModelNotFoundException)->setModel(static::class, [$this->getKey()]);
+    }
+
+    /**
+     * Read selected attributes from the exact persisted row, if it still exists.
+     */
+    protected function findPersistedNodeAttributes(array $columns): ?array
+    {
         if ($this->getKey() === null) {
             throw new LogicException(sprintf(
                 'Nested set model [%s] requires the [%s] column to be selected.',
@@ -367,11 +460,14 @@ trait HasNode
             ));
         }
 
-        return $this->newModelQuery()
+        // A base read keeps internal reloads from firing retrieved listeners.
+        $attributes = $this->newModelQuery()
             ->useWritePdo()
             ->whereKey($this->getKey())
-            ->firstOrFail($columns)
-            ->getAttributes();
+            ->toBase()
+            ->first($columns);
+
+        return $attributes === null ? null : (array) $attributes;
     }
 
     /**
@@ -404,6 +500,8 @@ trait HasNode
 
     /**
      * Relation to the parent.
+     *
+     * @return BelongsTo<static, $this>
      */
     public function parent(): BelongsTo
     {
@@ -413,6 +511,8 @@ trait HasNode
 
     /**
      * Relation to children.
+     *
+     * @return HasMany<static, $this>
      */
     public function children(): HasMany
     {
@@ -422,6 +522,8 @@ trait HasNode
 
     /**
      * Get query for descendants of the node.
+     *
+     * @return DescendantsRelation<static>
      */
     public function descendants(): DescendantsRelation
     {
@@ -430,6 +532,8 @@ trait HasNode
 
     /**
      * Get query for siblings of the node.
+     *
+     * @return SiblingsRelation<static>
      */
     public function siblings(): SiblingsRelation
     {
@@ -438,6 +542,8 @@ trait HasNode
 
     /**
      * Get the relation for the node siblings and the node itself.
+     *
+     * @return SiblingsRelation<static>
      */
     public function siblingsAndSelf(): SiblingsRelation
     {
@@ -447,7 +553,7 @@ trait HasNode
     /**
      * Get the node siblings and the node itself.
      *
-     * @return Collection<int, TModel>
+     * @return Collection<int, static>
      */
     public function getSiblingsAndSelf(array $columns = ['*']): Collection
     {
@@ -456,6 +562,8 @@ trait HasNode
 
     /**
      * Get query for siblings after the node.
+     *
+     * @return QueryBuilder<static>
      */
     public function nextSiblings(): QueryBuilder
     {
@@ -471,6 +579,8 @@ trait HasNode
 
     /**
      * Get query for siblings before the node.
+     *
+     * @return QueryBuilder<static>
      */
     public function prevSiblings(): QueryBuilder
     {
@@ -486,6 +596,8 @@ trait HasNode
 
     /**
      * Get query for nodes after current node.
+     *
+     * @return QueryBuilder<static>
      */
     public function nextNodes(): QueryBuilder
     {
@@ -501,7 +613,9 @@ trait HasNode
     }
 
     /**
-     * Get query for nodes before current node in reversed order.
+     * Get query for nodes before current node.
+     *
+     * @return QueryBuilder<static>
      */
     public function prevNodes(): QueryBuilder
     {
@@ -518,6 +632,8 @@ trait HasNode
 
     /**
      * Get query ancestors of the node.
+     *
+     * @return AncestorsRelation<static>
      */
     public function ancestors(): AncestorsRelation
     {
@@ -747,6 +863,7 @@ trait HasNode
         ) > 0;
 
         if ($updated) {
+            // Compute post-move position from pre-move values
             if ($position > $lft) {
                 $this->setLft($position - $height);
                 $this->setRgt($position - 1);
@@ -761,6 +878,7 @@ trait HasNode
                 $this->refreshNode();
             }
 
+            // Sync originals: mass UPDATE already set these in DB, avoid redundant Eloquent write
             $this->syncOriginalAttributes([
                 $this->getLftName(),
                 $this->getRgtName(),
@@ -793,40 +911,31 @@ trait HasNode
     }
 
     /**
-     * Update the tree when the node is removed physically.
+     * Delete the node's descendants, including any hidden by ordinary global scopes.
+     *
+     * Hard deletes run before the node's own row is deleted and soft deletes after it,
+     * so descendants are never trashed before the node.
      */
     protected function deleteDescendants(): void
     {
-        $lft = $this->getLft();
-        $rgt = $this->getRgt();
-
-        $method = static::isSoftDeletable() && $this->forceDeleting
-            ? 'forceDelete'
-            : 'delete';
-
         if ($this->shouldFireDescendantEvents()) {
-            $this->deleteDescendantsWithEvents($method === 'forceDelete');
-        } else {
-            $query = $method === 'forceDelete'
-                ? $this->newNestedSetQuery()
-                : $this->newScopedQuery();
+            $this->deleteDescendantsWithEvents(static::isSoftDeletable() && $this->forceDeleting);
 
-            $query->whereDescendantOf($this)
-                ->{$method}();
+            return;
         }
 
-        if ($this->hasForceDeleting()) {
-            $height = $rgt - $lft + 1;
+        $query = $this->newNestedSetQuery()->whereDescendantOf($this);
 
-            $this->newNestedSetQuery()->makeGap($rgt + 1, -$height);
-
-            // In case if user wants to re-create the node
-            $this->makeRoot();
+        if ($this->hardDeleting()) {
+            // MySQL and MariaDB check a restricting parent key as each row is deleted.
+            $query->orderBy($this->getLftName(), 'desc')->forceDelete();
+        } else {
+            $query->withoutTrashed()->delete();
         }
     }
 
     /**
-     * Determine whether descendant model events should be fired during deletion.
+     * Determine whether descendant model events should be fired during deletion and restoration.
      */
     protected function shouldFireDescendantEvents(): bool
     {
@@ -834,9 +943,9 @@ trait HasNode
     }
 
     /**
-     * Get the descendant deletion chunk size.
+     * Get the number of descendants loaded per evented deletion or restoration chunk.
      */
-    protected function getDescendantDeleteChunkSize(): int
+    protected function getDescendantChunkSize(): int
     {
         return 1000;
     }
@@ -846,65 +955,95 @@ trait HasNode
      */
     protected function deleteDescendantsWithEvents(bool $forceDelete): void
     {
-        $lftName = $this->getLftName();
-        $query = $this->newNestedSetQuery()
-            ->useWritePdo()
-            ->where($lftName, '>', $this->getLft())
-            ->where($lftName, '<', $this->getRgt())
-            ->orderBy($lftName, 'desc');
+        $query = $this->newNestedSetQuery()->whereDescendantOf($this);
 
         if (static::isSoftDeletable() && ! $forceDelete) {
-            $query->whereNull($this->getDeletedAtColumn());
+            $query->withoutTrashed();
         }
 
+        $this->changeDescendantsWithEvents(
+            $query,
+            childrenFirst: true,
+            operation: 'Deleting',
+            change: static fn (Model $descendant): int|bool|null => $forceDelete
+                ? $descendant->forceDelete()
+                : $descendant->delete(),
+        );
+    }
+
+    /**
+     * Change descendants one at a time in bounded chunks ordered by their left bound.
+     *
+     * @param Closure(Model): (null|bool|int) $change
+     */
+    protected function changeDescendantsWithEvents(
+        QueryBuilder $query,
+        bool $childrenFirst,
+        string $operation,
+        Closure $change,
+    ): void {
+        $lftName = $this->getLftName();
+        $chunkSize = $this->getDescendantChunkSize();
         $cursor = null;
+
+        $query->useWritePdo()->orderBy($lftName, $childrenFirst ? 'desc' : 'asc');
 
         do {
             $chunk = clone $query;
 
             if ($cursor !== null) {
-                $chunk->where($lftName, '<', $cursor);
+                $chunk->where($lftName, $childrenFirst ? '<' : '>', $cursor);
             }
 
-            $descendants = $chunk
-                ->limit($this->getDescendantDeleteChunkSize())
-                ->get();
+            $descendants = $chunk->limit($chunkSize)->get();
 
             foreach ($descendants as $descendant) {
-                $cursor = $descendant->getLft(); /* @phpstan-ignore method.notFound */
-                $descendant->deletingAsDescendant = true; /* @phpstan-ignore property.notFound */
+                $cursor = $descendant->getLft();
+                $descendant->cascadingAsDescendant = true;
 
                 try {
-                    $deleted = $forceDelete
-                        ? $descendant->forceDelete()
-                        : $descendant->delete();
-
-                    if ($deleted === false) {
+                    if ($change($descendant) === false) {
                         throw new LogicException(sprintf(
-                            'Deleting nested set descendant [%s] with key [%s] was vetoed.',
+                            '%s nested set descendant [%s] with key [%s] was vetoed.',
+                            $operation,
                             $descendant::class,
                             $descendant->getKey() ?? 'null',
                         ));
                     }
                 } finally {
-                    $descendant->deletingAsDescendant = false; /* @phpstan-ignore property.notFound */
+                    $descendant->cascadingAsDescendant = false;
                 }
             }
-        } while ($descendants->isNotEmpty());
+        } while ($descendants->count() === $chunkSize);
     }
 
     /**
-     * Restore the descendants.
+     * Restore descendants deleted at or after the given stored deletion time.
      */
     protected function restoreDescendants(DateTimeInterface|int|string $deletedAt): void
     {
-        $this->descendants()
-            ->where($this->getDeletedAtColumn(), '>=', $deletedAt)
-            ->restore();
+        $query = $this->newNestedSetQuery()
+            ->whereDescendantOf($this)
+            ->where($this->getDeletedAtColumn(), '>=', $deletedAt);
+
+        if ($this->shouldFireDescendantEvents()) {
+            $this->changeDescendantsWithEvents(
+                $query,
+                childrenFirst: false,
+                operation: 'Restoring',
+                change: static fn (Model $descendant): bool => $descendant->restore(),
+            );
+
+            return;
+        }
+
+        $query->restore();
     }
 
     /**
      * Get a new base query that includes deleted nodes.
+     *
+     * @return QueryBuilder<static>
      */
     public function newNestedSetQuery(?string $table = null): QueryBuilder
     {
@@ -915,6 +1054,8 @@ trait HasNode
 
     /**
      * Get a new query with ordinary visibility and the concrete tree scope.
+     *
+     * @return QueryBuilder<static>
      */
     public function newScopedQuery(?string $table = null): QueryBuilder
     {
@@ -1099,6 +1240,8 @@ trait HasNode
 
     /**
      * Begin a query for one concrete nested set scope.
+     *
+     * @return QueryBuilder<static>
      */
     public static function scoped(array $attributes): QueryBuilder
     {
@@ -1112,7 +1255,8 @@ trait HasNode
     /**
      * Create a new nested set collection.
      *
-     * @return Collection<int, TModel>
+     * @param array<array-key, Model> $models
+     * @return Collection<array-key, static>
      */
     public function newCollection(array $models = []): Collection
     {
@@ -1140,7 +1284,10 @@ trait HasNode
             $relation->add(static::create($child, $instance));
         }
 
-        $instance->refreshNode();
+        // Each append refreshes this node, but descendants of the last child widen it afterwards.
+        if ($relation->isNotEmpty()) {
+            $instance->refreshNode();
+        }
 
         $relationParent = clone $instance;
         $relationParent->setRelations([]);
@@ -1178,7 +1325,7 @@ trait HasNode
      * Set the value of model's parent id key.
      * Behind the scenes node is appended to found parent node.
      */
-    public function setParentIdAttribute(int|string|null $value): void
+    public function setParentIdAttribute(int|string|null $value): static
     {
         $parentIdName = $this->getParentIdName();
         $hasCurrent = array_key_exists($parentIdName, $this->attributes);
@@ -1188,17 +1335,17 @@ trait HasNode
             $current === $value
             || ($current !== null && $value !== null && (string) $current === (string) $value)
         )) {
-            return;
+            return $this;
         }
 
         if ($value === null) {
-            $this->makeRoot();
-
-            return;
+            return $this->makeRoot();
         }
 
-        $this->setParentId($value);
-        $this->setNodeAction('appendToParentId', $value);
+        // The new parent is only looked up when the save runs, so forget a loaded old one.
+        $this->unsetRelation('parent');
+
+        return $this->setParentId($value)->setNodeAction('appendToParentId', $value);
     }
 
     /**
@@ -1292,10 +1439,10 @@ trait HasNode
     }
 
     /**
-     * Returns node that is next to current node without constraining to siblings.
+     * Return the node that is next to the current node without constraining to siblings.
      * This can be either a next sibling or a next sibling of the parent node.
      *
-     * @return null|TModel
+     * @return null|static
      */
     public function getNextNode(array $columns = ['*']): ?Model
     {
@@ -1303,10 +1450,10 @@ trait HasNode
     }
 
     /**
-     * Returns node that is before current node without constraining to siblings.
+     * Return the node that is before the current node without constraining to siblings.
      * This can be either a prev sibling or parent node.
      *
-     * @return null|TModel
+     * @return null|static
      */
     public function getPrevNode(array $columns = ['*']): ?Model
     {
@@ -1316,7 +1463,7 @@ trait HasNode
     /**
      * Get the node's ancestors.
      *
-     * @return Collection<int, TModel>
+     * @return Collection<int, static>
      */
     public function getAncestors(array $columns = ['*']): Collection
     {
@@ -1326,7 +1473,7 @@ trait HasNode
     /**
      * Get the node's descendants.
      *
-     * @return Collection<int, TModel>
+     * @return Collection<int, static>
      */
     public function getDescendants(array $columns = ['*']): Collection
     {
@@ -1336,7 +1483,7 @@ trait HasNode
     /**
      * Get the node's siblings.
      *
-     * @return Collection<int, TModel>
+     * @return Collection<int, static>
      */
     public function getSiblings(array $columns = ['*']): Collection
     {
@@ -1346,7 +1493,7 @@ trait HasNode
     /**
      * Get siblings after the node.
      *
-     * @return Collection<int, TModel>
+     * @return Collection<int, static>
      */
     public function getNextSiblings(array $columns = ['*']): Collection
     {
@@ -1356,7 +1503,7 @@ trait HasNode
     /**
      * Get siblings before the node.
      *
-     * @return Collection<int, TModel>
+     * @return Collection<int, static>
      */
     public function getPrevSiblings(array $columns = ['*']): Collection
     {
@@ -1366,7 +1513,7 @@ trait HasNode
     /**
      * Get the next sibling.
      *
-     * @return null|TModel
+     * @return null|static
      */
     public function getNextSibling(array $columns = ['*']): ?Model
     {
@@ -1376,7 +1523,7 @@ trait HasNode
     /**
      * Get the previous sibling.
      *
-     * @return null|TModel
+     * @return null|static
      */
     public function getPrevSibling(array $columns = ['*']): ?Model
     {
@@ -1493,7 +1640,7 @@ trait HasNode
     /**
      * Get whether user is intended to delete the model from database entirely.
      */
-    protected function hasForceDeleting(): bool
+    protected function hardDeleting(): bool
     {
         return ! static::isSoftDeletable() || $this->forceDeleting;
     }
@@ -1533,6 +1680,7 @@ trait HasNode
      */
     public function setParentId(int|string|null $value): static
     {
+        // Only null marks a root; unlike upstream, 0 and '' stay real parent keys.
         $this->attributes[$this->getParentIdName()] = $value;
 
         return $this;
@@ -1543,7 +1691,7 @@ trait HasNode
      */
     public function setDepth(?int $value): static
     {
-        $this->attributes[$this->getDepthName()] = $value;
+        $this->attributes[$this->getDepthName()] = $value ?? 0;
 
         return $this;
     }
@@ -1606,9 +1754,8 @@ trait HasNode
         $this->assertNotDescendant($node);
     }
 
-    // Keep NodeTrait::assertNotDescendant() so upstream subclasses remain compatible.
     /**
-     * Assert that a node is not this node's descendant.
+     * Assert that a node is neither this node nor one of its descendants.
      */
     protected function assertNotDescendant(self $node): static
     {
@@ -1620,9 +1767,9 @@ trait HasNode
     }
 
     /**
-     * Ensure that a node has persisted tree bounds.
+     * Assert that a node has positive tree bounds.
      */
-    protected function ensureNodeInTree(self $node): static
+    protected function assertNodeExists(self $node): static
     {
         if (($node->getLft() ?? 0) < 1 || ($node->getRgt() ?? 0) < 1) {
             throw new LogicException('Node must be part of a tree.');

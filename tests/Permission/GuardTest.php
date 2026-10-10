@@ -19,38 +19,34 @@ use PHPUnit\Framework\Attributes\DataProvider;
 
 class GuardTest extends TestCase
 {
-    public function testItReturnsNullForAGuardWithoutAProvider(): void
+    public function testItReturnsNullForTheModelOfAGuardThatHasNoProviderConfigured(): void
     {
-        $this->app->make('config')->set('auth.guards.no-provider-guard', []);
+        config()->set('auth.guards.no-provider-guard', []);
 
         $this->assertNull(Guard::getModelForGuard('no-provider-guard'));
     }
 
-    public function testItResolvesTheModelForAnLdapProvider(): void
+    public function testItResolvesTheModelForAGuardUsingAnLdapProvider(): void
     {
-        $this->app->make('config')->set([
-            'auth.guards.ldap-guard' => ['provider' => 'ldap-provider'],
-            'auth.providers.ldap-provider' => [
-                'driver' => 'ldap',
-                'database' => ['model' => User::class],
-            ],
+        config()->set('auth.guards.ldap-guard', ['provider' => 'ldap-provider']);
+        config()->set('auth.providers.ldap-provider', [
+            'driver' => 'ldap',
+            'database' => ['model' => User::class],
         ]);
 
         $this->assertSame(User::class, Guard::getModelForGuard('ldap-guard'));
     }
 
-    public function testItReturnsNullWhenNoPassportGuardIsConfigured(): void
+    public function testItReturnsNullFromGetPassportClientWhenNoPassportGuardsAreConfigured(): void
     {
         $this->assertNull(Guard::getPassportClient('web'));
     }
 
-    public function testItReturnsNullWhenThePassportGuardHasNoClientSurface(): void
+    public function testItReturnsNullFromGetPassportClientWhenTheResolvedGuardDoesNotSupportClients(): void
     {
-        $this->app->make('config')->set(
-            'auth.guards.fake-passport',
-            ['driver' => 'passport', 'provider' => 'users'],
-        );
+        config()->set('auth.guards.fake-passport', ['driver' => 'passport', 'provider' => 'users']);
 
+        // The auth manager's guard() return type rejects upstream's stdClass, so use a guard without client().
         Auth::shouldReceive('guard')->once()->with('fake-passport')->andReturn(m::mock(GuardContract::class));
 
         $this->assertNull(Guard::getPassportClient('web'));
@@ -89,11 +85,14 @@ class GuardTest extends TestCase
             ->findOrFail($storedModel->getKey());
 
         $this->expectException(MissingAttributeException::class);
-        $this->expectExceptionMessage('The attribute [guard_name]');
+        $this->expectExceptionMessageIsOrContains('The attribute [guard_name]');
 
         Guard::getNames($partialModel);
     }
 
+    /**
+     * Provide the role and permission model classes.
+     */
     public static function permissionModelClasses(): array
     {
         return [

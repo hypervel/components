@@ -47,7 +47,7 @@ enum CommandInputType: string
 
 class CommandTest extends TestCase
 {
-    public function testHookFlags()
+    public function testHookFlags(): void
     {
         $command = new DefaultSwooleFlagsCommand('test:demo');
         $this->assertSame(SWOOLE_HOOK_ALL, $command->getHookFlags());
@@ -56,7 +56,7 @@ class CommandTest extends TestCase
         $this->assertSame(SWOOLE_HOOK_ALL | SWOOLE_HOOK_CURL, $command->getHookFlags());
     }
 
-    public function testExceptionPropagatesFromExecute()
+    public function testExceptionPropagatesFromExecute(): void
     {
         $output = m::mock(OutputStyle::class)->shouldIgnoreMissing();
         $application = m::mock(ConsoleApplication::class);
@@ -74,7 +74,7 @@ class CommandTest extends TestCase
         $command->execute($input, $output);
     }
 
-    public function testExitCodeFromExitExceptionAndNormalCommand()
+    public function testExitCodeFromExitExceptionAndNormalCommand(): void
     {
         $output = m::mock(OutputStyle::class)->shouldIgnoreMissing();
         $application = m::mock(ConsoleApplication::class);
@@ -101,7 +101,7 @@ class CommandTest extends TestCase
         $this->assertSame(0, $exitCode);
     }
 
-    public function testSetUpTraits()
+    public function testSetUpTraits(): void
     {
         $output = m::mock(OutputStyle::class)->shouldIgnoreMissing();
         $application = m::mock(ConsoleApplication::class);
@@ -134,12 +134,12 @@ class CommandTest extends TestCase
         }
     }
 
-    public function testExceptionPropagatesFromExecuteInCoroutine()
+    public function testExceptionPropagatesFromExecuteInCoroutine(): void
     {
         $this->testExceptionPropagatesFromExecute();
     }
 
-    public function testExitCodeFromExitExceptionAndNormalCommandInCoroutine()
+    public function testExitCodeFromExitExceptionAndNormalCommandInCoroutine(): void
     {
         $this->testExitCodeFromExitExceptionAndNormalCommand();
     }
@@ -231,7 +231,7 @@ class CommandTest extends TestCase
         $this->assertSame($throwingInput, $events[4]->input);
     }
 
-    public function testProhibitableCommand()
+    public function testProhibitableCommand(): void
     {
         $application = m::mock(ConsoleApplication::class);
         $application->shouldReceive('getHelperSet');
@@ -269,7 +269,7 @@ class CommandTest extends TestCase
         $command = new CommandTestStubCommand;
 
         $this->expectException(ManuallyFailedException::class);
-        $this->expectExceptionMessage('Command failed manually.');
+        $this->expectExceptionMessageIs('Command failed manually.');
 
         $command->fail(null);
     }
@@ -279,7 +279,7 @@ class CommandTest extends TestCase
         $command = new CommandTestStubCommand;
 
         $this->expectException(ManuallyFailedException::class);
-        $this->expectExceptionMessage('Custom failure message');
+        $this->expectExceptionMessageIs('Custom failure message');
 
         $command->fail('Custom failure message');
     }
@@ -290,7 +290,7 @@ class CommandTest extends TestCase
         $exception = new RuntimeException('Original exception');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Original exception');
+        $this->expectExceptionMessageIs('Original exception');
 
         $command->fail($exception);
     }
@@ -301,7 +301,7 @@ class CommandTest extends TestCase
         $exception = new ManuallyFailedException('Pre-created failure');
 
         $this->expectException(ManuallyFailedException::class);
-        $this->expectExceptionMessage('Pre-created failure');
+        $this->expectExceptionMessageIs('Pre-created failure');
 
         $command->fail($exception);
     }
@@ -343,7 +343,7 @@ class CommandTest extends TestCase
         $command->run($input, $output);
     }
 
-    public function testGettingCommandArgumentsAndOptionsByClass()
+    public function testGettingCommandArgumentsAndOptionsByClass(): void
     {
         $command = new class extends Command {
             public function handle()
@@ -487,7 +487,7 @@ class CommandTest extends TestCase
         $this->assertSame($optionDefault, $command->options()['context']);
     }
 
-    public function testTheInputSetterOverwrite()
+    public function testTheInputSetterOverwrite(): void
     {
         $input = m::mock(InputInterface::class);
         $input->expects('hasArgument')->with('foo')->andReturn(false);
@@ -500,7 +500,7 @@ class CommandTest extends TestCase
         $this->assertTrue($command->hasArgument(0));
     }
 
-    public function testTheOutputSetterOverwrite()
+    public function testTheOutputSetterOverwrite(): void
     {
         $output = m::mock(OutputStyle::class);
         $output->expects('writeln')->withArgs(function (...$args) {
@@ -513,7 +513,7 @@ class CommandTest extends TestCase
         $command->info('foo');
     }
 
-    public function testSetHidden()
+    public function testSetHidden(): void
     {
         $command = new class extends Command {
             public function parentIsHidden(): bool
@@ -531,7 +531,7 @@ class CommandTest extends TestCase
         $this->assertTrue($command->parentIsHidden());
     }
 
-    public function testHiddenProperty()
+    public function testHiddenProperty(): void
     {
         $command = new class extends Command {
             protected bool $hidden = true;
@@ -551,7 +551,7 @@ class CommandTest extends TestCase
         $this->assertFalse($command->parentIsHidden());
     }
 
-    public function testAliasesProperty()
+    public function testAliasesProperty(): void
     {
         $command = new class extends Command {
             protected ?string $name = 'foo:bar';
@@ -562,7 +562,7 @@ class CommandTest extends TestCase
         $this->assertSame(['bar:baz', 'baz:qux'], $command->getAliases());
     }
 
-    public function testChoiceIsSingleSelectByDefault()
+    public function testChoiceIsSingleSelectByDefault(): void
     {
         $output = m::mock(OutputStyle::class);
         $output->expects('askQuestion')->withArgs(function (ChoiceQuestion $question) {
@@ -575,7 +575,7 @@ class CommandTest extends TestCase
         $command->choice('Do you need further help?', ['yes', 'no']);
     }
 
-    public function testChoiceWithMultiselect()
+    public function testChoiceWithMultiselect(): void
     {
         $output = m::mock(OutputStyle::class);
         $output->expects('askQuestion')->withArgs(function (ChoiceQuestion $question) {
@@ -633,17 +633,17 @@ class CommandTest extends TestCase
         $this->assertSame(['foo:bar 1', 'foo:bar 1 --force'], $command->getUsages());
     }
 
-    public function testCommandCanBeConstructedWithoutBootedApplication()
+    public function testCommandCanBeConstructedWithoutBootedApplication(): void
     {
         $command = new CommandTestStubCommand;
 
         $this->assertSame('test:stub', $command->getName());
     }
 
-    public function testAccessingApplicationBeforeInjectionThrows()
+    public function testAccessingApplicationBeforeInjectionThrows(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('The Hypervel application instance has not been set on this command.');
+        $this->expectExceptionMessageIs('The Hypervel application instance has not been set on this command.');
 
         $command = new CommandTestStubCommand;
         $command->getHypervel();

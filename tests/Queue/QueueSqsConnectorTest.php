@@ -587,7 +587,7 @@ class QueueSqsConnectorTest extends TestCase
     public function testConnectRejectsIncompleteStaticCredentials(?string $key, ?string $secret): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The SQS access key and secret must be configured together.');
+        $this->expectExceptionMessageIs('The SQS access key and secret must be configured together.');
 
         (new SqsConnector)->connect($this->config([
             'key' => $key,
@@ -619,15 +619,17 @@ class QueueSqsConnectorTest extends TestCase
         $this->assertNull($queue->getSqs()->getConfig('token'));
     }
 
-    public function testCallableAndObjectCredentialsPassThrough(): void
+    public function testCallableCredentialsResolveTheirResultAndCredentialObjectsPassThrough(): void
     {
         $connector = new QueueSqsConnectorStub;
-        $callable = static fn () => null;
         $object = new Credentials('key', 'secret');
+        $callable = static fn (): PromiseInterface => Create::promiseFor($object);
 
-        $this->assertSame($callable, $connector->resolveCredentials([
+        $resolved = $connector->resolveCredentials([
             'credentials' => $callable,
-        ]));
+        ]);
+
+        $this->assertSame($object, $resolved()->wait());
         $this->assertSame($object, $connector->resolveCredentials([
             'credentials' => $object,
         ]));
@@ -678,7 +680,7 @@ class QueueSqsConnectorTest extends TestCase
     public function testInvalidNamedCredentialProviderFailsDescriptively(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Invalid credential provider [invalid].');
+        $this->expectExceptionMessageIs('Invalid credential provider [invalid].');
 
         (new QueueSqsConnectorStub)->resolveCredentials([
             'credentials' => ['provider' => 'invalid'],

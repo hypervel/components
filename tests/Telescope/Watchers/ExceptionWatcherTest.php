@@ -24,7 +24,7 @@ use ParseError;
 ])]
 class ExceptionWatcherTest extends FeatureTestCase
 {
-    public function testExceptionWatcherRegisterEntries()
+    public function testExceptionWatcherRegisterEntries(): void
     {
         $handler = $this->app->make(ExceptionHandler::class);
 
@@ -41,7 +41,7 @@ class ExceptionWatcherTest extends FeatureTestCase
         $this->assertArrayHasKey('trace', $entry->content);
     }
 
-    public function testExceptionWatcherRegisterThrowableEntries()
+    public function testExceptionWatcherRegisterThrowableEntries(): void
     {
         $handler = $this->app->make(ExceptionHandler::class);
 
@@ -58,7 +58,7 @@ class ExceptionWatcherTest extends FeatureTestCase
         $this->assertArrayHasKey('trace', $entry->content);
     }
 
-    public function testExceptionWatcherRegisterEntriesWhenEvalFailed()
+    public function testExceptionWatcherRegisterEntriesWhenEvalFailed(): void
     {
         $handler = $this->app->make(ExceptionHandler::class);
 
@@ -85,7 +85,7 @@ class ExceptionWatcherTest extends FeatureTestCase
         $this->assertArrayHasKey('trace', $entry->content);
     }
 
-    public function testExceptionWatcherStoresExtraWhenContextFacadeUsed()
+    public function testExceptionWatcherStoresExtraWhenContextFacadeUsed(): void
     {
         ContextRepository::getInstance()->add('tenant_id', 42);
 
@@ -98,7 +98,7 @@ class ExceptionWatcherTest extends FeatureTestCase
         $this->assertSame(42, $entry->content['extra']['tenant_id']);
     }
 
-    public function testExceptionWatcherOmitsExtraWhenContextFacadeNotUsed()
+    public function testExceptionWatcherOmitsExtraWhenContextFacadeNotUsed(): void
     {
         $handler = $this->app->make(ExceptionHandler::class);
         $handler->report(new BananaException('Error without context'));

@@ -11,6 +11,31 @@ use PHPUnit\Framework\Attributes\DataProvider;
 
 class PartialTreeTest extends TestCase
 {
+    #[DataProvider('partialsProvider')]
+    public function testCanParsePartials(string $partial, array $expected): void
+    {
+        $this->assertSame($expected, self::paths(PartialTree::compile([$partial])));
+    }
+
+    /**
+     * Provide partial paths and the selections they compile to.
+     *
+     * Spatie's empty and invalid rows are rejected instead; see invalidPathProvider().
+     */
+    public static function partialsProvider(): array
+    {
+        return [
+            'root property' => ['name', ['name']],
+            'root multi-property' => ['{name, age}', ['name', 'age']],
+            'root star' => ['*', ['*']],
+            'nested property' => ['struct.name', ['struct.name']],
+            'nested multi-property' => ['struct.{name, age}', ['struct.name', 'struct.age']],
+            'nested star' => ['struct.*', ['struct.*']],
+        ];
+    }
+
+    // REMOVED: Spatie's pointer system tests. Paths compile into an immutable tree navigated with child(), so there is no pointer to advance or roll back.
+
     /**
      * Test paths compile into one reusable nested selection.
      */
@@ -28,6 +53,7 @@ class PartialTreeTest extends TestCase
         $this->assertTrue($tree->contains('songs'));
         $this->assertFalse($tree->selects('songs'));
         $this->assertFalse($tree->selects('year'));
+        $this->assertSame(['artist', 'songs'], $tree->nestedProperties);
 
         $artist = $tree->child('artist');
 
@@ -36,6 +62,8 @@ class PartialTreeTest extends TestCase
         $this->assertTrue($artist->selects('email'));
         $this->assertTrue($artist->selects('role'));
         $this->assertFalse($artist->selects('id'));
+        $this->assertSame([], $artist->nestedProperties);
+        $this->assertNull($artist->child('name')->child('first'));
 
         $songs = $tree->child('songs');
 
@@ -83,6 +111,11 @@ class PartialTreeTest extends TestCase
         $this->assertTrue($all->selects('anything'));
         $this->assertTrue($all->child('artist')->all);
         $this->assertTrue($all->child('artist')->selects('name'));
+        $this->assertSame(['artist'], $all->nestedProperties);
+
+        // An inherited * ends the selection at the child; only the child's own * continues it.
+        $this->assertSame([], PartialTree::compile(['*', 'artist'])->nestedProperties);
+        $this->assertSame(['artist'], PartialTree::compile(['*', 'artist.*'])->nestedProperties);
 
         $unlisted = $all->child('unlisted');
 
@@ -108,6 +141,7 @@ class PartialTreeTest extends TestCase
         $this->assertSame(['name', 'email'], array_keys($merged->child('artist')->children));
         $this->assertTrue($merged->child('songs')->all);
         $this->assertTrue($merged->child('profile')->selects('name'));
+        $this->assertSame(['artist', 'songs', 'profile'], $merged->nestedProperties);
         $this->assertSame($tree, $tree->merge(null));
     }
 
@@ -129,6 +163,28 @@ class PartialTreeTest extends TestCase
             $this->assertSame(['name'], array_keys($merged->child('artist')->children));
             $this->assertTrue($merged->child('unlisted')->all);
         }
+
+        $ownWildcard = PartialTree::compile(['artist.*']);
+
+        $this->assertNotNull($ownWildcard);
+
+        foreach ([$all->merge($ownWildcard), $ownWildcard->merge($all)] as $merged) {
+            $this->assertSame(['artist'], $merged->nestedProperties);
+        }
+    }
+
+    /**
+     * Test numeric segments, which select array items, compile and merge.
+     */
+    public function testCompilesAndMergesNumericSegments(): void
+    {
+        $tree = PartialTree::compile(['tags.0', 'songs.0.name']);
+        $other = PartialTree::compile(['tags.1']);
+
+        $this->assertNotNull($tree);
+        $this->assertNotNull($other);
+        $this->assertSame(['0'], $tree->child('songs')->nestedProperties);
+        $this->assertSame([0, 1], array_keys($tree->merge($other)->child('tags')->children));
     }
 
     /**
@@ -157,12 +213,32 @@ class PartialTreeTest extends TestCase
     {
         return [
             'empty' => [''],
+            'nested property on all' => ['*.name'],
+            'nested property on multi-property' => ['{name, age}.name'],
             'empty segment' => ['artist..name'],
-            'wildcard suffix' => ['artist.*.name'],
             'partial wildcard' => ['artist.na*'],
             'unclosed group' => ['artist.{name,email'],
             'empty group field' => ['artist.{name,}'],
-            'nested group' => ['artist.{name,email}.value'],
         ];
+    }
+
+    /**
+     * Get the selected paths of a compiled tree.
+     *
+     * @return list<string>
+     */
+    private static function paths(PartialTree $tree, string $prefix = ''): array
+    {
+        $paths = $tree->all ? [$prefix . '*'] : [];
+
+        foreach ($tree->children as $property => $child) {
+            if ($child->selected) {
+                $paths[] = $prefix . $property;
+            }
+
+            array_push($paths, ...self::paths($child, $prefix . $property . '.'));
+        }
+
+        return $paths;
     }
 }

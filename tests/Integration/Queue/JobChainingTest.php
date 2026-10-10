@@ -60,7 +60,7 @@ class JobChainingTest extends QueueTestCase
         parent::setUp();
     }
 
-    public function testJobsCanBeChainedOnSuccess()
+    public function testJobsCanBeChainedOnSuccess(): void
     {
         JobChainingTestFirstJob::dispatch()->chain([
             new JobChainingTestSecondJob,
@@ -72,7 +72,7 @@ class JobChainingTest extends QueueTestCase
         $this->assertTrue(JobChainingTestSecondJob::$ran);
     }
 
-    public function testJobsCanBeChainedOnSuccessUsingPendingChain()
+    public function testJobsCanBeChainedOnSuccessUsingPendingChain(): void
     {
         JobChainingTestFirstJob::withChain([
             new JobChainingTestSecondJob,
@@ -110,7 +110,7 @@ class JobChainingTest extends QueueTestCase
         );
     }
 
-    public function testJobsCanBeChainedOnSuccessUsingBusFacade()
+    public function testJobsCanBeChainedOnSuccessUsingBusFacade(): void
     {
         Bus::dispatchChain([
             new JobChainingTestFirstJob,
@@ -123,7 +123,7 @@ class JobChainingTest extends QueueTestCase
         $this->assertTrue(JobChainingTestSecondJob::$ran);
     }
 
-    public function testJobsCanBeChainedOnSuccessUsingBusFacadeAsArguments()
+    public function testJobsCanBeChainedOnSuccessUsingBusFacadeAsArguments(): void
     {
         Bus::dispatchChain(
             new JobChainingTestFirstJob,
@@ -136,7 +136,7 @@ class JobChainingTest extends QueueTestCase
         $this->assertTrue(JobChainingTestSecondJob::$ran);
     }
 
-    public function testJobsChainedOnExplicitDelete()
+    public function testJobsChainedOnExplicitDelete(): void
     {
         JobChainingTestDeletingJob::dispatch()->chain([
             new JobChainingTestSecondJob,
@@ -148,7 +148,7 @@ class JobChainingTest extends QueueTestCase
         $this->assertTrue(JobChainingTestSecondJob::$ran);
     }
 
-    public function testJobsCanBeChainedOnSuccessWithSeveralJobs()
+    public function testJobsCanBeChainedOnSuccessWithSeveralJobs(): void
     {
         JobChainingTestFirstJob::dispatch()->chain([
             new JobChainingTestSecondJob,
@@ -162,7 +162,7 @@ class JobChainingTest extends QueueTestCase
         $this->assertTrue(JobChainingTestThirdJob::$ran);
     }
 
-    public function testJobsCanBeChainedOnSuccessUsingHelper()
+    public function testJobsCanBeChainedOnSuccessUsingHelper(): void
     {
         dispatch(new JobChainingTestFirstJob)->chain([
             new JobChainingTestSecondJob,
@@ -174,7 +174,7 @@ class JobChainingTest extends QueueTestCase
         $this->assertTrue(JobChainingTestSecondJob::$ran);
     }
 
-    public function testJobsCanBeChainedViaQueue()
+    public function testJobsCanBeChainedViaQueue(): void
     {
         Queue::push((new JobChainingTestFirstJob)->chain([
             new JobChainingTestSecondJob,
@@ -186,7 +186,7 @@ class JobChainingTest extends QueueTestCase
         $this->assertTrue(JobChainingTestSecondJob::$ran);
     }
 
-    public function testSecondJobIsNotFiredIfFirstFailed()
+    public function testSecondJobIsNotFiredIfFirstFailed(): void
     {
         Queue::push((new JobChainingTestFailingJob)->chain([
             new JobChainingTestSecondJob,
@@ -197,7 +197,7 @@ class JobChainingTest extends QueueTestCase
         $this->assertFalse(JobChainingTestSecondJob::$ran);
     }
 
-    public function testSecondJobIsNotFiredIfFirstReleased()
+    public function testSecondJobIsNotFiredIfFirstReleased(): void
     {
         Queue::push((new JobChainingTestReleasingJob)->chain([
             new JobChainingTestSecondJob,
@@ -208,7 +208,7 @@ class JobChainingTest extends QueueTestCase
         $this->assertFalse(JobChainingTestSecondJob::$ran);
     }
 
-    public function testThirdJobIsNotFiredIfSecondFails()
+    public function testThirdJobIsNotFiredIfSecondFails(): void
     {
         Queue::push((new JobChainingTestFirstJob)->chain([
             new JobChainingTestFailingJob,
@@ -221,7 +221,7 @@ class JobChainingTest extends QueueTestCase
         $this->assertFalse(JobChainingTestThirdJob::$ran);
     }
 
-    public function testCatchCallbackIsCalledOnFailure()
+    public function testCatchCallbackIsCalledOnFailure(): void
     {
         Bus::chain([
             new JobChainingTestFirstJob,
@@ -238,7 +238,7 @@ class JobChainingTest extends QueueTestCase
         $this->assertFalse(JobChainingTestSecondJob::$ran);
     }
 
-    public function testChainJobsUseSameConfig()
+    public function testChainJobsUseSameConfig(): void
     {
         JobChainingTestFirstJob::dispatch()->allOnQueue('some_queue')->allOnConnection('sync1')->chain([
             new JobChainingTestSecondJob,
@@ -257,7 +257,7 @@ class JobChainingTest extends QueueTestCase
         $this->assertSame('sync1', JobChainingTestThirdJob::$usedConnection);
     }
 
-    public function testChainJobsUseOwnConfig()
+    public function testChainJobsUseOwnConfig(): void
     {
         JobChainingTestFirstJob::dispatch()->allOnQueue('some_queue')->allOnConnection('sync1')->chain([
             (new JobChainingTestSecondJob)->onQueue('another_queue')->onConnection('sync2'),
@@ -276,7 +276,7 @@ class JobChainingTest extends QueueTestCase
         $this->assertSame('sync1', JobChainingTestThirdJob::$usedConnection);
     }
 
-    public function testChainJobsUseDefaultConfig()
+    public function testChainJobsUseDefaultConfig(): void
     {
         JobChainingTestFirstJob::dispatch()->onQueue('some_queue')->onConnection('sync1')->chain([
             (new JobChainingTestSecondJob)->onQueue('another_queue')->onConnection('sync2'),
@@ -295,7 +295,7 @@ class JobChainingTest extends QueueTestCase
         $this->assertNull(JobChainingTestThirdJob::$usedConnection);
     }
 
-    public function testChainJobRemovesFalsy()
+    public function testChainJobRemovesFalsy(): void
     {
         $job = (new JobChainingTestFirstJob)->chain([
             new JobChainingTestSecondJob,
@@ -315,7 +315,7 @@ class JobChainingTest extends QueueTestCase
         $this->assertTrue(JobChainingTestSecondJob::$ran);
     }
 
-    public function testChainJobsCanBePrepended()
+    public function testChainJobsCanBePrepended(): void
     {
         JobChainAddingPrependingJob::withChain([new JobChainAddingExistingJob])->dispatch();
 
@@ -326,7 +326,7 @@ class JobChainingTest extends QueueTestCase
         $this->assertTrue(JobChainAddingAddedJob::$ranAt->isBefore(JobChainAddingExistingJob::$ranAt));
     }
 
-    public function testChainJobsCanBePrependedWithoutExistingChain()
+    public function testChainJobsCanBePrependedWithoutExistingChain(): void
     {
         JobChainAddingPrependingJob::dispatch();
 
@@ -335,7 +335,7 @@ class JobChainingTest extends QueueTestCase
         $this->assertNotNull(JobChainAddingAddedJob::$ranAt);
     }
 
-    public function testChainJobsCanBeAppended()
+    public function testChainJobsCanBeAppended(): void
     {
         JobChainAddingAppendingJob::withChain([new JobChainAddingExistingJob])->dispatch();
 
@@ -346,7 +346,7 @@ class JobChainingTest extends QueueTestCase
         $this->assertTrue(JobChainAddingAddedJob::$ranAt->isAfter(JobChainAddingExistingJob::$ranAt));
     }
 
-    public function testChainJobsCanBePrependedBatch()
+    public function testChainJobsCanBePrependedBatch(): void
     {
         Bus::chain([
             new JobChainAddingPrependedBatch('j1'),
@@ -358,7 +358,7 @@ class JobChainingTest extends QueueTestCase
         $this->assertEquals(['j1', 'b1', 'b2', 'j2'], JobRunRecorder::$results);
     }
 
-    public function testChainJobsCanBeAppendedBatch()
+    public function testChainJobsCanBeAppendedBatch(): void
     {
         Bus::chain([
             new JobChainAddingAppendingBatch('j1'),
@@ -370,7 +370,7 @@ class JobChainingTest extends QueueTestCase
         $this->assertEquals(['j1', 'j2', 'b1', 'b2'], JobRunRecorder::$results);
     }
 
-    public function testChainJobsCanBeAppendedWithoutExistingChain()
+    public function testChainJobsCanBeAppendedWithoutExistingChain(): void
     {
         JobChainAddingAppendingJob::dispatch();
 
@@ -379,7 +379,7 @@ class JobChainingTest extends QueueTestCase
         $this->assertNotNull(JobChainAddingAddedJob::$ranAt);
     }
 
-    public function testChainCanBeAppended()
+    public function testChainCanBeAppended(): void
     {
         $chain = Bus::chain();
 
@@ -391,7 +391,7 @@ class JobChainingTest extends QueueTestCase
         $this->assertEquals([$secondJob, $thirdJob], $chain->chain);
     }
 
-    public function testChainCanBeAppendedWithInitialJob()
+    public function testChainCanBeAppendedWithInitialJob(): void
     {
         $chain = Bus::chain([
             $firstJob = new JobChainingNamedTestJob('j1'),
@@ -406,7 +406,7 @@ class JobChainingTest extends QueueTestCase
         $this->assertEquals([$secondJob, $thirdJob], $chain->chain);
     }
 
-    public function testChainRemovesFalsy()
+    public function testChainRemovesFalsy(): void
     {
         $chain = Bus::chain([
             $firstJob = new JobChainingTestFirstJob,
@@ -421,7 +421,7 @@ class JobChainingTest extends QueueTestCase
         $this->assertEquals([$secondJob], $chain->chain);
     }
 
-    public function testChainAppendRemovesFalsy()
+    public function testChainAppendRemovesFalsy(): void
     {
         $chain = Bus::chain([
             $firstJob = new JobChainingNamedTestJob('j1'),
@@ -440,7 +440,7 @@ class JobChainingTest extends QueueTestCase
         $this->assertEquals([$secondJob, $thirdJob], $chain->chain);
     }
 
-    public function testChainCanBePrepended()
+    public function testChainCanBePrepended(): void
     {
         $chain = Bus::chain();
 
@@ -452,7 +452,7 @@ class JobChainingTest extends QueueTestCase
         $this->assertEquals([$secondJob, $firstJob], $chain->chain);
     }
 
-    public function testChainCanBePrependedWithInitialJob()
+    public function testChainCanBePrependedWithInitialJob(): void
     {
         $chain = Bus::chain([
             $firstJob = new JobChainingNamedTestJob('j4'),
@@ -468,7 +468,7 @@ class JobChainingTest extends QueueTestCase
         $this->assertEquals([$thirdJob, $fourthJob, $firstJob], $chain->chain);
     }
 
-    public function testChainPrependRemovesFalsy()
+    public function testChainPrependRemovesFalsy(): void
     {
         $chain = Bus::chain([
             $firstJob = new JobChainingNamedTestJob('j4'),
@@ -488,7 +488,7 @@ class JobChainingTest extends QueueTestCase
         $this->assertEquals([$thirdJob, $fourthJob, $firstJob], $chain->chain);
     }
 
-    public function testBatchCanBeAddedToChain()
+    public function testBatchCanBeAddedToChain(): void
     {
         Bus::chain([
             new JobChainingNamedTestJob('c1'),
@@ -522,7 +522,7 @@ class JobChainingTest extends QueueTestCase
         $this->assertSame(['b1', 'b2', 'c1'], JobRunRecorder::$results);
     }
 
-    public function testBatchInChainUsesCorrectQueue()
+    public function testBatchInChainUsesCorrectQueue(): void
     {
         $otherQueue = $this->getQueueDriver() === 'redis' ? '{other}' : 'other';
         Bus::chain([
@@ -542,7 +542,7 @@ class JobChainingTest extends QueueTestCase
         $this->assertEquals(['c1', 'c2', 'b1', 'b2', 'b3', 'b4', 'c3'], JobRunRecorder::$results);
     }
 
-    public function testDynamicBatchCanBeAddedToChain()
+    public function testDynamicBatchCanBeAddedToChain(): void
     {
         Bus::chain([
             new JobChainingNamedTestJob('c1'),
@@ -573,7 +573,7 @@ class JobChainingTest extends QueueTestCase
         $this->assertCount(11, JobRunRecorder::$results);
     }
 
-    public function testChainBatchChain()
+    public function testChainBatchChain(): void
     {
         Bus::chain([
             new JobChainingNamedTestJob('c1'),
@@ -608,7 +608,7 @@ class JobChainingTest extends QueueTestCase
         $this->assertCount(13, JobRunRecorder::$results);
     }
 
-    public function testChainBatchChainBatch()
+    public function testChainBatchChainBatch(): void
     {
         Bus::chain([
             new JobChainingNamedTestJob('c1'),
@@ -647,7 +647,7 @@ class JobChainingTest extends QueueTestCase
         $this->assertCount(15, JobRunRecorder::$results);
     }
 
-    public function testBatchCatchCallbacks()
+    public function testBatchCatchCallbacks(): void
     {
         Bus::chain([
             new JobChainingNamedTestJob('c1'),
@@ -664,7 +664,7 @@ class JobChainingTest extends QueueTestCase
         $this->assertEquals(['batch failed', 'chain failed'], JobRunRecorder::$failures);
     }
 
-    public function testChainBatchFailureAllowed()
+    public function testChainBatchFailureAllowed(): void
     {
         Bus::chain([
             new JobChainingNamedTestJob('c1'),
@@ -684,7 +684,7 @@ class JobChainingTest extends QueueTestCase
         $this->assertEquals(['batch failed'], JobRunRecorder::$failures);
     }
 
-    public function testChainBatchFailureNotAllowed()
+    public function testChainBatchFailureNotAllowed(): void
     {
         Bus::chain([
             new JobChainingNamedTestJob('c1'),
@@ -703,7 +703,7 @@ class JobChainingTest extends QueueTestCase
         $this->assertEquals(['batch failed', 'chain failed'], JobRunRecorder::$failures);
     }
 
-    public function testChainConditionable()
+    public function testChainConditionable(): void
     {
         $chain = Bus::chain([])
             ->onConnection('sync1')
@@ -722,7 +722,7 @@ class JobChainingTest extends QueueTestCase
         $this->assertSame('sync1', $chain->connection);
     }
 
-    public function testBatchConditionable()
+    public function testBatchConditionable(): void
     {
         $batch = Bus::batch([])
             ->onConnection('sync1')
@@ -740,7 +740,7 @@ class JobChainingTest extends QueueTestCase
         $this->assertSame('sync1', $batch->connection());
     }
 
-    public function testJobsAreChainedWhenDispatchIfIsTrue()
+    public function testJobsAreChainedWhenDispatchIfIsTrue(): void
     {
         JobChainingTestFirstJob::withChain([
             new JobChainingTestSecondJob,
@@ -752,7 +752,7 @@ class JobChainingTest extends QueueTestCase
         $this->assertTrue(JobChainingTestSecondJob::$ran);
     }
 
-    public function testJobsAreNotChainedWhenDispatchIfIsFalse()
+    public function testJobsAreNotChainedWhenDispatchIfIsFalse(): void
     {
         JobChainingTestFirstJob::withChain([
             new JobChainingTestSecondJob,
@@ -764,7 +764,7 @@ class JobChainingTest extends QueueTestCase
         $this->assertFalse(JobChainingTestSecondJob::$ran);
     }
 
-    public function testJobsAreChainedWhenDispatchUnlessIsFalse()
+    public function testJobsAreChainedWhenDispatchUnlessIsFalse(): void
     {
         JobChainingTestFirstJob::withChain([
             new JobChainingTestSecondJob,
@@ -776,7 +776,7 @@ class JobChainingTest extends QueueTestCase
         $this->assertTrue(JobChainingTestSecondJob::$ran);
     }
 
-    public function testJobsAreNotChainedWhenDispatchUnlessIsTrue()
+    public function testJobsAreNotChainedWhenDispatchUnlessIsTrue(): void
     {
         JobChainingTestFirstJob::withChain([
             new JobChainingTestSecondJob,

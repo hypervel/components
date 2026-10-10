@@ -28,7 +28,7 @@ class MigratorEventsTest extends TestCase
         ];
     }
 
-    public function testMigrationEventsAreFired()
+    public function testMigrationEventsAreFired(): void
     {
         Event::fake();
 
@@ -66,7 +66,7 @@ class MigratorEventsTest extends TestCase
         $this->assertSame([], $observedEvents);
     }
 
-    public function testMigrationEventsContainTheOptionsAndPretendFalse()
+    public function testMigrationEventsContainTheOptionsAndPretendFalse(): void
     {
         Event::fake();
 
@@ -99,7 +99,7 @@ class MigratorEventsTest extends TestCase
         });
     }
 
-    public function testMigrationEventsContainTheOptionsAndPretendTrue()
+    public function testMigrationEventsContainTheOptionsAndPretendTrue(): void
     {
         Event::fake();
 
@@ -121,7 +121,7 @@ class MigratorEventsTest extends TestCase
         });
     }
 
-    public function testMigrationEventsContainTheMigrationAndMethod()
+    public function testMigrationEventsContainTheMigrationAndMethod(): void
     {
         Event::fake();
 
@@ -163,7 +163,7 @@ class MigratorEventsTest extends TestCase
         });
     }
 
-    public function testTheNoMigrationEventIsFiredWhenNothingToMigrate()
+    public function testTheNoMigrationEventIsFiredWhenNothingToMigrate(): void
     {
         Event::fake();
 

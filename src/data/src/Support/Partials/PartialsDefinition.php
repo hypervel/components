@@ -33,6 +33,19 @@ class PartialsDefinition
     }
 
     /**
+     * Determine whether a resolved partial set contains any definitions.
+     *
+     * @param array{include: list<PartialDefinition>, exclude: list<PartialDefinition>, only: list<PartialDefinition>, except: list<PartialDefinition>} $definitions
+     */
+    public static function hasResolved(array $definitions): bool
+    {
+        return $definitions['include'] !== []
+            || $definitions['exclude'] !== []
+            || $definitions['only'] !== []
+            || $definitions['except'] !== [];
+    }
+
+    /**
      * Add a partial definition.
      */
     public function add(
@@ -79,15 +92,27 @@ class PartialsDefinition
     }
 
     /**
-     * Add definitions resolved by an enclosing data object.
+     * Add definitions resolved by an enclosing data object or collection.
      *
      * @param array{include: list<PartialDefinition>, exclude: list<PartialDefinition>, only: list<PartialDefinition>, except: list<PartialDefinition>} $definitions
      */
     public function addResolved(array $definitions): void
     {
         foreach ($definitions as $type => $resolved) {
+            $existing = &$this->definitions($type);
+
             foreach ($resolved as $definition) {
-                $this->add($type, $definition->path, $definition->permanent);
+                // Repeated reads and all() calls copy the same selections, so a held copy isn't added again.
+                foreach ($existing as $current) {
+                    if ($current->condition === null
+                        && $current->path === $definition->path
+                        && $current->permanent === $definition->permanent
+                    ) {
+                        continue 2;
+                    }
+                }
+
+                $existing[] = new PartialDefinition($definition->path, $definition->permanent);
             }
         }
     }

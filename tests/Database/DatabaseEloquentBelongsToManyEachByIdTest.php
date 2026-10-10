@@ -56,7 +56,7 @@ class DatabaseEloquentBelongsToManyEachByIdTest extends TestCase
         });
     }
 
-    public function testBelongsToEachById()
+    public function testBelongsToEachById(): void
     {
         $this->seedData();
 

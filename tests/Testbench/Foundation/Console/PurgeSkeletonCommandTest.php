@@ -98,7 +98,7 @@ class PurgeSkeletonCommandTest extends TestCase
         $sessionFile = $this->app->storagePath(join_paths('framework', 'sessions', 'session.txt'));
         $purgeFile = $this->app->basePath('purge-me.txt');
         $purgeWildcardFile = $this->app->basePath('purge-test.log');
-        $aopDirectory = $this->app->storagePath(join_paths('framework', 'aop'));
+        $aopDirectory = $this->app->bootstrapPath(join_paths('cache', 'aop'));
         $buildDirectory = $this->app->basePath(join_paths('public', 'build'));
         $vendorDirectory = $this->app->basePath(join_paths('public', 'vendor', 'package'));
         $purgeDirectory = $this->app->basePath('purge-dir');
@@ -280,7 +280,7 @@ class PurgeSkeletonCommandTest extends TestCase
             $this->app->storagePath(join_paths('framework', 'sessions', 'session.txt')),
             $this->app->basePath('purge-me.txt'),
             $this->app->basePath('purge-test.log'),
-            $this->app->storagePath(join_paths('framework', 'aop')),
+            $this->app->bootstrapPath(join_paths('cache', 'aop')),
             $this->app->basePath(join_paths('public', 'build')),
             $this->app->basePath(join_paths('public', 'vendor', 'package')),
             $this->app->basePath('purge-dir'),

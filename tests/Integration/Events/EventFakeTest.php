@@ -36,7 +36,7 @@ class EventFakeTest extends TestCase
         Schema::dropIfExists('posts');
     }
 
-    public function testNonFakedEventGetsProperlyDispatched()
+    public function testNonFakedEventGetsProperlyDispatched(): void
     {
         Event::fake(NonImportantEvent::class);
         Post::observe([PostObserver::class]);
@@ -50,7 +50,7 @@ class EventFakeTest extends TestCase
         Event::assertNotDispatched(NonImportantEvent::class);
     }
 
-    public function testNonFakedEventGetsProperlyDispatchedAndReturnsResponses()
+    public function testNonFakedEventGetsProperlyDispatchedAndReturnsResponses(): void
     {
         Event::fake(NonImportantEvent::class);
         Event::listen('test', function () {
@@ -67,7 +67,7 @@ class EventFakeTest extends TestCase
         Event::assertNotDispatched(NonImportantEvent::class);
     }
 
-    public function testNonFakedEventGetsProperlyDispatchedAndCancelsFutureListeners()
+    public function testNonFakedEventGetsProperlyDispatchedAndCancelsFutureListeners(): void
     {
         Event::fake(NonImportantEvent::class);
         Event::listen('test', function () {
@@ -85,7 +85,7 @@ class EventFakeTest extends TestCase
         Event::assertNotDispatched(NonImportantEvent::class);
     }
 
-    public function testNonFakedHaltedEventGetsProperlyDispatchedAndReturnsResponse()
+    public function testNonFakedHaltedEventGetsProperlyDispatchedAndReturnsResponse(): void
     {
         Event::fake(NonImportantEvent::class);
         Event::listen('test', function () {
@@ -103,7 +103,7 @@ class EventFakeTest extends TestCase
         Event::assertNotDispatched(NonImportantEvent::class);
     }
 
-    public function testFakeExceptAllowsGivenEventToBeDispatched()
+    public function testFakeExceptAllowsGivenEventToBeDispatched(): void
     {
         Event::fakeExcept(NonImportantEvent::class);
 
@@ -112,7 +112,7 @@ class EventFakeTest extends TestCase
         Event::assertNotDispatched(NonImportantEvent::class);
     }
 
-    public function testFakeExceptAllowsGivenEventsToBeDispatched()
+    public function testFakeExceptAllowsGivenEventsToBeDispatched(): void
     {
         Event::fakeExcept([
             NonImportantEvent::class,
@@ -126,7 +126,7 @@ class EventFakeTest extends TestCase
         Event::assertNotDispatched('non-fake-event');
     }
 
-    public function testEventsListedInExceptAreProperlyDispatched()
+    public function testEventsListedInExceptAreProperlyDispatched(): void
     {
         Event::fake()->except('important-event');
 
@@ -142,7 +142,7 @@ class EventFakeTest extends TestCase
         $this->assertEquals(['important'], Event::dispatch('important-event'));
     }
 
-    public function testAssertListening()
+    public function testAssertListening(): void
     {
         Event::fake();
 
@@ -180,7 +180,7 @@ class EventFakeTest extends TestCase
         Event::assertListening('event', InvokableEventSubscriber::class);
     }
 
-    public function testMissingMethodsAreForwarded()
+    public function testMissingMethodsAreForwarded(): void
     {
         Event::macro('foo', fn () => 'bar');
 
@@ -203,7 +203,7 @@ class EventFakeTest extends TestCase
         Event::assertNotDispatched(ShouldDispatchAfterCommitEvent::class);
     }
 
-    public function testShouldDispatchAfterCommitEventsAreDispatchedIfTransactionSucceeds()
+    public function testShouldDispatchAfterCommitEventsAreDispatchedIfTransactionSucceeds(): void
     {
         Event::fake();
 
@@ -214,7 +214,7 @@ class EventFakeTest extends TestCase
         Event::assertDispatched(ShouldDispatchAfterCommitEvent::class);
     }
 
-    public function testShouldDispatchAfterCommitEventsAreDispatchedIfThereIsNoTransaction()
+    public function testShouldDispatchAfterCommitEventsAreDispatchedIfThereIsNoTransaction(): void
     {
         Event::fake();
 
@@ -222,7 +222,7 @@ class EventFakeTest extends TestCase
         Event::assertDispatched(ShouldDispatchAfterCommitEvent::class);
     }
 
-    public function testAssertNothingDispatchedShouldDispatchAfterCommit()
+    public function testAssertNothingDispatchedShouldDispatchAfterCommit(): void
     {
         Event::fake();
         Event::assertNothingDispatched();

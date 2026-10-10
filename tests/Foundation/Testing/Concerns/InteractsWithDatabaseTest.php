@@ -31,7 +31,7 @@ class InteractsWithDatabaseTest extends TestCase
         ];
     }
 
-    public function testAssertDatabaseHas()
+    public function testAssertDatabaseHas(): void
     {
         $user = User::factory()->create();
 
@@ -40,14 +40,14 @@ class InteractsWithDatabaseTest extends TestCase
         ]);
     }
 
-    public function testAssertDatabaseMissing()
+    public function testAssertDatabaseMissing(): void
     {
         $this->assertDatabaseMissing('foundation_test_users', [
             'id' => 1,
         ]);
     }
 
-    public function testAssertDatabaseCount()
+    public function testAssertDatabaseCount(): void
     {
         $this->assertDatabaseCount('foundation_test_users', 0);
 
@@ -56,7 +56,7 @@ class InteractsWithDatabaseTest extends TestCase
         $this->assertDatabaseCount('foundation_test_users', 1);
     }
 
-    public function testAssertDatabaseEmpty()
+    public function testAssertDatabaseEmpty(): void
     {
         $this->assertDatabaseEmpty('foundation_test_users');
     }
@@ -225,14 +225,14 @@ class InteractsWithDatabaseTest extends TestCase
         }
     }
 
-    public function testAssertModelExists()
+    public function testAssertModelExists(): void
     {
         $user = User::factory()->create();
 
         $this->assertModelExists($user);
     }
 
-    public function testAssertModelMissing()
+    public function testAssertModelMissing(): void
     {
         $user = User::factory()->create();
         $user->id = 999;
@@ -240,7 +240,7 @@ class InteractsWithDatabaseTest extends TestCase
         $this->assertModelMissing($user);
     }
 
-    public function testFactoryUsesConfiguredFakerLocale()
+    public function testFactoryUsesConfiguredFakerLocale(): void
     {
         $locale = 'fr_FR';
         $this->app->make('config')

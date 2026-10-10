@@ -232,7 +232,7 @@ class ApiRequestTest extends TestCase
         $request = new ApiRequest(new Psr7Request($httpMethod, 'https://api.example.com'));
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Use withQuery() or withoutQuery() instead.');
+        $this->expectExceptionMessageIsOrContains('Use withQuery() or withoutQuery() instead.');
 
         $argument === null ? $request->{$mutation}() : $request->{$mutation}($argument);
     }
@@ -281,7 +281,7 @@ class ApiRequestTest extends TestCase
     public function testStructuredFormatConversionRejectsUnrepresentableBodies(ApiRequest $request): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('does not contain structured JSON or form data');
+        $this->expectExceptionMessageIsOrContains('does not contain structured JSON or form data');
 
         $request->asJson();
     }

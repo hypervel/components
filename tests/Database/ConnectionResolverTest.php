@@ -130,10 +130,9 @@ class ConnectionResolverTest extends TestCase
     public function testNonCoroutineConnectionIsRetainedUntilTerminalRelease(): void
     {
         $poolManager = m::mock(PoolManager::class);
-        $pool = m::mock(DatabasePool::class);
-        $pool->allows('recordDateFormat');
-        $firstWrapper = m::mock(PooledConnection::class);
-        $secondWrapper = m::mock(PooledConnection::class);
+        $pool = m::mock(DatabasePool::class, ['usesSessionLeases' => false]);
+        $firstWrapper = m::mock(PooledConnection::class, ['recordDateFormat' => null]);
+        $secondWrapper = m::mock(PooledConnection::class, ['recordDateFormat' => null]);
         $firstConnection = m::mock(Connection::class);
         $secondConnection = m::mock(Connection::class);
 
@@ -165,9 +164,8 @@ class ConnectionResolverTest extends TestCase
         $resolver = $this->makeResolver('mysql', $poolManager);
 
         foreach (['mysql' => null, 'mysql::read' => 'read', 'mysql::write' => 'write'] as $name => $role) {
-            $pool = m::mock(DatabasePool::class);
-            $pool->allows('recordDateFormat');
-            $wrapper = m::mock(PooledConnection::class);
+            $pool = m::mock(DatabasePool::class, ['usesSessionLeases' => false]);
+            $wrapper = m::mock(PooledConnection::class, ['recordDateFormat' => null]);
             $connection = m::mock(Connection::class);
 
             $poolManager->expects('pool')->once()->with($name)->andReturn($pool);
@@ -194,14 +192,13 @@ class ConnectionResolverTest extends TestCase
     public function testBorrowedConnectionRetainsItsRequestedRole(): void
     {
         $poolManager = m::mock(PoolManager::class);
-        $pool = m::mock(DatabasePool::class);
+        $pool = m::mock(DatabasePool::class, ['usesSessionLeases' => false]);
         $resolver = $this->makeResolver('sqlite', $poolManager);
         $pool->allows('getSharedInMemorySqlitePdo')->andReturnNull();
-        $pool->allows('recordDateFormat');
 
         foreach (['sqlite::write', 'sqlite'] as $name) {
             $connection = new PdoConnection(new PDO('sqlite::memory:'), config: ['name' => 'sqlite']);
-            $wrapper = m::mock(PooledConnection::class);
+            $wrapper = m::mock(PooledConnection::class, ['recordDateFormat' => null]);
             $poolManager->expects('pool')->with($name)->andReturn($pool);
             $pool->expects('borrow')->andReturn($wrapper);
             $wrapper->expects('getConnection')->andReturn($connection);
@@ -218,9 +215,8 @@ class ConnectionResolverTest extends TestCase
     public function testSharedInMemorySqliteAliasesReuseOneConnectionOwner(): void
     {
         $poolManager = m::mock(PoolManager::class);
-        $pool = m::mock(DatabasePool::class);
-        $pool->allows('recordDateFormat');
-        $wrapper = m::mock(PooledConnection::class);
+        $pool = m::mock(DatabasePool::class, ['usesSessionLeases' => false]);
+        $wrapper = m::mock(PooledConnection::class, ['recordDateFormat' => null]);
         $connection = m::mock(Connection::class);
 
         $poolManager->expects('pool')->once()->with('sqlite::read')->andReturn($pool);
@@ -242,13 +238,12 @@ class ConnectionResolverTest extends TestCase
         $resolver->releaseConnections();
     }
 
-    public function testTerminalStateIsDetachedBeforeReleaseCanReenterTheResolver(): void
+    public function testTerminalStateRemainsAvailableUntilItsOwnerIsReleased(): void
     {
         $poolManager = m::mock(PoolManager::class);
-        $pool = m::mock(DatabasePool::class);
-        $pool->allows('recordDateFormat');
-        $firstWrapper = m::mock(PooledConnection::class);
-        $secondWrapper = m::mock(PooledConnection::class);
+        $pool = m::mock(DatabasePool::class, ['usesSessionLeases' => false]);
+        $firstWrapper = m::mock(PooledConnection::class, ['recordDateFormat' => null]);
+        $secondWrapper = m::mock(PooledConnection::class, ['recordDateFormat' => null]);
         $firstConnection = m::mock(Connection::class);
         $secondConnection = m::mock(Connection::class);
 
@@ -264,14 +259,16 @@ class ConnectionResolverTest extends TestCase
         $resolver = $this->makeResolver('mysql', $poolManager);
         $resolver->setDefaultConnection('reporting');
 
-        $firstWrapper->expects('release')->andReturnUsing(function () use ($resolver, $secondConnection): void {
-            $this->assertSame('mysql', $resolver->getDefaultConnection());
-            $this->assertSame($secondConnection, $resolver->connection('mysql'));
+        $firstWrapper->expects('release')->andReturnUsing(function () use ($resolver, $firstConnection): void {
+            $this->assertSame('reporting', $resolver->getDefaultConnection());
+            $this->assertSame($firstConnection, $resolver->connection('mysql'));
         });
 
         $this->assertSame($firstConnection, $resolver->connection('mysql'));
 
         $resolver->releaseConnections();
+        $this->assertSame('mysql', $resolver->getDefaultConnection());
+        $this->assertSame($secondConnection, $resolver->connection('mysql'));
         $resolver->releaseConnections();
     }
 
@@ -286,9 +283,8 @@ class ConnectionResolverTest extends TestCase
             ['first', $firstException],
             ['second', $secondException],
         ] as [$name, $exception]) {
-            $pool = m::mock(DatabasePool::class);
-            $pool->allows('recordDateFormat');
-            $wrapper = m::mock(PooledConnection::class);
+            $pool = m::mock(DatabasePool::class, ['usesSessionLeases' => false]);
+            $wrapper = m::mock(PooledConnection::class, ['recordDateFormat' => null]);
 
             $poolManager->expects('pool')->once()->with($name)->andReturn($pool);
             $pool->allows('getSharedInMemorySqlitePdo')->andReturnNull();
@@ -323,9 +319,8 @@ class ConnectionResolverTest extends TestCase
             ['second', $firstCancellation],
             ['third', $secondCancellation],
         ] as [$name, $failure]) {
-            $pool = m::mock(DatabasePool::class);
-            $pool->allows('recordDateFormat');
-            $wrapper = m::mock(PooledConnection::class);
+            $pool = m::mock(DatabasePool::class, ['usesSessionLeases' => false]);
+            $wrapper = m::mock(PooledConnection::class, ['recordDateFormat' => null]);
 
             $poolManager->expects('pool')->once()->with($name)->andReturn($pool);
             $pool->allows('getSharedInMemorySqlitePdo')->andReturnNull();
@@ -353,9 +348,8 @@ class ConnectionResolverTest extends TestCase
         $resolver = $this->makeResolver('first', $poolManager);
 
         foreach (['first', 'second'] as $name) {
-            $pool = m::mock(DatabasePool::class);
-            $pool->allows('recordDateFormat');
-            $wrapper = m::mock(PooledConnection::class);
+            $pool = m::mock(DatabasePool::class, ['usesSessionLeases' => false]);
+            $wrapper = m::mock(PooledConnection::class, ['recordDateFormat' => null]);
 
             $poolManager->expects('pool')->once()->with($name)->andReturn($pool);
             $pool->allows('getSharedInMemorySqlitePdo')->andReturnNull();
@@ -375,7 +369,7 @@ class ConnectionResolverTest extends TestCase
     {
         $exception = new RuntimeException('Connection retrieval failed.');
         $poolManager = m::mock(PoolManager::class);
-        $pool = m::mock(DatabasePool::class);
+        $pool = m::mock(DatabasePool::class, ['usesSessionLeases' => false]);
         $wrapper = m::mock(PooledConnection::class);
 
         $poolManager->expects('pool')->once()->with('mysql')->andReturn($pool);
@@ -398,7 +392,7 @@ class ConnectionResolverTest extends TestCase
     {
         $exception = new RuntimeException('Connection listener failed.');
         $poolManager = m::mock(PoolManager::class);
-        $pool = m::mock(DatabasePool::class);
+        $pool = m::mock(DatabasePool::class, ['usesSessionLeases' => false]);
         $wrapper = m::mock(PooledConnection::class);
 
         $poolManager->expects('pool')->with('mysql')->andReturn($pool);
@@ -427,7 +421,7 @@ class ConnectionResolverTest extends TestCase
     {
         $exception = new RuntimeException('Write role configuration failed.');
         $poolManager = m::mock(PoolManager::class);
-        $pool = m::mock(DatabasePool::class);
+        $pool = m::mock(DatabasePool::class, ['usesSessionLeases' => false]);
         $wrapper = m::mock(PooledConnection::class);
         $connection = m::mock(Connection::class);
 
@@ -454,7 +448,7 @@ class ConnectionResolverTest extends TestCase
         $setupException = new RuntimeException('Connection retrieval failed.');
         $discardException = new RuntimeException('Discard failed.');
         $poolManager = m::mock(PoolManager::class);
-        $pool = m::mock(DatabasePool::class);
+        $pool = m::mock(DatabasePool::class, ['usesSessionLeases' => false]);
         $wrapper = m::mock(PooledConnection::class);
 
         $poolManager->expects('pool')->once()->with('mysql')->andReturn($pool);
@@ -478,7 +472,7 @@ class ConnectionResolverTest extends TestCase
         $setupException = new RuntimeException('Connection retrieval failed.');
         $discardCancellation = new CanceledException('Discard was canceled.');
         $poolManager = m::mock(PoolManager::class);
-        $pool = m::mock(DatabasePool::class);
+        $pool = m::mock(DatabasePool::class, ['usesSessionLeases' => false]);
         $wrapper = m::mock(PooledConnection::class);
 
         $poolManager->expects('pool')->once()->with('mysql')->andReturn($pool);
@@ -502,7 +496,7 @@ class ConnectionResolverTest extends TestCase
         $setupCancellation = new CanceledException('Connection setup was canceled.');
         $discardException = new RuntimeException('Discard failed.');
         $poolManager = m::mock(PoolManager::class);
-        $pool = m::mock(DatabasePool::class);
+        $pool = m::mock(DatabasePool::class, ['usesSessionLeases' => false]);
         $wrapper = m::mock(PooledConnection::class);
 
         $poolManager->expects('pool')->once()->with('mysql')->andReturn($pool);
@@ -526,7 +520,7 @@ class ConnectionResolverTest extends TestCase
         $setupCancellation = new CanceledException('Connection setup was canceled.');
         $discardCancellation = new CanceledException('Discard was canceled.');
         $poolManager = m::mock(PoolManager::class);
-        $pool = m::mock(DatabasePool::class);
+        $pool = m::mock(DatabasePool::class, ['usesSessionLeases' => false]);
         $wrapper = m::mock(PooledConnection::class);
 
         $poolManager->expects('pool')->once()->with('mysql')->andReturn($pool);
@@ -548,9 +542,8 @@ class ConnectionResolverTest extends TestCase
     public function testCoroutineConnectionRemainsDeferOwned(): void
     {
         $poolManager = m::mock(PoolManager::class);
-        $pool = m::mock(DatabasePool::class);
-        $pool->allows('recordDateFormat');
-        $wrapper = m::mock(PooledConnection::class);
+        $pool = m::mock(DatabasePool::class, ['usesSessionLeases' => false]);
+        $wrapper = m::mock(PooledConnection::class, ['recordDateFormat' => null]);
         $connection = m::mock(Connection::class);
 
         $poolManager->expects('pool')->once()->with('mysql')->andReturn($pool);
@@ -592,14 +585,14 @@ class ConnectionResolverTest extends TestCase
     public function testConnectionDateFormatPrefersTheGrammarOfAHeldConnection(): void
     {
         $poolManager = m::mock(PoolManager::class);
-        $pool = m::mock(DatabasePool::class);
+        $pool = m::mock(DatabasePool::class, ['usesSessionLeases' => false]);
         $wrapper = m::mock(PooledConnection::class);
         $connection = new PdoConnection(new PDO('sqlite::memory:'), config: ['name' => 'sqlite']);
         $poolManager->expects('pool')->with('sqlite')->andReturn($pool);
         $poolManager->shouldNotReceive('existing');
         $pool->allows('getSharedInMemorySqlitePdo')->andReturnNull();
         $pool->expects('borrow')->andReturn($wrapper);
-        $pool->expects('recordDateFormat')->with($connection);
+        $wrapper->expects('recordDateFormat');
         $wrapper->expects('getConnection')->andReturn($connection);
         $wrapper->expects('dispatchConnectionEstablishedEvent');
         $wrapper->expects('release');
@@ -616,7 +609,7 @@ class ConnectionResolverTest extends TestCase
     public function testSharedInMemorySqliteAliasesReadTheFormatOfTheirHeldOwner(): void
     {
         $poolManager = m::mock(PoolManager::class);
-        $pool = m::mock(DatabasePool::class);
+        $pool = m::mock(DatabasePool::class, ['usesSessionLeases' => false]);
         $wrapper = m::mock(PooledConnection::class);
         $connection = new PdoConnection(new PDO('sqlite::memory:'), config: ['name' => 'sqlite']);
         $connection->setQueryGrammar(new ConnectionResolverTestTimestampGrammar($connection));
@@ -624,7 +617,7 @@ class ConnectionResolverTest extends TestCase
         $poolManager->expects('existing')->with('sqlite::read')->andReturn($pool);
         $pool->allows('getSharedInMemorySqlitePdo')->andReturn(m::mock(PDO::class));
         $pool->allows('getName')->andReturn('sqlite');
-        $pool->allows('recordDateFormat');
+        $wrapper->expects('recordDateFormat');
         $pool->shouldNotReceive('recordedDateFormat');
         $pool->expects('borrow')->andReturn($wrapper);
         $wrapper->expects('getConnection')->andReturn($connection);
@@ -642,15 +635,15 @@ class ConnectionResolverTest extends TestCase
     public function testConnectionDateFormatResolvesTheConnectionWhileNoOpenPoolHasRecordedOne(): void
     {
         $poolManager = m::mock(PoolManager::class);
-        $pool = m::mock(DatabasePool::class);
+        $pool = m::mock(DatabasePool::class, ['usesSessionLeases' => false]);
         $wrapper = m::mock(PooledConnection::class);
         $connection = new PdoConnection(new PDO('sqlite::memory:'), config: ['name' => 'sqlite']);
         // A purged pool is no longer found, so its old record cannot answer.
-        $poolManager->expects('existing')->with('sqlite')->andReturnNull();
+        $poolManager->expects('existing')->twice()->with('sqlite')->andReturn(null, $pool);
         $poolManager->expects('pool')->with('sqlite')->andReturn($pool);
         $pool->allows('getSharedInMemorySqlitePdo')->andReturnNull();
         $pool->expects('borrow')->andReturn($wrapper);
-        $pool->expects('recordDateFormat')->with($connection);
+        $wrapper->expects('recordDateFormat');
         $wrapper->expects('getConnection')->andReturn($connection);
         $wrapper->expects('dispatchConnectionEstablishedEvent');
         $wrapper->expects('release');

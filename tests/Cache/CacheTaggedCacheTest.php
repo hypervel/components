@@ -39,7 +39,7 @@ enum TaggedCacheTestKeyUnitEnum
 
 class CacheTaggedCacheTest extends TestCase
 {
-    public function testCacheCanBeSavedWithMultipleTags()
+    public function testCacheCanBeSavedWithMultipleTags(): void
     {
         $store = new ArrayStore;
         $tags = ['bop', 'zap'];
@@ -47,7 +47,7 @@ class CacheTaggedCacheTest extends TestCase
         $this->assertSame('bar', $store->tags($tags)->get('foo'));
     }
 
-    public function testCacheCanBeSetWithDatetimeArgument()
+    public function testCacheCanBeSetWithDatetimeArgument(): void
     {
         $store = new ArrayStore;
         $tags = ['bop', 'zap'];
@@ -90,7 +90,7 @@ class CacheTaggedCacheTest extends TestCase
         $this->assertTrue($store->tags(['bop', 'zap'])->putMany([], 60));
     }
 
-    public function testCacheSavedWithMultipleTagsCanBeFlushed()
+    public function testCacheSavedWithMultipleTagsCanBeFlushed(): void
     {
         $store = new ArrayStore;
         $tags1 = ['bop', 'zap'];
@@ -267,7 +267,7 @@ class CacheTaggedCacheTest extends TestCase
         $this->assertNull($store->tags(['bop'])->get('foo'));
     }
 
-    public function testTagFlushRemovesSentinelAndReRunsCallbackOnRememberNullable()
+    public function testTagFlushRemovesSentinelAndReRunsCallbackOnRememberNullable(): void
     {
         $store = new ArrayStore(serializesValues: true);
         $repo = new Repository($store);
@@ -286,14 +286,14 @@ class CacheTaggedCacheTest extends TestCase
         $this->assertTrue($invoked);
     }
 
-    public function testTagsWithStringArgument()
+    public function testTagsWithStringArgument(): void
     {
         $store = new ArrayStore;
         $store->tags('bop')->put('foo', 'bar', 10);
         $this->assertSame('bar', $store->tags('bop')->get('foo'));
     }
 
-    public function testWithIncrement()
+    public function testWithIncrement(): void
     {
         $store = new ArrayStore;
         $taggableStore = $store->tags('bop');
@@ -319,7 +319,7 @@ class CacheTaggedCacheTest extends TestCase
         $this->assertSame(10, $value);
     }
 
-    public function testWithDecrement()
+    public function testWithDecrement(): void
     {
         $store = new ArrayStore;
         $taggableStore = $store->tags('bop');
@@ -345,7 +345,7 @@ class CacheTaggedCacheTest extends TestCase
         $this->assertSame(-10, $value);
     }
 
-    public function testMany()
+    public function testMany(): void
     {
         $store = $this->getTestCacheStoreWithTagValues();
 
@@ -359,7 +359,7 @@ class CacheTaggedCacheTest extends TestCase
         ], $values);
     }
 
-    public function testManyWithDefaultValues()
+    public function testManyWithDefaultValues(): void
     {
         $store = $this->getTestCacheStoreWithTagValues();
 
@@ -422,7 +422,7 @@ class CacheTaggedCacheTest extends TestCase
         ], $values);
     }
 
-    public function testGetMultiple()
+    public function testGetMultiple(): void
     {
         $store = $this->getTestCacheStoreWithTagValues();
 
@@ -445,7 +445,7 @@ class CacheTaggedCacheTest extends TestCase
         ], $values);
     }
 
-    public function testGetMultipleWithDefaultValue()
+    public function testGetMultipleWithDefaultValue(): void
     {
         $store = $this->getTestCacheStoreWithTagValues();
 
@@ -459,7 +459,7 @@ class CacheTaggedCacheTest extends TestCase
         ], $values);
     }
 
-    public function testTagsWithIncrementCanBeFlushed()
+    public function testTagsWithIncrementCanBeFlushed(): void
     {
         $store = new ArrayStore;
         $store->tags('bop')->increment('foo', 5);
@@ -468,7 +468,7 @@ class CacheTaggedCacheTest extends TestCase
         $this->assertNull($store->tags('bop')->get('foo'));
     }
 
-    public function testTagsWithDecrementCanBeFlushed()
+    public function testTagsWithDecrementCanBeFlushed(): void
     {
         $store = new ArrayStore;
         $store->tags('bop')->decrement('foo', 5);
@@ -477,7 +477,7 @@ class CacheTaggedCacheTest extends TestCase
         $this->assertNull($store->tags('bop')->get('foo'));
     }
 
-    public function testTagsCacheForever()
+    public function testTagsCacheForever(): void
     {
         $store = new ArrayStore;
         $tags = ['bop', 'zap'];

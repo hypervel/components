@@ -6,15 +6,16 @@ namespace Hypervel\Tests\NestedSet;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Foundation\Testing\DatabaseMigrations;
 use Hypervel\NestedSet\NestedSet;
 use Hypervel\NestedSet\NestedSetServiceProvider;
 use Hypervel\Support\Facades\Schema;
-use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 
-#[WithConfig('database.default', 'testing')]
 class NestedSetSchemaTest extends TestCase
 {
+    use DatabaseMigrations;
+
     /**
      * Get package providers.
      */
@@ -25,11 +26,27 @@ class NestedSetSchemaTest extends TestCase
         ];
     }
 
-    public function tearDown(): void
+    /**
+     * Use a table prefix so generated index names are checked against prefixed tables.
+     */
+    protected function defineEnvironment(ApplicationContract $app): void
+    {
+        parent::defineEnvironment($app);
+
+        $config = $app->make('config');
+
+        $config->set(
+            'database.connections.' . $config->string('database.default') . '.prefix',
+            'prfx_',
+        );
+    }
+
+    /**
+     * Drop the schema fixture on the test coroutine's connection.
+     */
+    protected function tearDownInCoroutine(): void
     {
         Schema::dropIfExists('nested_set_schema');
-
-        parent::tearDown();
     }
 
     public function testNestedSetMacroCreatesExpectedColumnsAndIndexes(): void
@@ -40,8 +57,7 @@ class NestedSetSchemaTest extends TestCase
             $table->nestedSet(['tenant_id']);
         });
 
-        $this->assertNestedSetColumns(['tenant_id', NestedSet::LFT, NestedSet::RGT, NestedSet::PARENT_ID, NestedSet::DEPTH]);
-        $this->assertNestedSetIndexes(['tenant_id']);
+        $this->assertNestedSetSchema(['tenant_id']);
     }
 
     public function testIntegerNestedSetMacroCreatesExpectedColumnsAndIndexes(): void
@@ -51,33 +67,30 @@ class NestedSetSchemaTest extends TestCase
             $table->integerNestedSet();
         });
 
-        $this->assertNestedSetColumns([NestedSet::LFT, NestedSet::RGT, NestedSet::PARENT_ID, NestedSet::DEPTH]);
-        $this->assertNestedSetIndexes();
+        $this->assertNestedSetSchema();
     }
 
-    public function testUuidNestedSetMacroCreatesCompatibleSqliteParentColumnAndIndexes(): void
+    public function testUuidNestedSetMacroCreatesExpectedColumnsAndIndexes(): void
     {
         Schema::create('nested_set_schema', function (Blueprint $table): void {
             $table->uuid('id')->primary();
             $table->uuidNestedSet();
         });
 
-        $this->assertSame('varchar', Schema::getColumnType('nested_set_schema', NestedSet::PARENT_ID));
-        $this->assertNestedSetIndexes();
+        $this->assertNestedSetSchema();
     }
 
-    public function testUlidNestedSetMacroCreatesCompatibleSqliteParentColumnAndIndexes(): void
+    public function testUlidNestedSetMacroCreatesExpectedColumnsAndIndexes(): void
     {
         Schema::create('nested_set_schema', function (Blueprint $table): void {
             $table->ulid('id')->primary();
             $table->ulidNestedSet();
         });
 
-        $this->assertSame('varchar', Schema::getColumnType('nested_set_schema', NestedSet::PARENT_ID));
-        $this->assertNestedSetIndexes();
+        $this->assertNestedSetSchema();
     }
 
-    public function testDropNestedSetMacroDropsTheColumnsAndIndexesItCreates(): void
+    public function testDropsEveryNestedSetIndexItCreates(): void
     {
         Schema::create('nested_set_schema', function (Blueprint $table): void {
             $table->id();
@@ -97,28 +110,38 @@ class NestedSetSchemaTest extends TestCase
     }
 
     /**
-     * Assert that the table contains the expected nested set columns.
+     * Assert that the table has the nested set columns, column types, and exact indexes.
      */
-    protected function assertNestedSetColumns(array $columns): void
+    protected function assertNestedSetSchema(array $scopes = []): void
     {
-        $this->assertEqualsCanonicalizing($columns, array_values(array_intersect(
-            Schema::getColumnListing('nested_set_schema'),
-            $columns,
-        )));
-    }
+        $columns = Schema::getColumns('nested_set_schema');
+        $types = array_column($columns, 'type', 'name');
+        $typeNames = array_column($columns, 'type_name', 'name');
 
-    /**
-     * Assert that the table contains the expected nested set indexes.
-     */
-    protected function assertNestedSetIndexes(array $scopes = []): void
-    {
-        $indexColumns = array_map(
-            fn (array $index): array => $index['columns'],
-            Schema::getIndexes('nested_set_schema'),
+        [$boundType, $depthType] = match (Schema::getConnection()->getDriverName()) {
+            'pgsql' => ['int4', 'int2'],
+            'sqlite' => ['integer', 'integer'],
+            default => ['int', 'smallint'],
+        };
+
+        $this->assertSame($types['id'], $types[NestedSet::PARENT_ID]);
+        $this->assertSame($boundType, $typeNames[NestedSet::LFT]);
+        $this->assertSame($boundType, $typeNames[NestedSet::RGT]);
+        $this->assertSame($depthType, $typeNames[NestedSet::DEPTH]);
+
+        $this->assertEqualsCanonicalizing(
+            [
+                implode(',', [...$scopes, NestedSet::RGT]),
+                implode(',', [...$scopes, NestedSet::LFT, NestedSet::RGT]),
+                implode(',', [...$scopes, NestedSet::PARENT_ID, NestedSet::LFT]),
+            ],
+            array_values(array_map(
+                fn (array $index): string => implode(',', $index['columns']),
+                array_filter(
+                    Schema::getIndexes('nested_set_schema'),
+                    fn (array $index): bool => ! $index['primary'],
+                ),
+            )),
         );
-
-        $this->assertContains([...$scopes, NestedSet::RGT], $indexColumns);
-        $this->assertContains([...$scopes, NestedSet::LFT], $indexColumns);
-        $this->assertContains([...$scopes, NestedSet::PARENT_ID, NestedSet::LFT], $indexColumns);
     }
 }

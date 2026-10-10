@@ -60,7 +60,7 @@ class ConfigTest extends SentryTestCase
     public function testUnsupportedPoolOptionsAreRejected(string $name, mixed $value): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             "Unsupported Sentry pool option(s) [{$name}]. Supported options are [max_objects, wait_timeout, max_lifetime]."
         );
 

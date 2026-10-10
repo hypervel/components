@@ -83,13 +83,15 @@ class NestedSet
     public static function dropColumns(Blueprint $table, array $scopes = []): void
     {
         $table->dropIndex([...$scopes, self::RGT]);
-        $table->dropIndex([...$scopes, self::LFT]);
+        $table->dropIndex([...$scopes, self::LFT, self::RGT]);
         $table->dropIndex([...$scopes, self::PARENT_ID, self::LFT]);
         $table->dropColumn(static::getDefaultColumns());
     }
 
     /**
      * Get a list of default columns.
+     *
+     * @return array<int, string>
      */
     public static function getDefaultColumns(): array
     {
@@ -161,7 +163,8 @@ class NestedSet
     protected static function addIndexes(Blueprint $table, array $scopes): void
     {
         $table->index([...$scopes, self::RGT]);
-        $table->index([...$scopes, self::LFT]);
+        // Indexing both bounds lets ancestor queries filter the right bound within the index.
+        $table->index([...$scopes, self::LFT, self::RGT]);
         $table->index([...$scopes, self::PARENT_ID, self::LFT]);
     }
 

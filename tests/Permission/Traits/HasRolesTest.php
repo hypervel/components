@@ -6,21 +6,55 @@ namespace Hypervel\Tests\Permission\Traits;
 
 use Hypervel\Database\Eloquent\MissingAttributeException;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\BelongsToMany;
+use Hypervel\Database\Eloquent\Relations\MorphPivot;
 use Hypervel\Permission\Contracts\Permission;
 use Hypervel\Permission\Contracts\Role;
 use Hypervel\Permission\Events\RoleAttachedEvent;
 use Hypervel\Permission\Events\RoleDetachedEvent;
 use Hypervel\Permission\Exceptions\GuardDoesNotMatch;
 use Hypervel\Permission\Exceptions\RoleDoesNotExist;
+use Hypervel\Permission\Traits\HasRoles;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Tests\Permission\Fixtures\Models\Admin;
 use Hypervel\Tests\Permission\Fixtures\Models\SoftDeletingUser;
 use Hypervel\Tests\Permission\Fixtures\Models\TestRolePermissionsEnum;
 use Hypervel\Tests\Permission\Fixtures\Models\User;
+use Hypervel\Tests\Permission\Fixtures\Models\UserWithoutHasRoles;
 use Hypervel\Tests\Permission\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use ReflectionMethod;
 use TypeError;
+
+class HasRolesCustomPivot extends MorphPivot
+{
+}
+
+class HasRolesCustomPivotUser extends UserWithoutHasRoles
+{
+    use HasRoles {
+        roles as traitRoles;
+    }
+
+    /**
+     * Get the roles relation through the custom pivot.
+     */
+    public function roles(): BelongsToMany
+    {
+        return $this->traitRoles()->using(HasRolesCustomPivot::class);
+    }
+}
+
+enum HasRolesIntegerRoleName: int
+{
+    case Seven = 7;
+}
+
+enum HasRolesUuidRoleName: string
+{
+    case Auditor = '0b5c3f3e-9d7a-4c1e-8f2a-6b1d2e3f4a5b';
+}
 
 class HasRolesTest extends TestCase
 {
@@ -96,6 +130,28 @@ class HasRolesTest extends TestCase
         $this->assertFalse($this->testUser->hasRole($enum1));
     }
 
+    public function testRoleChecksMatchBackedEnumValuesAgainstRoleNames(): void
+    {
+        $role = app(Role::class);
+        $roleWithKeySeven = $role->forceCreate([$role->getKeyName() => 7, 'name' => 'key-seven', 'guard_name' => 'web']);
+        $roleNamedSeven = $role->findOrCreate('7', 'web');
+        $roleNamedUuid = $role->findOrCreate(HasRolesUuidRoleName::Auditor->value, 'web');
+
+        $this->testUser->assignRole($roleWithKeySeven);
+
+        $this->assertFalse($this->testUser->hasRole(HasRolesIntegerRoleName::Seven));
+
+        $this->testUser->assignRole($roleNamedSeven, $roleNamedUuid);
+
+        $this->assertTrue($this->testUser->hasRole(HasRolesIntegerRoleName::Seven));
+        $this->assertTrue($this->testUser->hasRole(HasRolesUuidRoleName::Auditor, 'web'));
+        $this->assertFalse($this->testUser->hasRole(HasRolesUuidRoleName::Auditor, 'admin'));
+        $this->assertTrue($this->testUser->hasAnyRole('missing', HasRolesUuidRoleName::Auditor));
+        $this->assertTrue($this->testUser->hasAllRoles(HasRolesUuidRoleName::Auditor));
+        $this->assertTrue($this->testUser->hasAllRoles([HasRolesIntegerRoleName::Seven, HasRolesUuidRoleName::Auditor]));
+        $this->assertTrue($this->testUser->hasExactRoles(['key-seven', HasRolesIntegerRoleName::Seven, HasRolesUuidRoleName::Auditor]));
+    }
+
     public function testItCanScopeARoleUsingEnums(): void
     {
         $enum1 = TestRolePermissionsEnum::UserManager;
@@ -108,6 +164,7 @@ class HasRolesTest extends TestCase
         $user2 = User::create(['email' => 'user2@test.com']);
         User::create(['email' => 'user3@test.com']);
 
+        // assign only one user to a role
         $user2->assignRole($enum1);
         $this->assertTrue($user2->hasRole($enum1));
         $this->assertFalse($user2->hasRole($enum2));
@@ -115,6 +172,42 @@ class HasRolesTest extends TestCase
         $this->assertCount(1, User::role($enum1)->get());
         $this->assertCount(0, User::role($enum2)->get());
         $this->assertCount(3, User::withoutRole($enum2)->get());
+    }
+
+    public function testItCanConvertPipeStringsToArraysStrippingOnlyMatchedSurroundingQuotes(): void
+    {
+        $convert = function (string $pipeString): array {
+            $method = new ReflectionMethod($this->testUser, 'convertPipeToArray');
+
+            return $method->invoke($this->testUser, $pipeString);
+        };
+
+        // Unquoted input splits on the pipe.
+        $this->assertSame(['writer', 'admin'], $convert('writer|admin'));
+
+        // Matched surrounding quotes are stripped before splitting.
+        $this->assertSame(['writer', 'admin'], $convert("'writer|admin'"));
+        $this->assertSame(['writer', 'admin'], $convert('"writer|admin"'));
+
+        // Mismatched quotes (leading quote only) must NOT be stripped: the leading
+        // quote is part of the first value. The previous self-comparison bug made
+        // this guard dead and incorrectly stripped the quote.
+        $this->assertSame(["'writer", 'admin'], $convert("'writer|admin"));
+
+        // Matching surrounding characters that aren't quotes must NOT be stripped.
+        $this->assertSame(['xwriter', 'adminx'], $convert('xwriter|adminx'));
+
+        // Very short strings are just stripped of pipes and returned as a single value.
+        $this->assertSame(['a'], $convert('a|'));
+        $this->assertSame([''], $convert('|'));
+    }
+
+    public function testItCanCheckExactRolesUsingAPipeDelimitedString(): void
+    {
+        $this->testUser->assignRole('testRole', 'testRole2');
+
+        $this->assertTrue($this->testUser->hasExactRoles('testRole|testRole2'));
+        $this->assertFalse($this->testUser->hasExactRoles('testRole|testRole2|testRole3'));
     }
 
     public function testItCanAssignAndRemoveARole(): void
@@ -128,6 +221,25 @@ class HasRolesTest extends TestCase
         $this->testUser->removeRole('testRole');
 
         $this->assertFalse($this->testUser->hasRole('testRole'));
+    }
+
+    public function testItCanRemoveARoleWhenUsingACustomPivotClassWithoutTeams(): void
+    {
+        $this->useAuthUserModel(HasRolesCustomPivotUser::class);
+
+        $user = HasRolesCustomPivotUser::create(['email' => 'custom-pivot-without-teams@test.com']);
+
+        $user->assignRole('testRole', 'testRole2');
+
+        $this->assertSame(['testRole', 'testRole2'], $user->getRoleNames()->sort()->values()->all());
+
+        $user->removeRole('testRole');
+
+        $this->assertSame(['testRole2'], $user->getRoleNames()->sort()->values()->all());
+
+        $user->syncRoles([]);
+
+        $this->assertEmpty($user->getRoleNames());
     }
 
     public function testItRemovesARoleAndReturnsRoles(): void
@@ -174,23 +286,6 @@ class HasRolesTest extends TestCase
         $this->testUser->removeRole($this->testUserRole->getKey());
 
         $this->assertFalse($this->testUser->hasRole($this->testUserRole));
-    }
-
-    public function testMalformedQuotedPipeRoleStringDoesNotTrimLeadingQuote(): void
-    {
-        app(Role::class)->create(['name' => 'admin']);
-
-        $this->testUser->assignRole('admin');
-
-        $this->assertFalse($this->testUser->hasRole('"admin|editor'));
-    }
-
-    public function testItCanCheckExactRolesUsingAPipeDelimitedString(): void
-    {
-        $this->testUser->assignRole('testRole', 'testRole2');
-
-        $this->assertTrue($this->testUser->hasExactRoles('testRole|testRole2'));
-        $this->assertFalse($this->testUser->hasExactRoles('testRole|testRole2|testRole3'));
     }
 
     public function testItCanAssignAndRemoveMultipleRolesAtOnce(): void
@@ -334,7 +429,7 @@ class HasRolesTest extends TestCase
         $this->assertFalse($this->testUser->hasRole('testRole2'));
     }
 
-    public function testItDoesNotDetachRolesWhenSyncRolesErrors(): void
+    public function testItSyncRolesErrorDoesNotDetachRoles(): void
     {
         $this->testUser->assignRole('testRole');
 
@@ -365,6 +460,9 @@ class HasRolesTest extends TestCase
         $this->assertTrue($this->testUser->fresh()->hasRole('testRole2'));
     }
 
+    /**
+     * Provide role mutations with keyless model inputs.
+     */
     public static function roleMutationProvider(): array
     {
         return [
@@ -399,6 +497,9 @@ class HasRolesTest extends TestCase
         $this->assertFalse($this->testUser->fresh()->hasRole('testRole'));
     }
 
+    /**
+     * Provide role mutations for a keyless persisted subject.
+     */
     public static function roleOwnerMutationProvider(): array
     {
         return [
@@ -427,7 +528,7 @@ class HasRolesTest extends TestCase
         $user = new User(['email' => 'test@user.com']);
         $user->syncRoles([$this->testUserRole]);
         $user->save();
-        $user->save();
+        $user->save(); // test save same model twice
 
         $this->assertTrue($user->hasRole($this->testUserRole));
 
@@ -436,7 +537,7 @@ class HasRolesTest extends TestCase
         $this->assertTrue($user->fresh()->hasRole($this->testUserRole));
     }
 
-    public function testItDoesNotRunUnnecessarySqlWhenAssigningNewRoles(): void
+    public function testItDoesNotRunUnnecessarySqlsWhenAssigningNewRoles(): void
     {
         $role2 = app(Role::class)->where('name', 'testRole2')->first();
 
@@ -444,10 +545,20 @@ class HasRolesTest extends TestCase
         $this->testUser->syncRoles($this->testUserRole, $role2);
         DB::disableQueryLog();
 
-        $this->assertCount(2, DB::getQueryLog());
+        // Teams add no query: the sync reads the current team's pivot rows directly
+        // instead of reloading the relation.
+        $necessaryQueriesCount = 2;
+
+        // A database cache store also reads the assignment token and invalidates the user's
+        // role cache entry (lock, delete and release).
+        if ($this->usesDatabaseCacheStore()) {
+            $necessaryQueriesCount += 4;
+        }
+
+        $this->assertCount($necessaryQueriesCount, DB::getQueryLog());
     }
 
-    public function testItDoesNotLetQueuedSyncRolesInterfereWithOtherObjects(): void
+    public function testItCallingSyncRolesBeforeSavingObjectDoesntInterfereWithOtherObjects(): void
     {
         $user = new User(['email' => 'test@user.com']);
         $user->syncRoles('testRole');
@@ -465,10 +576,12 @@ class HasRolesTest extends TestCase
 
         $this->assertTrue($user2->fresh()->hasRole('testRole2'));
         $this->assertFalse($user2->fresh()->hasRole('testRole'));
-        $this->assertCount(2, DB::getQueryLog());
+        // A database cache store also invalidates the new user's role cache entry
+        // (lock, delete and release).
+        $this->assertCount($this->usesDatabaseCacheStore() ? 5 : 2, DB::getQueryLog()); // avoid unnecessary sync
     }
 
-    public function testItDoesNotLetQueuedAssignRoleInterfereWithOtherObjects(): void
+    public function testItCallingAssignRoleBeforeSavingObjectDoesntInterfereWithOtherObjects(): void
     {
         $user = new User(['email' => 'test@user.com']);
         $user->assignRole('testRole');
@@ -486,7 +599,9 @@ class HasRolesTest extends TestCase
 
         $this->assertTrue($adminUser->fresh()->hasRole('testRole2'));
         $this->assertFalse($adminUser->fresh()->hasRole('testRole'));
-        $this->assertCount(2, DB::getQueryLog());
+        // A database cache store also invalidates the new user's role cache entry
+        // (lock, delete and release).
+        $this->assertCount($this->usesDatabaseCacheStore() ? 5 : 2, DB::getQueryLog()); // avoid unnecessary sync
     }
 
     public function testItThrowsAnExceptionWhenSyncingARoleFromAnotherGuard(): void
@@ -495,7 +610,6 @@ class HasRolesTest extends TestCase
             $this->testUser->syncRoles('testRole', 'testAdminRole');
             $this->fail('Expected role does not exist exception was not thrown.');
         } catch (RoleDoesNotExist) {
-            $this->assertTrue(true);
         }
 
         $this->expectException(GuardDoesNotMatch::class);
@@ -522,13 +636,14 @@ class HasRolesTest extends TestCase
     public function testItCanScopeUsersUsingAString(): void
     {
         $user1 = User::create(['email' => 'user1@test.com']);
-        User::create(['email' => 'user2@test.com']);
+        $user2 = User::create(['email' => 'user2@test.com']);
         $user1->assignRole('testRole');
+        $user2->assignRole('testRole2');
 
         $this->assertCount(1, User::role('testRole')->get());
     }
 
-    public function testItCanWithoutScopeUsersUsingAString(): void
+    public function testItCanWithoutscopeUsersUsingAString(): void
     {
         User::all()->each(fn ($item) => $item->delete());
         $user1 = User::create(['email' => 'user1@test.com']);
@@ -552,7 +667,7 @@ class HasRolesTest extends TestCase
         $this->assertCount(2, User::role(['testRole', 'testRole2'])->get());
     }
 
-    public function testItCanWithoutScopeUsersUsingAnArray(): void
+    public function testItCanWithoutscopeUsersUsingAnArray(): void
     {
         User::all()->each(fn ($item) => $item->delete());
         $user1 = User::create(['email' => 'user1@test.com']);
@@ -579,7 +694,7 @@ class HasRolesTest extends TestCase
         $this->assertCount(2, User::role([$firstAssignedRoleName, $secondAssignedRoleId])->get());
     }
 
-    public function testItCanWithoutScopeUsersUsingAnArrayOfIdsAndNames(): void
+    public function testItCanWithoutscopeUsersUsingAnArrayOfIdsAndNames(): void
     {
         app(Role::class)->create(['name' => 'testRole3']);
 
@@ -608,7 +723,7 @@ class HasRolesTest extends TestCase
         $this->assertCount(2, User::role(collect(['testRole', 'testRole2']))->get());
     }
 
-    public function testItCanWithoutScopeUsersUsingACollection(): void
+    public function testItCanWithoutscopeUsersUsingACollection(): void
     {
         app(Role::class)->create(['name' => 'testRole3']);
 
@@ -627,15 +742,16 @@ class HasRolesTest extends TestCase
     public function testItCanScopeUsersUsingAnObject(): void
     {
         $user1 = User::create(['email' => 'user1@test.com']);
-        User::create(['email' => 'user2@test.com'])->assignRole('testRole2');
+        $user2 = User::create(['email' => 'user2@test.com']);
         $user1->assignRole($this->testUserRole);
+        $user2->assignRole('testRole2');
 
         $this->assertCount(1, User::role($this->testUserRole)->get());
         $this->assertCount(1, User::role([$this->testUserRole])->get());
         $this->assertCount(1, User::role(collect([$this->testUserRole]))->get());
     }
 
-    public function testItCanWithoutScopeUsersUsingAnObject(): void
+    public function testItCanWithoutscopeUsersUsingAnObject(): void
     {
         User::all()->each(fn ($item) => $item->delete());
         $user1 = User::create(['email' => 'user1@test.com']);
@@ -659,11 +775,14 @@ class HasRolesTest extends TestCase
         $roles = $mixed ? [$this->testUserRole, $keylessRole] : $keylessRole;
 
         $this->expectException(MissingAttributeException::class);
-        $this->expectExceptionMessage($keylessRole->getKeyName());
+        $this->expectExceptionMessageIsOrContains($keylessRole->getKeyName());
 
         User::query()->{$scope}($roles)->get();
     }
 
+    /**
+     * Provide role scopes with keyless model inputs.
+     */
     public static function roleScopeProvider(): array
     {
         return [
@@ -693,6 +812,31 @@ class HasRolesTest extends TestCase
 
         $this->assertCount(2, Admin::role('testAdminRole', 'admin')->get());
         $this->assertCount(1, Admin::role('testAdminRole2', 'admin')->get());
+    }
+
+    public function testItCanWithoutscopeAgainstASpecificGuard(): void
+    {
+        User::all()->each(fn ($item) => $item->delete());
+        $user1 = User::create(['email' => 'user1@test.com']);
+        $user2 = User::create(['email' => 'user2@test.com']);
+        $user3 = User::create(['email' => 'user3@test.com']);
+        $user1->assignRole('testRole');
+        $user2->assignRole('testRole2');
+        $user3->assignRole('testRole2');
+
+        $this->assertCount(2, User::withoutRole('testRole', 'web')->get());
+
+        Admin::all()->each(fn ($item) => $item->delete());
+        $user4 = Admin::create(['email' => 'user4@test.com']);
+        $user5 = Admin::create(['email' => 'user5@test.com']);
+        $user6 = Admin::create(['email' => 'user6@test.com']);
+        $testAdminRole2 = app(Role::class)->create(['name' => 'testAdminRole2', 'guard_name' => 'admin']);
+        $user4->assignRole($this->testAdminRole);
+        $user5->assignRole($this->testAdminRole);
+        $user6->assignRole($testAdminRole2);
+
+        $this->assertCount(1, Admin::withoutRole('testAdminRole', 'admin')->get());
+        $this->assertCount(2, Admin::withoutRole('testAdminRole2', 'admin')->get());
     }
 
     public function testItCanScopeAgainstAZeroNamedGuard(): void
@@ -737,31 +881,6 @@ class HasRolesTest extends TestCase
         $this->assertTrue($user->hasAllRoles([$webRole->name], ''));
     }
 
-    public function testItCanWithoutScopeAgainstASpecificGuard(): void
-    {
-        User::all()->each(fn ($item) => $item->delete());
-        $user1 = User::create(['email' => 'user1@test.com']);
-        $user2 = User::create(['email' => 'user2@test.com']);
-        $user3 = User::create(['email' => 'user3@test.com']);
-        $user1->assignRole('testRole');
-        $user2->assignRole('testRole2');
-        $user3->assignRole('testRole2');
-
-        $this->assertCount(2, User::withoutRole('testRole', 'web')->get());
-
-        Admin::with(['roles', 'permissions'])->get()->each(fn ($item) => $item->delete());
-        $user4 = Admin::create(['email' => 'user4@test.com']);
-        $user5 = Admin::create(['email' => 'user5@test.com']);
-        $user6 = Admin::create(['email' => 'user6@test.com']);
-        $testAdminRole2 = app(Role::class)->create(['name' => 'testAdminRole2', 'guard_name' => 'admin']);
-        $user4->assignRole($this->testAdminRole);
-        $user5->assignRole($this->testAdminRole);
-        $user6->assignRole($testAdminRole2);
-
-        $this->assertCount(1, Admin::withoutRole('testAdminRole', 'admin')->get());
-        $this->assertCount(2, Admin::withoutRole('testAdminRole2', 'admin')->get());
-    }
-
     public function testItThrowsAnExceptionWhenTryingToScopeARoleFromAnotherGuard(): void
     {
         $this->expectException(RoleDoesNotExist::class);
@@ -769,7 +888,7 @@ class HasRolesTest extends TestCase
         User::role('testAdminRole')->get();
     }
 
-    public function testItThrowsAnExceptionWhenTryingToCallWithoutScopeOnARoleFromAnotherGuard(): void
+    public function testItThrowsAnExceptionWhenTryingToCallWithoutscopeOnARoleFromAnotherGuard(): void
     {
         $this->expectException(RoleDoesNotExist::class);
 
@@ -783,7 +902,7 @@ class HasRolesTest extends TestCase
         User::role('role not defined')->get();
     }
 
-    public function testItThrowsAnExceptionWhenTryingToUseWithoutScopeOnANonExistingRole(): void
+    public function testItThrowsAnExceptionWhenTryingToUseWithoutscopeOnANonExistingRole(): void
     {
         $this->expectException(RoleDoesNotExist::class);
 
@@ -836,7 +955,7 @@ class HasRolesTest extends TestCase
         $this->assertFalse($this->testUser->hasAllRoles(['testRole', 'second role'], 'fakeGuard'));
     }
 
-    public function testItCanDetermineThatAUserHasExactlyAllOfTheGivenRoles(): void
+    public function testItCanDetermineThatAUserHasExactAllOfTheGivenRoles(): void
     {
         $roleModel = app(Role::class);
 

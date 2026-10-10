@@ -38,7 +38,7 @@ class DatabaseEloquentMorphToTest extends TestCase
         });
     }
 
-    public function testLookupDictionaryIsProperlyConstructedForEnums()
+    public function testLookupDictionaryIsProperlyConstructedForEnums(): void
     {
         $relation = $this->getRelation();
         $relation->addEagerConstraints([
@@ -55,7 +55,7 @@ class DatabaseEloquentMorphToTest extends TestCase
         }
     }
 
-    public function testLookupDictionaryIsProperlyConstructed()
+    public function testLookupDictionaryIsProperlyConstructed(): void
     {
         $stringish = new class {
             public function __toString()
@@ -118,7 +118,7 @@ class DatabaseEloquentMorphToTest extends TestCase
         ], $relation->getDictionary());
     }
 
-    public function testMorphToWithDefault()
+    public function testMorphToWithDefault(): void
     {
         $this->addMockConnection(new ModelStub);
 
@@ -131,7 +131,7 @@ class DatabaseEloquentMorphToTest extends TestCase
         $this->assertEquals($newModel, $relation->getResults());
     }
 
-    public function testMorphToWithDynamicDefault()
+    public function testMorphToWithDynamicDefault(): void
     {
         $this->addMockConnection(new ModelStub);
 
@@ -151,7 +151,7 @@ class DatabaseEloquentMorphToTest extends TestCase
         $this->assertSame('taylor', $result->username);
     }
 
-    public function testMorphToWithArrayDefault()
+    public function testMorphToWithArrayDefault(): void
     {
         $this->addMockConnection(new ModelStub);
 
@@ -189,7 +189,7 @@ class DatabaseEloquentMorphToTest extends TestCase
         $parent->relation();
     }
 
-    public function testMorphToWithSpecifiedClassDefault()
+    public function testMorphToWithSpecifiedClassDefault(): void
     {
         $this->addMockConnection(new RelatedStub);
 
@@ -223,7 +223,7 @@ class DatabaseEloquentMorphToTest extends TestCase
         $relation->associate($associate);
     }
 
-    public function testAssociateMethodIgnoresNullValue()
+    public function testAssociateMethodIgnoresNullValue(): void
     {
         $parent = m::mock(Model::class);
         $parent->expects('getAttribute')->with('foreign_key')->andReturn('foreign.value');
@@ -358,7 +358,7 @@ class DatabaseEloquentMorphToTest extends TestCase
         $this->assertSame($originalRelation, $parent->getRelation('relation'));
     }
 
-    public function testDissociateMethodDeletesUnsetsKeyAndTypeOnModel()
+    public function testDissociateMethodDeletesUnsetsKeyAndTypeOnModel(): void
     {
         $parent = m::mock(Model::class);
         $parent->expects('getAttribute')->with('foreign_key')->andReturn('foreign.value');

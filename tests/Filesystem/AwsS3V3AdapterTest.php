@@ -410,7 +410,7 @@ class AwsS3V3AdapterTest extends TestCase
         $adapter = $this->adapter($handler, ['bucket' => 'bucket', 'throw' => true]);
 
         $this->expectException(UnableToReadFile::class);
-        $this->expectExceptionMessage('S3 failed');
+        $this->expectExceptionMessageIsOrContains('S3 failed');
 
         $adapter->readStreamRange('file.txt', 1, 2);
     }
@@ -444,7 +444,7 @@ class AwsS3V3AdapterTest extends TestCase
         $adapter = $this->adapter($handler, ['bucket' => 'bucket', 'throw' => true]);
 
         $this->expectException(UnableToReadFile::class);
-        $this->expectExceptionMessage('Downloaded object does not contain a file resource.');
+        $this->expectExceptionMessageIsOrContains('Downloaded object does not contain a file resource.');
 
         $adapter->readStreamRange('file.txt', 1, 2);
     }

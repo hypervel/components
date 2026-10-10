@@ -334,7 +334,7 @@ PHP;
             $tester = new CommandTester($command);
 
             $this->expectException(RuntimeException::class);
-            $this->expectExceptionMessage("Unable to create directory [{$blockedPath}].");
+            $this->expectExceptionMessageIs("Unable to create directory [{$blockedPath}].");
             $tester->execute(['name' => 'GeneratedClass', '--target-path' => $blockedPath]);
         } finally {
             $files->deleteDirectory($directory);

@@ -14,7 +14,7 @@ use function Hypervel\Coroutine\go;
 
 class ContextCoroutineTest extends TestCase
 {
-    public function testContextIsIsolatedBetweenCoroutines()
+    public function testContextIsIsolatedBetweenCoroutines(): void
     {
         $channel = new Channel(2);
 
@@ -36,7 +36,7 @@ class ContextCoroutineTest extends TestCase
         $this->assertSame(['coroutine-1', 'coroutine-2'], $results);
     }
 
-    public function testContextIsNotInheritedByChildCoroutines()
+    public function testContextIsNotInheritedByChildCoroutines(): void
     {
         Repository::getInstance()->add('parent_key', 'parent_value');
 
@@ -86,7 +86,7 @@ class ContextCoroutineTest extends TestCase
         $this->assertSame('parent', context('trace_id'));
     }
 
-    public function testForkedCoroutineMutatingContextDoesNotAffectParent()
+    public function testForkedCoroutineMutatingContextDoesNotAffectParent(): void
     {
         Repository::getInstance()->add('trace_id', 'parent-value');
 
@@ -110,7 +110,7 @@ class ContextCoroutineTest extends TestCase
         $this->assertNull(Repository::getInstance()->get('child_only'));
     }
 
-    public function testDehydrateAndHydrateAcrossCoroutines()
+    public function testDehydrateAndHydrateAcrossCoroutines(): void
     {
         Repository::getInstance()->add('trace_id', 'abc-123');
         Repository::getInstance()->addHidden('secret', 'token');

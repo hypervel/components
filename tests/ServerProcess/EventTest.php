@@ -14,7 +14,7 @@ use Mockery as m;
 
 class EventTest extends TestCase
 {
-    public function testBeforeProcessHandleHoldsProcessAndIndex()
+    public function testBeforeProcessHandleHoldsProcessAndIndex(): void
     {
         $container = m::mock(ContainerContract::class);
         $container->shouldReceive('bound')->andReturn(false);
@@ -33,7 +33,7 @@ class EventTest extends TestCase
         $this->assertSame('test-process', $event->process->name);
     }
 
-    public function testAfterProcessHandleHoldsProcessAndIndex()
+    public function testAfterProcessHandleHoldsProcessAndIndex(): void
     {
         $container = m::mock(ContainerContract::class);
         $container->shouldReceive('bound')->andReturn(false);
@@ -49,7 +49,7 @@ class EventTest extends TestCase
         $this->assertSame(0, $event->index);
     }
 
-    public function testPipeMessageHoldsData()
+    public function testPipeMessageHoldsData(): void
     {
         $data = ['key' => 'value', 'nested' => ['a', 'b']];
         $event = new PipeMessage($data);
@@ -57,7 +57,7 @@ class EventTest extends TestCase
         $this->assertSame($data, $event->data);
     }
 
-    public function testPipeMessageAcceptsMixedData()
+    public function testPipeMessageAcceptsMixedData(): void
     {
         $stringEvent = new PipeMessage('hello');
         $this->assertSame('hello', $stringEvent->data);

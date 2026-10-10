@@ -35,21 +35,21 @@ class OptimizeCommandTest extends TestCase
         return [ServiceProviderWithOptimize::class];
     }
 
-    public function testCanRunOptimizeWithPackageRegisteredCommand()
+    public function testCanRunOptimizeWithPackageRegisteredCommand(): void
     {
         $this->artisan('optimize')
             ->assertSuccessful()
             ->expectsOutputToContain('my package');
     }
 
-    public function testCanExcludeCommandsByKey()
+    public function testCanExcludeCommandsByKey(): void
     {
         $this->artisan('optimize', ['--except' => 'my package'])
             ->assertSuccessful()
             ->doesntExpectOutputToContain('my package');
     }
 
-    public function testCanExcludeCommandsByCommand()
+    public function testCanExcludeCommandsByCommand(): void
     {
         $this->artisan('optimize', ['--except' => 'my_package:cache'])
             ->assertSuccessful()

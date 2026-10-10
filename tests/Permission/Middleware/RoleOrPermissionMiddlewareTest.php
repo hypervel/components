@@ -12,6 +12,7 @@ use Hypervel\Permission\Middleware\RoleOrPermissionMiddleware;
 use Hypervel\Support\Facades\Auth;
 use Hypervel\Support\Facades\Gate;
 use Hypervel\Tests\Permission\Fixtures\Models\PlainAuthenticatableUser;
+use Hypervel\Tests\Permission\Fixtures\Models\User;
 use Hypervel\Tests\Permission\Fixtures\Models\UserWithoutHasRoles;
 use Hypervel\Tests\Permission\TestCase;
 use InvalidArgumentException;
@@ -20,19 +21,18 @@ class RoleOrPermissionMiddlewareTest extends TestCase
 {
     protected RoleOrPermissionMiddleware $roleOrPermissionMiddleware;
 
-    protected function setUp(): void
+    protected function setUpInCoroutine(): void
     {
-        parent::setUp();
-
+        $this->setUpPassport();
         $this->roleOrPermissionMiddleware = $this->app->make(RoleOrPermissionMiddleware::class);
     }
 
-    public function testGuestCannotAccessProtectedRoute(): void
+    public function testAGuestCannotAccessARouteProtectedByTheRoleOrPermissionMiddleware(): void
     {
         $this->assertSame(403, $this->runMiddleware($this->roleOrPermissionMiddleware, 'testRole'));
     }
 
-    public function testUserCanAccessRouteWithEitherPermissionOrRole(): void
+    public function testAUserCanAccessARouteProtectedByPermissionOrRoleMiddlewareIfHasThisPermissionOrRole(): void
     {
         Auth::login($this->testUser);
 
@@ -42,6 +42,7 @@ class RoleOrPermissionMiddlewareTest extends TestCase
         $this->assertSame(200, $this->runMiddleware($this->roleOrPermissionMiddleware, 'testRole|edit-news|edit-articles'));
 
         $this->testUser->removeRole('testRole');
+
         $this->assertSame(200, $this->runMiddleware($this->roleOrPermissionMiddleware, 'testRole|edit-articles'));
 
         $this->testUser->revokePermissionTo('edit-articles');
@@ -66,18 +67,42 @@ class RoleOrPermissionMiddlewareTest extends TestCase
         ));
     }
 
-    public function testSuperAdminGateBeforeCanAccessProtectedRoute(): void
+    public function testAClientCanAccessARouteProtectedByPermissionOrRoleMiddlewareIfHasThisPermissionOrRole(): void
+    {
+        $this->actingAsClient($this->testClient);
+
+        $this->testClient->assignRole('clientRole');
+        $this->testClient->givePermissionTo('edit-posts');
+
+        $this->assertSame(200, $this->runMiddleware($this->roleOrPermissionMiddleware, 'clientRole|edit-news|edit-posts', null, true));
+
+        $this->testClient->removeRole('clientRole');
+
+        $this->assertSame(200, $this->runMiddleware($this->roleOrPermissionMiddleware, 'clientRole|edit-posts', null, true));
+
+        $this->testClient->revokePermissionTo('edit-posts');
+        $this->testClient->assignRole('clientRole');
+
+        $this->assertSame(200, $this->runMiddleware($this->roleOrPermissionMiddleware, 'clientRole|edit-posts', null, true));
+        $this->assertSame(200, $this->runMiddleware($this->roleOrPermissionMiddleware, ['clientRole', 'edit-posts'], null, true));
+    }
+
+    public function testASuperAdminUserCanAccessARouteProtectedByPermissionOrRoleMiddleware(): void
     {
         Auth::login($this->testUser);
 
-        Gate::before(fn ($user): ?bool => $user->getKey() === $this->testUser->getKey() ? true : null);
+        Gate::before(function (User $user, string $ability): ?bool {
+            return $user->getKey() === $this->testUser->getKey() ? true : null;
+        });
 
         $this->assertSame(200, $this->runMiddleware($this->roleOrPermissionMiddleware, 'testRole|edit-articles'));
     }
 
-    public function testUserWithoutHasRolesTraitCannotAccessRoute(): void
+    public function testAUserCanNotAccessARouteProtectedByPermissionOrRoleMiddlewareIfHaveNotHasRolesTrait(): void
     {
-        Auth::login(UserWithoutHasRoles::create(['email' => 'test_not_has_roles@user.com']));
+        $userWithoutHasRoles = UserWithoutHasRoles::create(['email' => 'test_not_has_roles@user.com']);
+
+        Auth::login($userWithoutHasRoles);
 
         $this->assertSame(403, $this->runMiddleware($this->roleOrPermissionMiddleware, 'testRole|edit-articles'));
     }
@@ -89,7 +114,7 @@ class RoleOrPermissionMiddlewareTest extends TestCase
         $this->assertSame(403, $this->runMiddleware($this->roleOrPermissionMiddleware, 'testRole|edit-articles'));
     }
 
-    public function testUserCannotAccessRouteWithoutMatchingPermissionOrRole(): void
+    public function testAUserCanNotAccessARouteProtectedByPermissionOrRoleMiddlewareIfHaveNotThisPermissionAndRole(): void
     {
         Auth::login($this->testUser);
 
@@ -97,7 +122,50 @@ class RoleOrPermissionMiddlewareTest extends TestCase
         $this->assertSame(403, $this->runMiddleware($this->roleOrPermissionMiddleware, 'missingRole|missingPermission'));
     }
 
-    public function testUserCanAccessPermissionOrRoleWithMatchingGuard(): void
+    public function testAClientCanNotAccessARouteProtectedByPermissionOrRoleMiddlewareIfHaveNotThisPermissionAndRole(): void
+    {
+        $this->actingAsClient($this->testClient);
+
+        $this->assertSame(403, $this->runMiddleware($this->roleOrPermissionMiddleware, 'clientRole|edit-posts', null, true));
+        $this->assertSame(403, $this->runMiddleware($this->roleOrPermissionMiddleware, 'missingRole|missingPermission', null, true));
+    }
+
+    public function testUseNotExistingCustomGuardInRoleOrPermission(): void
+    {
+        $class = null;
+
+        try {
+            $this->roleOrPermissionMiddleware->handle(new Request, function (): Response {
+                return (new Response)->setContent('<html></html>');
+            }, 'testRole', 'xxx');
+        } catch (InvalidArgumentException $e) {
+            $class = get_class($e);
+        }
+
+        $this->assertSame(InvalidArgumentException::class, $class);
+    }
+
+    public function testUserCanNotAccessPermissionOrRoleWithGuardAdminWhileLoginUsingDefaultGuard(): void
+    {
+        Auth::login($this->testUser);
+
+        $this->testUser->assignRole('testRole');
+        $this->testUser->givePermissionTo('edit-articles');
+
+        $this->assertSame(403, $this->runMiddleware($this->roleOrPermissionMiddleware, 'edit-articles|testRole', 'admin'));
+    }
+
+    public function testClientCanNotAccessPermissionOrRoleWithGuardAdminWhileLoginUsingDefaultGuard(): void
+    {
+        $this->actingAsClient($this->testClient);
+
+        $this->testClient->assignRole('clientRole');
+        $this->testClient->givePermissionTo('edit-posts');
+
+        $this->assertSame(403, $this->runMiddleware($this->roleOrPermissionMiddleware, 'edit-posts|clientRole', 'admin', true));
+    }
+
+    public function testUserCanAccessPermissionOrRoleWithGuardAdminWhileLoginUsingAdminGuard(): void
     {
         Auth::guard('admin')->login($this->testAdmin);
 
@@ -105,16 +173,6 @@ class RoleOrPermissionMiddlewareTest extends TestCase
         $this->testAdmin->givePermissionTo('admin-permission');
 
         $this->assertSame(200, $this->runMiddleware($this->roleOrPermissionMiddleware, 'admin-permission|testAdminRole', 'admin'));
-        $this->assertSame(403, $this->runMiddleware($this->roleOrPermissionMiddleware, 'edit-articles|testRole', 'admin'));
-    }
-
-    public function testUserCannotAccessPermissionOrRoleWithAdminGuardWhileLoggedInUsingDefaultGuard(): void
-    {
-        Auth::login($this->testUser);
-
-        $this->testUser->assignRole('testRole');
-        $this->testUser->givePermissionTo('edit-articles');
-
         $this->assertSame(403, $this->runMiddleware($this->roleOrPermissionMiddleware, 'edit-articles|testRole', 'admin'));
     }
 
@@ -126,58 +184,51 @@ class RoleOrPermissionMiddlewareTest extends TestCase
         $this->assertSame(200, $this->runMiddleware($this->roleOrPermissionMiddleware, 'edit-articles|testRole', ''));
     }
 
-    public function testItCanBeCreatedWithStaticUsingMethod(): void
-    {
-        $this->assertSame(RoleOrPermissionMiddleware::class . ':edit-articles', RoleOrPermissionMiddleware::using('edit-articles'));
-        $this->assertSame(RoleOrPermissionMiddleware::class . ':edit-articles,my-guard', RoleOrPermissionMiddleware::using('edit-articles', 'my-guard'));
-        $this->assertSame(RoleOrPermissionMiddleware::class . ':edit-articles|testAdminRole', RoleOrPermissionMiddleware::using(['edit-articles', 'testAdminRole']));
-    }
-
-    public function testItExposesRequiredRolesOrPermissionsOnTheUnauthorizedException(): void
+    public function testTheRequiredPermissionsOrRolesCanBeFetchedFromTheException(): void
     {
         Auth::login($this->testUser);
+
+        $message = null;
+        $requiredRolesOrPermissions = [];
 
         try {
             $this->roleOrPermissionMiddleware->handle(new Request, function (): Response {
                 return (new Response)->setContent('<html></html>');
             }, 'some-permission|some-role');
-        } catch (UnauthorizedException $exception) {
-            $this->assertSame('User does not have any of the necessary access rights.', $exception->getMessage());
-            $this->assertSame(['some-permission', 'some-role'], $exception->getRequiredPermissions());
-
-            return;
+        } catch (UnauthorizedException $e) {
+            $message = $e->getMessage();
+            $requiredRolesOrPermissions = $e->getRequiredPermissions();
         }
 
-        $this->fail('Expected unauthorized role or permission exception was not thrown.');
+        $this->assertSame('User does not have any of the necessary access rights.', $message);
+        $this->assertSame(['some-permission', 'some-role'], $requiredRolesOrPermissions);
     }
 
-    public function testItCanDisplayRequiredRolesOrPermissionsOnTheUnauthorizedException(): void
+    public function testTheRequiredPermissionsOrRolesCanBeDisplayedInTheException(): void
     {
         Auth::login($this->testUser);
-        $this->app->make('config')->set([
-            'permission.display_permission_in_exception' => true,
-            'permission.display_role_in_exception' => true,
-        ]);
+        config()->set(['permission.display_permission_in_exception' => true]);
+        config()->set(['permission.display_role_in_exception' => true]);
+
+        $message = null;
 
         try {
             $this->roleOrPermissionMiddleware->handle(new Request, function (): Response {
                 return (new Response)->setContent('<html></html>');
             }, 'some-permission|some-role');
-        } catch (UnauthorizedException $exception) {
-            $this->assertStringEndsWith('Necessary roles or permissions are some-permission, some-role', $exception->getMessage());
-
-            return;
+        } catch (UnauthorizedException $e) {
+            $message = $e->getMessage();
         }
 
-        $this->fail('Expected unauthorized role or permission exception was not thrown.');
+        $this->assertStringEndsWith('Necessary roles or permissions are some-permission, some-role', $message);
     }
 
-    public function testItThrowsForMissingCustomGuard(): void
+    public function testTheMiddlewareCanBeCreatedWithStaticUsingMethod(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->assertSame('Hypervel\Permission\Middleware\RoleOrPermissionMiddleware:edit-articles', RoleOrPermissionMiddleware::using('edit-articles'));
 
-        $this->roleOrPermissionMiddleware->handle(new Request, function (): Response {
-            return (new Response)->setContent('<html></html>');
-        }, 'testRole', 'xxx');
+        $this->assertSame('Hypervel\Permission\Middleware\RoleOrPermissionMiddleware:edit-articles,my-guard', RoleOrPermissionMiddleware::using('edit-articles', 'my-guard'));
+
+        $this->assertSame('Hypervel\Permission\Middleware\RoleOrPermissionMiddleware:edit-articles|testAdminRole', RoleOrPermissionMiddleware::using(['edit-articles', 'testAdminRole']));
     }
 }

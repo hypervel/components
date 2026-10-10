@@ -33,7 +33,7 @@ class QueryBuilderUpdateTest extends DatabaseTestCase
 
     #[DataProvider('jsonValuesDataProvider')]
     #[RequiresDatabase(['sqlite', 'mysql', 'mariadb'])]
-    public function testBasicUpdateForJson($column, $given, $expected)
+    public function testBasicUpdateForJson($column, $given, $expected): void
     {
         DB::table('example')->insert([
             ['name' => 'Taylor Otwell', 'title' => 'Mr.'],
@@ -58,7 +58,7 @@ class QueryBuilderUpdateTest extends DatabaseTestCase
     }
 
     #[RequiresDatabase(['sqlite', 'mysql', 'mariadb'])]
-    public function testSubqueryUpdate()
+    public function testSubqueryUpdate(): void
     {
         DB::table('example')->insert([
             ['name' => 'Taylor Otwell', 'title' => 'Mr.'],

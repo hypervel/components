@@ -470,7 +470,7 @@ class RefreshDatabaseTest extends TestCase
         $this->app->singleton('db', fn () => $database);
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('In-memory SQLite database testing requires a PDO-backed connection.');
+        $this->expectExceptionMessageIs('In-memory SQLite database testing requires a PDO-backed connection.');
 
         $this->refreshTestDatabase();
     }
@@ -495,7 +495,7 @@ class RefreshDatabaseTest extends TestCase
         $this->app->singleton('db', fn () => $database);
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('In-memory SQLite database testing requires a PDO-backed connection.');
+        $this->expectExceptionMessageIs('In-memory SQLite database testing requires a PDO-backed connection.');
 
         $this->restoreInMemoryDatabase();
     }

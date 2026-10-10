@@ -7,16 +7,41 @@ namespace Hypervel\Tests\Permission\Traits;
 use Closure;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\BelongsToMany;
 use Hypervel\Database\Eloquent\Relations\MorphPivot;
 use Hypervel\Permission\Events\PermissionAttachedEvent;
 use Hypervel\Permission\Events\PermissionDetachedEvent;
 use Hypervel\Permission\Exceptions\TeamNotSelected;
+use Hypervel\Permission\Models\Permission;
 use Hypervel\Permission\PermissionRegistrar;
 use Hypervel\Permission\Support\Config;
+use Hypervel\Permission\Traits\HasRoles;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Tests\Permission\Fixtures\Models\User;
+use Hypervel\Tests\Permission\Fixtures\Models\UserWithoutHasRoles;
+
+class TeamHasPermissionsCustomPivot extends MorphPivot
+{
+}
+
+class TeamHasPermissionsCustomPivotUser extends UserWithoutHasRoles
+{
+    use HasRoles {
+        permissions as traitPermissions;
+    }
+
+    /**
+     * Get the permissions relation through the custom pivot.
+     */
+    public function permissions(): BelongsToMany
+    {
+        return $this->traitPermissions()
+            ->withPivot('team_test_id')
+            ->using(TeamHasPermissionsCustomPivot::class);
+    }
+}
 
 class TeamHasPermissionsTest extends HasPermissionsTest
 {
@@ -32,7 +57,7 @@ class TeamHasPermissionsTest extends HasPermissionsTest
         $this->setUpTeams();
     }
 
-    public function testItCanAssignSameAndDifferentPermissionsOnSameUserOnDifferentTeams(): void
+    public function testItCanAssignSameAndDifferentPermissionOnSameUserOnDifferentTeams(): void
     {
         setPermissionsTeamId(1);
         $this->testUser->givePermissionTo('edit-articles', 'edit-news');
@@ -53,7 +78,7 @@ class TeamHasPermissionsTest extends HasPermissionsTest
         $this->assertFalse($this->testUser->hasAllDirectPermissions(['edit-articles', 'edit-news']));
     }
 
-    public function testItCanListAllCoupledPermissionsDirectlyAndViaRolesOnSameUserOnDifferentTeams(): void
+    public function testItCanListAllTheCoupledPermissionsBothDirectlyAndViaRolesOnSameUserOnDifferentTeams(): void
     {
         $this->testUserRole->givePermissionTo('edit-articles');
 
@@ -103,7 +128,9 @@ class TeamHasPermissionsTest extends HasPermissionsTest
 
         $this->assertTrue($this->testUser->hasPermissionTo($this->testUserPermission));
         $this->testUser->getAllPermissions();
-        $this->assertCount(2, DB::getQueryLog());
+        // A database cache store adds six statements to each of the two assignment fills
+        // (read, lock, recheck, lease refresh, write and release).
+        $this->assertCount($this->usesDatabaseCacheStore() ? 14 : 2, DB::getQueryLog());
 
         DB::flushQueryLog();
 
@@ -128,7 +155,31 @@ class TeamHasPermissionsTest extends HasPermissionsTest
         $this->assertSame($teamOne, $this->testUser->getDirectPermissions()->sole());
     }
 
-    public function testItCanSyncOrRemovePermissionsWithoutDetachingDifferentTeams(): void
+    public function testWildcardDeniesAreSeparatedByTeam(): void
+    {
+        config()->set('permission.enable_wildcard_permission', true);
+
+        Permission::create(['name' => 'posts.*']);
+        Permission::create(['name' => 'posts.create']);
+
+        setPermissionsTeamId(1);
+        $this->testUser->givePermissionTo('posts.*');
+
+        setPermissionsTeamId(2);
+        $this->testUser->givePermissionTo('posts.*');
+        $this->testUser->denyPermissionTo('posts.create');
+
+        $this->assertFalse($this->testUser->hasPermissionTo('posts.create'));
+        $this->assertTrue($this->testUser->hasPermissionTo('posts.edit'));
+
+        setPermissionsTeamId(1);
+        $this->assertTrue($this->testUser->hasPermissionTo('posts.create'));
+
+        setPermissionsTeamId(2);
+        $this->assertFalse($this->testUser->hasPermissionTo('posts.create'));
+    }
+
+    public function testItCanSyncOrRemovePermissionWithoutDetachOnDifferentTeams(): void
     {
         setPermissionsTeamId(1);
         $this->testUser->syncPermissions('edit-articles', 'edit-news');
@@ -146,6 +197,123 @@ class TeamHasPermissionsTest extends HasPermissionsTest
         setPermissionsTeamId(2);
         $this->testUser->load('permissions');
         $this->assertSame(['edit-articles', 'edit-blog'], $this->testUser->getPermissionNames()->sort()->values()->all());
+    }
+
+    public function testItCanRevokeAPermissionFromOneTeamWhenUsingACustomPivotClass(): void
+    {
+        $this->useAuthUserModel(TeamHasPermissionsCustomPivotUser::class);
+
+        $user = TeamHasPermissionsCustomPivotUser::create(['email' => 'custom-pivot-revoke-permission@test.com']);
+
+        setPermissionsTeamId(1);
+        $user->givePermissionTo('edit-articles', 'edit-news');
+
+        setPermissionsTeamId(2);
+        $user->givePermissionTo('edit-articles', 'edit-blog');
+        $user->load('permissions');
+
+        $this->assertSame(['edit-articles', 'edit-blog'], $user->getPermissionNames()->sort()->values()->all());
+
+        setPermissionsTeamId(1);
+        $user->load('permissions');
+
+        $this->assertSame(['edit-articles', 'edit-news'], $user->getPermissionNames()->sort()->values()->all());
+
+        $user->revokePermissionTo('edit-articles');
+
+        $this->assertSame(['edit-news'], $user->getPermissionNames()->sort()->values()->all());
+
+        setPermissionsTeamId(2);
+        $user->load('permissions');
+
+        $this->assertSame(['edit-articles', 'edit-blog'], $user->getPermissionNames()->sort()->values()->all());
+    }
+
+    public function testItDoesNothingWhenRevokingAnEmptySetOfPermissionsForOneTeamWhenUsingACustomPivotClass(): void
+    {
+        $this->useAuthUserModel(TeamHasPermissionsCustomPivotUser::class);
+
+        $user = TeamHasPermissionsCustomPivotUser::create(['email' => 'custom-pivot-revoke-empty-permission@test.com']);
+
+        setPermissionsTeamId(1);
+        $user->givePermissionTo('edit-articles', 'edit-news');
+
+        $user->revokePermissionTo([]);
+
+        $this->assertSame(['edit-articles', 'edit-news'], $user->getPermissionNames()->sort()->values()->all());
+    }
+
+    public function testItCanSyncPermissionsForOneTeamWhenUsingACustomPivotClass(): void
+    {
+        $this->useAuthUserModel(TeamHasPermissionsCustomPivotUser::class);
+
+        $user = TeamHasPermissionsCustomPivotUser::create(['email' => 'custom-pivot-sync-permissions@test.com']);
+
+        setPermissionsTeamId(1);
+        $user->givePermissionTo('edit-articles', 'edit-news');
+
+        setPermissionsTeamId(2);
+        $user->givePermissionTo('edit-articles', 'edit-blog');
+
+        setPermissionsTeamId(1);
+        $user->syncPermissions('edit-news');
+
+        $this->assertSame(['edit-news'], $user->getPermissionNames()->sort()->values()->all());
+
+        setPermissionsTeamId(2);
+        $user->load('permissions');
+
+        $this->assertSame(['edit-articles', 'edit-blog'], $user->getPermissionNames()->sort()->values()->all());
+    }
+
+    public function testItCanSyncPermissionsWithEventsForOneTeamWhenUsingACustomPivotClass(): void
+    {
+        Event::fake([PermissionDetachedEvent::class, PermissionAttachedEvent::class]);
+        app('config')->set('permission.events_enabled', true);
+        $this->useAuthUserModel(TeamHasPermissionsCustomPivotUser::class);
+
+        $user = TeamHasPermissionsCustomPivotUser::create(['email' => 'custom-pivot-sync-permissions-events@test.com']);
+
+        setPermissionsTeamId(1);
+        $user->givePermissionTo('edit-articles', 'edit-news');
+
+        setPermissionsTeamId(2);
+        $user->givePermissionTo('edit-articles', 'edit-blog');
+
+        setPermissionsTeamId(1);
+        $user->syncPermissions('edit-news');
+
+        $this->assertSame(['edit-news'], $user->getPermissionNames()->sort()->values()->all());
+
+        Event::assertDispatched(PermissionDetachedEvent::class);
+
+        setPermissionsTeamId(2);
+        $user->load('permissions');
+
+        $this->assertSame(['edit-articles', 'edit-blog'], $user->getPermissionNames()->sort()->values()->all());
+    }
+
+    public function testItCanSyncToNoPermissionsForOneTeamWhenUsingACustomPivotClass(): void
+    {
+        $this->useAuthUserModel(TeamHasPermissionsCustomPivotUser::class);
+
+        $user = TeamHasPermissionsCustomPivotUser::create(['email' => 'custom-pivot-sync-empty-permissions@test.com']);
+
+        setPermissionsTeamId(1);
+        $user->givePermissionTo('edit-articles', 'edit-news');
+
+        setPermissionsTeamId(2);
+        $user->givePermissionTo('edit-articles');
+
+        setPermissionsTeamId(1);
+        $user->syncPermissions([]);
+
+        $this->assertEmpty($user->getPermissionNames());
+
+        setPermissionsTeamId(2);
+        $user->load('permissions');
+
+        $this->assertSame(['edit-articles'], $user->getPermissionNames()->sort()->values()->all());
     }
 
     public function testItCanScopeUsersOnDifferentTeams(): void
@@ -215,7 +383,7 @@ class TeamHasPermissionsTest extends HasPermissionsTest
         $this->assertFalse($this->testUser->hasPermissionTo('edit-articles'));
     }
 
-    public function testQueuedPermissionAssignmentsKeepSeparateTeamEdges(): void
+    public function testQueuedPermissionAssignmentsStaySeparatePerTeam(): void
     {
         $user = new User(['email' => 'queued-teams@example.com']);
 

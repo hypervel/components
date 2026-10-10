@@ -18,10 +18,7 @@ class GetClientCredentialsTokenBasicAuthRequest extends GetClientCredentialsToke
     {
         return [
             'grant_type' => 'client_credentials',
-            'scope' => implode($this->scopeSeparator, [
-                ...$this->oauthConfig->defaultScopes,
-                ...$this->scopes,
-            ]),
+            'scope' => implode($this->scopeSeparator, $this->oauthConfig->scopes($this->scopes)),
         ];
     }
 

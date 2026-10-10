@@ -128,7 +128,7 @@ class WaiterTest extends TestCase
         CoroutineContext::set('throwing', new ThrowingReplicableContext);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to replicate context.');
+        $this->expectExceptionMessageIs('Unable to replicate context.');
 
         (new Waiter(0.01))->wait(
             static fn (): string => 'never',
@@ -160,7 +160,7 @@ class WaiterTest extends TestCase
         };
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIs($message);
         wait($callback);
     }
 

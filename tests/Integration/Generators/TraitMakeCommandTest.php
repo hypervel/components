@@ -14,7 +14,7 @@ class TraitMakeCommandTest extends TestCase
         'app/Concerns/FooTrait.php',
     ];
 
-    public function testItCanGenerateTraitFile()
+    public function testItCanGenerateTraitFile(): void
     {
         $this->artisan('make:trait', ['name' => 'FooTrait'])
             ->assertExitCode(0);

@@ -1,0 +1,63 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Saloon\Unit;
+
+use Hypervel\Saloon\Data\Pipe;
+use Hypervel\Saloon\Enums\PipeOrder;
+use Hypervel\Saloon\Exceptions\DuplicatePipeNameException;
+use Hypervel\Saloon\Http\Pipeline;
+use Hypervel\Tests\TestCase;
+
+class PipelineTest extends TestCase
+{
+    public function testAPipelineCanBeExecuted(): void
+    {
+        $pipeline = (new Pipeline)
+            ->pipe(fn (int $number): int => $number + 5)
+            ->pipe(fn (int $number): int => $number * 2)
+            ->pipe(fn (int $number): int => $number - 3);
+
+        $this->assertCount(3, $pipeline->pipes());
+        $this->assertSame(7, $pipeline->process(0));
+    }
+
+    public function testPipesAreStoredInExecutionOrder(): void
+    {
+        $pipeline = (new Pipeline)
+            ->pipe(fn (array $values): array => [...$values, 'default-one'], 'default-one')
+            ->pipe(fn (array $values): array => [...$values, 'last'], 'last', PipeOrder::LAST)
+            ->pipe(fn (array $values): array => [...$values, 'first'], 'first', PipeOrder::FIRST)
+            ->pipe(fn (array $values): array => [...$values, 'default-two'], 'default-two');
+
+        $this->assertSame(
+            ['first', 'default-one', 'default-two', 'last'],
+            $pipeline->process([]),
+        );
+        $this->assertSame(
+            ['first', 'default-one', 'default-two', 'last'],
+            array_map(static fn (Pipe $pipe): ?string => $pipe->name, $pipeline->pipes()),
+        );
+    }
+
+    public function testDuplicateNamedPipeIsRejectedAcrossBuckets(): void
+    {
+        $pipeline = (new Pipeline)->pipe(fn (mixed $payload): mixed => $payload, 'duplicate', PipeOrder::FIRST);
+
+        $this->expectException(DuplicatePipeNameException::class);
+
+        $pipeline->pipe(fn (mixed $payload): mixed => $payload, 'duplicate', PipeOrder::LAST);
+    }
+
+    public function testPipesCanBeCopiedIntoAnotherPipeline(): void
+    {
+        $source = (new Pipeline)
+            ->pipe(fn (array $values): array => [...$values, 'last'], 'last', PipeOrder::LAST)
+            ->pipe(fn (array $values): array => [...$values, 'first'], 'first', PipeOrder::FIRST);
+
+        $target = (new Pipeline)->setPipes($source->pipes());
+
+        $this->assertSame(['first', 'last'], $target->process([]));
+    }
+}

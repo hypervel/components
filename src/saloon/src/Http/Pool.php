@@ -211,7 +211,8 @@ class Pool
                     &$callbackFailures,
                 ): void {
                     try {
-                        $response = $this->connector->send($request);
+                        // Throwable responses are failures, so the exception handler receives every failed request.
+                        $response = $this->connector->send($request)->throw();
                     } catch (CanceledException $exception) {
                         $failures[$inputPosition] = [$key, new ChildCancellationException(
                             'A child coroutine running a Saloon pool request was canceled while its owner remained active.',

@@ -23,7 +23,7 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
         ])->bootEloquent();
     }
 
-    public function testGlobalScopeIsApplied()
+    public function testGlobalScopeIsApplied(): void
     {
         $model = new GlobalScopesModel;
         $query = $model->newQuery();
@@ -31,7 +31,7 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
         $this->assertEquals([1], $query->getBindings());
     }
 
-    public function testGlobalScopeCanBeRemoved()
+    public function testGlobalScopeCanBeRemoved(): void
     {
         $model = new GlobalScopesModel;
         $query = $model->newQuery()->withoutGlobalScope(ActiveScope::class);
@@ -39,7 +39,7 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
         $this->assertSame([], $query->getBindings());
     }
 
-    public function testClassNameGlobalScopeIsApplied()
+    public function testClassNameGlobalScopeIsApplied(): void
     {
         $model = new ClassNameGlobalScopesModel;
         $query = $model->newQuery();
@@ -47,7 +47,7 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
         $this->assertEquals([1], $query->getBindings());
     }
 
-    public function testGlobalScopeInAttributeIsApplied()
+    public function testGlobalScopeInAttributeIsApplied(): void
     {
         $model = new GlobalScopeInAttributeModel;
         $query = $model->newQuery();
@@ -55,7 +55,7 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
         $this->assertEquals([1], $query->getBindings());
     }
 
-    public function testGlobalScopeInInheritedAttributeIsApplied()
+    public function testGlobalScopeInInheritedAttributeIsApplied(): void
     {
         $model = new GlobalScopeInInheritedAttributeModel;
         $query = $model->newQuery();
@@ -71,7 +71,7 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
         $this->assertEquals([1], $query->getBindings());
     }
 
-    public function testClosureGlobalScopeIsApplied()
+    public function testClosureGlobalScopeIsApplied(): void
     {
         $model = new ClosureGlobalScopesModel;
         $query = $model->newQuery();
@@ -79,7 +79,7 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
         $this->assertEquals([1], $query->getBindings());
     }
 
-    public function testGlobalScopesCanBeRegisteredViaArray()
+    public function testGlobalScopesCanBeRegisteredViaArray(): void
     {
         $model = new GlobalScopesArrayModel;
         $query = $model->newQuery();
@@ -87,7 +87,7 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
         $this->assertEquals([1], $query->getBindings());
     }
 
-    public function testClosureGlobalScopeCanBeRemoved()
+    public function testClosureGlobalScopeCanBeRemoved(): void
     {
         $model = new ClosureGlobalScopesModel;
         $query = $model->newQuery()->withoutGlobalScope('active_scope');
@@ -111,7 +111,7 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
         $this->assertSame([1], $query->getBindings());
     }
 
-    public function testGlobalScopeCanBeRemovedAfterTheQueryIsExecuted()
+    public function testGlobalScopeCanBeRemovedAfterTheQueryIsExecuted(): void
     {
         $model = new ClosureGlobalScopesModel;
         $query = $model->newQuery();
@@ -123,7 +123,7 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
         $this->assertSame([], $query->getBindings());
     }
 
-    public function testAllGlobalScopesCanBeRemoved()
+    public function testAllGlobalScopesCanBeRemoved(): void
     {
         $model = new ClosureGlobalScopesModel;
         $query = $model->newQuery()->withoutGlobalScopes();
@@ -135,7 +135,7 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
         $this->assertSame([], $query->getBindings());
     }
 
-    public function testAllGlobalScopesCanBeRemovedExceptSpecified()
+    public function testAllGlobalScopesCanBeRemovedExceptSpecified(): void
     {
         $model = new ClosureGlobalScopesModel;
         $query = $model->newQuery()->withoutGlobalScopesExcept(['active_scope']);
@@ -147,7 +147,7 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
         $this->assertEquals([1], $query->getBindings());
     }
 
-    public function testGlobalScopesWithOrWhereConditionsAreNested()
+    public function testGlobalScopesWithOrWhereConditionsAreNested(): void
     {
         $model = new ClosureGlobalScopesWithOrModel;
 
@@ -160,7 +160,7 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
         $this->assertEquals(['val1', 'val2', 'taylor@gmail.com', 'someone@else.com', 1], $query->getBindings());
     }
 
-    public function testRegularScopesWithOrWhereConditionsAreNested()
+    public function testRegularScopesWithOrWhereConditionsAreNested(): void
     {
         $query = ClosureGlobalScopesModel::withoutGlobalScopes()->where('foo', 'foo')->orWhere('bar', 'bar')->approved();
 
@@ -168,7 +168,7 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
         $this->assertEquals(['foo', 'bar', 1, 0], $query->getBindings());
     }
 
-    public function testScopesStartingWithOrBooleanArePreserved()
+    public function testScopesStartingWithOrBooleanArePreserved(): void
     {
         $query = ClosureGlobalScopesModel::withoutGlobalScopes()->where('foo', 'foo')->orWhere('bar', 'bar')->orApproved();
 
@@ -176,7 +176,7 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
         $this->assertEquals(['foo', 'bar', 1, 0], $query->getBindings());
     }
 
-    public function testHasQueryWhereBothModelsHaveGlobalScopes()
+    public function testHasQueryWhereBothModelsHaveGlobalScopes(): void
     {
         $query = GlobalScopesWithRelationModel::has('related')->where('bar', 'baz');
 

@@ -210,7 +210,7 @@ class DatabaseSchemaBuilderTest extends TestCase
         $connection->shouldReceive('statement')->never()->with('unreached statement');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Failed to execute schema statement [failed statement].');
+        $this->expectExceptionMessageIs('Failed to execute schema statement [failed statement].');
 
         (new Builder($connection))->executeBlueprint($blueprint);
     }

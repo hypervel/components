@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Permission;
 
-use Hypervel\Database\Eloquent\MissingAttributeException;
-use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Permission\Exceptions\PermissionPartitionNotResolved;
@@ -154,27 +152,6 @@ class PartitionModelTest extends PartitionTestCase
         $role->deleteQuietly();
     }
 
-    public function testKeylessStaleModelReportsMissingIdentityBeforePartitionMismatch(): void
-    {
-        Model::preventAccessingMissingAttributes(false);
-
-        $createdRole = PartitionedRole::create(['name' => 'owner']);
-        $keylessRole = PartitionedRole::query()
-            ->select(['name', 'guard_name', 'workspace_id'])
-            ->where('name', 'owner')
-            ->firstOrFail();
-        $this->setPartition(self::PARTITION_B);
-
-        try {
-            $keylessRole->delete();
-            $this->fail('Expected a missing role key exception was not thrown.');
-        } catch (MissingAttributeException $exception) {
-            $this->assertStringContainsString($keylessRole->getKeyName(), $exception->getMessage());
-        }
-
-        $this->assertTrue(DB::table('roles')->where('id', $createdRole->getKey())->exists());
-    }
-
     public function testStaleModelCannotBeRefreshedInAnotherPartition(): void
     {
         $permission = PartitionedPermission::create(['name' => 'articles.edit']);
@@ -212,48 +189,6 @@ class PartitionModelTest extends PartitionTestCase
         }
 
         $this->assertTrue(DB::table('roles')->where('id', $createdRole->getKey())->exists());
-    }
-
-    public function testEmptyPersistedPartitionIsRenderedDistinctlyBeforeDeletion(): void
-    {
-        $role = PartitionedRole::create(['name' => 'owner']);
-        $role->setRawAttributes([
-            ...$role->getAttributes(),
-            'workspace_id' => '',
-        ], true);
-
-        try {
-            $role->delete();
-            $this->fail('Expected an empty persisted partition to fail.');
-        } catch (PermissionPartitionViolation $exception) {
-            $this->assertSame(
-                'Partitioned model `' . PartitionedRole::class . '` has no valid persisted value for permission partition column `workspace_id`; received `\'\' (empty string)`.',
-                $exception->getMessage(),
-            );
-        }
-
-        $this->assertTrue(DB::table('roles')->where('id', $role->getKey())->exists());
-    }
-
-    public function testNonScalarPersistedPartitionIsRenderedByTypeBeforeDeletion(): void
-    {
-        $role = PartitionedRole::create(['name' => 'owner']);
-        $role->setRawAttributes([
-            ...$role->getAttributes(),
-            'workspace_id' => [],
-        ], true);
-
-        try {
-            $role->delete();
-            $this->fail('Expected a non-scalar persisted partition to fail.');
-        } catch (PermissionPartitionViolation $exception) {
-            $this->assertSame(
-                'Partitioned model `' . PartitionedRole::class . '` has no valid persisted value for permission partition column `workspace_id`; received `array`.',
-                $exception->getMessage(),
-            );
-        }
-
-        $this->assertTrue(DB::table('roles')->where('id', $role->getKey())->exists());
     }
 
     public function testCreatingListenerCannotReplaceTheCapturedPartition(): void

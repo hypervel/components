@@ -8,4 +8,5 @@ use Hypervel\Saloon\Http\Response;
 
 class {{ class }} extends Response
 {
+    //
 }

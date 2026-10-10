@@ -50,7 +50,7 @@ class EloquentPivotTest extends DatabaseTestCase
         });
     }
 
-    public function testPivotConvenientHelperReturnExpectedResult()
+    public function testPivotConvenientHelperReturnExpectedResult(): void
     {
         $user = PivotTestUser::forceCreate(['email' => 'taylor@laravel.com']);
         $user2 = PivotTestUser::forceCreate(['email' => 'ralph@ralphschindler.com']);
@@ -74,7 +74,7 @@ class EloquentPivotTest extends DatabaseTestCase
         });
     }
 
-    public function testPivotValuesCanBeSetFromRelationDefinition()
+    public function testPivotValuesCanBeSetFromRelationDefinition(): void
     {
         $user = PivotTestUser::forceCreate(['email' => 'taylor@laravel.com']);
         $active = PivotTestProject::forceCreate(['name' => 'Active Project']);
@@ -115,7 +115,7 @@ class EloquentPivotTest extends DatabaseTestCase
         $pivot = $this->createPartialCollaboratorPivot($missingColumn);
 
         $this->expectException(MissingAttributeException::class);
-        $this->expectExceptionMessage("The attribute [{$missingColumn}]");
+        $this->expectExceptionMessageIsOrContains("The attribute [{$missingColumn}]");
 
         $pivot->fresh();
     }
@@ -127,7 +127,7 @@ class EloquentPivotTest extends DatabaseTestCase
         $pivot->permissions = ['read'];
 
         $this->expectException(MissingAttributeException::class);
-        $this->expectExceptionMessage("The attribute [{$missingColumn}]");
+        $this->expectExceptionMessageIsOrContains("The attribute [{$missingColumn}]");
 
         $pivot->save();
     }
@@ -138,7 +138,7 @@ class EloquentPivotTest extends DatabaseTestCase
         $pivot = $this->createPartialCollaboratorPivot($missingColumn);
 
         $this->expectException(MissingAttributeException::class);
-        $this->expectExceptionMessage("The attribute [{$missingColumn}]");
+        $this->expectExceptionMessageIsOrContains("The attribute [{$missingColumn}]");
 
         $pivot->delete();
     }
@@ -149,7 +149,7 @@ class EloquentPivotTest extends DatabaseTestCase
         $pivot = $this->createPartialCollaboratorPivot($missingColumn);
 
         $this->expectException(MissingAttributeException::class);
-        $this->expectExceptionMessage("The attribute [{$missingColumn}]");
+        $this->expectExceptionMessageIsOrContains("The attribute [{$missingColumn}]");
 
         $pivot->getQueueableId();
     }

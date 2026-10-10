@@ -33,7 +33,7 @@ class EloquentMorphManyTest extends DatabaseTestCase
         });
     }
 
-    public function testUpdateModelWithDefaultWithCount()
+    public function testUpdateModelWithDefaultWithCount(): void
     {
         $post = Post::create(['title' => Str::random()]);
 
@@ -42,7 +42,7 @@ class EloquentMorphManyTest extends DatabaseTestCase
         $this->assertSame('new name', $post->title);
     }
 
-    public function testSelfReferencingExistenceQuery()
+    public function testSelfReferencingExistenceQuery(): void
     {
         $post = Post::create(['title' => 'foo']);
 
@@ -55,7 +55,7 @@ class EloquentMorphManyTest extends DatabaseTestCase
         $this->assertEquals([1], $comments->pluck('id')->all());
     }
 
-    public function testCanMorphOne()
+    public function testCanMorphOne(): void
     {
         $post = Post::create(['title' => 'Your favorite book by C.S. Lewis']);
 

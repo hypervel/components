@@ -229,7 +229,7 @@ class ScheduleTest extends TestCase
         $this->assertSame('0 * * * *', $filteredEvents[2]->expression);
     }
 
-    public function testDueEventsAtUsesGivenTime()
+    public function testDueEventsAtUsesGivenTime(): void
     {
         $app = m::mock(ApplicationContract::class);
         $app->shouldReceive('isDownForMaintenance')->andReturn(false);
@@ -318,7 +318,7 @@ class ScheduleTest extends TestCase
         $schedule->useCache(ScheduleTestCacheStoreIntEnum::Store1);
     }
 
-    public function testMutexCanReceiveCustomStore()
+    public function testMutexCanReceiveCustomStore(): void
     {
         $eventMutex = m::mock(CacheEventMutex::class);
         $eventMutex->shouldReceive('useStore')->once()->with('test');
@@ -333,7 +333,7 @@ class ScheduleTest extends TestCase
         $schedule->useCache('test');
     }
 
-    public function testServerShouldRunCachesMutexResultOnlyWithinSameMinute()
+    public function testServerShouldRunCachesMutexResultOnlyWithinSameMinute(): void
     {
         $schedule = new Schedule;
         $event = new Event($this->eventMutex, 'php artisan inspire');
@@ -360,7 +360,7 @@ class ScheduleTest extends TestCase
         $this->assertFalse($schedule->serverShouldRun($event, $sameNextMinute));
     }
 
-    public function testExecCreatesNewCommand()
+    public function testExecCreatesNewCommand(): void
     {
         $escape = '\\' === DIRECTORY_SEPARATOR ? '"' : '\'';
         $escapeReal = '\\' === DIRECTORY_SEPARATOR ? '\"' : '"';
@@ -392,7 +392,7 @@ class ScheduleTest extends TestCase
         $this->assertSame("path/to/command -F {$escape}bar{$escape} -F {$escape}baz{$escape}", $events[10]->command);
     }
 
-    public function testExecCreatesNewCommandWithTimezone()
+    public function testExecCreatesNewCommandWithTimezone(): void
     {
         $schedule = new Schedule('UTC');
         $schedule->exec('path/to/command');
@@ -405,7 +405,7 @@ class ScheduleTest extends TestCase
         $this->assertSame('Asia/Tokyo', $events[0]->timezone);
     }
 
-    public function testCommandCreatesNewArtisanCommand()
+    public function testCommandCreatesNewArtisanCommand(): void
     {
         // Hypervel runs commands in-process via the Kernel (no shell spawning),
         // so command names are stored without the php/artisan binary prefix.
@@ -420,7 +420,7 @@ class ScheduleTest extends TestCase
         $this->assertSame('queue:listen --tries=3', $events[2]->command);
     }
 
-    public function testCreateNewArtisanCommandUsingCommandClass()
+    public function testCreateNewArtisanCommandUsingCommandClass(): void
     {
         $schedule = new Schedule;
         $schedule->command(ScheduleTestCommandStub::class, ['--force']);
@@ -429,7 +429,7 @@ class ScheduleTest extends TestCase
         $this->assertSame('foo:bar --force', $events[0]->command);
     }
 
-    public function testCreateNewArtisanCommandUsingCommandClassObject()
+    public function testCreateNewArtisanCommandUsingCommandClassObject(): void
     {
         $command = new class extends Command {
             protected ?string $signature = 'foo:bar';
@@ -446,7 +446,7 @@ class ScheduleTest extends TestCase
         $this->assertSame('foo:bar --force', $events[0]->command);
     }
 
-    public function testItUsesCommandDescriptionAsEventDescription()
+    public function testItUsesCommandDescriptionAsEventDescription(): void
     {
         $schedule = new Schedule;
         $event = $schedule->command(ScheduleTestCommandStub::class);
@@ -484,7 +484,7 @@ class ScheduleTest extends TestCase
         $this->assertSame('This is a description about the command', $schedule->events()[0]->description);
     }
 
-    public function testItShouldBePossibleToOverwriteTheDescription()
+    public function testItShouldBePossibleToOverwriteTheDescription(): void
     {
         $schedule = new Schedule;
         $event = $schedule->command(ScheduleTestCommandStub::class)
@@ -492,7 +492,7 @@ class ScheduleTest extends TestCase
         $this->assertSame('This is an alternative description', $event->description);
     }
 
-    public function testCallCreatesNewJobWithTimezone()
+    public function testCallCreatesNewJobWithTimezone(): void
     {
         $schedule = new Schedule('UTC');
         $schedule->call('path/to/command');
@@ -505,7 +505,7 @@ class ScheduleTest extends TestCase
         $this->assertSame('Asia/Tokyo', $events[0]->timezone);
     }
 
-    public function testJobSetsNameBeforeGroupAttributesAreMerged()
+    public function testJobSetsNameBeforeGroupAttributesAreMerged(): void
     {
         $schedule = new Schedule;
         $schedule->withoutOverlapping()->group(function ($schedule) {

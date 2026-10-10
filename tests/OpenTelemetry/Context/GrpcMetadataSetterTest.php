@@ -29,7 +29,7 @@ class GrpcMetadataSetterTest extends TestCase
         $carrier = [];
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Unsupported gRPC metadata carrier type [array].');
+        $this->expectExceptionMessageIs('Unsupported gRPC metadata carrier type [array].');
 
         (new GrpcMetadataSetter)->set($carrier, 'traceparent', 'value');
     }

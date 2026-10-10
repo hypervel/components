@@ -8,7 +8,7 @@ use Hypervel\Support\Facades\Route;
 
 class RoutePortTest extends RoutingTestCase
 {
-    public function testPortScopedRouteMatchesCorrectPort()
+    public function testPortScopedRouteMatchesCorrectPort(): void
     {
         Route::port(8080)->get('/foo', fn () => 'port 8080');
 
@@ -18,7 +18,7 @@ class RoutePortTest extends RoutingTestCase
         $this->assertSame('port 8080', $response->content());
     }
 
-    public function testPortScopedRouteRejectsWrongPort()
+    public function testPortScopedRouteRejectsWrongPort(): void
     {
         Route::port(8080)->get('/foo', fn () => 'port 8080');
 
@@ -27,7 +27,7 @@ class RoutePortTest extends RoutingTestCase
         $response->assertNotFound();
     }
 
-    public function testUnscopedRouteMatchesAnyPort()
+    public function testUnscopedRouteMatchesAnyPort(): void
     {
         Route::get('/foo', fn () => 'any port');
 
@@ -35,7 +35,7 @@ class RoutePortTest extends RoutingTestCase
         $this->call('GET', 'http://localhost:8000/foo')->assertOk();
     }
 
-    public function testPortGroupScopesAllChildRoutes()
+    public function testPortGroupScopesAllChildRoutes(): void
     {
         Route::port(8080)->group(function () {
             Route::get('/foo', fn () => 'foo');

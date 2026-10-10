@@ -181,11 +181,8 @@ class AuthManager implements FactoryContract
      */
     public function getDefaultDriver(): string
     {
-        if (CoroutineContext::has(self::DEFAULT_GUARD_CONTEXT_KEY)) {
-            return CoroutineContext::get(self::DEFAULT_GUARD_CONTEXT_KEY);
-        }
-
-        return $this->app->make('config')->string('auth.defaults.guard');
+        return CoroutineContext::get(self::DEFAULT_GUARD_CONTEXT_KEY)
+            ?? $this->app->make('config')->string('auth.defaults.guard');
     }
 
     /**

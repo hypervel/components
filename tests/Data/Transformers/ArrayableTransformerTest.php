@@ -13,10 +13,7 @@ use Mockery as m;
 
 class ArrayableTransformerTest extends TestCase
 {
-    /**
-     * Test an arrayable value is transformed to an array.
-     */
-    public function testTransformsAnArrayableValue(): void
+    public function testCanTransformAnArrayable(): void
     {
         $value = new Collection(['A', 'B']);
 

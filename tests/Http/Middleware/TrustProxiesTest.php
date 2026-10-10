@@ -518,7 +518,7 @@ class TrustProxiesTest extends TestCase
     public function testUnsupportedTextHeaderConfigurationIsRejected(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Unsupported trusted header configuration [HEADER_FORWARDE].');
+        $this->expectExceptionMessageIs('Unsupported trusted header configuration [HEADER_FORWARDE].');
 
         $trustedProxy = $this->createTrustedProxy('HEADER_FORWARDE', '192.168.10.10');
         $request = $this->createProxiedRequest();

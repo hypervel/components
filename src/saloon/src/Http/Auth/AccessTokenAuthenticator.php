@@ -4,23 +4,23 @@ declare(strict_types=1);
 
 namespace Hypervel\Saloon\Http\Auth;
 
-use Carbon\CarbonInterface;
+use DateTimeImmutable;
 use Hypervel\Saloon\Contracts\OAuthAuthenticator;
 use Hypervel\Saloon\Http\PendingRequest;
 use Hypervel\Support\Facades\Date;
 use SensitiveParameter;
 
-readonly class AccessTokenAuthenticator implements OAuthAuthenticator
+class AccessTokenAuthenticator implements OAuthAuthenticator
 {
     /**
      * Create an access token authenticator.
      */
     public function __construct(
         #[SensitiveParameter]
-        public string $accessToken,
+        public readonly string $accessToken,
         #[SensitiveParameter]
-        public ?string $refreshToken = null,
-        public ?CarbonInterface $expiresAt = null,
+        public readonly ?string $refreshToken = null,
+        public readonly ?DateTimeImmutable $expiresAt = null,
     ) {
     }
 
@@ -29,7 +29,7 @@ readonly class AccessTokenAuthenticator implements OAuthAuthenticator
      */
     public function set(PendingRequest $pendingRequest): void
     {
-        $pendingRequest->replaceHeaders(['Authorization' => 'Bearer ' . $this->accessToken]);
+        $pendingRequest->replaceHeaders(['Authorization' => 'Bearer ' . $this->getAccessToken()]);
     }
 
     /**
@@ -67,7 +67,7 @@ readonly class AccessTokenAuthenticator implements OAuthAuthenticator
     /**
      * Get the expiry.
      */
-    public function getExpiresAt(): ?CarbonInterface
+    public function getExpiresAt(): ?DateTimeImmutable
     {
         return $this->expiresAt;
     }

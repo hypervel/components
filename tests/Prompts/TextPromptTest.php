@@ -106,7 +106,7 @@ class TextPromptTest extends TestCase
         $this->assertSame('result', $result);
     }
 
-    public function testFallbackWhenIsAdditive()
+    public function testFallbackWhenIsAdditive(): void
     {
         TextPrompt::fallbackUsing(fn () => 'result');
 
@@ -158,7 +158,7 @@ class TextPromptTest extends TestCase
     public function testValidatesDefaultValueWhenNonInteractive(): void
     {
         $this->expectException(NonInteractiveValidationException::class);
-        $this->expectExceptionMessage('Required.');
+        $this->expectExceptionMessageIs('Required.');
 
         Prompt::interactive(false);
         text('What is your name?', required: true);
@@ -188,7 +188,7 @@ class TextPromptTest extends TestCase
     public function testAllowsCustomizingCancellation(): void
     {
         $this->expectException(Exception::class);
-        $this->expectExceptionMessage('Cancelled.');
+        $this->expectExceptionMessageIs('Cancelled.');
 
         Prompt::cancelUsing(fn () => throw new Exception('Cancelled.'));
         Prompt::fake([Key::CTRL_C]);

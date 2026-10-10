@@ -17,7 +17,7 @@ use Swoole\Coroutine\Channel;
  */
 class ModelViolationDedupeTest extends SentryTestCase
 {
-    public function testDedupeIsIsolatedBetweenCoroutines()
+    public function testDedupeIsIsolatedBetweenCoroutines(): void
     {
         $reported = [];
         $reporter = new ConcreteViolationReporter(
@@ -58,7 +58,7 @@ class ModelViolationDedupeTest extends SentryTestCase
         $this->assertCount(2, $reported);
     }
 
-    public function testDifferentReporterTypesDontSuppressEachOther()
+    public function testDifferentReporterTypesDontSuppressEachOther(): void
     {
         $reported = [];
         $callback = function (Model $model, string $property) use (&$reported) {

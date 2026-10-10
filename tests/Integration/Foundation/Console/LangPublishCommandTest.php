@@ -76,7 +76,7 @@ class LangPublishCommandTest extends TestCase
         $this->filesystem->put($this->langPath, 'not a directory');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage("Unable to create directory [{$this->langPath}].");
+        $this->expectExceptionMessageIs("Unable to create directory [{$this->langPath}].");
 
         $this->artisan('lang:publish');
     }

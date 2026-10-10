@@ -99,7 +99,7 @@ class ReverbWatcherTest extends FeatureTestCase
         $app->instance(Server::class, $server);
     }
 
-    public function testRecordsConnectionEstablished()
+    public function testRecordsConnectionEstablished(): void
     {
         $connection = new FakeConnection;
 
@@ -114,7 +114,7 @@ class ReverbWatcherTest extends FeatureTestCase
         $this->assertSame('http://localhost', $entry->content['origin']);
     }
 
-    public function testRecordsConnectionClosed()
+    public function testRecordsConnectionClosed(): void
     {
         $connection = new FakeConnection;
 
@@ -128,7 +128,7 @@ class ReverbWatcherTest extends FeatureTestCase
         $this->assertSame('123456', $entry->content['app_id']);
     }
 
-    public function testRecordsChannelCreated()
+    public function testRecordsChannelCreated(): void
     {
         $channel = new Channel('test-channel');
 
@@ -141,7 +141,7 @@ class ReverbWatcherTest extends FeatureTestCase
         $this->assertSame('test-channel', $entry->content['channel']);
     }
 
-    public function testRecordsChannelRemoved()
+    public function testRecordsChannelRemoved(): void
     {
         $channel = new Channel('presence-room');
 
@@ -154,7 +154,7 @@ class ReverbWatcherTest extends FeatureTestCase
         $this->assertSame('presence-room', $entry->content['channel']);
     }
 
-    public function testRecordsConnectionPruned()
+    public function testRecordsConnectionPruned(): void
     {
         $connection = new FakeConnection;
         $channelConnection = new ChannelConnection($connection);
@@ -169,7 +169,7 @@ class ReverbWatcherTest extends FeatureTestCase
         $this->assertSame('123456', $entry->content['app_id']);
     }
 
-    public function testDoesNotRecordMessageReceivedByDefault()
+    public function testDoesNotRecordMessageReceivedByDefault(): void
     {
         $connection = new FakeConnection;
 
@@ -180,7 +180,7 @@ class ReverbWatcherTest extends FeatureTestCase
         $this->assertTrue($entries->where('type', EntryType::REVERB)->isEmpty());
     }
 
-    public function testRecordsMessageReceivedWhenOptedIn()
+    public function testRecordsMessageReceivedWhenOptedIn(): void
     {
         $this->registerWatcherWithEvents([
             'message_received',
@@ -199,7 +199,7 @@ class ReverbWatcherTest extends FeatureTestCase
         $this->assertSame('{"event":"pusher:ping"}', $entry->content['message']);
     }
 
-    public function testDoesNotRecordMessageSentByDefault()
+    public function testDoesNotRecordMessageSentByDefault(): void
     {
         $connection = new FakeConnection;
 
@@ -210,7 +210,7 @@ class ReverbWatcherTest extends FeatureTestCase
         $this->assertTrue($entries->where('type', EntryType::REVERB)->isEmpty());
     }
 
-    public function testRecordsMessageSentWhenOptedIn()
+    public function testRecordsMessageSentWhenOptedIn(): void
     {
         $this->registerWatcherWithEvents([
             'message_sent',
@@ -228,7 +228,7 @@ class ReverbWatcherTest extends FeatureTestCase
         $this->assertSame('{"event":"pusher:pong"}', $entry->content['message']);
     }
 
-    public function testDefaultConfigRecordsOnlyLifecycleEvents()
+    public function testDefaultConfigRecordsOnlyLifecycleEvents(): void
     {
         $connection = new FakeConnection;
         $channel = new Channel('test-channel');
@@ -246,7 +246,7 @@ class ReverbWatcherTest extends FeatureTestCase
         $this->assertCount(5, $entries);
     }
 
-    public function testEntryIncludesAppTag()
+    public function testEntryIncludesAppTag(): void
     {
         $connection = new FakeConnection;
 
@@ -262,7 +262,7 @@ class ReverbWatcherTest extends FeatureTestCase
         $this->assertContains('App:123456', $tags);
     }
 
-    public function testEntryIncludesChannelTag()
+    public function testEntryIncludesChannelTag(): void
     {
         $channel = new Channel('private-notifications');
 
@@ -278,7 +278,7 @@ class ReverbWatcherTest extends FeatureTestCase
         $this->assertContains('Channel:private-notifications', $tags);
     }
 
-    public function testMessageContentTruncatedToSizeLimit()
+    public function testMessageContentTruncatedToSizeLimit(): void
     {
         $this->registerWatcherWithEvents(
             ['message_received'],
@@ -331,7 +331,7 @@ class ReverbWatcherTest extends FeatureTestCase
         $this->assertSame($message, $entry->content['message']);
     }
 
-    public function testDoesNotRecordWhenTelescopePaused()
+    public function testDoesNotRecordWhenTelescopePaused(): void
     {
         // Clear the recording state set by FeatureTestCase::setUp() so the
         // watcher's startRecording() actually checks the pause cache key.
@@ -351,7 +351,7 @@ class ReverbWatcherTest extends FeatureTestCase
         $this->assertTrue($entries->where('type', EntryType::REVERB)->isEmpty());
     }
 
-    public function testDoesNotStopRecordingWhenAlreadyActive()
+    public function testDoesNotStopRecordingWhenAlreadyActive(): void
     {
         // Simulates a MessageSent event firing inside an HTTP request coroutine
         // where Telescope recording was already started by ListensForStorageOpportunities.

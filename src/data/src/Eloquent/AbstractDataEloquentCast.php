@@ -78,32 +78,29 @@ abstract class AbstractDataEloquentCast
     }
 
     /**
-     * Resolve data from a strict abstract-class envelope.
+     * Resolve data from an abstract-class envelope.
      *
      * @param array<array-key, mixed> $payload
      * @return TData
      */
     protected function resolveMorphedData(Model $model, string $key, array $payload): BaseData
     {
-        $alias = $payload['type'] ?? null;
+        $type = $payload['type'] ?? null;
         $data = $payload['data'] ?? null;
 
-        if (! is_string($alias) || ! is_array($data)) {
+        if (! is_string($type) || ! is_array($data)) {
             throw CannotCastData::invalidMorphEnvelope($model::class, $key);
         }
 
-        $dataClass = $this->dataConfig->getMorphedDataClass($alias);
+        // The stored type is an alias or a class name, which must stay within the declared type before its
+        // metadata is built.
+        $dataClass = $this->dataConfig->getMorphedDataClass($type) ?? $type;
 
-        if ($dataClass === null) {
-            throw CannotCastData::unknownMorphAlias($alias, $this->dataClass);
+        if (! is_a($dataClass, $this->dataClass, true)) {
+            throw CannotCastData::invalidMorphClass($dataClass, $this->dataClass);
         }
 
-        $metadata = $this->dataClasses->get($dataClass);
-
-        if (! is_a($dataClass, $this->dataClass, true)
-            || $metadata->isAbstract
-            || ! $metadata->transformable
-        ) {
+        if ($this->dataClasses->get($dataClass)->isAbstract) {
             throw CannotCastData::invalidMorphClass($dataClass, $this->dataClass);
         }
 
@@ -112,7 +109,7 @@ abstract class AbstractDataEloquentCast
     }
 
     /**
-     * Wrap transformed data in its enforced abstract-class envelope.
+     * Wrap transformed data in its abstract-class envelope, under its alias or class name.
      *
      * @param TData $data
      * @param array<array-key, mixed> $payload
@@ -120,14 +117,8 @@ abstract class AbstractDataEloquentCast
      */
     protected function createMorphEnvelope(BaseData&TransformableData $data, array $payload): array
     {
-        $alias = $this->dataConfig->getDataClassAlias($data::class);
-
-        if ($alias === null) {
-            throw CannotCastData::morphAliasRequired($data::class);
-        }
-
         return [
-            'type' => $alias,
+            'type' => $this->dataConfig->getDataClassAlias($data::class) ?? $data::class,
             'data' => $payload,
         ];
     }

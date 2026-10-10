@@ -33,7 +33,7 @@ class ProvisioningPlanTest extends IntegrationTestCase
         $this->assertSame('default', $options->queue);
     }
 
-    public function testSupervisorsAreAdded()
+    public function testSupervisorsAreAdded(): void
     {
         Event::fake([MasterSupervisorDeployed::class]);
 
@@ -98,7 +98,7 @@ class ProvisioningPlanTest extends IntegrationTestCase
         $this->assertSame([], $observedEvents);
     }
 
-    public function testSupervisorsAreAddedAsFallbackForWildcardEnvironments()
+    public function testSupervisorsAreAddedAsFallbackForWildcardEnvironments(): void
     {
         $plan = [
             '*' => [
@@ -126,7 +126,7 @@ class ProvisioningPlanTest extends IntegrationTestCase
         $this->assertSame(10, $command->options['maxProcesses']);
     }
 
-    public function testPlanIsConvertedIntoArrayOfSupervisorOptions()
+    public function testPlanIsConvertedIntoArrayOfSupervisorOptions(): void
     {
         $plan = [
             'production' => [
@@ -163,7 +163,7 @@ class ProvisioningPlanTest extends IntegrationTestCase
         $this->assertSame(20, $results['local']['supervisor-2']->maxProcesses);
     }
 
-    public function testBackoffIsTranslatedToStringForm()
+    public function testBackoffIsTranslatedToStringForm(): void
     {
         $plan = [
             'local' => [

@@ -9,7 +9,7 @@ use Hypervel\Tests\TestCase;
 
 class SupportTappableTest extends TestCase
 {
-    public function testTappableClassWithCallback()
+    public function testTappableClassWithCallback(): void
     {
         $name = TappableClass::make()->tap(function ($tappable) {
             $tappable->setName('MyName');
@@ -18,7 +18,7 @@ class SupportTappableTest extends TestCase
         $this->assertSame('MyName', $name);
     }
 
-    public function testTappableClassWithInvokableClass()
+    public function testTappableClassWithInvokableClass(): void
     {
         $name = TappableClass::make()->tap(new class {
             public function __invoke($tappable)
@@ -30,7 +30,7 @@ class SupportTappableTest extends TestCase
         $this->assertSame('MyName', $name);
     }
 
-    public function testTappableClassWithNoneInvokableClass()
+    public function testTappableClassWithNoneInvokableClass(): void
     {
         $this->expectException('Error');
 
@@ -44,7 +44,7 @@ class SupportTappableTest extends TestCase
         $this->assertSame('MyName', $name);
     }
 
-    public function testTappableClassWithoutCallback()
+    public function testTappableClassWithoutCallback(): void
     {
         $name = TappableClass::make()->tap()->setName('MyName')->getName();
 

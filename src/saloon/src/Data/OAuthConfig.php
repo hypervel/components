@@ -21,7 +21,7 @@ final readonly class OAuthConfig
     /**
      * Create an OAuth 2 configuration.
      *
-     * @param list<string> $defaultScopes
+     * @param list<?string> $defaultScopes
      * @param null|callable(Request): void $requestModifier
      */
     public function __construct(
@@ -41,6 +41,20 @@ final readonly class OAuthConfig
     }
 
     /**
+     * Merge the default scopes with the given scopes, ignoring null and empty scopes.
+     *
+     * @param list<?string> $scopes
+     * @return array<int, string>
+     */
+    public function scopes(array $scopes = []): array
+    {
+        return array_filter(
+            [...$this->defaultScopes, ...$scopes],
+            static fn (?string $scope): bool => $scope !== null && $scope !== '',
+        );
+    }
+
+    /**
      * Apply the configured request modifier.
      *
      * @template TRequest of Request
@@ -56,19 +70,23 @@ final readonly class OAuthConfig
 
     /**
      * Validate the OAuth 2 configuration.
+     *
+     * @throws OAuthConfigValidationException
      */
-    public function validate(bool $withRedirectUri = true): void
+    public function validate(bool $withRedirectUrl = true): bool
     {
         if ($this->clientId === '') {
-            throw new OAuthConfigValidationException('The client ID is empty or has not been provided.');
+            throw new OAuthConfigValidationException('The Client ID is empty or has not been provided.');
         }
 
         if ($this->clientSecret === '') {
-            throw new OAuthConfigValidationException('The client secret is empty or has not been provided.');
+            throw new OAuthConfigValidationException('The Client Secret is empty or has not been provided.');
         }
 
-        if ($withRedirectUri && $this->redirectUri === '') {
-            throw new OAuthConfigValidationException('The redirect URI is empty or has not been provided.');
+        if ($withRedirectUrl && $this->redirectUri === '') {
+            throw new OAuthConfigValidationException('The Redirect URI is empty or has not been provided.');
         }
+
+        return true;
     }
 }

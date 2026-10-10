@@ -33,6 +33,7 @@ use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
 use JsonException;
 use PHPUnit\Framework\Assert as PHPUnit;
+use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\StreamInterface;
 
 /**
@@ -630,6 +631,17 @@ class Factory
     }
 
     /**
+     * Set the event dispatcher implementation.
+     *
+     * Boot or tests only. The dispatcher persists on the factory for the
+     * worker lifetime and receives every subsequent HTTP client event.
+     */
+    public function setDispatcher(?Dispatcher $dispatcher): void
+    {
+        $this->dispatcher = $dispatcher;
+    }
+
+    /**
      * Get the array of global middleware.
      */
     public function getGlobalMiddleware(): array
@@ -667,11 +679,15 @@ class Factory
      */
     public function getConnectionHandler(string $name): callable
     {
-        $this->ensureConnectionIsRegistered($name);
+        return $this->connectionHandlers[$name] ??= $this->newConnectionHandler($name);
+    }
 
-        if (isset($this->connectionHandlers[$name])) {
-            return $this->connectionHandlers[$name];
-        }
+    /**
+     * Create an isolated transport handler with the connection's registered options.
+     */
+    public function newConnectionHandler(string $name): callable
+    {
+        $this->ensureConnectionIsRegistered($name);
 
         $config = $this->connectionConfigs[$name];
         $handlerOptions = Arr::only($config, ['transport_sharing', 'max_idle_handles']);
@@ -680,9 +696,7 @@ class Factory
             $handlerOptions['multiplex'] = Multiplexing::NONE;
         }
 
-        return $this->connectionHandlers[$name] = $this->createConnectionHandler(
-            $handlerOptions,
-        );
+        return $this->createConnectionHandler($handlerOptions);
     }
 
     /**
@@ -700,11 +714,14 @@ class Factory
         unset($options['max_idle_handles']);
 
         $upstream = Utils::chooseHandler($options);
-        $handler = $this->createIdleHandleRetainingHandler($options['transport_sharing'] ?? null, $maxIdleHandles);
+        $transportSharing = $options['transport_sharing'] ?? null;
+        // Async and streamed requests never need this handler. The static closure avoids a cycle with the factory.
+        $retaining = null;
+        $handler = static function (RequestInterface $request, array $options) use (&$retaining, $upstream, $transportSharing, $maxIdleHandles): PromiseInterface {
+            $retaining ??= static::createIdleHandleRetainingHandler($transportSharing, $maxIdleHandles) ?? $upstream;
 
-        if ($handler === null) {
-            return $upstream;
-        }
+            return $retaining($request, $options);
+        };
 
         // Guzzle 7 alone sends TLS 1.2 requests that its cURL cannot honor to its stream handler.
         // @phpstan-ignore function.impossibleType (the method exists in Guzzle 7, not in the installed Guzzle 8)
@@ -712,7 +729,11 @@ class Factory
             $handler = Proxy::wrapTlsFallback($handler, $upstream);
         }
 
-        return Proxy::wrapStreaming(Proxy::wrapSync($upstream, $handler), $upstream);
+        return CurlStreamingHandler::wrap(
+            Proxy::wrapStreaming(Proxy::wrapSync($upstream, $handler), $upstream),
+            $options,
+            CurlStreamingHandler::MAX_IDLE_CONNECTIONS,
+        );
     }
 
     /**
@@ -722,7 +743,7 @@ class Factory
      * builds the handler its selection would, through its internal share
      * state and version checks.
      */
-    protected function createIdleHandleRetainingHandler(mixed $transportSharing, int $maxIdleHandles): ?CurlHandler
+    protected static function createIdleHandleRetainingHandler(mixed $transportSharing, int $maxIdleHandles): ?CurlHandler
     {
         if (! function_exists('curl_exec') || ! defined('CURLOPT_CUSTOMREQUEST') || ! CurlVersion::supportsCurlHandler()) {
             return null;

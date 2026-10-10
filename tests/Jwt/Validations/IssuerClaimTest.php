@@ -31,7 +31,7 @@ class IssuerClaimTest extends TestCase
     public function testInvalid(): void
     {
         $this->expectException(TokenInvalidException::class);
-        $this->expectExceptionMessage('Issuer is invalid');
+        $this->expectExceptionMessageIs('Issuer is invalid');
 
         $validation = new IssuerClaim(['issuer' => 'https://api.example.test']);
 

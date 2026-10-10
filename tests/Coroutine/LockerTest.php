@@ -16,7 +16,7 @@ use function Hypervel\Coroutine\go;
 
 class LockerTest extends TestCase
 {
-    public function testLockAndUnlock()
+    public function testLockAndUnlock(): void
     {
         $chan = new Channel(10);
         go(function () use ($chan) {
@@ -141,7 +141,7 @@ class LockerTest extends TestCase
         }
     }
 
-    public function testFlushStateReleasesAbandonedLock()
+    public function testFlushStateReleasesAbandonedLock(): void
     {
         try {
             $this->assertTrue(Locker::lock('held'));

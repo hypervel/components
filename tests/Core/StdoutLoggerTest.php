@@ -280,7 +280,7 @@ class StdoutLoggerTest extends TestCase
         ]), new BufferedOutput);
 
         $this->expectException(PsrInvalidArgumentException::class);
-        $this->expectExceptionMessage('Unknown log level [audit].');
+        $this->expectExceptionMessageIs('Unknown log level [audit].');
 
         $logger->log('audit', 'Not configured.');
     }
@@ -292,7 +292,7 @@ class StdoutLoggerTest extends TestCase
         ]), new BufferedOutput);
 
         $this->expectException(PsrInvalidArgumentException::class);
-        $this->expectExceptionMessage('Log level must be a string, int given.');
+        $this->expectExceptionMessageIs('Log level must be a string, int given.');
 
         $logger->log(123, 'Invalid.');
     }
@@ -300,7 +300,7 @@ class StdoutLoggerTest extends TestCase
     public function testInvalidFormatFailsDuringConfigurationLoad(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Unsupported stdout log format [xml].');
+        $this->expectExceptionMessageIs('Unsupported stdout log format [xml].');
 
         new StdoutLogger(new Repository([
             'app' => ['stdout_log' => ['level' => [LogLevel::INFO], 'format' => 'xml']],
@@ -310,7 +310,7 @@ class StdoutLoggerTest extends TestCase
     public function testNonStringConfiguredLevelFailsDuringConfigurationLoad(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Stdout log levels must be strings, int given.');
+        $this->expectExceptionMessageIs('Stdout log levels must be strings, int given.');
 
         new StdoutLogger(new Repository([
             'app' => ['stdout_log' => ['level' => [LogLevel::INFO, 1], 'format' => 'line']],

@@ -648,7 +648,7 @@ class HttpGatewayTest extends TestCase
         ]);
 
         $this->expectException(SsrException::class);
-        $this->expectExceptionMessage('SSR render failed for component [Foo/Bar]: window is not defined');
+        $this->expectExceptionMessageIsOrContains('SSR render failed for component [Foo/Bar]: window is not defined');
 
         $this->gateway->dispatch(self::EXAMPLE_PAGE_OBJECT);
     }
@@ -700,7 +700,7 @@ class HttpGatewayTest extends TestCase
         ]);
 
         $this->expectException(SsrException::class);
-        $this->expectExceptionMessage('Connection refused');
+        $this->expectExceptionMessageIsOrContains('Connection refused');
 
         $this->gateway->dispatch(self::EXAMPLE_PAGE_OBJECT);
     }

@@ -126,7 +126,7 @@ class HelpersTest extends TestCase
     public function itThrowsExceptionWhenPackageIsNotInstalled(): void
     {
         $this->expectException(OutOfBoundsException::class);
-        $this->expectExceptionMessage('Package "hypervel/is-not-installed" is not installed');
+        $this->expectExceptionMessageIs('Package "hypervel/is-not-installed" is not installed');
 
         package_version_compare('hypervel/is-not-installed', '1.0.0', '=');
     }
@@ -135,7 +135,7 @@ class HelpersTest extends TestCase
     public function itCanThrowApplicationNotAvailableExceptionWhenAppIsNotHypervel(): void
     {
         $this->expectException(ApplicationNotAvailableException::class);
-        $this->expectExceptionMessage(sprintf('Application is not available to run [%s]', __METHOD__));
+        $this->expectExceptionMessageIs(sprintf('Application is not available to run [%s]', __METHOD__));
 
         hypervel_or_fail(null);
     }

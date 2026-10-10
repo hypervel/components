@@ -101,6 +101,101 @@ class ModelCacheCoordinatorTest extends TestCase
         ));
     }
 
+    public function testColdFillDoubleChecksPastAMemoizedMissAndRemembersTheFill(): void
+    {
+        $coordinator = new ModelCacheCoordinator;
+        $backingRepository = new Repository(new ArrayStore);
+        $memoizedRepository = new Repository(new MemoizedStore('array', $backingRepository));
+
+        $this->assertNull($memoizedRepository->get('key'));
+
+        // Another request fills the entry after this coroutine remembered the miss.
+        $coordinator->fill($backingRepository, 'key', 300, fn (): string => 'published');
+
+        $this->assertSame('published', $coordinator->fill(
+            $memoizedRepository,
+            'key',
+            300,
+            fn (): never => throw new RuntimeException('The source must not be read after a warm double-check.'),
+        ));
+
+        $backingRepository->forget('key');
+
+        $this->assertSame('published', $coordinator->fill(
+            $memoizedRepository,
+            'key',
+            300,
+            fn (): never => throw new RuntimeException('The double-checked value must be reused without locking.'),
+        ));
+    }
+
+    public function testPublishedFillIsRememberedForTheCurrentCoroutine(): void
+    {
+        $coordinator = new ModelCacheCoordinator;
+        $backingRepository = new Repository(new ArrayStore);
+        $memoizedRepository = new Repository(new MemoizedStore('array', $backingRepository));
+
+        $this->assertSame('user', $coordinator->fill($memoizedRepository, 'key', 300, fn (): string => 'user'));
+
+        $backingRepository->forget('key');
+
+        $this->assertSame('user', $coordinator->fill(
+            $memoizedRepository,
+            'key',
+            300,
+            fn (): never => throw new RuntimeException('The published value must be reused without locking.'),
+        ));
+    }
+
+    public function testFailedPublicationIsNotRemembered(): void
+    {
+        $coordinator = new ModelCacheCoordinator;
+        $memoizedRepository = new Repository(new MemoizedStore(
+            'array',
+            new Repository(new FailingWriteCoordinatorArrayStore),
+        ));
+        $reads = 0;
+
+        for ($iteration = 0; $iteration < 2; ++$iteration) {
+            $this->assertSame('user', $coordinator->fill(
+                $memoizedRepository,
+                'key',
+                300,
+                function () use (&$reads): string {
+                    ++$reads;
+
+                    return 'user';
+                },
+            ));
+        }
+
+        $this->assertSame(2, $reads);
+    }
+
+    public function testLazyWriterPublicationIsNotRemembered(): void
+    {
+        $coordinator = new ModelCacheCoordinator;
+        $memoizedRepository = new Repository(new MemoizedStore('array', new Repository(new ArrayStore)));
+        $writerRepository = new Repository(new ArrayStore);
+        $reads = 0;
+
+        for ($iteration = 0; $iteration < 2; ++$iteration) {
+            $this->assertSame('user', $coordinator->fill(
+                $memoizedRepository,
+                'key',
+                300,
+                function () use (&$reads): string {
+                    ++$reads;
+
+                    return 'user';
+                },
+                writeCache: fn (): CacheRepository => $writerRepository,
+            ));
+        }
+
+        $this->assertSame(2, $reads);
+    }
+
     public function testLazyWriterIsResolvedOnlyWhenPublishing(): void
     {
         $coordinator = new ModelCacheCoordinator;
@@ -511,7 +606,7 @@ class ModelCacheCoordinatorTest extends TestCase
         $missRepository->shouldReceive('get')->once()->with('key')->andReturnNull();
         $missRepository->shouldReceive('getStore')->once()->andReturn($unsupportedStore);
 
-        $this->expectExceptionMessage('does not provide atomic locks');
+        $this->expectExceptionMessageIsOrContains('does not provide atomic locks');
 
         $coordinator->fill($missRepository, 'key', 300, fn (): string => 'database');
     }
@@ -569,7 +664,7 @@ class ModelCacheCoordinatorTest extends TestCase
         $store->shouldReceive('lock')->once()->with(m::type('string'), 10)->andReturn($lock);
         $lock->shouldNotReceive('get');
 
-        $this->expectExceptionMessage('does not provide refreshable atomic locks');
+        $this->expectExceptionMessageIsOrContains('does not provide refreshable atomic locks');
 
         $coordinator->fill($repository, 'key', 300, fn (): string => 'database');
     }
@@ -617,6 +712,17 @@ class CoordinatorTestLock extends Lock implements RefreshableLock
     protected function getCurrentOwner(): ?string
     {
         return $this->owner;
+    }
+}
+
+class FailingWriteCoordinatorArrayStore extends ArrayStore
+{
+    /**
+     * Report a failed write without storing the item.
+     */
+    public function put(string $key, mixed $value, int $seconds): bool
+    {
+        return false;
     }
 }
 

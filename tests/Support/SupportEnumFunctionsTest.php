@@ -108,7 +108,7 @@ class SupportEnumFunctionsTest extends TestCase
     public function testEnumFromThrowsForAnInvalidBackingValue(): void
     {
         $this->expectException(ValueError::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             sprintf('"invalid" is not a valid backing value for enum %s', TestStringBackedEnum::class)
         );
 
@@ -118,7 +118,7 @@ class SupportEnumFunctionsTest extends TestCase
     public function testEnumFromUsesABoundedTypeNameForNonScalarValues(): void
     {
         $this->expectException(ValueError::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             sprintf('array is not a valid backing value for enum %s', TestStringBackedEnum::class)
         );
 

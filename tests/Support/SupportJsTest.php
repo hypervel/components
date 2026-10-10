@@ -15,7 +15,7 @@ use JsonSerializable;
 
 class SupportJsTest extends TestCase
 {
-    public function testScalars()
+    public function testScalars(): void
     {
         $this->assertSame('false', (string) Js::from(false));
         $this->assertSame('true', (string) Js::from(true));
@@ -47,7 +47,7 @@ class SupportJsTest extends TestCase
         $this->assertSame('{"value":"�1"}', Js::encode($jsonable));
     }
 
-    public function testArrays()
+    public function testArrays(): void
     {
         $this->assertSame(
             "JSON.parse('[\\u0022hello\\u0022,\\u0022world\\u0022]')",
@@ -60,7 +60,7 @@ class SupportJsTest extends TestCase
         );
     }
 
-    public function testObjects()
+    public function testObjects(): void
     {
         $this->assertSame(
             "JSON.parse('{\\u0022foo\\u0022:\\u0022hello\\u0022,\\u0022bar\\u0022:\\u0022world\\u0022}')",
@@ -68,7 +68,7 @@ class SupportJsTest extends TestCase
         );
     }
 
-    public function testJsonSerializable()
+    public function testJsonSerializable(): void
     {
         // JsonSerializable should take precedence over Arrayable, so we'll
         // implement both and make sure the correct data is used.
@@ -94,7 +94,7 @@ class SupportJsTest extends TestCase
         );
     }
 
-    public function testJsonable()
+    public function testJsonable(): void
     {
         // Jsonable should take precedence over JsonSerializable and Arrayable, so we'll
         // implement all three and make sure the correct data is used.
@@ -125,7 +125,7 @@ class SupportJsTest extends TestCase
         );
     }
 
-    public function testArrayable()
+    public function testArrayable(): void
     {
         $data = new class implements Arrayable {
             public $foo = 'not hello';
@@ -144,7 +144,7 @@ class SupportJsTest extends TestCase
         );
     }
 
-    public function testHtmlable()
+    public function testHtmlable(): void
     {
         $data = new class implements Htmlable {
             public function toHtml(): string
@@ -207,7 +207,7 @@ class SupportJsTest extends TestCase
         );
     }
 
-    public function testBackedEnums()
+    public function testBackedEnums(): void
     {
         $this->assertSame('2', (string) Js::from(IntBackedEnum::Two));
         $this->assertSame("'Hello world'", (string) Js::from(StringBackedEnum::HelloWorld));

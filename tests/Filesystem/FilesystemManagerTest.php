@@ -137,7 +137,7 @@ class FilesystemManagerTest extends TestCase
         ]));
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The disk name [ondemand] is reserved for on-demand disk fakes. Rename the configured disk.');
+        $this->expectExceptionMessageIs('The disk name [ondemand] is reserved for on-demand disk fakes. Rename the configured disk.');
 
         $filesystem->disk('ondemand');
     }
@@ -1067,7 +1067,7 @@ class FilesystemManagerTest extends TestCase
         $filesystem = new FilesystemManager($this->getContainer(['disks' => $disks]));
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIs($message);
 
         $filesystem->disk('assets');
     }

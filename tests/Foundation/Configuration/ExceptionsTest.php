@@ -18,7 +18,7 @@ use Throwable;
 
 class ExceptionsTest extends TestCase
 {
-    public function testStopIgnoring()
+    public function testStopIgnoring(): void
     {
         $container = new Container;
         $exceptions = new Exceptions($handler = new class($container) extends Handler {
@@ -63,7 +63,7 @@ class ExceptionsTest extends TestCase
         $this->assertFalse($handler->shouldStopRetries(new Exception('continue')));
     }
 
-    public function testShouldRenderJsonWhen()
+    public function testShouldRenderJsonWhen(): void
     {
         $exceptions = new Exceptions(new Handler(new Container));
 

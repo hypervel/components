@@ -92,7 +92,7 @@ class MailResendTransportTest extends TestCase
         $client->emails = $emails;
 
         $this->expectException(TransportException::class);
-        $this->expectExceptionMessage('Request to Resend API failed. Reason: API key is invalid.');
+        $this->expectExceptionMessageIs('Request to Resend API failed. Reason: API key is invalid.');
 
         (new ResendTransport($client))->send($message);
     }

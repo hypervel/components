@@ -13,7 +13,7 @@ use Mockery as m;
 
 class MonitoringControllerTest extends ControllerTestCase
 {
-    public function testMonitoredTagsAndJobCountsAreReturned()
+    public function testMonitoredTagsAndJobCountsAreReturned(): void
     {
         $tags = m::mock(TagRepository::class);
 
@@ -34,7 +34,7 @@ class MonitoringControllerTest extends ControllerTestCase
         ]);
     }
 
-    public function testMonitoredJobsCanBePaginatedByTag()
+    public function testMonitoredJobsCanBePaginatedByTag(): void
     {
         $tags = resolve(TagRepository::class);
         $jobs = resolve(JobRepository::class);
@@ -71,7 +71,7 @@ class MonitoringControllerTest extends ControllerTestCase
         $this->assertSame(49, $results[24]['index']);
     }
 
-    public function testCanPaginateWhereJobsDontExist()
+    public function testCanPaginateWhereJobsDontExist(): void
     {
         $tags = resolve(TagRepository::class);
 
@@ -85,7 +85,7 @@ class MonitoringControllerTest extends ControllerTestCase
         $this->assertCount(0, $response->json('jobs'));
     }
 
-    public function testCanStartMonitoringTags()
+    public function testCanStartMonitoringTags(): void
     {
         $tags = resolve(TagRepository::class);
 
@@ -95,7 +95,7 @@ class MonitoringControllerTest extends ControllerTestCase
         $this->assertEquals(['taylor'], $tags->monitoring());
     }
 
-    public function testCanStopMonitoringTags()
+    public function testCanStopMonitoringTags(): void
     {
         $tags = resolve(TagRepository::class);
         $jobs = resolve(JobRepository::class);

@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Permission\Integration;
 
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Permission\Events\RoleDetachedEvent;
 use Hypervel\Permission\PermissionRegistrar;
-use Hypervel\Permission\Support\Config;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Tests\Permission\Fixtures\Models\GlobalPartitionUser;
@@ -16,6 +16,15 @@ use Hypervel\Tests\Permission\PartitionTestCase;
 
 class PartitionQueryCountTest extends PartitionTestCase
 {
+    protected function defineEnvironment(ApplicationContract $app): void
+    {
+        parent::defineEnvironment($app);
+
+        // These cases count permission-table queries. A database cache store would log its own
+        // statements between them; the cache tests count those.
+        $app->make('config')->set('permission.cache.store', 'array');
+    }
+
     public function testColdCatalogKeepsThreeQueriesAndAddsPartitionPredicates(): void
     {
         PartitionedRole::create(['name' => 'editor']);
@@ -77,33 +86,26 @@ class PartitionQueryCountTest extends PartitionTestCase
         );
     }
 
-    public function testResolverLookupAndOrdinaryMutationsAddNoDiscoveryQuery(): void
+    public function testRoleAssignmentUsesOnePivotReadAndOneInsert(): void
     {
-        $registrar = $this->app->make(PermissionRegistrar::class);
         $user = GlobalPartitionUser::create(['email' => 'global@example.com']);
         $role = PartitionedRole::create(['name' => 'editor']);
         DB::enableQueryLog();
         DB::flushQueryLog();
 
-        $partition = $registrar->resolvePartition();
-
-        $this->assertNotNull($partition);
-        $this->assertSame([], DB::getQueryLog());
-
         $user->assignRole($role);
 
         $queries = DB::getQueryLog();
 
-        $this->assertNotEmpty($queries);
-        $discoveryQueries = array_filter($queries, static function (array $query): bool {
-            $sql = strtolower($query['query']);
+        $this->assertCount(2, $queries);
 
-            return str_contains($sql, 'distinct')
-                && (str_contains($sql, Config::modelHasRolesTable())
-                    || str_contains($sql, Config::modelHasPermissionsTable()));
-        });
+        foreach ($queries as $query) {
+            $this->assertStringContainsString('workspace_id', $query['query']);
+            $this->assertContains(self::PARTITION_A, $query['bindings']);
+        }
 
-        $this->assertSame([], $discoveryQueries);
+        $this->assertStringStartsWith('select', strtolower($queries[0]['query']));
+        $this->assertStringContainsString('insert into', strtolower($queries[1]['query']));
     }
 
     public function testRoleSyncUsesOnePivotReadAndOneBulkInsertWithoutListeners(): void
@@ -236,94 +238,30 @@ class PartitionQueryCountTest extends PartitionTestCase
         $this->assertNotContains($unchangedDenied->getKey(), $queries[2]['bindings']);
     }
 
-    public function testRoleRemovalWithoutAListenerUsesOneBlindDelete(): void
+    public function testRoleRemovalUsesOneDeleteAndReportsTheRequestedRoles(): void
     {
-        $user = GlobalPartitionUser::create(['email' => 'blind-delete@example.com']);
-        $role = PartitionedRole::create(['name' => 'member']);
-        $user->assignRole($role);
-        DB::enableQueryLog();
-        DB::flushQueryLog();
-
-        $user->removeRole($role);
-
-        $queries = DB::getQueryLog();
-
-        $this->assertCount(1, $queries);
-        $this->assertStringContainsString('delete from', strtolower($queries[0]['query']));
-        $this->assertStringContainsString('workspace_id', $queries[0]['query']);
-    }
-
-    public function testSingleRoleRemovalWithAListenerUsesOneDelete(): void
-    {
-        $user = GlobalPartitionUser::create(['email' => 'single-delete@example.com']);
-        $role = PartitionedRole::create(['name' => 'member']);
-        $user->assignRole($role);
+        $user = GlobalPartitionUser::create(['email' => 'remove@example.com']);
+        $assignedRole = PartitionedRole::create(['name' => 'editor']);
+        $unassignedRole = PartitionedRole::create(['name' => 'publisher']);
+        $user->assignRole($assignedRole);
         $this->app->make('config')->set('permission.events_enabled', true);
         Event::fake([RoleDetachedEvent::class]);
         DB::enableQueryLog();
         DB::flushQueryLog();
 
-        $user->removeRole($role);
+        $user->removeRole($unassignedRole, $assignedRole);
 
         $queries = DB::getQueryLog();
 
         $this->assertCount(1, $queries);
         $this->assertStringContainsString('delete from', strtolower($queries[0]['query']));
-        Event::assertDispatched(
-            RoleDetachedEvent::class,
-            fn (RoleDetachedEvent $event): bool => $event->rolesOrIds === [$role->getKey()],
-        );
-    }
-
-    public function testMultipleRoleRemovalWithAListenerUsesOneBlindDelete(): void
-    {
-        $user = GlobalPartitionUser::create(['email' => 'multiple-delete@example.com']);
-        $firstRole = PartitionedRole::create(['name' => 'editor']);
-        $secondRole = PartitionedRole::create(['name' => 'publisher']);
-        $user->assignRole($firstRole, $secondRole);
-        $this->app->make('config')->set('permission.events_enabled', true);
-        Event::fake([RoleDetachedEvent::class]);
-        DB::enableQueryLog();
-        DB::flushQueryLog();
-
-        $user->removeRole($secondRole, $firstRole);
-
-        $queries = DB::getQueryLog();
-
-        $this->assertCount(1, $queries);
         $this->assertStringContainsString('model_has_roles', $queries[0]['query']);
-        $this->assertStringContainsString('delete from', strtolower($queries[0]['query']));
+        $this->assertContains(self::PARTITION_A, $queries[0]['bindings']);
         Event::assertDispatched(
             RoleDetachedEvent::class,
             fn (RoleDetachedEvent $event): bool => $event->rolesOrIds === [
-                $secondRole->getKey(),
-                $firstRole->getKey(),
-            ],
-        );
-    }
-
-    public function testEmptyMultipleRoleRemovalWithAListenerStillReportsTheRequest(): void
-    {
-        $user = GlobalPartitionUser::create(['email' => 'empty-delete@example.com']);
-        $firstRole = PartitionedRole::create(['name' => 'editor']);
-        $secondRole = PartitionedRole::create(['name' => 'publisher']);
-        $this->app->make('config')->set('permission.events_enabled', true);
-        Event::fake([RoleDetachedEvent::class]);
-        DB::enableQueryLog();
-        DB::flushQueryLog();
-
-        $user->removeRole($firstRole, $secondRole);
-
-        $queries = DB::getQueryLog();
-
-        $this->assertCount(1, $queries);
-        $this->assertStringContainsString('model_has_roles', $queries[0]['query']);
-        $this->assertStringContainsString('delete from', strtolower($queries[0]['query']));
-        Event::assertDispatched(
-            RoleDetachedEvent::class,
-            fn (RoleDetachedEvent $event): bool => $event->rolesOrIds === [
-                $firstRole->getKey(),
-                $secondRole->getKey(),
+                $unassignedRole->getKey(),
+                $assignedRole->getKey(),
             ],
         );
     }

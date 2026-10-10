@@ -182,7 +182,7 @@ class MetadataTest extends TestCase
     public function testWithRequiresAtLeastOneValue(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('At least one gRPC metadata value is required.');
+        $this->expectExceptionMessageIs('At least one gRPC metadata value is required.');
 
         Metadata::make()->with('x-tag');
     }

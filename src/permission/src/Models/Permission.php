@@ -74,6 +74,8 @@ class Permission extends Model implements PermissionContract
     }
 
     /**
+     * Create a new permission.
+     *
      * @return Permission|PermissionContract
      *
      * @throws PermissionAlreadyExists

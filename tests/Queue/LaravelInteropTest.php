@@ -25,12 +25,12 @@ use stdClass;
  */
 class LaravelInteropTest extends TestCase
 {
-    public function testRestartSignalCacheKeyMatchesLaravel()
+    public function testRestartSignalCacheKeyMatchesLaravel(): void
     {
         $this->assertSame('illuminate:queue:restart', Worker::RESTART_SIGNAL_CACHE_KEY);
     }
 
-    public function testWithoutOverlappingPrefixMatchesLaravel()
+    public function testWithoutOverlappingPrefixMatchesLaravel(): void
     {
         $middleware = new WithoutOverlapping('test');
 
@@ -75,7 +75,7 @@ class LaravelInteropTest extends TestCase
         );
     }
 
-    public function testCallQueuedHandlerClassAliasIsRegistered()
+    public function testCallQueuedHandlerClassAliasIsRegistered(): void
     {
         $this->assertTrue(
             class_exists(\Illuminate\Queue\CallQueuedHandler::class),
@@ -109,7 +109,7 @@ class LaravelInteropTest extends TestCase
         $this->assertNull($anotherLaravelHandler->getRunningCommand());
     }
 
-    public function testModelIdentifierClassAliasIsRegistered()
+    public function testModelIdentifierClassAliasIsRegistered(): void
     {
         $this->assertTrue(
             class_exists(\Illuminate\Contracts\Database\ModelIdentifier::class),

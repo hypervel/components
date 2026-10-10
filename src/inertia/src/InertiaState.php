@@ -107,10 +107,10 @@ class InertiaState implements ReplicableContext
      */
     public static function current(): self
     {
-        if (CoroutineContext::has(self::CONTEXT_KEY)) {
-            /** @var self $state */
-            $state = CoroutineContext::get(self::CONTEXT_KEY);
+        /** @var null|self $state */
+        $state = CoroutineContext::get(self::CONTEXT_KEY);
 
+        if ($state !== null) {
             return $state;
         }
 

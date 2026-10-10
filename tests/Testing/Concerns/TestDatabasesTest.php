@@ -183,7 +183,7 @@ class TestDatabasesTest extends TestCase
     public function testSqliteFileUriIsRejected(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'SQLite URI databases cannot be automatically managed during parallel testing. '
             . 'Configure a plain filesystem path or run with --without-databases.'
         );
@@ -241,7 +241,7 @@ class TestDatabasesTest extends TestCase
     public function testInMemorySqliteWithEndpointDatabaseIsRejectedBeforeConnectionResolution(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Read/write connections with endpoint-specific databases or URLs cannot be automatically managed during parallel testing. '
             . 'Configure a single database identity or run with --without-databases.'
         );
@@ -262,7 +262,7 @@ class TestDatabasesTest extends TestCase
         array $configuration
     ): void {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Read/write connections with endpoint-specific databases or URLs cannot be automatically managed during parallel testing. '
             . 'Configure a single database identity or run with --without-databases.'
         );

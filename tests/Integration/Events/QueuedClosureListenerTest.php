@@ -13,7 +13,7 @@ use Laravel\SerializableClosure\SerializableClosure;
 
 class QueuedClosureListenerTest extends TestCase
 {
-    public function testAnonymousQueuedListenerIsQueued()
+    public function testAnonymousQueuedListenerIsQueued(): void
     {
         Bus::fake();
 
@@ -28,7 +28,7 @@ class QueuedClosureListenerTest extends TestCase
         });
     }
 
-    public function testAnonymousQueuedListenerIsQueuedOnMessageGroup()
+    public function testAnonymousQueuedListenerIsQueuedOnMessageGroup(): void
     {
         $messageGroup = 'group-1';
 
@@ -73,7 +73,7 @@ class QueuedClosureListenerTest extends TestCase
         });
     }
 
-    public function testAnonymousQueuedListenerIsQueuedWithDeduplicator()
+    public function testAnonymousQueuedListenerIsQueuedWithDeduplicator(): void
     {
         $deduplicator = fn ($payload, $queue) => 'deduplicator-1';
 

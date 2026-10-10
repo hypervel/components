@@ -417,7 +417,7 @@ trait CreatesApplication
 
         if ($this instanceof PHPUnitTestCase && method_exists($this, 'beforeApplicationDestroyed')) { /* @phpstan-ignore function.alreadyNarrowedType */
             $this->beforeApplicationDestroyed(static function () use ($attributeCallbacks) {
-                $attributeCallbacks->handle();
+                $attributeCallbacks->reverse()->handle();
             });
         }
     }
@@ -444,7 +444,6 @@ trait CreatesApplication
         unset($_SERVER['APP_ENV'], $_ENV['APP_ENV']);
 
         putenv('APP_ENV');
-        Env::flushRepository();
 
         return static function () use ($originalServerValue, $originalEnvironmentValue, $originalProcessValue): void {
             if ($originalServerValue instanceof UndefinedValue) {
@@ -464,8 +463,6 @@ trait CreatesApplication
             } else {
                 putenv("APP_ENV={$originalProcessValue}");
             }
-
-            Env::flushRepository();
         };
     }
 

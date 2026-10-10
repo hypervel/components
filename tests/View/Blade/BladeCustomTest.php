@@ -8,17 +8,17 @@ use InvalidArgumentException;
 
 class BladeCustomTest extends AbstractBladeTestCase
 {
-    public function testCustomPhpCodeIsCorrectlyHandled()
+    public function testCustomPhpCodeIsCorrectlyHandled(): void
     {
         $this->assertSame('<?php if($test): ?> <?php @show(\'test\'); ?> <?php endif; ?>', $this->compiler->compileString("@if(\$test) <?php @show('test'); ?> @endif"));
     }
 
-    public function testMixingYieldAndEcho()
+    public function testMixingYieldAndEcho(): void
     {
         $this->assertSame('<?php echo $__env->yieldContent(\'title\'); ?> - <?php echo e(Config::get(\'site.title\')); ?>', $this->compiler->compileString("@yield('title') - {{Config::get('site.title')}}"));
     }
 
-    public function testCustomExtensionsAreCompiled()
+    public function testCustomExtensionsAreCompiled(): void
     {
         $this->compiler->extend(function ($value) {
             return str_replace('foo', 'bar', $value);
@@ -26,7 +26,7 @@ class BladeCustomTest extends AbstractBladeTestCase
         $this->assertSame('bar', $this->compiler->compileString('foo'));
     }
 
-    public function testCustomStatements()
+    public function testCustomStatements(): void
     {
         $this->assertCount(0, $this->compiler->getCustomDirectives());
         $this->compiler->directive('customControl', function ($expression) {
@@ -43,7 +43,7 @@ class BladeCustomTest extends AbstractBladeTestCase
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
 
-    public function testCustomShortStatements()
+    public function testCustomShortStatements(): void
     {
         $this->compiler->directive('customControl', function ($expression) {
             return '<?php echo custom_control(); ?>';
@@ -54,7 +54,7 @@ class BladeCustomTest extends AbstractBladeTestCase
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
 
-    public function testValidCustomNames()
+    public function testValidCustomNames(): void
     {
         $this->assertNull($this->compiler->directive('custom', function () {
         }));
@@ -80,7 +80,7 @@ class BladeCustomTest extends AbstractBladeTestCase
         });
     }
 
-    public function testCustomExtensionOverwritesCore()
+    public function testCustomExtensionOverwritesCore(): void
     {
         $this->compiler->directive('foreach', function ($expression) {
             return '<?php custom(); ?>';
@@ -91,7 +91,7 @@ class BladeCustomTest extends AbstractBladeTestCase
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
 
-    public function testCustomConditions()
+    public function testCustomConditions(): void
     {
         $this->compiler->if('custom', function ($user) {
             return true;
@@ -104,7 +104,7 @@ class BladeCustomTest extends AbstractBladeTestCase
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
 
-    public function testCustomIfElseConditions()
+    public function testCustomIfElseConditions(): void
     {
         $this->compiler->if('custom', function ($anything) {
             return true;
@@ -121,7 +121,7 @@ class BladeCustomTest extends AbstractBladeTestCase
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
 
-    public function testCustomUnlessConditions()
+    public function testCustomUnlessConditions(): void
     {
         $this->compiler->if('custom', function ($anything) {
             return true;
@@ -134,7 +134,7 @@ class BladeCustomTest extends AbstractBladeTestCase
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
 
-    public function testCustomConditionsAccepts0AsArgument()
+    public function testCustomConditionsAccepts0AsArgument(): void
     {
         $this->compiler->if('custom', function ($number) {
             return true;
@@ -149,7 +149,7 @@ class BladeCustomTest extends AbstractBladeTestCase
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
 
-    public function testCustomComponents()
+    public function testCustomComponents(): void
     {
         $this->compiler->aliasComponent('app.components.alert', 'alert');
 
@@ -160,7 +160,7 @@ class BladeCustomTest extends AbstractBladeTestCase
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
 
-    public function testCustomComponentsWithSlots()
+    public function testCustomComponentsWithSlots(): void
     {
         $this->compiler->aliasComponent('app.components.alert', 'alert');
 
@@ -171,7 +171,7 @@ class BladeCustomTest extends AbstractBladeTestCase
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
 
-    public function testCustomComponentsWithExistingDirective()
+    public function testCustomComponentsWithExistingDirective(): void
     {
         $this->compiler->aliasComponent('app.components.foreach', 'foreach');
 
@@ -182,7 +182,7 @@ class BladeCustomTest extends AbstractBladeTestCase
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
 
-    public function testCustomIncludes()
+    public function testCustomIncludes(): void
     {
         $this->compiler->include('app.includes.input', 'input');
 
@@ -191,7 +191,7 @@ class BladeCustomTest extends AbstractBladeTestCase
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
 
-    public function testCustomIncludesWithData()
+    public function testCustomIncludesWithData(): void
     {
         $this->compiler->include('app.includes.input', 'input');
 
@@ -200,7 +200,7 @@ class BladeCustomTest extends AbstractBladeTestCase
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
 
-    public function testCustomIncludesDefaultAlias()
+    public function testCustomIncludesDefaultAlias(): void
     {
         $this->compiler->include('app.includes.input');
 
@@ -209,7 +209,7 @@ class BladeCustomTest extends AbstractBladeTestCase
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
 
-    public function testCustomIncludesWithExistingDirective()
+    public function testCustomIncludesWithExistingDirective(): void
     {
         $this->compiler->include('app.includes.foreach');
 
@@ -218,7 +218,7 @@ class BladeCustomTest extends AbstractBladeTestCase
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
 
-    public function testUnescapedNonRegisteredDirective()
+    public function testUnescapedNonRegisteredDirective(): void
     {
         $string = '@media only screen and (min-width:480px) {';
         $expected = '@media only screen and (min-width:480px) {';

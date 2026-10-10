@@ -49,7 +49,7 @@ class ServiceProviderTest extends SentryTestCase
     public function testRegisteringASecondProviderFails(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Sentry provider [' . ConflictingSentryServiceProvider::class . '] cannot be registered because another Sentry provider is already registered. Add [hypervel/sentry] to [extra.hypervel.dont-discover] before registering a custom provider, or remove the custom provider.'
         );
 

@@ -19,7 +19,7 @@ class MiddlewareTest extends SentryTestCase
         'sentry.traces_sample_rate' => 1.0,
     ];
 
-    public function testScopedRegistrationGivesDifferentInstancesPerCoroutine()
+    public function testScopedRegistrationGivesDifferentInstancesPerCoroutine(): void
     {
         // Verify the middleware is registered as scoped
         $this->assertTrue($this->app->isScoped(Middleware::class));
@@ -44,7 +44,7 @@ class MiddlewareTest extends SentryTestCase
         );
     }
 
-    public function testSameCoroutineGetsSameInstance()
+    public function testSameCoroutineGetsSameInstance(): void
     {
         $instance1 = $this->app->make(Middleware::class);
         $instance2 = $this->app->make(Middleware::class);
@@ -56,7 +56,7 @@ class MiddlewareTest extends SentryTestCase
         );
     }
 
-    public function testBootedTimestampIsStaticAndSharedAcrossInstances()
+    public function testBootedTimestampIsStaticAndSharedAcrossInstances(): void
     {
         // Reset the static timestamp
         Middleware::setBootedTimestamp(1234567890.123);
@@ -73,7 +73,7 @@ class MiddlewareTest extends SentryTestCase
         $property->setValue(null, null);
     }
 
-    public function testFlushStateClearsBootedTimestamp()
+    public function testFlushStateClearsBootedTimestamp(): void
     {
         Middleware::setBootedTimestamp(1234567890.123);
 
@@ -106,7 +106,7 @@ class MiddlewareTest extends SentryTestCase
         $this->assertSame(1_700_000_000.123456, $this->getLastSentryEvent()?->getStartTimestamp());
     }
 
-    public function testAfterResponseSpansAreCapturedOnTransaction()
+    public function testAfterResponseSpansAreCapturedOnTransaction(): void
     {
         $middleware = $this->app->make(Middleware::class);
         $request = Request::create('/test', 'GET');
@@ -134,7 +134,7 @@ class MiddlewareTest extends SentryTestCase
         );
     }
 
-    public function testAfterResponseSpanAppearsOnCapturedTransaction()
+    public function testAfterResponseSpanAppearsOnCapturedTransaction(): void
     {
         $middleware = $this->app->make(Middleware::class);
         $request = Request::create('/test', 'GET');

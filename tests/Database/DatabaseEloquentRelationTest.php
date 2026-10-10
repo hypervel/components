@@ -19,7 +19,7 @@ use PDO;
 
 class DatabaseEloquentRelationTest extends TestCase
 {
-    public function testSetRelationFail()
+    public function testSetRelationFail(): void
     {
         $parent = new ResetModelStub;
         $relation = new ResetModelStub;
@@ -28,7 +28,7 @@ class DatabaseEloquentRelationTest extends TestCase
         $this->assertArrayNotHasKey('foo', $parent->toArray());
     }
 
-    public function testUnsetExistingRelation()
+    public function testUnsetExistingRelation(): void
     {
         $parent = new ResetModelStub;
         $relation = new ResetModelStub;
@@ -176,7 +176,7 @@ class DatabaseEloquentRelationTest extends TestCase
         $this->assertFalse($relatedChild::isIgnoringTouch());
     }
 
-    public function testIgnoredModelsStateIsResetWhenThereAreExceptions()
+    public function testIgnoredModelsStateIsResetWhenThereAreExceptions(): void
     {
         $related = m::mock(NoTouchingModelStub::class)->makePartial();
         $related->shouldReceive('getUpdatedAtColumn')->never();
@@ -255,7 +255,7 @@ class DatabaseEloquentRelationTest extends TestCase
         $this->assertSame('Does\Not\Exist', Relation::getMorphAlias('Does\Not\Exist'));
     }
 
-    public function testWithoutRelations()
+    public function testWithoutRelations(): void
     {
         $original = new NoTouchingModelStub;
 
@@ -325,7 +325,7 @@ class DatabaseEloquentRelationTest extends TestCase
         $this->assertSame('foo', $result);
     }
 
-    public function testIsRelationIgnoresAttribute()
+    public function testIsRelationIgnoresAttribute(): void
     {
         $model = new RelationAndAttributeModelStub;
 

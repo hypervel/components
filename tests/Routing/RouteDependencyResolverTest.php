@@ -8,7 +8,10 @@ use Hypervel\Container\Container;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\Request;
 use Hypervel\Routing\CallableDispatcher;
+use Hypervel\Routing\Controller;
+use Hypervel\Routing\ControllerDispatcher;
 use Hypervel\Routing\Route;
+use TypeError;
 
 class RouteDependencyResolverTest extends RoutingTestCase
 {
@@ -28,6 +31,47 @@ class RouteDependencyResolverTest extends RoutingTestCase
 
         $this->assertSame([false, 1], $dispatcher->dispatch($route, $action));
         $this->assertSame([false, 2], $dispatcher->dispatch($route, $action));
+    }
+
+    public function testTypedRouteParametersConvertWithPhpWeakTyping(): void
+    {
+        $container = new Container;
+        $callables = new CallableDispatcher($container);
+        $controllers = new ControllerDispatcher($container);
+        $closure = static fn (int $id): int => $id;
+        $route = (new Route('GET', '/posts/{id}', $closure))->bind(Request::create('/posts/123'));
+
+        $this->assertSame(123, $callables->dispatch($route, $closure));
+        $this->assertSame(123, $controllers->dispatch($route, new TypedRouteController, 'show'));
+        $this->assertSame(123, $controllers->dispatch($route, new TypedRouteBaseController, 'show'));
+
+        $invalid = (new Route('GET', '/posts/{id}', $closure))->bind(Request::create('/posts/abc'));
+
+        $this->expectException(TypeError::class);
+
+        $callables->dispatch($invalid, $closure);
+    }
+}
+
+class TypedRouteController
+{
+    /**
+     * Return the route identifier.
+     */
+    public function show(int $id): int
+    {
+        return $id;
+    }
+}
+
+class TypedRouteBaseController extends Controller
+{
+    /**
+     * Return the route identifier.
+     */
+    public function show(int $id): int
+    {
+        return $id;
     }
 }
 

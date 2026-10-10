@@ -80,7 +80,7 @@ class SupportCarbonImmutableTest extends TestCase
     public function testCreateFromIdRejectsNonTimeBasedUuid(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The given UUID is not time-based and cannot be converted to a date.');
+        $this->expectExceptionMessageIs('The given UUID is not time-based and cannot be converted to a date.');
 
         CarbonImmutable::createFromId('a0a2a2d2-0b87-4a18-83f2-2529882be2de');
     }

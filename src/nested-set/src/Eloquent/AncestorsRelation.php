@@ -4,8 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\NestedSet\Eloquent;
 
+use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Query\Builder;
 
+/**
+ * @template TModel of Model
+ *
+ * @extends BaseRelation<TModel>
+ */
 class AncestorsRelation extends BaseRelation
 {
     /**
@@ -36,20 +43,75 @@ class AncestorsRelation extends BaseRelation
     }
 
     /**
-     * Determine whether a node is an ancestor of the parent.
+     * Constrain the eager query to ancestors of the prepared parents.
+     *
+     * A node is an ancestor when the smallest parent right bound at or after
+     * its left bound falls before its right bound. A balanced CASE finds that
+     * bound in logarithmic steps per row, whereas one "or" condition per
+     * parent costs every scanned row a comparison per parent.
      */
-    protected function matches(Model $model, Model $related): bool
+    protected function constrainEagerModels(Builder $query, array $models): void
     {
-        /* @phpstan-ignore method.notFound */
-        return $related->isAncestorOf($model);
+        $groups = [];
+
+        foreach ($models as $model) {
+            $groups[$this->scopeKey($model)][] = $model;
+        }
+
+        $grammar = $query->getGrammar();
+        $lft = $grammar->wrap($this->related->qualifyColumn($this->related->getLftName())); /* @phpstan-ignore method.notFound */
+        $rgt = $grammar->wrap($this->related->qualifyColumn($this->related->getRgtName())); /* @phpstan-ignore method.notFound */
+
+        $this->addBalancedOrConstraints(
+            $query,
+            array_values($groups),
+            function (Builder $query, array $group) use ($lft, $rgt): void {
+                $points = array_values(array_unique(array_map(
+                    static fn (Model $model): int => $model->getRgt(), /* @phpstan-ignore method.notFound */
+                    $group,
+                )));
+                sort($points);
+
+                $query->whereNested(function (Builder $query) use ($group, $points, $lft, $rgt): void {
+                    $group[0]->applyNestedSetScope($query);
+
+                    // Validated integer bounds are inlined, as whereIntegerInRaw() does,
+                    // so large eager loads do not exhaust the driver's bound parameters.
+                    $query->whereRaw(sprintf('%s <= %d', $lft, $points[count($points) - 1]))
+                        ->whereRaw(sprintf('%s > %d', $rgt, $points[0]));
+
+                    if (count($points) > 1) {
+                        $query->whereRaw(sprintf(
+                            '%s > %s',
+                            $rgt,
+                            $this->successorExpression($lft, $points, 0, count($points) - 1),
+                        ));
+                    }
+                }, 'or');
+            },
+        );
     }
 
     /**
-     * Add an eager ancestor constraint.
+     * Build a balanced expression for the smallest point at or after the left bound.
+     *
+     * @param list<int> $points sorted parent right bounds
      */
-    protected function addEagerConstraint(QueryBuilder $query, Model $model): void
+    protected function successorExpression(string $lft, array $points, int $low, int $high): string
     {
-        $query->orWhereAncestorOf($model);
+        if ($low === $high) {
+            return (string) $points[$low];
+        }
+
+        $middle = intdiv($low + $high, 2);
+
+        return sprintf(
+            'case when %s <= %d then %s else %s end',
+            $lft,
+            $points[$middle],
+            $this->successorExpression($lft, $points, $low, $middle),
+            $this->successorExpression($lft, $points, $middle + 1, $high),
+        );
     }
 
     /**
@@ -66,21 +128,23 @@ class AncestorsRelation extends BaseRelation
         $result = [];
 
         foreach ($groups as $group) {
-            usort($group, function (Model $left, Model $right): int {
-                $comparison = $right->getLft() /* @phpstan-ignore method.notFound */
-                    <=> $left->getLft(); /* @phpstan-ignore method.notFound */
+            $lfts = [];
+            $rgts = [];
 
-                return $comparison !== 0
-                    ? $comparison
-                    : $left->getRgt() /* @phpstan-ignore method.notFound */
-                        <=> $right->getRgt(); /* @phpstan-ignore method.notFound */
-            });
+            foreach ($group as $model) {
+                $lfts[] = $model->getLft(); /* @phpstan-ignore method.notFound */
+                $rgts[] = $model->getRgt(); /* @phpstan-ignore method.notFound */
+            }
+
+            $positions = array_keys($group);
+
+            // Positions are unique, so ties never compare the models.
+            array_multisort($lfts, SORT_DESC, $rgts, $positions, $group);
 
             $minimumRgt = null;
 
-            foreach ($group as $model) {
-                /** @var int $rgt */
-                $rgt = $model->getRgt();
+            foreach ($group as $offset => $model) {
+                $rgt = $rgts[$offset];
 
                 if ($minimumRgt !== null && $rgt >= $minimumRgt) {
                     continue;
@@ -95,23 +159,92 @@ class AncestorsRelation extends BaseRelation
     }
 
     /**
-     * Index only when multiple concrete scopes would otherwise be scanned.
+     * Match ancestors with one sweep per scope over results and parents in left-bound order.
      */
-    protected function shouldIndexResults(array $models): bool
+    protected function matchMany(array $models, Collection $results): array
     {
-        if (count($models) < 2) {
-            return false;
+        if (count($models) === 1) {
+            $model = $models[0];
+            $scope = $this->scopeKey($model);
+            $key = $this->matchKey($model);
+            /** @var int $lft */
+            $lft = $model->getLft(); /* @phpstan-ignore method.notFound */
+            $found = [];
+
+            foreach ($results as $related) {
+                if ($related->getLft() < $lft /* @phpstan-ignore method.notFound */
+                    && $related->getRgt() > $lft /* @phpstan-ignore method.notFound */
+                    && $this->scopeKey($related) === $scope
+                    && ($key === null || $this->matchKey($related) !== $key)
+                ) {
+                    $found[] = $related;
+                }
+            }
+
+            return [spl_object_id($model) => $found];
         }
 
-        $scope = $this->scopeKey($models[0]);
+        $buckets = $this->sortedResultBuckets($results, true);
+        $groups = [];
 
-        foreach (array_slice($models, 1) as $model) {
-            if ($this->scopeKey($model) !== $scope) {
-                return true;
+        foreach ($models as $model) {
+            $groups[$this->scopeKey($model)][] = $model;
+        }
+
+        $matches = [];
+
+        foreach ($groups as $scope => $group) {
+            $bucket = $buckets[$scope] ?? null;
+
+            if ($bucket === null) {
+                continue;
+            }
+
+            $lfts = array_map(
+                static fn (Model $model): int => $model->getLft(), /* @phpstan-ignore method.notFound */
+                $group,
+            );
+            $positions = array_keys($group);
+
+            // Positions are unique, so ties never compare the models.
+            array_multisort($lfts, $positions, $group);
+
+            $count = count($bucket['lfts']);
+            $next = 0;
+            $open = [];
+
+            foreach ($group as $offset => $model) {
+                $key = $this->matchKey($model);
+                $lft = $lfts[$offset];
+
+                // Each result enters the open stack once and leaves once it closes.
+                for (; $next < $count && $bucket['lfts'][$next] < $lft; ++$next) {
+                    while ($open !== [] && $bucket['rgts'][$open[count($open) - 1]] < $bucket['lfts'][$next]) {
+                        array_pop($open);
+                    }
+
+                    $open[] = $next;
+                }
+
+                while ($open !== [] && $bucket['rgts'][$open[count($open) - 1]] <= $lft) {
+                    array_pop($open);
+                }
+
+                $found = [];
+
+                foreach ($open as $index) {
+                    if ($bucket['rgts'][$index] > $lft
+                        && ($key === null || $bucket['keys'][$index] !== $key)
+                    ) {
+                        $found[] = $index;
+                    }
+                }
+
+                $matches[spl_object_id($model)] = $this->bucketModels($bucket, $found);
             }
         }
 
-        return false;
+        return $matches;
     }
 
     /**
@@ -119,7 +252,7 @@ class AncestorsRelation extends BaseRelation
      */
     protected function requiredParentColumns(Model $model): array
     {
-        // Eager interval reduction sorts by both bounds even though the lazy
+        // Eager reduction and matching use both bounds even though the lazy
         // ancestor predicate only consumes the right bound.
         return $this->intervalColumns($model);
     }

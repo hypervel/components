@@ -133,7 +133,7 @@ class ResolvedDestinationTest extends TestCase
     public function testRejectsContradictoryLiteralProxyAddresses(array $addresses): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('exactly one approved address matching its host');
+        $this->expectExceptionMessageIsOrContains('exactly one approved address matching its host');
 
         ResolvedDestination::proxy(new Uri('https://target.example'), new Uri('http://[::1]'), ...$addresses);
     }
@@ -150,7 +150,7 @@ class ResolvedDestinationTest extends TestCase
     public function testRejectsAnUnsupportedTargetScheme(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('HTTP or HTTPS host');
+        $this->expectExceptionMessageIsOrContains('HTTP or HTTPS host');
 
         ResolvedDestination::direct(
             new Uri('ftp://target.example/path'),
@@ -161,7 +161,7 @@ class ResolvedDestinationTest extends TestCase
     public function testRejectsProxyMetadataBeyondItsAuthority(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('without user information, a path, query, or fragment');
+        $this->expectExceptionMessageIsOrContains('without user information, a path, query, or fragment');
 
         ResolvedDestination::proxy(
             new Uri('https://target.example/path'),

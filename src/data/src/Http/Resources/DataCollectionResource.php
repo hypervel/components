@@ -8,6 +8,7 @@ use Hypervel\Data\Contracts\BaseDataCollectable;
 use Hypervel\Data\Contracts\ResponsableData;
 use Hypervel\Data\CursorPaginatedDataCollection;
 use Hypervel\Data\PaginatedDataCollection;
+use Hypervel\Data\Support\Transformation\DataTransformer;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
 use Hypervel\Http\Resources\Json\ProvidesResourceWrapper;
@@ -25,19 +26,14 @@ class DataCollectionResource extends ResourceCollection implements ProvidesResou
      * @param array<array-key, mixed> $transformed
      */
     public function __construct(
-        protected readonly BaseDataCollectable $data,
+        protected readonly BaseDataCollectable&ResponsableData $data,
         protected readonly Collection $originalItems,
         protected readonly array $transformed,
         protected readonly ?string $wrapper,
+        protected readonly DataTransformer $transformer,
     ) {
-        $resource = match (true) {
-            $data instanceof PaginatedDataCollection,
-            $data instanceof CursorPaginatedDataCollection => (clone $data->items())
-                ->setCollection(new Collection($transformed)),
-            default => $transformed,
-        };
-
-        parent::__construct($resource);
+        // A paginator holding the transformed rows would derive its cursors from them, so pagination is added by with().
+        parent::__construct($transformed);
     }
 
     /**
@@ -46,6 +42,18 @@ class DataCollectionResource extends ResourceCollection implements ProvidesResou
     public function resolve(?Request $request = null): array
     {
         return $this->transformed;
+    }
+
+    /**
+     * Get the pagination links and metadata of a paginated collection, matching its transformed output.
+     */
+    public function with(Request $request): array
+    {
+        $data = $this->data;
+
+        return $data instanceof PaginatedDataCollection || $data instanceof CursorPaginatedDataCollection
+            ? $this->transformer->paginationInformation($data->items(), $this->transformed)
+            : [];
     }
 
     /**
@@ -75,6 +83,8 @@ class DataCollectionResource extends ResourceCollection implements ProvidesResou
     {
         // Collections have no item-owned response hook, so retain the original Data objects.
         $response->original = $this->originalItems;
+
+        $this->data->withResponse($request, $response);
     }
 
     /**

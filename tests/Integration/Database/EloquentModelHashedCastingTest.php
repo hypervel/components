@@ -34,7 +34,7 @@ class EloquentModelHashedCastingTest extends DatabaseTestCase
         $this->app->make('hash')->forgetDrivers();
     }
 
-    public function testHashedWithBcrypt()
+    public function testHashedWithBcrypt(): void
     {
         $this->configureHashing([
             'hashing.driver' => 'bcrypt',
@@ -54,7 +54,7 @@ class EloquentModelHashedCastingTest extends DatabaseTestCase
         ]);
     }
 
-    public function testNotHashedIfAlreadyHashedWithBcrypt()
+    public function testNotHashedIfAlreadyHashedWithBcrypt(): void
     {
         $this->configureHashing([
             'hashing.driver' => 'bcrypt',
@@ -73,7 +73,7 @@ class EloquentModelHashedCastingTest extends DatabaseTestCase
         ]);
     }
 
-    public function testNotHashedIfNullWithBrcypt()
+    public function testNotHashedIfNullWithBrcypt(): void
     {
         $this->configureHashing([
             'hashing.driver' => 'bcrypt',
@@ -106,7 +106,7 @@ class EloquentModelHashedCastingTest extends DatabaseTestCase
         ]);
     }
 
-    public function testPassingHashWithLowerCostDoesNotThrowExceptionWithBcrypt()
+    public function testPassingHashWithLowerCostDoesNotThrowExceptionWithBcrypt(): void
     {
         $this->configureHashing([
             'hashing.driver' => 'bcrypt',
@@ -140,7 +140,7 @@ class EloquentModelHashedCastingTest extends DatabaseTestCase
         ]);
     }
 
-    public function testHashedWithArgon()
+    public function testHashedWithArgon(): void
     {
         $this->configureHashing([
             'hashing.driver' => 'argon',
@@ -164,7 +164,7 @@ class EloquentModelHashedCastingTest extends DatabaseTestCase
         ]);
     }
 
-    public function testNotHashedIfAlreadyHashedWithArgon()
+    public function testNotHashedIfAlreadyHashedWithArgon(): void
     {
         $this->configureHashing([
             'hashing.driver' => 'argon',
@@ -185,7 +185,7 @@ class EloquentModelHashedCastingTest extends DatabaseTestCase
         ]);
     }
 
-    public function testNotHashedIfNullWithArgon()
+    public function testNotHashedIfNullWithArgon(): void
     {
         $this->configureHashing([
             'hashing.driver' => 'argon',
@@ -256,7 +256,7 @@ class EloquentModelHashedCastingTest extends DatabaseTestCase
         ]);
     }
 
-    public function testPassingHashWithLowerMemoryThrowsExceptionWithArgon()
+    public function testPassingHashWithLowerMemoryThrowsExceptionWithArgon(): void
     {
         $this->configureHashing([
             'hashing.driver' => 'argon',
@@ -277,7 +277,7 @@ class EloquentModelHashedCastingTest extends DatabaseTestCase
         ]);
     }
 
-    public function testPassingHashWithLowerTimeThrowsExceptionWithArgon()
+    public function testPassingHashWithLowerTimeThrowsExceptionWithArgon(): void
     {
         $this->configureHashing([
             'hashing.driver' => 'argon',
@@ -298,7 +298,7 @@ class EloquentModelHashedCastingTest extends DatabaseTestCase
         ]);
     }
 
-    public function testPassingHashWithLowerThreadsThrowsExceptionWithArgon()
+    public function testPassingHashWithLowerThreadsThrowsExceptionWithArgon(): void
     {
         $this->configureHashing([
             'hashing.driver' => 'argon',

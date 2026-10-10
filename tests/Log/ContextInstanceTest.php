@@ -10,12 +10,12 @@ use Hypervel\Testbench\TestCase;
 
 class ContextInstanceTest extends TestCase
 {
-    public function testGetInstanceReturnsRepositoryInstance()
+    public function testGetInstanceReturnsRepositoryInstance(): void
     {
         $this->assertInstanceOf(Repository::class, Repository::getInstance());
     }
 
-    public function testGetInstanceReturnsSameInstanceWithinContext()
+    public function testGetInstanceReturnsSameInstanceWithinContext(): void
     {
         $first = Repository::getInstance();
         $second = Repository::getInstance();
@@ -23,7 +23,7 @@ class ContextInstanceTest extends TestCase
         $this->assertSame($first, $second);
     }
 
-    public function testInstanceCanBeStoredInVariable()
+    public function testInstanceCanBeStoredInVariable(): void
     {
         $context = Repository::getInstance();
         $context->add('key', 'value');
@@ -31,7 +31,7 @@ class ContextInstanceTest extends TestCase
         $this->assertSame('value', Repository::getInstance()->get('key'));
     }
 
-    public function testFlushClearsContextInstance()
+    public function testFlushClearsContextInstance(): void
     {
         Repository::getInstance()->add('key', 'value');
         $this->assertTrue(Repository::hasInstance());
@@ -44,40 +44,40 @@ class ContextInstanceTest extends TestCase
         $this->assertNull(Repository::getInstance()->get('key'));
     }
 
-    public function testAddAndGet()
+    public function testAddAndGet(): void
     {
         Repository::getInstance()->add('key', 'val');
 
         $this->assertSame('val', Repository::getInstance()->get('key'));
     }
 
-    public function testContextDataDoesNotAppearInRawCoroutineContext()
+    public function testContextDataDoesNotAppearInRawCoroutineContext(): void
     {
         Repository::getInstance()->add('key', 'val');
 
         $this->assertNull(CoroutineContext::get('key'));
     }
 
-    public function testRawCoroutineContextDataDoesNotAppearInContext()
+    public function testRawCoroutineContextDataDoesNotAppearInContext(): void
     {
         CoroutineContext::set('key', 'val');
 
         $this->assertNull(Repository::getInstance()->get('key'));
     }
 
-    public function testHasInstanceReturnsFalseWhenNeverAccessed()
+    public function testHasInstanceReturnsFalseWhenNeverAccessed(): void
     {
         $this->assertFalse(Repository::hasInstance());
     }
 
-    public function testHasInstanceReturnsTrueAfterGetInstance()
+    public function testHasInstanceReturnsTrueAfterGetInstance(): void
     {
         Repository::getInstance();
 
         $this->assertTrue(Repository::hasInstance());
     }
 
-    public function testHasInstanceDoesNotCreateInstance()
+    public function testHasInstanceDoesNotCreateInstance(): void
     {
         // First call should not create an instance
         $this->assertFalse(Repository::hasInstance());

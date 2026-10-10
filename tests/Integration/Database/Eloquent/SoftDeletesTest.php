@@ -101,7 +101,7 @@ class SoftDeletesTest extends DatabaseTestCase
         $partialPost = SoftPost::query()->select('id')->findOrFail($post->id);
 
         $this->expectException(MissingAttributeException::class);
-        $this->expectExceptionMessage('The attribute [deleted_at]');
+        $this->expectExceptionMessageIsOrContains('The attribute [deleted_at]');
 
         $partialPost->trashed();
     }

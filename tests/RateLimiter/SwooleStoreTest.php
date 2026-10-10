@@ -215,7 +215,7 @@ class SwooleStoreTest extends TestCase
         $capacity = $this->fillUntilAllocationFails($state, $now + 60_000_000);
 
         $this->expectException(SwooleTableFullException::class);
-        $this->expectExceptionMessage('cannot allocate a new entry after pruning expired state');
+        $this->expectExceptionMessageIsOrContains('cannot allocate a new entry after pruning expired state');
 
         @$store->consume($capacity['failed_key'], Limit::perMinute(1));
     }
@@ -367,8 +367,13 @@ class SwooleStoreTest extends TestCase
         $this->fail('The test table did not reach capacity.');
     }
 
+    /**
+     * Create a limiter with a deterministic clock for the shared contract.
+     */
     protected function rateLimiterStoreContract(): Limiter
     {
+        // Keep back-to-back decisions independent of elapsed execution time.
+        CarbonImmutable::setTestNow(CarbonImmutable::now());
         [$store] = $this->store();
 
         return new Limiter(

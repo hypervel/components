@@ -287,7 +287,7 @@ class CacheDatabaseLockTest extends TestCase
         [$lock] = $this->getLock(seconds: 10);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Refresh requires a positive TTL');
+        $this->expectExceptionMessageIs('Refresh requires a positive TTL.');
 
         $lock->refresh(0);
     }
@@ -297,7 +297,7 @@ class CacheDatabaseLockTest extends TestCase
         [$lock] = $this->getLock(seconds: 10);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Refresh requires a positive TTL');
+        $this->expectExceptionMessageIs('Refresh requires a positive TTL.');
 
         $lock->refresh(-5);
     }

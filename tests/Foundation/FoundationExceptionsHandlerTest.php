@@ -375,7 +375,7 @@ class FoundationExceptionsHandlerTest extends TestCase
         );
     }
 
-    public function testHandlerIgnoresNotReportableExceptions()
+    public function testHandlerIgnoresNotReportableExceptions(): void
     {
         $logger = m::mock(LoggerInterface::class);
         $this->container->instance(LoggerInterface::class, $logger);
@@ -532,7 +532,7 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->assertFalse($shouldReturnJson);
     }
 
-    public function testShouldReturnJsonWhen()
+    public function testShouldReturnJsonWhen(): void
     {
         $this->request->shouldReceive('expectsJson')->never();
         $exception = new Exception('My custom error message');
@@ -617,7 +617,7 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->assertStringContainsString('"trace":', $response);
     }
 
-    public function testReturnsCustomResponseFromRenderableCallback()
+    public function testReturnsCustomResponseFromRenderableCallback(): void
     {
         $this->handler->renderable(function (CustomException $e, $request) {
             $this->assertSame($this->request, $request);
@@ -630,7 +630,7 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->assertSame('{"response":"My custom exception response"}', $response);
     }
 
-    public function testReturnsCustomResponseFromCallableClass()
+    public function testReturnsCustomResponseFromCallableClass(): void
     {
         $this->handler->renderable(new CustomRenderer);
 
@@ -639,14 +639,14 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->assertSame('{"response":"The CustomRenderer response"}', $response);
     }
 
-    public function testReturnsResponseFromRenderableException()
+    public function testReturnsResponseFromRenderableException(): void
     {
         $response = $this->handler->render(Request::create('/'), new RenderableException)->getContent();
 
         $this->assertSame('{"response":"My renderable exception response"}', $response);
     }
 
-    public function testReturnsResponseFromMappedRenderableException()
+    public function testReturnsResponseFromMappedRenderableException(): void
     {
         $this->handler->map(RuntimeException::class, RenderableException::class);
 
@@ -685,7 +685,7 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->assertFalse($this->handler->shouldStopRetries(new CustomException));
     }
 
-    public function testReturnsCustomResponseWhenExceptionImplementsResponsable()
+    public function testReturnsCustomResponseWhenExceptionImplementsResponsable(): void
     {
         $response = $this->handler->render($this->request, new ResponsableException)->getContent();
 
@@ -971,7 +971,7 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->assertFalse($handler->reported);
     }
 
-    public function testAssertExceptionIsThrown()
+    public function testAssertExceptionIsThrown(): void
     {
         $this->assertThrows(function () {
             throw new Exception;
@@ -1055,7 +1055,7 @@ class FoundationExceptionsHandlerTest extends TestCase
         }
     }
 
-    public function testAssertNoExceptionIsThrown()
+    public function testAssertNoExceptionIsThrown(): void
     {
         try {
             $this->assertDoesntThrow(function () {
@@ -1085,7 +1085,7 @@ class FoundationExceptionsHandlerTest extends TestCase
         }
     }
 
-    public function testItReportsDuplicateExceptions()
+    public function testItReportsDuplicateExceptions(): void
     {
         $reported = [];
         $this->handler->reportable(function (Throwable $e) use (&$reported) {
@@ -1101,7 +1101,7 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->assertSame($reported, [$one, $one, $two]);
     }
 
-    public function testItCanDedupeExceptions()
+    public function testItCanDedupeExceptions(): void
     {
         $reported = [];
         $e = new RuntimeException('foo');
@@ -1119,7 +1119,7 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->assertSame($reported, [$one, $two]);
     }
 
-    public function testItDedupesByObjectIdentityNotEquality()
+    public function testItDedupesByObjectIdentityNotEquality(): void
     {
         $reported = [];
         $this->handler->reportable(function (Throwable $e) use (&$reported) {
@@ -1142,7 +1142,7 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->assertSame([$one, $two], $reported);
     }
 
-    public function testDedupeMapIsPerRequestContext()
+    public function testDedupeMapIsPerRequestContext(): void
     {
         $reported = [];
         $this->handler->reportable(function (Throwable $e) use (&$reported) {
@@ -1168,7 +1168,7 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->assertSame([$exception, $exception], $reported);
     }
 
-    public function testDedupeMapDoesNotPreventGarbageCollection()
+    public function testDedupeMapDoesNotPreventGarbageCollection(): void
     {
         $this->handler->reportable(function (Throwable $e) {
             return false;
@@ -1187,7 +1187,7 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->assertNull($ref->get());
     }
 
-    public function testItCanSkipExceptionReportingUsingCallback()
+    public function testItCanSkipExceptionReportingUsingCallback(): void
     {
         $reported = [];
         $e1 = new RuntimeException('foo');
@@ -1210,7 +1210,7 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->assertSame($reported, [$e2]);
     }
 
-    public function testItDoesNotThrottleExceptionsByDefault()
+    public function testItDoesNotThrottleExceptionsByDefault(): void
     {
         $reported = [];
         $this->handler->reportable(function (Throwable $e) use (&$reported) {
@@ -1251,7 +1251,7 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->assertCount(100, $reported);
     }
 
-    public function testItDoesNotThrottleExceptionsWhenUnlimitedLimit()
+    public function testItDoesNotThrottleExceptionsWhenUnlimitedLimit(): void
     {
         $handler = new class($this->container) extends Handler {
             protected function throttle(Throwable $e): Lottery|AdmissionPolicy|null
@@ -1273,7 +1273,7 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->assertCount(100, $reported);
     }
 
-    public function testItCanSampleExceptionsByClass()
+    public function testItCanSampleExceptionsByClass(): void
     {
         $handler = new class($this->container) extends Handler {
             protected function throttle(Throwable $e): Lottery|AdmissionPolicy|null
@@ -1305,7 +1305,7 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->assertCount(2, $runtimeExceptions);
     }
 
-    public function testItRescuesExceptionsWhileThrottlingAndReports()
+    public function testItRescuesExceptionsWhileThrottlingAndReports(): void
     {
         $handler = new class($this->container) extends Handler {
             protected function throttle(Throwable $e): Lottery|AdmissionPolicy|null
@@ -1350,7 +1350,7 @@ class FoundationExceptionsHandlerTest extends TestCase
         }
     }
 
-    public function testItRescuesExceptionsIfThereIsAnIssueResolvingTheRateLimiter()
+    public function testItRescuesExceptionsIfThereIsAnIssueResolvingTheRateLimiter(): void
     {
         $handler = new class($this->container) extends Handler {
             protected function throttle(Throwable $e): Lottery|AdmissionPolicy|null
@@ -1378,7 +1378,7 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->assertSame('Something in the app went wrong.', $reported[0]->getMessage());
     }
 
-    public function testItRescuesExceptionsIfThereIsAnIssueWithTheRateLimiter()
+    public function testItRescuesExceptionsIfThereIsAnIssueWithTheRateLimiter(): void
     {
         $handler = new class($this->container) extends Handler {
             protected function throttle(Throwable $e): Lottery|AdmissionPolicy|null
@@ -1413,7 +1413,7 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->assertSame('Something in the app went wrong.', $reported[0]->getMessage());
     }
 
-    public function testItCanRateLimitExceptions()
+    public function testItCanRateLimitExceptions(): void
     {
         $handler = new class($this->container) extends Handler {
             protected function throttle(Throwable $e): Lottery|AdmissionPolicy|null
@@ -1461,7 +1461,7 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->assertSame('Something in the app went wrong.', $reported[0]->getMessage());
     }
 
-    public function testRateLimitExpiresOnBoundary()
+    public function testRateLimitExpiresOnBoundary(): void
     {
         $handler = new class($this->container) extends Handler {
             protected function throttle(Throwable $e): Lottery|AdmissionPolicy|null

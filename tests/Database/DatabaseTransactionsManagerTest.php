@@ -4,15 +4,108 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database;
 
+use Hypervel\Context\CoroutineContext;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\DatabaseTransactionRecord;
 use Hypervel\Database\DatabaseTransactionsManager;
+use Hypervel\Engine\Channel;
 use Hypervel\Tests\TestCase;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
+
+use function Hypervel\Coroutine\parallel;
 
 class DatabaseTransactionsManagerTest extends TestCase
 {
-    public function testBeginningTransactions()
+    public function testForkedTransactionsCannotRunOrCaptureParentCallbacks(): void
+    {
+        $manager = new DatabaseTransactionsManager;
+        $events = [];
+        $manager->begin('default', 1);
+        $manager->addCallback(static function () use (&$events): void {
+            $events[] = 'parent-before';
+        });
+        $ready = new Channel(1);
+        $resume = new Channel(1);
+        $finished = new Channel(1);
+        $failure = null;
+
+        $child = Coroutine::fork(function () use ($manager, &$events, $ready, $resume, $finished, &$failure): void {
+            try {
+                $manager->begin('default', 1);
+                $manager->addCallback(static function () use (&$events): void {
+                    $events[] = 'child';
+                });
+                $ready->push(true);
+                $this->assertTrue($resume->pop(1));
+                $manager->commit('default', 1, 0);
+            } catch (Throwable $exception) {
+                $failure = $exception;
+            } finally {
+                $finished->push(true);
+            }
+        });
+
+        try {
+            $this->assertTrue($ready->pop(1));
+            $manager->addCallback(static function () use (&$events): void {
+                $events[] = 'parent-after';
+            });
+        } finally {
+            $resume->push(true, 0);
+            $completed = $finished->pop(1);
+
+            if ($completed !== true && Coroutine::exists($child)) {
+                Coroutine::cancelById($child, throwException: true);
+                $finished->pop(1);
+            }
+        }
+
+        $this->assertTrue($completed);
+
+        if ($failure !== null) {
+            throw $failure;
+        }
+
+        $this->assertSame(['child'], $events);
+        $manager->commit('default', 1, 0);
+        $this->assertSame(['child', 'parent-before', 'parent-after'], $events);
+    }
+
+    public function testExplicitTestLifecycleTransferPreservesCurrentTransactionOwnership(): void
+    {
+        $manager = new DatabaseTransactionsManager;
+        $events = [];
+        $manager->begin('default', 1);
+        DatabaseTransactionsManager::copyToNonCoroutineState();
+
+        try {
+            parallel([function () use ($manager, &$events): void {
+                CoroutineContext::copyFromNonCoroutine();
+                $this->assertCount(0, $manager->getPendingTransactions());
+
+                DatabaseTransactionsManager::copyFromNonCoroutineState();
+                $manager->begin('default', 2);
+                $manager->addCallback(static function () use (&$events): void {
+                    $events[] = 'nested';
+                });
+                $manager->commit('default', 2, 1);
+            }]);
+
+            $this->assertSame([], $events);
+            $manager->addCallback(static function () use (&$events): void {
+                $events[] = 'outer';
+            });
+            $manager->commit('default', 1, 0);
+            $this->assertSame(['nested', 'outer'], $events);
+            $this->assertFalse(DatabaseTransactionsManager::hasNonCoroutinePendingTransactions());
+        } finally {
+            DatabaseTransactionsManager::clearNonCoroutineState();
+        }
+    }
+
+    public function testBeginningTransactions(): void
     {
         $manager = new DatabaseTransactionsManager;
 
@@ -29,7 +122,7 @@ class DatabaseTransactionsManagerTest extends TestCase
         $this->assertEquals(1, $manager->getPendingTransactions()[2]->level);
     }
 
-    public function testRollingBackTransactions()
+    public function testRollingBackTransactions(): void
     {
         $manager = new DatabaseTransactionsManager;
 
@@ -48,7 +141,7 @@ class DatabaseTransactionsManagerTest extends TestCase
         $this->assertEquals(1, $manager->getPendingTransactions()[1]->level);
     }
 
-    public function testRollingBackTransactionsAllTheWay()
+    public function testRollingBackTransactionsAllTheWay(): void
     {
         $manager = new DatabaseTransactionsManager;
 
@@ -64,7 +157,7 @@ class DatabaseTransactionsManagerTest extends TestCase
         $this->assertEquals(1, $manager->getPendingTransactions()[0]->level);
     }
 
-    public function testCommittingTransactions()
+    public function testCommittingTransactions(): void
     {
         $manager = new DatabaseTransactionsManager;
 
@@ -91,7 +184,7 @@ class DatabaseTransactionsManagerTest extends TestCase
         $this->assertEquals(1, $manager->getPendingTransactions()[0]->level);
     }
 
-    public function testCallbacksAreAddedToTheCurrentTransaction()
+    public function testCallbacksAreAddedToTheCurrentTransaction(): void
     {
         $callbacks = [];
 
@@ -139,7 +232,7 @@ class DatabaseTransactionsManagerTest extends TestCase
         $this->assertSame(['default'], $callbacks);
     }
 
-    public function testCallbacksRunInFifoOrder()
+    public function testCallbacksRunInFifoOrder(): void
     {
         $manager = new DatabaseTransactionsManager;
 
@@ -164,7 +257,7 @@ class DatabaseTransactionsManagerTest extends TestCase
         $this->assertSame([1, 2, 3], $order);
     }
 
-    public function testCommittingTransactionsExecutesCallbacks()
+    public function testCommittingTransactionsExecutesCallbacks(): void
     {
         $callbacks = [];
 
@@ -192,7 +285,7 @@ class DatabaseTransactionsManagerTest extends TestCase
         $this->assertEquals(['default', 1], $callbacks[1]);
     }
 
-    public function testCommittingExecutesOnlyCallbacksOfTheConnection()
+    public function testCommittingExecutesOnlyCallbacksOfTheConnection(): void
     {
         $callbacks = [];
 
@@ -218,7 +311,7 @@ class DatabaseTransactionsManagerTest extends TestCase
         $this->assertEquals(['default', 1], $callbacks[0]);
     }
 
-    public function testCallbackIsExecutedIfNoTransactions()
+    public function testCallbackIsExecutedIfNoTransactions(): void
     {
         $callbacks = [];
 
@@ -246,7 +339,7 @@ class DatabaseTransactionsManagerTest extends TestCase
         $this->assertCount(0, $manager->getPendingTransactions()[0]->getCallbacks());
     }
 
-    public function testCallbacksForRollbackAreAddedToTheCurrentTransaction()
+    public function testCallbacksForRollbackAreAddedToTheCurrentTransaction(): void
     {
         $callbacks = [];
 
@@ -308,7 +401,7 @@ class DatabaseTransactionsManagerTest extends TestCase
         $this->assertSame([], $callbacks);
     }
 
-    public function testRollbackTransactionsExecutesCallbacks()
+    public function testRollbackTransactionsExecutesCallbacks(): void
     {
         $callbacks = [];
 
@@ -336,7 +429,7 @@ class DatabaseTransactionsManagerTest extends TestCase
         $this->assertEquals(['default', 1], $callbacks[1]);
     }
 
-    public function testRollbackExecutesOnlyCallbacksOfTheConnection()
+    public function testRollbackExecutesOnlyCallbacksOfTheConnection(): void
     {
         $callbacks = [];
 
@@ -708,7 +801,7 @@ class DatabaseTransactionsManagerTest extends TestCase
         $this->assertCount(0, $manager->getCommittedTransactions());
     }
 
-    public function testCallbackForRollbackIsNotExecutedIfNoTransactions()
+    public function testCallbackForRollbackIsNotExecutedIfNoTransactions(): void
     {
         $callbacks = [];
 
@@ -721,7 +814,7 @@ class DatabaseTransactionsManagerTest extends TestCase
         $this->assertCount(0, $callbacks);
     }
 
-    public function testStageTransactions()
+    public function testStageTransactions(): void
     {
         $manager = new DatabaseTransactionsManager;
 
@@ -750,7 +843,7 @@ class DatabaseTransactionsManagerTest extends TestCase
         $this->assertSame('admin', $manager->getCommittedTransactions()[1]->connection);
     }
 
-    public function testStageTransactionsOnlyStagesTheTransactionsAtOrAboveTheGivenLevel()
+    public function testStageTransactionsOnlyStagesTheTransactionsAtOrAboveTheGivenLevel(): void
     {
         $manager = new DatabaseTransactionsManager;
 

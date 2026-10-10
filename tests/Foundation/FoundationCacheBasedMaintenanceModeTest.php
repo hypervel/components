@@ -76,7 +76,7 @@ class FoundationCacheBasedMaintenanceModeTest extends TestCase
         $cache->expects('put')->with('key', ['payload'])->andReturnFalse();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to activate maintenance mode using cache key [key].');
+        $this->expectExceptionMessageIs('Unable to activate maintenance mode using cache key [key].');
 
         (new CacheBasedMaintenanceMode($cache, 'store-key', 'key'))->activate(['payload']);
     }
@@ -88,7 +88,7 @@ class FoundationCacheBasedMaintenanceModeTest extends TestCase
         $cache->expects('forget')->with('key')->andReturnFalse();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to deactivate maintenance mode using cache key [key].');
+        $this->expectExceptionMessageIs('Unable to deactivate maintenance mode using cache key [key].');
 
         (new CacheBasedMaintenanceMode($cache, 'store-key', 'key'))->deactivate();
     }

@@ -12,7 +12,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 class ConfigurationUrlParserTest extends TestCase
 {
     #[DataProvider('databaseUrls')]
-    public function testDatabaseUrlsAreParsed($config, $expectedOutput)
+    public function testDatabaseUrlsAreParsed($config, $expectedOutput): void
     {
         $this->assertEquals($expectedOutput, (new ConfigurationUrlParser)->parseConfiguration($config));
     }
@@ -527,7 +527,7 @@ class ConfigurationUrlParserTest extends TestCase
         ];
     }
 
-    public function testDriversAliases()
+    public function testDriversAliases(): void
     {
         $this->assertEquals([
             'mssql' => 'sqlsrv',
@@ -561,7 +561,7 @@ class ConfigurationUrlParserTest extends TestCase
         ], (new ConfigurationUrlParser)->parseConfiguration('some-particular-alias://null'));
     }
 
-    public function testFlushStateRestoresDriverAliases()
+    public function testFlushStateRestoresDriverAliases(): void
     {
         ConfigurationUrlParser::addDriverAlias('some-particular-alias', 'mysql');
         $this->assertArrayHasKey('some-particular-alias', ConfigurationUrlParser::getDriverAliases());

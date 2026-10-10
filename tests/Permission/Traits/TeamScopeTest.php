@@ -22,10 +22,7 @@ class TeamScopeTest extends TestCase
     {
         parent::defineEnvironment($app);
 
-        $app->make('config')->set([
-            'permission.teams' => true,
-            'permission.models.team' => Team::class,
-        ]);
+        $app->make('config')->set('permission.teams', true);
     }
 
     protected function setUpInCoroutine(): void
@@ -40,20 +37,18 @@ class TeamScopeTest extends TestCase
         config()->set('permission.teams', false);
         app(PermissionRegistrar::class)->teams = false;
 
-        $this->expectException(TeamsNotEnabled::class);
-        User::team(1)->get();
-    }
-
-    public function testItThrowsAnExceptionWhenWithoutTeamScopeIsQueriedWhileTeamsAreNotEnabled(): void
-    {
-        config()->set('permission.teams', false);
-        app(PermissionRegistrar::class)->teams = false;
+        try {
+            User::team(1)->get();
+            $this->fail('Expected teams not enabled exception was not thrown.');
+        } catch (TeamsNotEnabled) {
+        }
 
         $this->expectException(TeamsNotEnabled::class);
+
         User::withoutTeam(1)->get();
     }
 
-    public function testItReturnsAnEmptyTeamsRelationWhenTeamsAreNotEnabled(): void
+    public function testItReturnsAnEmptyTeamsRelationWhenTeamsAreNotEnabledSoModelIntrospectionDoesNotBreak(): void
     {
         config()->set('permission.teams', false);
         app(PermissionRegistrar::class)->teams = false;
@@ -64,30 +59,25 @@ class TeamScopeTest extends TestCase
         $this->assertCount(0, $relation->get());
     }
 
-    public function testItThrowsAnExceptionWhenTeamModelIsNotConfiguredForTeamScope(): void
+    public function testItThrowsAnExceptionWhenTeamModelIsNotConfigured(): void
     {
         app(PermissionRegistrar::class)->setTeamClass(null);
         config()->set('permission.models.team', null);
 
-        $this->expectException(TeamModelNotConfigured::class);
-        User::team(1)->get();
-    }
+        try {
+            User::team(1)->get();
+            $this->fail('Expected team model not configured exception was not thrown.');
+        } catch (TeamModelNotConfigured) {
+        }
 
-    public function testItThrowsAnExceptionWhenTeamModelIsNotConfiguredForWithoutTeamScope(): void
-    {
-        app(PermissionRegistrar::class)->setTeamClass(null);
-        config()->set('permission.models.team', null);
-
-        $this->expectException(TeamModelNotConfigured::class);
-        User::withoutTeam(1)->get();
-    }
-
-    public function testItThrowsAnExceptionWhenTeamModelIsNotConfiguredForTeamsRelation(): void
-    {
-        app(PermissionRegistrar::class)->setTeamClass(null);
-        config()->set('permission.models.team', null);
+        try {
+            User::withoutTeam(1)->get();
+            $this->fail('Expected team model not configured exception was not thrown.');
+        } catch (TeamModelNotConfigured) {
+        }
 
         $this->expectException(TeamModelNotConfigured::class);
+
         $this->testUser->teams()->get();
     }
 
@@ -187,11 +177,14 @@ class TeamScopeTest extends TestCase
         $teams = $mixed ? [$teamOne, $keylessTeam] : $keylessTeam;
 
         $this->expectException(MissingAttributeException::class);
-        $this->expectExceptionMessage($keylessTeam->getKeyName());
+        $this->expectExceptionMessageIsOrContains($keylessTeam->getKeyName());
 
         User::query()->{$scope}($teams)->get();
     }
 
+    /**
+     * Provide team scopes with keyless model inputs.
+     */
     public static function teamScopeProvider(): array
     {
         return [

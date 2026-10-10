@@ -188,7 +188,7 @@ class TelescopeServiceProviderTest extends FeatureTestCase
         };
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Configuration value for key [telescope.path] must be a string');
+        $this->expectExceptionMessageIsOrContains('Configuration value for key [telescope.path] must be a string');
 
         $provider->registerRoutesForTest();
     }

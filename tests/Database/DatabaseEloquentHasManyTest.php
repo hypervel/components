@@ -14,7 +14,7 @@ use Mockery as m;
 
 class DatabaseEloquentHasManyTest extends TestCase
 {
-    public function testRelationUpsertFillsForeignKey()
+    public function testRelationUpsertFillsForeignKey(): void
     {
         $relation = $this->getRelation();
 
@@ -64,7 +64,7 @@ class DatabaseEloquentHasManyTest extends TestCase
         $this->assertEquals([$model], $models);
     }
 
-    public function testEagerConstraintsAreProperlyAdded()
+    public function testEagerConstraintsAreProperlyAdded(): void
     {
         $relation = $this->getRelation();
         $relation->getParent()->expects('getKeyName')->andReturn('id');
@@ -77,7 +77,7 @@ class DatabaseEloquentHasManyTest extends TestCase
         $relation->addEagerConstraints([$model1, $model2]);
     }
 
-    public function testEagerConstraintsAreProperlyAddedWithStringKey()
+    public function testEagerConstraintsAreProperlyAddedWithStringKey(): void
     {
         $relation = $this->getRelation();
         $relation->getParent()->expects('getKeyName')->andReturn('id');

@@ -21,19 +21,36 @@ class RoleMiddlewareTest extends TestCase
 {
     protected RoleMiddleware $roleMiddleware;
 
-    protected function setUp(): void
+    protected function setUpInCoroutine(): void
     {
-        parent::setUp();
-
+        $this->setUpPassport();
         $this->roleMiddleware = $this->app->make(RoleMiddleware::class);
     }
 
-    public function testGuestCannotAccessRoleProtectedRoute(): void
+    public function testAGuestCannotAccessARouteProtectedByRolemiddleware(): void
     {
         $this->assertSame(403, $this->runMiddleware($this->roleMiddleware, 'testRole'));
     }
 
-    public function testUserCanAccessRouteWithRole(): void
+    public function testAUserCannotAccessARouteProtectedByRoleMiddlewareOfAnotherGuard(): void
+    {
+        Auth::login($this->testUser);
+
+        $this->testUser->assignRole('testRole');
+
+        $this->assertSame(403, $this->runMiddleware($this->roleMiddleware, 'testAdminRole'));
+    }
+
+    public function testAClientCannotAccessARouteProtectedByRoleMiddlewareOfAnotherGuard(): void
+    {
+        $this->actingAsClient($this->testClient);
+
+        $this->testClient->assignRole('clientRole');
+
+        $this->assertSame(403, $this->runMiddleware($this->roleMiddleware, 'testAdminRole', null, true));
+    }
+
+    public function testAUserCanAccessARouteProtectedByRoleMiddlewareIfHaveThisRole(): void
     {
         Auth::login($this->testUser);
 
@@ -57,16 +74,16 @@ class RoleMiddlewareTest extends TestCase
         ));
     }
 
-    public function testUserCannotAccessRouteWithRoleFromAnotherGuard(): void
+    public function testAClientCanAccessARouteProtectedByRoleMiddlewareIfHaveThisRole(): void
     {
-        Auth::login($this->testUser);
+        $this->actingAsClient($this->testClient);
 
-        $this->testUser->assignRole('testRole');
+        $this->testClient->assignRole('clientRole');
 
-        $this->assertSame(403, $this->runMiddleware($this->roleMiddleware, 'testAdminRole'));
+        $this->assertSame(200, $this->runMiddleware($this->roleMiddleware, 'clientRole', null, true));
     }
 
-    public function testUserCanAccessRouteWithOneOfSeveralRoles(): void
+    public function testAUserCanAccessARouteProtectedByThisRoleMiddlewareIfHaveOneOfTheRoles(): void
     {
         Auth::login($this->testUser);
 
@@ -76,32 +93,21 @@ class RoleMiddlewareTest extends TestCase
         $this->assertSame(200, $this->runMiddleware($this->roleMiddleware, ['testRole2', 'testRole']));
     }
 
-    public function testUserCannotAccessRouteWithDifferentRole(): void
+    public function testAClientCanAccessARouteProtectedByThisRoleMiddlewareIfHaveOneOfTheRoles(): void
     {
-        Auth::login($this->testUser);
+        $this->actingAsClient($this->testClient);
 
-        $this->testUser->assignRole('testRole');
+        $this->testClient->assignRole('clientRole');
 
-        $this->assertSame(403, $this->runMiddleware($this->roleMiddleware, 'testRole2'));
+        $this->assertSame(200, $this->runMiddleware($this->roleMiddleware, 'clientRole|testRole2', null, true));
+        $this->assertSame(200, $this->runMiddleware($this->roleMiddleware, ['testRole2', 'clientRole'], null, true));
     }
 
-    public function testUserCannotAccessRouteWithoutRoles(): void
+    public function testAUserCannotAccessARouteProtectedByTheRoleMiddlewareIfHaveNotHasRolesTrait(): void
     {
-        Auth::login($this->testUser);
+        $userWithoutHasRoles = UserWithoutHasRoles::create(['email' => 'test_not_has_roles@user.com']);
 
-        $this->assertSame(403, $this->runMiddleware($this->roleMiddleware, 'testRole|testRole2'));
-    }
-
-    public function testUserCannotAccessRouteWithUndefinedRole(): void
-    {
-        Auth::login($this->testUser);
-
-        $this->assertSame(403, $this->runMiddleware($this->roleMiddleware, ''));
-    }
-
-    public function testUserWithoutHasRolesTraitCannotAccessRoute(): void
-    {
-        Auth::login(UserWithoutHasRoles::create(['email' => 'test_not_has_roles@user.com']));
+        Auth::login($userWithoutHasRoles);
 
         $this->assertSame(403, $this->runMiddleware($this->roleMiddleware, 'testRole'));
     }
@@ -113,7 +119,124 @@ class RoleMiddlewareTest extends TestCase
         $this->assertSame(403, $this->runMiddleware($this->roleMiddleware, 'testRole'));
     }
 
-    public function testUserCanAccessRoleWithMatchingGuard(): void
+    public function testAUserCannotAccessARouteProtectedByTheRoleMiddlewareIfHaveADifferentRole(): void
+    {
+        Auth::login($this->testUser);
+
+        $this->testUser->assignRole(['testRole']);
+
+        $this->assertSame(403, $this->runMiddleware($this->roleMiddleware, 'testRole2'));
+    }
+
+    public function testAClientCannotAccessARouteProtectedByTheRoleMiddlewareIfHaveADifferentRole(): void
+    {
+        $this->actingAsClient($this->testClient);
+
+        $this->testClient->assignRole(['clientRole']);
+
+        $this->assertSame(403, $this->runMiddleware($this->roleMiddleware, 'clientRole2', null, true));
+    }
+
+    public function testAUserCannotAccessARouteProtectedByRoleMiddlewareIfHaveNotRoles(): void
+    {
+        Auth::login($this->testUser);
+
+        $this->assertSame(403, $this->runMiddleware($this->roleMiddleware, 'testRole|testRole2'));
+    }
+
+    public function testAClientCannotAccessARouteProtectedByRoleMiddlewareIfHaveNotRoles(): void
+    {
+        $this->actingAsClient($this->testClient);
+
+        $this->assertSame(403, $this->runMiddleware($this->roleMiddleware, 'testRole|testRole2', null, true));
+    }
+
+    public function testAUserCannotAccessARouteProtectedByRoleMiddlewareIfRoleIsUndefined(): void
+    {
+        Auth::login($this->testUser);
+
+        $this->assertSame(403, $this->runMiddleware($this->roleMiddleware, ''));
+    }
+
+    public function testAClientCannotAccessARouteProtectedByRoleMiddlewareIfRoleIsUndefined(): void
+    {
+        $this->actingAsClient($this->testClient);
+
+        $this->assertSame(403, $this->runMiddleware($this->roleMiddleware, '', null, true));
+    }
+
+    public function testTheRequiredRolesCanBeFetchedFromTheException(): void
+    {
+        Auth::login($this->testUser);
+
+        $message = null;
+        $requiredRoles = [];
+
+        try {
+            $this->roleMiddleware->handle(new Request, function (): Response {
+                return (new Response)->setContent('<html></html>');
+            }, 'some-role');
+        } catch (UnauthorizedException $e) {
+            $message = $e->getMessage();
+            $requiredRoles = $e->getRequiredRoles();
+        }
+
+        $this->assertSame('User does not have the right roles.', $message);
+        $this->assertSame(['some-role'], $requiredRoles);
+    }
+
+    public function testTheRequiredRolesCanBeDisplayedInTheException(): void
+    {
+        Auth::login($this->testUser);
+        config()->set(['permission.display_role_in_exception' => true]);
+
+        $message = null;
+
+        try {
+            $this->roleMiddleware->handle(new Request, function (): Response {
+                return (new Response)->setContent('<html></html>');
+            }, 'some-role');
+        } catch (UnauthorizedException $e) {
+            $message = $e->getMessage();
+        }
+
+        $this->assertStringEndsWith('Necessary roles are some-role', $message);
+    }
+
+    public function testUseNotExistingCustomGuardInRole(): void
+    {
+        $class = null;
+
+        try {
+            $this->roleMiddleware->handle(new Request, function (): Response {
+                return (new Response)->setContent('<html></html>');
+            }, 'testRole', 'xxx');
+        } catch (InvalidArgumentException $e) {
+            $class = get_class($e);
+        }
+
+        $this->assertSame(InvalidArgumentException::class, $class);
+    }
+
+    public function testUserCanNotAccessRoleWithGuardAdminWhileLoginUsingDefaultGuard(): void
+    {
+        Auth::login($this->testUser);
+
+        $this->testUser->assignRole('testRole');
+
+        $this->assertSame(403, $this->runMiddleware($this->roleMiddleware, 'testRole', 'admin'));
+    }
+
+    public function testClientCanNotAccessRoleWithGuardAdminWhileLoginUsingDefaultGuard(): void
+    {
+        $this->actingAsClient($this->testClient);
+
+        $this->testClient->assignRole('clientRole');
+
+        $this->assertSame(403, $this->runMiddleware($this->roleMiddleware, 'clientRole', 'admin', true));
+    }
+
+    public function testUserCanAccessRoleWithGuardAdminWhileLoginUsingAdminGuard(): void
     {
         Auth::guard('admin')->login($this->testAdmin);
 
@@ -131,33 +254,25 @@ class RoleMiddlewareTest extends TestCase
         $this->assertSame(200, $this->runMiddleware($this->roleMiddleware, 'testRole', ''));
     }
 
-    public function testUserCannotAccessRoleWithAdminGuardWhileLoggedInUsingDefaultGuard(): void
+    public function testTheMiddlewareCanBeCreatedWithStaticUsingMethod(): void
     {
-        Auth::login($this->testUser);
+        $this->assertSame('Hypervel\Permission\Middleware\RoleMiddleware:testAdminRole', RoleMiddleware::using('testAdminRole'));
 
-        $this->testUser->assignRole('testRole');
+        $this->assertSame('Hypervel\Permission\Middleware\RoleMiddleware:testAdminRole,my-guard', RoleMiddleware::using('testAdminRole', 'my-guard'));
 
-        $this->assertSame(403, $this->runMiddleware($this->roleMiddleware, 'testRole', 'admin'));
+        $this->assertSame('Hypervel\Permission\Middleware\RoleMiddleware:testAdminRole|anotherRole', RoleMiddleware::using(['testAdminRole', 'anotherRole']));
     }
 
-    public function testItCanBeCreatedWithStaticUsingMethod(): void
+    public function testTheMiddlewareCanHandleEnumBasedRolesWithStaticUsingMethod(): void
     {
-        $this->assertSame(RoleMiddleware::class . ':testAdminRole', RoleMiddleware::using('testAdminRole'));
-        $this->assertSame(RoleMiddleware::class . ':testAdminRole,my-guard', RoleMiddleware::using('testAdminRole', 'my-guard'));
-        $this->assertSame(RoleMiddleware::class . ':testAdminRole|anotherRole', RoleMiddleware::using(['testAdminRole', 'anotherRole']));
+        $this->assertSame('Hypervel\Permission\Middleware\RoleMiddleware:writer', RoleMiddleware::using(TestRolePermissionsEnum::Writer));
+
+        $this->assertSame('Hypervel\Permission\Middleware\RoleMiddleware:writer,my-guard', RoleMiddleware::using(TestRolePermissionsEnum::Writer, 'my-guard'));
+
+        $this->assertSame('Hypervel\Permission\Middleware\RoleMiddleware:writer|editor', RoleMiddleware::using([TestRolePermissionsEnum::Writer, TestRolePermissionsEnum::Editor]));
     }
 
-    public function testItCanHandleEnumRolesWithStaticUsingMethod(): void
-    {
-        $this->assertSame(RoleMiddleware::class . ':writer', RoleMiddleware::using(TestRolePermissionsEnum::Writer));
-        $this->assertSame(RoleMiddleware::class . ':writer,my-guard', RoleMiddleware::using(TestRolePermissionsEnum::Writer, 'my-guard'));
-        $this->assertSame(RoleMiddleware::class . ':writer|editor', RoleMiddleware::using([
-            TestRolePermissionsEnum::Writer,
-            TestRolePermissionsEnum::Editor,
-        ]));
-    }
-
-    public function testItCanHandleEnumRolesWithHandleMethod(): void
+    public function testTheMiddlewareCanHandleEnumBasedRolesWithHandleMethod(): void
     {
         $this->app->make(Role::class)->create(['name' => TestRolePermissionsEnum::Writer->value]);
         $this->app->make(Role::class)->create(['name' => TestRolePermissionsEnum::Editor->value]);
@@ -169,53 +284,6 @@ class RoleMiddlewareTest extends TestCase
 
         $this->testUser->assignRole(TestRolePermissionsEnum::Editor);
 
-        $this->assertSame(200, $this->runMiddleware($this->roleMiddleware, [
-            TestRolePermissionsEnum::Writer,
-            TestRolePermissionsEnum::Editor,
-        ]));
-    }
-
-    public function testItExposesRequiredRolesOnTheUnauthorizedException(): void
-    {
-        Auth::login($this->testUser);
-
-        try {
-            $this->roleMiddleware->handle(new Request, function (): Response {
-                return (new Response)->setContent('<html></html>');
-            }, 'role.some');
-        } catch (UnauthorizedException $exception) {
-            $this->assertSame(['role.some'], $exception->getRequiredRoles());
-
-            return;
-        }
-
-        $this->fail('Expected unauthorized role exception was not thrown.');
-    }
-
-    public function testItCanDisplayRequiredRolesOnTheUnauthorizedException(): void
-    {
-        Auth::login($this->testUser);
-        $this->app->make('config')->set('permission.display_role_in_exception', true);
-
-        try {
-            $this->roleMiddleware->handle(new Request, function (): Response {
-                return (new Response)->setContent('<html></html>');
-            }, 'some-role');
-        } catch (UnauthorizedException $exception) {
-            $this->assertStringEndsWith('Necessary roles are some-role', $exception->getMessage());
-
-            return;
-        }
-
-        $this->fail('Expected unauthorized role exception was not thrown.');
-    }
-
-    public function testItThrowsForMissingCustomGuard(): void
-    {
-        $this->expectException(InvalidArgumentException::class);
-
-        $this->roleMiddleware->handle(new Request, function (): Response {
-            return (new Response)->setContent('<html></html>');
-        }, 'testRole', 'xxx');
+        $this->assertSame(200, $this->runMiddleware($this->roleMiddleware, [TestRolePermissionsEnum::Writer, TestRolePermissionsEnum::Editor]));
     }
 }

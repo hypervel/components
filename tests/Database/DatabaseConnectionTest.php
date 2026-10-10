@@ -409,7 +409,7 @@ class DatabaseConnectionTest extends TestCase
         $connection->rollBack();
     }
 
-    public function testSettingDefaultCallsGetDefaultGrammar()
+    public function testSettingDefaultCallsGetDefaultGrammar(): void
     {
         $connection = $this->getMockConnection(['getDefaultQueryGrammar']);
         $mock = m::mock(Grammar::class);
@@ -418,7 +418,7 @@ class DatabaseConnectionTest extends TestCase
         $this->assertEquals($mock, $connection->getQueryGrammar());
     }
 
-    public function testSettingDefaultCallsGetDefaultPostProcessor()
+    public function testSettingDefaultCallsGetDefaultPostProcessor(): void
     {
         $connection = $this->getMockConnection(['getDefaultPostProcessor']);
         $mock = m::mock(Processor::class);
@@ -427,21 +427,21 @@ class DatabaseConnectionTest extends TestCase
         $this->assertEquals($mock, $connection->getPostProcessor());
     }
 
-    public function testSelectOneCallsSelectAndReturnsSingleResult()
+    public function testSelectOneCallsSelectAndReturnsSingleResult(): void
     {
         $connection = $this->getMockConnection(['select']);
         $connection->expects($this->once())->method('select')->with('foo', ['bar' => 'baz'])->willReturn(['foo']);
         $this->assertSame('foo', $connection->selectOne('foo', ['bar' => 'baz']));
     }
 
-    public function testScalarCallsSelectOneAndReturnsSingleResult()
+    public function testScalarCallsSelectOneAndReturnsSingleResult(): void
     {
         $connection = $this->getMockConnection(['selectOne']);
         $connection->expects($this->once())->method('selectOne')->with('select count(*) from tbl')->willReturn((object) ['count(*)' => 5]);
         $this->assertSame(5, $connection->scalar('select count(*) from tbl'));
     }
 
-    public function testScalarThrowsExceptionIfMultipleColumnsAreSelected()
+    public function testScalarThrowsExceptionIfMultipleColumnsAreSelected(): void
     {
         $connection = $this->getMockConnection(['selectOne']);
         $connection->expects($this->once())->method('selectOne')->with('select a, b from tbl')->willReturn((object) ['a' => 'a', 'b' => 'b']);
@@ -449,7 +449,7 @@ class DatabaseConnectionTest extends TestCase
         $connection->scalar('select a, b from tbl');
     }
 
-    public function testScalarReturnsNullIfUnderlyingSelectReturnsNoRows()
+    public function testScalarReturnsNullIfUnderlyingSelectReturnsNoRows(): void
     {
         $connection = $this->getMockConnection(['selectOne']);
         $connection->expects($this->once())->method('selectOne')->with('select foo from tbl where 0=1')->willReturn(null);
@@ -492,7 +492,7 @@ class DatabaseConnectionTest extends TestCase
         }
     }
 
-    public function testBeginTransactionMethodRetriesOnFailure()
+    public function testBeginTransactionMethodRetriesOnFailure(): void
     {
         $pdo = $this->createStub(PDOStub::class);
         $pdo->method('beginTransaction')
@@ -503,7 +503,7 @@ class DatabaseConnectionTest extends TestCase
         $this->assertEquals(1, $connection->transactionLevel());
     }
 
-    public function testBeginTransactionMethodReconnectsMissingConnection()
+    public function testBeginTransactionMethodReconnectsMissingConnection(): void
     {
         $connection = $this->getMockConnection([], new PDO('sqlite::memory:'));
         $connection->setReconnector(function ($connection) {
@@ -622,7 +622,7 @@ class DatabaseConnectionTest extends TestCase
         $connection->rollBack();
     }
 
-    public function testTransactionMethodRunsSuccessfully()
+    public function testTransactionMethodRunsSuccessfully(): void
     {
         $pdo = $this->getMockBuilder(PDOStub::class)->onlyMethods(['beginTransaction', 'commit'])->getMock();
         $mock = $this->getMockConnection([], $pdo);
@@ -723,7 +723,7 @@ class DatabaseConnectionTest extends TestCase
         $this->assertSame(0, $connection->transactionLevel());
     }
 
-    public function testTransactionMethodRollsbackAndThrows()
+    public function testTransactionMethodRollsbackAndThrows(): void
     {
         $pdo = $this->getMockBuilder(PDOStub::class)->onlyMethods(['inTransaction', 'beginTransaction', 'commit', 'rollBack'])->getMock();
         $mock = $this->getMockConnection([], $pdo);
@@ -741,7 +741,7 @@ class DatabaseConnectionTest extends TestCase
         }
     }
 
-    public function testRunMethodRetriesOnFailure()
+    public function testRunMethodRetriesOnFailure(): void
     {
         $method = (new ReflectionClass(Connection::class))->getMethod('run');
 
@@ -1486,7 +1486,7 @@ class DatabaseConnectionTest extends TestCase
         }]);
     }
 
-    public function testFromCreatesNewQueryBuilder()
+    public function testFromCreatesNewQueryBuilder(): void
     {
         $conn = $this->getMockConnection();
         $conn->setQueryGrammar(m::mock(Grammar::class));
@@ -1507,7 +1507,7 @@ class DatabaseConnectionTest extends TestCase
         $this->assertSame('0', $builder->from);
     }
 
-    public function testPrepareBindings()
+    public function testPrepareBindings(): void
     {
         $date = m::mock(DateTime::class);
         $date->expects('format')->with('foo')->andReturn('bar');
@@ -2287,7 +2287,7 @@ class DatabaseConnectionTest extends TestCase
         $this->assertNull($connection->getRawPdo());
     }
 
-    public function testPretendOnlyLogsQueries()
+    public function testPretendOnlyLogsQueries(): void
     {
         $connection = $this->getMockConnection();
         $grammar = m::mock(Grammar::class);
@@ -2336,7 +2336,7 @@ class DatabaseConnectionTest extends TestCase
         $this->assertFalse($connection->pretending());
     }
 
-    public function testSchemaBuilderCanBeCreated()
+    public function testSchemaBuilderCanBeCreated(): void
     {
         $connection = $this->getMockConnection();
         $schema = $connection->getSchemaBuilder();
@@ -2344,7 +2344,7 @@ class DatabaseConnectionTest extends TestCase
         $this->assertSame($connection, $schema->getConnection());
     }
 
-    public function testGetRawQueryLog()
+    public function testGetRawQueryLog(): void
     {
         $mock = $this->getMockConnection(['getQueryLog']);
         $mock->expects($this->once())->method('getQueryLog')->willReturn([
@@ -2556,7 +2556,7 @@ class DatabaseConnectionTest extends TestCase
         $connection->endForeignKeyConstraintSuppression();
     }
 
-    public function testQueryExceptionContainsReadConnectionDetailsWhenUsingReadPdo()
+    public function testQueryExceptionContainsReadConnectionDetailsWhenUsingReadPdo(): void
     {
         // Create write PDO mock that will NOT be used for this query
         $writePdo = $this->getMockBuilder(PDOStub::class)
@@ -2612,7 +2612,7 @@ class DatabaseConnectionTest extends TestCase
         }
     }
 
-    public function testQueryExceptionContainsReadConnectionDetailsWhenReadPdoConnectionFails()
+    public function testQueryExceptionContainsReadConnectionDetailsWhenReadPdoConnectionFails(): void
     {
         // Write PDO (won't be used)
         $writePdo = $this->getMockBuilder(PDOStub::class)
@@ -2695,7 +2695,7 @@ class DatabaseConnectionTest extends TestCase
         }
     }
 
-    public function testQueryExceptionContainsWriteConnectionDetailsWhenUsingWritePdo()
+    public function testQueryExceptionContainsWriteConnectionDetailsWhenUsingWritePdo(): void
     {
         // Create write PDO mock that throws an exception
         $writePdo = $this->getMockBuilder(PDOStub::class)
@@ -2749,7 +2749,7 @@ class DatabaseConnectionTest extends TestCase
         }
     }
 
-    public function testQueryExceptionContainsWriteConnectionDetailsWhenWritePdoConnectionFails()
+    public function testQueryExceptionContainsWriteConnectionDetailsWhenWritePdoConnectionFails(): void
     {
         // Write configuration
         $writeConfig = [

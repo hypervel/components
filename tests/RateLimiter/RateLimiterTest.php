@@ -221,7 +221,7 @@ class RateLimiterTest extends TestCase
         $manager->extend('invalid', static fn (): stdClass => new stdClass);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('must return an instance of [Hypervel\RateLimiter\Contracts\Store]');
+        $this->expectExceptionMessageIsOrContains('must return an instance of [Hypervel\RateLimiter\Contracts\Store]');
 
         $manager->store('invalid');
     }
@@ -264,7 +264,7 @@ class RateLimiterTest extends TestCase
         config(['rate-limiter.stores.invalid' => $config]);
 
         $this->expectException($exception);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIsOrContains($message);
 
         $this->app->make(RateLimiter::class)->store('invalid');
     }

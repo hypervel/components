@@ -54,7 +54,7 @@ class ViewFactoryTest extends TestCase
         $this->assertNull($factory->shared('scoped'));
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('No hint path defined for [foo].');
+        $this->expectExceptionMessageIs('No hint path defined for [foo].');
 
         $factory->getFinder()->find('foo::basic');
     }

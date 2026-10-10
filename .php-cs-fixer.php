@@ -82,9 +82,8 @@ return (new Config)
         'phpdoc_to_comment' => [
             'ignored_tags' => ['var'],
         ],
-        'return_assignment' => [
-            'skip_named_var_tags' => true,
-        ],
+        // This rewrite removes assignments captured by reference in nested closures.
+        'return_assignment' => false,
         'php_unit_method_casing' => [
             'case' => 'camel_case',
         ],
@@ -117,6 +116,9 @@ return (new Config)
             ->exclude('src/testbench/workbench/storage')
             ->exclude('vendor')
             ->notPath('#^bin/#')
+            // These deliberately omit strict_types so PHP applies its native weak scalar conversion.
+            ->notPath('src/container/src/NativeInvoker.php')
+            ->notPath('src/data/src/Support/Creation/NativeScalar.php')
             ->notPath('tests/Data/Fixtures/PhpDocTypeContext.php')
             ->notPath('tests/Foundation/Fixtures/fake-compiled-view.php')
             ->name('hypervel-test-profile')

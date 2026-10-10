@@ -18,7 +18,6 @@ use Hypervel\Di\ClassMap\ClassMapManager;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Configuration\ConfigMutationTracker;
 use Hypervel\View\Compilers\CompilerInterface;
-use ReflectionProperty;
 use RuntimeException;
 
 abstract class ServiceProvider
@@ -595,21 +594,7 @@ return [
         $aspects = is_array($aspects) ? $aspects : func_get_args();
 
         foreach ($aspects as $aspect) {
-            $reflectionClass = ClassMetadataCache::reflectClass($aspect);
-            $properties = $reflectionClass->getProperties(ReflectionProperty::IS_PUBLIC);
-
-            $classes = [];
-            $priority = null;
-
-            foreach ($properties as $property) {
-                if ($property->getName() === 'classes') {
-                    $classes = $property->getDefaultValue();
-                } elseif ($property->getName() === 'priority') {
-                    $priority = $property->getDefaultValue();
-                }
-            }
-
-            AspectCollector::setAround($aspect, $classes, $priority);
+            AspectCollector::register($aspect);
         }
     }
 
@@ -617,7 +602,7 @@ return [
      * Register class map overrides.
      *
      * Applies entries to the Composer autoloader immediately.
-     * Fails hard if any target class is already loaded.
+     * Rejects loaded targets from a different source; repeating the same override is safe.
      * Must be called during register(), before the target class is autoloaded.
      *
      * @param array<class-string, string> $map originalClass => replacementFilePath

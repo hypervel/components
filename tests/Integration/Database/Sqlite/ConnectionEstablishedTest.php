@@ -128,16 +128,27 @@ class ConnectionEstablishedTest extends TestCase
         });
 
         $first = null;
-        $this->runInCoroutine(function () use (&$first): void {
+        $firstPdo = null;
+        $this->runInCoroutine(function () use (&$first, &$firstPdo): void {
             $first = DB::connection('established::write');
+            $firstPdo = $first->getPdo();
         });
-        $this->runInCoroutine(function () use ($first): void {
-            $this->assertSame($first, DB::connection('established::write'));
+        $this->runInCoroutine(function () use ($first, $firstPdo): void {
+            $connection = DB::connection('established::write');
+            $this->assertNotSame($first, $connection);
+            $this->assertSame($firstPdo, $connection->getPdo());
+            $this->assertSame($firstPdo, $connection->getRawPdo());
         });
         $this->assertSame([$first], $connections);
 
-        $this->runInCoroutine(fn () => DB::connection('established::write')->reconnect());
-        $this->assertSame([$first, $first], $connections);
+        $reconnected = null;
+        $this->runInCoroutine(function () use (&$reconnected, $firstPdo): void {
+            $reconnected = DB::connection('established::write');
+            $reconnected->reconnect();
+            $this->assertSame($reconnected, DB::connection('established::write'));
+            $this->assertNotSame($firstPdo, $reconnected->getRawPdo());
+        });
+        $this->assertSame([$first, $reconnected], $connections);
 
         $pool = $this->app->make(PoolManager::class)->pool('established');
         $pooled = $pool->borrow();
@@ -152,7 +163,7 @@ class ConnectionEstablishedTest extends TestCase
             $replacement = DB::connection('established::write');
         });
         $this->assertNotSame($first, $replacement);
-        $this->assertSame([$first, $first, $replacement], $connections);
+        $this->assertSame([$first, $reconnected, $replacement], $connections);
     }
 
     #[TestWith([true, false])]

@@ -1168,7 +1168,7 @@ class RedisConnectionTest extends TestCase
     public function testClusterReconnectFailureThrowsConnectionException(): void
     {
         $this->expectException(ConnectionException::class);
-        $this->expectExceptionMessage('Connection reconnect failed');
+        $this->expectExceptionMessageIsOrContains('Connection reconnect failed');
 
         new class($this->getContainer(), $this->getMockedPool(), $this->clusterConfig(['cluster' => ['enabled' => true, 'seeds' => []]])) extends PhpRedisClusterConnection {
         };
@@ -2996,7 +2996,7 @@ class RedisConnectionTest extends TestCase
             ->andReturn('ERR Error compiling script');
 
         $this->expectException(LuaScriptException::class);
-        $this->expectExceptionMessage('Lua script execution failed: ERR Error compiling script');
+        $this->expectExceptionMessageIs('Lua script execution failed: ERR Error compiling script');
 
         $connection->evalWithShaCache($script, ['mykey']);
     }
@@ -3284,7 +3284,7 @@ class RedisConnectionTest extends TestCase
         $connection = $this->mockRedisConnection();
 
         $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage("Cannot call {$command}() on a pooled RedisConnection.");
+        $this->expectExceptionMessageIsOrContains("Cannot call {$command}() on a pooled RedisConnection.");
 
         $connection->__call(strtoupper($command), [['channel1'], function () {}]);
     }
@@ -3425,7 +3425,7 @@ class RedisConnectionTest extends TestCase
         $redis->shouldReceive('setOption')->andReturnTrue();
 
         $this->expectException(InvalidRedisOptionException::class);
-        $this->expectExceptionMessage('The redis option `pack_ignore_numbers` requires PhpRedis 6.2 or later.');
+        $this->expectExceptionMessageIs('The redis option `pack_ignore_numbers` requires PhpRedis 6.2 or later.');
 
         new class($this->getContainer(), $pool, $this->standaloneConfig(['options' => ['pack_ignore_numbers' => true]]), $redis) extends PhpRedisConnection {
             public function __construct(
@@ -3662,7 +3662,7 @@ class RedisConnectionTest extends TestCase
         $redis = m::mock(Redis::class);
 
         $this->expectException(InvalidRedisOptionException::class);
-        $this->expectExceptionMessage('The redis option key `bogus` is invalid.');
+        $this->expectExceptionMessageIs('The redis option key `bogus` is invalid.');
 
         $redis->shouldReceive('setOption')->andReturnTrue();
 

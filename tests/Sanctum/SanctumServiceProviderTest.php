@@ -262,7 +262,7 @@ class SanctumServiceProviderTest extends TestCase
         $resolver = $this->bootAndCaptureResolver($manager, $config);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Authentication provider [users] model must be an Eloquent authenticatable class.'
         );
 
@@ -301,7 +301,7 @@ class SanctumServiceProviderTest extends TestCase
             ->andReturn($config);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIs($message);
 
         (new SanctumServiceProviderFixture($application))->defineRoutesUsingParent();
     }
@@ -340,7 +340,7 @@ class SanctumServiceProviderTest extends TestCase
             ->andReturn($config);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Configuration value for key [sanctum.routes] must be a boolean, NULL given.'
         );
 
@@ -362,7 +362,7 @@ class SanctumServiceProviderTest extends TestCase
             ->andReturn($config);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Configuration value for key [sanctum.prefix] must be a string, NULL given.'
         );
 
@@ -465,7 +465,7 @@ class SanctumServiceProviderTest extends TestCase
 
         $this->assertInstanceOf(Closure::class, $bootedCallback);
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Sanctum cache store must be a string or null.');
+        $this->expectExceptionMessageIs('Sanctum cache store must be a string or null.');
 
         $bootedCallback();
     }
@@ -489,7 +489,7 @@ class SanctumServiceProviderTest extends TestCase
         $startup = $this->bootAndCaptureStartupValidation($manager, $config);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIs($message);
 
         $startup();
     }
@@ -524,7 +524,7 @@ class SanctumServiceProviderTest extends TestCase
         $startup = $this->bootAndCaptureStartupValidation($manager, $config);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIs($message);
 
         $startup();
     }

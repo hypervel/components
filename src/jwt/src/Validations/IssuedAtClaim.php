@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Jwt\Validations;
 
-use Hypervel\Jwt\Contracts\TemporalValidation;
 use Hypervel\Jwt\Exceptions\TokenInvalidException;
 use Hypervel\Support\Facades\Date;
 
-class IssuedAtClaim extends AbstractValidation implements TemporalValidation
+class IssuedAtClaim extends AbstractValidation
 {
+    /**
+     * Validate that the token was not issued in the future.
+     */
     public function validate(array $payload): void
     {
         if (! $iat = ($payload['iat'] ?? null)) {

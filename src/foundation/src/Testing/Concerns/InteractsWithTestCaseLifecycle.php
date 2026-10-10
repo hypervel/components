@@ -293,7 +293,8 @@ trait InteractsWithTestCaseLifecycle
      * RefreshDatabase and DatabaseTransactions store transaction state in Context.
      * Since setUpTraits runs in a temporary coroutine (separate from the test method's
      * coroutine), we must copy this state to non-coroutine context. The test coroutine
-     * will then copy from non-coroutine context via copyFromNonCoroutine().
+     * restores the same transaction state explicitly; normal context copying
+     * omits it so child coroutines cannot inherit their parent's transactions.
      */
     protected function preserveTransactionContext(): void
     {

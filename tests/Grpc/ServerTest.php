@@ -344,7 +344,7 @@ class ServerTest extends TestCase
         );
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('No gRPC server call is active');
+        $this->expectExceptionMessageIsOrContains('No gRPC server call is active');
 
         $environment->contexts->get();
     }
@@ -369,7 +369,7 @@ class ServerTest extends TestCase
         $this->assertSame([], $observer->finished);
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('No gRPC server call is active');
+        $this->expectExceptionMessageIsOrContains('No gRPC server call is active');
 
         $environment->contexts->get();
     }
