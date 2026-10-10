@@ -1,0 +1,162 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Ai\Gateway\OpenAi\Concerns;
+
+use Hypervel\Ai\Attributes\Strict;
+use Hypervel\Ai\Contracts\Providers\SupportsCodeExecution;
+use Hypervel\Ai\Contracts\Providers\SupportsFileSearch;
+use Hypervel\Ai\Contracts\Providers\SupportsWebSearch;
+use Hypervel\Ai\Contracts\Tool;
+use Hypervel\Ai\Enums\Lab;
+use Hypervel\Ai\ObjectSchema;
+use Hypervel\Ai\Providers\Provider;
+use Hypervel\Ai\Providers\Tools\CodeExecution;
+use Hypervel\Ai\Providers\Tools\FileSearch;
+use Hypervel\Ai\Providers\Tools\ProviderTool;
+use Hypervel\Ai\Providers\Tools\ToolSearch;
+use Hypervel\Ai\Providers\Tools\WebSearch;
+use Hypervel\Ai\Tools\ToolNameResolver;
+use Hypervel\JsonSchema\JsonSchemaTypeFactory;
+use LogicException;
+use RuntimeException;
+
+trait MapsTools
+{
+    /**
+     * Map the given tools to OpenAI function definitions.
+     */
+    protected function mapTools(array $tools, Provider $provider, bool $stateless = false): array
+    {
+        $mapped = [];
+
+        foreach ($tools as $tool) {
+            if ($tool instanceof ToolSearch) {
+                $this->guardStatelessToolSearch($provider, $stateless);
+
+                if (blank($tool->tools)) {
+                    continue;
+                }
+
+                $mapped[] = [
+                    'type' => 'tool_search',
+                    ...array_diff_key($tool->providerOptions(Lab::tryFrom($provider->driver()) ?? $provider->driver()), ['type' => true]),
+                ];
+
+                foreach ($tool->tools as $deferred) {
+                    $mapped[] = $this->mapTool($deferred, defer: true);
+                }
+            } elseif ($tool instanceof ProviderTool) {
+                $mapped[] = $this->mapProviderTool($tool, $provider);
+            } elseif ($tool instanceof Tool) {
+                $mapped[] = $this->mapTool($tool);
+            }
+        }
+
+        return $mapped;
+    }
+
+    /**
+     * Ensure hosted tool search is not used while response storage is disabled.
+     */
+    protected function guardStatelessToolSearch(Provider $provider, bool $stateless): void
+    {
+        if ($stateless) {
+            throw new LogicException(
+                "Provider [{$provider->name()}] does not support tool search when response storage is disabled (store=false)."
+            );
+        }
+    }
+
+    /**
+     * Map a regular tool to an OpenAI function definition.
+     */
+    protected function mapTool(Tool $tool, bool $defer = false): array
+    {
+        $strict = Strict::isAppliedTo($tool);
+
+        $schema = $tool->schema(new JsonSchemaTypeFactory);
+
+        $schemaArray = filled($schema)
+            ? (new ObjectSchema($schema, strict: $strict))->toSchema()
+            : [];
+
+        $definition = [
+            'type' => 'function',
+            'name' => ToolNameResolver::resolve($tool),
+            'description' => (string) $tool->description(),
+            'strict' => $strict,
+            'parameters' => [
+                'type' => 'object',
+                'properties' => $schemaArray['properties'] ?? (object) [],
+                'required' => $schemaArray['required'] ?? [],
+                'additionalProperties' => false,
+            ],
+        ];
+
+        if ($defer) {
+            $definition['defer_loading'] = true;
+        }
+
+        return $definition;
+    }
+
+    /**
+     * Map a provider tool to an OpenAI provider tool definition.
+     */
+    protected function mapProviderTool(ProviderTool $tool, Provider $provider): array
+    {
+        return match (true) {
+            $tool instanceof CodeExecution => $this->mapCodeExecutionTool($tool, $provider),
+            $tool instanceof FileSearch => $this->mapFileSearchTool($tool, $provider),
+            $tool instanceof WebSearch => $this->mapWebSearchTool($tool, $provider),
+            default => throw new RuntimeException('Provider [' . $provider->name() . '] does not support the [' . class_basename($tool) . '] tool.'),
+        };
+    }
+
+    /**
+     * Map a code execution tool to an OpenAI code interpreter definition.
+     */
+    protected function mapCodeExecutionTool(CodeExecution $tool, Provider $provider): array
+    {
+        if (! $provider instanceof SupportsCodeExecution) {
+            throw new RuntimeException('Provider [' . $provider->name() . '] does not support code execution.');
+        }
+
+        return [
+            'type' => 'code_interpreter',
+            ...$provider->codeExecutionToolOptions($tool),
+        ];
+    }
+
+    /**
+     * Map a file search tool to an OpenAI file search definition.
+     */
+    protected function mapFileSearchTool(FileSearch $tool, Provider $provider): array
+    {
+        if (! $provider instanceof SupportsFileSearch) {
+            throw new RuntimeException('Provider [' . $provider->name() . '] does not support file search.');
+        }
+
+        return [
+            'type' => 'file_search',
+            ...$provider->fileSearchToolOptions($tool),
+        ];
+    }
+
+    /**
+     * Map a web search tool to an OpenAI web search definition.
+     */
+    protected function mapWebSearchTool(WebSearch $tool, Provider $provider): array
+    {
+        if (! $provider instanceof SupportsWebSearch) {
+            throw new RuntimeException('Provider [' . $provider->name() . '] does not support web search.');
+        }
+
+        return [
+            'type' => 'web_search',
+            ...$provider->webSearchToolOptions($tool),
+        ];
+    }
+}
