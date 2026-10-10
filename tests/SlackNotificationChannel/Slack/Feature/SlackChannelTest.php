@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\SlackNotificationChannel\Slack\Feature;
 
+use GuzzleHttp\Promise\PromiseInterface;
 use Hypervel\Http\Client\ConnectionException;
 use Hypervel\Http\Client\Factory;
 use Hypervel\Http\Client\Request;
@@ -28,7 +29,7 @@ class SlackChannelTest extends TestCase
 
         $response = $channel->send(
             new SlackChannelTestNotifiable(SlackRoute::make('#general', 'token')),
-            new SlackChannelTestNotification(fn (SlackMessage $message) => $message->text('Content')),
+            new SlackChannelTestNotification(fn (SlackMessage $message): SlackMessage => $message->text('Content')),
         );
 
         $this->assertSame('123.456', $response->json('ts'));
@@ -41,7 +42,7 @@ class SlackChannelTest extends TestCase
         $http = new Factory;
         $http->registerConnection(SlackChannel::CONNECTION, $preset);
         $options = [];
-        $http->fake(function (Request $request, array $requestOptions) use (&$options, $http) {
+        $http->fake(function (Request $request, array $requestOptions) use (&$options, $http): PromiseInterface {
             $options = $requestOptions;
 
             return $http::response(['ok' => true]);
@@ -49,7 +50,7 @@ class SlackChannelTest extends TestCase
 
         (new SlackChannel($http))->send(
             new SlackChannelTestNotifiable(SlackRoute::make('#general', 'token')),
-            new SlackChannelTestNotification(fn (SlackMessage $message) => $message->text('Content')),
+            new SlackChannelTestNotification(fn (SlackMessage $message): SlackMessage => $message->text('Content')),
         );
 
         $this->assertSame(10, $options['connect_timeout']);
@@ -74,7 +75,7 @@ class SlackChannelTest extends TestCase
         foreach (['first', 'second'] as $workspace) {
             $this->slackChannel->send(
                 new SlackChannelTestNotifiable(SlackRoute::make("#{$workspace}", "{$workspace}-token")),
-                new SlackChannelTestNotification(fn (SlackMessage $message) => $message->text($workspace)),
+                new SlackChannelTestNotification(fn (SlackMessage $message): SlackMessage => $message->text($workspace)),
             );
         }
 
@@ -97,7 +98,7 @@ class SlackChannelTest extends TestCase
 
         $this->expectException(RequestException::class);
 
-        $this->sendNotification(fn (SlackMessage $message) => $message->text('Content'));
+        $this->sendNotification(fn (SlackMessage $message): SlackMessage => $message->text('Content'));
     }
 
     /**
@@ -118,7 +119,7 @@ class SlackChannelTest extends TestCase
         $this->expectException(ConnectionException::class);
         $this->expectExceptionMessageIsOrContains('Slack is unreachable');
 
-        $this->sendNotification(fn (SlackMessage $message) => $message->text('Content'));
+        $this->sendNotification(fn (SlackMessage $message): SlackMessage => $message->text('Content'));
     }
 
     #[DataProvider('successfulResponses')]
@@ -130,7 +131,7 @@ class SlackChannelTest extends TestCase
 
         $response = (new SlackChannel($http))->send(
             new SlackChannelTestNotifiable(SlackRoute::make('#general', 'token')),
-            new SlackChannelTestNotification(fn (SlackMessage $message) => $message->text('Content')),
+            new SlackChannelTestNotification(fn (SlackMessage $message): SlackMessage => $message->text('Content')),
         );
 
         $this->assertTrue($response->successful());
@@ -150,7 +151,7 @@ class SlackChannelTest extends TestCase
 
         $this->slackChannel->send(
             new SlackChannelTestNotifiable('example-channel'),
-            new SlackChannelTestNotification(function (SlackMessage $message) {
+            new SlackChannelTestNotification(function (SlackMessage $message): void {
                 $message->text('Content')->to('ignored-channel');
             }),
         );
@@ -167,7 +168,7 @@ class SlackChannelTest extends TestCase
 
         $this->slackChannel->send(
             new SlackChannelTestNotifiable(SlackRoute::make('route-set-channel')),
-            new SlackChannelTestNotification(function (SlackMessage $message) {
+            new SlackChannelTestNotification(function (SlackMessage $message): void {
                 $message->text('Content');
             }),
         );
@@ -184,7 +185,7 @@ class SlackChannelTest extends TestCase
 
         $this->slackChannel->send(
             new SlackChannelTestNotifiable(SlackRoute::make('route-set-channel', 'route-set-token')),
-            new SlackChannelTestNotification(function (SlackMessage $message) {
+            new SlackChannelTestNotification(function (SlackMessage $message): void {
                 $message->text('Content');
             }),
         );
@@ -201,7 +202,7 @@ class SlackChannelTest extends TestCase
 
         $this->slackChannel->send(
             new SlackChannelTestNotifiable(SlackRoute::make(null, 'route-set-token')),
-            new SlackChannelTestNotification(function (SlackMessage $message) {
+            new SlackChannelTestNotification(function (SlackMessage $message): void {
                 $message->text('Content')->to('notification-channel');
             }),
         );
@@ -212,14 +213,14 @@ class SlackChannelTest extends TestCase
         ], 'route-set-token');
     }
 
-    public function testNoRouteUsesTheConfiguredChannelAndToken(): void
+    public function testTheRouteNotificationForSlackMethodDoesNotDescribeAnything(): void
     {
         config()->set('services.slack.notifications.bot_user_oauth_token', 'config-set-token');
         config()->set('services.slack.notifications.channel', 'config-set-channel');
 
         $this->slackChannel->send(
             new SlackChannelTestNotifiable,
-            new SlackChannelTestNotification(function (SlackMessage $message) {
+            new SlackChannelTestNotification(function (SlackMessage $message): void {
                 $message->text('Content');
             }),
         );
@@ -237,7 +238,7 @@ class SlackChannelTest extends TestCase
 
         $this->slackChannel->send(
             new SlackChannelTestNotifiable(SlackRoute::make()),
-            new SlackChannelTestNotification(function (SlackMessage $message) {
+            new SlackChannelTestNotification(function (SlackMessage $message): void {
                 $message->text('Content');
             }),
         );
@@ -255,7 +256,7 @@ class SlackChannelTest extends TestCase
 
         $this->slackChannel->send(
             new SlackChannelTestNotifiable,
-            new SlackChannelTestNotification(function (SlackMessage $message) {
+            new SlackChannelTestNotification(function (SlackMessage $message): void {
                 $message->text('Content')->to('notification-channel');
             }),
         );
@@ -275,7 +276,7 @@ class SlackChannelTest extends TestCase
 
         $this->slackChannel->send(
             new SlackChannelTestNotifiable,
-            new SlackChannelTestNotification(function (SlackMessage $message) {
+            new SlackChannelTestNotification(function (SlackMessage $message): void {
                 $message->text('Content');
             }),
         );
@@ -288,7 +289,7 @@ class SlackChannelTest extends TestCase
 
         $this->slackChannel->send(
             new SlackChannelTestNotifiable(SlackRoute::make('hypervel-channel')),
-            new SlackChannelTestNotification(function (SlackMessage $message) {
+            new SlackChannelTestNotification(function (SlackMessage $message): void {
                 $message->text('Content');
             }),
         );

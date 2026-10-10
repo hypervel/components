@@ -10,7 +10,7 @@ use LogicException;
 
 class ContextBlockTest extends TestCase
 {
-    public function testArrayable(): void
+    public function testItIsArrayable(): void
     {
         $block = new ContextBlock;
         $block->text('Location: 123 Main Street, New York, NY 10010');
@@ -26,7 +26,7 @@ class ContextBlockTest extends TestCase
         ], $block->toArray());
     }
 
-    public function testRequiresAtLeastOneElement(): void
+    public function testItRequiresAtLeastOneElement(): void
     {
         $this->expectException(LogicException::class);
         $this->expectExceptionMessageIs('There must be at least one element in each context block.');
@@ -35,7 +35,7 @@ class ContextBlockTest extends TestCase
         $block->toArray();
     }
 
-    public function testNotAllowMoreThanTenElements(): void
+    public function testItDoesNotAllowMoreThanTenElements(): void
     {
         $this->expectException(LogicException::class);
         $this->expectExceptionMessageIs('There is a maximum of 10 elements in each context block.');
@@ -48,7 +48,7 @@ class ContextBlockTest extends TestCase
         $block->toArray();
     }
 
-    public function testCanManuallySpecifyBlockIdField(): void
+    public function testItCanManuallySpecifyTheBlockIdField(): void
     {
         $block = new ContextBlock;
         $block->text('Location: 123 Main Street, New York, NY 10010');
@@ -75,7 +75,7 @@ class ContextBlockTest extends TestCase
         $this->assertSame('0', $block->toArray()['block_id']);
     }
 
-    public function testBlockIdCantExceedTwoFiveFiveCharacters(): void
+    public function testTheBlockIdFieldCannotExceed255Characters(): void
     {
         $this->expectException(LogicException::class);
         $this->expectExceptionMessageIs('Maximum length for the block_id field is 255 characters.');
@@ -97,7 +97,7 @@ class ContextBlockTest extends TestCase
         $this->assertSame($id, $block->toArray()['block_id']);
     }
 
-    public function testCanAddImageBlocks(): void
+    public function testItCanAddImageBlocks(): void
     {
         $block = new ContextBlock;
         $block->image('https://image.freepik.com/free-photo/red-drawing-pin_1156-445.jpg')->alt('images');
@@ -120,7 +120,7 @@ class ContextBlockTest extends TestCase
         ], $block->toArray());
     }
 
-    public function testCanAddTextBlocks(): void
+    public function testItCanAddTextBlocks(): void
     {
         $block = new ContextBlock;
         $block->text('Location: 123 Main Street, New York, NY 10010');

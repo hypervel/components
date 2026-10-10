@@ -17,7 +17,6 @@ use Hypervel\Telescope\Contracts\ClearableRepository;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\Contracts\PrunableRepository;
 use Hypervel\Telescope\Storage\DatabaseEntriesRepository;
-use Hypervel\Telescope\Watchers\CacheWatcher;
 use Hypervel\Telescope\Watchers\ClientRequestWatcher;
 use Hypervel\Telescope\Watchers\RedisWatcher;
 
@@ -139,7 +138,6 @@ class TelescopeServiceProvider extends ServiceProvider
         }
 
         $this->registerRedisEvents();
-        $this->registerCacheEvents();
         $this->registerGuzzleHttpClientAspect();
     }
 
@@ -153,18 +151,6 @@ class TelescopeServiceProvider extends ServiceProvider
         }
 
         RedisWatcher::enableRedisEvents($this->app);
-    }
-
-    /**
-     * Register the Cache events if the watcher is enabled.
-     */
-    protected function registerCacheEvents(): void
-    {
-        if (! $this->watcherIsEnabled(CacheWatcher::class)) {
-            return;
-        }
-
-        CacheWatcher::enableCacheEvents($this->app);
     }
 
     /**

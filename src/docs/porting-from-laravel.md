@@ -658,6 +658,8 @@ Hypervel's `Filesystem::hash()` method uses `xxh128` by default. Pass `md5` expl
 
 Custom filesystem contract implementations must also provide `fileExists()` and `directoryExists()`. The existing `exists()` method continues to accept either a file or a directory. See [retrieving files](/docs/{{version}}/filesystem#retrieving-files).
 
+S3, Google Cloud Storage, FTP, SFTP, and poolable custom disks are pooled, so they do not hand out objects that outlive an operation. Replace `getAdapter()` and `getDriver()` with `withAdapter()` and `withDriver()`, and an S3 or Google Cloud Storage disk's `getClient()` with `withClient()`; each callback receives the borrowed object. Methods a pooled disk does not support throw instead of forwarding to the driver. See [driver pools](/docs/{{version}}/filesystem#driver-pools).
+
 Unlike Laravel, Hypervel honors `read-only` on scoped disk records. Remove that option from any scoped disk that must accept writes.
 
 Rename any configured disk called `ondemand`; Hypervel reserves that name for [on-demand disk fakes](/docs/{{version}}/filesystem#on-demand-disks).

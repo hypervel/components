@@ -10,7 +10,7 @@ use LogicException;
 
 class TextObjectTest extends TestCase
 {
-    public function testArrayable(): void
+    public function testItIsArrayable(): void
     {
         $object = new TextObject('A message *with some bold text* and _some italicized text_.');
 
@@ -20,7 +20,7 @@ class TextObjectTest extends TestCase
         ], $object->toArray());
     }
 
-    public function testMarkdownTextField(): void
+    public function testItCanBeAMarkdownTextField(): void
     {
         $object = new TextObject('A message *with some bold text* and _some italicized text_.');
         $object->markdown();
@@ -31,7 +31,7 @@ class TextObjectTest extends TestCase
         ], $object->toArray());
     }
 
-    public function testTextHasAtLeastOneCharacter(): void
+    public function testTheTextHasAMinimumLengthOf1Character(): void
     {
         $this->expectException(LogicException::class);
         $this->expectExceptionMessageIs('Text must be at least 1 character(s) long.');
@@ -39,7 +39,7 @@ class TextObjectTest extends TestCase
         new TextObject('');
     }
 
-    public function testTextTruncatedOverThreeThousandCharacters(): void
+    public function testTheTextGetsTruncatedWhenItExceeds3000Characters(): void
     {
         $object = new TextObject(str_repeat('a', 3001));
 
@@ -49,7 +49,7 @@ class TextObjectTest extends TestCase
         ], $object->toArray());
     }
 
-    public function testEscapeEmojiColonFormat(): void
+    public function testItCanIndicateThatEmojisShouldBeEscapedIntoTheColonEmojiFormat(): void
     {
         $object = new TextObject('Spooky time! 👻');
         $object->emoji();
@@ -61,7 +61,7 @@ class TextObjectTest extends TestCase
         ], $object->toArray());
     }
 
-    public function testEscapeEmojiColonFormatWhenMarkdown(): void
+    public function testItCannotIndicateThatEmojisShouldBeEscapedIntoTheColonEmojiFormatWhenUsingMarkdown(): void
     {
         $object = new TextObject('Spooky time! 👻');
         $object->markdown()->emoji();
@@ -72,7 +72,7 @@ class TextObjectTest extends TestCase
         ], $object->toArray());
     }
 
-    public function testSkipClickableAnchors(): void
+    public function testItCanIndicateThatAutoConversionIntoClickableAnchorsShouldBeSkipped(): void
     {
         $object = new TextObject('A message *with some bold text* and _some italicized text_.');
         $object->markdown()->verbatim();
@@ -84,7 +84,7 @@ class TextObjectTest extends TestCase
         ], $object->toArray());
     }
 
-    public function testSkipClickableAnchorsWhenPlaintext(): void
+    public function testItCannotIndicateThatAutoConversionIntoClickableAnchorsShouldBeSkippedWhenUsingPlaintext(): void
     {
         $object = new TextObject('A message *with some bold text* and _some italicized text_.');
         $object->verbatim();

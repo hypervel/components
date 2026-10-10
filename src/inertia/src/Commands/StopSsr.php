@@ -15,7 +15,7 @@ class StopSsr extends Command
     /**
      * The console command name.
      */
-    protected ?string $signature = 'inertia:stop-ssr';
+    protected ?string $signature = 'inertia:stop-ssr {--graceful : Return a successful exit code when the SSR server is not running}';
 
     /**
      * The console command description.
@@ -27,7 +27,21 @@ class StopSsr extends Command
      */
     public function handle(HttpGateway $gateway): int
     {
-        if (! $gateway->isHealthy()) {
+        try {
+            $healthy = $gateway->checkHealth();
+        } catch (ConnectionException) {
+            // Only an unreachable server counts as not running. An unhealthy
+            // response still means a server answered on the SSR URL.
+            if ($this->option('graceful')) {
+                $this->comment('Inertia SSR server is not running.');
+
+                return self::SUCCESS;
+            }
+
+            $healthy = false;
+        }
+
+        if (! $healthy) {
             $this->error('Unable to connect to Inertia SSR server.');
 
             return self::FAILURE;

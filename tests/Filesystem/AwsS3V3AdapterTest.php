@@ -309,7 +309,11 @@ class AwsS3V3AdapterTest extends TestCase
             function (CommandInterface $request) use (&$command): Result {
                 $command = $request;
 
-                return new Result(['Body' => Utils::streamFor('range')]);
+                [$reader, $writer] = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
+                fwrite($writer, 'range');
+                fclose($writer);
+
+                return new Result(['Body' => Utils::streamFor($reader)]);
             },
             $failure,
         ]);
