@@ -10,6 +10,7 @@ use Hypervel\Ai\Classification\Score;
 use Hypervel\Ai\Contracts\Providers\ClassificationProvider;
 use Hypervel\Ai\Contracts\Question;
 use Hypervel\Ai\Files\File;
+use Hypervel\Ai\Providers\Provider;
 use Hypervel\Ai\Responses\ClassificationResponse;
 use Hypervel\Ai\Responses\Data\Answer;
 use Hypervel\Ai\Responses\Data\BooleanAnswer;
@@ -44,6 +45,7 @@ trait AnswersQuestions
         array $providerOptions = [],
         array $attachments = [],
     ): ClassificationResponse {
+        /** @var ClassificationProvider&Provider $provider */
         $response = $this->withErrorHandling(
             $provider->name(),
             fn (): Response => $this->client($provider, $timeout)->post($this->classificationEndpoint(), array_merge($providerOptions, [
