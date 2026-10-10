@@ -1,0 +1,356 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Ai\Gateway\Anthropic\Concerns;
+
+use Generator;
+use Hypervel\Ai\Providers\Provider;
+use Hypervel\Ai\Responses\Data\TextUsage;
+use Hypervel\Ai\Responses\Data\ToolCall;
+use Hypervel\Ai\Responses\Data\UrlCitation;
+use Hypervel\Ai\Streaming\Events\Citation as CitationEvent;
+use Hypervel\Ai\Streaming\Events\Error;
+use Hypervel\Ai\Streaming\Events\ProviderToolEvent;
+use Hypervel\Ai\Streaming\Events\ReasoningDelta;
+use Hypervel\Ai\Streaming\Events\ReasoningEnd;
+use Hypervel\Ai\Streaming\Events\ReasoningStart;
+use Hypervel\Ai\Streaming\Events\StreamEvent;
+use Hypervel\Ai\Streaming\Events\StreamStart;
+use Hypervel\Ai\Streaming\Events\TextDelta;
+use Hypervel\Ai\Streaming\Events\TextEnd;
+use Hypervel\Ai\Streaming\Events\TextStart;
+use Hypervel\Ai\Streaming\Events\ToolCall as ToolCallEvent;
+use Hypervel\Support\Str;
+use Psr\Http\Message\StreamInterface;
+
+trait HandlesTextStreaming
+{
+    /**
+     * Process a single Anthropic streaming turn and yield Hypervel stream events.
+     */
+    protected function processTextStream(
+        string $invocationId,
+        Provider $provider,
+        string $model,
+        StreamInterface $streamBody,
+    ): Generator {
+        $messageId = $this->generateEventId();
+        $reasoningId = '';
+        $streamStartEmitted = false;
+        $textStartEmitted = false;
+        $reasoningStartEmitted = false;
+
+        $currentBlockType = '';
+        $currentBlockIndex = -1;
+        $currentBlockText = '';
+        $currentThinkingText = '';
+        $currentSignature = '';
+        $currentToolIndex = -1;
+        $currentServerToolInput = '';
+        $pendingToolCalls = [];
+        $responseContent = [];
+
+        $messageUsage = [];
+        $usage = null;
+        $stopReason = '';
+
+        $emitTextStart = function () use (&$textStartEmitted, $messageId, $invocationId): ?StreamEvent {
+            if ($textStartEmitted) {
+                return null;
+            }
+
+            $textStartEmitted = true;
+
+            return (new TextStart(
+                $this->generateEventId(),
+                $messageId,
+                time(),
+            ))->withInvocationId($invocationId);
+        };
+
+        $emitReasoningStart = function () use (&$reasoningStartEmitted, &$reasoningId, $invocationId): ?StreamEvent {
+            if ($reasoningStartEmitted) {
+                return null;
+            }
+
+            $reasoningStartEmitted = true;
+            $reasoningId = $this->generateEventId();
+
+            return (new ReasoningStart(
+                $this->generateEventId(),
+                $reasoningId,
+                time(),
+            ))->withInvocationId($invocationId);
+        };
+
+        foreach ($this->parseServerSentEvents($streamBody) as $data) {
+            $type = $data['type'] ?? '';
+
+            if ($type === 'error') {
+                yield (new Error(
+                    $this->generateEventId(),
+                    $data['error']['type'] ?? 'unknown_error',
+                    $data['error']['message'] ?? 'Unknown error',
+                    false,
+                    time(),
+                ))->withInvocationId($invocationId);
+
+                return;
+            }
+
+            if ($type === 'message_start' && ! $streamStartEmitted) {
+                $streamStartEmitted = true;
+
+                $messageUsage = $data['message']['usage'] ?? [];
+
+                yield (new StreamStart(
+                    $this->generateEventId(),
+                    $provider->name(),
+                    $data['message']['model'] ?? $model,
+                    time(),
+                ))->withInvocationId($invocationId);
+
+                continue;
+            }
+
+            if ($type === 'content_block_start') {
+                $blockType = $data['content_block']['type'] ?? '';
+                $currentBlockType = $blockType;
+                $currentBlockIndex = $data['index'] ?? count($responseContent);
+
+                if ($blockType === 'text') {
+                    $currentBlockText = '';
+
+                    if (($event = $emitTextStart()) instanceof StreamEvent) {
+                        yield $event;
+                    }
+                } elseif ($blockType === 'thinking') {
+                    $currentThinkingText = '';
+                    $currentSignature = '';
+
+                    if (($event = $emitReasoningStart()) instanceof StreamEvent) {
+                        yield $event;
+                    }
+                } elseif ($blockType === 'tool_use') {
+                    ++$currentToolIndex;
+
+                    $pendingToolCalls[$currentToolIndex] = [
+                        'id' => $data['content_block']['id'] ?? '',
+                        'name' => $data['content_block']['name'] ?? '',
+                        'arguments' => '',
+                    ];
+                } elseif ($blockType === 'server_tool_use') {
+                    $currentServerToolInput = '';
+
+                    yield (new ProviderToolEvent(
+                        $this->generateEventId(),
+                        $data['content_block']['id'] ?? '',
+                        $blockType,
+                        $data['content_block'] ?? [],
+                        'started',
+                        time(),
+                        provider: $provider->name(),
+                    ))->withInvocationId($invocationId);
+                } elseif ($this->isProviderToolResultBlock($blockType)) {
+                    $fetchResult = $data['content_block']['content'] ?? [];
+
+                    if ($blockType === 'web_fetch_tool_result' && ($fetchResult['type'] ?? '') === 'web_fetch_result' && filled($fetchResult['url'] ?? null)) {
+                        yield (new CitationEvent(
+                            $this->generateEventId(),
+                            $messageId,
+                            new UrlCitation($fetchResult['url'], $fetchResult['content']['title'] ?? null),
+                            time(),
+                        ))->withInvocationId($invocationId);
+                    }
+
+                    yield (new ProviderToolEvent(
+                        $this->generateEventId(),
+                        $data['content_block']['tool_use_id'] ?? $data['content_block']['id'] ?? '',
+                        $blockType,
+                        $data['content_block'] ?? [],
+                        'result_received',
+                        time(),
+                        provider: $provider->name(),
+                    ))->withInvocationId($invocationId);
+                }
+
+                // Track content blocks for tool loop replay...
+                if (isset($data['content_block'])) {
+                    $responseContent[$data['index'] ?? count($responseContent)] = $data['content_block'];
+                }
+
+                continue;
+            }
+
+            if ($type === 'content_block_delta') {
+                $deltaType = $data['delta']['type'] ?? '';
+
+                if ($deltaType === 'text_delta') {
+                    $textDelta = (string) ($data['delta']['text'] ?? '');
+
+                    if ($textDelta !== '') {
+                        if (($event = $emitTextStart()) instanceof StreamEvent) {
+                            yield $event;
+                        }
+
+                        $currentBlockText .= $textDelta;
+
+                        yield (new TextDelta(
+                            $this->generateEventId(),
+                            $messageId,
+                            $textDelta,
+                            time(),
+                        ))->withInvocationId($invocationId);
+                    }
+                } elseif ($deltaType === 'thinking_delta') {
+                    $delta = (string) ($data['delta']['thinking'] ?? '');
+
+                    if ($delta !== '') {
+                        if (($event = $emitReasoningStart()) instanceof StreamEvent) {
+                            yield $event;
+                        }
+
+                        $currentThinkingText .= $delta;
+
+                        yield (new ReasoningDelta(
+                            $this->generateEventId(),
+                            $reasoningId,
+                            $delta,
+                            time(),
+                        ))->withInvocationId($invocationId);
+                    }
+                } elseif ($deltaType === 'signature_delta') {
+                    $currentSignature .= (string) ($data['delta']['signature'] ?? '');
+                } elseif ($deltaType === 'citations_delta' && $currentBlockType === 'text') {
+                    $citationData = $data['delta']['citation'] ?? null;
+
+                    if ($citationData && ($citationData['type'] ?? '') === 'web_search_result_location') {
+                        yield (new CitationEvent(
+                            $this->generateEventId(),
+                            $messageId,
+                            new UrlCitation($citationData['url'] ?? '', $citationData['title'] ?? null),
+                            time(),
+                        ))->withInvocationId($invocationId);
+                    }
+                } elseif ($deltaType === 'input_json_delta') {
+                    $partial = (string) ($data['delta']['partial_json'] ?? '');
+
+                    if ($currentBlockType === 'tool_use' && isset($pendingToolCalls[$currentToolIndex])) {
+                        $pendingToolCalls[$currentToolIndex]['arguments'] .= $partial;
+                    } elseif ($currentBlockType === 'server_tool_use') {
+                        $currentServerToolInput .= $partial;
+                    }
+                }
+
+                continue;
+            }
+
+            if ($type === 'content_block_stop') {
+                if ($currentBlockType === 'text') {
+                    // The block closes, the message does not. Anthropic opens a text block per
+                    // citable span, so one answer arrives as several; the replay content keeps
+                    // them apart while the stream reports the step as a single message...
+                    if (isset($responseContent[$currentBlockIndex])) {
+                        $responseContent[$currentBlockIndex]['text'] = $currentBlockText;
+                    }
+                } elseif ($currentBlockType === 'thinking' && $reasoningStartEmitted) {
+                    if (isset($responseContent[$currentBlockIndex])) {
+                        $responseContent[$currentBlockIndex]['thinking'] = $currentThinkingText;
+                        $responseContent[$currentBlockIndex]['signature'] = $currentSignature;
+                    }
+
+                    yield (new ReasoningEnd(
+                        $this->generateEventId(),
+                        $reasoningId,
+                        time(),
+                    ))->withInvocationId($invocationId);
+
+                    $reasoningStartEmitted = false;
+                    $reasoningId = '';
+                } elseif ($currentBlockType === 'tool_use' && isset($pendingToolCalls[$currentToolIndex])) {
+                    $call = $pendingToolCalls[$currentToolIndex];
+                    $parsedArguments = json_decode($call['arguments'] ?: '{}', true) ?? [];
+
+                    $index = $data['index'] ?? $currentToolIndex;
+
+                    if (isset($responseContent[$index])) {
+                        $responseContent[$index]['input'] = $parsedArguments;
+                    }
+
+                    yield (new ToolCallEvent(
+                        $this->generateEventId(),
+                        new ToolCall(
+                            $call['id'],
+                            $call['name'],
+                            $parsedArguments,
+                            $call['id'],
+                        ),
+                        time(),
+                    ))->withInvocationId($invocationId);
+                } elseif ($currentBlockType === 'server_tool_use') {
+                    $index = $data['index'] ?? count($responseContent) - 1;
+
+                    if ($currentServerToolInput !== '' && isset($responseContent[$index])) {
+                        $responseContent[$index]['input'] = json_decode($currentServerToolInput, true) ?? [];
+                    }
+
+                    yield (new ProviderToolEvent(
+                        $this->generateEventId(),
+                        $responseContent[$index]['id'] ?? '',
+                        $currentBlockType,
+                        $responseContent[$index] ?? [],
+                        'completed',
+                        time(),
+                        provider: $provider->name(),
+                    ))->withInvocationId($invocationId);
+                }
+
+                $currentBlockType = '';
+
+                continue;
+            }
+
+            if ($type === 'message_delta') {
+                $stopReason = $data['delta']['stop_reason'] ?? '';
+
+                // Usage on message_delta is cumulative for the whole message...
+                $usage = $this->extractUsage(['usage' => array_merge($messageUsage, $data['usage'] ?? [])]);
+            }
+        }
+
+        // Closed once the step is over rather than once per block, so the step is one message...
+        if ($textStartEmitted) {
+            yield (new TextEnd(
+                $this->generateEventId(),
+                $messageId,
+                time(),
+            ))->withInvocationId($invocationId);
+        }
+
+        return $this->buildStepResponse(
+            content: array_values($responseContent),
+            provider: $provider,
+            model: $model,
+            usage: $usage ?? new TextUsage(0, 0),
+            finishReason: $this->extractFinishReason(['stop_reason' => $stopReason]),
+            structured: false,
+        );
+    }
+
+    /**
+     * Determine if the given block type is a provider tool result.
+     */
+    protected function isProviderToolResultBlock(string $blockType): bool
+    {
+        return str_ends_with($blockType, '_tool_result');
+    }
+
+    /**
+     * Generate a lowercase UUID v7 for use as a stream event ID.
+     */
+    protected function generateEventId(): string
+    {
+        return strtolower((string) Str::uuid7());
+    }
+}

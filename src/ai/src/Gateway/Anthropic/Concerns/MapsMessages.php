@@ -1,0 +1,137 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Ai\Gateway\Anthropic\Concerns;
+
+use Hypervel\Ai\Messages\AssistantMessage;
+use Hypervel\Ai\Messages\Message;
+use Hypervel\Ai\Messages\MessageRole;
+use Hypervel\Ai\Messages\ToolResultMessage;
+use Hypervel\Ai\Messages\UserMessage;
+
+trait MapsMessages
+{
+    /**
+     * Map the given Hypervel messages to Anthropic Messages API format.
+     */
+    protected function mapMessages(array $messages): array
+    {
+        $mapped = [];
+
+        foreach ($messages as $message) {
+            $message = Message::tryFrom($message);
+
+            match ($message->role) {
+                MessageRole::User => $this->mapUserMessage($message, $mapped),
+                MessageRole::Assistant => $this->mapAssistantMessage($message, $mapped),
+                MessageRole::ToolResult => $this->mapToolResultMessage($message, $mapped),
+            };
+        }
+
+        return $mapped;
+    }
+
+    /**
+     * Map a user message to Anthropic format.
+     */
+    protected function mapUserMessage(UserMessage|Message $message, array &$mapped): void
+    {
+        $content = [
+            ['type' => 'text', 'text' => $message->content],
+        ];
+
+        if ($message instanceof UserMessage && $message->attachments->isNotEmpty()) {
+            $content = array_merge($this->mapAttachments($message->attachments), $content);
+        }
+
+        $mapped[] = [
+            'role' => 'user',
+            'content' => $content,
+        ];
+    }
+
+    /**
+     * Map an assistant message to Anthropic format.
+     */
+    protected function mapAssistantMessage(AssistantMessage|Message $message, array &$mapped): void
+    {
+        if ($message instanceof AssistantMessage && filled($message->replayBlocks)) {
+            $mapped[] = [
+                'role' => 'assistant',
+                'content' => $this->ensureToolInputIsObject($message->replayBlocks),
+            ];
+
+            return;
+        }
+
+        // Reasoning a step did not replay verbatim is dropped rather than rebuilt as a thinking block, which Anthropic rejects without the signature it issued...
+        $content = [];
+        $hasToolCalls = $message instanceof AssistantMessage && $message->toolCalls->isNotEmpty();
+
+        if (filled($message->content)) {
+            $content[] = [
+                'type' => 'text',
+                'text' => $message->content,
+            ];
+        }
+
+        if ($hasToolCalls) {
+            foreach ($message->toolCalls as $toolCall) {
+                $content[] = [
+                    'type' => 'tool_use',
+                    'id' => $toolCall->id,
+                    'name' => $toolCall->name,
+                    // Numeric argument names must also encode as object properties.
+                    'input' => array_is_list($toolCall->arguments) ? (object) $toolCall->arguments : $toolCall->arguments,
+                ];
+            }
+        }
+
+        if (filled($content)) {
+            $mapped[] = [
+                'role' => 'assistant',
+                'content' => $content,
+            ];
+        }
+    }
+
+    /**
+     * Map a tool result message to Anthropic format.
+     */
+    protected function mapToolResultMessage(ToolResultMessage|Message $message, array &$mapped): void
+    {
+        if (! $message instanceof ToolResultMessage) {
+            return;
+        }
+
+        $content = [];
+
+        foreach ($message->toolResults as $toolResult) {
+            $content[] = [
+                'type' => 'tool_result',
+                'tool_use_id' => $toolResult->id,
+                'content' => $toolResult->text(),
+            ];
+        }
+
+        $mapped[] = [
+            'role' => 'user',
+            'content' => $content,
+        ];
+    }
+
+    /**
+     * Ensure tool_use and server_tool_use content blocks encode empty input as an object for replay.
+     */
+    protected function ensureToolInputIsObject(array $content): array
+    {
+        return array_map(function (array $block): array {
+            if (in_array($block['type'] ?? '', ['tool_use', 'server_tool_use'], true)) {
+                $block['input'] = (object) ($block['input'] ?? []);
+            }
+
+            return $block;
+        }, $content);
+    }
+}

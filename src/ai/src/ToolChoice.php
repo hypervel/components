@@ -23,6 +23,8 @@ class ToolChoice
 
     /**
      * Create a tool choice.
+     *
+     * @param 'auto'|'none'|'required'|'tool' $mode
      */
     public function __construct(
         public readonly string $mode,
