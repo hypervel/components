@@ -7,7 +7,7 @@ Documentation: https://hypervel.org/docs/ai-sdk
 
 ## Differences From Laravel
 
-`broadcast()` delivers events immediately by default. Pass `now: false` to queue individual events; queued generation remains available.
+Agent and stream-event `broadcast()` methods deliver events immediately by default. Pass `now: false` to queue individual events; queued generation remains available. See [broadcasting](https://hypervel.org/docs/ai-sdk#broadcasting).
 
 `Promptable::getProvidersAndModels()` returns an ordered list of `[Provider|string, ?string]` pairs instead of a name-keyed map, preserving provider objects and their credentials. Update overrides to return pairs. Failover retains repeated entries as separate attempts. The public `Provider::formatProviderAndModelList()` utility retains its name-keyed return format. See [failover](https://hypervel.org/docs/ai-sdk#failover).
 

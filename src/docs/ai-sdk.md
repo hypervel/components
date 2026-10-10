@@ -1064,6 +1064,14 @@ Or, you can invoke an agent's `broadcastOnQueue` method to queue the agent opera
 );
 ```
 
+To generate and broadcast the response in the current request, call the agent's `broadcast` method:
+
+```php
+(new SalesCoach)->broadcast('Analyze this sales transcript...', new Channel('channel-name'));
+```
+
+Agent and stream-event `broadcast` methods send events immediately by default. This avoids a queue job for each event, but the stream waits for each broadcast to finish. Pass `now: false` to either method to queue individual events when delivery would otherwise slow the stream. `broadcastOnQueue` queues the entire agent operation.
+
 <a name="skipping-oversized-events"></a>
 #### Skipping Oversized Events
 
@@ -2222,6 +2230,21 @@ $response = (new FileAssistant)
 A rejection with a result, such as `Decision::reject('Not approved.')`, is returned to the model so it may continue responding. A rejection without a result stops the generation loop after recording the rejection.
 
 Tool approval is supported by the `prompt`, `stream`, `queue`, `broadcast`, `broadcastNow`, and `broadcastOnQueue` methods.
+
+When resuming a stored conversation, Hypervel claims the paused turn before running approved tools so another request cannot run the same approval concurrently. Each tool outcome is saved in a short database transaction before the next tool runs. This adds a write for each outcome instead of saving all outcomes together, but preserves recorded results if the process stops later. Tool execution takes place outside these transactions.
+
+If the process stops after an external action but before saving its result, that action's outcome remains unknown. Claimed turns are not automatically retried. Use tool-call IDs as idempotency keys when the external service supports them, and review unresolved actions before retrying them manually.
+
+To find claims that may need attention, inspect messages with a non-null `approval_claim`, ordered by `updated_at`. This timestamp records claim acquisition and subsequent result writes; an old timestamp alone does not prove that execution has stopped:
+
+```php
+use Hypervel\Ai\Models\ConversationMessage;
+
+$claims = ConversationMessage::whereNotNull('approval_claim')
+    ->oldest('updated_at')
+    ->limit(100)
+    ->get(['id', 'conversation_id', 'updated_at']);
+```
 
 During streaming and broadcasting, a pause is represented by a `tool_approval_request` event. When using the [Vercel AI SDK stream protocol](#stream-protocols), approval requests and results are emitted using the protocol's native tool approval parts, and the Agent User Interaction protocol reports them as interrupts.
 
