@@ -12,6 +12,7 @@ use Hypervel\Ai\Contracts\Providers\EmbeddingProvider;
 use Hypervel\Ai\Contracts\Providers\ImageProvider;
 use Hypervel\Ai\Contracts\Providers\RerankingProvider;
 use Hypervel\Ai\Contracts\Providers\TextProvider;
+use Hypervel\Ai\Gateway\Bedrock\BedrockCredentials;
 use Hypervel\Ai\Gateway\Bedrock\BedrockImageGateway;
 use Hypervel\Ai\Gateway\Bedrock\BedrockRerankingGateway;
 use Hypervel\Ai\Gateway\Bedrock\BedrockTextGateway;
@@ -39,6 +40,8 @@ class BedrockProvider extends Provider implements EmbeddingProvider, ImageProvid
     use Reranks;
     use StreamsText;
 
+    protected BedrockCredentials $bedrockCredentials;
+
     /**
      * Create a Bedrock provider instance.
      */
@@ -46,6 +49,17 @@ class BedrockProvider extends Provider implements EmbeddingProvider, ImageProvid
         protected array $config,
         protected Dispatcher $events
     ) {
+        $this->bedrockCredentials = new BedrockCredentials;
+    }
+
+    /**
+     * Get the credential holder shared by this provider's gateways.
+     *
+     * @internal
+     */
+    public function bedrockCredentials(): BedrockCredentials
+    {
+        return $this->bedrockCredentials;
     }
 
     /**
