@@ -1,0 +1,107 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Ai\Gateway\Gemini\Concerns;
+
+use Hypervel\Ai\Messages\AssistantMessage;
+use Hypervel\Ai\Messages\Message;
+use Hypervel\Ai\Messages\MessageRole;
+use Hypervel\Ai\Messages\ToolResultMessage;
+use Hypervel\Ai\Messages\UserMessage;
+
+trait MapsMessages
+{
+    /**
+     * Map the given Hypervel messages to Gemini interaction input steps.
+     */
+    protected function mapMessagesToInput(array $messages): array
+    {
+        $input = [];
+
+        foreach ($messages as $message) {
+            $message = Message::tryFrom($message);
+
+            match ($message->role) {
+                MessageRole::User => $this->mapUserMessage($message, $input),
+                MessageRole::Assistant => $this->mapAssistantMessage($message, $input),
+                MessageRole::ToolResult => $this->mapToolResultMessage($message, $input),
+            };
+        }
+
+        return $input;
+    }
+
+    /**
+     * Map a user message to a Gemini user input step.
+     */
+    protected function mapUserMessage(UserMessage|Message $message, array &$input): void
+    {
+        // Gemini rejects a text block without text, so an attachment-only message sends none...
+        $content = filled($message->content) ? [['type' => 'text', 'text' => $message->content]] : [];
+
+        if ($message instanceof UserMessage && $message->attachments->isNotEmpty()) {
+            $content = array_merge($content, $this->mapAttachments($message->attachments));
+        }
+
+        $input[] = [
+            'type' => 'user_input',
+            'content' => $content,
+        ];
+    }
+
+    /**
+     * Map an assistant message to the Gemini steps that produced it.
+     */
+    protected function mapAssistantMessage(AssistantMessage|Message $message, array &$input): void
+    {
+        // Gemini requires its own steps, thought steps included, replayed exactly as it returned them...
+        if ($message instanceof AssistantMessage && filled($message->replayBlocks)) {
+            foreach ($message->replayBlocks as $step) {
+                // Gemini rejects the empty array PHP decodes an argument-less call's object into...
+                $input[] = isset($step['arguments'])
+                    ? [...$step, 'arguments' => (object) $step['arguments']]
+                    : $step;
+            }
+
+            return;
+        }
+
+        if (filled($message->content)) {
+            $input[] = [
+                'type' => 'model_output',
+                'content' => [['type' => 'text', 'text' => $message->content]],
+            ];
+        }
+
+        if ($message instanceof AssistantMessage) {
+            // A signature never rides on a function call, so a persisted turn rebuilds the thought step that held it...
+            if (filled($signature = $message->toolCalls->first()?->thoughtSignature)) {
+                $input[] = ['type' => 'thought', 'signature' => $signature];
+            }
+
+            foreach ($message->toolCalls as $toolCall) {
+                $input[] = [
+                    'type' => 'function_call',
+                    'id' => $toolCall->id,
+                    'name' => $toolCall->name,
+                    'arguments' => (object) $toolCall->arguments,
+                ];
+            }
+        }
+    }
+
+    /**
+     * Map a tool result message to Gemini function result steps.
+     */
+    protected function mapToolResultMessage(ToolResultMessage|Message $message, array &$input): void
+    {
+        if (! $message instanceof ToolResultMessage) {
+            return;
+        }
+
+        foreach ($this->buildFunctionResultSteps($message->toolResults->all()) as $step) {
+            $input[] = $step;
+        }
+    }
+}
