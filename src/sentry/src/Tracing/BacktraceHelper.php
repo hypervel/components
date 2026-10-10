@@ -84,13 +84,14 @@ class BacktraceHelper
 
         $viewFileContents = @file_get_contents($absoluteFilePath);
 
+        // If for some reason the file does not exist, skip resolving
         if ($viewFileContents === false) {
             return null;
         }
 
         preg_match('/PATH (?<originalPath>.*?) ENDPATH/', $viewFileContents, $matches);
 
-        // No path comment found in the file, must be a very old Laravel version
+        // No path comment found in the file
         if (empty($matches['originalPath'])) {
             return null;
         }

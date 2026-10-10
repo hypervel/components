@@ -230,9 +230,10 @@ Sammyjo20/saloon-docs:
 
 getsentry/sentry-laravel:
   branch: master
-  checked_through: null
+  checked_through: 0537a1d5bfd583beb89001887af9cadd3116bccb
   last_reviewed_pr: null
-  sync_date: null
+  sync_date: '2026-10-10'
+  notes: Upstream's ServiceProvider, BaseServiceProvider and Tracing\ServiceProvider map to SentryServiceProvider, and its FEATURES constant maps to the shipped features config list. Feature::onBoot() and onBootInactive() take no parameters; features resolve their dependencies from $this->container instead of method injection. Hub is a coroutine-aware copy of sentry/sentry's Sentry\State\Hub; compare the two on every SDK update. The Folio, Livewire and Pennant integrations and their config keys are not ported because Hypervel has no such packages. AI agent monitoring (AiIntegration, ClassificationIntegration, Features/Ai, Features/Classification, Util/BoundedOrderedMap, the tracing gen_ai options and Integration::setConversationId()) is not ported yet and is not covered by checked_through; port it with Hypervel's AI SDK.
 
 getsentry/sentry-docs:
   branch: master

@@ -60,7 +60,7 @@ trait FilesystemDecorator
 
         if ($this->recordSpans) {
             return trace(
-                function () use ($method, $args) {
+                function () use ($method, $args): mixed {
                     return $this->filesystem->{$method}(...$args);
                 },
                 SpanContext::make()

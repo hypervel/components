@@ -8,7 +8,6 @@ use ArrayObject;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Console\Events\ScheduledTaskStarting;
 use Hypervel\Context\CoroutineContext;
-use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Http\Kernel as HttpKernelInterface;
 use Hypervel\Contracts\View\Engine;
@@ -156,12 +155,12 @@ class SentryServiceProvider extends ServiceProvider
         $configRoot = static::$abstract;
         $this->app->singleton(
             SentryConfig::class,
-            fn () => new SentryConfig($this->app->make(ConfigRepository::class), $configRoot),
+            fn (): SentryConfig => new SentryConfig($this->app->make(ConfigRepository::class), $configRoot),
         );
 
         $this->mergeConfigFrom(__DIR__ . '/../config/sentry.php', static::$abstract);
 
-        $this->app->singleton(DebugFileLogger::class, function () {
+        $this->app->singleton(DebugFileLogger::class, function (): DebugFileLogger {
             return new DebugFileLogger(storage_path('logs/sentry.log'));
         });
 
@@ -186,7 +185,7 @@ class SentryServiceProvider extends ServiceProvider
         $configRoot = static::$abstract;
 
         // ClientBuilder — fresh per resolution so each Hub gets a properly configured builder
-        $this->app->bind(ClientBuilder::class, function () use ($configRoot) {
+        $this->app->bind(ClientBuilder::class, function () use ($configRoot): ClientBuilder {
             $basePath = base_path();
             $userConfig = $this->getUserConfig();
 
@@ -238,7 +237,7 @@ class SentryServiceProvider extends ServiceProvider
         });
 
         // HubInterface singleton — coroutine-scoped hub with full integration setup
-        $this->app->singleton(HubInterface::class, function () {
+        $this->app->singleton(HubInterface::class, function (): Hub {
             /** @var ClientBuilder $clientBuilder */
             $clientBuilder = $this->app->make(ClientBuilder::class);
 
@@ -315,7 +314,7 @@ class SentryServiceProvider extends ServiceProvider
 
         $this->app->alias(HubInterface::class, static::$abstract);
 
-        $this->app->singleton(BacktraceHelper::class, function () {
+        $this->app->singleton(BacktraceHelper::class, function (): BacktraceHelper {
             $sentry = $this->app->make(HubInterface::class);
 
             $options = $sentry->getClient()->getOptions();
@@ -436,17 +435,13 @@ class SentryServiceProvider extends ServiceProvider
 
         $handler = new EventHandler($this->app, $userConfig);
 
-        try {
-            /** @var Dispatcher $dispatcher */
-            $dispatcher = $this->app->make('events');
+        /** @var Dispatcher $dispatcher */
+        $dispatcher = $this->app->make('events');
 
-            $handler->subscribe($dispatcher);
+        $handler->subscribe($dispatcher);
 
-            if (DataCollectionPolicy::fromHub($this->app->make(HubInterface::class))->shouldCollectUserInfo()) {
-                $handler->subscribeAuthEvents($dispatcher);
-            }
-        } catch (BindingResolutionException) {
-            // If we cannot resolve the event dispatcher we also cannot listen to events
+        if (DataCollectionPolicy::fromHub($this->app->make(HubInterface::class))->shouldCollectUserInfo()) {
+            $handler->subscribeAuthEvents($dispatcher);
         }
     }
 
@@ -455,24 +450,20 @@ class SentryServiceProvider extends ServiceProvider
      */
     protected function registerRuntimeContextBoundaries(): void
     {
-        try {
-            /** @var Dispatcher $dispatcher */
-            $dispatcher = $this->app->make('events');
-            $listener = function (): void {
-                $this->app->make(RuntimeContextBoundary::class)->start();
-            };
+        /** @var Dispatcher $dispatcher */
+        $dispatcher = $this->app->make('events');
+        $listener = function (): void {
+            $this->app->make(RuntimeContextBoundary::class)->start();
+        };
 
-            foreach ([
-                JobProcessing::class,
-                ScheduledTaskStarting::class,
-                ConnectionOpening::class,
-                MessageReceived::class,
-                ConnectionClosing::class,
-            ] as $event) {
-                $dispatcher->listen($event, $listener);
-            }
-        } catch (BindingResolutionException) {
-            // If we cannot resolve the event dispatcher we also cannot listen to events
+        foreach ([
+            JobProcessing::class,
+            ScheduledTaskStarting::class,
+            ConnectionOpening::class,
+            MessageReceived::class,
+            ConnectionClosing::class,
+        ] as $event) {
+            $dispatcher->listen($event, $listener);
         }
     }
 
@@ -529,14 +520,10 @@ class SentryServiceProvider extends ServiceProvider
     {
         $handler = new TracingEventHandler($tracingConfig);
 
-        try {
-            /** @var Dispatcher $dispatcher */
-            $dispatcher = $this->app->make('events');
+        /** @var Dispatcher $dispatcher */
+        $dispatcher = $this->app->make('events');
 
-            $handler->subscribe($dispatcher);
-        } catch (BindingResolutionException) {
-            // If we cannot resolve the event dispatcher we also cannot listen to events
-        }
+        $handler->subscribe($dispatcher);
     }
 
     /**

@@ -66,7 +66,7 @@ class Integration implements IntegrationInterface
      */
     public static function handles(Exceptions $exceptions): void
     {
-        $exceptions->reportable(static function (Throwable $exception) {
+        $exceptions->reportable(static function (Throwable $exception): void {
             self::captureUnhandledException($exception);
         });
     }
@@ -150,6 +150,8 @@ class Integration implements IntegrationInterface
         ];
     }
 
+    // Upstream's extractNameAndSourceForLumenRoute() is not ported: Hypervel has no Lumen routing.
+
     /**
      * Retrieve the meta tags with tracing information to link this request to front-end requests.
      * This propagates the Dynamic Sampling Context.
@@ -176,6 +178,14 @@ class Integration implements IntegrationInterface
     public static function sentryBaggageMeta(): string
     {
         return sprintf('<meta name="baggage" content="%s"/>', self::escapeMetaTagContent(getBaggage()));
+    }
+
+    /**
+     * Escape a value for safe use in an HTML meta tag content attribute.
+     */
+    private static function escapeMetaTagContent(string $value): string
+    {
+        return htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
     }
 
     /**
@@ -225,14 +235,6 @@ class Integration implements IntegrationInterface
     public static function discardedAttributeViolationReporter(?callable $callback = null, bool $suppressDuplicateReports = true, bool $reportAfterResponse = true): callable
     {
         return new ModelViolationReports\DiscardedAttributeViolationReporter($callback, $suppressDuplicateReports, $reportAfterResponse);
-    }
-
-    /**
-     * Escape a value for safe use in an HTML meta tag content attribute.
-     */
-    private static function escapeMetaTagContent(string $value): string
-    {
-        return htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
     }
 
     /**

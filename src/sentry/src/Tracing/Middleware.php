@@ -71,6 +71,7 @@ class Middleware
      */
     public function terminate(Request $request, Response $response): void
     {
+        // If there is no transaction there is nothing for us to do
         if ($this->transaction === null) {
             return;
         }
@@ -93,35 +94,6 @@ class Middleware
         if (! $this->continueAfterResponse) {
             $this->finishTransaction();
         }
-    }
-
-    /**
-     * Signal that a route was matched for the current request.
-     */
-    public static function signalRouteWasMatched(): void
-    {
-        if (! app()->bound(self::class)) {
-            return;
-        }
-
-        app(self::class)->internalSignalRouteWasMatched();
-    }
-
-    /**
-     * Finish the current transaction.
-     */
-    public function finishTransaction(): void
-    {
-        if ($this->transaction === null) {
-            return;
-        }
-
-        // Make sure we set the transaction and not have a child span in the Sentry SDK.
-        // If the transaction is not on the scope during finish, the trace.context is wrong.
-        SentrySdk::getCurrentHub()->setSpan($this->transaction);
-
-        $this->transaction->finish();
-        $this->transaction = null;
     }
 
     /**
@@ -176,8 +148,10 @@ class Middleware
         $this->transaction = $transaction;
 
         if ($this->continueAfterResponse) {
-            // This runs before the outer runtime context ends and after later
-            // after-response work because coroutine defers are LIFO.
+            // Upstream's TransactionFinisher is not ported: it finishes the transaction from a terminating callback
+            // on the application, which lives for the whole worker here, so each request coroutine finishes its own.
+            // This runs before the outer runtime context ends and after later after-response work because
+            // coroutine defers are LIFO.
             Coroutine::defer(function (): void {
                 $this->finishTransaction();
             });
@@ -269,6 +243,23 @@ class Middleware
     }
 
     /**
+     * Finish the current transaction.
+     */
+    public function finishTransaction(): void
+    {
+        if ($this->transaction === null) {
+            return;
+        }
+
+        // Make sure we set the transaction and not have a child span in the Sentry SDK.
+        // If the transaction is not on the scope during finish, the trace.context is wrong.
+        SentrySdk::getCurrentHub()->setSpan($this->transaction);
+
+        $this->transaction->finish();
+        $this->transaction = null;
+    }
+
+    /**
      * Mark that a route was matched.
      */
     private function internalSignalRouteWasMatched(): void
@@ -281,6 +272,19 @@ class Middleware
      */
     private function shouldRouteBeIgnored(): bool
     {
+        // If a route has not been matched we ignore unless we are configured to trace missing routes
         return ! $this->didRouteMatch && ! $this->traceMissingRoutes;
+    }
+
+    /**
+     * Signal that a route was matched for the current request.
+     */
+    public static function signalRouteWasMatched(): void
+    {
+        if (! app()->bound(self::class)) {
+            return;
+        }
+
+        app(self::class)->internalSignalRouteWasMatched();
     }
 }

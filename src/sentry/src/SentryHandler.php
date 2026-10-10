@@ -52,6 +52,9 @@ class SentryHandler extends AbstractProcessingHandler
         parent::__construct($level, $bubble);
     }
 
+    /**
+     * Handle a set of records at once, sending the most severe with the others as context.
+     */
     public function handleBatch(array $records): void
     {
         $records = array_values(array_filter($records, $this->isHandling(...)));
