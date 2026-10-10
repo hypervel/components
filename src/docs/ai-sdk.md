@@ -127,7 +127,7 @@ public function boot(): void
 }
 ```
 
-Connection names use the provider's configured name, such as `ai-providers.openai`. On-demand providers use the shared `ai-providers` connection. Continue supplying API keys and provider-specific headers through the AI provider configuration; they remain separate for each request.
+Connection names use the provider's configured name, such as `ai-providers.openai`. On-demand providers use the shared `ai-providers` connection. When Bedrock assumes an IAM role, its AWS STS requests also use the shared connection. Continue supplying API keys and provider-specific headers through the AI provider configuration; they remain separate for each request.
 
 <a name="custom-base-urls"></a>
 ### Custom Base URLs
@@ -291,6 +291,8 @@ public function provider(): Provider
 
 > [!NOTE]
 > You may pass an on-demand provider directly to `provider:`, or include it in a failover array. If you give an on-demand provider a `name` in its configuration array, the name may not match a built-in provider or a provider defined in your `config/ai.php` configuration file.
+
+Bedrock reuses the AWS credentials it resolves for each configured provider. On-demand providers, and configured providers when `Ai::resolveProviderConfigUsing` is registered, resolve credentials again for each new provider. Assuming a role or fetching credentials from a remote source can therefore add a network request; loading static credentials from environment variables or a shared credentials file does not.
 
 <a name="provider-support"></a>
 ### Provider Support
@@ -461,7 +463,7 @@ foreach ($response->steps as $step) {
 }
 ```
 
-> **Note:** The `raw` property is `null` when streaming a response, when using the Bedrock provider (which performs its API calls via the AWS SDK instead of an HTTP client), and on faked responses unless one is provided explicitly via `withRawResponse`.
+> **Note:** The `raw` property is `null` when streaming a response, when using the Bedrock provider, and on faked responses unless one is provided explicitly via `withRawResponse`.
 
 <a name="conversation-context"></a>
 ### Conversation Context

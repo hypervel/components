@@ -38,6 +38,8 @@
 
 ## AI and MCP
 
+- Once [AWS SDK #3370](https://github.com/aws/aws-sdk-php/issues/3370) is fixed and released, raise the supported SDK minimum and unskip the assume-role cancellation regression. The current credential provider replaces cancellation with a `TypeError`; retain the SDK provider without a Hypervel workaround.
+
 - Adopt shared buffered AI stream parsing once [Guzzle #3936](https://github.com/guzzle/guzzle/pull/3936) is released and supported dependencies guarantee the fix. Retain upstream readers for this port; see the [AI plan's future follow-up](plans/2026-10-07-ai-sdk-port.md#future-follow-ups) for scope and verification.
 
 - Port the MCP package in its separately assigned session, retaining the AI SDK's optional MCP adapters in the AI port. Audit client/session lifetimes and safe bounded reuse, HTTP/stdio cancellation and cleanup, coroutine-local request resolution through server/tool/resource paths, and lazy response iteration. Resolve the current MCP Request from CoroutineContext keyed by Request::class, shared with the AI adapter's MCP_REQUEST constant. Run the AI adapter's real MCP-dependent tests once the package is available and remove analysis annotations made obsolete by that dependency. Finalize the AI docs' MCP section and links when the MCP package and its documentation page land. AI's ordinary tools and providers must remain usable without MCP. Do not ship placeholder MCP classes or expand the AI port into the full MCP package.
