@@ -216,7 +216,7 @@ class CallQueuedListener implements ShouldQueue
      *
      * The event instance and the exception will be passed.
      */
-    public function failed(Throwable $e): void
+    public function failed(?Throwable $e): void
     {
         $handler = Container::getInstance()->make($this->class);
 

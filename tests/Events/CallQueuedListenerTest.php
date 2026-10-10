@@ -12,11 +12,33 @@ use Hypervel\Tests\TestCase;
 use RuntimeException;
 use stdClass;
 use Swoole\Coroutine\Channel;
+use Throwable;
 
 use function Hypervel\Coroutine\parallel;
 
 class CallQueuedListenerTest extends TestCase
 {
+    public function testManualFailureWithoutAnExceptionReachesTheListener(): void
+    {
+        $listener = new class {
+            public array $failures = [];
+
+            /**
+             * Record the failed event.
+             */
+            public function failed(string $event, ?Throwable $exception): void
+            {
+                $this->failures[] = [$event, $exception];
+            }
+        };
+
+        Container::getInstance()->instance($listener::class, $listener);
+
+        (new HypervelCallQueuedListener($listener::class, 'handle', ['event']))->failed(null);
+
+        $this->assertSame([['event', null]], $listener->failures);
+    }
+
     public function testHypervelListenerToleratesUnknownPropertiesOnUnserialization(): void
     {
         $this->assertListenerToleratesUnknownProperties(

@@ -15,9 +15,29 @@ use Hypervel\Support\Collection;
 use Hypervel\Tests\Notifications\Fixtures\Models\NotifiableUser;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use Throwable;
 
 class NotificationSendQueuedNotificationTest extends TestCase
 {
+    public function testManualFailureWithoutAnExceptionReachesTheNotification(): void
+    {
+        $notification = new class extends Notification {
+            public array $failures = [];
+
+            /**
+             * Record the failed notification.
+             */
+            public function failed(?Throwable $exception): void
+            {
+                $this->failures[] = $exception;
+            }
+        };
+
+        (new SendQueuedNotifications('notifiable', $notification))->failed(null);
+
+        $this->assertSame([null], $notification->failures);
+    }
+
     public function testNotificationsCanBeSent(): void
     {
         $notification = new TestNotification;
