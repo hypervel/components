@@ -33,6 +33,7 @@
     - [Fortify](#fortify)
     - [JWT Authentication](#jwt-authentication)
     - [Scout](#scout)
+    - [Sentry](#sentry)
     - [Socialite](#socialite)
     - [JSON Schema](#json-schema)
     - [Validation](#validation)
@@ -564,6 +565,11 @@ Rotate `JWT_SECRET` or your key pair when you switch, so clients sign in again. 
 Hypervel compiles integer and float values passed to Scout's Algolia `where`, `whereIn`, and `whereNotIn` methods as numeric comparisons. Numeric-looking strings remain facet values. When porting an Algolia index, ensure the indexed attribute type matches the PHP value type used by these filters.
 
 Scout cannot generate embeddings with the Laravel AI SDK, and its database engine does not support semantic or hybrid search. Models whose `toSearchableEmbedding` method returns text must return precomputed embedding arrays or switch to the engine's native embeddings. See [semantic search](/docs/{{version}}/scout#semantic-search).
+
+<a name="sentry"></a>
+### Sentry
+
+Applications using `sentry/sentry-laravel` can switch to `hypervel/sentry` and replace the `Sentry\Laravel\` namespace with `Hypervel\Sentry\`. Hypervel's Sentry configuration reads the DSN from `SENTRY_HYPERVEL_DSN`, falling back to `SENTRY_DSN`, so rename `SENTRY_LARAVEL_DSN` in your environment files; otherwise, Sentry stays disabled. Likewise, replace `SENTRY_LOGS_LEVEL` with `SENTRY_LOG_LEVEL`. See the [Sentry documentation](/docs/{{version}}/sentry).
 
 <a name="socialite"></a>
 ### Socialite

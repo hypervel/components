@@ -6,17 +6,23 @@
     - [Replacing the Service Provider](#replacing-the-service-provider)
     - [Testing Your Installation](#testing-your-installation)
 - [Reporting Exceptions](#reporting-exceptions)
+    - [Model Violations](#model-violations)
 - [Logging](#logging)
     - [Sentry Events](#sentry-events)
     - [Sentry Logs](#sentry-logs)
 - [Performance Monitoring](#performance-monitoring)
     - [Sampling](#sampling)
+    - [Distributed Tracing](#distributed-tracing)
     - [Queued Jobs](#queued-jobs)
     - [Metrics](#metrics)
     - [Scheduled Tasks](#scheduled-tasks)
+    - [OpenTelemetry](#opentelemetry)
 - [Filesystem Monitoring](#filesystem-monitoring)
 - [Sensitive Data](#sensitive-data)
 - [Spotlight](#spotlight)
+- [Customizing the Integration](#customizing-the-integration)
+    - [Features](#features)
+    - [Client Builder](#client-builder)
 - [Delivery and Shutdown](#delivery-and-shutdown)
 - [Credits](#credits)
 
@@ -27,7 +33,7 @@
 
 The integration is designed for Hypervel's long-running Swoole workers. Sentry state is isolated across requests, queued jobs, scheduled tasks, and WebSocket callbacks, while HTTP connections are pooled and reused across executions. An execution remains active until the child coroutines sharing its runtime context have finished.
 
-[Detached background coroutines](/docs/{{version}}/coroutines#detached-background-work) do not inherit the creator's scope, request, or runtime context. Explicitly copied scopes and requests are still cloned for isolation. Sentry starts an execution when a child handles an HTTP request, queued job, scheduled task, or WebSocket event through the usual framework lifecycle. Without an execution, logs and metrics use the SDK's shared global buffer, which is not automatically flushed when detached work finishes.
+[Detached background coroutines](/docs/{{version}}/coroutines#detached-background-work) do not inherit the creator's scope, request, or runtime context. Values copied into a detached child explicitly, such as by `forkOwned`, are kept: a copied Sentry scope is cloned, so the child's changes do not reach the creator, while a copied request is shared rather than cloned. Sentry starts an execution when a child handles an HTTP request, queued job, scheduled task, or WebSocket event through the usual framework lifecycle. Without an execution, logs and metrics use the SDK's shared global buffer, which is not automatically flushed when detached work finishes.
 
 <a name="installation"></a>
 ## Installation
@@ -104,21 +110,45 @@ php artisan sentry:test --transaction
 <a name="reporting-exceptions"></a>
 ## Reporting Exceptions
 
-Once Sentry is registered with Hypervel's exception handler, reportable exceptions are captured automatically. You may also report an exception manually using Sentry's `captureException` function:
+Once Sentry is registered with Hypervel's exception handler, reportable exceptions are captured automatically. Hypervel's normal exception filtering still applies, so exceptions the handler does not report, such as validation exceptions, are not sent to Sentry.
+
+You may also capture exceptions and messages yourself using the Sentry SDK's [`captureException` and `captureMessage` functions](https://docs.sentry.io/platforms/php/guides/laravel/usage/).
+
+<a name="model-violations"></a>
+### Model Violations
+
+Eloquent can [prevent lazy loading](/docs/{{version}}/eloquent-relationships#preventing-lazy-loading), as well as [silently discarded and missing attributes](/docs/{{version}}/eloquent#configuring-eloquent-strictness). Rather than throwing an exception in production, you may report these violations to Sentry from the `boot` method of your application's `AppServiceProvider`:
 
 ```php
-use Throwable;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Sentry\Integration;
 
-use function Sentry\captureException;
+Model::preventLazyLoading();
 
-try {
-    // ...
-} catch (Throwable $exception) {
-    captureException($exception);
+if ($this->app->isProduction()) {
+    Model::handleLazyLoadingViolationUsing(
+        Integration::lazyLoadingViolationReporter()
+    );
 }
 ```
 
-Hypervel's normal exception filtering still applies. For example, validation exceptions are ignored by the default Sentry configuration.
+Likewise, the `discardedAttributeViolationReporter` and `missingAttributeViolationReporter` methods may be passed to `Model::handleDiscardedAttributeViolationUsing` and `Model::handleMissingAttributeViolationUsing`.
+
+By default, each violation is reported once per request or job, after it finishes. You may change this behavior, or pass a closure that should also be called for each violation:
+
+```php
+use Hypervel\Support\Facades\Log;
+
+Model::handleLazyLoadingViolationUsing(
+    Integration::lazyLoadingViolationReporter(
+        function (Model $model, string $relation): void {
+            Log::warning('Lazy loading violation', ['model' => $model::class, 'relation' => $relation]);
+        },
+        suppressDuplicateReports: false,
+        reportAfterResponse: false,
+    )
+);
+```
 
 <a name="logging"></a>
 ## Logging
@@ -144,7 +174,13 @@ Log records sent through this channel are converted into Sentry events. Exceptio
 <a name="sentry-logs"></a>
 ### Sentry Logs
 
-The `sentry_logs` channel sends structured records to Sentry Logs. Records are isolated between concurrent requests, queued jobs, scheduled tasks, and WebSocket callbacks, then flushed when that execution finishes.
+The `sentry_logs` channel sends structured records to Sentry Logs. You may add it to your application's default log stack using the `LOG_STACK` environment variable:
+
+```ini
+LOG_STACK=single,sentry_logs
+```
+
+Records are isolated between concurrent requests, queued jobs, scheduled tasks, and WebSocket callbacks, then flushed when that execution finishes. If a single execution can produce a large number of records, you may use `SENTRY_LOG_FLUSH_THRESHOLD` to send them in batches of the given size before it finishes. Each batch is a separate request to Sentry.
 
 The channel uses `SENTRY_LOG_LEVEL` and falls back directly to your application's `LOG_LEVEL` value. The upstream `SENTRY_LOGS_LEVEL` compatibility alias is not supported.
 
@@ -174,32 +210,66 @@ $client = new Client(['no_sentry_aspect' => true]);
 Http::withOptions(['no_sentry_aspect' => true])->get('https://example.com/health');
 ```
 
-Incoming trace headers are still propagated when local trace recording is disabled. This allows a Hypervel service to remain part of a distributed trace without recording its own transaction.
-
 By default, request transactions include work performed after the response is sent. You may finish transactions during the HTTP terminate phase instead:
 
 ```ini
 SENTRY_TRACE_CONTINUE_AFTER_RESPONSE=false
 ```
 
+The `breadcrumbs` and `tracing` groups in `config/sentry.php` turn individual instrumentation on or off. For example, Redis commands are only traced when `SENTRY_TRACE_REDIS_COMMANDS` is enabled, and requests that do not match a route are only traced when `SENTRY_TRACE_MISSING_ROUTES_ENABLED` is enabled.
+
+You may also add your own spans using the Sentry SDK's [custom instrumentation](https://docs.sentry.io/platforms/php/guides/laravel/tracing/instrumentation/custom-instrumentation/). Child coroutines inherit the current span, so the spans they start belong to the parent's transaction.
+
 <a name="sampling"></a>
 ### Sampling
 
-The `traces_sample_rate` option provides a fixed sample rate. For application-specific decisions, you may define a `traces_sampler` callback in `config/sentry.php`:
+The `traces_sample_rate` option provides a fixed sample rate. For application-specific decisions, you may define a `traces_sampler` callback in `config/sentry.php`. Use a static method rather than a closure, since closures prevent your configuration from being cached. This also applies to the other callback options, such as `before_send`:
 
 ```php
-use Sentry\Tracing\SamplingContext;
-
-'traces_sampler' => function (SamplingContext $context): float {
-    $transaction = $context->getTransactionContext();
-
-    return $transaction !== null && str_starts_with($transaction->getName(), 'admin.')
-        ? 1.0
-        : 0.1;
-},
+'traces_sampler' => [App\Support\SentrySampler::class, 'tracesSampler'],
 ```
 
+```php
+namespace App\Support;
+
+use Sentry\Tracing\SamplingContext;
+
+class SentrySampler
+{
+    /**
+     * Determine the sample rate for a transaction.
+     */
+    public static function tracesSampler(SamplingContext $context): float
+    {
+        if ($context->getParentSampled()) {
+            return 1.0;
+        }
+
+        $transaction = $context->getTransactionContext();
+
+        return $transaction !== null && str_starts_with($transaction->getName(), '/admin')
+            ? 1.0
+            : 0.1;
+    }
+}
+```
+
+Returning `1.0` when the parent transaction was sampled keeps distributed traces complete. HTTP transactions are sampled before routing, so their name is still the request path.
+
 Profiling may be configured with `SENTRY_PROFILES_SAMPLE_RATE` or a `profiles_sampler` callback. Profiles are only collected for sampled transactions.
+
+<a name="distributed-tracing"></a>
+### Distributed Tracing
+
+Requests that include Sentry trace headers continue the incoming trace, and outgoing HTTP client requests and queued jobs carry the trace onward. Incoming trace headers are still propagated when local trace recording is disabled, so a Hypervel service can remain part of a distributed trace without recording its own transaction.
+
+To connect a page's frontend telemetry to the request that rendered it, add the Sentry meta tags to the `<head>` of your Blade layout. Sentry's JavaScript SDK reads these tags to continue the trace:
+
+```blade
+<head>
+    {!! \Hypervel\Sentry\Integration::sentryMeta() !!}
+</head>
+```
 
 <a name="queued-jobs"></a>
 ### Queued Jobs
@@ -218,22 +288,12 @@ public function middleware(): array
 }
 ```
 
-This middleware can downsample a transaction that was already sampled by your global configuration. It does not force an unsampled transaction to be recorded.
+This middleware can downsample a transaction that was already sampled by your global configuration. It does not force an unsampled transaction to be recorded. Since it acts on the job's own transaction, job transactions must remain enabled using `SENTRY_TRACE_QUEUE_ENABLED`. A job that runs within another transaction, such as one dispatched synchronously during a request or by another job, keeps that transaction's sampling decision.
 
 <a name="metrics"></a>
 ### Metrics
 
-You may record trace metrics using Sentry's `traceMetrics` function:
-
-```php
-use function Sentry\traceMetrics;
-
-traceMetrics()->count('orders.processed', 1, [
-    'region' => 'us-east',
-]);
-```
-
-Metrics are isolated between concurrent requests, queued jobs, scheduled tasks, and WebSocket callbacks, then flushed when that execution finishes.
+You may record trace metrics using the Sentry SDK's [`traceMetrics` function](https://docs.sentry.io/platforms/php/guides/laravel/metrics/). Metrics are isolated between concurrent requests, queued jobs, scheduled tasks, and WebSocket callbacks, then flushed when that execution finishes.
 
 The `SENTRY_ENABLE_METRICS` option is kept for compatibility but is deprecated and no longer turns metrics on or off. To disable trace metrics, configure `before_send_metric` to return `null`.
 
@@ -256,6 +316,40 @@ The task's schedule is detected automatically. You may provide a different cron 
 Schedule::command('reports:generate')
     ->sentryMonitor('daily-reports', schedule: '0 2 * * *');
 ```
+
+When no monitor slug is given, one is derived from the task's command or description. The macro also accepts the `checkInMargin`, `maxRuntime`, `failureIssueThreshold`, and `recoveryThreshold` monitor settings. Pass `updateMonitorConfig: false` when the monitor is configured in Sentry instead.
+
+Sentry expects a check-in for every run of the task's schedule. Tasks limited by `between`, `unlessBetween`, `when`, or `skip` do not check in when they are skipped, so their skipped runs are reported as missed. Prefer expressing the schedule with the `cron` method.
+
+<a name="opentelemetry"></a>
+### OpenTelemetry
+
+If your application traces requests using [Hypervel's OpenTelemetry integration](/docs/{{version}}/opentelemetry), you may send those traces to Sentry instead of using Sentry's own performance monitoring. Point the OTLP trace exporter at your Sentry project's OTLP traces endpoint, authenticating with your DSN's public key:
+
+```ini
+OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=https://o0.ingest.sentry.io/api/0/integration/otlp/v1/traces/
+OTEL_EXPORTER_OTLP_TRACES_HEADERS="x-sentry-auth=sentry sentry_key=examplePublicKey"
+```
+
+Metrics and logs are exported separately, so send them to another destination or [disable them](/docs/{{version}}/opentelemetry#signals). See Sentry's [OTLP documentation](https://docs.sentry.io/concepts/otlp/direct/traces/) for the endpoint details.
+
+To link Sentry errors and logs to the active OpenTelemetry trace, add Sentry's `OTLPIntegration` with its automatic exporter setup disabled, since Hypervel already exports the traces. Bind the integration in the `register` method of a service provider:
+
+```php
+use Sentry\Integration\OTLPIntegration;
+
+$this->app->bind(OTLPIntegration::class, fn (): OTLPIntegration => new OTLPIntegration(setupOtlpTracesExporter: false));
+```
+
+Then add it to the `integrations` list in `config/sentry.php`:
+
+```php
+'integrations' => [
+    Sentry\Integration\OTLPIntegration::class,
+],
+```
+
+The integration is skipped while Sentry's own tracing is enabled, so leave `traces_sample_rate` and `traces_sampler` unset.
 
 <a name="filesystem-monitoring"></a>
 ## Filesystem Monitoring
@@ -301,17 +395,21 @@ The integration preserves filesystem pooling, scoped prefixes, temporary URLs, s
 <a name="sensitive-data"></a>
 ## Sensitive Data
 
-Sentry does not include personally identifiable information by default. You may allow it using the `SENTRY_SEND_DEFAULT_PII` environment variable:
+By default, Sentry leaves out data that identifies your users, such as their IP addresses and account details. Other data it sends, such as request URLs and bodies, may still contain personal information. You may include identifying data using the `SENTRY_SEND_DEFAULT_PII` environment variable:
 
 ```ini
 SENTRY_SEND_DEFAULT_PII=true
 ```
 
-Command breadcrumbs omit command-line input unless this option is enabled. When enabled, the raw command arguments and options are sent to Sentry, so do not pass credentials on the command line.
+When this option is enabled, events also include cookies, the client's IP address, and the authenticated user's ID, email address, and username, including users authenticated with Sanctum tokens. Request headers are sent either way, but the values of sensitive headers, such as `Authorization`, `Cookie`, and `X-Forwarded-For`, are filtered unless this option is enabled.
+
+For finer control, you may set the `data_collection` option in `config/sentry.php`. It replaces `send_default_pii` and lets you collect or omit each category of data individually, such as headers, cookies, request bodies, the authenticated user, and query bindings. Categories you do not set use Sentry's defaults, which collect more than Sentry does when `send_default_pii` is disabled, so review them before enabling the option. See Sentry's [data collection reference](https://docs.sentry.io/platforms/php/guides/laravel/data-management/data-collection/) for the available categories. The `php artisan about` command shows whether the option is set.
+
+Command breadcrumbs omit command-line input unless `send_default_pii` is enabled. When enabled, the raw command arguments and options are sent to Sentry, so do not pass credentials on the command line.
 
 Once the `data_collection` option is set, command breadcrumbs instead include the arguments and options that differ from their defaults, as separate `input.arguments` and `input.options` arrays. Values whose names suggest secrets, such as `password` or `token`, are replaced with `[Filtered]`.
 
-Redis command parameters are omitted unless this option is enabled. When enabled, the active session key is still redacted from Redis and cache telemetry.
+Redis command parameters are omitted unless `send_default_pii` is enabled. When they are included, the active session key is still redacted from Redis and cache telemetry.
 
 SQL bindings are controlled separately using `SENTRY_BREADCRUMBS_SQL_BINDINGS_ENABLED` and `SENTRY_TRACE_SQL_BINDINGS_ENABLED`. Review these settings carefully before enabling them in production.
 
@@ -331,6 +429,81 @@ SENTRY_SPOTLIGHT=http://localhost:8969/stream
 ```
 
 Spotlight may be used without configuring a Sentry DSN.
+
+<a name="customizing-the-integration"></a>
+## Customizing the Integration
+
+<a name="features"></a>
+### Features
+
+The `features` list in `config/sentry.php` determines which parts of your application Sentry instruments. Remove a feature from the list to skip its instrumentation entirely. You may also add your own feature by extending `Hypervel\Sentry\Features\Feature`:
+
+```php
+namespace App\Sentry;
+
+use App\Events\OrderShipped;
+use Hypervel\Sentry\Features\Feature;
+use Hypervel\Sentry\Integration;
+use Sentry\Breadcrumb;
+
+class OrderFeature extends Feature
+{
+    /**
+     * Indicate if the feature is applicable to the current environment.
+     */
+    public function isApplicable(): bool
+    {
+        return true;
+    }
+
+    /**
+     * Set up the feature in the environment.
+     */
+    public function onBoot(): void
+    {
+        $this->container->make('events')->listen(OrderShipped::class, function (OrderShipped $event): void {
+            Integration::addBreadcrumb(new Breadcrumb(
+                Breadcrumb::LEVEL_INFO,
+                Breadcrumb::TYPE_DEFAULT,
+                'orders',
+                'Order shipped',
+                ['order_id' => $event->order->id],
+            ));
+        });
+    }
+}
+```
+
+Then add the class to the `features` list:
+
+```php
+'features' => [
+    // ...
+    App\Sentry\OrderFeature::class,
+],
+```
+
+Features are resolved from the container. The `register` method runs while the service provider registers. When the provider boots, an applicable feature's `onBoot` method runs if a DSN or Spotlight is configured, and its `onBootInactive` method runs otherwise. Features resolve their dependencies from `$this->container`, and their instances are shared by every request, so keep request-specific state out of their properties.
+
+<a name="client-builder"></a>
+### Client Builder
+
+You may customize how the Sentry client is built by extending the `Sentry\ClientBuilder` binding from the `register` method of a service provider:
+
+```php
+use Sentry\ClientBuilder;
+use Sentry\Serializer\RepresentationSerializer;
+
+$this->app->extend(ClientBuilder::class, function (ClientBuilder $clientBuilder): ClientBuilder {
+    $clientBuilder->setRepresentationSerializer(
+        new RepresentationSerializer($clientBuilder->getOptions(), 5)
+    );
+
+    return $clientBuilder;
+});
+```
+
+The builder is already configured with Hypervel's pooled transport. Replacing the transport also replaces the asynchronous delivery described below.
 
 <a name="delivery-and-shutdown"></a>
 ## Delivery and Shutdown
