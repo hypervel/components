@@ -528,6 +528,8 @@ Remote attachments share the HTTP client's destination checks instead of `Untrus
 
 Existing conversation data needs a schema migration. Compare column types and indexes with Hypervel's migration, add the approval claim and replay columns, and resolve messages whose conversations no longer exist before adding the foreign key. See [remembering conversations](/docs/{{version}}/ai-sdk#remembering-conversations).
 
+Custom conversation stores must implement `ClaimsPendingApprovals` to resume stored approvals. Move overrides of the removed `ResumesToolApprovals::storeApprovalResultRecorderFor()` into your store's `ClaimsPendingApprovals::recordApprovalResult()` method. In `RememberConversation` subclasses, replace `openTurn()` overrides with `rememberTurn(): StoredTurn`, and update `rememberFailedTurn()` overrides to return `?StoredTurn`. See [remembering conversations](/docs/{{version}}/ai-sdk#remembering-conversations).
+
 <a name="saloon"></a>
 ### Saloon
 

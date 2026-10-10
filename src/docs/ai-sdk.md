@@ -589,6 +589,26 @@ $response->userMessageId;
 $response->assistantMessageId;
 ```
 
+The database conversation store saves each turn in a short transaction, so a storage failure won't leave only half of the turn in your history. Provider requests and title generation finish before this transaction begins.
+
+<a name="conversation-titles"></a>
+#### Conversation Titles
+
+The SDK generates a title when it creates a conversation. To use the opening message as the title instead, set `conversations.generate_title` to `false` in your `config/ai.php` configuration file.
+
+By default, title generation runs after the agent responds. You may generate titles alongside the agent's response by enabling `conversations.concurrent_title`:
+
+```php
+'conversations' => [
+    'generate_title' => true,
+    'concurrent_title' => true,
+],
+```
+
+When starting a new conversation, concurrent title generation runs alongside the main response. For streamed responses, it starts when the stream is consumed. The SDK waits for the title before saving the turn and cancels unfinished title requests when the operation is abandoned. Enabling this option may incur a title request even if the agent fails, including a separate title request for each failover attempt.
+
+Agent fakes retain their usual response order by generating titles serially. When using HTTP fakes with concurrent titles, match requests by their content instead of relying on the order of a response sequence. The title and main requests can use the same provider endpoint.
+
 <a name="conversation-participants"></a>
 #### Conversation Participants
 

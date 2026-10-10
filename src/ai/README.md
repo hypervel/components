@@ -17,6 +17,8 @@ Pending requests' protected `resolveProviderOptionsAndHeaders()` helper accepts 
 
 Custom conversation stores must implement `ClaimsPendingApprovals` to resume stored tool approvals safely. Claim-owned per-result recording replaces the protected `ResumesToolApprovals::storeApprovalResultRecorderFor()` helper, which is removed. Stores read `AgentPrompt::approvalClaim()` when settling the turn. Ordinary conversations and stateless resumption remain available without that capability.
 
+`RememberConversation` replaces protected `openTurn()` with `rememberTurn(): StoredTurn` so the database store can persist a complete turn atomically. Its protected `rememberFailedTurn()` returns `?StoredTurn` instead of `void`, preserving stored IDs across stream retries. Update overrides to use these helpers; public agent calls and standalone store methods are unchanged.
+
 Skill discovery is cached for the fixed paths in `ai.skills.cached_paths`. Reload the worker or flush the skill cache after changing those files; other skill sources remain dynamic.
 
 The conversation migrations use Hypervel's column types, indexes, and approval claim fields. Existing Laravel conversation data requires a schema migration before use.
