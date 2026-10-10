@@ -38,6 +38,7 @@
 
 ## HTTP Client
 
+- If [Guzzle #3935](https://github.com/guzzle/guzzle/pull/3935) merges, once the minimum supported Guzzle versions include it, pass `max_idle_handles` directly to `Utils::chooseHandler()` and remove Hypervel's custom idle-handle composition, preserving the connection option and default of 256.
 - Once the HTTP client can optionally use Swoole's coroutine HTTP client as its transport instead of curl, explore and benchmark that transport for Inertia SSR requests. Each SSR render posts the page JSON to a local SSR server through the `inertia-ssr` connection (`HttpGateway::CONNECTION`), which makes it a good candidate for the alternative transport. Compare the curl and Swoole transports on that connection against a local SSR server under concurrent load, measuring latency, throughput, client CPU, memory and connection reuse, and use the Swoole transport for the SSR connection if it is a clear improvement.
 
 ## HTTP Server
