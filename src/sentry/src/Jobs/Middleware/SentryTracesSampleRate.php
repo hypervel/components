@@ -5,9 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Sentry\Jobs\Middleware;
 
 use Closure;
+use Hypervel\Sentry\Features\QueueIntegration;
 use InvalidArgumentException;
-use Sentry\SentrySdk;
-use Sentry\State\HubInterface;
 
 /**
  * Job middleware that overrides the Sentry trace sampling decision for the job's transaction.
@@ -17,6 +16,9 @@ use Sentry\State\HubInterface;
  *
  * If the transaction was not sampled by the global `traces_sample_rate` or `traces_sampler`,
  * this middleware will not force-enable it — it can only downsample, not upsample.
+ *
+ * A job that runs within another transaction, such as one dispatched synchronously during
+ * a request, leaves that transaction's sampling decision unchanged.
  *
  * Usage:
  *
@@ -47,12 +49,10 @@ class SentryTracesSampleRate
      */
     public function handle(object $job, Closure $next): void
     {
-        if (app()->bound(HubInterface::class)) {
-            $transaction = SentrySdk::getCurrentHub()->getTransaction();
+        $transaction = QueueIntegration::currentJobTransaction();
 
-            if ($transaction !== null && $transaction->getSampled()) {
-                $transaction->setSampled($this->shouldSample());
-            }
+        if ($transaction !== null && $transaction->getSampled()) {
+            $transaction->setSampled($this->shouldSample());
         }
 
         $next($job);

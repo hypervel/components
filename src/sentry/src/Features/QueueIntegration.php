@@ -29,8 +29,10 @@ use Sentry\SentrySdk;
 use Sentry\Serializer\Serializer;
 use Sentry\State\Scope;
 use Sentry\Tracing\PropagationContext;
+use Sentry\Tracing\Span;
 use Sentry\Tracing\SpanContext;
 use Sentry\Tracing\SpanStatus;
+use Sentry\Tracing\Transaction;
 use Sentry\Tracing\TransactionContext;
 use Sentry\Tracing\TransactionSource;
 
@@ -181,7 +183,7 @@ class QueueIntegration extends Feature
         $frame = array_pop($frames);
         CoroutineContext::set(self::JOB_FRAMES_CONTEXT_KEY, $frames);
 
-        if ($frame['ownsSpan']) {
+        if ($frame['span'] !== null) {
             $this->maybeFinishSpan(SpanStatus::ok());
         }
 
@@ -197,7 +199,7 @@ class QueueIntegration extends Feature
 
         $this->pushScope();
 
-        $frames[] = ['job' => $event->job, 'ownsSpan' => false, 'ended' => false];
+        $frames[] = ['job' => $event->job, 'span' => null, 'ended' => false];
         CoroutineContext::set(self::JOB_FRAMES_CONTEXT_KEY, $frames);
 
         if ($this->isBreadcrumbFeatureEnabled('queue_info')) {
@@ -281,7 +283,7 @@ class QueueIntegration extends Feature
 
         $this->pushSpan($span);
 
-        $frames[array_key_last($frames)]['ownsSpan'] = true;
+        $frames[array_key_last($frames)]['span'] = $span;
         CoroutineContext::set(self::JOB_FRAMES_CONTEXT_KEY, $frames);
     }
 
@@ -338,6 +340,22 @@ class QueueIntegration extends Feature
     }
 
     /**
+     * Get the transaction started for the job running in this coroutine.
+     *
+     * A job that runs within another transaction, or without a span, has none.
+     *
+     * @internal
+     */
+    public static function currentJobTransaction(): ?Transaction
+    {
+        $frames = CoroutineContext::get(self::JOB_FRAMES_CONTEXT_KEY, []);
+        $index = self::findLatestActiveFrame($frames);
+        $span = $index === null ? null : $frames[$index]['span'];
+
+        return $span instanceof Transaction ? $span : null;
+    }
+
+    /**
      * Finish the span of the failed job attempt, keeping its scope for exception reporting.
      */
     private function finishFailedJobSpan(Job $job): void
@@ -345,11 +363,11 @@ class QueueIntegration extends Feature
         $frames = CoroutineContext::get(self::JOB_FRAMES_CONTEXT_KEY, []);
         $index = $this->findActiveJobFrame($frames, $job);
 
-        if ($index === null || ! $frames[$index]['ownsSpan']) {
+        if ($index === null || $frames[$index]['span'] === null) {
             return;
         }
 
-        $frames[$index]['ownsSpan'] = false;
+        $frames[$index]['span'] = null;
         CoroutineContext::set(self::JOB_FRAMES_CONTEXT_KEY, $frames);
 
         $this->maybeFinishSpan(SpanStatus::internalError());
@@ -361,13 +379,25 @@ class QueueIntegration extends Feature
      * Only that attempt can be running in this coroutine, so events for other jobs, such as
      * the attempted event of a nested job that already completed, are ignored.
      *
-     * @param list<array{job: Job, ownsSpan: bool, ended: bool}> $frames
+     * @param list<array{job: Job, span: null|Span, ended: bool}> $frames
      */
     private function findActiveJobFrame(array $frames, Job $job): ?int
     {
+        $index = self::findLatestActiveFrame($frames);
+
+        return $index !== null && $frames[$index]['job'] === $job ? $index : null;
+    }
+
+    /**
+     * Get the index of the latest job attempt that has not ended, which is the job running in this coroutine.
+     *
+     * @param list<array{job: Job, span: null|Span, ended: bool}> $frames
+     */
+    private static function findLatestActiveFrame(array $frames): ?int
+    {
         for ($index = count($frames) - 1; $index >= 0; --$index) {
             if (! $frames[$index]['ended']) {
-                return $frames[$index]['job'] === $job ? $index : null;
+                return $index;
             }
         }
 
@@ -377,9 +407,9 @@ class QueueIntegration extends Feature
     /**
      * Pop the scopes that ended job attempts retained after failing.
      *
-     * @param list<array{job: Job, ownsSpan: bool, ended: bool}> $frames
+     * @param list<array{job: Job, span: null|Span, ended: bool}> $frames
      *
-     * @return list<array{job: Job, ownsSpan: bool, ended: bool}>
+     * @return list<array{job: Job, span: null|Span, ended: bool}>
      */
     private function discardEndedJobScopes(array $frames): array
     {
