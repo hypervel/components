@@ -43,7 +43,6 @@ use Hypervel\Data\Support\Lazy\ClosureLazy;
 use Hypervel\Data\Support\Lazy\InertiaDeferred;
 use Hypervel\Data\Support\Lazy\InertiaLazy;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
-use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Http\Response;
 use Hypervel\Inertia\DeferProp;

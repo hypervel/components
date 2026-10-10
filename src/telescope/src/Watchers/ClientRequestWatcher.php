@@ -11,7 +11,6 @@ use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Di\Aop\ProceedingJoinPoint;
 use Hypervel\Http\Client\Guzzle\RejectedResponse;
 use Hypervel\Http\Client\PendingRequest;
-use Hypervel\Http\Client\Request;
 use Hypervel\Support\Json;
 use Hypervel\Support\Str;
 use Hypervel\Telescope\IncomingEntry;

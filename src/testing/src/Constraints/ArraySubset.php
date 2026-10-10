@@ -8,7 +8,6 @@ use ArrayObject;
 use PHPUnit\Framework\Constraint\Constraint;
 use SebastianBergmann\Comparator\ComparisonFailure;
 use SebastianBergmann\Exporter\Exporter;
-use Traversable;
 
 class ArraySubset extends Constraint
 {

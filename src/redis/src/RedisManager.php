@@ -13,7 +13,6 @@ use Hypervel\Redis\Events\CommandFailed;
 use Hypervel\Redis\Limiters\ConcurrencyLimiterBuilder;
 use Hypervel\Redis\Limiters\DurationLimiterBuilder;
 use Hypervel\Redis\Pool\PoolManager;
-use InvalidArgumentException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;

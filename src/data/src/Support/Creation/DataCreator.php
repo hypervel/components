@@ -44,7 +44,6 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\Request;
 use Hypervel\Pagination\AbstractCursorPaginator;
 use Hypervel\Pagination\AbstractPaginator;
-use Hypervel\Pagination\Paginator;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Enumerable;
 use Hypervel\Support\LazyCollection;

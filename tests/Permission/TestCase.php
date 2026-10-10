@@ -31,7 +31,6 @@ use Hypervel\Tests\Permission\Fixtures\Models\Admin;
 use Hypervel\Tests\Permission\Fixtures\Models\Client;
 use Hypervel\Tests\Permission\Fixtures\Models\Permission;
 use Hypervel\Tests\Permission\Fixtures\Models\Role;
-use Hypervel\Tests\Permission\Fixtures\Models\Team;
 use Hypervel\Tests\Permission\Fixtures\Models\User;
 use Hypervel\Tests\Permission\Fixtures\PassportGuard;
 
