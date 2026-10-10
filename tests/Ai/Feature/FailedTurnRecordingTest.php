@@ -169,8 +169,7 @@ class FailedTurnRecordingTest extends TestCase
         $stream = (new RememberingToolUsingAgent)->forUser((object) ['id' => 1])->stream('Go', provider: 'anthropic');
 
         $this->assertThrows(function () use ($stream): void {
-            foreach ($stream as $event) {
-            }
+            foreach ($stream as $event);
         }, RequestException::class);
 
         $row = $this->failedAssistantRow();
@@ -197,8 +196,7 @@ class FailedTurnRecordingTest extends TestCase
         $surfaced = $stream->conversationId;
 
         $this->assertThrows(function () use ($stream): void {
-            foreach ($stream as $event) {
-            }
+            foreach ($stream as $event);
         }, RequestException::class);
 
         $this->assertNotNull($surfaced);
