@@ -2439,6 +2439,8 @@ $image = Image::of('Update this photo of me to be in the style of an impressioni
     ->generate();
 ```
 
+The Bedrock provider supports text-to-image generation only and does not accept reference images.
+
 Some providers may generate multiple images in a single request. OpenAI, Azure, and xAI accept an `n` [provider option](#provider-options), and the response will contain every image that was returned:
 
 ```php

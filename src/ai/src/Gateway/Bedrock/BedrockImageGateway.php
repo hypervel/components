@@ -16,6 +16,7 @@ use Hypervel\Ai\Responses\Data\ImageUsage;
 use Hypervel\Ai\Responses\Data\Meta;
 use Hypervel\Ai\Responses\ImageResponse;
 use Hypervel\Support\Collection;
+use LogicException;
 use Throwable;
 
 class BedrockImageGateway implements ImageGateway
@@ -30,6 +31,7 @@ class BedrockImageGateway implements ImageGateway
      * @param null|'1:1'|'2:3'|'3:2' $size
      * @param null|'high'|'low'|'medium' $quality
      * @param array<string, mixed> $providerOptions
+     * @throws LogicException
      */
     public function generateImage(
         ImageProvider $provider,
@@ -41,6 +43,10 @@ class BedrockImageGateway implements ImageGateway
         ?int $timeout = null,
         array $providerOptions = [],
     ): ImageResponse {
+        if ($attachments !== []) {
+            throw new LogicException('The Bedrock image gateway does not support attachments.');
+        }
+
         /** @var ImageProvider&Provider $provider */
         $client = $this->createBedrockClient($provider, $timeout);
         $options = $provider->defaultImageOptions($size, $quality);

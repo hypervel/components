@@ -221,6 +221,8 @@ Port store/model/middleware/approval tests and extend them for partition reads/w
 
 ## 5. Provider I/O and Bedrock
 
+The Bedrock image gateway retains text-to-image generation and rejects attachments before creating a client; its model-specific conditioning, variation and masked-edit tasks require an explicit task design rather than guessing from `attachments()`.
+
 Remote downloads reuse framework destination validation while ordinary Http/Guzzle owns routing through the application's existing proxy configuration. The owner accepts the proxy as an infrastructure trust boundary: when it resolves untrusted hostnames, it must filter its actual destinations. Do not add an AI proxy setting, duplicate proxy selection, force numeric CONNECT tunnels or add a retry layer.
 
 - Share validation through `RemoteFileDestinationPolicy`, preserving `fetch()`, `resolveUsing()`, redirects and `InvalidArgumentException` for blocked/unresolvable destinations. Remove the approved superseded protected helpers/blocklists. Trusted hosts skip DNS/address checks and pins, but still require HTTP(S) without userinfo. Validate encoded URLs and retain underscore-host compatibility.
