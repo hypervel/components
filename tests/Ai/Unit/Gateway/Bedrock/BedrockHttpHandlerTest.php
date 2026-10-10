@@ -9,8 +9,11 @@ use Aws\BedrockRuntime\Exception\BedrockRuntimeException;
 use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\Exception\ResponseTransferException;
 use GuzzleHttp\Promise\PromiseInterface;
+use GuzzleHttp\Psr7\FnStream;
+use GuzzleHttp\Psr7\NoSeekStream;
 use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Psr7\Response;
+use GuzzleHttp\Psr7\Utils;
 use GuzzleHttp\TransferStats;
 use Hypervel\Ai\AiManager;
 use Hypervel\Ai\Gateway\Bedrock\BedrockHttpHandler;
@@ -49,6 +52,44 @@ class BedrockHttpHandlerTest extends TestCase
         $this->assertSame($request->getBody(), $seen[0]->getBody());
         $this->assertSame(12, $seen[1]['timeout']);
         $this->assertSame(150, $seen[1]['delay']);
+    }
+
+    public function testConverseStreamAcceptsPartialChecksumReads(): void
+    {
+        // @TODO Remove this skip once the AWS SDK minimum includes the fix for https://github.com/aws/aws-sdk-php/issues/3371.
+        $this->markTestSkipped('The AWS SDK rejects a valid event when its checksum is read in parts.');
+
+        $headers = '';
+
+        foreach ([
+            ':message-type' => 'event',
+            ':event-type' => 'messageStop',
+            ':content-type' => 'application/json',
+        ] as $name => $value) {
+            $headers .= chr(strlen($name)) . $name . chr(7) . pack('n', strlen($value)) . $value;
+        }
+
+        $payload = '{"stopReason":"end_turn"}';
+        $prelude = pack('NN', 16 + strlen($headers) + strlen($payload), strlen($headers));
+        $frame = $prelude . hash('crc32b', $prelude, true) . $headers . $payload;
+        $frame .= hash('crc32b', $frame, true);
+        $body = Utils::streamFor($frame);
+        // A network stream can return fewer bytes than requested, including inside the checksum.
+        $stream = new NoSeekStream(FnStream::decorate($body, [
+            'read' => static fn (int $length): string => $body->read(min(1, $length)),
+        ]));
+        $http = (new Factory)->registerConnection(AiManager::HTTP_CONNECTION);
+        $http->fake(fn (): PromiseInterface => Factory::response(
+            $stream,
+            headers: ['Content-Type' => 'application/vnd.amazon.eventstream'],
+        ));
+
+        $response = $this->client($http)->converseStream([
+            'modelId' => 'test-model',
+            'messages' => [['role' => 'user', 'content' => [['text' => 'Hello']]]],
+        ]);
+
+        $this->assertSame([['messageStop' => ['stopReason' => 'end_turn']]], iterator_to_array($response['stream'], false));
     }
 
     #[DataProvider('httpErrorOptions')]

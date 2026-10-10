@@ -472,7 +472,7 @@ class CreatesBedrockClientTest extends TestCase
 
     public function testAssumeRoleRefreshPreservesCancellation(): void
     {
-        // @TODO Unskip once the AWS SDK minimum includes the fix for https://github.com/aws/aws-sdk-php/issues/3370.
+        // @TODO Remove this skip once the AWS SDK minimum includes the fix for https://github.com/aws/aws-sdk-php/issues/3370.
         $this->markTestSkipped('The AWS SDK replaces cancellation with a TypeError during assume-role refresh.');
 
         $cancellation = new CanceledException('The client disconnected during credential refresh.');
