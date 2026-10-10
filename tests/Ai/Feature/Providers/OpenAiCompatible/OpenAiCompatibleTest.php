@@ -302,6 +302,25 @@ class OpenAiCompatibleTest extends TestCase
         $this->assertSame('incomplete_stream', $error->type);
     }
 
+    public function testStreamingPreservesNumericErrorCodes(): void
+    {
+        Http::fake(['*' => Http::response('data: ' . json_encode([
+            'error' => ['code' => 500, 'message' => 'Generation failed'],
+        ]) . "\n\n")]);
+
+        $error = null;
+
+        try {
+            agent()->stream('Hello', provider: 'openai-compatible')->each(fn (): true => true);
+        } catch (StreamErrorException $exception) {
+            $error = $exception->error;
+        }
+
+        $this->assertInstanceOf(Error::class, $error);
+        $this->assertSame('500', $error->type);
+        $this->assertSame('Generation failed', $error->message);
+    }
+
     public function testStreamingOmitsStreamOptionsByDefault(): void
     {
         Http::fake(['*' => $this->fakeOpenAiCompatibleStream()]);
