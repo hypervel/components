@@ -9,6 +9,7 @@ use ErrorException;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Foundation\Configuration\ConfigMutationTracker;
 use Hypervel\Log\LogManager;
 use Hypervel\Support\Env;
 use Monolog\Handler\NullHandler;
@@ -191,14 +192,21 @@ class HandleExceptions
             return;
         }
 
-        $options = $config->array('logging.deprecations');
+        // A deprecation raised while the server boots must be derived again from each worker's rebuilt configuration.
+        static::$app->make(ConfigMutationTracker::class)->applyAndRecord($config, function (ConfigRepository $config): void {
+            if ($config->get('logging.channels.deprecations')) {
+                return;
+            }
 
-        $this->ensureNullLogDriverIsConfigured($config);
+            $options = $config->array('logging.deprecations');
 
-        // A declared null channel deliberately selects the null logger.
-        $driver = $options['channel'] ?? 'null';
+            $this->ensureNullLogDriverIsConfigured($config);
 
-        $config->set('logging.channels.deprecations', $config->array("logging.channels.{$driver}"));
+            // A declared null channel deliberately selects the null logger.
+            $driver = $options['channel'] ?? 'null';
+
+            $config->set('logging.channels.deprecations', $config->array("logging.channels.{$driver}"));
+        });
     }
 
     /**
