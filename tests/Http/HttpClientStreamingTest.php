@@ -522,7 +522,7 @@ class HttpClientStreamingTest extends TestCase
         $this->withStreamingServer('silent-headers', function (string $address): void {
             try {
                 $this->expectException(ConnectionException::class);
-                $this->expectExceptionMessage('The streaming request timed out before response headers.');
+                $this->expectExceptionMessageIs('The streaming request timed out before response headers.');
 
                 (new Factory)->timeout(0)->withOptions(['stream' => true, 'read_timeout' => 0.2])->get('http://' . $address);
             } finally {
@@ -549,7 +549,7 @@ class HttpClientStreamingTest extends TestCase
     {
         $this->withStreamingServer('trickle-headers', function (string $address): void {
             $this->expectException(ConnectionException::class);
-            $this->expectExceptionMessage('The streaming request timed out before response headers.');
+            $this->expectExceptionMessageIs('The streaming request timed out before response headers.');
 
             (new Factory)->timeout(0.4)->withOptions(['stream' => true, 'read_timeout' => 0.4])->get('http://' . $address);
         });

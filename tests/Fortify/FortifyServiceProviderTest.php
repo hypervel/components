@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Fortify;
 
 use Closure;
+use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Support\Responsable;
 use Hypervel\Fortify\Contracts\CreatesNewUsers;
 use Hypervel\Fortify\Contracts\RedirectsIfTwoFactorAuthenticatable;
@@ -12,6 +13,8 @@ use Hypervel\Fortify\Contracts\TwoFactorAuthenticationProvider as TwoFactorAuthe
 use Hypervel\Fortify\Fortify;
 use Hypervel\Fortify\FortifyServiceProvider;
 use Hypervel\Fortify\RecoveryCode;
+use Hypervel\Foundation\Application;
+use Hypervel\Foundation\Configuration\ConfigMutationTracker;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
 use Hypervel\Passkeys\Passkeys;
@@ -148,6 +151,36 @@ class FortifyServiceProviderTest extends TestCase
         $this->assertSame(['https://example.test'], config('passkeys.allowed_origins'));
         $this->assertSame($appKey, config('passkeys.user_handle_secret'));
         $this->assertSame(Passkeys::DEFAULT_TIMEOUT, config('passkeys.timeout'));
+    }
+
+    public function testPasskeySettingsAreComputedAgainAgainstTheRebuiltConfiguration(): void
+    {
+        $masterConfig = new ConfigRepository([
+            'app' => ['url' => 'https://old.example.test', 'key' => 'old-key'],
+            'fortify' => ['passkeys' => ['timeout' => 30000]],
+        ]);
+        $tracker = new ConfigMutationTracker;
+        $tracker->observe($masterConfig);
+        $app = m::mock(Application::class)->makePartial();
+        $app->shouldReceive('configurationIsCached')->andReturnFalse();
+        $app->shouldReceive('make')->with('config')->andReturn($masterConfig);
+        $app->shouldReceive('make')->with(ConfigMutationTracker::class)->andReturn($tracker);
+
+        (new ReflectionMethod(FortifyServiceProvider::class, 'configurePasskeys'))->invoke(new FortifyServiceProvider($app));
+
+        $this->assertSame('old.example.test', $masterConfig->get('passkeys.relying_party_id'));
+
+        // A worker whose environment changed the application URL and key derives the defaults from them, keeping explicit settings.
+        $workerConfig = new ConfigRepository([
+            'app' => ['url' => 'https://new.example.test', 'key' => 'new-key'],
+            'fortify' => ['passkeys' => ['relying_party_id' => 'passkeys.example.test', 'timeout' => 30000]],
+        ]);
+        $tracker->replay($workerConfig);
+
+        $this->assertSame('passkeys.example.test', $workerConfig->get('passkeys.relying_party_id'));
+        $this->assertSame(['https://new.example.test'], $workerConfig->get('passkeys.allowed_origins'));
+        $this->assertSame('new-key', $workerConfig->get('passkeys.user_handle_secret'));
+        $this->assertSame(30000, $workerConfig->get('passkeys.timeout'));
     }
 
     #[DefineEnvironment('withTwoFactorAuthentication')]

@@ -105,7 +105,7 @@ class FilesystemManager implements FactoryContract
     /**
      * The array of drivers which will be wrapped as pool proxies.
      */
-    protected array $poolableDrivers = ['s3', 'gcs'];
+    protected array $poolableDrivers = ['s3', 'gcs', 'ftp', 'sftp'];
 
     /**
      * Create a new filesystem manager instance.

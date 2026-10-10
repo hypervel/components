@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon;
 
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Horizon\Connectors\RedisConnector;
@@ -40,11 +41,11 @@ class HorizonServiceProvider extends ServiceProvider
      */
     protected function normalizeConfig(): void
     {
-        $config = $this->app->make('config');
-
-        if (($name = $config->get('horizon.name')) === null || $name === '') {
-            $config->set('horizon.name', $config->string('app.name'));
-        }
+        $this->configureUsing(static function (Repository $config): void {
+            if (($name = $config->get('horizon.name')) === null || $name === '') {
+                $config->set('horizon.name', $config->string('app.name'));
+            }
+        });
     }
 
     /**
@@ -165,7 +166,9 @@ class HorizonServiceProvider extends ServiceProvider
             'horizon'
         );
 
-        Horizon::use(config()->string('horizon.use'));
+        $this->configureUsing(static function (Repository $config): void {
+            Horizon::use($config->string('horizon.use'));
+        });
     }
 
     /**

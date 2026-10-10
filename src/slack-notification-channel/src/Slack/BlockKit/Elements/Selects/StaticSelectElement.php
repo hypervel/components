@@ -73,12 +73,12 @@ class StaticSelectElement extends SelectElement
 
         $options = array_values($this->options);
 
-        $options = array_map(fn (SelectOption $option) => $option->toArray(), $options);
+        $options = array_map(fn (SelectOption $option): array => $option->toArray(), $options);
 
         return array_filter(array_merge([
             'type' => 'static_select',
             'options' => $options,
             'initial_option' => $this->initialOption?->toArray(),
-        ], parent::toArray()), fn ($value): bool => $value !== null);
+        ], parent::toArray()), fn (mixed $value): bool => $value !== null);
     }
 }

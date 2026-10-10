@@ -351,6 +351,7 @@ class ResponseFactory
             $this->getVersion(),
             $state->encryptHistory ?? config()->boolean('inertia.history.encrypt', false),
             $state->urlResolver,
+            preserveBigIntegers: config()->boolean('inertia.preserve_big_integers'),
         );
 
         DevTools::recorder()?->pageRendering($component, $response);

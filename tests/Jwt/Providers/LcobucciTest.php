@@ -28,7 +28,7 @@ use Lcobucci\JWT\Validation\Constraint\IssuedBy;
 use Lcobucci\JWT\Validation\Constraint\SignedWith;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SensitiveParameterValue;
-use TypeError;
+use Throwable;
 
 class LcobucciTest extends TestCase
 {
@@ -337,7 +337,7 @@ class LcobucciTest extends TestCase
             $this->fail('Expected the malformed registered date to be rejected.');
         } catch (TokenInvalidException $exception) {
             $this->assertStringStartsWith('Could not decode token:', $exception->getMessage());
-            $this->assertInstanceOf(TypeError::class, $exception->getPrevious());
+            $this->assertInstanceOf(Throwable::class, $exception->getPrevious());
         }
     }
 

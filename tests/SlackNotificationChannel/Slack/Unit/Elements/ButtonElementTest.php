@@ -12,7 +12,7 @@ use InvalidArgumentException;
 
 class ButtonElementTest extends TestCase
 {
-    public function testArrayable(): void
+    public function testItIsArrayable(): void
     {
         $element = new ButtonElement('Click Me');
 
@@ -26,7 +26,7 @@ class ButtonElementTest extends TestCase
         ], $element->toArray());
     }
 
-    public function testTextLengthIsSeventyFiveCharacters(): void
+    public function testTheMaximumTextLengthIs75Characters(): void
     {
         $element = new ButtonElement(str_repeat('a', 250));
 
@@ -40,9 +40,9 @@ class ButtonElementTest extends TestCase
         ], $element->toArray());
     }
 
-    public function testTextCanBeCustomized(): void
+    public function testTheTextCanBeCustomized(): void
     {
-        $element = new ButtonElement('Click Me', function (PlainTextOnlyTextObject $textObject) {
+        $element = new ButtonElement('Click Me', function (PlainTextOnlyTextObject $textObject): void {
             $textObject->emoji();
         });
 
@@ -57,7 +57,7 @@ class ButtonElementTest extends TestCase
         ], $element->toArray());
     }
 
-    public function testActionIdCanBeCustomized(): void
+    public function testTheActionIdCanBeCustomized(): void
     {
         $element = new ButtonElement('Click Me');
         $element->id('custom_action_id');
@@ -72,7 +72,7 @@ class ButtonElementTest extends TestCase
         ], $element->toArray());
     }
 
-    public function testActionIdCantExceedTwoFiveFiveCharacters(): void
+    public function testTheActionIdCannotExceed255Characters(): void
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessageIs('Maximum length for the action_id field is 255 characters.');
@@ -101,7 +101,7 @@ class ButtonElementTest extends TestCase
         $this->assertNotSame($firstId, $secondId);
     }
 
-    public function testCanHaveUrl(): void
+    public function testItCanHaveAnUrl(): void
     {
         $element = new ButtonElement('Click Me');
         $element->url('https://hypervel.org');
@@ -117,7 +117,7 @@ class ButtonElementTest extends TestCase
         ], $element->toArray());
     }
 
-    public function testUrlCantExceedThreeThousandCharacters(): void
+    public function testTheUrlCannotExceed3000Characters(): void
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessageIs('Maximum length for the url field is 3000 characters.');
@@ -128,7 +128,7 @@ class ButtonElementTest extends TestCase
         $element->toArray();
     }
 
-    public function testCanHaveValue(): void
+    public function testItCanHaveAValue(): void
     {
         $element = new ButtonElement('Click Me');
         $element->value('click_me_123');
@@ -173,7 +173,7 @@ class ButtonElementTest extends TestCase
         $this->assertSame('0', $payload['accessibility_label']);
     }
 
-    public function testValueCantExceedTwoThousandCharacters(): void
+    public function testTheValueCannotExceed2000Characters(): void
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessageIs('Maximum length for the value field is 2000 characters.');
@@ -184,7 +184,7 @@ class ButtonElementTest extends TestCase
         $element->toArray();
     }
 
-    public function testCanHavePrimaryStyle(): void
+    public function testItCanHaveThePrimaryStyle(): void
     {
         $element = new ButtonElement('Click Me');
         $element->primary();
@@ -200,7 +200,7 @@ class ButtonElementTest extends TestCase
         ], $element->toArray());
     }
 
-    public function testCanHaveDangerStyle(): void
+    public function testItCanHaveTheDangerStyle(): void
     {
         $element = new ButtonElement('Click Me');
         $element->danger();
@@ -216,7 +216,7 @@ class ButtonElementTest extends TestCase
         ], $element->toArray());
     }
 
-    public function testCanHaveConfirmableDialog(): void
+    public function testItCanHaveAConfirmationDialog(): void
     {
         $element = new ButtonElement('Click Me');
         $element->confirm('This will do some thing.')->deny('Yikes!');
@@ -249,10 +249,10 @@ class ButtonElementTest extends TestCase
         ], $element->toArray());
     }
 
-    public function testConfirmationWithMultipleOptions(): void
+    public function testItCanScopeTheConfirmationDialogAndSetMultipleOptions(): void
     {
         $element = new ButtonElement('Click Me');
-        $element->confirm('This will do some thing.', function (ConfirmObject $dialog) {
+        $element->confirm('This will do some thing.', function (ConfirmObject $dialog): void {
             $dialog->deny('Yikes!');
             $dialog->confirm('Woohoo!');
         });
@@ -285,7 +285,7 @@ class ButtonElementTest extends TestCase
         ], $element->toArray());
     }
 
-    public function testCanHaveAccessibilityLabel(): void
+    public function testItCanHaveAnAccessibilityLabel(): void
     {
         $element = new ButtonElement('Click Me');
         $element->accessibilityLabel('Click Me Button');
@@ -301,7 +301,7 @@ class ButtonElementTest extends TestCase
         ], $element->toArray());
     }
 
-    public function testAccessibilityLabelCantExceedSeventyFiveCharacters(): void
+    public function testTheAccessibilityLabelCannotExceed75Characters(): void
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessageIs('Maximum length for the accessibility label is 75 characters.');

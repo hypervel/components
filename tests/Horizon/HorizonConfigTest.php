@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Horizon;
 
 use Hypervel\Config\Repository as ConfigRepository;
+use Hypervel\Container\Container;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Configuration\ConfigMutationTracker;
 use Hypervel\Horizon\HorizonServiceProvider;
@@ -73,12 +74,84 @@ class HorizonConfigTest extends TestCase
                 'horizon' => ['name' => $name],
             ]);
             $app = m::mock(Application::class)->makePartial();
+            $app->shouldReceive('configurationIsCached')->andReturnFalse();
             $app->shouldReceive('make')->with('config')->andReturn($config);
+            $app->shouldReceive('make')->with(ConfigMutationTracker::class)->andReturn(new ConfigMutationTracker);
 
             (new HorizonServiceProviderForTesting($app))->normalize();
 
             $this->assertSame($name === '0' ? '0' : 'Hypervel', $config->get('horizon.name'));
         }
+    }
+
+    public function testApplicationNameFallbackIsComputedAgainAgainstTheRebuiltConfiguration(): void
+    {
+        $masterConfig = new ConfigRepository([
+            'app' => ['name' => 'Old Name'],
+            'horizon' => ['name' => null],
+        ]);
+        $tracker = new ConfigMutationTracker;
+        $tracker->observe($masterConfig);
+        $app = m::mock(Application::class)->makePartial();
+        $app->shouldReceive('configurationIsCached')->andReturnFalse();
+        $app->shouldReceive('make')->with('config')->andReturn($masterConfig);
+        $app->shouldReceive('make')->with(ConfigMutationTracker::class)->andReturn($tracker);
+
+        (new HorizonServiceProviderForTesting($app))->normalize();
+
+        $this->assertSame('Old Name', $masterConfig->get('horizon.name'));
+
+        // A worker whose environment renamed the application uses the new name, unless Horizon's own name is now set.
+        $workerConfig = new ConfigRepository([
+            'app' => ['name' => 'New Name'],
+            'horizon' => ['name' => null],
+        ]);
+        $tracker->replay($workerConfig);
+
+        $this->assertSame('New Name', $workerConfig->get('horizon.name'));
+
+        $namedWorkerConfig = new ConfigRepository([
+            'app' => ['name' => 'New Name'],
+            'horizon' => ['name' => 'Queues'],
+        ]);
+        $tracker->replay($namedWorkerConfig);
+
+        $this->assertSame('Queues', $namedWorkerConfig->get('horizon.name'));
+    }
+
+    public function testRedisConnectionIsComputedAgainAgainstTheRebuiltConfiguration(): void
+    {
+        $masterConfig = new ConfigRepository([
+            'database' => ['redis' => ['default' => ['host' => 'old-host']]],
+            'horizon' => ['prefix' => 'old_horizon:'],
+        ]);
+        $tracker = new ConfigMutationTracker;
+        $tracker->observe($masterConfig);
+        // Horizon::use() reads the application's configuration, which a rebuild refreshes in place.
+        $currentConfig = $masterConfig;
+        $app = m::mock(Application::class)->makePartial();
+        $app->shouldReceive('configurationIsCached')->andReturnFalse();
+        $app->shouldReceive('make')->with('config')->andReturnUsing(static function () use (&$currentConfig): ConfigRepository {
+            return $currentConfig;
+        });
+        $app->shouldReceive('make')->with(ConfigMutationTracker::class)->andReturn($tracker);
+        Container::setInstance($app);
+
+        (new HorizonServiceProviderForTesting($app))->configureForTest();
+
+        $this->assertSame('old-host', $masterConfig->get('database.redis.horizon.host'));
+        $this->assertSame('old_horizon:', $masterConfig->get('database.redis.horizon.prefix'));
+
+        // A worker whose environment moved Redis and changed the prefix connects Horizon with the new settings.
+        $currentConfig = $workerConfig = new ConfigRepository([
+            'database' => ['redis' => ['default' => ['host' => 'new-host']]],
+            'horizon' => ['prefix' => 'new_horizon:'],
+        ]);
+        $tracker->replay($workerConfig);
+
+        $this->assertSame('new-host', $workerConfig->get('database.redis.horizon.host'));
+        $this->assertSame('new_horizon:', $workerConfig->get('database.redis.horizon.prefix'));
+        $this->assertSame('new_horizon:', $workerConfig->get('horizon.prefix'));
     }
 
     public function testMissingAndBlankPrefixUseApplicationScopedDefault(): void
@@ -108,8 +181,19 @@ class HorizonConfigServiceProvider extends ServiceProvider
 
 class HorizonServiceProviderForTesting extends HorizonServiceProvider
 {
+    /**
+     * Normalize the Horizon configuration.
+     */
     public function normalize(): void
     {
         $this->normalizeConfig();
+    }
+
+    /**
+     * Configure Horizon for the test.
+     */
+    public function configureForTest(): void
+    {
+        $this->configure();
     }
 }

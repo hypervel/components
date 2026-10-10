@@ -399,6 +399,37 @@ class ClientPooledFilesystemTest extends TestCase
         $this->assertSame(1, $releaseCalls);
     }
 
+    public function testBufferedReadStreamReleasesTheClientBeforeConsumption(): void
+    {
+        $clientCreations = 0;
+        $stackCreations = 0;
+        $releaseCalls = 0;
+        $buffer = fopen('php://temp', 'w+b');
+        fwrite($buffer, 'buffered contents');
+        rewind($buffer);
+
+        $stack = m::mock(FilesystemAdapter::class);
+        $stack->shouldReceive('readStream')->once()->with('file.txt')->andReturn($buffer);
+        $disk = $this->disk(
+            $clientCreations,
+            $stackCreations,
+            static function (object $client) use (&$releaseCalls): void {
+                ++$releaseCalls;
+            },
+            static fn (object $client): FilesystemAdapter => $stack,
+        );
+
+        try {
+            $stream = $disk->readStream('file.txt');
+
+            $this->assertSame(0, $this->pools->get('filesystem:test')->getBorrowedCount());
+            $this->assertSame(1, $releaseCalls);
+            $this->assertSame('buffered contents', stream_get_contents($stream));
+        } finally {
+            fclose($buffer);
+        }
+    }
+
     public function testNonResourceReadStreamResultReleasesImmediately(): void
     {
         $clientCreations = 0;

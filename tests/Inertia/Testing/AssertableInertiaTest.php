@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Inertia\Testing;
 
 use Hypervel\Inertia\Inertia;
 use Hypervel\Inertia\Middleware;
+use Hypervel\Inertia\Response;
 use Hypervel\Inertia\Support\Header;
 use Hypervel\Inertia\Testing\AssertableInertia;
 use Hypervel\Session\Middleware\StartSession;
@@ -514,6 +515,33 @@ class AssertableInertiaTest extends TestCase
             $inertia->missingFlash('other');
             $inertia->missingFlash('notification.other');
         });
+    }
+
+    public function testBigIntegersAreAssertedAsIntegers(): void
+    {
+        $response = $this->makeMockRequest(
+            fn (): Response => Inertia::render('foo', [
+                'order' => ['id' => 900719925474099988, 'lines' => [['reference' => -900719925474099988]]],
+            ])->flash('id', 900719925474099988)->preserveBigIntegers(),
+            StartSession::class
+        );
+
+        $response->assertInertia(fn (AssertableInertia $inertia): AssertableInertia => $inertia
+            ->where('order.id', 900719925474099988)
+            ->where('order.lines.0.reference', -900719925474099988)
+            ->hasFlash('id', 900719925474099988));
+
+        $this->assertSame(900719925474099988, $response->inertiaProps('order.id'));
+    }
+
+    public function testBigIntegerMarkersBuiltByTheAppAreLeftAloneWithoutPreservingBigIntegers(): void
+    {
+        $response = $this->makeMockRequest(
+            Inertia::render('foo', ['id' => ['$bigint' => '900719925474099988']])
+        );
+
+        $response->assertInertia(fn (AssertableInertia $inertia): AssertableInertia => $inertia
+            ->where('id', ['$bigint' => '900719925474099988']));
     }
 
     public function testTheFlashAssertionFailsWhenKeyIsMissing(): void

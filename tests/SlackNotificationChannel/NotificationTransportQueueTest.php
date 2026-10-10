@@ -51,9 +51,8 @@ class NotificationTransportQueueTest extends TestCase
 
     /**
      * Use the real queue that serializes and executes listener jobs.
-     * @param mixed $app
      */
-    protected function defineEnvironment($app): void
+    protected function defineEnvironment(Application $app): void
     {
         $app->make('config')->set('queue.default', 'sync');
     }
@@ -199,7 +198,7 @@ class NotificationTransportQueueTest extends TestCase
         $response = m::mock(SymfonyResponse::class);
         $original = new HttpTransportException('Mailer HTTP failure', $response);
         $manager = $this->app->make(ChannelManager::class);
-        $manager->extend('test-mail', fn () => new NotificationTransportFailingChannel($original));
+        $manager->extend('test-mail', fn (): NotificationTransportFailingChannel => new NotificationTransportFailingChannel($original));
         $events = $this->app->make(Dispatcher::class);
         $live = null;
         $events->listen(NotificationFailed::class, function (NotificationFailed $event) use (&$live): void {
@@ -249,6 +248,9 @@ class NotificationTransportQueueTest extends TestCase
 
 class NotificationTransportQueuedListener implements ShouldQueue
 {
+    /**
+     * The events received through the queue.
+     */
     public array $received = [];
 
     /**

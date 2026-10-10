@@ -98,7 +98,7 @@ class ConfirmObject implements ObjectContract
     }
 
     /**
-     * Marks the confirm dialog as dangerous.
+     * Mark the confirm dialog as dangerous.
      */
     public function danger(): static
     {

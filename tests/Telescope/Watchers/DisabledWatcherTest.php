@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
-use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Di\Aop\AspectCollector;
 use Hypervel\Redis\RedisConfig;
 use Hypervel\Telescope\Aspects\GuzzleHttpClientAspect;
@@ -18,24 +18,20 @@ use Hypervel\Tests\Telescope\FeatureTestCase;
 
 class DisabledWatcherTest extends FeatureTestCase
 {
-    protected function defineEnvironment(ApplicationContract $app): void
-    {
-        parent::defineEnvironment($app);
-
-        // Override the FeatureTestCase default so we can detect whether
-        // the watcher's enableCacheEvents() mutated this config.
-        $app->make('config')->set('cache.stores.array.events', false);
-    }
-
     #[WithConfig('telescope.watchers', [
         CacheWatcher::class => [
             'enabled' => false,
             'hidden' => [],
         ],
     ])]
-    public function testDisabledCacheWatcherDoesNotEnableCacheEvents(): void
+    public function testDisabledCacheWatcherRecordsNoCacheEntries(): void
     {
-        $this->assertFalse(config()->boolean('cache.stores.array.events'));
+        $repository = $this->app->make(Repository::class);
+
+        $repository->put('disabled-key', 'laravel', 1);
+        $repository->get('disabled-key');
+
+        $this->assertCount(0, $this->loadTelescopeEntries());
     }
 
     #[WithConfig('telescope.watchers', [
@@ -76,7 +72,6 @@ class DisabledWatcherTest extends FeatureTestCase
             DatabaseEntriesRepository::class,
             $this->app->make(EntriesRepository::class),
         );
-        $this->assertFalse(config('cache.stores.array.events'));
         $this->assertFalse(
             $this->app->make(RedisConfig::class)
                 ->connectionConfig('foo')['events'],

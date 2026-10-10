@@ -66,7 +66,7 @@ class InertiaServiceProvider extends ServiceProvider
     public function boot(HttpFactory $http, Repository $config): void
     {
         $this->registerConsoleCommands();
-        $this->pushRedirectMiddleware();
+        $this->registerRedirectMiddleware();
 
         // A null timeout is left out so the HTTP client's global options apply.
         $http->registerConnection(HttpGateway::CONNECTION, array_filter([
@@ -82,10 +82,11 @@ class InertiaServiceProvider extends ServiceProvider
     /**
      * Register the global redirect middleware for Inertia requests.
      */
-    protected function pushRedirectMiddleware(): void
+    protected function registerRedirectMiddleware(): void
     {
         $this->callAfterResolving(HttpKernelContract::class, function (HttpKernelContract $kernel) {
             $kernel->pushMiddleware(Middleware\EnsureGetOnRedirect::class);
+            $kernel->prependMiddleware(Middleware\EnsureDeferredCallbacksRun::class);
         });
     }
 

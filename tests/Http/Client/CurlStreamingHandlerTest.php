@@ -37,7 +37,7 @@ class CurlStreamingHandlerTest extends TestCase
     public function testAmbiguousHostsAreRejectedBeforeConnecting(string $url, array $headers, string $message): void
     {
         $this->expectException(ConnectionException::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIsOrContains($message);
 
         (new Factory)->withOptions(['stream' => true])->withHeaders($headers)->get($url);
     }

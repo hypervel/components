@@ -18,8 +18,6 @@ class SlackChannel
      */
     public const string CONNECTION = 'slack-notifications';
 
-    protected const string SLACK_API_URL = 'https://slack.com/api/chat.postMessage';
-
     /**
      * Create a new Slack channel instance.
      */
@@ -50,7 +48,7 @@ class SlackChannel
         $response = $this->http->connection(self::CONNECTION)
             ->asJson()
             ->withToken($route->token)
-            ->post(static::SLACK_API_URL, $payload)
+            ->post('https://slack.com/api/chat.postMessage', $payload)
             ->throw();
 
         if ($response->successful() && $response->json('ok') === false) {

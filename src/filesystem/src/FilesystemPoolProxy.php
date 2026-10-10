@@ -62,7 +62,7 @@ class FilesystemPoolProxy extends PoolProxy implements Cloud
     }
 
     /**
-     * Open a stream that owns its whole-driver lease until closure.
+     * Open a stream that retains its whole-driver lease while needed.
      *
      * @param Closure(FilesystemContract): mixed $operation
      * @return null|resource
@@ -78,13 +78,7 @@ class FilesystemPoolProxy extends PoolProxy implements Cloud
             $lease->releaseAfterFailure($operationException);
         }
 
-        if (! is_resource($stream)) {
-            $lease->release();
-
-            return $stream;
-        }
-
-        return LeasedStream::wrap($stream, $lease);
+        return $this->releaseOrWrapStream($stream, $lease);
     }
 
     /**

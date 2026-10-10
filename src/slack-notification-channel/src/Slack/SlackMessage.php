@@ -305,7 +305,7 @@ class SlackMessage implements Arrayable
 
         $optionalFields = array_filter([
             'text' => $this->text,
-            'blocks' => ! empty($this->blocks) ? array_map(fn ($block) => $block instanceof BlockContract ? $block->toArray() : $block, $this->blocks) : null,
+            'blocks' => ! empty($this->blocks) ? array_map(fn (array|BlockContract $block): array => $block instanceof BlockContract ? $block->toArray() : $block, $this->blocks) : null,
             'icon_emoji' => $this->icon,
             'icon_url' => $this->image,
             'metadata' => $this->metaData?->toArray(),
@@ -315,7 +315,7 @@ class SlackMessage implements Arrayable
             'unfurl_links' => $this->unfurlLinks,
             'unfurl_media' => $this->unfurlMedia,
             'username' => $this->username,
-        ], fn ($value) => $value !== null);
+        ], fn (mixed $value): bool => $value !== null);
 
         return array_merge([
             'channel' => $this->channel,
@@ -323,7 +323,7 @@ class SlackMessage implements Arrayable
     }
 
     /**
-     * Get the payload as a URL to the Slack Block Kit Builder.
+     * Get the Block Kit URL for the message.
      *
      * @throws JsonException
      */

@@ -69,7 +69,7 @@ class DatabaseReadPoolTest extends TestCase
 
         if ($conflicting) {
             $this->expectException(InvalidArgumentException::class);
-            $this->expectExceptionMessage('must use the same effective pool options');
+            $this->expectExceptionMessageIsOrContains('must use the same effective pool options');
         }
 
         $pool = new DatabasePool($this->app, 'read_pool_options::read');
@@ -110,7 +110,7 @@ class DatabaseReadPoolTest extends TestCase
         ]]);
         $this->app->instance('db.factory', new ReadPoolConnectionFactory($this->app));
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('cannot use a derived read pool for in-memory SQLite');
+        $this->expectExceptionMessageIsOrContains('cannot use a derived read pool for in-memory SQLite');
 
         new DatabasePool($this->app, 'read_pool_memory::read');
     }

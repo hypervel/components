@@ -9,6 +9,7 @@ use Hypervel\Contracts\Http\Kernel as HttpKernelContract;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Http\Request;
 use Hypervel\Inertia\InertiaServiceProvider;
+use Hypervel\Inertia\Middleware\EnsureDeferredCallbacksRun;
 use Hypervel\Inertia\Middleware\EnsureGetOnRedirect;
 use Hypervel\Inertia\Ssr\Gateway;
 use Hypervel\Inertia\Ssr\HttpGateway;
@@ -89,6 +90,14 @@ class InertiaServiceProviderTest extends TestCase
         $this->assertTrue($kernel->hasMiddleware(EnsureGetOnRedirect::class));
     }
 
+    public function testDeferredCallbacksMiddlewareWrapsTheGlobalMiddlewareStack(): void
+    {
+        $kernel = $this->app->make(HttpKernelContract::class);
+
+        $this->assertTrue($kernel->hasMiddleware(EnsureDeferredCallbacksRun::class));
+        $this->assertSame(EnsureDeferredCallbacksRun::class, $kernel->getGlobalMiddleware()[0]);
+    }
+
     public function testGatewayContractResolvesTheConcreteWorkerInstance(): void
     {
         $this->assertSame(
@@ -152,10 +161,14 @@ class InertiaServiceProviderTest extends TestCase
             ->once()
             ->with(EnsureGetOnRedirect::class)
             ->andReturnSelf();
+        $kernel->shouldReceive('prependMiddleware')
+            ->once()
+            ->with(EnsureDeferredCallbacksRun::class)
+            ->andReturnSelf();
         $this->app->instance(HttpKernelContract::class, $kernel);
 
         (new InspectableInertiaServiceProvider($this->app))
-            ->pushRedirectMiddlewareForTest();
+            ->registerRedirectMiddlewareForTest();
     }
 
     public function testRedirectResponseFromRateLimiterIsConvertedTo303(): void
@@ -186,8 +199,8 @@ class InspectableInertiaServiceProvider extends InertiaServiceProvider
     /**
      * Register redirect middleware for inspection.
      */
-    public function pushRedirectMiddlewareForTest(): void
+    public function registerRedirectMiddlewareForTest(): void
     {
-        $this->pushRedirectMiddleware();
+        $this->registerRedirectMiddleware();
     }
 }

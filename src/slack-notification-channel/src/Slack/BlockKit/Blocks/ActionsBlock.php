@@ -48,7 +48,7 @@ class ActionsBlock implements BlockContract
      */
     public function button(string $text): ButtonElement
     {
-        return tap(new ButtonElement($text), function (ButtonElement $button) {
+        return tap(new ButtonElement($text), function (ButtonElement $button): void {
             $this->elements[] = $button;
         });
     }
@@ -58,7 +58,7 @@ class ActionsBlock implements BlockContract
      */
     public function staticSelect(string $text): StaticSelectElement
     {
-        return tap(new StaticSelectElement($text), function (StaticSelectElement $select) {
+        return tap(new StaticSelectElement($text), function (StaticSelectElement $select): void {
             $this->elements[] = $select;
         });
     }
@@ -68,7 +68,7 @@ class ActionsBlock implements BlockContract
      */
     public function usersSelect(string $text): UsersSelectElement
     {
-        return tap(new UsersSelectElement($text), function (UsersSelectElement $select) {
+        return tap(new UsersSelectElement($text), function (UsersSelectElement $select): void {
             $this->elements[] = $select;
         });
     }
@@ -96,7 +96,7 @@ class ActionsBlock implements BlockContract
 
         return array_merge([
             'type' => 'actions',
-            'elements' => array_map(fn (Arrayable $element) => $element->toArray(), $this->elements),
+            'elements' => array_map(fn (Arrayable $element): array => $element->toArray(), $this->elements),
         ], $optionalFields);
     }
 }

@@ -107,9 +107,10 @@ laravel/scout:
 
 laravel/slack-notification-channel:
   branch: 3.x
-  checked_through: null
+  checked_through: 7b7c3e220a4f7a45cd88d65069f28d4fb4b67281
   last_reviewed_pr: null
-  sync_date: null
+  sync_date: '2026-10-08'
+  notes: Upstream src/ maps to src/slack-notification-channel/src and tests/ to tests/SlackNotificationChannel; the two tests/Slack notification fixtures live in Slack/Fixtures, and the feature tests' sendNotification and assertNotificationSent helpers live in Slack/TestCase. User documentation is the Slack Notifications section of src/docs/notifications.md, which also documents the webhook routes Laravel's docs omit. The Web API channel sends through the slack-notifications HTTP connection (SlackChannel::CONNECTION), so keep connection() when porting request changes. Feature tests fake Slack's API responses instead of calling Slack, and router tests register Mockery channel instances because determineChannel() returns typed channels. Horizon's LongWaitDetected builds both message types; run its test after message API changes.
 
 laravel/telescope:
   branch: 5.x
@@ -227,6 +228,50 @@ Sammyjo20/saloon-docs:
   last_reviewed_pr: 92
   sync_date: '2026-10-07'
   notes: Shared documentation for the unified src/saloon package and all four plugin entries above. Reconcile applicable core and plugin pages into the existing sections of the single src/docs/saloon.md rather than separate plugin guides, keeping Hypervel's additions and checking examples against current source, in Laravel-style prose matching the guide. The v3 branch includes v4 guidance. Installation commands, supported versions, upgrade guides, release notes, showcase, tutorials, the book and the third-party Lawman and SDK generator pages have no Hypervel equivalent; check them only for behavior the guide must still describe.
+
+hyperf/engine:
+  branch: master
+  # Owner-selected history boundary before 2025-11-01, not a historical parity claim.
+  checked_through: 6595d2659ce7ebb940b8740a00ecd199128398f0
+  last_reviewed_pr: null
+  sync_date: null
+  notes: >-
+    Selective runtime tracking for Hypervel's independently maintained Engine;
+    review before hyperf/hyperf. Source maps to src/engine and interfaces to
+    src/contracts/src/Engine. Consult hyperf/engine-contract when an Engine change
+    depends on its contracts; it is not a separate tracking entry. Assess changes
+    for applicable correctness, security, coroutine isolation, blocking,
+    cancellation, resource cleanup, pooling, Swoole compatibility and performance
+    improvements. Verify applicability against current Hypervel source, adapt
+    useful changes and include relevant regression coverage. Preserve Hypervel's
+    architecture, Laravel-style APIs and enhancements; do not pursue Hyperf API
+    or full test-suite parity, restore removed Hyperf infrastructure or add Swow
+    support. HTTP server and response-emitter changes must be assessed against
+    src/http-server's Swoole bridges rather than restoring Engine's portability
+    layer. Follow affected consumers beyond these mappings when necessary.
+
+hyperf/hyperf:
+  branch: master
+  # Owner-selected history boundary before 2025-11-01, not a historical parity claim.
+  checked_through: ded8b966ecf78590e8201a47a56c635f8df99e47
+  last_reviewed_pr: null
+  sync_date: null
+  notes: >-
+    Selective runtime tracking under the same applicability rules as hyperf/engine
+    above, not a framework merge target. Review the monorepo, not its subtree-split
+    mirrors. Upstream src/{context,coroutine,coordinator,server,signal,websocket-server,watcher}
+    map to the same Hypervel packages; pool maps to connection-pool, with shared
+    pooling issues also assessed against object-pool; framework bootstrap/events
+    and logging map to core; process maps to server-process; http-server and
+    http-message transport/lifecycle changes map to http-server's bridges; di AOP
+    and proxy generation map to di, not Hyperf's container; contract maps to the
+    corresponding runtime interfaces in contracts. Assess db-connection and
+    database driver changes against database's connection/pooling code, redis
+    against redis's connection/pooling code, grpc/grpc-client/grpc-server and
+    http2-client against grpc and Engine HTTP/2, and guzzle transport issues against
+    http and engine's different transports. These are applicability mappings,
+    not instructions to restore upstream implementations. Laravel remains the
+    primary API and implementation reference for Laravel-ported components.
 
 getsentry/sentry-laravel:
   branch: master

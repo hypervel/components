@@ -10,6 +10,10 @@ use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
+use PHPUnit\Framework\AssertionFailedError;
+use PHPUnit\Framework\Attributes\PostCondition;
+use PHPUnit\Framework\IncompleteTest;
+use PHPUnit\Framework\SkippedTest;
 use SebastianBergmann\Invoker\TimeoutException;
 use Swoole\Coroutine;
 use Swoole\Coroutine\Channel;
@@ -23,6 +27,11 @@ trait RunTestsInCoroutine
     protected bool $runTestsInCoroutine = true;
 
     protected bool $copyNonCoroutineContext = true;
+
+    /**
+     * The exception the test threw before its child coroutines reached the time limit.
+     */
+    protected ?Throwable $exceptionOutlivedByChildCoroutines = null;
 
     /**
      * Invoke the test method inside a Swoole coroutine container.
@@ -43,6 +52,8 @@ trait RunTestsInCoroutine
         $testResult = null;
         $exception = null;
         $timeoutException = null;
+        $rootCompleted = false;
+        $this->exceptionOutlivedByChildCoroutines = null;
 
         $capture = static function (callable $callback) use (&$exception): void {
             try {
@@ -52,11 +63,11 @@ trait RunTestsInCoroutine
             }
         };
 
-        run(function () use (&$testResult, &$exception, &$timeoutException, $capture, $methodName, $testArguments): void {
+        run(function () use (&$testResult, &$exception, &$timeoutException, &$rootCompleted, $capture, $methodName, $testArguments): void {
             $shouldBootFramework = false;
 
             try {
-                $this->enforceCoroutineTestTimeLimit($timeoutException);
+                $this->enforceCoroutineTestTimeLimit($timeoutException, $rootCompleted);
                 $this->clearNonCoroutineTransactionContext();
 
                 if ($this->copyNonCoroutineContext) {
@@ -86,6 +97,19 @@ trait RunTestsInCoroutine
         });
 
         if ($timeoutException !== null) {
+            // Children outliving a test that threw must not hide its exception. PHPUnit still matches it against
+            // the test's expected exception, and a matched one fails in the post-condition instead. Skipped and
+            // incomplete tests never reach the post-condition, so they keep the timeout.
+            if ($rootCompleted
+                && $exception !== null
+                && ! $exception instanceof SkippedTest
+                && ! $exception instanceof IncompleteTest
+            ) {
+                $this->exceptionOutlivedByChildCoroutines = $exception;
+
+                throw $exception;
+            }
+
             throw $timeoutException;
         }
 
@@ -99,7 +123,7 @@ trait RunTestsInCoroutine
     /**
      * Enforce PHPUnit's deadline while the test or its children are suspended.
      */
-    protected function enforceCoroutineTestTimeLimit(?TimeoutException &$timeoutException): void
+    protected function enforceCoroutineTestTimeLimit(?TimeoutException &$timeoutException, bool &$rootCompleted): void
     {
         if (! function_exists('pcntl_alarm')) {
             return;
@@ -122,7 +146,7 @@ trait RunTestsInCoroutine
             $completed->push(true);
         });
 
-        Coroutine::create(static function () use ($root, $deadline, $completed, &$timeoutException): void {
+        Coroutine::create(static function () use ($root, $deadline, $completed, &$timeoutException, &$rootCompleted): void {
             $current = Coroutine::getCid();
 
             try {
@@ -130,6 +154,8 @@ trait RunTestsInCoroutine
 
                 // Native channel and sleep timers survive Timer::clearAll() cleanup.
                 if ($remaining > 0 && $completed->pop($remaining)) {
+                    $rootCompleted = true;
+
                     while (true) {
                         $coroutines = array_filter(
                             iterator_to_array(Coroutine::list()),
@@ -166,6 +192,21 @@ trait RunTestsInCoroutine
                 }
             }
         });
+    }
+
+    /**
+     * Fail a test whose expected exception was followed by child coroutines reaching the time limit.
+     */
+    #[PostCondition]
+    protected function assertChildCoroutinesFinishedBeforeTimeLimit(): void
+    {
+        if ($this->exceptionOutlivedByChildCoroutines !== null) {
+            throw new AssertionFailedError(
+                'Child coroutines were still running at the time limit after the test threw an expected exception.',
+                0,
+                $this->exceptionOutlivedByChildCoroutines,
+            );
+        }
     }
 
     /**

@@ -18,6 +18,9 @@ class SelectOptionTest extends TestCase
         $this->assertSame($expected, (new SelectOption('Example', $value))->toArray()['value']);
     }
 
+    /**
+     * Provide option values and their serialized strings.
+     */
     public static function validOptionValues(): iterable
     {
         yield 'string' => ['Example Value', 'Example Value'];
@@ -27,6 +30,9 @@ class SelectOptionTest extends TestCase
         yield 'punctuation' => ['!@#$%^&*()', '!@#$%^&*()'];
         yield 'non-latin' => ['你好', '你好'];
         yield 'stringable' => [new class implements Stringable {
+            /**
+             * Get the string value.
+             */
             public function __toString(): string
             {
                 return 'Stringable Value';
@@ -44,6 +50,9 @@ class SelectOptionTest extends TestCase
         new SelectOption('Example', $value);
     }
 
+    /**
+     * Provide option values that serialize to an empty string.
+     */
     public static function invalidOptionValues(): iterable
     {
         yield 'empty' => [''];

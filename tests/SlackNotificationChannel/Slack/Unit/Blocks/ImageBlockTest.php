@@ -10,7 +10,7 @@ use LogicException;
 
 class ImageBlockTest extends TestCase
 {
-    public function testArrayable(): void
+    public function testItIsArrayable(): void
     {
         $block = new ImageBlock('http://placekitten.com/500/500', 'An incredibly cute kitten.');
 
@@ -21,7 +21,7 @@ class ImageBlockTest extends TestCase
         ], $block->toArray());
     }
 
-    public function testUrlCantExceedThreeThousandCharacters(): void
+    public function testTheUrlCannotExceed3000Characters(): void
     {
         $this->expectException(LogicException::class);
         $this->expectExceptionMessageIs('Maximum length for the url field is 3000 characters.');
@@ -29,7 +29,7 @@ class ImageBlockTest extends TestCase
         new ImageBlock(str_repeat('a', 3001));
     }
 
-    public function testAltTextIsRequired(): void
+    public function testTheAltTextIsRequired(): void
     {
         $this->expectException(LogicException::class);
         $this->expectExceptionMessageIs('Alt text is required for an image block.');
@@ -39,7 +39,7 @@ class ImageBlockTest extends TestCase
         $block->toArray();
     }
 
-    public function testAltTextCantExceedTwoThousandCharacters(): void
+    public function testTheAltTextCannotExceed2000Characters(): void
     {
         $this->expectException(LogicException::class);
         $this->expectExceptionMessageIs('Maximum length for the alt text field is 2000 characters.');
@@ -58,7 +58,7 @@ class ImageBlockTest extends TestCase
         new ImageBlock('http://placekitten.com/500/500', str_repeat('a', 2001));
     }
 
-    public function testCanHaveTitle(): void
+    public function testItCanHaveATitle(): void
     {
         $block = new ImageBlock('http://placekitten.com/500/500', 'An incredibly cute kitten.');
         $block->title('This one is a cutesy kitten in a box.');
@@ -74,7 +74,7 @@ class ImageBlockTest extends TestCase
         ], $block->toArray());
     }
 
-    public function testTitleCantExceedTwoThousandCharacters(): void
+    public function testTheTitleFieldCannotExceed2000Characters(): void
     {
         $block = new ImageBlock('http://placekitten.com/500/500', 'An incredibly cute kitten.');
         $block->title(str_repeat('a', 2001));
@@ -90,7 +90,7 @@ class ImageBlockTest extends TestCase
         ], $block->toArray());
     }
 
-    public function testCanManuallySpecifyBlockIdField(): void
+    public function testItCanManuallySpecifyTheBlockIdField(): void
     {
         $block = new ImageBlock('http://placekitten.com/500/500');
         $block->alt('An incredibly cute kitten.');
@@ -111,7 +111,7 @@ class ImageBlockTest extends TestCase
         $this->assertSame('0', $block->toArray()['block_id']);
     }
 
-    public function testBlockIdCantExceedTwoFiveFiveCharacters(): void
+    public function testTheBlockIdFieldCannotExceed255Characters(): void
     {
         $this->expectException(LogicException::class);
         $this->expectExceptionMessageIs('Maximum length for the block_id field is 255 characters.');

@@ -15,7 +15,7 @@ Custom implementations of `Hypervel\Contracts\Filesystem\Filesystem` must provid
 
 The configured disk name `ondemand` is reserved. Disks explicitly set under that name, including fakes, intercept anonymous `build()` calls; configured disks with that name are rejected on resolution.
 
-Hypervel pools S3 and Google Cloud Storage SDK clients rather than complete disk adapters. Disks with equivalent client construction config share the expensive client pool while retaining their own bucket, root, visibility, and callback behavior. Pooled disks expose raw internals only through borrow-scoped `withClient()`, `withDriver()`, and `withAdapter()` callbacks.
+Hypervel pools S3 and Google Cloud Storage SDK clients rather than complete disk adapters. Disks with equivalent client construction config share the expensive client pool while retaining their own bucket, root, visibility, and callback behavior. FTP and SFTP disks are pooled whole, because each adapter holds one connection that concurrent requests must not share. Pooled disks expose raw internals only through borrow-scoped `withClient()`, `withDriver()`, and `withAdapter()` callbacks.
 
 On read-through disks, raw `listContents()` results from pooled, S3 and Google Cloud Storage sides are fully loaded instead of streamed.
 
