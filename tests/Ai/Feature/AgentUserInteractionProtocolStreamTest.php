@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Ai\Feature;
 
 use Closure;
 use Generator;
+use Hypervel\Ai\Approvals\ApprovalClaim;
 use Hypervel\Ai\Approvals\Decisions;
 use Hypervel\Ai\Approvals\PendingApproval;
 use Hypervel\Ai\Contracts\ConversationStore;
@@ -543,9 +544,9 @@ class AgentUserInteractionProtocolStreamTest extends TestCase
 
         app()->instance(ConversationStore::class, new class extends DatabaseConversationStore {
             /**
-             * Reject approval results while the stream is running.
+             * Reject an approval result while the stream is running.
              */
-            public function storeApprovalResults(string $conversationId, array $toolResults): void
+            public function recordApprovalResult(ApprovalClaim $claim, ToolResultData $result): void
             {
                 throw new ApprovalMismatchException('The approval results do not match a paused conversation turn.', collect());
             }
