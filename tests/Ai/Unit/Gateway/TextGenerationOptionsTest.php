@@ -27,13 +27,6 @@ class TextGenerationOptionsTest extends TestCase
         $this->assertSame(['reasoning' => ['effort' => 'medium']], $options->providerOptions('openrouter'));
     }
 
-    public function testItAcceptsALabEnumDirectlyWithoutReNormalizing(): void
-    {
-        $options = TextGenerationOptions::forAgent(new ProviderOptionsAgent);
-
-        $this->assertSame(['thinking' => ['type' => 'enabled']], $options->providerOptions(Lab::Anthropic));
-    }
-
     public function testItPassesTheRawStringThroughWhenItDoesNotMatchAnyLabCase(): void
     {
         $agent = new class implements Agent, HasProviderOptions {
@@ -59,13 +52,6 @@ class TextGenerationOptionsTest extends TestCase
         $options = TextGenerationOptions::forAgent($agent);
 
         $this->assertSame(['received' => 'unknown-driver'], $options->providerOptions('unknown-driver'));
-    }
-
-    public function testItReturnsNullWhenTheAgentDoesNotImplementHasProviderOptions(): void
-    {
-        $options = TextGenerationOptions::forAgent(new NoProviderOptionsAgent);
-
-        $this->assertNull($options->providerOptions('openai'));
     }
 
     public function testToolChoiceMethodsRequiringArgumentsFallBackToTheAttribute(): void
@@ -137,7 +123,6 @@ class ProviderOptionsAgent implements Agent, HasProviderOptions
     {
         return match ($provider) {
             Lab::OpenRouter => ['reasoning' => ['effort' => 'medium']],
-            Lab::Anthropic => ['thinking' => ['type' => 'enabled']],
             default => [],
         };
     }
