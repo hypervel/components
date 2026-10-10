@@ -208,7 +208,7 @@ class VercelDataProtocol extends StreamProtocol
                 'type' => 'tool-input-available',
                 'toolCallId' => $event->toolCall->id,
                 'toolName' => $event->toolCall->name,
-                'input' => $event->toolCall->arguments,
+                'input' => array_is_list($event->toolCall->arguments) ? (object) $event->toolCall->arguments : $event->toolCall->arguments,
             ],
             $event instanceof ToolResult => $this->toolResultPart($event),
             $event instanceof Citation => $this->citationPart($event),

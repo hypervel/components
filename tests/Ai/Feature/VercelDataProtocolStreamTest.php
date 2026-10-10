@@ -31,6 +31,7 @@ use Hypervel\Ai\Streaming\Events\ToolCall;
 use Hypervel\Ai\Streaming\Events\ToolResult;
 use Hypervel\Ai\Streaming\Protocols\VercelDataProtocol;
 use Hypervel\Ai\Vercel\Vercel;
+use Hypervel\Http\IterableStreamedResponse;
 use Hypervel\Support\Facades\Exceptions;
 use Hypervel\Tests\Ai\TestCase;
 use RuntimeException;
@@ -227,6 +228,36 @@ class VercelDataProtocolStreamTest extends TestCase
             vercelFinishPart('tool-calls'),
             ['type' => 'done'],
         ], $parts);
+    }
+
+    public function testEmptyAndNumericToolInputsEncodeAsObjects(): void
+    {
+        $stream = new StreamableAgentResponse('invocation-1', function (): Generator {
+            yield new StreamStart('msg-1', 'anthropic', 'claude-sonnet-4-6', time());
+            yield new ToolCall('event-1', new ToolCallData('call-1', 'ListTools', []), time());
+            yield new ToolCall('event-2', new ToolCallData('call-2', 'SearchTool', ['0' => 'test']), time());
+            yield new StreamEnd('event-3', 'tool_calls', new TextUsage, time());
+        });
+
+        $response = $stream->usingProtocol(new VercelDataProtocol)->toResponse(request());
+        $this->assertInstanceOf(IterableStreamedResponse::class, $response);
+        $inputs = [];
+
+        $response->streamTo(function (string $frame) use (&$inputs): bool {
+            if (str_starts_with($frame, 'data: [DONE]')) {
+                return true;
+            }
+
+            $part = json_decode(substr($frame, 6));
+
+            if ($part->type === 'tool-input-available') {
+                $inputs[] = $part->input;
+            }
+
+            return true;
+        });
+
+        $this->assertSame('[{},{"0":"test"}]', json_encode($inputs));
     }
 
     public function testAResumedStreamEmitsTheApprovedToolOutputForThePriorTurnToolCall(): void
