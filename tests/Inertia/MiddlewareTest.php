@@ -550,6 +550,23 @@ class MiddlewareTest extends TestCase
         $this->assertPreviousLocation($this->baseUrl . '/initial', 'initial');
     }
 
+    public function testEmptyInertiaVisitsRedirectToThePreviousLocationWithoutAReferrer(): void
+    {
+        config()->set('inertia.store_previous_url', true);
+
+        $this->preparePreviousLocationEndpoints();
+
+        Route::middleware([StartSession::class, Middleware::class])
+            ->get('/empty', fn (): BaseResponse => response(''));
+
+        $this->get('/initial')->assertOk();
+
+        $this->get('/empty', [
+            'X-Inertia' => 'true',
+            'X-Requested-With' => 'XMLHttpRequest',
+        ])->assertRedirect('/initial');
+    }
+
     public function testInertiaPrefetchVisitsAreNotStoredAsThePreviousUrlAndRoute(): void
     {
         config()->set('inertia.store_previous_url', true);

@@ -176,7 +176,7 @@ class Middleware
             return $response;
         }
 
-        $this->storeCurrentUrl($request, $response);
+        $originalResponse = $response;
 
         if ($request->method() === 'GET' && $request->header(Header::VERSION, '') !== Inertia::getVersion()) {
             $response = $this->onVersionChange($request, $response);
@@ -185,6 +185,9 @@ class Middleware
         if ($response->isOk() && $response->getContent() === '') {
             $response = $this->onEmptyResponse($request, $response);
         }
+
+        // Back redirects must read the previous location before this visit replaces it.
+        $this->storeCurrentUrl($request, $originalResponse);
 
         if ($response->getStatusCode() === 302 && in_array($request->method(), ['PUT', 'PATCH', 'DELETE'], true)) {
             $response->setStatusCode(303);
