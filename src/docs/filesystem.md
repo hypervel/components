@@ -232,6 +232,8 @@ The `s3` and `gcs` drivers pool their SDK clients by default. The bucket-specifi
 
 Pool identity is derived from the exact normalized configuration passed to the SDK client constructor. Equivalent client configurations converge automatically, including repeated `Storage::build()` calls. These configurations must use the same pool options; a mismatch throws immediately instead of silently reusing the first configuration's settings. Different credentials, regions, endpoints, or client options produce different pools.
 
+The `ftp` and `sftp` drivers keep an open connection inside each disk, so Hypervel pools these disks whole. Each operation borrows a disk with its own connection, so concurrent requests never share one.
+
 You may configure a pool using the disk's `pool` option:
 
 ```php
@@ -249,7 +251,7 @@ You may configure a pool using the disk's `pool` option:
 ],
 ```
 
-`min_retained_objects` is an idle-trimming floor; it does not eagerly create clients. `max_lifetime` expires clients by absolute age, while `max_idle_time` trims individual idle clients. `pool_idle_timeout` removes an entirely unused pool after 300 seconds by default. Set any of these three optional durations to `null` to disable it. If all clients are in use and no capacity becomes available before `wait_timeout`, a `RuntimeException` is thrown.
+`min_retained_objects` is an idle-trimming floor; it does not eagerly create clients. `max_lifetime` expires clients by absolute age, while `max_idle_time` trims individual idle clients. `pool_idle_timeout` removes an entirely unused pool after 300 seconds by default. Set any of these three optional durations to `null` to disable it. If all clients are in use and no capacity becomes available before `wait_timeout`, a `RuntimeException` is thrown. Each worker has its own pools, so an FTP or SFTP disk may open up to `max_objects` connections in every worker; keep that total within your server's connection limit.
 
 An explicit pool name may be useful when multiple configurations intentionally identify the same operational resource:
 
@@ -285,7 +287,7 @@ $result = Storage::disk('s3')->withClient(function ($client) {
 });
 ```
 
-`Storage::forgetDisk()` only removes the manager's cached disk wrapper; an equivalent wrapper can continue using the shared pool. `Storage::purge()` removes the wrapper and closes its current pool, deriving the same pool identity even when the named disk has not been resolved yet or is composed from nested scoped disks. Other disks converging on that pool transparently create a fresh one on their next operation. Streams returned by `readStream()` or `readStreamRange()` retain their client lease until the stream is closed or destroyed.
+`Storage::forgetDisk()` only removes the manager's cached disk wrapper; an equivalent wrapper can continue using the shared pool. `Storage::purge()` removes the wrapper and closes its current pool, deriving the same pool identity even when the named disk has not been resolved yet or is composed from nested scoped disks. Other disks converging on that pool transparently create a fresh one on their next operation. Streams returned by `readStream()` or `readStreamRange()` retain their lease until the stream is closed or destroyed.
 
 S3 and Google Cloud Storage streams are read lazily by default, which keeps memory usage bounded and makes data available before the entire file has downloaded. This applies to `readStream()` and `readStreamRange()`; methods such as `get()` retain their normal behavior. Streaming requests close their HTTP connection after the read, so applications that open many small streams may prefer connection reuse and set the disk's `stream_reads` option to `false`.
 

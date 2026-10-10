@@ -1212,6 +1212,24 @@ class FilesystemManagerTest extends TestCase
         $this->assertInstanceOf(FilesystemPoolProxy::class, $filesystem->disk('local'));
     }
 
+    #[TestWith(['ftp'])]
+    #[TestWith(['sftp'])]
+    public function testConnectionHoldingDisksArePooledWhole(string $driver): void
+    {
+        // Each adapter keeps one connection, which concurrent coroutines must not share.
+        $filesystem = new FilesystemManager($this->getContainer([
+            'disks' => [
+                'remote' => [
+                    'driver' => $driver,
+                    'host' => 'files.example.com',
+                    'username' => 'hypervel',
+                ],
+            ],
+        ]));
+
+        $this->assertInstanceOf(FilesystemPoolProxy::class, $filesystem->disk('remote'));
+    }
+
     public function testS3DisksWithTheSameClientConfigShareOneClientPoolAcrossBuckets(): void
     {
         $container = $this->getContainer([
