@@ -2,6 +2,8 @@
 
 Measured on October 13, 2026, using the [benchmark harness](README.md). The baseline is merged `0.4` at `8a8b9fd99`. The reconciled package before this optimization pass is `03d28a00b`; the final source and corrected harness are `c7b9b2a1b`. The branch comparison includes Sentry's supporting framework corrections, such as proxy-source mapping and fork-time logging cleanup; startup-memory differences therefore describe the branch, not just Sentry classes. The separate optimization comparison isolates this pass's Sentry changes.
 
+These timings use the fixture at `c7b9b2a1b`. Subsequent harness review replaced its controller's service facades/helpers with injected contracts and added a delivery check after saturation. Those corrections were smoke-tested, not rebenchmarked; they do not change the production optimizations or retroactively change these measurements.
+
 The machine was idle for measurements: Linux x86-64 KVM, six vCPUs reporting Intel Core i7-7700 at 3.60 GHz, PHP 8.4.25 and Swoole 6.3.0RC1. Both sides used Sentry SDK 4.34.0, Guzzle 8.2.0, Promises 3.0.2, Nyholm PSR-7 1.8.2 and Symfony HttpFoundation 8.1.8. Applications had independent production-only installations with matching dependency versions. OPcache was enabled and JIT disabled. HTTP runs disabled OPcache file-update protection for newly generated immutable caches. Server processes used CPUs 1–2, the sink CPU 3 and load generators CPUs 4–5; component runs used CPU 1.
 
 Tables use medians of three alternating baseline/current process pairs. Component cases also repeat within each process. These are measurements of the stated fixtures, not production capacity estimates. The initial HTTP run was discarded after discovering that an unquoted `null` logging-channel name selected PHP null and emergency file logging. No timings from that run are included.
@@ -114,9 +116,11 @@ All six saturation launches passed, each with two 5,000-request waves at concurr
 | Final, first | 210 | 458 | 641 | 236 | 85.47 |
 | Final, second | 215 | 484 | 596 | 225 | 86.59 |
 
-Every application request succeeded. Both revisions failed to deliver roughly 89% of attempted telemetry under this artificial overload. The sink counts arrivals, not the reason an item was not delivered. These runs demonstrate the pool's bounded behavior and recovery, not a lossless queue or a delivery guarantee at arbitrary load.
+Every application request succeeded. Both revisions failed to deliver roughly 89% of attempted telemetry under this artificial overload. The sink counts arrivals, not the reason an item was not delivered. These runs demonstrate the pool's bounded behavior and draining, not a lossless queue or a delivery guarantee at arbitrary load. They did not include the later low-load delivery check after saturation.
 
 After every wave, both revisions returned to ten idle connections, zero borrowed connections, zero waiting borrowers, zero pending sends and the original idle coroutine count. Final post-GC PHP heap was 11.37 MiB original and 11.34 MiB current. The separate six-wave check above distinguishes fixture-session growth from telemetry retention.
+
+Follow-up smoke checks of the revised harness passed on both revisions, including exact delivery of one error and one transaction after removing the sink delay. Deliberately closing the current transport pool immediately before that request made the check fail with zero delivered items, while its earlier waves and drained counters still passed. This verifies the recovery assertion without treating smoke timings as new performance evidence.
 
 ## Design choices
 

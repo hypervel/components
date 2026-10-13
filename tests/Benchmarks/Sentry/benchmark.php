@@ -711,6 +711,33 @@ function saturation(string $app, bool $smoke, string $out, string $tag): array
         }
 
         $result['after_gc'] = workerState(stats(collectGarbage: true));
+
+        // Check recovery after recording resources so this request cannot affect measured windows.
+        sink('/delay?ms=0');
+        $sinkBefore = sink();
+        $recovery = load($settings['path'], 1, 1, $settings['expect'], null, $scratch);
+        $recovered = quiescence($warmed['last']['worker']['coroutines']);
+        $delta = sinkDelta($recovered['last']['sink'], $sinkBefore);
+        $items = $delta['items'];
+        ksort($items);
+
+        if ($recovery['failures'] > 0) {
+            $result['problems'][] = 'recovery: ' . json_encode($recovery['first_failure']);
+        }
+
+        if ($items !== ['event' => 1, 'transaction' => 1]
+            || $delta['errors'] !== ['bench report' => 1]
+            || $delta['transactions'] !== ['/work' => 1]
+            || $delta['unparsed'] !== 0
+        ) {
+            $result['problems'][] = 'recovery: expected one error and one transaction, got ' . json_encode($delta);
+        }
+
+        $result['recovery'] = [
+            'request' => $recovery,
+            'sink' => $delta,
+            'after' => workerState($recovered['last']['worker']),
+        ];
     } finally {
         stopServer($process, $master);
         sink('/delay?ms=0');

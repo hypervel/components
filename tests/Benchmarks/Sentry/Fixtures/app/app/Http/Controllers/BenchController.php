@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use Hypervel\Contracts\Cache\Repository;
+use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Contracts\View\Factory;
 use Hypervel\Contracts\View\View;
+use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Http\Request;
-use Hypervel\Support\Facades\Cache;
-use Hypervel\Support\Facades\DB;
-use Hypervel\Support\Facades\Log;
+use Psr\Log\LoggerInterface;
 use RuntimeException;
 
 use function Hypervel\Coroutine\parallel;
@@ -26,30 +28,36 @@ class BenchController extends Controller
     /**
      * Run a representative mix of queries, cache operations, logging, child coroutines and a view.
      */
-    public function work(Request $request): View
-    {
-        $items = DB::table('bench_items')->where('id', '<=', 10)->get();
-        $count = DB::table('bench_items')->count();
-        $item = DB::table('bench_items')->where('id', 5)->first();
+    public function work(
+        Request $request,
+        ConnectionResolverInterface $database,
+        Repository $cache,
+        LoggerInterface $logger,
+        Factory $views,
+        ExceptionHandler $exceptions,
+    ): View {
+        $items = $database->connection()->table('bench_items')->where('id', '<=', 10)->get();
+        $count = $database->connection()->table('bench_items')->count();
+        $item = $database->connection()->table('bench_items')->where('id', 5)->first();
 
-        Cache::put('bench.key', $item->name, 60);
-        $hit = Cache::get('bench.key');
-        $miss = Cache::get('bench.missing');
+        $cache->put('bench.key', $item->name, 60);
+        $hit = $cache->get('bench.key');
+        $miss = $cache->get('bench.missing');
 
         [$first, $second] = parallel([
-            static fn (): mixed => Cache::get('bench.key'),
-            static fn (): mixed => Cache::get('bench.key'),
+            static fn (): mixed => $cache->get('bench.key'),
+            static fn (): mixed => $cache->get('bench.key'),
         ]);
 
-        Cache::forget('bench.key');
+        $cache->forget('bench.key');
 
-        Log::info('bench work', ['count' => $count]);
+        $logger->info('bench work', ['count' => $count]);
 
         if ($request->query('report') !== null) {
-            report(new RuntimeException('bench report'));
+            $exceptions->report(new RuntimeException('bench report'));
         }
 
-        return view('bench', [
+        return $views->make('bench', [
             'items' => $items,
             'count' => $count,
             'values' => [$hit, $miss, $first, $second],
