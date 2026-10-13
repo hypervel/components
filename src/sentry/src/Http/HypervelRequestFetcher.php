@@ -12,6 +12,7 @@ use Nyholm\Psr7\ServerRequest;
 use Nyholm\Psr7\UploadedFile;
 use Psr\Http\Message\ServerRequestInterface;
 use Sentry\DataCollection\DataCollectionPolicy;
+use Sentry\DataCollection\HttpMessageType;
 use Sentry\Integration\RequestFetcherInterface;
 use Sentry\SentrySdk;
 use Symfony\Component\HttpFoundation\File\UploadedFile as SymfonyUploadedFile;
@@ -48,15 +49,23 @@ class HypervelRequestFetcher implements RequestFetcherInterface
             return null;
         }
 
+        $policy = DataCollectionPolicy::fromHub(SentrySdk::getCurrentHub());
+        $canCollectLegacyBody = $this->canCollectLegacyBody($request, $policy);
+        $bodyLimit = $policy->getHttpBodyLimit(HttpMessageType::incomingRequest());
+        $length = $request->headers->get('Content-Length');
+        $canCollectBody = $canCollectLegacyBody
+            || ($bodyLimit !== null && (! is_numeric($length) || (int) $length <= $bodyLimit));
+        $body = $canCollectBody ? $request->getContent() : '';
+
         // Converted only when an event needs it, instead of caching a PSR-7 copy of every
         // request in the worker-shared container as upstream's SetRequestMiddleware does.
         // Symfony's PSR-7 bridge is not used because it decodes every JSON body, which
         // Sentry only reads for legacy error events with bodies within the size limit.
         try {
             // Set valid headers together instead of cloning the request for each header.
-            $serverRequest = $this->createServerRequest($request, $request->headers->all());
+            $serverRequest = $this->createServerRequest($request, $request->headers->all(), $body);
         } catch (InvalidArgumentException) {
-            $serverRequest = $this->createServerRequest($request, []);
+            $serverRequest = $this->createServerRequest($request, [], $body);
 
             foreach ($request->headers->all() as $name => $values) {
                 try {
@@ -73,8 +82,6 @@ class HypervelRequestFetcher implements RequestFetcherInterface
             $cookies[$name] = SensitiveCookieFilter::filterValue($name, $value);
         }
 
-        $canCollectLegacyBody = $this->canCollectLegacyBody($request);
-
         // Only the legacy body collector reads uploaded files
         if ($canCollectLegacyBody) {
             $serverRequest = $serverRequest->withUploadedFiles($this->convertUploadedFiles($request->files->all()));
@@ -82,13 +89,13 @@ class HypervelRequestFetcher implements RequestFetcherInterface
 
         return $serverRequest
             ->withCookieParams($cookies)
-            ->withParsedBody($this->parsedBody($request, $canCollectLegacyBody));
+            ->withParsedBody($this->parsedBody($request, $canCollectLegacyBody, $body));
     }
 
     /**
      * Create the PSR-7 request with the given headers.
      */
-    private function createServerRequest(Request $request, array $headers): ServerRequest
+    private function createServerRequest(Request $request, array $headers, string $body): ServerRequest
     {
         $queryString = $request->server->getString('QUERY_STRING');
 
@@ -97,7 +104,7 @@ class HypervelRequestFetcher implements RequestFetcherInterface
             $request->getMethod(),
             $request->getSchemeAndHttpHost() . $request->getBaseUrl() . $request->getPathInfo() . ($queryString !== '' ? '?' . $queryString : ''),
             $headers,
-            $request->getContent(),
+            $body,
             serverParams: $request->server->all(),
         );
     }
@@ -108,9 +115,9 @@ class HypervelRequestFetcher implements RequestFetcherInterface
      * It only reads bodies with a known length within its limit, and it is the only reader of
      * uploaded files and of the parsed bodies of requests that are not forms.
      */
-    private function canCollectLegacyBody(Request $request): bool
+    private function canCollectLegacyBody(Request $request, DataCollectionPolicy $policy): bool
     {
-        $limit = DataCollectionPolicy::fromHub(SentrySdk::getCurrentHub())->getLegacyRequestBodyLimit();
+        $limit = $policy->getLegacyRequestBodyLimit();
         $length = (int) $request->headers->get('Content-Length');
 
         return $limit !== null && $length > 0 && ($limit === -1 || $length <= $limit);
@@ -122,7 +129,7 @@ class HypervelRequestFetcher implements RequestFetcherInterface
      * Only form requests use their parsed body with data collection, so all other bodies are read
      * raw. An empty parsed body would also hide the raw body from the legacy body collector.
      */
-    private function parsedBody(Request $request, bool $canCollectLegacyBody): ?array
+    private function parsedBody(Request $request, bool $canCollectLegacyBody, string $content): ?array
     {
         if ($this->isFormRequest($request)) {
             return $request->request->all();
@@ -133,7 +140,7 @@ class HypervelRequestFetcher implements RequestFetcherInterface
         }
 
         $body = $request->getContentTypeFormat() === 'json'
-            ? json_decode($request->getContent(), true, flags: JSON_BIGINT_AS_STRING)
+            ? json_decode($content, true, flags: JSON_BIGINT_AS_STRING)
             : $request->request->all();
 
         return is_array($body) && $body !== [] ? $body : null;

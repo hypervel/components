@@ -10,6 +10,7 @@ use Hypervel\Http\UploadedFile;
 use Hypervel\Routing\Router;
 use Hypervel\Sentry\Http\HypervelRequestFetcher;
 use Hypervel\Tests\Sentry\TestCase;
+use PHPUnit\Framework\Attributes\TestWith;
 use Psr\Http\Message\ServerRequestInterface;
 
 class HypervelRequestFetcherTest extends TestCase
@@ -124,7 +125,49 @@ class HypervelRequestFetcherTest extends TestCase
         $fetchedRequest = $this->fetchRequest($request);
 
         $this->assertNull($fetchedRequest->getParsedBody());
-        $this->assertSame($content, (string) $fetchedRequest->getBody());
+        $this->assertSame('', (string) $fetchedRequest->getBody());
+    }
+
+    #[TestWith([null, 'never', 13, true, false])]
+    #[TestWith([null, 'medium', 13, false, false])]
+    #[TestWith([null, 'always', 100_001, true, true])]
+    #[TestWith([[], 'small', 1000, true, true])]
+    #[TestWith([[], 'small', 1001, true, false])]
+    #[TestWith([[], 'medium', 13, false, true])]
+    #[TestWith([['http_bodies' => []], 'medium', 13, true, false])]
+    #[TestWith([[], 'never', 13, true, false])]
+    public function testBodyIsReadOnceOnlyWhenCollectionPermitsIt(
+        ?array $collection,
+        string $limit,
+        int $size,
+        bool $knownLength,
+        bool $eligible,
+    ): void {
+        $this->resetApplicationWithConfig([
+            'sentry.data_collection' => $collection,
+            'sentry.max_request_body_size' => $limit,
+        ]);
+        $content = str_pad('{"foo":"bar"}', $size);
+        $stream = fopen('php://memory', 'w+');
+
+        try {
+            fwrite($stream, $content);
+            $request = SentryBodyReadingRequest::create('http://localhost/', 'POST', server: [
+                'CONTENT_TYPE' => 'application/json',
+            ], content: $stream);
+
+            if ($knownLength) {
+                $request->headers->set('Content-Length', (string) strlen($content));
+            }
+
+            $fetchedRequest = $this->fetchRequest($request);
+
+            $this->assertSame($eligible ? 1 : 0, $request->contentReads);
+            $this->assertSame($eligible ? $content : '', (string) $fetchedRequest->getBody());
+            $this->assertSame($eligible && $collection === null ? ['foo' => 'bar'] : null, $fetchedRequest->getParsedBody());
+        } finally {
+            fclose($stream);
+        }
     }
 
     public function testUploadedFilesAreConvertedForTheLegacyBodyCollector(): void
@@ -199,5 +242,22 @@ class HypervelRequestFetcherTest extends TestCase
         $this->assertNotNull($fetchedRequest);
 
         return $fetchedRequest;
+    }
+}
+
+class SentryBodyReadingRequest extends Request
+{
+    public int $contentReads = 0;
+
+    /**
+     * Count reads of the request's resource-backed content.
+     *
+     * @return resource|string
+     */
+    public function getContent(bool $asResource = false): mixed
+    {
+        ++$this->contentReads;
+
+        return parent::getContent($asResource);
     }
 }
