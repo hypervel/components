@@ -772,7 +772,7 @@ function resolveDocblockUnionMembers($method, $typeNode, int $depth): array
 }
 
 /**
- * Resolve a method template type by name.
+ * Resolve a template bound from the method or its declaring class or trait.
  *
  * @param ReflectionClassDocblockContext|ReflectionMethodDecorator $method
  */
@@ -781,11 +781,18 @@ function resolveTemplateType($method, string $name, int $depth): ?string
     $docblock = parseDocblock($method->getDocComment());
     $template = collect([
         ...$docblock->getTemplateTagValues('@phpstan-template'),
+        ...$docblock->getTemplateTagValues('@phpstan-template-covariant'),
+        ...$docblock->getTemplateTagValues('@phpstan-template-contravariant'),
         ...$docblock->getTemplateTagValues(),
+        ...$docblock->getTemplateTagValues('@template-covariant'),
+        ...$docblock->getTemplateTagValues('@template-contravariant'),
     ])->firstWhere('name', $name);
 
     if ($template === null) {
-        return null;
+        // Trait methods keep the trait's template declarations and imports.
+        return $method instanceof ReflectionMethodDecorator
+            ? resolveTemplateType(new ReflectionClassDocblockContext(resolveImportSource($method)), $name, $depth)
+            : null;
     }
 
     return $template->bound === null

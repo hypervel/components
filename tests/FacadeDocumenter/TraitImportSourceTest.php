@@ -199,6 +199,81 @@ class TraitImportSourceTest extends FacadeDocumenterTestCase
         );
     }
 
+    public function testTemplateBoundsUseTheirDeclaringClassOrTraitAndMethodTemplatesTakePrecedence(): void
+    {
+        $this->writeAppFile(
+            'TemplateBounds/Proxy.php',
+            <<<'PHP'
+                <?php
+
+                declare(strict_types=1);
+
+                namespace App\TemplateBounds\Types {
+                    use DateTimeImmutable as Payload;
+
+                    /** @template-covariant TValue of Payload */
+                    trait HasPayload
+                    {
+                        /** @return TValue|null */
+                        public function payload(): mixed
+                        {
+                            return null;
+                        }
+                    }
+
+                    /** @template TValue of Payload */
+                    class ParentProxy
+                    {
+                        /** @param TValue $value */
+                        public function accept(mixed $value): void
+                        {
+                        }
+
+                        /**
+                         * @template TValue of \stdClass
+                         * @return TValue
+                         */
+                        public function shadowed(): mixed
+                        {
+                            return null;
+                        }
+                    }
+                }
+
+                namespace App\TemplateBounds {
+                    class Proxy extends \App\TemplateBounds\Types\ParentProxy
+                    {
+                        use \App\TemplateBounds\Types\HasPayload;
+                    }
+                }
+                PHP,
+        );
+
+        $this->writeAppFile(
+            'TemplateBounds/Facade.php',
+            <<<'PHP'
+                <?php
+
+                declare(strict_types=1);
+
+                namespace App\TemplateBounds;
+
+                /** @see \App\TemplateBounds\Proxy */
+                class Facade
+                {
+                }
+                PHP,
+        );
+
+        $process = $this->runDocumenter(['App\TemplateBounds\Facade']);
+        $this->assertSame(0, $process->getExitCode(), $process->getErrorOutput() . $process->getOutput());
+        $contents = $this->appFileContents('App\TemplateBounds\Facade');
+
+        $this->assertStringContainsString('@method static \DateTimeImmutable|null payload()', $contents);
+        $this->assertStringContainsString('@method static void accept(\DateTimeImmutable $value)', $contents);
+        $this->assertStringContainsString('@method static \stdClass shadowed()', $contents);
+    }
+
     public function testSameFileTraitImportsResolveFromTheExactSourceRange(): void
     {
         $this->writeAppFile(
