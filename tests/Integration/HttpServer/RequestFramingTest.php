@@ -14,19 +14,28 @@ class RequestFramingTest extends HttpServerIntegrationTestCase
             $this->markTestSkipped('Requires https://github.com/swoole/swoole-src/pull/6205');
         }
 
-        $response = $this->sendRawRequest(
-            "POST /inspect HTTP/1.1\r\n"
+        $socket = $this->openSocket();
+        $headers = "POST /inspect HTTP/1.1\r\n"
             . "Host: 127.0.0.1\r\n"
             . "Transfer-Encoding: chunked\r\n"
-            . "Expect: 100-continue\r\n\r\n"
-            . "5;name=value\r\nhello\r\n"
+            . "Expect: 100-continue\r\n\r\n";
+        $bodyAndNextRequest = "5;name=value\r\nhello\r\n"
             . "0\r\nX-Trailer: value\r\n\r\n"
             . "GET /up HTTP/1.1\r\n"
             . "Host: 127.0.0.1\r\n"
-            . "Connection: close\r\n\r\n"
-        );
+            . "Connection: close\r\n\r\n";
 
-        $this->assertSame(1, substr_count($response, 'HTTP/1.1 100 Continue'));
+        try {
+            $this->assertSame(strlen($headers), fwrite($socket, $headers));
+            $this->assertStringStartsWith('HTTP/1.1 100 Continue', $this->readResponseHead($socket));
+            $this->assertSame(strlen($bodyAndNextRequest), fwrite($socket, $bodyAndNextRequest));
+            $response = stream_get_contents($socket);
+            $this->assertIsString($response);
+        } finally {
+            fclose($socket);
+        }
+
+        $this->assertSame(0, substr_count($response, 'HTTP/1.1 100 Continue'));
         $this->assertSame(2, substr_count($response, 'HTTP/1.1 200 OK'));
         $this->assertStringContainsString('"content":"hello"', $response);
         $this->assertStringEndsWith('up', $response);
@@ -53,7 +62,33 @@ class RequestFramingTest extends HttpServerIntegrationTestCase
         $this->assertLessThan($second, $first);
     }
 
+    /**
+     * Send one raw request and read the complete response.
+     */
     protected function sendRawRequest(string $request): string
+    {
+        $socket = $this->openSocket();
+
+        try {
+            $this->assertSame(strlen($request), fwrite($socket, $request));
+            $response = stream_get_contents($socket);
+
+            if (! is_string($response)) {
+                throw new RuntimeException('Unable to read the HTTP response.');
+            }
+
+            return $response;
+        } finally {
+            fclose($socket);
+        }
+    }
+
+    /**
+     * Open a bounded connection to the HTTP test server.
+     *
+     * @return resource
+     */
+    protected function openSocket()
     {
         $socket = stream_socket_client(
             sprintf('tcp://%s:%d', $this->getServerHost(), $this->getServerPort()),
@@ -68,12 +103,28 @@ class RequestFramingTest extends HttpServerIntegrationTestCase
 
         stream_set_timeout($socket, 2);
 
-        try {
-            $this->assertSame(strlen($request), fwrite($socket, $request));
+        return $socket;
+    }
 
-            return stream_get_contents($socket);
-        } finally {
-            fclose($socket);
+    /**
+     * Read one HTTP response head.
+     *
+     * @param resource $socket
+     */
+    protected function readResponseHead($socket): string
+    {
+        $head = '';
+
+        while (! str_ends_with($head, "\r\n\r\n")) {
+            $line = fgets($socket);
+
+            if ($line === false) {
+                throw new RuntimeException('Timed out waiting for the HTTP response head.');
+            }
+
+            $head .= $line;
         }
+
+        return $head;
     }
 }

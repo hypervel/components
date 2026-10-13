@@ -13,6 +13,9 @@ class NativeRequestParsingTest extends TestCase
 {
     protected string $temporaryDirectory;
 
+    /**
+     * Prepare an isolated upload directory.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -23,6 +26,9 @@ class NativeRequestParsingTest extends TestCase
         $filesystem->ensureDirectoryExists($this->temporaryDirectory);
     }
 
+    /**
+     * Remove the isolated upload directory.
+     */
     protected function tearDown(): void
     {
         (new Filesystem)->deleteDirectory($this->temporaryDirectory);
@@ -125,22 +131,6 @@ class NativeRequestParsingTest extends TestCase
             $this->assertSame(['first' => 'one', 'second' => 'two'], $request->post);
             $this->assertSame($requestData, $request->getData());
         }
-    }
-
-    public function testQueryRequestsWithBodiesAreParsed(): void
-    {
-        // Covered upstream by https://github.com/swoole/swoole-src/pull/6256.
-        $body = 'search terms';
-        $requestData = $this->requestData('QUERY', '/search', [
-            'Content-Type' => 'text/plain',
-            'Content-Length' => (string) strlen($body),
-        ], $body);
-        $request = Request::create();
-
-        $this->assertSame(strlen($requestData), $request->parse($requestData));
-        $this->assertTrue($request->isCompleted());
-        $this->assertSame('QUERY', $request->getMethod());
-        $this->assertSame($body, $request->rawContent());
     }
 
     /**

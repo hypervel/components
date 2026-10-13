@@ -156,6 +156,12 @@ $router->match(['GET', 'POST'], '/inspect', function (Request $request): JsonRes
         ] : null,
     ]);
 });
+$router->match(['QUERY'], '/query', fn (Request $request): JsonResponse => new JsonResponse([
+    'method' => $request->getMethod(),
+    'query' => $request->query->all(),
+    'request' => $request->request->all(),
+    'content' => $request->getContent(),
+]));
 $router->get('/context', function (Request $request): string {
     usleep(20_000);
 

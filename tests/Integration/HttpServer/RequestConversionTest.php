@@ -75,6 +75,34 @@ class RequestConversionTest extends HttpServerIntegrationTestCase
         $this->assertSame('uploaded contents', $payload['file']['contents']);
     }
 
+    public function testQueryRequestsAreParsedByTheHttpServer(): void
+    {
+        if (SWOOLE_VERSION_ID <= 60203) {
+            $this->markTestSkipped('Requires HTTP/1 QUERY support from https://github.com/swoole/swoole-src/pull/6256.');
+        }
+
+        $client = new EngineClient($this->getServerHost(), $this->getServerPort());
+        $body = 'term=runtime&page=2';
+
+        try {
+            $response = $client->request(
+                'QUERY',
+                '/query?source=hypervel',
+                ['Content-Type' => 'application/x-www-form-urlencoded'],
+                $body,
+            );
+        } finally {
+            $client->close();
+        }
+        $this->assertSame(200, $response->statusCode);
+        $payload = json_decode($response->body, true, flags: JSON_THROW_ON_ERROR);
+
+        $this->assertSame('QUERY', $payload['method']);
+        $this->assertSame(['source' => 'hypervel'], $payload['query']);
+        $this->assertSame(['term' => 'runtime', 'page' => '2'], $payload['request']);
+        $this->assertSame($body, $payload['content']);
+    }
+
     public function testLargeUploadsRejectClientProvidedInternalMarkers(): void
     {
         if (SWOOLE_VERSION_ID <= 60203) {
