@@ -424,6 +424,20 @@ trait ManagesTransactions
     }
 
     /**
+     * Determine whether this connection has a transaction that delays after-commit callbacks.
+     *
+     * Without a transaction manager, any open transaction counts.
+     */
+    public function hasApplicableTransaction(): bool
+    {
+        if ($this->transactionLevel() === 0) {
+            return false;
+        }
+
+        return $this->transactionsManager?->hasApplicableTransaction($this->getName() ?? '') ?? true;
+    }
+
+    /**
      * Execute the callback after a transaction commits.
      *
      * The callback belongs to this connection's open transaction stack.

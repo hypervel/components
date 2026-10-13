@@ -163,6 +163,32 @@ class ConnectionResolver implements ConnectionResolverInterface
     }
 
     /**
+     * Check the current connection's transaction state without borrowing a pool slot.
+     */
+    public function hasApplicableTransaction(UnitEnum|string|null $name = null): bool
+    {
+        $connectionName = ConnectionName::parse($this->connectionName($name));
+        $held = CoroutineContext::get($this->getContextKey($connectionName->requested));
+
+        if ($held instanceof Connection) {
+            return $held->hasApplicableTransaction();
+        }
+
+        $pool = $this->poolManager->existing($connectionName->requested);
+
+        // In-memory SQLite role aliases share the pool's sole logical owner.
+        if ($pool?->getSharedInMemorySqlitePdo() !== null) {
+            $held = CoroutineContext::get($this->getContextKey($pool->getName()));
+
+            if ($held instanceof Connection) {
+                return $held->hasApplicableTransaction();
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Get the query grammar date format of a connection without holding one.
      *
      * A connection the current coroutine holds answers for itself. Otherwise
