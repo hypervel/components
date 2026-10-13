@@ -241,10 +241,6 @@ class SocketTest extends TestCase
     #[RunInSeparateProcess]
     public function testSocketOptionsAcceptObjectsAndReportTheInvalidLingerField(): void
     {
-        if (SWOOLE_VERSION_ID <= 60203) {
-            $this->markTestSkipped('Requires safe coroutine socket option validation from https://github.com/swoole/swoole-src/pull/6166.');
-        }
-
         $socket = new Socket(AF_INET, SOCK_STREAM, SOL_TCP);
 
         try {

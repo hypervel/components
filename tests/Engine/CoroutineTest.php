@@ -249,7 +249,7 @@ class CoroutineTest extends TestCase
 
     public function testCancellationEscapesDirectoryIteration(): void
     {
-        if (SWOOLE_VERSION_ID <= 60203) {
+        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
             $this->markTestSkipped('Requires correct coroutine exception delivery from https://github.com/swoole/swoole-src/pull/6185.');
         }
 
@@ -266,7 +266,7 @@ class CoroutineTest extends TestCase
 
     public function testCoroutineTimeLimitOwnsOneFractionalTimer(): void
     {
-        if (SWOOLE_VERSION_ID <= 60203) {
+        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
             $this->markTestSkipped('Requires fractional and owned coroutine time-limit timers from https://github.com/swoole/swoole-src/pull/6270.');
         }
 

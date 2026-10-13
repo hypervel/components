@@ -10,7 +10,7 @@ class RequestFramingTest extends HttpServerIntegrationTestCase
 {
     public function testChunkedRequestsKeepTheirExactBoundary(): void
     {
-        if (SWOOLE_VERSION_ID <= 60203) {
+        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
             $this->markTestSkipped('Requires https://github.com/swoole/swoole-src/pull/6205');
         }
 
@@ -43,7 +43,7 @@ class RequestFramingTest extends HttpServerIntegrationTestCase
 
     public function testPipelinedResponsesStayInRequestOrder(): void
     {
-        if (SWOOLE_VERSION_ID <= 60203) {
+        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
             $this->markTestSkipped('Requires https://github.com/swoole/swoole-src/pull/6220');
         }
 

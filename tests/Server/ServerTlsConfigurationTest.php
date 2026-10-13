@@ -13,10 +13,6 @@ class ServerTlsConfigurationTest extends TestCase
 
     public function testMalformedDefaultCertificatesAreRejected(): void
     {
-        if (SWOOLE_VERSION_ID <= 60203) {
-            $this->markTestSkipped('Requires failed TLS context initialization from https://github.com/swoole/swoole-src/pull/6214.');
-        }
-
         $process = new Process([
             PHP_BINARY,
             __DIR__ . '/Fixtures/invalid_tls_configuration.php',

@@ -10,10 +10,6 @@ class HookedStreamTest extends TestCase
 {
     public function testSocketShutdownReportsTheNativeResult(): void
     {
-        if (SWOOLE_VERSION_ID <= 60203) {
-            $this->markTestSkipped('Requires hooked stream shutdown result parity from https://github.com/swoole/swoole-src/pull/6109.');
-        }
-
         $server = stream_socket_server('tcp://127.0.0.1:0');
         $this->assertIsResource($server);
         $address = stream_socket_get_name($server, false);
@@ -41,7 +37,7 @@ class HookedStreamTest extends TestCase
 
     public function testClosingAListenerImmediatelyReleasesItsAddress(): void
     {
-        if (SWOOLE_VERSION_ID <= 60203) {
+        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
             $this->markTestSkipped('Requires immediate hooked listener release from https://github.com/swoole/swoole-src/pull/6274.');
         }
 

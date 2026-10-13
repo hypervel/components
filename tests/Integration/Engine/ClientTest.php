@@ -152,7 +152,7 @@ class ClientTest extends EngineIntegrationTestCase
 
     public function testClientRejectsInvalidDeferredSocketSettings(): void
     {
-        if (SWOOLE_VERSION_ID <= 60203) {
+        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
             $this->markTestSkipped('Requires rejected deferred client settings from https://github.com/swoole/swoole-src/pull/6267.');
         }
 

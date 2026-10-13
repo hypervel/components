@@ -11,7 +11,7 @@ class HttpClientTest extends TestCase
 {
     public function testClosingAnUnconnectedClientReportsNoConnection(): void
     {
-        if (SWOOLE_VERSION_ID <= 60203) {
+        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
             $this->markTestSkipped('Requires initialized coroutine HTTP client socket state from https://github.com/swoole/swoole-src/pull/6186.');
         }
 

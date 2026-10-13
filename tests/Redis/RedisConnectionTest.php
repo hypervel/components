@@ -1146,12 +1146,6 @@ class RedisConnectionTest extends TestCase
 
     public function testTlsConnectCancellationEscapesFromPhpRedisConnection(): void
     {
-        if (SWOOLE_VERSION_ID <= 60202) {
-            $this->markTestSkipped(
-                'Requires the hooked TLS cancellation fix from https://github.com/swoole/swoole-src/pull/6182.'
-            );
-        }
-
         $autoload = realpath(__DIR__ . '/../../vendor/autoload.php');
         $this->assertIsString($autoload);
         $process = new Process([

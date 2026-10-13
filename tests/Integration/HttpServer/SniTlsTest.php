@@ -26,7 +26,7 @@ class SniTlsTest extends TestCase
 
     public function testSniOnlyServersCompleteTlsHandshakes(): void
     {
-        if (SWOOLE_VERSION_ID <= 60203) {
+        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
             $this->markTestSkipped('Requires https://github.com/swoole/swoole-src/pull/6214');
         }
 

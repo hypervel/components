@@ -40,7 +40,7 @@
         "ext-session": "*",
         "ext-simplexml": "*",
         "ext-sockets": "*",
-        "ext-swoole": "^6.2.2",
+        "ext-swoole": "^6.3.0RC1",
         "ext-tokenizer": "*",
         "ext-zlib": "*",
         "composer-runtime-api": "^2.2",

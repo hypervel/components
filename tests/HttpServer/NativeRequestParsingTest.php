@@ -38,7 +38,7 @@ class NativeRequestParsingTest extends TestCase
 
     public function testMultipartHeadersCanBeSplitAcrossParseCalls(): void
     {
-        if (SWOOLE_VERSION_ID <= 60203) {
+        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
             $this->markTestSkipped('Requires https://github.com/swoole/swoole-src/pull/6154');
         }
 
@@ -69,7 +69,7 @@ class NativeRequestParsingTest extends TestCase
 
     public function testClientUploadMarkersAreNotTrusted(): void
     {
-        if (SWOOLE_VERSION_ID <= 60203) {
+        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
             $this->markTestSkipped('Requires https://github.com/swoole/swoole-src/pull/6162');
         }
 
@@ -102,7 +102,7 @@ class NativeRequestParsingTest extends TestCase
 
     public function testRequestFieldsSurviveIncrementalParseCalls(): void
     {
-        if (SWOOLE_VERSION_ID <= 60203) {
+        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
             $this->markTestSkipped('Requires https://github.com/swoole/swoole-src/pull/6224');
         }
 

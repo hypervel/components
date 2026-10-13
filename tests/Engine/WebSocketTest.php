@@ -71,7 +71,7 @@ class WebSocketTest extends TestCase
             $this->markTestSkipped('Swoole was not compiled with zlib support.');
         }
 
-        if (SWOOLE_VERSION_ID <= 60203) {
+        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
             $this->markTestSkipped('Requires input-preserving WebSocket decoding from https://github.com/swoole/swoole-src/pull/6158.');
         }
 
@@ -95,7 +95,7 @@ class WebSocketTest extends TestCase
 
     public function testMaskedFramesUseFreshKeys(): void
     {
-        if (SWOOLE_VERSION_ID <= 60203) {
+        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
             $this->markTestSkipped('Requires fresh WebSocket masking keys from https://github.com/swoole/swoole-src/pull/6165.');
         }
 
@@ -115,10 +115,6 @@ class WebSocketTest extends TestCase
     {
         if (! defined('SWOOLE_HAVE_ZLIB')) {
             $this->markTestSkipped('Swoole was not compiled with zlib support.');
-        }
-
-        if (SWOOLE_VERSION_ID <= 60203) {
-            $this->markTestSkipped('Requires compressed control-frame rejection from https://github.com/swoole/swoole-src/pull/6209.');
         }
 
         $payload = "\x03\xe8bye";
