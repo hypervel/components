@@ -1,0 +1,126 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Passport\Console;
+
+use Hypervel\Console\Command;
+use Hypervel\Passport\Client;
+use Hypervel\Passport\ClientRepository;
+use Hypervel\Passport\Passport;
+use Symfony\Component\Console\Attribute\AsCommand;
+
+#[AsCommand(name: 'passport:client')]
+class ClientCommand extends Command
+{
+    /**
+     * The name and signature of the console command.
+     */
+    protected ?string $signature = 'passport:client
+            {--personal : Create a personal access token client}
+            {--client : Create a client credentials grant client}
+            {--device : Create a device authorization grant client}
+            {--name= : The name of the client}
+            {--provider= : The name of the user provider}
+            {--redirect_uri= : The URI to redirect to after authorization }
+            {--public : Create a public client (without secret) }';
+
+    /**
+     * The console command description.
+     */
+    protected string $description = 'Create a client for issuing access tokens';
+
+    /**
+     * Execute the console command.
+     */
+    public function handle(ClientRepository $clients): void
+    {
+        if (! $this->option('name')) {
+            $this->input->setOption('name', $this->components->ask(
+                'What should we name the client?',
+                config()->string('app.name')
+            ));
+        }
+
+        $client = match (true) {
+            $this->option('personal') => $this->createPersonalAccessClient($clients),
+            $this->option('client') => $this->createClientCredentialsClient($clients),
+            $this->option('device') => $this->createDeviceCodeClient($clients),
+            default => $this->createAuthCodeClient($clients)
+        };
+
+        $this->components->info('New client created successfully.');
+
+        if ($client) {
+            $this->components->twoColumnDetail('Client ID', $client->getKey());
+
+            if ($client->confidential()) {
+                $this->components->twoColumnDetail('Client Secret', $client->plainSecret);
+                $this->components->warn('The client secret will not be shown again, so don\'t lose it!');
+            }
+        }
+    }
+
+    /**
+     * Create a new personal access client.
+     */
+    protected function createPersonalAccessClient(ClientRepository $clients): ?Client
+    {
+        $provider = $this->option('provider') ?: $this->components->choice(
+            'Which user provider should this client use to retrieve users?',
+            collect(config()->array('auth.guards'))->where('driver', 'passport')->pluck('provider')->all()
+                ?: collect(config()->array('auth.providers'))->keys()->all(),
+            Passport::defaultProvider()
+        );
+
+        $clients->createPersonalAccessGrantClient($this->option('name'), $provider);
+
+        return null;
+    }
+
+    // The legacy --password option is omitted; use authorization code or device clients.
+
+    /**
+     * Create a client credentials grant client.
+     */
+    protected function createClientCredentialsClient(ClientRepository $clients): Client
+    {
+        return $clients->createClientCredentialsGrantClient($this->option('name'));
+    }
+
+    // The legacy --implicit option is omitted; use authorization code clients with PKCE.
+
+    /**
+     * Create a device code client.
+     */
+    protected function createDeviceCodeClient(ClientRepository $clients): Client
+    {
+        $confidential = ! $this->option('public');
+
+        return $clients->createDeviceAuthorizationGrantClient($this->option('name'), $confidential);
+    }
+
+    /**
+     * Create an authorization code client.
+     */
+    protected function createAuthCodeClient(ClientRepository $clients): Client
+    {
+        $redirect = $this->option('redirect_uri') ?: $this->components->ask(
+            'Where should we redirect the request after authorization?',
+            url('/auth/callback')
+        );
+
+        $confidential = ! $this->option('public');
+
+        $enableDeviceFlow = Passport::$deviceCodeGrantEnabled
+            && $this->components->confirm('Would you like to enable the device authorization flow for this client?');
+
+        return $clients->createAuthorizationCodeGrantClient(
+            $this->option('name'),
+            explode(',', $redirect),
+            $confidential,
+            null,
+            $enableDeviceFlow
+        );
+    }
+}
