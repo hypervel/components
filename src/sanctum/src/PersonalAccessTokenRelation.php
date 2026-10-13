@@ -6,6 +6,7 @@ namespace Hypervel\Sanctum;
 
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\MorphMany;
+use Hypervel\Support\Collection;
 
 /**
  * @template TDeclaringModel of Model
@@ -15,6 +16,11 @@ use Hypervel\Database\Eloquent\Relations\MorphMany;
 class PersonalAccessTokenRelation extends MorphMany
 {
     /**
+     * The maximum number of tokens deleted and invalidated per batch.
+     */
+    protected const int DELETE_BATCH_SIZE = 1000;
+
+    /**
      * Delete the related personal access tokens.
      */
     public function delete(): mixed
@@ -23,22 +29,29 @@ class PersonalAccessTokenRelation extends MorphMany
             return $this->getQuery()->delete();
         }
 
-        /** @var array<int, int|string> $ids */
-        $ids = (clone $this->getQuery())
-            ->pluck($this->getRelated()->getQualifiedKeyName())
-            ->all();
-
-        if ($ids === []) {
-            return 0;
-        }
-
-        $deleted = (clone $this->getQuery())->whereKey($ids)->delete();
+        $key = $this->getRelated()->getKeyName();
+        $qualifiedKey = $this->getRelated()->getQualifiedKeyName();
         $tokenModel = $this->getRelated()::class;
 
-        foreach ($ids as $id) {
-            $tokenModel::clearTokenCache($id);
-        }
+        // Batching must preserve the atomicity of the uncached, single-statement delete.
+        return $this->getRelated()->getConnection()->transaction(function () use ($key, $qualifiedKey, $tokenModel): int {
+            $deleted = 0;
 
-        return $deleted;
+            (clone $this->getQuery())->select($qualifiedKey)->useWritePdo()->toBase()->chunkById(
+                self::DELETE_BATCH_SIZE,
+                function (Collection $rows) use ($key, $tokenModel, &$deleted): void {
+                    $ids = $rows->pluck($key)->all();
+                    $deleted += (clone $this->getQuery())->whereKey($ids)->delete();
+
+                    foreach ($ids as $id) {
+                        $tokenModel::clearTokenCache($id);
+                    }
+                },
+                $qualifiedKey,
+                $key,
+            );
+
+            return $deleted;
+        });
     }
 }

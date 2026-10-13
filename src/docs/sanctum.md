@@ -213,7 +213,7 @@ The `last_used_at_update_interval` value must be a non-negative integer. Set thi
 
 Sanctum supports Redis, database, file, and Swoole cache stores that provide atomic locks. Storage, array, worker-array, null, session, failover, and stack stores are not supported. A cache stack may retain a token or user in an upper layer on another worker or node after the entry has been invalidated.
 
-For a multi-node application, choose a cache store whose values and locks are shared by every application node. A local file or Swoole store is suitable only when every request that may use a cached token runs within the same shared scope.
+Choose a cache store whose values and locks are shared by every process that authenticates tokens, revokes them, or changes their owners, including queue workers and console commands. Redis and database stores can be shared across servers. Use a file store only when those processes share its disk, and a Swoole store only when every reader and writer runs within the same server.
 
 For Redis, `SERIALIZER_NONE`, native PHP, and available igbinary serializers preserve model types. Msgpack is accepted only with `msgpack.php_only=1`. JSON, non-PHP msgpack, and unknown modes are rejected because they can return arrays instead of models. Native serializers bypass `cache.serializable_classes`; use `SERIALIZER_NONE` when class-policy enforcement is required.
 
@@ -233,6 +233,10 @@ The cached token entry never embeds its `tokenable` relation. During authenticat
 
 Sanctum always reads and writes token records using the database connection configured by your personal access token model, even if the tokenable model uses another connection.
 
+If this connection has separate read and write hosts, token authentication lookups use the writer, even when caching is disabled. This prevents replica lag from hiding newly created tokens or delaying revocation. Your application's other reads keep their normal routing. With caching enabled, token cache hits still avoid the database lookup.
+
+While a transaction is open on a token or tokenable model's connection, lookups for that model bypass the shared cache and read the database, including the transaction's own changes.
+
 Creating, updating, or deleting a personal access token automatically invalidates its token entry after the database transaction commits. This includes soft deletes, restores, and force deletes performed on token model instances. Deleting through the token relation also invalidates every matched token when caching is enabled:
 
 ```php
@@ -241,7 +245,7 @@ $user->tokens()->delete();
 $user->tokens()->where('name', 'Temporary')->delete();
 ```
 
-The relation fixes the matched token set before deletion and invalidates exactly those tokens. A token created concurrently after matching is not included in the deletion. Invalidations run immediately when there is no transaction, wait for the outer commit when there is one, and are discarded on rollback.
+The relation deletes matching tokens in primary-key batches within a single transaction and invalidates each deleted token after commit. A matching token created while deletion is running may also be deleted. If your application already has a transaction open, invalidation waits for that outer transaction to commit. Rollbacks discard pending invalidations.
 
 Raw SQL, quiet or eventless model mutations, and arbitrary builder updates bypass automatic model events. Clear the affected entry explicitly after using one of these escape hatches:
 

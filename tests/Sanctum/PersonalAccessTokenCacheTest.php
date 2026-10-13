@@ -10,6 +10,7 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Engine\Channel;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Sanctum\PersonalAccessToken;
 use Hypervel\Sanctum\Sanctum;
@@ -20,8 +21,13 @@ use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Sanctum\Fixtures\TestUser;
 use Mockery as m;
+use PDO;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use UnitEnum;
+
+use function Hypervel\Coroutine\parallel;
 
 class PersonalAccessTokenCacheTest extends TestCase
 {
@@ -144,6 +150,28 @@ class PersonalAccessTokenCacheTest extends TestCase
             'sanctum.testing_personal_access_token_model',
             SecondaryConnectionPersonalAccessToken::class,
         );
+    }
+
+    /**
+     * Keep token queries outside the test transaction and exercise sticky routing.
+     */
+    protected function useReadWriteTokenConnection(ApplicationContract $app): void
+    {
+        $this->useSecondaryConnectionPersonalAccessTokenModel($app);
+        $app->make('config')->set('database.connections.sanctum_secondary.sticky', true);
+    }
+
+    /**
+     * Use a single coroutine-owned pool slot for token and owner lookups.
+     */
+    protected function usePooledSecondaryConnection(ApplicationContract $app): void
+    {
+        $this->useSecondaryConnectionPersonalAccessTokenModel($app);
+        $app->make('config')->set('database.connections.sanctum_secondary.pool', [
+            'testing_enabled' => true,
+            'max_connections' => 1,
+            'wait_timeout' => 0.1,
+        ]);
     }
 
     protected function disableTokenCache(ApplicationContract $app): void
@@ -296,6 +324,38 @@ class PersonalAccessTokenCacheTest extends TestCase
 
         $this->assertNull(PersonalAccessToken::findToken('secret'));
         $this->assertSame(0, $this->countQueriesForTable('personal_access_tokens'));
+    }
+
+    #[DefineEnvironment('useReadWriteTokenConnection')]
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testTokenLookupsUseTheWriterWithoutRedirectingOtherReads(bool $cached): void
+    {
+        config(['sanctum.cache.enabled' => $cached]);
+        $this->createSecondaryConnectionTokenTable();
+        $token = $this->createToken();
+        $connection = $token->getConnection();
+        $original = $connection->getRawReadPdo();
+        $replica = new PDO('sqlite::memory:');
+        $replica->exec('create table personal_access_tokens (id integer primary key, token text)');
+        $connection->setReadPdo($replica);
+
+        try {
+            // The next request has no sticky writes, while its replica still lacks the new token.
+            $connection->forgetRecordModificationState();
+            $this->assertNull($connection->table('personal_access_tokens')->find($token->id));
+            $this->assertSame($token->id, SecondaryConnectionPersonalAccessToken::findToken($token->id . '|secret')?->id);
+            $this->assertNull($connection->table('personal_access_tokens')->find($token->id));
+
+            $replica->prepare('insert into personal_access_tokens values (?, ?)')->execute([$token->id, $token->token]);
+            $token->delete();
+            $connection->forgetRecordModificationState();
+
+            $this->assertNull(SecondaryConnectionPersonalAccessToken::findToken($token->id . '|secret'));
+            $this->assertNotNull($connection->table('personal_access_tokens')->find($token->id));
+        } finally {
+            $connection->setReadPdo($original);
+        }
     }
 
     public function testValidTokenIsCached(): void
@@ -796,6 +856,114 @@ class PersonalAccessTokenCacheTest extends TestCase
         $this->assertNotNull($this->cacheRepository()->getRaw("sanctum:{$token->id}"));
     }
 
+    #[DataProvider('cacheWarmth')]
+    public function testTokenAndOwnerCachesFollowTransactionWritesAndRollback(bool $warm): void
+    {
+        $token = $this->createToken();
+        $user = $token->tokenable;
+        $connection = $token->getConnection();
+        $originalLevel = $connection->transactionLevel();
+        $find = fn (): PersonalAccessToken => PersonalAccessToken::findToken($token->id . '|secret');
+
+        if ($warm) {
+            $this->warmTokenCache($token);
+        }
+
+        $connection->beginTransaction();
+
+        try {
+            $token->forceFill(['abilities' => ['outer']])->save();
+            $user->forceFill(['name' => 'Outer'])->save();
+            $found = $find();
+            $this->assertSame(['outer'], $found->abilities);
+            $this->assertSame('Outer', PersonalAccessToken::findTokenable($found)->name);
+
+            $connection->beginTransaction();
+            $token->forceFill(['abilities' => ['inner']])->save();
+            $user->forceFill(['name' => 'Inner'])->save();
+            $found = $find();
+            $this->assertSame(['inner'], $found->abilities);
+            $this->assertSame('Inner', PersonalAccessToken::findTokenable($found)->name);
+            $connection->rollBack();
+
+            $found = $find();
+            $this->assertSame(['outer'], $found->abilities);
+            $this->assertSame('Outer', PersonalAccessToken::findTokenable($found)->name);
+        } finally {
+            $connection->rollBack($originalLevel);
+        }
+
+        $found = $find();
+        $this->assertSame(['*'], $found->abilities);
+        $this->assertSame('Test User', PersonalAccessToken::findTokenable($found)->name);
+    }
+
+    /**
+     * Cover existing cache entries and unfilled lookups.
+     */
+    public static function cacheWarmth(): iterable
+    {
+        yield 'warm' => [true];
+        yield 'cold' => [false];
+    }
+
+    #[DefineEnvironment('usePooledSecondaryConnection')]
+    public function testWarmTokenAndOwnerLookupsDoNotWaitForASaturatedPool(): void
+    {
+        [$tokenId] = parallel([
+            function (): int {
+                $this->createSecondaryConnectionTokenTable();
+                $connection = DB::connection('sanctum_secondary');
+                $connection->getSchemaBuilder()->create('users', static function (Blueprint $table): void {
+                    $table->id();
+                    $table->string('name');
+                    $table->timestamps();
+                });
+                $user = (new TestUser)->setConnection('sanctum_secondary');
+                $user->forceFill(['name' => 'Cached Owner'])->save();
+                $token = $user->tokens()->create([
+                    'name' => 'Cached Token',
+                    'token' => hash('sha256', 'secret'),
+                    'abilities' => ['*'],
+                ]);
+                $found = SecondaryConnectionPersonalAccessToken::findToken($token->id . '|secret');
+                $this->assertSame('Cached Owner', PersonalAccessToken::findTokenable($found)->name);
+
+                return $token->id;
+            },
+        ]);
+        $ready = new Channel(1);
+        $release = new Channel(1);
+
+        parallel([
+            static function () use ($ready, $release): void {
+                $connection = DB::connection('sanctum_secondary');
+                $connection->beginTransaction();
+
+                try {
+                    $ready->push(true);
+                    $release->pop(2);
+                } finally {
+                    $connection->rollBack();
+                }
+            },
+            function () use ($tokenId, $ready, $release): void {
+                $ready->pop(2);
+                $other = DB::connection();
+                $other->beginTransaction();
+
+                try {
+                    $token = SecondaryConnectionPersonalAccessToken::findToken($tokenId . '|secret');
+                    $this->assertSame('Cached Token', $token->name);
+                    $this->assertSame('Cached Owner', PersonalAccessToken::findTokenable($token)->name);
+                } finally {
+                    $other->rollBack();
+                    $release->push(true);
+                }
+            },
+        ]);
+    }
+
     public function testClearTokenCacheForgetsOnlyTheTokenEntry(): void
     {
         $token = $this->createToken();
@@ -1127,6 +1295,18 @@ class PersonalAccessTokenCacheTest extends TestCase
     {
         $first = $this->createToken();
         $user = $first->tokenable;
+        $rows = [];
+
+        for ($index = 0; $index < 1000; ++$index) {
+            $rows[] = [
+                'name' => 'Batch Token',
+                'token' => hash('sha256', 'batch-' . $index),
+                'tokenable_type' => $first->tokenable_type,
+                'tokenable_id' => $first->tokenable_id,
+            ];
+        }
+
+        PersonalAccessToken::query()->insert($rows);
         $second = $user->tokens()->create([
             'name' => 'Second Token',
             'token' => hash('sha256', 'second-secret'),
@@ -1137,7 +1317,8 @@ class PersonalAccessTokenCacheTest extends TestCase
         $this->assertInstanceOf(PersonalAccessToken::class, $secondFound);
         $this->assertInstanceOf(TestUser::class, PersonalAccessToken::findTokenable($secondFound));
 
-        $this->assertSame(2, $user->tokens()->delete());
+        $this->assertSame(1002, $user->tokens()->delete());
+        $this->assertSame(0, $user->tokens()->count());
 
         $this->assertDatabaseMissing('personal_access_tokens', ['id' => $first->id]);
         $this->assertDatabaseMissing('personal_access_tokens', ['id' => $second->id]);
@@ -1147,6 +1328,44 @@ class PersonalAccessTokenCacheTest extends TestCase
         }
 
         $this->assertNotNull($this->cacheRepository()->getRaw($this->tokenableCacheKey($first)));
+    }
+
+    public function testLaterDeleteBatchFailureRollsBackEarlierBatchesAndKeepsCache(): void
+    {
+        $token = $this->createToken();
+        $user = $token->tokenable;
+        $rows = [];
+
+        for ($index = 0; $index < 1000; ++$index) {
+            $rows[] = [
+                'name' => 'Batch Token',
+                'token' => hash('sha256', 'batch-' . $index),
+                'tokenable_type' => $token->tokenable_type,
+                'tokenable_id' => $token->tokenable_id,
+            ];
+        }
+
+        PersonalAccessToken::query()->insert($rows);
+        $this->warmTokenCache($token);
+        $cached = $this->cacheRepository()->getRaw("sanctum:{$token->id}");
+        $failure = new RuntimeException('Second delete batch failed.');
+        $deletes = 0;
+        DB::connection()->beforeExecuting(static function (string $sql) use (&$deletes, $failure): void {
+            if (str_starts_with($sql, 'delete') && ++$deletes === 2) {
+                throw $failure;
+            }
+        });
+
+        try {
+            $user->tokens()->delete();
+            $this->fail('The second delete batch must fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+        }
+
+        $this->assertSame(2, $deletes);
+        $this->assertSame(1001, $user->tokens()->count());
+        $this->assertEquals($cached, $this->cacheRepository()->getRaw("sanctum:{$token->id}"));
     }
 
     public function testTokenRelationDeletesOnlyTheIdsSelectedBeforeTheDelete(): void
