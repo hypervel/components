@@ -11,6 +11,9 @@ use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\RefreshableLock;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Cache\Store;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Database\DatabaseTransactionsManager;
+use Hypervel\Database\Eloquent\Model;
 
 /**
  * Coordinate shared model cache fills and exact invalidations.
@@ -48,19 +51,46 @@ class ModelCacheCoordinator
     private const string ENVELOPE_VALUE_KEY = 'value';
 
     /**
+     * Create a model cache coordinator.
+     */
+    public function __construct(protected Container $container)
+    {
+    }
+
+    /**
+     * Determine whether the source has a transaction that prevents shared caching.
+     *
+     * @param Closure(): Model $source
+     */
+    public function hasApplicableTransaction(Closure $source): bool
+    {
+        /** @var DatabaseTransactionsManager $transactions */
+        $transactions = $this->container->make('db.transactions');
+
+        // Check the manager first so ordinary cache hits do not construct a source model.
+        return $transactions->hasApplicableTransaction() && $source()->hasApplicableTransaction();
+    }
+
+    /**
      * Retrieve or fill a shared model cache entry.
      *
+     * @param Closure(): Model $source
      * @param Closure(): mixed $read
      * @param null|(Closure(): CacheRepository) $writeCache
      */
     public function fill(
         CacheRepository $cache,
+        Closure $source,
         string $key,
         int $ttl,
         Closure $read,
         bool $cacheNull = true,
         ?Closure $writeCache = null,
     ): mixed {
+        if ($this->hasApplicableTransaction($source)) {
+            return $read();
+        }
+
         $cached = $cache->get($key);
 
         if ($this->isEnvelope($cached)) {
