@@ -52,21 +52,18 @@ class HypervelRequestFetcher implements RequestFetcherInterface
         // request in the worker-shared container as upstream's SetRequestMiddleware does.
         // Symfony's PSR-7 bridge is not used because it decodes every JSON body, which
         // Sentry only reads for legacy error events with bodies within the size limit.
-        $queryString = $request->server->getString('QUERY_STRING');
+        try {
+            // Set valid headers together instead of cloning the request for each header.
+            $serverRequest = $this->createServerRequest($request, $request->headers->all());
+        } catch (InvalidArgumentException) {
+            $serverRequest = $this->createServerRequest($request, []);
 
-        // The URI uses the query string as it was received
-        $serverRequest = new ServerRequest(
-            $request->getMethod(),
-            $request->getSchemeAndHttpHost() . $request->getBaseUrl() . $request->getPathInfo() . ($queryString !== '' ? '?' . $queryString : ''),
-            body: $request->getContent(),
-            serverParams: $request->server->all(),
-        );
-
-        foreach ($request->headers->all() as $name => $values) {
-            try {
-                $serverRequest = $serverRequest->withHeader($name, $values);
-            } catch (InvalidArgumentException) {
-                // Skip the headers PSR-7 rejects, such as null values, so they cannot drop the event
+            foreach ($request->headers->all() as $name => $values) {
+                try {
+                    $serverRequest = $serverRequest->withHeader((string) $name, $values);
+                } catch (InvalidArgumentException) {
+                    // Skip the headers PSR-7 rejects, such as null values, so they cannot drop the event
+                }
             }
         }
 
@@ -86,6 +83,23 @@ class HypervelRequestFetcher implements RequestFetcherInterface
         return $serverRequest
             ->withCookieParams($cookies)
             ->withParsedBody($this->parsedBody($request, $canCollectLegacyBody));
+    }
+
+    /**
+     * Create the PSR-7 request with the given headers.
+     */
+    private function createServerRequest(Request $request, array $headers): ServerRequest
+    {
+        $queryString = $request->server->getString('QUERY_STRING');
+
+        // The URI uses the query string as it was received
+        return new ServerRequest(
+            $request->getMethod(),
+            $request->getSchemeAndHttpHost() . $request->getBaseUrl() . $request->getPathInfo() . ($queryString !== '' ? '?' . $queryString : ''),
+            $headers,
+            $request->getContent(),
+            serverParams: $request->server->all(),
+        );
     }
 
     /**

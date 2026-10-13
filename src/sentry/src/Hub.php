@@ -524,7 +524,7 @@ class Hub implements HubInterface
     {
         $stack = $this->getStack();
 
-        return end($stack);
+        return $stack[array_key_last($stack)];
     }
 
     /**
@@ -534,12 +534,16 @@ class Hub implements HubInterface
      */
     private function getStack(): array
     {
-        return CoroutineContext::getOrSet(static::CONTEXT_STACK_KEY, function (): array {
-            return [new Layer(
-                $this->getClient(),
-                clone $this->scope,
-            )];
-        });
+        $stack = CoroutineContext::get(static::CONTEXT_STACK_KEY);
+
+        if ($stack !== null) {
+            return $stack;
+        }
+
+        return CoroutineContext::set(static::CONTEXT_STACK_KEY, [new Layer(
+            $this->getClient(),
+            clone $this->scope,
+        )]);
     }
 
     /**

@@ -28,7 +28,11 @@ final class SensitiveCookieFilter
      */
     public static function filterValue(int|string $name, mixed $value): mixed
     {
-        if (Str::is([config()->string('session.cookie'), 'remember_*', 'XSRF-TOKEN'], $name)) {
+        $name = (string) $name;
+
+        if ($name === 'XSRF-TOKEN'
+            || str_starts_with($name, 'remember_')
+            || Str::is(config()->string('session.cookie'), $name)) {
             return KeyValueDataFilter::FILTERED_VALUE;
         }
 

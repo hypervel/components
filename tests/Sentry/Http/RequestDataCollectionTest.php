@@ -21,6 +21,8 @@ class RequestDataCollectionTest extends TestCase
         $request = $this->captureRequestData('GET', '/data-collection?token=secret&page=5', [], [
             $sessionCookie => 'foo',
             'remember_web_59ba36addc2b2f9401580f014c7f58ea4e30989d' => 'bar',
+            'remember_' => 'empty-suffix',
+            'XSRF-TOKEN' => 'token',
             'theme' => 'dark',
         ], [
             'REMOTE_ADDR' => '1.2.3.4',
@@ -35,6 +37,8 @@ class RequestDataCollectionTest extends TestCase
         $this->assertSame([
             $sessionCookie => '[Filtered]',
             'remember_web_59ba36addc2b2f9401580f014c7f58ea4e30989d' => '[Filtered]',
+            'remember_' => '[Filtered]',
+            'XSRF-TOKEN' => '[Filtered]',
             'theme' => 'dark',
         ], $request['cookies']);
         $this->assertSame(['[Filtered]'], $request['headers']['authorization']);

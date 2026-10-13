@@ -166,11 +166,25 @@ class HypervelRequestFetcherTest extends TestCase
     {
         $request = Request::create('http://localhost/', server: ['HTTP_X_VALID' => 'value']);
         $request->headers->set('X-Null', null);
+        $request->headers->set('123', 'numeric');
 
         $fetchedRequest = $this->fetchRequest($request);
 
         $this->assertSame('value', $fetchedRequest->getHeaderLine('X-Valid'));
         $this->assertFalse($fetchedRequest->hasHeader('X-Null'));
+        $this->assertSame('numeric', $fetchedRequest->getHeaderLine('123'));
+    }
+
+    public function testHeaderValuesAndNumericNamesArePreserved(): void
+    {
+        $request = Request::create('http://localhost/');
+        $request->headers->set('X-Multiple', [' first ', 'second']);
+        $request->headers->set('123', 'numeric');
+
+        $fetchedRequest = $this->fetchRequest($request);
+
+        $this->assertSame(['first', 'second'], $fetchedRequest->getHeader('X-Multiple'));
+        $this->assertSame('numeric', $fetchedRequest->getHeaderLine('123'));
     }
 
     /**
