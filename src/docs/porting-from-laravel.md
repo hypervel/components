@@ -31,6 +31,7 @@
     - [JSON:API Resources](#jsonapi-resources)
     - [CSRF Protection](#csrf-protection)
     - [Fortify](#fortify)
+    - [Passport](#passport)
     - [JWT Authentication](#jwt-authentication)
     - [Scout](#scout)
     - [Socialite](#socialite)
@@ -549,10 +550,25 @@ User models that use Fortify's `TwoFactorAuthenticatable` trait must also implem
 
 Fortify ignores Laravel's `fortify.passwords` setting. Declare the password reset broker with the guard's `passwords` key in `config/auth.php` instead. See [password resets](/docs/{{version}}/fortify#password-resets). Laravel's deprecated `Laravel\Fortify\Rules\Password` rule is not available; use `Hypervel\Validation\Rules\Password`.
 
+<a name="passport"></a>
+### Passport
+
+Replace `laravel/passport` with `hypervel/passport` and the `Laravel\Passport` namespace with `Hypervel\Passport`. Hypervel ships a `passport` guard; `actingAs()` and `actingAsClient()` default to it, and personal access clients without a provider use its provider. Use `auth:passport` with this guard. Other guard names remain supported.
+
+The implicit and password grants are not available. Use authorization code with PKCE, the device grant, or Sanctum for first-party authentication. PKCE clients must use `S256`. Replace deprecated JSON API routes and repository helpers with application-owned routes using model relations and `ClientRepository::create*Client()`. Replace `clients()` with `oauthApps()` and revoke clients with `Client::revoke()`.
+
+Use Hypervel's migrations: clients use UUIDs, JSON columns use each database's supported JSON type, tokens record their user provider, and refresh tokens belong to a refresh-token family. Set `provider` on imported user-token rows. Only guards using that provider accept those tokens, and a client's configured provider restricts who may authorize it. Regenerate confidential client secrets, which now use SHA-256. Laravel-issued authorization codes and refresh tokens cannot be decrypted, so users must authorize again. The API cookie is named `hypervel_token`.
+
+Clients must serialize refresh requests: reusing a refresh token revokes its grant. Rotation can only be disabled for confidential clients. Keep the token endpoint outside application transactions, including transaction-per-request middleware. Credential models and database signing-key models must share a connection; clients and users may use separate connections.
+
+Restart the server and other long-running processes after changing file or environment signing keys. `server:reload` is not sufficient. See [signing-key rotation](/docs/{{version}}/passport#rotating-signing-keys).
+
+Custom guards, controllers, middleware and cookie-factory subclasses must match Hypervel's constructor and protected method signatures. In particular, guards read `RequestContext` instead of accepting `setRequest()`, `CreateFreshApiToken` passes its guard explicitly, and server-building methods live on `ServerFactory`. Consult the package's [API differences](https://github.com/hypervel/passport#differences-from-laravel) and [Passport documentation](/docs/{{version}}/passport) when porting extensions.
+
 <a name="jwt-authentication"></a>
 ### JWT Authentication
 
-Applications using `tymon/jwt-auth` or `php-open-source-saver/jwt-auth` can switch to `hypervel/jwt`. Publish its `config/jwt.php` file and copy your values into it instead of reusing the old file, since some options have been renamed or removed. Replace the `JWTAuth` and `JWTFactory` facades with guard methods such as `fromUser` and `payload`, which returns the claims as an array. Set options such as subject locking and the blacklist in configuration instead of calling setters at runtime. Replace the `jwt.auth` middleware with `auth:api`, remove `jwt.check` from routes that allow guests, and replace `jwt.refresh` and `jwt.renew` with a [refresh endpoint](/docs/{{version}}/jwt#refreshing-tokens).
+Applications using `tymon/jwt-auth` or `php-open-source-saver/jwt-auth` can switch to `hypervel/jwt`. Publish its `config/jwt.php` file and copy your values into it instead of reusing the old file, since some options have been renamed or removed. Replace the `JWTAuth` and `JWTFactory` facades with guard methods such as `fromUser` and `payload`, which returns the claims as an array. Set options such as subject locking and the blacklist in configuration instead of calling setters at runtime. Hypervel already ships a `jwt` guard, so you do not need the usual `api` guard entry. Replace the `jwt.auth` middleware with `auth:jwt`, remove `jwt.check` from routes that allow guests, and replace `jwt.refresh` and `jwt.renew` with a [refresh endpoint](/docs/{{version}}/jwt#refreshing-tokens).
 
 Only the `Authorization` header is read by default. If clients send tokens in the query string, request body, or a cookie, add the matching parser to the `parser` option. See [token sources](/docs/{{version}}/jwt#token-sources).
 
