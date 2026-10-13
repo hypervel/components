@@ -15,6 +15,9 @@ class MutualTlsTest extends TestCase
 
     protected int $serverPort = 19507;
 
+    /**
+     * Require the mutual TLS test server.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -27,11 +30,18 @@ class MutualTlsTest extends TestCase
             $this->markTestSkipped('Requires https://github.com/swoole/swoole-src/pull/6188');
         }
 
-        $this->assertFalse($this->connect());
-        $this->assertStringContainsString('secure', $this->connect(withClientCertificate: true));
+        $this->assertStringNotContainsString('HTTP/1.1 200 OK', $this->request());
+
+        $response = $this->request(withClientCertificate: true);
+
+        $this->assertStringContainsString('HTTP/1.1 200 OK', $response);
+        $this->assertStringEndsWith('secure', $response);
     }
 
-    protected function connect(bool $withClientCertificate = false): string|false
+    /**
+     * Send a request with optional client credentials.
+     */
+    protected function request(bool $withClientCertificate = false): string
     {
         $tlsDirectory = __DIR__ . '/Fixtures/Tls';
         $options = [
@@ -56,14 +66,18 @@ class MutualTlsTest extends TestCase
         );
 
         if (! is_resource($socket)) {
-            return false;
+            return '';
         }
 
         stream_set_timeout($socket, 2);
-        fwrite($socket, "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
-        $response = stream_get_contents($socket);
-        fclose($socket);
 
-        return $response;
+        try {
+            @fwrite($socket, "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
+            $response = @stream_get_contents($socket);
+
+            return is_string($response) ? $response : '';
+        } finally {
+            fclose($socket);
+        }
     }
 }

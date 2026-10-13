@@ -31,14 +31,6 @@ if ($mode === 'mtls') {
             'ssl_key_file' => $tlsDirectory . '/server.key',
         ],
     ];
-} elseif ($mode === 'invalid') {
-    $settings += [
-        'ssl_cert_file' => $tlsDirectory . '/invalid.crt',
-        'ssl_key_file' => $tlsDirectory . '/server.key',
-    ];
-
-    echo @$server->set($settings) ? 'accepted' : 'rejected';
-    exit;
 } else {
     fwrite(STDERR, "Unknown TLS test mode.\n");
     exit(1);
