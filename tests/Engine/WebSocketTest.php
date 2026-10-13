@@ -65,6 +65,63 @@ class WebSocketTest extends TestCase
         $this->assertTrue(Frame::from($swooleFrame)->getMask());
     }
 
+    public function testNativeFramesDecodeMaskedCompressedPayloadsWithoutMutatingTheInput(): void
+    {
+        // https://github.com/swoole/swoole-src/pull/6158
+        if (! defined('SWOOLE_HAVE_ZLIB')) {
+            $this->markTestSkipped('Swoole was not compiled with zlib support.');
+        }
+
+        $payload = str_repeat('hypervel-websocket-frame:', 20);
+        $packed = SwooleFrame::pack(
+            $payload,
+            Opcode::TEXT,
+            SWOOLE_WEBSOCKET_FLAG_FIN | SWOOLE_WEBSOCKET_FLAG_MASK | SWOOLE_WEBSOCKET_FLAG_COMPRESS,
+        );
+        $original = $packed;
+
+        $frame = SwooleFrame::unpack($packed);
+
+        $this->assertInstanceOf(SwooleFrame::class, $frame);
+        $this->assertSame($payload, $frame->data);
+        $this->assertSame($original, $packed);
+    }
+
+    public function testMaskedFramesUseFreshKeys(): void
+    {
+        if (SWOOLE_VERSION_ID <= 60203) {
+            $this->markTestSkipped('Requires fresh WebSocket masking keys from https://github.com/swoole/swoole-src/pull/6165.');
+        }
+
+        $keys = [];
+
+        for ($attempt = 0; $attempt < 8; ++$attempt) {
+            $packed = (string) new Frame(mask: true, payloadData: 'hello');
+            $keys[] = substr($packed, 2, 4);
+
+            $this->assertSame('hello', SwooleFrame::unpack($packed)->data);
+        }
+
+        $this->assertGreaterThan(1, count(array_unique($keys)));
+    }
+
+    public function testCompressedControlFramesAreRejected(): void
+    {
+        if (SWOOLE_VERSION_ID <= 60203) {
+            $this->markTestSkipped('Requires compressed control-frame rejection from https://github.com/swoole/swoole-src/pull/6209.');
+        }
+
+        foreach ([Opcode::CLOSE, Opcode::PING, Opcode::PONG] as $opcode) {
+            $packed = SwooleFrame::pack(
+                '',
+                $opcode,
+                SWOOLE_WEBSOCKET_FLAG_FIN | SWOOLE_WEBSOCKET_FLAG_RSV1,
+            );
+
+            $this->assertFalse(@SwooleFrame::unpack($packed));
+        }
+    }
+
     public function testResponseReturnsTheNativeResponsePushResult(): void
     {
         $connection = new EngineTestSwooleResponse;
