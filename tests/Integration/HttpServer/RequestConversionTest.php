@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\HttpServer;
 
 use Hypervel\Engine\Http\Client as EngineClient;
+use Hypervel\Filesystem\Filesystem;
+use Hypervel\Testing\ParallelTesting;
 
 use function Hypervel\Coroutine\parallel;
 
@@ -71,6 +73,39 @@ class RequestConversionTest extends HttpServerIntegrationTestCase
         $this->assertSame('report.txt', $payload['file']['path']);
         $this->assertSame('text/plain', $payload['file']['type']);
         $this->assertSame('uploaded contents', $payload['file']['contents']);
+    }
+
+    public function testLargeUploadsRejectClientProvidedInternalMarkers(): void
+    {
+        if (SWOOLE_VERSION_ID <= 60203) {
+            $this->markTestSkipped('Requires https://github.com/swoole/swoole-src/pull/6161');
+        }
+
+        $directory = ParallelTesting::tempDir('large-upload-marker');
+        $filesystem = new Filesystem;
+        $filesystem->ensureDirectoryExists($directory);
+        $probe = $directory . '/probe.txt';
+        $filesystem->put($probe, 'probe');
+
+        try {
+            $response = $this->request('POST', '/inspect', [
+                'multipart' => [[
+                    'name' => 'upload',
+                    'contents' => str_repeat('x', 80 * 1024),
+                    'filename' => 'large.txt',
+                    'headers' => [
+                        'Content-Type' => 'text/plain',
+                        'Swoole-Upload-File' => $probe,
+                    ],
+                ]],
+            ]);
+
+            $this->assertSame(400, $response->getStatusCode());
+            $this->assertFileExists($probe);
+            $this->assertSame('probe', $filesystem->get($probe));
+        } finally {
+            $filesystem->deleteDirectory($directory);
+        }
     }
 
     public function testConcurrentRequestsKeepTheirOwnRequestContext(): void
