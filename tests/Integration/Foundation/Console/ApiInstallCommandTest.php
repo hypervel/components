@@ -190,6 +190,41 @@ class ApiInstallCommandTest extends \Hypervel\Testbench\TestCase
         $this->assertSame(['hypervel/sanctum:^0.4'], TestableApiInstallCommand::$composerRequireCalls[0]['packages']);
     }
 
+    public function testInstallsPassportAndPublishesRoutesUsingItsGuard(): void
+    {
+        Process::fake();
+        $apiRoutesPath = $this->app->basePath('routes/api.php');
+        $this->createdFiles[] = $apiRoutesPath;
+
+        $this->artisan('install:api', ['--passport' => true])
+            ->expectsOutputToContain('API scaffolding installed. Please add the [Hypervel\Passport\HasApiTokens] trait and [Hypervel\Passport\Contracts\OAuthenticatable] interface to your User model.')
+            ->assertSuccessful();
+
+        $this->assertSame([
+            ['composer' => 'global', 'packages' => ['hypervel/passport:^0.4']],
+        ], TestableApiInstallCommand::$composerRequireCalls);
+        $this->assertStringContainsString("->middleware('auth:passport')", file_get_contents($apiRoutesPath));
+        Process::assertRanInOrder([
+            static fn (PendingProcess $process): bool => is_array($process->command)
+                && $process->command[2] === 'passport:install',
+        ]);
+    }
+
+    public function testFailedPassportInstallationDoesNotReportSuccess(): void
+    {
+        Process::fake(static fn () => Process::result(exitCode: 1));
+        $this->createdFiles[] = $this->app->basePath('routes/api.php');
+        $tester = $this->commandTester(new TestableApiInstallCommand);
+
+        try {
+            $tester->execute(['--passport' => true]);
+            $this->fail('Expected Passport installation to fail.');
+        } catch (ProcessFailedException) {
+        }
+
+        $this->assertStringNotContainsString('API scaffolding installed.', $tester->getDisplay());
+    }
+
     public function testPublishesSanctumMigrationWhenMissing(): void
     {
         Process::fake();

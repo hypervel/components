@@ -1038,6 +1038,7 @@ class AuthManagerTest extends TestCase
         $secondRepo->shouldReceive('getStore')->andReturn(m::mock(RedisStore::class));
         $cacheManager->shouldReceive('store')->with('redis')->andReturn($firstRepo, $secondRepo);
         $container->instance('cache', $cacheManager);
+        $container->instance(ModelCacheCoordinator::class, new ModelCacheCoordinator($container));
 
         $firstGuard = $manager->guard('api');
 
