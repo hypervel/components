@@ -10,6 +10,9 @@ use Hypervel\Database\Eloquent\Model;
 
 class MissingAttributeModelViolationReporter extends ModelViolationReporter
 {
+    /**
+     * Get the context data for the violation.
+     */
     protected function getViolationContext(Model $model, string $property): array
     {
         return [
@@ -18,6 +21,9 @@ class MissingAttributeModelViolationReporter extends ModelViolationReporter
         ];
     }
 
+    /**
+     * Get the exception representing the violation.
+     */
     protected function getViolationException(Model $model, string $property): Exception
     {
         return new MissingAttributeException($model, $property);

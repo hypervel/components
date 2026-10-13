@@ -21,7 +21,6 @@ use Hypervel\Testbench\TestCase;
 use Meilisearch\Client as MeilisearchClient;
 use Meilisearch\Exceptions\ApiException;
 use Meilisearch\Http\Client as MeilisearchHttpClient;
-use Psr\Http\Client\ClientInterface;
 use Psr\Http\Message\RequestInterface;
 use ReflectionProperty;
 use stdClass;

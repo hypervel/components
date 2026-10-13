@@ -2,12 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Sentry;
+namespace Hypervel\Tests\Sentry\Hypervel;
 
+use Hypervel\Tests\Sentry\TestCase;
 use Sentry\Logger\DebugFileLogger;
 use Sentry\State\HubInterface;
 
-class ContainerConfigOptionsTest extends SentryTestCase
+class HypervelContainerConfigOptionsTest extends TestCase
 {
     public function testOrgIdIsNullByDefault(): void
     {

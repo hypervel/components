@@ -8,6 +8,7 @@ use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Foundation\Application;
 use Psr\Log\NullLogger;
+use Sentry\Attachment\Attachment;
 use Sentry\Breadcrumb;
 use Sentry\CheckIn;
 use Sentry\CheckInStatus;
@@ -25,10 +26,17 @@ use Sentry\Tracing\SamplingContext;
 use Sentry\Tracing\Span;
 use Sentry\Tracing\Transaction;
 use Sentry\Tracing\TransactionContext;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 use function sprintf;
 
+/**
+ * The SDK's Hub with a layer stack per coroutine instead of per instance.
+ *
+ * Each coroutine starts from a copy of the baseline scope, and child coroutines inherit a
+ * copy of their parent's stack. Compare this class with `Sentry\State\Hub` on every SDK update.
+ */
 class Hub implements HubInterface
 {
     public const string CONTEXT_STACK_KEY = '__sentry.stack';
@@ -37,11 +45,17 @@ class Hub implements HubInterface
 
     protected Scope $scope;
 
+    /**
+     * Create a new Hub instance.
+     */
     public function __construct(protected ?ClientInterface $client = null, ?Scope $scope = null)
     {
         $this->scope = $scope ?? new Scope;
     }
 
+    /**
+     * Get the client bound to the hub.
+     */
     public function getClient(): ?ClientInterface
     {
         return $this->client;
@@ -59,11 +73,17 @@ class Hub implements HubInterface
         $this->client = $client;
     }
 
+    /**
+     * Get the ID of the last event captured in the current coroutine.
+     */
     public function getLastEventId(): ?EventId
     {
         return CoroutineContext::get(static::CONTEXT_LAST_EVENT_ID_KEY);
     }
 
+    /**
+     * Push a copy of the current scope onto the current coroutine's stack.
+     */
     public function pushScope(): Scope
     {
         $clonedScope = clone $this->getScope();
@@ -74,6 +94,9 @@ class Hub implements HubInterface
         return $clonedScope;
     }
 
+    /**
+     * Remove the most recently pushed scope from the current coroutine's stack.
+     */
     public function popScope(): bool
     {
         $currentLayers = $this->getStack();
@@ -88,6 +111,9 @@ class Hub implements HubInterface
         return true;
     }
 
+    /**
+     * Capture a message event and send it to Sentry.
+     */
     public function captureMessage(string $message, ?Severity $level = null, ?EventHint $hint = null): ?EventId
     {
         $client = $this->getClient();
@@ -102,6 +128,9 @@ class Hub implements HubInterface
         return null;
     }
 
+    /**
+     * Capture an exception event and send it to Sentry.
+     */
     public function captureException(Throwable $exception, ?EventHint $hint = null): ?EventId
     {
         $client = $this->getClient();
@@ -116,6 +145,9 @@ class Hub implements HubInterface
         return null;
     }
 
+    /**
+     * Capture a new event using the provided data.
+     */
     public function captureEvent(Event $event, ?EventHint $hint = null): ?EventId
     {
         $client = $this->getClient();
@@ -130,6 +162,9 @@ class Hub implements HubInterface
         return null;
     }
 
+    /**
+     * Capture an event for the last error that occurred.
+     */
     public function captureLastError(?EventHint $hint = null): ?EventId
     {
         $client = $this->getClient();
@@ -141,6 +176,9 @@ class Hub implements HubInterface
         return null;
     }
 
+    /**
+     * Record a breadcrumb that will be attached to future events.
+     */
     public function addBreadcrumb(Breadcrumb $breadcrumb): bool
     {
         $client = $this->getClient();
@@ -157,16 +195,41 @@ class Hub implements HubInterface
             return false;
         }
 
-        $breadcrumb = $beforeBreadcrumbCallback($breadcrumb);
+        try {
+            $breadcrumb = $beforeBreadcrumbCallback($breadcrumb);
+        } catch (CanceledException $exception) {
+            // Application callbacks may perform cancellable I/O.
+            throw $exception;
+        } catch (Throwable $exception) {
+            $options->getLoggerOrNullLogger()->error(sprintf('The "before_breadcrumb" callback failed with exception: "%s".', $exception->getMessage()));
+
+            return false;
+        }
 
         if ($breadcrumb !== null) {
-            $scope = $this->getScope();
-            $scope->addBreadcrumb($breadcrumb, $maxBreadcrumbs);
+            $this->getScope()->addBreadcrumb($breadcrumb, $maxBreadcrumbs);
         }
 
         return $breadcrumb !== null;
     }
 
+    /**
+     * Add an attachment to the current scope.
+     */
+    public function addAttachment(Attachment $attachment): bool
+    {
+        if ($this->getClient() === null) {
+            return false;
+        }
+
+        $this->getScope()->addAttachment($attachment);
+
+        return true;
+    }
+
+    /**
+     * Pass the current scope to the callback, or the baseline scope before the application boots.
+     */
     public function configureScope(callable $callback): void
     {
         $container = Container::getInstance();
@@ -181,6 +244,8 @@ class Hub implements HubInterface
     }
 
     /**
+     * Start a new transaction and decide whether it is sampled and profiled.
+     *
      * @param array<string, mixed> $customSamplingContext Additional context that will be passed to the
      *                                                    {@see SamplingContext}
      */
@@ -215,8 +280,16 @@ class Hub implements HubInterface
             $tracesSampler = $options->getTracesSampler();
 
             if ($tracesSampler !== null) {
-                $sampleRate = $tracesSampler($samplingContext);
-                $sampleSource = 'config:traces_sampler';
+                try {
+                    $sampleRate = $tracesSampler($samplingContext);
+                    $sampleSource = 'config:traces_sampler';
+                } catch (CanceledException $exception) {
+                    throw $exception;
+                } catch (Throwable $exception) {
+                    $logger->error(sprintf('The "traces_sampler" callback failed with exception: "%s".', $exception->getMessage()));
+                    $sampleRate = $options->getTracesSampleRate() ?? 0;
+                    $sampleSource = 'config:traces_sampler_error_fallback';
+                }
             } else {
                 $parentSampleRate = $context->getMetadata()->getParentSamplingRate();
                 if ($parentSampleRate !== null) {
@@ -303,8 +376,16 @@ class Hub implements HubInterface
         $profilesSampler = $options->getProfilesSampler();
 
         if ($profilesSampler !== null) {
-            $profilesSampleRate = $profilesSampler($samplingContext);
-            $profilesSampleSource = 'config:profiles_sampler';
+            try {
+                $profilesSampleRate = $profilesSampler($samplingContext);
+                $profilesSampleSource = 'config:profiles_sampler';
+            } catch (CanceledException $exception) {
+                throw $exception;
+            } catch (Throwable $exception) {
+                $logger->error(sprintf('The "profiles_sampler" callback failed with exception: "%s".', $exception->getMessage()));
+                $profilesSampleRate = $options->getProfilesSampleRate() ?? 0;
+                $profilesSampleSource = 'config:profiles_sampler_error_fallback';
+            }
         } else {
             $profilesSampleRate = $options->getProfilesSampleRate();
         }
@@ -343,11 +424,17 @@ class Hub implements HubInterface
         return $transaction;
     }
 
+    /**
+     * Get the transaction on the current scope.
+     */
     public function getTransaction(): ?Transaction
     {
         return $this->getScope()->getTransaction();
     }
 
+    /**
+     * Set the span on the current scope.
+     */
     public function setSpan(?Span $span): HubInterface
     {
         $this->getScope()->setSpan($span);
@@ -355,12 +442,18 @@ class Hub implements HubInterface
         return $this;
     }
 
+    /**
+     * Get the span on the current scope.
+     */
     public function getSpan(): ?Span
     {
         return $this->getScope()->getSpan();
     }
 
-    public function withScope(callable $callback)
+    /**
+     * Run the callback with a new scope that is removed afterwards.
+     */
+    public function withScope(callable $callback): mixed
     {
         $scope = $this->pushScope();
 
@@ -372,12 +465,14 @@ class Hub implements HubInterface
     }
 
     /**
+     * Capture a check-in.
+     *
      * @param null|float|int $duration
      */
     public function captureCheckIn(
         string $slug,
         CheckInStatus $status,
-        $duration = null,
+        mixed $duration = null,
         ?MonitorConfig $monitorConfig = null,
         ?string $checkInId = null
     ): ?string {
@@ -404,6 +499,9 @@ class Hub implements HubInterface
         return $checkIn->getId();
     }
 
+    /**
+     * Get the client's integration with the given class name.
+     */
     public function getIntegration(string $className): ?IntegrationInterface
     {
         $client = $this->getClient();
@@ -411,19 +509,22 @@ class Hub implements HubInterface
         return $client?->getIntegration($className);
     }
 
+    /**
+     * Get the scope at the top of the current coroutine's stack.
+     */
     protected function getScope(): Scope
     {
         return $this->getStackTop()->getScope();
     }
 
     /**
-     * Gets the topmost client/layer pair in the stack.
+     * Get the topmost client/layer pair in the stack.
      */
     private function getStackTop(): Layer
     {
         $stack = $this->getStack();
 
-        return end($stack);
+        return $stack[array_key_last($stack)];
     }
 
     /**
@@ -433,14 +534,21 @@ class Hub implements HubInterface
      */
     private function getStack(): array
     {
-        return CoroutineContext::getOrSet(static::CONTEXT_STACK_KEY, function (): array {
-            return [new Layer(
-                $this->getClient(),
-                clone $this->scope,
-            )];
-        });
+        $stack = CoroutineContext::get(static::CONTEXT_STACK_KEY);
+
+        if ($stack !== null) {
+            return $stack;
+        }
+
+        return CoroutineContext::set(static::CONTEXT_STACK_KEY, [new Layer(
+            $this->getClient(),
+            clone $this->scope,
+        )]);
     }
 
+    /**
+     * Determine whether a random draw falls within the given sample rate.
+     */
     private function sample(mixed $sampleRate): bool
     {
         if ($sampleRate === 0.0 || $sampleRate === null) {
@@ -454,6 +562,9 @@ class Hub implements HubInterface
         return mt_rand(0, mt_getrandmax() - 1) / mt_getrandmax() < $sampleRate;
     }
 
+    /**
+     * Determine if the given sample rate is a number between 0 and 1.
+     */
     private function isValidSampleRate(mixed $sampleRate): bool
     {
         if (! \is_float($sampleRate) && ! \is_int($sampleRate)) {
@@ -467,6 +578,9 @@ class Hub implements HubInterface
         return true;
     }
 
+    /**
+     * Get the sample rate from the parent's sampling decision, or the fallback rate without one.
+     */
     private function getSampleRate(?bool $hasParentBeenSampled, float $fallbackSampleRate): float
     {
         if ($hasParentBeenSampled === true) {

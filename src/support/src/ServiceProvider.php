@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Support;
 
 use Closure;
-use Hypervel\Config\Repository as ConcreteConfigRepository;
 use Hypervel\Console\Application as Artisan;
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
@@ -219,10 +218,7 @@ abstract class ServiceProvider
             return;
         }
 
-        /** @var ConcreteConfigRepository $config */
-        $config = $this->app->make('config');
-
-        $this->app->make(ConfigMutationTracker::class)->applyAndRecord($config, $callback);
+        $this->app->make(ConfigMutationTracker::class)->applyAndRecord($this->app->make('config'), $callback);
     }
 
     /**

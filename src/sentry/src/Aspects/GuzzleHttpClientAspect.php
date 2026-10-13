@@ -5,14 +5,23 @@ declare(strict_types=1);
 namespace Hypervel\Sentry\Aspects;
 
 use GuzzleHttp\Client;
+use GuzzleHttp\Promise\Create;
+use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\TransferStats;
 use Hypervel\Di\Aop\AbstractAspect;
 use Hypervel\Di\Aop\ProceedingJoinPoint;
+use Hypervel\Http\Client\Guzzle\RejectedResponse;
+use Hypervel\Sentry\Features\Concerns\ResolvesEventOrigin;
 use Hypervel\Sentry\Integration;
 use Hypervel\Sentry\SentryConfig;
 use Psr\Http\Message\RequestInterface;
+use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\UriInterface;
 use Sentry\Breadcrumb;
+use Sentry\DataCollection\DataCollectionPolicy;
+use Sentry\DataCollection\HttpMessageType;
+use Sentry\DataCollection\HttpSpanDataCollector;
+use Sentry\DataCollection\HttpUrlCollector;
 use Sentry\SentrySdk;
 use Sentry\Tracing\Span;
 use Sentry\Tracing\SpanContext;
@@ -23,20 +32,15 @@ use function Sentry\getBaggage;
 use function Sentry\getTraceparent;
 
 /**
- * AOP aspect that instruments all Guzzle HTTP client requests.
+ * Instrument the requests of every Guzzle client: the HTTP client, directly constructed
+ * clients and third-party SDKs built on Guzzle.
  *
- * Intercepts GuzzleHttp\Client::transfer() to provide:
- * - Trace header injection (sentry-trace, baggage)
- * - Span creation and finishing for tracing
- * - Breadcrumb recording via on_stats callback
- * - Preservation of any existing on_stats callback
- * - Per-request opt-out via the no_sentry_aspect option
- *
- * This catches all Guzzle usage: Http:: facade, direct new Client(),
- * and third-party packages using Guzzle internally.
+ * A client or a single request opts out with the `no_sentry_aspect` option.
  */
 class GuzzleHttpClientAspect extends AbstractAspect
 {
+    use ResolvesEventOrigin;
+
     public array $classes = [
         Client::class . '::transfer',
     ];
@@ -44,6 +48,10 @@ class GuzzleHttpClientAspect extends AbstractAspect
     private readonly bool $tracingEnabled;
 
     private readonly bool $breadcrumbsEnabled;
+
+    private readonly bool $traceOrigin;
+
+    private readonly int $traceOriginThresholdMs;
 
     /**
      * Create a new aspect instance.
@@ -56,6 +64,8 @@ class GuzzleHttpClientAspect extends AbstractAspect
             && $userConfig['tracing']['http_client_requests'] === true;
         $this->breadcrumbsEnabled = $config->canRecordBreadcrumbs()
             && $userConfig['breadcrumbs']['http_client_requests'] === true;
+        $this->traceOrigin = $userConfig['tracing']['http_client_requests_origin'] === true;
+        $this->traceOriginThresholdMs = $userConfig['tracing']['http_client_requests_origin_threshold_ms'];
     }
 
     /**
@@ -63,9 +73,9 @@ class GuzzleHttpClientAspect extends AbstractAspect
      */
     public function process(ProceedingJoinPoint $proceedingJoinPoint): mixed
     {
-        $options = $proceedingJoinPoint->arguments['keys']['options'] ?? [];
+        $options = $proceedingJoinPoint->arguments['keys']['options'];
 
-        if ($this->isOptedOut($options)) {
+        if (($options['no_sentry_aspect'] ?? false) === true) {
             return $proceedingJoinPoint->process();
         }
 
@@ -80,144 +90,162 @@ class GuzzleHttpClientAspect extends AbstractAspect
             $proceedingJoinPoint->arguments['keys']['request'] = $request;
         }
 
-        // Start a child span for tracing (finished in the on_stats callback)
         $span = null;
         if ($this->tracingEnabled) {
             $parentSpan = SentrySdk::getCurrentHub()->getSpan();
 
             if ($parentSpan !== null && $parentSpan->getSampled()) {
-                $method = $request->getMethod();
-                $uri = $request->getUri();
-                $partialUri = self::buildPartialUri($uri);
-
                 $span = $parentSpan->startChild(
                     SpanContext::make()
                         ->setOp('http.client')
-                        ->setData([
-                            'url' => $partialUri,
-                            'http.query' => $uri->getQuery(),
-                            'http.fragment' => $uri->getFragment(),
-                            'http.request.method' => $method,
-                        ])
                         ->setOrigin('auto.http.guzzle')
-                        ->setDescription($method . ' ' . $partialUri)
+                        ->setDescription($request->getMethod() . ' ' . self::buildPartialUri($request->getUri()))
                 );
             }
         }
 
-        // Inject on_stats callback for breadcrumb recording and span finishing.
-        // on_stats fires when the transfer completes (sync or async), giving us
-        // the response data needed to finish the span with accurate status codes.
-        $existingOnStats = $options['on_stats'] ?? null;
-        $recordBreadcrumbs = $this->breadcrumbsEnabled;
-
-        if ($span === null && ! $recordBreadcrumbs) {
+        if ($span === null && ! $this->breadcrumbsEnabled) {
             return $proceedingJoinPoint->process();
         }
 
-        $proceedingJoinPoint->arguments['keys']['options']['on_stats'] = static function (TransferStats $stats) use ($existingOnStats, $span, $recordBreadcrumbs): void {
-            if ($recordBreadcrumbs) {
-                self::recordBreadcrumb($stats);
-            }
+        // Guzzle applies the request options and middleware after this point and calls on_stats once
+        // per redirect, so keep the last prepared request and record once when the transfer settles.
+        $stats = null;
+        $callerOnStats = $options['on_stats'] ?? null;
+        $proceedingJoinPoint->arguments['keys']['options']['on_stats'] = static function (TransferStats $transferStats) use (&$stats, $callerOnStats): void {
+            $stats = $transferStats;
 
-            if ($span !== null) {
-                self::finishSpan($span, $stats);
-            }
-
-            if (is_callable($existingOnStats)) {
-                $existingOnStats($stats);
+            if ($callerOnStats !== null) {
+                $callerOnStats($transferStats);
             }
         };
 
+        // An async request can settle after its caller has returned, so capture its origin now. SDKs such as AWS
+        // also send synchronous calls this way, below their own middleware and any storage decorators.
+        $backtrace = $span !== null && $this->traceOrigin && ($options['synchronous'] ?? false) !== true
+            ? debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 64)
+            : null;
+
         try {
-            return $proceedingJoinPoint->process();
+            $promise = $proceedingJoinPoint->process();
         } catch (Throwable $exception) {
-            // on_stats may not fire on connection failure — ensure span is finished
-            if ($span !== null && $span->getEndTimestamp() === null) {
-                $span->setStatus(SpanStatus::internalError());
-                $span->finish();
-            }
+            $this->recordTransfer($span, $request, $stats, RejectedResponse::from($exception), $backtrace);
 
             throw $exception;
         }
-    }
 
-    /**
-     * Finish the span with response data from the transfer stats.
-     */
-    private static function finishSpan(Span $span, TransferStats $stats): void
-    {
-        $response = $stats->getResponse();
+        return $promise->then(
+            function (ResponseInterface $response) use ($span, $request, &$stats, $backtrace): ResponseInterface {
+                $this->recordTransfer($span, $request, $stats, $response, $backtrace);
 
-        if ($response !== null) {
-            $span->setData(array_merge($span->getData(), [
-                'http.response.status_code' => $response->getStatusCode(),
-                'http.response.body.size' => $response->getBody()->getSize(),
-            ]));
-            $span->setHttpStatus($response->getStatusCode());
-        } else {
-            $span->setStatus(SpanStatus::internalError());
-        }
+                return $response;
+            },
+            function (mixed $reason) use ($span, $request, &$stats, $backtrace): PromiseInterface {
+                $this->recordTransfer($span, $request, $stats, RejectedResponse::from($reason), $backtrace);
 
-        $span->finish();
-    }
-
-    /**
-     * Record a breadcrumb from the transfer stats.
-     */
-    private static function recordBreadcrumb(TransferStats $stats): void
-    {
-        $request = $stats->getRequest();
-        $response = $stats->getResponse();
-        $uri = $request->getUri();
-
-        $level = Breadcrumb::LEVEL_INFO;
-        if ($response !== null) {
-            $statusCode = $response->getStatusCode();
-            if ($statusCode >= 400 && $statusCode < 500) {
-                $level = Breadcrumb::LEVEL_WARNING;
-            } elseif ($statusCode >= 500) {
-                $level = Breadcrumb::LEVEL_ERROR;
+                return Create::rejectionFor($reason);
             }
-        } else {
-            // No response means connection failure
-            $level = Breadcrumb::LEVEL_ERROR;
-        }
+        );
+    }
 
-        $partialUri = self::buildPartialUri($uri);
-
+    /**
+     * Finish the span and record the breadcrumb of a settled transfer.
+     *
+     * The last transfer stats hold the prepared request of the final redirect, including the
+     * request options and middleware changes; the entry request is used when there are none.
+     */
+    private function recordTransfer(?Span $span, RequestInterface $request, ?TransferStats $stats, ?ResponseInterface $response, ?array $backtrace): void
+    {
+        $request = $stats?->getRequest() ?? $request;
+        $uri = $request->getUri();
+        $policy = DataCollectionPolicy::fromHub(SentrySdk::getCurrentHub());
         $data = [
-            'url' => $partialUri,
-            'http.query' => $uri->getQuery(),
+            'url' => self::buildPartialUri($uri),
             'http.fragment' => $uri->getFragment(),
             'http.request.method' => $request->getMethod(),
             'http.request.body.size' => $request->getBody()->getSize(),
+            ...self::collectUrlData($policy, $uri),
+        ];
+        $responseData = $response === null ? [] : [
+            'http.response.status_code' => $response->getStatusCode(),
+            'http.response.body.size' => $response->getBody()->getSize(),
         ];
 
-        if ($response !== null) {
-            $data['http.response.status_code'] = $response->getStatusCode();
-            $data['http.response.body.size'] = $response->getBody()->getSize();
+        if ($span !== null) {
+            $span->setDescription($request->getMethod() . ' ' . $data['url']);
+            $span->setData([
+                ...$data,
+                ...HttpSpanDataCollector::collectPsr7Request($policy, HttpMessageType::outgoingRequest(), $request),
+                ...$responseData,
+            ]);
+
+            if ($response === null) {
+                $span->setStatus(SpanStatus::internalError());
+            } else {
+                $span->setData(HttpSpanDataCollector::collectPsr7Response($policy, HttpMessageType::incomingResponse(), $response));
+                $span->setHttpStatus($response->getStatusCode());
+            }
+
+            if ($this->traceOrigin && (microtime(true) - $span->getStartTimestamp()) * 1000 >= $this->traceOriginThresholdMs) {
+                // A synchronous request settles inside its caller's wait(), below the promise queue
+                // and AOP frames of the proxied Promise::wait(), so look deeper than other origins.
+                $origin = $this->resolveEventOrigin($backtrace ?? debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 40));
+
+                if ($origin !== null) {
+                    $span->setData($origin);
+                }
+            }
+
+            $span->finish();
         }
 
-        if ($stats->getTransferTime() !== null) {
-            $data['duration'] = $stats->getTransferTime() * 1000;
-        }
+        if ($this->breadcrumbsEnabled) {
+            $statusCode = $response?->getStatusCode();
+            $breadcrumbData = [...$data, ...$responseData];
 
-        Integration::addBreadcrumb(new Breadcrumb(
-            $level,
-            Breadcrumb::TYPE_HTTP,
-            'http',
-            null,
-            $data
-        ));
+            if ($stats?->getTransferTime() !== null) {
+                $breadcrumbData['duration'] = $stats->getTransferTime() * 1000;
+            }
+
+            Integration::addBreadcrumb(new Breadcrumb(
+                match (true) {
+                    $statusCode === null, $statusCode >= 500 => Breadcrumb::LEVEL_ERROR,
+                    $statusCode >= 400 => Breadcrumb::LEVEL_WARNING,
+                    default => Breadcrumb::LEVEL_INFO,
+                },
+                Breadcrumb::TYPE_HTTP,
+                'http',
+                null,
+                $breadcrumbData
+            ));
+        }
     }
 
     /**
-     * Determine if the request has opted out of Sentry instrumentation.
+     * Collect the query string and full URL of an outgoing request.
+     *
+     * @return array<string, string>
      */
-    private function isOptedOut(array $options): bool
+    private static function collectUrlData(DataCollectionPolicy $policy, UriInterface $uri): array
     {
-        return ($options['no_sentry_aspect'] ?? false) === true;
+        // The legacy options always collected the query string, even when it is empty
+        if ($policy->isLegacyMode()) {
+            return ['http.query' => $uri->getQuery()];
+        }
+
+        $data = [];
+
+        $queryString = HttpUrlCollector::collectQueryString($policy, $uri->getQuery());
+        if ($queryString !== null) {
+            $data['http.query'] = $queryString;
+        }
+
+        $fullUrl = HttpUrlCollector::collect($policy, HttpMessageType::outgoingRequest(), $uri);
+        if ($fullUrl !== null) {
+            $data['url.full'] = $fullUrl;
+        }
+
+        return $data;
     }
 
     /**

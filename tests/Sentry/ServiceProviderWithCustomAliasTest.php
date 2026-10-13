@@ -10,10 +10,14 @@ use Hypervel\Sentry\Aspects\GuzzleHttpClientAspect;
 use Hypervel\Sentry\Facade;
 use Hypervel\Sentry\SentryServiceProvider;
 use Hypervel\Testbench\TestCase;
+use PHPUnit\Framework\Attributes\Depends;
 use Sentry\State\HubInterface;
 
 class ServiceProviderWithCustomAliasTest extends TestCase
 {
+    /**
+     * Get the package providers.
+     */
     protected function getPackageProviders(ApplicationContract $app): array
     {
         $config = $app->make('config');
@@ -27,6 +31,9 @@ class ServiceProviderWithCustomAliasTest extends TestCase
         ];
     }
 
+    /**
+     * Get the package aliases.
+     */
     protected function getPackageAliases(ApplicationContract $app): array
     {
         return [
@@ -42,11 +49,13 @@ class ServiceProviderWithCustomAliasTest extends TestCase
         $this->assertNotEmpty(AspectCollector::getRule(GuzzleHttpClientAspect::class));
     }
 
+    #[Depends('testIsBound')]
     public function testEnvironment(): void
     {
         $this->assertEquals('testing', app('custom-sentry')->getClient()->getOptions()->getEnvironment());
     }
 
+    #[Depends('testIsBound')]
     public function testDsnWasSetFromConfig(): void
     {
         $options = app('custom-sentry')->getClient()->getOptions();
@@ -56,6 +65,7 @@ class ServiceProviderWithCustomAliasTest extends TestCase
         $this->assertEquals('publickey', $options->getDsn()->getPublicKey());
     }
 
+    #[Depends('testIsBound')]
     public function testErrorTypesWasSetFromConfig(): void
     {
         $this->assertEquals(
@@ -72,6 +82,9 @@ class CustomSentryServiceProvider extends SentryServiceProvider
 
 class CustomSentryFacade extends Facade
 {
+    /**
+     * Get the registered name of the component.
+     */
     protected static function getFacadeAccessor(): string
     {
         return 'custom-sentry';

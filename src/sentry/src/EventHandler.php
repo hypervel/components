@@ -6,25 +6,27 @@ namespace Hypervel\Sentry;
 
 use Hypervel\Auth\Events as AuthEvents;
 use Hypervel\Contracts\Auth\Authenticatable;
-use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
+use Hypervel\Core\Events\BeforeServerFork;
 use Hypervel\Core\Events\OnWorkerExit;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Events as DatabaseEvents;
-use Hypervel\Http\Request;
 use Hypervel\Log\Events as LogEvents;
 use Hypervel\Routing\Events as RoutingEvents;
 use Hypervel\Sanctum\Events as Sanctum;
+use Hypervel\Sentry\Http\HypervelRequestFetcher;
 use Hypervel\Sentry\Tracing\Middleware;
 use Hypervel\Sentry\Transport\HttpPoolTransport;
 use RuntimeException;
 use Sentry\Breadcrumb;
 use Sentry\Client;
+use Sentry\DataCollection\DatabaseDataCollector;
+use Sentry\DataCollection\DataCollectionPolicy;
 use Sentry\SentrySdk;
 use Sentry\State\Scope;
 use Swoole\Coroutine\CanceledException;
@@ -41,6 +43,7 @@ class EventHandler
         LogEvents\MessageLogged::class => 'messageLogged',
         RoutingEvents\RouteMatched::class => 'routeMatched',
         DatabaseEvents\QueryExecuted::class => 'queryExecuted',
+        BeforeServerFork::class => 'beforeServerFork',
         OnWorkerExit::class => 'workerExit',
     ];
 
@@ -54,12 +57,27 @@ class EventHandler
         Sanctum\TokenAuthenticated::class => 'sanctumTokenAuthenticated',
     ];
 
+    // Upstream's Octane handlers are not ported: each request runs in its own coroutine
+    // with its own scope and transaction name, and the request context flushes its events.
+
+    /**
+     * Indicates if we should add SQL queries to the breadcrumbs.
+     */
     private readonly bool $recordSqlQueries;
 
+    /**
+     * Indicates if we should add query bindings to the breadcrumbs.
+     */
     private readonly bool $recordSqlBindings;
 
+    /**
+     * Indicates if we should add SQL transactions to the breadcrumbs.
+     */
     private readonly bool $recordSqlTransactions;
 
+    /**
+     * Indicates if we should add Hypervel logs to the breadcrumbs.
+     */
     private readonly bool $recordLogs;
 
     /**
@@ -162,9 +180,14 @@ class EventHandler
             $data['executionTimeMs'] = $query->time;
         }
 
-        if ($this->recordSqlBindings) {
+        $policy = DataCollectionPolicy::fromHub(SentrySdk::getCurrentHub());
+
+        // The data collection options replace the `sql_bindings` option
+        if ($this->recordSqlBindings && $policy->isLegacyMode()) {
             $data['bindings'] = $query->bindings;
         }
+
+        $data += DatabaseDataCollector::collectQueryData($policy, $query->bindings);
 
         Integration::addBreadcrumb(new Breadcrumb(
             Breadcrumb::LEVEL_INFO,
@@ -202,6 +225,16 @@ class EventHandler
             $logEntry->message,
             $logEntry->context
         ));
+    }
+
+    /**
+     * Send the telemetry buffered while the server booted.
+     *
+     * Every forked process would otherwise inherit and send its own copy.
+     */
+    protected function beforeServerForkHandler(BeforeServerFork $event): void
+    {
+        Integration::drainEvents();
     }
 
     /**
@@ -292,15 +325,11 @@ class EventHandler
             ];
         }
 
-        try {
-            $request = $this->container->make('request');
-            $ipAddress = $request->ip();
+        // The container falls back to a default request with a fake local address where no request is set
+        $ipAddress = HypervelRequestFetcher::currentRequest()?->ip();
 
-            if ($ipAddress !== null) {
-                $userData['ip_address'] = $ipAddress;
-            }
-        } catch (BindingResolutionException) {
-            // If there is no request bound we cannot get the IP address from it
+        if ($ipAddress !== null) {
+            $userData['ip_address'] = $ipAddress;
         }
 
         Integration::configureScope(static function (Scope $scope) use ($userData): void {

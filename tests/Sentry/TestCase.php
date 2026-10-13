@@ -8,8 +8,7 @@ use Hypervel\Config\Repository;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Sentry\SentryServiceProvider;
-use Hypervel\Support\Arr;
-use Hypervel\Testbench\TestCase;
+use Hypervel\Testbench\TestCase as HypervelTestCase;
 use Hypervel\Tests\Sentry\Fixtures\TestCaseExceptionHandler;
 use ReflectionMethod;
 use ReflectionProperty;
@@ -23,11 +22,16 @@ use Sentry\State\Scope;
 use Sentry\Tracing\Transaction;
 use Sentry\Tracing\TransactionContext;
 
-class SentryTestCase extends TestCase
+abstract class TestCase extends HypervelTestCase
 {
-    protected static bool $hasSetupGlobalEventProcessor = false;
+    private static bool $hasSetupGlobalEventProcessor = false;
 
-    protected array $setupConfig = [];
+    protected bool $loadEnvironmentVariables = false;
+
+    protected array $setupConfig = [
+        // Set config here before refreshing the app to set it in the container before Sentry is loaded
+        // or use the `$this->resetApplicationWithConfig([ /* config */ ]);` helper method
+    ];
 
     protected array $defaultSetupConfig = [];
 
@@ -87,6 +91,7 @@ class SentryTestCase extends TestCase
     {
         $config = $app->make('config');
 
+        // The provider reads the DSN while registering, before Testbench runs defineEnvironment().
         if ($config->get('sentry_test.override_dsn') !== true) {
             $config->set('sentry.dsn', 'https://publickey@sentry.dev/123');
         }
@@ -105,16 +110,6 @@ class SentryTestCase extends TestCase
     }
 
     /**
-     * Get the package aliases.
-     */
-    protected function getPackageAliases(ApplicationContract $app): array
-    {
-        return [
-            'Sentry' => \Hypervel\Sentry\Facade::class,
-        ];
-    }
-
-    /**
      * Reload the application with the given configuration.
      */
     protected function resetApplicationWithConfig(array $config): void
@@ -122,24 +117,6 @@ class SentryTestCase extends TestCase
         $this->setupConfig = $config;
 
         $this->reloadApplication();
-    }
-
-    /**
-     * Return the complete shipped Sentry config with test-specific overrides.
-     *
-     * @param array<string, mixed> $overrides
-     *
-     * @return array<string, mixed>
-     */
-    protected function sentryConfigWith(array $overrides): array
-    {
-        $config = config()->array('sentry');
-
-        foreach ($overrides as $key => $value) {
-            Arr::set($config, $key, $value);
-        }
-
-        return $config;
     }
 
     /**
@@ -299,7 +276,7 @@ class SentryTestCase extends TestCase
     /**
      * Register the global test event processor once.
      */
-    protected function setupGlobalEventProcessor(): void
+    private function setupGlobalEventProcessor(): void
     {
         if (self::$hasSetupGlobalEventProcessor) {
             return;

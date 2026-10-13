@@ -4,16 +4,18 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sentry;
 
-use Hypervel\Sentry\Features\RedisFeature;
+use Hypervel\Config\Repository;
+use Hypervel\Sentry\SentryConfig;
 use Hypervel\Sentry\Transport\HttpPoolTransport;
 use Hypervel\Sentry\Transport\HttpTransportPool;
+use Hypervel\Validation\ValidationException;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionProperty;
+use RuntimeException;
 use Sentry\ClientBuilder;
-use Sentry\Transport\TransportInterface;
 
-class ConfigTest extends SentryTestCase
+class ConfigTest extends TestCase
 {
     public function testPoolIsConstructedFromSentryPoolConfig(): void
     {
@@ -29,7 +31,7 @@ class ConfigTest extends SentryTestCase
         /** @var ClientBuilder $builder */
         $builder = $this->app->make(ClientBuilder::class);
 
-        $transport = $this->getTransportFromBuilder($builder);
+        $transport = $builder->getTransport();
 
         $this->assertInstanceOf(HttpPoolTransport::class, $transport);
 
@@ -49,7 +51,7 @@ class ConfigTest extends SentryTestCase
         ]);
 
         $builder = $this->app->make(ClientBuilder::class);
-        $pool = $this->getPoolFromTransport($this->getTransportFromBuilder($builder));
+        $pool = $this->getPoolFromTransport($builder->getTransport());
 
         $this->assertNull($pool->getOptions()->maxLifetime);
         $this->assertNull($pool->getOptions()->maxIdleTime);
@@ -70,6 +72,9 @@ class ConfigTest extends SentryTestCase
         ]);
     }
 
+    /**
+     * Get the pool options that the transport pool does not support.
+     */
     public static function unsupportedPoolOptions(): array
     {
         return [
@@ -78,11 +83,6 @@ class ConfigTest extends SentryTestCase
             ['pool_idle_timeout', 300],
             ['unknown', true],
         ];
-    }
-
-    public function testOldPoolsKeyIsNotUsed(): void
-    {
-        $this->assertNull($this->app->make('config')->get('pools.sentry'));
     }
 
     public function testLogsChannelLevelUsesCurrentEnvironmentNames(): void
@@ -100,13 +100,6 @@ class ConfigTest extends SentryTestCase
         ], fn (): string => $this->sentryConfig()['logs_channel_level']));
     }
 
-    public function testRedisFeatureIsInDefaultFeaturesConfig(): void
-    {
-        $features = $this->app->make('config')->array('sentry.features');
-
-        $this->assertContains(RedisFeature::class, $features);
-    }
-
     public function testStorageTelemetryIsEnabledByDefault(): void
     {
         $config = $this->withEnvironmentValues([
@@ -118,6 +111,54 @@ class ConfigTest extends SentryTestCase
         $this->assertTrue($config['tracing']['storage']);
     }
 
+    public function testOmittedBreadcrumbAndTracingOptionsUseTheShippedDefaults(): void
+    {
+        $shippedConfig = $this->withEnvironmentValues(array_fill_keys([
+            'SENTRY_BREADCRUMBS_LOGS_ENABLED',
+            'SENTRY_BREADCRUMBS_CACHE_ENABLED',
+            'SENTRY_BREADCRUMBS_STORAGE_ENABLED',
+            'SENTRY_BREADCRUMBS_SQL_QUERIES_ENABLED',
+            'SENTRY_BREADCRUMBS_SQL_BINDINGS_ENABLED',
+            'SENTRY_BREADCRUMBS_SQL_TRANSACTIONS_ENABLED',
+            'SENTRY_BREADCRUMBS_QUEUE_INFO_ENABLED',
+            'SENTRY_BREADCRUMBS_COMMAND_JOBS_ENABLED',
+            'SENTRY_BREADCRUMBS_HTTP_CLIENT_REQUESTS_ENABLED',
+            'SENTRY_BREADCRUMBS_NOTIFICATIONS_ENABLED',
+            'SENTRY_TRACE_QUEUE_ENABLED',
+            'SENTRY_TRACE_QUEUE_JOBS_ENABLED',
+            'SENTRY_TRACE_SQL_QUERIES_ENABLED',
+            'SENTRY_TRACE_SQL_BINDINGS_ENABLED',
+            'SENTRY_TRACE_SQL_ORIGIN_ENABLED',
+            'SENTRY_TRACE_SQL_ORIGIN_THRESHOLD_MS',
+            'SENTRY_TRACE_VIEWS_ENABLED',
+            'SENTRY_TRACE_HTTP_CLIENT_REQUESTS_ENABLED',
+            'SENTRY_TRACE_HTTP_CLIENT_REQUESTS_ORIGIN_ENABLED',
+            'SENTRY_TRACE_HTTP_CLIENT_REQUESTS_ORIGIN_THRESHOLD_MS',
+            'SENTRY_TRACE_CACHE_ENABLED',
+            'SENTRY_TRACE_STORAGE_ENABLED',
+            'SENTRY_TRACE_REDIS_COMMANDS',
+            'SENTRY_TRACE_REDIS_ORIGIN_ENABLED',
+            'SENTRY_TRACE_NOTIFICATIONS_ENABLED',
+            'SENTRY_TRACE_MISSING_ROUTES_ENABLED',
+            'SENTRY_TRACE_CONTINUE_AFTER_RESPONSE',
+        ], null), fn (): array => $this->sentryConfig());
+
+        $config = (new SentryConfig(new Repository([
+            'sentry' => [
+                ...$shippedConfig,
+                'breadcrumbs' => [],
+                'tracing' => [],
+            ],
+        ]), 'sentry'))->all();
+
+        foreach (['breadcrumbs', 'tracing'] as $section) {
+            ksort($shippedConfig[$section]);
+            ksort($config[$section]);
+
+            $this->assertSame($shippedConfig[$section], $config[$section]);
+        }
+    }
+
     public function testTraceMetricsAreEnabledByDefault(): void
     {
         $config = $this->withEnvironmentValues([
@@ -125,6 +166,25 @@ class ConfigTest extends SentryTestCase
         ], fn (): array => $this->sentryConfig());
 
         $this->assertTrue($config['enable_metrics']);
+    }
+
+    public function testValidationExceptionsAreOnlyIgnoredWhenConfigured(): void
+    {
+        $exception = ValidationException::withMessages(['email' => 'The email field is required.']);
+
+        $this->getSentryHubFromContainer()->captureException($exception);
+
+        $this->assertSentryEventCount(1);
+
+        $this->resetApplicationWithConfig([
+            'sentry.ignore_exceptions' => [ValidationException::class],
+        ]);
+
+        $this->getSentryHubFromContainer()->captureException($exception);
+        $this->getSentryHubFromContainer()->captureException(new RuntimeException('Not ignored.'));
+
+        $this->assertSentryEventCount(1);
+        $this->assertSame(RuntimeException::class, $this->getLastSentryEvent()->getExceptions()[0]->getType());
     }
 
     public function testBooleanEnvironmentValuesAreNormalized(): void
@@ -138,6 +198,8 @@ class ConfigTest extends SentryTestCase
             'SENTRY_TRACE_VIEWS_ENABLED' => '1',
             'SENTRY_TRACE_REDIS_COMMANDS' => '1',
             'SENTRY_TRACE_SQL_ORIGIN_THRESHOLD_MS' => '250',
+            'SENTRY_TRACE_HTTP_CLIENT_REQUESTS_ORIGIN_ENABLED' => '0',
+            'SENTRY_TRACE_HTTP_CLIENT_REQUESTS_ORIGIN_THRESHOLD_MS' => '0',
         ], fn (): array => $this->sentryConfig());
 
         $this->assertTrue($config['strict_trace_continuation']);
@@ -148,6 +210,8 @@ class ConfigTest extends SentryTestCase
         $this->assertTrue($config['tracing']['views']);
         $this->assertTrue($config['tracing']['redis_commands']);
         $this->assertSame(250, $config['tracing']['sql_origin_threshold_ms']);
+        $this->assertFalse($config['tracing']['http_client_requests_origin']);
+        $this->assertSame(0, $config['tracing']['http_client_requests_origin_threshold_ms']);
     }
 
     public function testPoolWaitTimeoutDefaultIsSetForFastFail(): void
@@ -155,20 +219,15 @@ class ConfigTest extends SentryTestCase
         // Default config should have a low wait_timeout for backpressure
         /** @var ClientBuilder $builder */
         $builder = $this->app->make(ClientBuilder::class);
-        $transport = $this->getTransportFromBuilder($builder);
-        $pool = $this->getPoolFromTransport($transport);
+        $pool = $this->getPoolFromTransport($builder->getTransport());
 
         // Should be 10ms or less for fast-fail backpressure
         $this->assertLessThanOrEqual(0.01, $pool->getOptions()->waitTimeout);
     }
 
-    private function getTransportFromBuilder(ClientBuilder $builder): TransportInterface
-    {
-        $reflection = new ReflectionProperty($builder, 'transport');
-
-        return $reflection->getValue($builder);
-    }
-
+    /**
+     * Get the pool that backs the transport.
+     */
     private function getPoolFromTransport(HttpPoolTransport $transport): HttpTransportPool
     {
         $reflection = new ReflectionProperty($transport, 'pool');

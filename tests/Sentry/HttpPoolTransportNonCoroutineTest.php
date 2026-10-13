@@ -9,6 +9,7 @@ use Hypervel\Sentry\Transport\HttpTransportPool;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Sentry\Event;
+use Sentry\Options;
 use Sentry\Transport\HttpTransport;
 use Sentry\Transport\Result;
 use Sentry\Transport\ResultStatus;
@@ -26,7 +27,7 @@ class HttpPoolTransportNonCoroutineTest extends TestCase
         $pool = m::mock(HttpTransportPool::class);
         $pool->shouldReceive('borrow')->once()->andReturn($httpTransport);
         $pool->shouldReceive('release')->once()->with($httpTransport);
-        $transport = new HttpPoolTransport($pool);
+        $transport = new HttpPoolTransport($pool, new Options(['dsn' => 'https://public@example.com/1']));
         $event = Event::createEvent();
 
         $result = $transport->send($event);

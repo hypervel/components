@@ -52,6 +52,9 @@ class SentryHandler extends AbstractProcessingHandler
         parent::__construct($level, $bubble);
     }
 
+    /**
+     * Handle a set of records at once, sending the most severe with the full batch as context.
+     */
     public function handleBatch(array $records): void
     {
         $records = array_values(array_filter($records, $this->isHandling(...)));
@@ -72,7 +75,7 @@ class SentryHandler extends AbstractProcessingHandler
             }
         );
 
-        // the other ones are added as a context item
+        // The full batch is added as a context item.
         $logs = [];
         foreach ($records as $logRecord) {
             $logs[] = $this->processRecord($logRecord);

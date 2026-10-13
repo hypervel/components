@@ -12,10 +12,13 @@ use Hypervel\Routing\Events as RoutingEvents;
 use Hypervel\Sentry\Features\Concerns\ResolvesEventOrigin;
 use Hypervel\Sentry\Integration;
 use RuntimeException;
+use Sentry\DataCollection\DatabaseDataCollector;
+use Sentry\DataCollection\DataCollectionPolicy;
 use Sentry\SentrySdk;
 use Sentry\Tracing\Span;
 use Sentry\Tracing\SpanContext;
 use Sentry\Tracing\SpanStatus;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
@@ -44,12 +47,24 @@ class EventHandler
 
     private const string CONTEXT_CLEANUP_REGISTERED_KEY = '__sentry.tracing.cleanup_registered';
 
+    /**
+     * Indicates if we should add SQL queries as spans.
+     */
     private readonly bool $traceSqlQueries;
 
+    /**
+     * Indicates if we should add query bindings to query spans.
+     */
     private readonly bool $traceSqlBindings;
 
+    /**
+     * Indicates if we should add SQL query origin data to query spans.
+     */
     private readonly bool $traceSqlQueryOrigin;
 
+    /**
+     * The threshold in milliseconds to consider a SQL query origin.
+     */
     private readonly int $traceSqlQueryOriginThresholdMs;
 
     /**
@@ -65,6 +80,14 @@ class EventHandler
 
     /**
      * Attach all event handlers.
+     *
+     * @uses self::routeMatchedHandler()
+     * @uses self::queryExecutedHandler()
+     * @uses self::responsePreparedHandler()
+     * @uses self::responsePreparingHandler()
+     * @uses self::transactionBeginningHandler()
+     * @uses self::transactionCommittedHandler()
+     * @uses self::transactionRolledBackHandler()
      */
     public function subscribe(Dispatcher $dispatcher): void
     {
@@ -90,6 +113,9 @@ class EventHandler
 
         try {
             $this->{$handlerMethod}(...$arguments);
+        } catch (CanceledException $exception) {
+            // Cancellation during instrumentation, such as origin resolution's file reads, must propagate.
+            throw $exception;
         } catch (Throwable) {
             // Ignore to prevent bubbling up errors in the SDK
         }
@@ -150,11 +176,16 @@ class EventHandler
                 ->setEndTimestamp($now);
         }
 
-        if ($this->traceSqlBindings) {
+        $policy = DataCollectionPolicy::fromHub(SentrySdk::getCurrentHub());
+
+        // The data collection options replace the `sql_bindings` option
+        if ($this->traceSqlBindings && $policy->isLegacyMode()) {
             $context->setData(array_merge($context->getData(), [
                 'db.sql.bindings' => $query->bindings,
             ]));
         }
+
+        $context->setData(array_merge($context->getData(), DatabaseDataCollector::collectQueryData($policy, $query->bindings)));
 
         if ($this->traceSqlQueryOrigin
             && $query->time !== null
