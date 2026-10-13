@@ -11,6 +11,7 @@ use Hypervel\Engine\Exceptions\SocketConnectException;
 use Hypervel\Engine\SafeSocket;
 use Hypervel\Engine\Socket;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use ReflectionProperty;
 use RuntimeException;
 use Swoole\Coroutine as SwooleCoroutine;
@@ -18,6 +19,7 @@ use Swoole\Coroutine\Server;
 use Swoole\Coroutine\Socket as SwooleSocket;
 use Swoole\Coroutine\WaitGroup;
 use Throwable;
+use ValueError;
 
 use function Hypervel\Coroutine\go;
 
@@ -234,6 +236,32 @@ class SocketTest extends TestCase
                 }
             },
         );
+    }
+
+    #[RunInSeparateProcess]
+    public function testSocketOptionsAcceptObjectsAndReportTheInvalidLingerField(): void
+    {
+        if (SWOOLE_VERSION_ID <= 60203) {
+            $this->markTestSkipped('Requires safe coroutine socket option validation from https://github.com/swoole/swoole-src/pull/6166.');
+        }
+
+        $socket = new Socket(AF_INET, SOCK_STREAM, SOL_TCP);
+
+        try {
+            $timeout = (object) ['sec' => 1, 'usec' => 0];
+
+            $this->assertTrue($socket->setOption(SOL_SOCKET, SO_RCVTIMEO, $timeout));
+            $this->assertTrue($socket->setOption(SOL_SOCKET, SO_SNDTIMEO, $timeout));
+
+            try {
+                $socket->setOption(SOL_SOCKET, SO_LINGER, ['l_onoff' => 1, 'l_linger' => 65536]);
+                $this->fail('Expected an invalid linger value to be rejected.');
+            } catch (ValueError $exception) {
+                $this->assertStringContainsString('"l_linger"', $exception->getMessage());
+            }
+        } finally {
+            $socket->close();
+        }
     }
 
     public function testServerHandlerExceptionSurfacesInTheParent(): void

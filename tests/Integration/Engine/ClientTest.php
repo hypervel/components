@@ -134,4 +134,57 @@ class ClientTest extends EngineIntegrationTestCase
         $response = $client->request('GET', '/not_found');
         $this->assertSame(404, $response->statusCode);
     }
+
+    public function testClientDoesNotCarryConnectionCloseIntoTheNextRequest(): void
+    {
+        // https://github.com/swoole/swoole-src/pull/6149
+        $client = new Client($this->getServerHost(), $this->getServerPort());
+
+        try {
+            $this->assertSame('closed', $client->request('GET', '/response-close')->body);
+            $this->assertFalse($client->connected);
+            $this->assertSame('next', $client->request('GET', '/response-next')->body);
+            $this->assertTrue($client->connected);
+        } finally {
+            $client->close();
+        }
+    }
+
+    public function testClientRejectsInvalidDeferredSocketSettings(): void
+    {
+        if (SWOOLE_VERSION_ID <= 60203) {
+            $this->markTestSkipped('Requires rejected deferred client settings from https://github.com/swoole/swoole-src/pull/6267.');
+        }
+
+        $client = new Client($this->getServerHost(), $this->getServerPort());
+        $warnings = [];
+
+        set_error_handler(static function (int $severity, string $message) use (&$warnings): bool {
+            $warnings[] = $message;
+
+            return true;
+        });
+
+        try {
+            $this->assertTrue($client->set([
+                'socks5_host' => '127.0.0.1',
+                'timeout' => 0.2,
+            ]));
+
+            try {
+                $client->request('GET', '/');
+                $this->fail('Invalid deferred socket settings must stop the request.');
+            } catch (HttpClientException $exception) {
+                $this->assertSame(SWOOLE_ERROR_INVALID_PARAMS, $exception->getCode());
+            }
+
+            $this->assertTrue((bool) array_filter(
+                $warnings,
+                static fn (string $warning): bool => str_contains($warning, 'socks5_port should not be null'),
+            ));
+        } finally {
+            restore_error_handler();
+            $client->close();
+        }
+    }
 }
