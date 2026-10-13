@@ -10,6 +10,7 @@ use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\Pool\PoolManager;
 use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
+use Hypervel\Foundation\Testing\DatabaseTransactionsManager as TestingTransactionsManager;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
@@ -209,6 +210,28 @@ class DatabaseConnectionResolverTest extends TestCase
 
         $this->assertNull($connection->getRawPdo());
         $this->assertNotSame($connection, $resolver->connection('testing'));
+    }
+
+    public function testCachedConnectionTransactionsExcludeTheTestWrapperAndHonorAliases(): void
+    {
+        $resolver = $this->app->make(DatabaseConnectionResolver::class);
+        $this->assertFalse($resolver->hasApplicableTransaction());
+        $this->assertNull($resolver->getResolvedConnection('testing'));
+
+        $connection = $resolver->connection('testing::write');
+        (new TestingTransactionsManager(['testing']))->beginTransactions($this->app->make('db'));
+
+        try {
+            $this->assertFalse($resolver->hasApplicableTransaction());
+            $connection->beginTransaction();
+            $this->assertTrue($resolver->hasApplicableTransaction());
+            $this->assertTrue($resolver->hasApplicableTransaction('testing::read'));
+            $this->assertTrue($resolver->hasApplicableTransaction('testing::write'));
+            $connection->rollBack();
+            $this->assertFalse($resolver->hasApplicableTransaction());
+        } finally {
+            $connection->rollBack(0);
+        }
     }
 
     public function testIntegerBackedEnumConnectionNamesAreNormalizedInTestingAndPooledModes(): void

@@ -156,6 +156,29 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
     }
 
     /**
+     * Get the connections shared across the test's setup, requests and assertions.
+     *
+     * @return array<string, ConnectionInterface>
+     */
+    public function getRetainedConnections(): array
+    {
+        return static::$connections;
+    }
+
+    /**
+     * Check the retained testing connection before coroutine-owned connections.
+     */
+    public function hasApplicableTransaction(UnitEnum|string|null $name = null): bool
+    {
+        $name = $this->connectionName($name);
+        $connection = $this->getResolvedConnection($name);
+
+        return $connection instanceof Connection
+            ? $connection->hasApplicableTransaction()
+            : parent::hasApplicableTransaction($name);
+    }
+
+    /**
      * Resolve the cache key that owns the pooled wrapper.
      */
     protected function connectionCacheKey(string $name, ?DatabasePool $pool = null): string

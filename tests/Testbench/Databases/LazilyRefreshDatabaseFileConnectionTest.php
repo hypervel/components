@@ -9,6 +9,7 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Testing\LazilyRefreshDatabase;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\Attributes\ResetRefreshDatabaseState;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\Concerns\WithHypervelMigrations;
@@ -85,5 +86,54 @@ class LazilyRefreshDatabaseFileConnectionTest extends TestCase
             0,
             DB::table('users')->where('email', 'lazy-refresh@example.com')->count(),
         );
+    }
+
+    #[Test]
+    public function itKeepsTheWrapperStartedByTheFirstHttpRequest(): void
+    {
+        $events = [];
+
+        Route::post('/lazy-transaction', function () use (&$events): array {
+            DB::transaction(function () use (&$events): void {
+                DB::table('users')->insert([
+                    'name' => 'Hypervel',
+                    'email' => 'lazy-request@example.com',
+                    'password' => 'secret',
+                ]);
+
+                DB::afterCommit(function () use (&$events): void {
+                    $events[] = 'committed';
+                });
+
+                $this->assertSame([], $events);
+            });
+
+            return [];
+        });
+
+        Route::get('/lazy-transaction', fn (): array => [
+            'users' => DB::table('users')->where('email', 'lazy-request@example.com')->count(),
+            'transaction_level' => DB::transactionLevel(),
+            'applicable_transaction' => DB::hasApplicableTransaction(),
+        ]);
+
+        $this->post('/lazy-transaction')->assertOk();
+        $this->assertSame(['committed'], $events);
+        $this->assertSame(1, DB::transactionLevel());
+        $this->assertCount(1, $this->app->make('db.transactions')->getPendingTransactions());
+        $this->assertFalse(DB::hasApplicableTransaction());
+
+        $this->get('/lazy-transaction')->assertOk()->assertExactJson([
+            'users' => 1,
+            'transaction_level' => 1,
+            'applicable_transaction' => false,
+        ]);
+    }
+
+    #[Test]
+    #[Depends('itKeepsTheWrapperStartedByTheFirstHttpRequest')]
+    public function itRollsBackTheWrapperStartedByTheHttpRequest(): void
+    {
+        $this->assertSame(0, DB::table('users')->where('email', 'lazy-request@example.com')->count());
     }
 }
