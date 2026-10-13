@@ -517,6 +517,14 @@ If multiple callbacks are registered, they will be executed in the order they we
 > [!NOTE]
 > Session cookie callbacks persist for the lifetime of the Swoole worker. You should register them during application boot, not dynamically during a request.
 
+If your application creates another cookie that should follow these settings, use `StartSession::resolveCookieConfig` to apply the same callbacks:
+
+```php
+$cookie = StartSession::resolveCookieConfig($request, config()->array('session'));
+```
+
+The returned array contains `path`, `domain`, `secure`, `http_only`, `same_site`, and `partitioned`. Use these values when creating or expiring the cookie so both operations use the same path and domain.
+
 <a name="adding-custom-session-drivers"></a>
 ## Adding Custom Session Drivers
 

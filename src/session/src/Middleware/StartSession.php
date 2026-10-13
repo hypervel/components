@@ -205,7 +205,7 @@ class StartSession
     {
         // The ID of a read-only session is never saved, so the browser keeps its current cookie.
         if (! $session->isReadOnly() && $this->sessionIsPersistent($config = $this->manager->getSessionConfig())) {
-            $cookieConfig = $this->resolveSessionCookieConfig($request, $config);
+            $cookieConfig = static::resolveCookieConfig($request, $config);
 
             $response->headers->setCookie(new Cookie(
                 $session->getName(),
@@ -227,7 +227,7 @@ class StartSession
      *
      * @return array{path: string, domain: ?string, secure: ?bool, http_only: bool, same_site: ?string, partitioned: bool}
      */
-    protected function resolveSessionCookieConfig(Request $request, array $config): array
+    public static function resolveCookieConfig(Request $request, array $config): array
     {
         $cookieConfig = [
             'path' => $config['path'],
