@@ -2,6 +2,8 @@
 
 This developer harness measures Sentry's HTTP overhead, telemetry delivery, Guzzle instrumentation, request-data collection and child-coroutine propagation. It compares independently installed baseline and modified checkouts. It is not part of the normal test suite, a CI performance gate or a prediction of production throughput.
 
+See [recorded measurements](results.md) for the Sentry reconciliation and optimization results.
+
 Run measurements only on an owner-confirmed idle machine. Smoke mode uses small workloads to check correctness; its timings are not performance evidence. The harness requires Linux `/proc`, PHP with Swoole, SQLite, cURL and PCNTL, Composer, Git and Bash. CPU pinning additionally requires `taskset`.
 
 ## Prepare two applications
