@@ -11,7 +11,7 @@
 #
 # Groups:
 #   engine  — HTTP (19501), TCP (19502), WebSocket (19503), HTTP v2 (19505),
-#             Hypervel HTTP Server (19506)
+#             Hypervel HTTP Server (19506), mTLS (19507), SNI-only TLS (19508)
 #   grpc    — Hypervel plaintext (19520), grpc-go plaintext (19521),
 #             Hypervel TLS (19522), grpc-go TLS (19523)
 #   reverb  — Single-worker (19510), Redis scaling (19511), multi-worker (19512),
@@ -122,11 +122,21 @@ start_engine() {
     PIDS+=($!)
     echo "  Hypervel HTTP Server starting on port 19506 (PID: $!)..."
 
+    setsid php "$PROJECT_DIR/tests/Integration/HttpServer/Fixtures/tls_server.php" mtls 19507 &
+    PIDS+=($!)
+    echo "  mTLS test server starting on port 19507 (PID: $!)..."
+
+    setsid php "$PROJECT_DIR/tests/Integration/HttpServer/Fixtures/tls_server.php" sni 19508 &
+    PIDS+=($!)
+    echo "  SNI-only TLS test server starting on port 19508 (PID: $!)..."
+
     wait_for_tcp 19501 "HTTP"
     wait_for_tcp 19502 "TCP packet"
     wait_for_tcp 19503 "WebSocket"
     wait_for_tcp 19505 "HTTP v2"
     wait_for_server 19506 "Hypervel HTTP Server"
+    wait_for_tcp 19507 "mTLS"
+    wait_for_tcp 19508 "SNI-only TLS"
 }
 
 start_grpc() {
