@@ -8,6 +8,7 @@ use Closure;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Exception\TransferException;
 use GuzzleHttp\Handler\StreamHandler;
+use GuzzleHttp\Psr7\Exception\TimeoutException;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Http\Client\ConnectionException;
 use Hypervel\Http\Client\CurlStreamingHandler;
@@ -579,7 +580,10 @@ class HttpClientStreamingTest extends TestCase
                 ]);
 
                 $this->assertInstanceOf(RuntimeException::class, $results['reader']);
-                $this->assertSame($native ? 'The streaming response read timed out.' : 'Unable to read from stream: timed out', $results['reader']->getMessage());
+                $expectedMessage = $native
+                    ? 'The streaming response read timed out.'
+                    : (class_exists(TimeoutException::class) ? 'Unable to read from stream: timed out' : 'Unable to read from stream');
+                $this->assertSame($expectedMessage, $results['reader']->getMessage());
             } finally {
                 $finished->close();
             }
