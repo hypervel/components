@@ -24,6 +24,7 @@ class HookedStreamTest extends TestCase
         try {
             $this->assertIsResource($sender);
             $this->assertIsResource($receiver);
+            stream_set_timeout($receiver, 1);
             $this->assertSame(7, fwrite($sender, 'payload'));
             $this->assertTrue(stream_socket_shutdown($sender, STREAM_SHUT_WR));
             $this->assertSame('payload', stream_get_contents($receiver));

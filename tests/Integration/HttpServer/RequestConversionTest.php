@@ -114,21 +114,57 @@ class RequestConversionTest extends HttpServerIntegrationTestCase
         $filesystem->ensureDirectoryExists($directory);
         $probe = $directory . '/probe.txt';
         $filesystem->put($probe, 'probe');
+        $contents = str_repeat('x', 80 * 1024);
 
         try {
-            $response = $this->request('POST', '/inspect', [
+            $valid = $this->decode($this->request('POST', '/inspect', [
                 'multipart' => [[
                     'name' => 'upload',
-                    'contents' => str_repeat('x', 80 * 1024),
+                    'contents' => $contents,
                     'filename' => 'large.txt',
-                    'headers' => [
-                        'Content-Type' => 'text/plain',
-                        'Swoole-Upload-File' => $probe,
-                    ],
+                    'headers' => ['Content-Type' => 'text/plain'],
                 ]],
-            ]);
+            ]));
 
-            $this->assertSame(400, $response->getStatusCode());
+            $this->assertSame($contents, $valid['file']['contents']);
+
+            $boundary = '------------------------hypervel-upload';
+            $body = implode("\r\n", [
+                '--' . $boundary,
+                'Content-Disposition: form-data; name="upload"; filename="large.txt"',
+                'Content-Type: text/plain',
+                'Swoole-Upload-File: ' . $probe,
+                '',
+                $contents,
+                '--' . $boundary . '--',
+                '',
+            ]);
+            $request = implode("\r\n", [
+                'POST /inspect HTTP/1.1',
+                'Host: ' . $this->getServerHost(),
+                'Connection: close',
+                'Content-Type: multipart/form-data; boundary=' . $boundary,
+                'Content-Length: ' . strlen($body),
+                '',
+                $body,
+            ]);
+            $socket = stream_socket_client(sprintf(
+                'tcp://%s:%d',
+                $this->getServerHost(),
+                $this->getServerPort(),
+            ));
+            $this->assertIsResource($socket);
+            stream_set_timeout($socket, 2);
+
+            try {
+                $this->assertSame(strlen($request), fwrite($socket, $request));
+                $response = stream_get_contents($socket);
+                $this->assertIsString($response);
+            } finally {
+                fclose($socket);
+            }
+
+            $this->assertStringContainsString('400 Bad Request', $response);
             $this->assertFileExists($probe);
             $this->assertSame('probe', $filesystem->get($probe));
         } finally {
