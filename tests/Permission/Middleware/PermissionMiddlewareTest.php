@@ -67,13 +67,13 @@ class PermissionMiddlewareTest extends TestCase
     {
         // These permissions are created fresh here in reverse order of guard being applied, so they are not "found first" in the db lookup when matching
         $this->app->make(Permission::class)->create(['name' => 'admin-permission2', 'guard_name' => 'web']);
-        $p1 = $this->app->make(Permission::class)->create(['name' => 'admin-permission2', 'guard_name' => 'api']);
+        $p1 = $this->app->make(Permission::class)->create(['name' => 'admin-permission2', 'guard_name' => 'passport']);
 
         $this->actingAsClient($this->testClient);
 
         $this->testClient->givePermissionTo($p1);
 
-        $this->assertSame(200, $this->runMiddleware($this->permissionMiddleware, 'admin-permission2', 'api', true));
+        $this->assertSame(200, $this->runMiddleware($this->permissionMiddleware, 'admin-permission2', 'passport', true));
         $this->assertSame(403, $this->runMiddleware($this->permissionMiddleware, 'edit-articles2', 'web', true));
     }
 
@@ -128,7 +128,7 @@ class PermissionMiddlewareTest extends TestCase
 
         $this->testClient->givePermissionTo('edit-posts');
 
-        $this->assertSame(403, $this->runMiddleware($this->permissionMiddleware, 'edit-posts', 'api', true));
+        $this->assertSame(403, $this->runMiddleware($this->permissionMiddleware, 'edit-posts', 'passport', true));
     }
 
     public function testAUserCanAccessARouteProtectedByThisPermissionMiddlewareIfHaveOneOfThePermissions(): void

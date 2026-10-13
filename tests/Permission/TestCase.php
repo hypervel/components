@@ -15,6 +15,9 @@ use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
+use Hypervel\Passport\Database\Factories\ClientFactory;
+use Hypervel\Passport\Passport;
+use Hypervel\Passport\PassportServiceProvider;
 use Hypervel\Permission\Contracts\Permission as PermissionContract;
 use Hypervel\Permission\Contracts\Role as RoleContract;
 use Hypervel\Permission\Exceptions\UnauthorizedException;
@@ -33,7 +36,6 @@ use Hypervel\Tests\Permission\Fixtures\Models\Permission;
 use Hypervel\Tests\Permission\Fixtures\Models\Role;
 use Hypervel\Tests\Permission\Fixtures\Models\Team;
 use Hypervel\Tests\Permission\Fixtures\Models\User;
-use Hypervel\Tests\Permission\Fixtures\PassportGuard;
 
 use function Hypervel\Testbench\default_migration_path;
 
@@ -74,6 +76,7 @@ abstract class TestCase extends TestbenchTestCase
     {
         return [
             PermissionServiceProvider::class,
+            PassportServiceProvider::class,
         ];
     }
 
@@ -222,11 +225,6 @@ abstract class TestCase extends TestbenchTestCase
             $table->string('email');
         });
 
-        Schema::create('clients', function (Blueprint $table): void {
-            $table->increments('id');
-            $table->string('name');
-        });
-
         Schema::create('content', function (Blueprint $table): void {
             $table->increments('id');
             $table->string('content');
@@ -259,29 +257,38 @@ abstract class TestCase extends TestbenchTestCase
     }
 
     /**
-     * Set up Passport-style client fixtures.
+     * Set up Passport clients with roles and permissions.
      */
     protected function setUpPassport(): void
     {
         $this->app->make('config')->set([
             'permission.use_passport_client_credentials' => true,
-            'auth.guards.api' => ['driver' => 'passport', 'provider' => 'users'],
+            'auth.guards.passport' => ['driver' => 'passport', 'provider' => 'users'],
         ]);
 
-        $this->testClient = Client::create(['name' => 'Test']);
-        $this->testClientRole = $this->app->make(RoleContract::class)->create(['name' => 'clientRole', 'guard_name' => 'api']);
-        $this->testClientPermission = $this->app->make(PermissionContract::class)->create(['name' => 'edit-posts', 'guard_name' => 'api']);
+        Passport::useClientModel(Client::class);
+        Guard::flushState();
+
+        (require dirname(__DIR__, 2) . '/src/passport/database/migrations/2016_06_01_000004_create_oauth_clients_table.php')->up();
+
+        // These polymorphic tables hold integer user IDs and Passport's UUID client IDs.
+        foreach (['model_has_roles', 'model_has_permissions'] as $tableKey) {
+            Schema::table(config()->string('permission.table_names.' . $tableKey), function (Blueprint $table): void {
+                $table->string(config()->string('permission.column_names.model_morph_key'))->change();
+            });
+        }
+
+        $this->testClient = ClientFactory::new()->asClientCredentials()->create(['name' => 'Test']);
+        $this->testClientRole = $this->app->make(RoleContract::class)->create(['name' => 'clientRole', 'guard_name' => 'passport']);
+        $this->testClientPermission = $this->app->make(PermissionContract::class)->create(['name' => 'edit-posts', 'guard_name' => 'passport']);
     }
 
     /**
      * Authenticate the given client through the Passport guard.
-     *
-     * Hypervel has no Passport package, so this stands in for Passport::actingAsClient().
      */
     protected function actingAsClient(Client $client): void
     {
-        Auth::extend('passport', fn (): PassportGuard => new PassportGuard($client));
-        Auth::forgetGuards();
+        Passport::actingAsClient($client);
     }
 
     /**

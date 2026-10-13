@@ -7,13 +7,13 @@ namespace Hypervel\Tests\Permission;
 use Hypervel\Contracts\Auth\Guard as GuardContract;
 use Hypervel\Database\Eloquent\MissingAttributeException;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Passport\Passport;
 use Hypervel\Permission\Guard;
 use Hypervel\Permission\Models\Permission;
 use Hypervel\Permission\Models\Role;
 use Hypervel\Support\Facades\Auth;
 use Hypervel\Tests\Permission\Fixtures\Models\Admin;
 use Hypervel\Tests\Permission\Fixtures\Models\User;
-use Hypervel\Tests\Permission\Fixtures\PassportGuard;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 
@@ -39,12 +39,16 @@ class GuardTest extends TestCase
 
     public function testItReturnsNullFromGetPassportClientWhenNoPassportGuardsAreConfigured(): void
     {
+        config()->set('auth.guards', ['web' => config('auth.guards.web')]);
+
         $this->assertNull(Guard::getPassportClient('web'));
     }
 
     public function testItReturnsNullFromGetPassportClientWhenTheResolvedGuardDoesNotSupportClients(): void
     {
-        config()->set('auth.guards.fake-passport', ['driver' => 'passport', 'provider' => 'users']);
+        config()->set('auth.guards', [
+            'fake-passport' => ['driver' => 'passport', 'provider' => 'users'],
+        ]);
 
         // The auth manager's guard() return type rejects upstream's stdClass, so use a guard without client().
         Auth::shouldReceive('guard')->once()->with('fake-passport')->andReturn(m::mock(GuardContract::class));
@@ -106,7 +110,7 @@ class GuardTest extends TestCase
         $this->setUpPassport();
 
         $this->app->make('config')->set([
-            'auth.guards.api' => [
+            'auth.guards.passport' => [
                 'driver' => 'session',
                 'provider' => 'users',
             ],
@@ -115,9 +119,9 @@ class GuardTest extends TestCase
 
         $client = $this->testClient;
 
-        Auth::extend('passport', fn (): PassportGuard => new PassportGuard($client));
-        Auth::forgetGuards();
+        Passport::actingAsClient($client, guard: '0');
 
+        $this->assertSame($client, Guard::getPassportClient(null));
         $this->assertNull(Guard::getPassportClient('0'));
     }
 
