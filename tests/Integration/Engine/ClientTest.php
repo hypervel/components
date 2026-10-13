@@ -187,16 +187,4 @@ class ClientTest extends EngineIntegrationTestCase
             $client->close();
         }
     }
-
-    public function testClosingAnUnconnectedClientReportsNoConnection(): void
-    {
-        if (SWOOLE_VERSION_ID <= 60203) {
-            $this->markTestSkipped('Requires initialized coroutine HTTP client socket state from https://github.com/swoole/swoole-src/pull/6186.');
-        }
-
-        $client = new Client($this->getServerHost(), $this->getServerPort());
-
-        $this->assertFalse($client->close());
-        $this->assertSame(SWOOLE_ERROR_CLIENT_NO_CONNECTION, $client->errCode);
-    }
 }

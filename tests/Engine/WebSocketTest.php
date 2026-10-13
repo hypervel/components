@@ -67,9 +67,12 @@ class WebSocketTest extends TestCase
 
     public function testNativeFramesDecodeMaskedCompressedPayloadsWithoutMutatingTheInput(): void
     {
-        // https://github.com/swoole/swoole-src/pull/6158
         if (! defined('SWOOLE_HAVE_ZLIB')) {
             $this->markTestSkipped('Swoole was not compiled with zlib support.');
+        }
+
+        if (SWOOLE_VERSION_ID <= 60203) {
+            $this->markTestSkipped('Requires input-preserving WebSocket decoding from https://github.com/swoole/swoole-src/pull/6158.');
         }
 
         $payload = str_repeat('hypervel-websocket-frame:', 20);
@@ -78,13 +81,16 @@ class WebSocketTest extends TestCase
             Opcode::TEXT,
             SWOOLE_WEBSOCKET_FLAG_FIN | SWOOLE_WEBSOCKET_FLAG_MASK | SWOOLE_WEBSOCKET_FLAG_COMPRESS,
         );
-        $original = $packed;
+        $original = bin2hex($packed);
+
+        $this->assertNotSame(0, ord($packed[0]) & 0x40);
+        $this->assertNotSame(0, ord($packed[1]) & 0x80);
 
         $frame = SwooleFrame::unpack($packed);
 
         $this->assertInstanceOf(SwooleFrame::class, $frame);
         $this->assertSame($payload, $frame->data);
-        $this->assertSame($original, $packed);
+        $this->assertSame($original, bin2hex($packed));
     }
 
     public function testMaskedFramesUseFreshKeys(): void
@@ -107,18 +113,34 @@ class WebSocketTest extends TestCase
 
     public function testCompressedControlFramesAreRejected(): void
     {
+        if (! defined('SWOOLE_HAVE_ZLIB')) {
+            $this->markTestSkipped('Swoole was not compiled with zlib support.');
+        }
+
         if (SWOOLE_VERSION_ID <= 60203) {
             $this->markTestSkipped('Requires compressed control-frame rejection from https://github.com/swoole/swoole-src/pull/6209.');
         }
 
-        foreach ([Opcode::CLOSE, Opcode::PING, Opcode::PONG] as $opcode) {
-            $packed = SwooleFrame::pack(
-                '',
-                $opcode,
-                SWOOLE_WEBSOCKET_FLAG_FIN | SWOOLE_WEBSOCKET_FLAG_RSV1,
-            );
+        $payload = "\x03\xe8bye";
+        $packed = SwooleFrame::pack(
+            $payload,
+            Opcode::TEXT,
+            SWOOLE_WEBSOCKET_FLAG_FIN | SWOOLE_WEBSOCKET_FLAG_COMPRESS,
+        );
+        $textFrame = SwooleFrame::unpack($packed);
 
-            $this->assertFalse(@SwooleFrame::unpack($packed));
+        $this->assertNotSame(0, ord($packed[0]) & 0x40);
+        $this->assertSame(Opcode::TEXT, ord($packed[0]) & 0x0F);
+        $this->assertInstanceOf(SwooleFrame::class, $textFrame);
+        $this->assertSame($payload, $textFrame->data);
+
+        foreach ([Opcode::CLOSE, Opcode::PING, Opcode::PONG] as $opcode) {
+            $invalid = $packed;
+            $invalid[0] = chr((ord($invalid[0]) & 0xF0) | $opcode);
+
+            $this->assertNotSame(0, ord($invalid[0]) & 0x40);
+            $this->assertSame($opcode, ord($invalid[0]) & 0x0F);
+            $this->assertFalse(@SwooleFrame::unpack($invalid));
         }
     }
 
