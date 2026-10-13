@@ -8,6 +8,7 @@ use Closure;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Exception\TransferException;
 use GuzzleHttp\Handler\StreamHandler;
+use GuzzleHttp\Psr7\Exception\TimeoutException;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Http\Client\ConnectionException;
 use Hypervel\Http\Client\CurlStreamingHandler;
@@ -106,9 +107,8 @@ class HttpClientStreamingTest extends TestCase
 
     public function testConcurrentPhpStreamsReleaseTheirResponseHeaders(): void
     {
-        // @TODO: Update the version gate when Swoole releases the response-header ownership fix.
-        if (SWOOLE_VERSION_ID <= 60203) {
-            $this->markTestSkipped('Swoole 6.2.3 and earlier do not isolate PHP response-header ownership between coroutines.');
+        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
+            $this->markTestSkipped('Swoole 6.3.0 RC1 and earlier do not isolate PHP response-header ownership between coroutines.');
         }
 
         $process = new Process([PHP_BINARY, __DIR__ . '/Fixtures/concurrent-stream-headers.php']);
@@ -170,10 +170,6 @@ class HttpClientStreamingTest extends TestCase
     #[DataProvider('streamingTransports')]
     public function testBufferedFirstRecordArrivesBeforeTheNextServerWrite(bool $native, string $mode): void
     {
-        if (! $native && SWOOLE_VERSION_ID <= 60203) {
-            $this->markTestSkipped('Swoole 6.2.3 and earlier lack the buffered-read fix: https://github.com/swoole/swoole-src/pull/6235.');
-        }
-
         $this->withStreamingServer($mode, function (string $address) use ($native, $mode): void {
             $received = new Channel(1);
             try {
@@ -558,10 +554,6 @@ class HttpClientStreamingTest extends TestCase
     #[DataProvider('idleTimeoutTransports')]
     public function testIdleStreamingReadTimeoutRaisesTheStreamReadError(bool $native): void
     {
-        if (! $native && SWOOLE_VERSION_ID <= 60203) {
-            $this->markTestSkipped('Swoole 6.2.3 and earlier lack the read-timeout fix: https://github.com/swoole/swoole-src/pull/6236.');
-        }
-
         $this->withStreamingServer('delayed', function (string $address) use ($native): void {
             $finished = new Channel(1);
             try {
@@ -588,7 +580,10 @@ class HttpClientStreamingTest extends TestCase
                 ]);
 
                 $this->assertInstanceOf(RuntimeException::class, $results['reader']);
-                $this->assertSame($native ? 'The streaming response read timed out.' : 'Unable to read from stream', $results['reader']->getMessage());
+                $expectedMessage = $native
+                    ? 'The streaming response read timed out.'
+                    : (class_exists(TimeoutException::class) ? 'Unable to read from stream: timed out' : 'Unable to read from stream');
+                $this->assertSame($expectedMessage, $results['reader']->getMessage());
             } finally {
                 $finished->close();
             }

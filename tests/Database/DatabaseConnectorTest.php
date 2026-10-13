@@ -82,8 +82,8 @@ class DatabaseConnectorTest extends TestCase
     #[TestWith([false])]
     public function testPostgresConnectionTimeoutStopsAnUnresponsiveHandshake(bool $hooked): void
     {
-        if (SWOOLE_VERSION_ID <= 60203) {
-            $this->markTestSkipped('Swoole 6.2.3 and earlier do not enforce the PostgreSQL connection deadline.');
+        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
+            $this->markTestSkipped('Swoole 6.3.0 RC1 and earlier do not enforce the PostgreSQL connection deadline.');
         }
 
         $result = $this->runUnresponsiveConnection('pgsql', 'timeout', $hooked);

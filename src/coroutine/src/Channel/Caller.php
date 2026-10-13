@@ -27,9 +27,9 @@ class Caller
     public function call(Closure $closure): mixed
     {
         $channel = $this->channel;
-        $instance = $channel->pop($this->waitTimeout);
+        $entry = $channel->pop($this->waitTimeout);
 
-        if ($instance === false) {
+        if ($entry === false) {
             if ($channel->isCanceled()) {
                 throw new CanceledException('Waiting for the pooled instance was canceled.');
             }
@@ -44,9 +44,9 @@ class Caller
         }
 
         try {
-            return $closure($instance);
+            return $closure($entry['instance']);
         } finally {
-            $channel->push($instance);
+            $channel->push($entry);
         }
     }
 
@@ -57,7 +57,7 @@ class Caller
     {
         $instance = $this->closure->__invoke();
         $channel = new Channel(1);
-        $channel->push($instance);
+        $channel->push(['instance' => $instance]);
 
         $previous = $this->channel;
         $this->channel = $channel;

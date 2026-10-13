@@ -428,9 +428,8 @@ class CurlStreamingHandlerTest extends TestCase
 
     public function testNativeWaitReportsDataArrivingBetweenPerformAndSelect(): void
     {
-        // @TODO: Update the version gate when Swoole fixes curl_multi_select hiding ready data.
-        if (SWOOLE_VERSION_ID <= 60203) {
-            $this->markTestSkipped('Swoole 6.2.3 and earlier can consume ready cURL data and then wait for another event.');
+        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
+            $this->markTestSkipped('Swoole 6.3.0 RC1 and earlier can consume ready cURL data and then wait for another event.');
         }
 
         $server = new Socket(AF_INET, SOCK_STREAM, 0);

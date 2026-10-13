@@ -1,2 +1,2 @@
 My custom 404
-<?php $foo();
+<?php throw new RuntimeException('Malformed error view.');

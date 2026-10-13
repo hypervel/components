@@ -23,10 +23,10 @@ jobs:
       matrix:
         php: ["8.4", "8.5"]
 
-    name: PHP ${{ matrix.php }} (Swoole 6.2.2)
+    name: PHP ${{ matrix.php }} (Swoole 6.3.0 RC1)
 
     container:
-      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.2.2
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
 
     steps:
       - name: Checkout code
@@ -78,7 +78,7 @@ jobs:
     name: Guzzle 7 and promises 2
 
     container:
-      image: ghcr.io/hypervel/components-ci:php8.4-swoole6.2.2
+      image: ghcr.io/hypervel/components-ci:php8.4-swoole6.3.0-rc1
 
     steps:
       - name: Checkout code
@@ -115,7 +115,7 @@ jobs:
     name: Wayfinder
 
     container:
-      image: ghcr.io/hypervel/components-ci:php8.4-swoole6.2.2
+      image: ghcr.io/hypervel/components-ci:php8.4-swoole6.3.0-rc1
 
     steps:
       - name: Checkout code

@@ -11,7 +11,10 @@ use Hypervel\Engine\Coroutine;
 use Hypervel\Engine\Exceptions\CoroutineDestroyedException;
 use Hypervel\Engine\Exceptions\RuntimeException;
 use Hypervel\Tests\TestCase;
+use Swoole\Coroutine as SwooleCoroutine;
 use Swoole\Coroutine\CanceledException;
+use Swoole\Timer;
+use Symfony\Component\Process\Process;
 use Throwable;
 
 class CoroutineTest extends TestCase
@@ -242,6 +245,43 @@ class CoroutineTest extends TestCase
         }
 
         $this->assertFalse(Coroutine::exists($coroutine->getId()));
+    }
+
+    public function testCancellationEscapesDirectoryIteration(): void
+    {
+        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
+            $this->markTestSkipped('Requires correct coroutine exception delivery from https://github.com/swoole/swoole-src/pull/6185.');
+        }
+
+        $process = new Process([
+            PHP_BINARY,
+            __DIR__ . '/Fixtures/cancel-directory-iterator.php',
+            dirname(__DIR__, 2) . '/vendor/autoload.php',
+        ]);
+        $process->setTimeout(2);
+        $process->mustRun();
+
+        $this->assertSame("canceled\n", $process->getOutput());
+    }
+
+    public function testCoroutineTimeLimitOwnsOneFractionalTimer(): void
+    {
+        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
+            $this->markTestSkipped('Requires fractional and owned coroutine time-limit timers from https://github.com/swoole/swoole-src/pull/6270.');
+        }
+
+        $timerCount = Timer::stats()['num'];
+        $counts = [];
+
+        SwooleCoroutine::create(function () use (&$counts): void {
+            $this->assertTrue(SwooleCoroutine::setTimeLimit(0.05));
+            $counts[] = Timer::stats()['num'];
+            $this->assertTrue(SwooleCoroutine::setTimeLimit(0.1));
+            $counts[] = Timer::stats()['num'];
+        });
+
+        $this->assertSame([$timerCount + 1, $timerCount + 1], $counts);
+        $this->assertSame($timerCount, Timer::stats()['num']);
     }
 
     public function testCoroutineList(): void
