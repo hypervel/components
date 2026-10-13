@@ -4,7 +4,7 @@ This developer harness measures Sentry's HTTP overhead, telemetry delivery, Guzz
 
 See [recorded measurements](results.md) for the Sentry reconciliation and optimization results.
 
-Run measurements only on an owner-confirmed idle machine. Smoke mode uses small workloads to check correctness; its timings are not performance evidence. The harness requires Linux `/proc`, PHP with Swoole, SQLite, cURL and PCNTL, Composer, Git and Bash. CPU pinning additionally requires `taskset`.
+Run measurements only on an owner-confirmed idle machine. Smoke mode uses small workloads to check correctness; its timings are not performance evidence. The harness requires Linux `/proc`, PHP with Swoole, SQLite, cURL, PCNTL, POSIX and OPcache, Composer, Git and Bash. CPU pinning additionally requires `taskset`.
 
 ## Prepare two applications
 
@@ -95,7 +95,7 @@ bash tests/Benchmarks/Sentry/components.sh \
 
 An optional fifth argument pins the process to a CPU list. The cases cover sampled and unsampled Guzzle requests, breadcrumb-only requests, header propagation with recording off, explicit opt-out, inactive Sentry, origin collection, outstanding async-request memory, and child creation with an inherited scope. Origin-only cases are explicitly skipped on revisions without that option. MockHandler isolates instrumentation from network I/O; its memory rows measure pending promise callbacks, not native transport buffers. Finished-span assertions keep workloads below the SDK's recorder limit and ensure the benchmark is still recording real work.
 
-`request-fetcher.php` separately compares request fetching and processing transaction request data for a GET and a small JSON POST, with legacy and `data_collection` settings. These are component costs, not whole-request latency. It can also be run directly with `--root=/checkout --smoke` or `--idle-confirmed`.
+`request-fetcher.php` separately compares request fetching and processing transaction request data for a GET and a small JSON POST, with legacy and `data_collection` settings. Its `processor_us` measurement includes creating a fresh transaction event for each invocation. These are component costs, not whole-request latency. It can also be run directly with `--root=/checkout --smoke` or `--idle-confirmed`.
 
 ## Compare results
 

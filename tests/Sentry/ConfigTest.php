@@ -113,7 +113,35 @@ class ConfigTest extends TestCase
 
     public function testOmittedBreadcrumbAndTracingOptionsUseTheShippedDefaults(): void
     {
-        $shippedConfig = $this->sentryConfig();
+        $shippedConfig = $this->withEnvironmentValues(array_fill_keys([
+            'SENTRY_BREADCRUMBS_LOGS_ENABLED',
+            'SENTRY_BREADCRUMBS_CACHE_ENABLED',
+            'SENTRY_BREADCRUMBS_STORAGE_ENABLED',
+            'SENTRY_BREADCRUMBS_SQL_QUERIES_ENABLED',
+            'SENTRY_BREADCRUMBS_SQL_BINDINGS_ENABLED',
+            'SENTRY_BREADCRUMBS_SQL_TRANSACTIONS_ENABLED',
+            'SENTRY_BREADCRUMBS_QUEUE_INFO_ENABLED',
+            'SENTRY_BREADCRUMBS_COMMAND_JOBS_ENABLED',
+            'SENTRY_BREADCRUMBS_HTTP_CLIENT_REQUESTS_ENABLED',
+            'SENTRY_BREADCRUMBS_NOTIFICATIONS_ENABLED',
+            'SENTRY_TRACE_QUEUE_ENABLED',
+            'SENTRY_TRACE_QUEUE_JOBS_ENABLED',
+            'SENTRY_TRACE_SQL_QUERIES_ENABLED',
+            'SENTRY_TRACE_SQL_BINDINGS_ENABLED',
+            'SENTRY_TRACE_SQL_ORIGIN_ENABLED',
+            'SENTRY_TRACE_SQL_ORIGIN_THRESHOLD_MS',
+            'SENTRY_TRACE_VIEWS_ENABLED',
+            'SENTRY_TRACE_HTTP_CLIENT_REQUESTS_ENABLED',
+            'SENTRY_TRACE_HTTP_CLIENT_REQUESTS_ORIGIN_ENABLED',
+            'SENTRY_TRACE_HTTP_CLIENT_REQUESTS_ORIGIN_THRESHOLD_MS',
+            'SENTRY_TRACE_CACHE_ENABLED',
+            'SENTRY_TRACE_STORAGE_ENABLED',
+            'SENTRY_TRACE_REDIS_COMMANDS',
+            'SENTRY_TRACE_REDIS_ORIGIN_ENABLED',
+            'SENTRY_TRACE_NOTIFICATIONS_ENABLED',
+            'SENTRY_TRACE_MISSING_ROUTES_ENABLED',
+            'SENTRY_TRACE_CONTINUE_AFTER_RESPONSE',
+        ], null), fn (): array => $this->sentryConfig());
 
         $config = (new SentryConfig(new Repository([
             'sentry' => [

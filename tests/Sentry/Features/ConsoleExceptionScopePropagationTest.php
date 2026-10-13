@@ -85,6 +85,8 @@ class ConsoleExceptionScopePropagationTest extends TestCase
         $event = $this->getLastSentryEvent();
 
         $this->assertNotNull($event);
+        $this->assertSame(RuntimeException::class, $event->getExceptions()[0]->getType());
+        $this->assertSame('Unhandled console exception for scope propagation regression test.', $event->getExceptions()[0]->getValue());
         $this->assertSame('tag_value', $event->getTags()['tag_key'] ?? null);
         $this->assertSame('value', $event->getContexts()['Context name']['key'] ?? null);
     }
@@ -98,6 +100,8 @@ class ConsoleExceptionScopePropagationTest extends TestCase
         $event = $this->getLastSentryEvent();
 
         $this->assertNotNull($event);
+        $this->assertSame(RuntimeException::class, $event->getExceptions()[0]->getType());
+        $this->assertSame('Unhandled console exception for scope propagation regression test.', $event->getExceptions()[0]->getValue());
         $this->assertArrayNotHasKey('command', $event->getTags());
     }
 
