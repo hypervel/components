@@ -6,6 +6,9 @@ namespace Hypervel\Tests\Sentry\Features;
 
 use Error;
 use Exception;
+use Hypervel\Cache\Events\CacheHit;
+use Hypervel\Cache\Events\CacheMissed;
+use Hypervel\Cache\Events\KeyWritten;
 use Hypervel\Cache\Repository;
 use Hypervel\ConnectionPool\PoolOptions;
 use Hypervel\Context\RequestContext;
@@ -213,6 +216,47 @@ class CacheIntegrationTest extends TestCase
         $this->assertEquals(99, $span->getData()['cache.ttl']);
     }
 
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testNestedBulkOperationsFinishOnlyAfterTheirLastResult(bool $writing): void
+    {
+        $this->resetApplicationWithConfig([
+            'cache.stores.traced-failover' => [
+                'driver' => 'failover',
+                'stores' => ['array'],
+                'events' => true,
+            ],
+        ]);
+        Cache::store('array')->put('foo', 'value', 60);
+        $transaction = $this->startTransaction();
+        $openSpanCounts = [];
+        $this->app->make('events')->listen(
+            $writing ? [KeyWritten::class] : [CacheHit::class, CacheMissed::class],
+            function () use ($transaction, &$openSpanCounts): void {
+                $openSpanCounts[] = count(array_filter(
+                    $transaction->getSpanRecorder()->getSpans(),
+                    static fn (Span $span): bool => $span !== $transaction && $span->getEndTimestamp() === null,
+                ));
+            },
+        );
+
+        if ($writing) {
+            $this->assertTrue(Cache::store('traced-failover')->putMany(['foo' => 'one', 'bar' => 'two'], 60));
+        } else {
+            $this->assertSame(
+                ['foo' => 'value', 'bar' => null],
+                Cache::store('traced-failover')->many(['foo', 'foo', 'bar']),
+            );
+        }
+
+        $this->assertSame([2, 1, 1, 0], $openSpanCounts);
+        $this->assertSame($transaction, SentrySdk::getCurrentHub()->getSpan());
+        $spans = $transaction->getSpanRecorder()->getSpans();
+        $this->assertCount(3, $spans);
+        $this->assertSame($transaction->getSpanId(), $spans[1]->getParentSpanId());
+        $this->assertSame($spans[1]->getSpanId(), $spans[2]->getParentSpanId());
+    }
+
     public function testCacheRemoveSpanIsRecorded(): void
     {
         $span = $this->executeAndReturnMostRecentSpan(function (): void {
@@ -265,6 +309,42 @@ class CacheIntegrationTest extends TestCase
 
         $this->assertSame(SpanStatus::internalError(), $span->getStatus());
         $this->assertFalse($span->getData()['cache.success']);
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCachePutManyFailureFinishesItsSpan(bool $throwing): void
+    {
+        $exception = new RuntimeException('The cache batch write failed.');
+        $store = m::mock(Store::class);
+        $expectation = $store->shouldReceive('putMany')->once()->with(['foo' => 'bar', 'baz' => 'qux'], 60);
+
+        if ($throwing) {
+            $expectation->andThrow($exception);
+        } else {
+            $expectation->andReturnFalse();
+        }
+
+        $repository = $this->repository($store);
+        $transaction = $this->startTransaction();
+
+        if ($throwing) {
+            try {
+                $repository->putMany(['foo' => 'bar', 'baz' => 'qux'], 60);
+                $this->fail('Expected the cache batch write exception.');
+            } catch (RuntimeException $caught) {
+                $this->assertSame($exception, $caught);
+            }
+        } else {
+            $this->assertFalse($repository->putMany(['foo' => 'bar', 'baz' => 'qux'], 60));
+        }
+
+        $this->assertSame($transaction, SentrySdk::getCurrentHub()->getSpan());
+        $spans = $transaction->getSpanRecorder()->getSpans();
+        $this->assertCount(2, $spans);
+        $this->assertNotNull($spans[1]->getEndTimestamp());
+        $this->assertSame(SpanStatus::internalError(), $spans[1]->getStatus());
+        $this->assertFalse($spans[1]->getData()['cache.success']);
     }
 
     public function testCacheForgetFailureFinishesItsSpanAndRethrows(): void
@@ -828,6 +908,8 @@ class CacheIntegrationTest extends TestCase
         $spans = $transaction->getSpanRecorder()->getSpans();
 
         $this->assertCount(2, $spans);
+        $this->assertSame($transaction, SentrySdk::getCurrentHub()->getSpan());
+        $this->assertNotNull($spans[1]->getEndTimestamp());
 
         return array_pop($spans);
     }

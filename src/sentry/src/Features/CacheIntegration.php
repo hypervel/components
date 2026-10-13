@@ -169,7 +169,7 @@ class CacheIntegration extends Feature
 
                 $displayKeys = $this->replaceSessionKeys($keys);
 
-                $this->pushSpan(
+                $this->pushCacheSpan(
                     $parentSpan->startChild(
                         SpanContext::make()
                             ->setOp('cache.get')
@@ -178,7 +178,8 @@ class CacheIntegration extends Feature
                             ])
                             ->setOrigin('auto.cache')
                             ->setDescription(implode(', ', $displayKeys))
-                    )
+                    ),
+                    $event instanceof RetrievingManyKeys ? count(array_unique($keys)) : 1,
                 );
             }
 
@@ -187,7 +188,7 @@ class CacheIntegration extends Feature
 
                 $displayKeys = $this->replaceSessionKeys($keys);
 
-                $this->pushSpan(
+                $this->pushCacheSpan(
                     $parentSpan->startChild(
                         SpanContext::make()
                             ->setOp('cache.put')
@@ -197,14 +198,15 @@ class CacheIntegration extends Feature
                             ])
                             ->setOrigin('auto.cache')
                             ->setDescription(implode(', ', $displayKeys))
-                    )
+                    ),
+                    count($keys),
                 );
             }
 
             if ($event instanceof ForgettingKey) {
                 $displayKey = $this->replaceSessionKey($event->key);
 
-                $this->pushSpan(
+                $this->pushCacheSpan(
                     $parentSpan->startChild(
                         SpanContext::make()
                             ->setOp('cache.remove')
@@ -213,7 +215,8 @@ class CacheIntegration extends Feature
                             ])
                             ->setOrigin('auto.cache')
                             ->setDescription($displayKey)
-                    )
+                    ),
+                    1,
                 );
             }
         });
@@ -316,8 +319,9 @@ class CacheIntegration extends Feature
             || $event instanceof KeyRetrievalFailed
             || $event instanceof ManyKeysRetrievalFailed) {
             $failed = $event instanceof KeyRetrievalFailed || $event instanceof ManyKeysRetrievalFailed;
-            $finishedSpan = $this->maybeFinishSpan(
-                $failed ? SpanStatus::internalError() : SpanStatus::ok()
+            $finishedSpan = $this->finishCacheSpan(
+                $failed ? SpanStatus::internalError() : SpanStatus::ok(),
+                $event instanceof ManyKeysRetrievalFailed,
             );
 
             if (! $failed
@@ -333,7 +337,7 @@ class CacheIntegration extends Feature
 
         // End of span for WritingKey and WritingManyKeys events
         if ($event instanceof KeyWritten || $event instanceof KeyWriteFailed) {
-            $finishedSpan = $this->maybeFinishSpan(
+            $finishedSpan = $this->finishCacheSpan(
                 $event instanceof KeyWritten ? SpanStatus::ok() : SpanStatus::internalError()
             );
 
@@ -346,7 +350,7 @@ class CacheIntegration extends Feature
 
         // End of span for ForgettingKey event
         if ($event instanceof KeyForgotten || $event instanceof KeyForgetFailed) {
-            $this->maybeFinishSpan(
+            $this->finishCacheSpan(
                 $event instanceof KeyForgotten
                     ? SpanStatus::ok()
                     : ($event->exception === null ? null : SpanStatus::internalError())
@@ -356,6 +360,46 @@ class CacheIntegration extends Feature
         }
 
         return false;
+    }
+
+    /**
+     * Track the number of terminal events expected for the cache span.
+     */
+    private function pushCacheSpan(Span $span, int $remainingEvents): void
+    {
+        $this->pushSpan($span);
+
+        $remaining = CoroutineContext::get($this->contextKey('remaining_events'), []);
+        $remaining[] = $remainingEvents;
+        CoroutineContext::set($this->contextKey('remaining_events'), $remaining);
+    }
+
+    /**
+     * Finish the cache span after its last key result or a whole-operation failure.
+     */
+    private function finishCacheSpan(?SpanStatus $status, bool $failedOperation = false): ?Span
+    {
+        // If a cache listener throws and its caller continues, tracing may remain
+        // inaccurate until coroutine cleanup. We accept this request-local limitation
+        // rather than add cache lifecycle hooks or AOP solely for that case.
+        $remaining = CoroutineContext::get($this->contextKey('remaining_events'), []);
+
+        if ($remaining === []) {
+            return null;
+        }
+
+        $index = array_key_last($remaining);
+
+        if (! $failedOperation && --$remaining[$index] > 0) {
+            CoroutineContext::set($this->contextKey('remaining_events'), $remaining);
+
+            return null;
+        }
+
+        array_pop($remaining);
+        CoroutineContext::set($this->contextKey('remaining_events'), $remaining);
+
+        return $this->maybeFinishSpan($status);
     }
 
     // Upstream's isCacheEventForActiveSession(), getActiveCacheBackedSessionStore() and
