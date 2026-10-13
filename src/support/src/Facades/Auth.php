@@ -41,7 +41,7 @@ use Hypervel\Contracts\Auth\SupportsBasicAuth;
  * @method static \Hypervel\Contracts\Events\Dispatcher|null getDispatcher()
  * @method static \Hypervel\Contracts\Auth\Authenticatable|null getLastAttempted()
  * @method static string getName()
- * @method static \Hypervel\Contracts\Auth\UserProvider|null getProvider()
+ * @method static null|\Hypervel\Contracts\Auth\UserProvider getProvider()
  * @method static string getRecallerName()
  * @method static \Symfony\Component\HttpFoundation\Request getRequest()
  * @method static \Hypervel\Contracts\Session\Session getSession()
