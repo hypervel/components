@@ -268,7 +268,9 @@ class JwtServiceProviderTest extends TestCase
 
     public function testLcobucciDriverReceivesTheConfiguredSecretAlgorithmAndKeys(): void
     {
-        $keys = ['public' => 'public-key', 'private' => 'private-key', 'passphrase' => 'passphrase'];
+        $key = openssl_pkey_new(['private_key_type' => OPENSSL_KEYTYPE_EC, 'curve_name' => 'secp521r1']);
+        openssl_pkey_export($key, $privateKey, 'passphrase');
+        $keys = ['public' => openssl_pkey_get_details($key)['key'], 'private' => $privateKey, 'passphrase' => 'passphrase'];
 
         config([
             'jwt.secret' => 'some-secret',
