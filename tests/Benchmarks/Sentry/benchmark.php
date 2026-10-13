@@ -13,7 +13,7 @@ declare(strict_types=1);
  * APP is baseline or current; CONFIG is C0..C5. Results are JSON files under results/.
  */
 
-const PHP_FLAGS = ['-d', 'opcache.enable_cli=1', '-d', 'opcache.jit=disable'];
+const PHP_FLAGS = ['-d', 'opcache.enable_cli=1', '-d', 'opcache.jit=disable', '-d', 'opcache.file_update_protection=0'];
 const APP_KEY = 'base64:bqnTvhYvPuYO87TxS/VbTFjhVQHCaPRRtONi0BnBBxE=';
 const QUIESCENCE_POLLS = 3;
 const QUIESCENCE_INTERVAL = 0.05;
@@ -54,7 +54,8 @@ function environment(string $app, string $config): array
         'APP_DEBUG' => 'false',
         'APP_KEY' => APP_KEY,
         'APP_URL' => 'http://127.0.0.1:' . APP_PORT,
-        'LOG_CHANNEL' => 'null',
+        // Env::get() interprets an unquoted null as PHP null, not the channel name.
+        'LOG_CHANNEL' => '"null"',
         'LOG_LEVEL' => 'debug',
         'DB_CONNECTION' => 'sqlite',
         'DB_DATABASE' => ROOT . "/app-{$app}/database/bench.sqlite",
@@ -114,6 +115,12 @@ function prepare(string $app, string $config): void
     command(['composer', 'config', 'extra.hypervel.dont-discover', '--json', $ignore], $directory);
     command([PHP_BINARY, 'artisan', 'package:discover'], $directory, $environment);
     command([PHP_BINARY, 'artisan', 'config:cache'], $directory, $environment);
+    $cachedConfig = require "{$directory}/bootstrap/cache/config.php";
+
+    if ($cachedConfig['logging']['default'] !== 'null') {
+        throw new RuntimeException('The benchmark must use the null logging channel.');
+    }
+
     command([PHP_BINARY, 'artisan', 'route:cache'], $directory, $environment);
     command([PHP_BINARY, 'artisan', 'view:cache'], $directory, $environment);
 
@@ -138,9 +145,11 @@ function fetch(string $url): ?array
 /**
  * Read the worker's state from the stats listener.
  */
-function stats(bool $resetPeak = false): array
+function stats(bool $resetPeak = false, bool $collectGarbage = false): array
 {
-    return fetch('http://127.0.0.1:' . STATS_PORT . '/stats' . ($resetPeak ? '?reset_peak=1' : ''))
+    $query = http_build_query(array_filter(['reset_peak' => $resetPeak, 'collect_gc' => $collectGarbage]));
+
+    return fetch('http://127.0.0.1:' . STATS_PORT . '/stats?' . $query)
         ?? throw new RuntimeException('Stats listener unavailable.');
 }
 
@@ -574,6 +583,7 @@ function metadata(string $app): array
         // shell_exec() returns null for empty output.
         'components_dirty' => trim((string) shell_exec('git -C ' . escapeshellarg($components) . ' status --porcelain --untracked-files=no')) !== '',
         'php' => PHP_VERSION,
+        'php_flags' => PHP_FLAGS,
         'swoole' => phpversion('swoole'),
         'platform' => php_uname(),
         'clock_ticks' => CLOCK_TICKS,
@@ -616,6 +626,8 @@ function launch(string $app, string $config, bool $smoke, string $out, string $t
                 $result['problems'][] = 'launch: expected no envelopes, got ' . json_encode($total);
             }
         }
+
+        $result['after_gc'] = workerState(stats(collectGarbage: true));
     } finally {
         stopServer($process, $master);
     }
@@ -697,6 +709,8 @@ function saturation(string $app, bool $smoke, string $out, string $tag): array
                 'sink' => $delta,
             ];
         }
+
+        $result['after_gc'] = workerState(stats(collectGarbage: true));
     } finally {
         stopServer($process, $master);
         sink('/delay?ms=0');

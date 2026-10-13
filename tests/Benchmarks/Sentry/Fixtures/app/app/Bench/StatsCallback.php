@@ -21,6 +21,10 @@ class StatsCallback
      */
     public function onRequest(Request $request, Response $response): void
     {
+        if (isset($request->get['collect_gc'])) {
+            gc_collect_cycles();
+        }
+
         $stats = [
             'pid' => getmypid(),
             'memory' => memory_get_usage(),

@@ -67,7 +67,9 @@ CPU affinity is optional. On a machine with those CPUs available, add `--server-
 
 C5 is not zero instrumentation: request transactions, runtime boundaries and trace propagation still have work to do. The structural inventory explains which registrations remain. Request/transaction profiling stays at its shipped disabled default; this harness does not enable Excimer profiling or resolve its coroutine-attribution limitation.
 
-Each configuration uses a fresh single-worker server. `/plain` returns a string. `/work` runs three SQLite queries, array-cache reads and writes, one log event, two child coroutines and a small Blade view. The statistics endpoint bypasses the HTTP kernel so measuring resources does not create Sentry events.
+Each configuration uses a fresh single-worker server. `/plain` returns a string. `/work` runs three SQLite queries, array-cache reads and writes, one log event, two child coroutines and a small Blade view. Logging uses the `null` channel, checked in the cached config, to exercise breadcrumbs without file I/O. The statistics endpoint bypasses the HTTP kernel so measuring resources does not create Sentry events.
+
+The runner sets `opcache.file_update_protection=0` because it starts workers immediately after building their immutable caches. Otherwise, OPcache can leave freshly compiled views uncached for the worker's lifetime, measuring repeated PHP compilation instead of the intended cached path.
 
 | Workload | Concurrency | Warmup requests | Measured requests |
 | --- | ---: | ---: | ---: |
@@ -79,7 +81,7 @@ The sink must receive no envelopes for these successful C0–C3 requests and exa
 
 The saturation case uses C4, a 200 ms sink delay, concurrency 64 and two 5,000-request waves on the same worker. Each request reports one handled exception as well as its transaction. It retains the shipped transport-pool settings and records received versus not-received items; the sink cannot distinguish a skipped send from a failed delivery. Resources are recorded after each wave drains, exposing accumulation without inventing memory thresholds. Run it separately with `saturation current`.
 
-Reports include throughput, p50/p95/p99 latency, server-process-tree CPU, worker RSS, PHP heap, coroutine counts, pool state and delivered telemetry. CPU excludes the separate sink and load generators. CPU windows both before and after draining are recorded: HTTP responses can finish before Sentry's deferred work. Concurrency-one response latency therefore does not represent total instrumentation cost. RSS peaks are sampled, not exact allocation peaks. SQLite and loopback traffic isolate framework overhead; they do not represent remote databases or Sentry network latency.
+Reports include throughput, p50/p95/p99 latency, server-process-tree CPU, worker RSS, PHP heap, coroutine counts, pool state and delivered telemetry. A final snapshot after explicit garbage collection separates live retention from collectible cycles; collection happens after all measured workloads or saturation waves, never inside their measurement windows. CPU excludes the separate sink and load generators. CPU windows both before and after draining are recorded: HTTP responses can finish before Sentry's deferred work. Concurrency-one response latency therefore does not represent total instrumentation cost. RSS peaks are sampled, not exact allocation peaks. SQLite and loopback traffic isolate framework overhead; they do not represent remote databases or Sentry network latency.
 
 ## Component measurements
 
