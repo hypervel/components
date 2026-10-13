@@ -59,7 +59,7 @@ First-party ClickHouse support and built-in integration with [SonicStack](https:
 
 ## Requirements
 
-Hypervel 0.4 requires PHP 8.4 or later and Swoole 6.2.2 or later. Hypervel's Redis integrations use the PhpRedis extension 6.1 or later; Predis is not supported.
+Hypervel 0.4 requires PHP 8.4 or later and the official Swoole extension 6.3.0 or later. Hypervel's Redis integrations use the PhpRedis extension 6.1 or later; Predis is not supported.
 
 See the [installation documentation](https://github.com/hypervel/components/blob/0.4/src/docs/installation.md#requirements) for the complete list of required PHP extensions and setup instructions.
 
