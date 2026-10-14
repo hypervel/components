@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Passport;
 
 use Hypervel\Cache\Events\ForgettingKey;
+use Hypervel\Cache\ModelCacheCoordinator;
 use Hypervel\Context\RequestContext;
+use Hypervel\Contracts\Cache\LockTimeoutException;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Database\Schema\Blueprint;
@@ -24,6 +26,7 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Passport\Fixtures\User;
+use Mockery as m;
 use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
@@ -314,6 +317,40 @@ class PassportCacheTest extends TestCase
         $this->assertNull(Token::findToken('token-0000'));
         $this->assertNull(Token::findToken('token-1001'));
         $this->assertSame(0, $client->tokens()->count());
+    }
+
+    public function testBatchInvalidationContinuesAfterAFailureFollowingCommit(): void
+    {
+        $failure = new LockTimeoutException;
+        $cache = $this->app->make('cache')->store('passport-file');
+        $coordinator = m::mock(ModelCacheCoordinator::class, [$this->app])->makePartial();
+        $coordinator->shouldReceive('invalidate')->once()
+            ->with($cache, 'passport:tokens:token')->andThrow($failure);
+        $coordinator->shouldReceive('invalidate')->once()
+            ->with($cache, 'passport:tokens:token-second')->passthru();
+        $this->app->instance(ModelCacheCoordinator::class, $coordinator);
+
+        $first = $this->createToken();
+        $second = $first->replicate()->forceFill(['id' => 'token-second']);
+        $second->save();
+
+        foreach ([$first, $second] as $token) {
+            $this->assertFalse(Token::findToken($token->id)->revoked);
+            $this->assertNotNull($cache->get('passport:tokens:' . $token->id));
+        }
+
+        try {
+            Client::findOrFail($first->client_id)->tokens()->update(['revoked' => true]);
+            $this->fail('The invalidation failure must propagate.');
+        } catch (LockTimeoutException $exception) {
+            $this->assertSame($failure, $exception);
+        }
+
+        $this->assertSame(0, DB::transactionLevel());
+        $this->assertTrue($first->fresh()->revoked);
+        $this->assertTrue($second->fresh()->revoked);
+        $this->assertNull($cache->get('passport:tokens:' . $second->id));
+        $this->assertTrue(Token::findToken($second->id)->revoked);
     }
 
     public function testOwnedClientRelationUpdatesAndDeletesAcrossSeveralBatches(): void

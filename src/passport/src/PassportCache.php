@@ -14,6 +14,8 @@ use Hypervel\Database\Connection;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Collection;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 /**
  * Coordinate authentication lookups and invalidation across model and query writes.
@@ -113,7 +115,7 @@ class PassportCache
      */
     public function forgetToken(string $id, Connection $connection): void
     {
-        $this->forget('tokens', $id, $connection);
+        $this->forgetMany('tokens', [$id], $connection);
     }
 
     /**
@@ -121,7 +123,7 @@ class PassportCache
      */
     public function forgetClient(string $id, Connection $connection): void
     {
-        $this->forget('clients', $id, $connection);
+        $this->forgetMany('clients', [$id], $connection);
     }
 
     /**
@@ -129,7 +131,7 @@ class PassportCache
      */
     public function forgetTokenMemo(string $id): void
     {
-        $this->forgetMemo('tokens', $id);
+        $this->forgetMemo('tokens', [$id]);
     }
 
     /**
@@ -137,35 +139,57 @@ class PassportCache
      */
     public function forgetClientMemo(string $id): void
     {
-        $this->forgetMemo('clients', $id);
+        $this->forgetMemo('clients', [$id]);
     }
 
     /**
-     * Forget a credential without publishing transaction-local state.
+     * Forget credentials without publishing transaction-local state.
+     *
+     * @param array<int, int|string> $ids
      */
-    protected function forget(string $type, string $id, Connection $connection): void
+    protected function forgetMany(string $type, array $ids, Connection $connection): void
     {
-        $this->forgetMemo($type, $id);
+        $this->forgetMemo($type, $ids);
 
         if (! $this->config->boolean('passport.cache.enabled')) {
             return;
         }
 
         $cache = $this->getCache();
-        $cacheKey = $this->getCacheKey($type, $id);
-        $connection->afterCommitOrNow(
-            fn (): bool => $this->coordinator->invalidate($cache, $cacheKey),
-        );
+        $connection->afterCommitOrNow(function () use ($cache, $type, $ids): void {
+            $exception = null;
+
+            // The commit is irreversible, so one failure must not discard other invalidations.
+            foreach ($ids as $id) {
+                try {
+                    $this->coordinator->invalidate($cache, $this->getCacheKey($type, (string) $id));
+                } catch (CanceledException $canceledException) {
+                    throw $canceledException;
+                } catch (Throwable $throwable) {
+                    $exception ??= $throwable;
+                }
+            }
+
+            if ($exception !== null) {
+                throw $exception;
+            }
+        });
     }
 
     /**
-     * Clear a credential from the current request's memo.
+     * Clear credentials from the current request's memo.
+     *
+     * @param array<int, int|string> $ids
      */
-    protected function forgetMemo(string $type, string $id): void
+    protected function forgetMemo(string $type, array $ids): void
     {
         $contextKey = self::CONTEXT_KEY_PREFIX . $type;
         $models = RequestContext::getValue($contextKey, []);
-        unset($models[$id]);
+
+        foreach ($ids as $id) {
+            unset($models[$id]);
+        }
+
         RequestContext::setValue($contextKey, $models);
     }
 
@@ -221,9 +245,7 @@ class PassportCache
                     $ids = $rows->pluck($key)->all();
                     $affected += $write((clone $query)->whereKey($ids));
 
-                    foreach ($ids as $id) {
-                        $this->forget($type, (string) $id, $connection);
-                    }
+                    $this->forgetMany($type, $ids, $connection);
                 },
                 $qualifiedKey,
                 $key,
