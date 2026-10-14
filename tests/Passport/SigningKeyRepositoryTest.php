@@ -210,6 +210,20 @@ class SigningKeyRepositoryTest extends TestCase
         $this->assertSame(0, DB::transactionLevel());
     }
 
+    public function testRevokingTheWaitingKeyClearsItsPredecessorsRetirementHint(): void
+    {
+        $this->generator([0, 1]);
+        $repository = $this->app->make(SigningKeyRepository::class);
+        $signing = $repository->create(2048);
+        $waiting = $repository->rotate(2048);
+        $this->assertNotNull($signing->fresh()->retires_at);
+
+        $repository->revoke(ParsedKey::fromPublicKey($waiting->public_key)->getKeyId(), 2048);
+
+        $this->assertSame($signing->id, SigningKey::sole()->id);
+        $this->assertNull($signing->fresh()->retires_at);
+    }
+
     #[TestWith([-1])]
     #[TestWith([1])]
     public function testRevokingANonSigningKeyDoesNotGenerateAReplacement(int $activationDays): void

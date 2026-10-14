@@ -256,6 +256,7 @@ class SigningKeyRepository
             }
 
             $this->deleteKey($target);
+            $this->pruneKeys();
 
             return true;
         });
@@ -279,6 +280,7 @@ class SigningKeyRepository
             }
 
             $this->deleteKey($target);
+            $this->pruneKeys();
 
             return true;
         });
@@ -330,6 +332,9 @@ class SigningKeyRepository
                 } else {
                     $query->update(['retires_at' => $deadline]);
                 }
+            } elseif ($key->retires_at !== null) {
+                // Removing a waiting key can make its predecessor the final key again.
+                $key->newQuery()->whereKey($key->getKey())->update(['retires_at' => null]);
             }
 
             if ($key->getRawOriginal('private_key') !== null) {
