@@ -62,8 +62,7 @@ class TranscriptionTest extends TestCase
             ->language('en')
             ->generate(provider: 'mistral');
 
-        Http::assertSent(fn (Request $request): bool => str_contains($request->body(), 'language')
-            && str_contains($request->body(), 'en'));
+        Http::assertSent(fn (Request $request): bool => collect($request->data())->firstWhere('name', 'language')['contents'] === 'en');
     }
 
     public function testTranscriptionSendsContextBiasFromProviderOptions(): void
