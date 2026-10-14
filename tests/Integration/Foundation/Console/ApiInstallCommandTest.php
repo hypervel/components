@@ -13,6 +13,7 @@ use Hypervel\Support\Facades\Process;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Testing\Fixtures\CleanupActions;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionClass;
 use RuntimeException;
 use Symfony\Component\Console\Application as ConsoleApplication;
@@ -190,13 +191,15 @@ class ApiInstallCommandTest extends \Hypervel\Testbench\TestCase
         $this->assertSame(['hypervel/sanctum:^0.4'], TestableApiInstallCommand::$composerRequireCalls[0]['packages']);
     }
 
-    public function testInstallsPassportAndPublishesRoutesUsingItsGuard(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testInstallsPassportAndPublishesRoutesUsingItsGuard(bool $withoutMigrationPrompt): void
     {
         Process::fake();
         $apiRoutesPath = $this->app->basePath('routes/api.php');
         $this->createdFiles[] = $apiRoutesPath;
 
-        $this->artisan('install:api', ['--passport' => true])
+        $this->artisan('install:api', ['--passport' => true, '--without-migration-prompt' => $withoutMigrationPrompt])
             ->expectsOutputToContain('API scaffolding installed. Please add the [Hypervel\Passport\HasApiTokens] trait and [Hypervel\Passport\Contracts\OAuthenticatable] interface to your User model.')
             ->assertSuccessful();
 
@@ -206,7 +209,9 @@ class ApiInstallCommandTest extends \Hypervel\Testbench\TestCase
         $this->assertStringContainsString("->middleware('auth:passport')", file_get_contents($apiRoutesPath));
         Process::assertRanInOrder([
             static fn (PendingProcess $process): bool => is_array($process->command)
-                && $process->command[2] === 'passport:install',
+                && array_slice($process->command, 2) === [
+                    'passport:install', ...($withoutMigrationPrompt ? ['--without-migration-prompt'] : []),
+                ],
         ]);
     }
 

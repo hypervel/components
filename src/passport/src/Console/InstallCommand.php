@@ -17,6 +17,7 @@ class InstallCommand extends Command
      */
     protected ?string $signature = 'passport:install
                             {--force : Overwrite keys if they already exist}
+                            {--without-migration-prompt : Do not prompt to run pending migrations}
                             {--length=' . KeyGenerator::DEFAULT_LENGTH . ' : The length of the private key}';
 
     /**
@@ -38,7 +39,8 @@ class InstallCommand extends Command
         $this->call('vendor:publish', ['--tag' => 'passport-config']);
         $this->call('vendor:publish', ['--tag' => 'passport-migrations']);
 
-        if ($this->components->confirm('Would you like to run all pending database migrations?', true)) {
+        if (! $this->option('without-migration-prompt')
+            && $this->components->confirm('Would you like to run all pending database migrations?', true)) {
             if ($this->call('migrate') !== self::SUCCESS) {
                 $this->fail('Passport installation stopped because migrations did not complete.');
             }

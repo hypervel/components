@@ -56,6 +56,29 @@ class InstallCommandTest extends TestCase
         $this->assertStringContainsString('Run passport:keys after migrating', $tester->getDisplay());
     }
 
+    #[TestWith(['files'])]
+    #[TestWith(['database'])]
+    public function testWithoutMigrationPromptPublishesWithoutMigratingOrCreatingClients(string $store): void
+    {
+        config(['passport.key_store' => $store]);
+        $command = new RecordingPassportInstallCommand;
+        $tester = $this->tester($command);
+        $tester->execute(['--without-migration-prompt' => true], ['interactive' => false]);
+        $tester->assertCommandIsSuccessful();
+
+        $this->assertSame(
+            $store === 'files'
+                ? ['passport:keys', 'vendor:publish', 'vendor:publish']
+                : ['vendor:publish', 'vendor:publish'],
+            array_column($command->calls, 'command'),
+        );
+        $this->assertStringNotContainsString('Would you like', $tester->getDisplay());
+
+        if ($store === 'database') {
+            $this->assertStringContainsString('Run passport:keys after migrating', $tester->getDisplay());
+        }
+    }
+
     public function testFailedMigrationsStopInstallationAndReturnFailure(): void
     {
         config(['passport.key_store' => 'database']);
