@@ -95,11 +95,15 @@ trait PreservesBigIntegers
      */
     protected function encodeBigIntegersInArray(array $value, ?SplObjectStorage $seen): array
     {
+        // A copied array keeps its reference elements, so assigning into it would
+        // write through to the referenced values, such as typed object properties.
+        $encoded = [];
+
         foreach ($value as $key => $nested) {
-            $value[$key] = $this->encodeBigIntegers($nested, $seen);
+            $encoded[$key] = $this->encodeBigIntegers($nested, $seen);
         }
 
-        return $value;
+        return $encoded;
     }
 
     /**

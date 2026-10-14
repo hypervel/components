@@ -1445,6 +1445,28 @@ class PropsResolverTest extends TestCase
         $this->assertSame(['$bigint' => '900719925474099988'], $page['props']['dto']['id']);
     }
 
+    public function testBigIntegerEncodingDoesNotModifyReferencedProperties(): void
+    {
+        $dto = new class implements JsonSerializable {
+            public int $id = PHP_INT_MAX;
+
+            /**
+             * Get the JSON serializable representation of the object.
+             */
+            public function jsonSerialize(): array
+            {
+                return ['id' => &$this->id];
+            }
+        };
+
+        $page = $this->makePage(Request::create('/'), [
+            'object' => (object) ['dto' => $dto],
+        ], preserveBigIntegers: true);
+
+        $this->assertSame(['$bigint' => (string) PHP_INT_MAX], $page['props']['object']->dto['id']);
+        $this->assertSame(PHP_INT_MAX, $dto->id);
+    }
+
     public function testBigIntegersInsideArbitraryObjectsAreWrappedWhenEnabled(): void
     {
         $money = new class {

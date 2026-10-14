@@ -257,7 +257,7 @@ How you want to use Hypervel will also dictate the next steps on your journey. T
 <a name="hypervel-the-fullstack-framework"></a>
 ### Hypervel the Full Stack Framework
 
-Hypervel may serve as a full stack framework. By "full stack" framework we mean that you are going to use Hypervel to route requests to your application and render your frontend via [Blade templates](/docs/{{version}}/blade) or a single-page application hybrid technology like [Inertia](https://inertiajs.com). This is the most common way to use the Hypervel framework, and, in our opinion, the most productive way to use Hypervel.
+Hypervel may serve as a full stack framework. By "full stack" framework we mean that you are going to use Hypervel to route requests to your application and render your frontend via [Blade templates](/docs/{{version}}/blade) or a single-page application hybrid technology like [Inertia](/docs/{{version}}/inertia). This is the most common way to use the Hypervel framework, and, in our opinion, the most productive way to use Hypervel.
 
 If this is how you plan to use Hypervel, you may want to check out our documentation on [frontend development](/docs/{{version}}/frontend), [routing](/docs/{{version}}/routing), [views](/docs/{{version}}/views), or the [Eloquent ORM](/docs/{{version}}/eloquent). Hypervel includes first-class support for Blade and Inertia, and our React starter kit provides a fast path to a full-stack Inertia application.
 

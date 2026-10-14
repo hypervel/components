@@ -137,7 +137,7 @@ Storage::disk('local')->put('http-server-storage.txt', 'storage response body');
 $router = $app->make(Router::class);
 $router->get('/up', fn (): string => 'up');
 $router->get('/', fn (Request $request): string => $request->getRequestUri());
-$router->match(['GET', 'POST'], '/inspect', function (Request $request): JsonResponse {
+$router->match(['GET', 'POST', 'PUT', 'PATCH', 'DELETE'], '/inspect', function (Request $request): JsonResponse {
     $file = $request->file('upload');
 
     return new JsonResponse([

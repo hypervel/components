@@ -48,7 +48,7 @@ Once you have started the Hypervel development server, your application will be 
 <a name="react"></a>
 ## React
 
-The React starter kit provides a modern starting point for building Hypervel applications with a React frontend using [Inertia](https://inertiajs.com).
+The React starter kit provides a modern starting point for building Hypervel applications with a React frontend using [Inertia](/docs/{{version}}/inertia).
 
 Inertia allows you to build modern, single-page React applications using classic server-side routing and controllers. This lets you enjoy the frontend power of React combined with the backend productivity of Hypervel and lightning-fast Vite compilation.
 
@@ -243,7 +243,7 @@ RateLimiter::for('login', function ($request) {
 <a name="inertia-ssr"></a>
 ## Inertia SSR
 
-The React starter kit is compatible with Inertia's [server-side rendering](https://inertiajs.com/server-side-rendering) capabilities. SSR does not require a different starter kit. The same application may be served using normal client-side Inertia rendering or with an Inertia SSR server running alongside your Hypervel application.
+The React starter kit is compatible with Inertia's [server-side rendering](/docs/{{version}}/inertia#server-side-rendering) capabilities. SSR does not require a different starter kit. The same application may be served using normal client-side Inertia rendering or with an Inertia SSR server running alongside your Hypervel application.
 
 To build an Inertia SSR compatible bundle for your application, run the `build:ssr` command:
 
