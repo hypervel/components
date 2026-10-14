@@ -305,7 +305,10 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Support\Testing\Fakes\NotificationFake::flushState();
         \Hypervel\Support\Uri::flushState();
         \Hypervel\Testing\Fluent\AssertableJson::flushState();
-        \Hypervel\Testing\ParallelRunner::flushState();
+        // Serial test suites may not have the optional ParaTest dependency installed.
+        if (class_exists(\Hypervel\Testing\ParallelRunner::class, false)) {
+            \Hypervel\Testing\ParallelRunner::flushState();
+        }
         \Hypervel\Testing\PendingCommand::flushState();
         \Hypervel\Testing\TestComponent::flushState();
         \Hypervel\Testing\TestResponse::flushState();
