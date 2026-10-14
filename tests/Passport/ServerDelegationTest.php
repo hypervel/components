@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Passport;
 
 use DateInterval;
 use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Http\Request;
 use Hypervel\Passport\AuthCode;
 use Hypervel\Passport\Bridge\TokenIssuance;
 use Hypervel\Passport\Bridge\User;
@@ -112,6 +113,11 @@ class ServerDelegationTest extends TestCase
         $request = new ServerRequest('GET', 'https://second.example/api', ['Authorization' => 'Bearer ' . $body['access_token']]);
         $result = $consumer->resource->validateAuthenticatedRequest($request);
         $this->assertSame($this->client->id, $result->getAttribute('oauth_client_id'));
+        $httpRequest = Request::create('https://second.example/api');
+        $httpRequest->headers->set('Authorization', 'Bearer ' . $body['access_token']);
+        $currentCalls = $this->settings->currentCalls;
+        $this->app->make(ServerFactory::class)->validateAuthenticatedRequest($httpRequest);
+        $this->assertSame($currentCalls + 1, $this->settings->currentCalls);
         Token::findOrFail($result->getAttribute('oauth_access_token_id'))->revoke();
 
         $this->expectException(OAuthServerException::class);
@@ -301,6 +307,8 @@ class DelegationSettingsResolver implements ServerSettingsResolver
 {
     public string $identifier = 'first';
 
+    public int $currentCalls = 0;
+
     /**
      * Keep settings that the test can switch between requests.
      *
@@ -315,6 +323,8 @@ class DelegationSettingsResolver implements ServerSettingsResolver
      */
     public function current(): ?string
     {
+        ++$this->currentCalls;
+
         return $this->identifier;
     }
 

@@ -39,8 +39,10 @@ class ResourceServer extends LeagueResourceServer
 
     /**
      * Validate on the selected server without resolving the settings again.
+     *
+     * @internal used by the factory after selecting the current server
      */
-    protected function validateRequest(ServerRequestInterface $request): ServerRequestInterface
+    public function validateRequest(ServerRequestInterface $request): ServerRequestInterface
     {
         return parent::validateAuthenticatedRequest($request);
     }

@@ -50,7 +50,7 @@ class ServerFactory
     /** @var array<string, ServerEntry> */
     protected array $entries = [];
 
-    protected float $nextKeyRefresh = 0;
+    protected int $nextKeyRefresh = 0;
 
     /** @var list<string> */
     protected array $storedKeyIds = [];
@@ -293,7 +293,10 @@ class ServerFactory
             $result = $cached['result'];
         } else {
             try {
-                $result = $server->validateAuthenticatedRequest($this->bearerRequests->make($request));
+                $psrRequest = $this->bearerRequests->make($request);
+                $result = $server instanceof Bridge\ResourceServer
+                    ? $server->validateRequest($psrRequest)
+                    : $server->validateAuthenticatedRequest($psrRequest);
             } catch (OAuthServerException $exception) {
                 $result = $exception;
             }
@@ -408,6 +411,7 @@ class ServerFactory
     protected function makeEntry(ServerSettings $settings): ServerEntry
     {
         $ordered = $settings->keys;
+        // An undated key is active from the start, before any scheduled replacement.
         usort($ordered, static fn (ServerKey $first, ServerKey $second): int => $second->activatesAt <=> $first->activatesAt);
         $keys = $verificationKeys = $signingKeys = [];
 
