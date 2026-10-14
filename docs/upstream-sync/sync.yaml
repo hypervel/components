@@ -71,6 +71,32 @@ laravel/sanctum:
   last_reviewed_pr: 620
   sync_date: '2026-10-02'
 
+laravel/passport:
+  branch: 13.x
+  checked_through: f5f5e9f64559dd52339daa0d6102cb1c30e4a0d7
+  last_reviewed_pr: null
+  sync_date: '2026-10-14'
+  notes: >-
+    PassportServiceProvider's server and grant construction maps to ServerFactory;
+    KeysCommand's phpseclib key generation maps to the OpenSSL-based KeyGenerator.
+    Token issuance changes also affect Bridge/AuthorizationServer, Bridge/TokenIssuance
+    and the bridge grants and repositories; credential lookup and mutation changes
+    also affect PassportCache, TokenRelation and ClientRelation. Bridge/BearerTokenValidator
+    adapts League's AuthorizationValidators/BearerTokenValidator, and
+    Bridge/AccessToken::convertToJWT() replaces League's AccessTokenTrait method;
+    compare these with league/oauth2-server when its dependency version changes.
+    Also recheck League's grant-to-repository call order against TokenIssuance's
+    validation, claim and commit boundaries, and its public request entry points
+    against Bridge/AuthorizationServer and Bridge/ResourceServer's delegation to
+    the current settings. Compare Bridge/ParsedKey and RsaSigner with lcobucci/jwt's
+    key checks and signing behavior when that dependency changes.
+    Upstream tests retain their Feature and Unit paths under tests/Passport;
+    jasonmccreary/double test doubles use Mockery here. Workbench user models and
+    factories map to tests/Passport/Fixtures. Test keys
+    are generated in per-process temporary directories by PassportTestCase, using
+    SigningKeyFactory's shared test key, rather than upstream's tests/keys directory.
+    User documentation maps to src/docs/passport.md through the laravel/docs entry.
+
 laravel/socialite:
   branch: 5.x
   checked_through: fa0181ee6204ca28a55cd67145fadd631ac209cf
@@ -155,10 +181,10 @@ inertiajs/inertia-laravel:
 
 inertiajs/docs:
   branch: main
-  checked_through: null
+  checked_through: b2361128a0013d24f7a2d1c98a994da35c4b1147
   last_reviewed_pr: null
-  sync_date: null
-  notes: Inertia documentation applicable to Hypervel's server adapter and supported integrations.
+  sync_date: '2026-10-14'
+  notes: Reconcile relevant v3 application documentation into src/docs/inertia.md, generally matching upstream page titles to section headings. Preserve upstream wording and examples, adapting only what Hypervel and the Markdown format require; preserve Hypervel-specific guidance and check related frontend, Vite and starter-kit pages. Exclude older versions, the landing/demo/audience pages, protocol implementation guides, other backend adapters and Laravel-only tooling or hosting. Wayfinder next features remain excluded until Hypervel adopts that version; verify server-side examples against src/inertia and retain client-version requirements.
 
 spatie/laravel-data:
   branch: main
@@ -172,7 +198,7 @@ spatie/laravel-permission:
   checked_through: 6615eefac655efcd652fe394a20cbdf4f72c609f
   last_reviewed_pr: null
   sync_date: '2026-10-05'
-  notes: Upstream Pest files map to PHPUnit classes at the same paths under tests/Permission, with each it()/test() description as the method name. Upstream's permission.testing migration flag, which adds the roles team column while teams are off so cases can enable teams mid-test, is not ported; those cases enable teams before migrating through the DefineEnvironment attribute's usesTeams method. The CACHE_DRIVER cache-driver test runs map to CACHE_STORE. Passport::actingAsClient() maps to TestCase::actingAsClient() with the PassportGuard fixture because Hypervel has no Passport package. Upstream's single cached permission collection maps to PermissionRegistrar's catalog payload (getSerializedPermissionsForCache() stores role keys per permission; permissionCatalog() and modelClassCatalog() hydrate it) plus the per-model assignment caches (rememberModel*()), which are filled through Cache\ModelCacheCoordinator and invalidated after commit; apply upstream cache or loading changes to both. Upstream relation definitions map to the Role and Permission relation methods built through BuildsPermissionRelations, whose Partitioned* relations add partition and team constraints and loaded-relation tracking. Upstream's detach-then-attach syncs map to HasRoles::syncRoles() and HasPermissions::synchronizePermissionAssignments(), which read the current pivots and write only the differences, keeping each permission's is_denied effect. Upstream docs map to sections of src/docs/permission.md; the example app, PhpStorm, UI options, schema diagram, upgrade and project pages are not ported. Upstream's ide.json code-generation metadata for the Laravel Idea PhpStorm plugin is not ported either.
+  notes: Upstream Pest files map to PHPUnit classes at the same paths under tests/Permission, with each it()/test() description as the method name. Upstream's permission.testing migration flag, which adds the roles team column while teams are off so cases can enable teams mid-test, is not ported; those cases enable teams before migrating through the DefineEnvironment attribute's usesTeams method. The CACHE_DRIVER cache-driver test runs map to CACHE_STORE. Upstream's single cached permission collection maps to PermissionRegistrar's catalog payload (getSerializedPermissionsForCache() stores role keys per permission; permissionCatalog() and modelClassCatalog() hydrate it) plus the per-model assignment caches (rememberModel*()), which are filled through Cache\ModelCacheCoordinator and invalidated after commit; apply upstream cache or loading changes to both. Upstream relation definitions map to the Role and Permission relation methods built through BuildsPermissionRelations, whose Partitioned* relations add partition and team constraints and loaded-relation tracking. Upstream's detach-then-attach syncs map to HasRoles::syncRoles() and HasPermissions::synchronizePermissionAssignments(), which read the current pivots and write only the differences, keeping each permission's is_denied effect. Upstream docs map to sections of src/docs/permission.md; the example app, PhpStorm, UI options, schema diagram, upgrade and project pages are not ported. Upstream's ide.json code-generation metadata for the Laravel Idea PhpStorm plugin is not ported either.
 
 aimeos/laravel-nestedset:
   branch: master
@@ -239,10 +265,9 @@ Sammyjo20/saloon-docs:
 
 hyperf/engine:
   branch: master
-  # Owner-selected history boundary before 2025-11-01, not a historical parity claim.
-  checked_through: 6595d2659ce7ebb940b8740a00ecd199128398f0
-  last_reviewed_pr: null
-  sync_date: null
+  checked_through: 1b56d31e3d1b68b282557646d6811692adab7732
+  last_reviewed_pr: 40
+  sync_date: '2026-10-14'
   notes: >-
     Selective runtime tracking for Hypervel's independently maintained Engine;
     review before hyperf/hyperf. Source maps to src/engine and interfaces to
@@ -260,18 +285,17 @@ hyperf/engine:
 
 hyperf/hyperf:
   branch: master
-  # Owner-selected history boundary before 2025-11-01, not a historical parity claim.
-  checked_through: ded8b966ecf78590e8201a47a56c635f8df99e47
-  last_reviewed_pr: null
-  sync_date: null
+  checked_through: ea13f9f2ecf789ee72cb8f758613e42b3980046f
+  last_reviewed_pr: 7810
+  sync_date: '2026-10-14'
   notes: >-
     Selective runtime tracking under the same applicability rules as hyperf/engine
     above, not a framework merge target. Review the monorepo, not its subtree-split
     mirrors. Upstream src/{context,coroutine,coordinator,server,signal,websocket-server,watcher}
     map to the same Hypervel packages; pool maps to connection-pool, with shared
-    pooling issues also assessed against object-pool; framework bootstrap/events
-    and logging map to core; process maps to server-process; http-server and
-    http-message transport/lifecycle changes map to http-server's bridges; di AOP
+    pooling issues also assessed against object-pool; framework bootstrap, events
+    and StdoutLogger map to core; logger maps to log; process maps to server-process;
+    http-server and http-message transport/lifecycle changes map to http-server's bridges; di AOP
     and proxy generation map to di, not Hyperf's container; contract maps to the
     corresponding runtime interfaces in contracts. Assess db-connection and
     database driver changes against database's connection/pooling code, redis
@@ -283,13 +307,7 @@ hyperf/hyperf:
 
 getsentry/sentry-laravel:
   branch: master
-  checked_through: null
+  checked_through: 0537a1d5bfd583beb89001887af9cadd3116bccb
   last_reviewed_pr: null
-  sync_date: null
-
-getsentry/sentry-docs:
-  branch: master
-  checked_through: null
-  last_reviewed_pr: null
-  sync_date: null
-  notes: PHP and Laravel documentation applicable to Hypervel's Sentry integration.
+  sync_date: '2026-10-13'
+  notes: Upstream's ServiceProvider, BaseServiceProvider and Tracing\ServiceProvider map to SentryServiceProvider, and its FEATURES constant maps to the shipped features config list. Feature::onBoot() and onBootInactive() take no parameters; features resolve their dependencies from $this->container instead of method injection. Hub is a coroutine-aware copy of sentry/sentry's Sentry\State\Hub; compare the two on every SDK update. The Folio, Livewire and Pennant integrations and their config keys are not ported because Hypervel has no such packages. AI agent monitoring (AiIntegration, ClassificationIntegration, Features/Ai, Features/Classification, Util/BoundedOrderedMap, the tracing gen_ai options and Integration::setConversationId()) is not ported yet and is not covered by checked_through; port it with Hypervel's AI SDK. For major features or behavior changes, check the relevant Laravel pages in getsentry/sentry-docs and update Hypervel's integration docs as needed; do not queue the docs repository.

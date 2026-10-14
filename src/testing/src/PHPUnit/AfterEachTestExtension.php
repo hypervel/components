@@ -52,6 +52,9 @@ class AfterEachTestExtension implements Extension
         $directory = ParallelTesting::tempDir('guzzle-proxies');
 
         try {
+            // ParaTest boots and terminates process-setup applications before loading extensions.
+            AspectCollector::unseal();
+
             foreach ([
                 PromiseConstructionAspect::class,
                 PromiseOperationAspect::class,

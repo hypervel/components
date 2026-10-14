@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 return [
+    '6d6f6e69-6361-4d33-a001-706173736b79' => 'Monica Pass',
     'a11a5faa-9f32-4b8c-8c5d-2f7d13e8c942' => 'AliasVault',
     'ea9b8d66-4d01-1d21-3ce4-b6b48cb575d4' => 'Google Password Manager',
     'adce0002-35bc-c60a-648b-0b25f1f05503' => 'Chrome on Mac',
@@ -62,4 +63,6 @@ return [
     '9f8a3b2c-1d4e-4f6a-8b0c-2e1d3c4b5a69' => 'U2 Secured',
     '69840def-9dcf-4632-bf87-6ac2e451b4f5' => 'Keyholm',
     '35d5ea15-ab24-4416-bdd1-f204c9bce1b6' => 'CyberFOX Password Manager',
+    'f1d0badc-0def-4f1d-8bad-c0def1d0badc' => 'fidont',
+    'c4ed941c-86d3-4532-a6a9-bc42b80d5c38' => 'Authn8',
 ];

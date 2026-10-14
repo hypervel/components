@@ -88,6 +88,49 @@ class ClassMapManagerTest extends TestCase
         $this->assertSame('repeated', (new $class)->value());
     }
 
+    public function testSealedRegistryRejectsOverridesWithoutChangingAutoloading(): void
+    {
+        $class = __NAMESPACE__ . '\Sealed' . bin2hex(random_bytes(4));
+        $original = $this->directory . '/Original.php';
+        $replacement = $this->directory . '/Replacement.php';
+        $this->writeSource($original, $class, 'original');
+        $this->writeSource($replacement, $class, 'replacement');
+        $this->isolatedLoader->addClassMap([$class => $original]);
+        ClassMapManager::seal();
+
+        try {
+            ClassMapManager::add([$class => $replacement]);
+            $this->fail('Sealed class maps must reject overrides.');
+        } catch (RuntimeException $exception) {
+            $this->assertStringContainsString('register()', $exception->getMessage());
+            $this->assertSame([], ClassMapManager::getEntries());
+            $this->assertSame('original', (new $class)->value());
+        }
+    }
+
+    public function testUnsealPreservesOverridesAndAllowsRegistration(): void
+    {
+        ClassMapManager::add(['Fake\First' => '/tmp/first.php']);
+        ClassMapManager::seal();
+        ClassMapManager::unseal();
+        ClassMapManager::add(['Fake\Second' => '/tmp/second.php']);
+
+        $this->assertSame([
+            'Fake\First' => '/tmp/first.php',
+            'Fake\Second' => '/tmp/second.php',
+        ], ClassMapManager::getEntries());
+    }
+
+    public function testFlushStateReopensRegistration(): void
+    {
+        ClassMapManager::add(['Fake\First' => '/tmp/first.php']);
+        ClassMapManager::seal();
+        ClassMapManager::flushState();
+        ClassMapManager::add(['Fake\Second' => '/tmp/second.php']);
+
+        $this->assertSame(['Fake\Second' => '/tmp/second.php'], ClassMapManager::getEntries());
+    }
+
     public function testAddThrowsWhenClassAlreadyLoaded(): void
     {
         // This test class itself is already loaded

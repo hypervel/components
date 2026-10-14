@@ -10,6 +10,8 @@ use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Http\Kernel as HttpKernel;
 use Hypervel\Cookie\CookieValuePrefix;
 use Hypervel\Coroutine\Waiter;
+use Hypervel\Database\DatabaseTransactionState;
+use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
 use Hypervel\Foundation\Testing\RequestContextSynchronizer;
 use Hypervel\Foundation\Testing\Stubs\FakeMiddleware;
 use Hypervel\Http\Request;
@@ -483,63 +485,80 @@ trait MakesHttpRequests
         array $server = [],
         ?string $content = null
     ): TestResponse {
-        $response = $this->getWaiter()->wait(function () use ($method, $uri, $parameters, $cookies, $files, $server, $content): TestResponse {
-            $kernel = $this->app->make(HttpKernel::class);
+        $parentTransactions = DatabaseTransactionState::current();
 
-            $files = array_merge($files, $this->extractFilesFromDataArray($parameters));
+        $response = $this->getWaiter()->wait(function () use ($method, $uri, $parameters, $cookies, $files, $server, $content, $parentTransactions): TestResponse {
+            $transactions = DatabaseTransactionState::current();
+            $resolver = $this->app->make('db.resolver');
+            $synchronizer = new RequestContextSynchronizer;
 
-            $symfonyRequest = SymfonyRequest::create(
-                $this->prepareUrlForRequest($uri),
-                $method,
-                $parameters,
-                $cookies,
-                $files,
-                array_replace($this->serverVariables, $server),
-                $content
-            );
-
-            $request = $this->createTestRequest($symfonyRequest);
-
-            // Seed coroutine Context — tests bypass the HttpServer\Server adapter
-            // which normally does this in onRequest().
-            RequestContext::set($request);
-
-            $this->dispatchRequestLifecycleEvent(
-                RequestReceived::class,
-                $request
-            );
-
-            $response = $kernel->handle($request);
-
-            $this->dispatchRequestLifecycleEvent(
-                RequestHandled::class,
-                $request,
-                $response
-            );
-
-            $this->dispatchRequestLifecycleEvent(
-                ResponseSent::class,
-                $request,
-                $response
-            );
-
-            $kernel->terminate($request, $response);
-
-            // Snapshot route parameters onto the request before the coroutine
-            // ends. Route parameters are stored in coroutine Context which is
-            // destroyed when this waiter coroutine finishes. The snapshot
-            // allows test assertions like $response->baseRequest->route('param')
-            // to access parameters after the coroutine is gone.
-            $route = $request->route();
-            if ($route && $route->hasParameters()) {
-                $request->attributes->set('_route_params', $route->parameters());
+            if ($resolver instanceof DatabaseConnectionResolver) {
+                $synchronizer->syncTransactionState($parentTransactions, $transactions, $resolver->getRetainedConnections());
             }
 
-            RequestContext::set($request, \Hypervel\Coroutine\Coroutine::parentId());
+            try {
+                $kernel = $this->app->make(HttpKernel::class);
 
-            $this->syncRequestContextToParent($request);
+                $files = array_merge($files, $this->extractFilesFromDataArray($parameters));
 
-            return $this->createTestResponse($response, $request);
+                $symfonyRequest = SymfonyRequest::create(
+                    $this->prepareUrlForRequest($uri),
+                    $method,
+                    $parameters,
+                    $cookies,
+                    $files,
+                    array_replace($this->serverVariables, $server),
+                    $content
+                );
+
+                $request = $this->createTestRequest($symfonyRequest);
+
+                // Seed coroutine Context — tests bypass the HttpServer\Server adapter
+                // which normally does this in onRequest().
+                RequestContext::set($request);
+
+                $this->dispatchRequestLifecycleEvent(
+                    RequestReceived::class,
+                    $request
+                );
+
+                $response = $kernel->handle($request);
+
+                $this->dispatchRequestLifecycleEvent(
+                    RequestHandled::class,
+                    $request,
+                    $response
+                );
+
+                $this->dispatchRequestLifecycleEvent(
+                    ResponseSent::class,
+                    $request,
+                    $response
+                );
+
+                $kernel->terminate($request, $response);
+
+                // Snapshot route parameters onto the request before the coroutine
+                // ends. Route parameters are stored in coroutine Context which is
+                // destroyed when this waiter coroutine finishes. The snapshot
+                // allows test assertions like $response->baseRequest->route('param')
+                // to access parameters after the coroutine is gone.
+                $route = $request->route();
+                if ($route && $route->hasParameters()) {
+                    $request->attributes->set('_route_params', $route->parameters());
+                }
+
+                RequestContext::set($request, \Hypervel\Coroutine\Coroutine::parentId());
+
+                $this->syncRequestContextToParent($request);
+
+                return $this->createTestResponse($response, $request);
+            } finally {
+                if ($resolver instanceof DatabaseConnectionResolver) {
+                    // Lazy refresh may have retained a connection during this request.
+                    $synchronizer->syncTransactionState($transactions, $parentTransactions, $resolver->getRetainedConnections());
+                }
+            }
         }, 10.0, copyContext: true);
 
         // Follow redirects from the test coroutine, so each followed request syncs its

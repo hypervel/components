@@ -151,7 +151,7 @@ class JwtGuard implements Guard
 
         $token = $this->getToken();
         $contextKey = $this->getUserContextKey($token);
-        $cached = CoroutineContext::get($contextKey);
+        $cached = RequestContext::getValue($contextKey);
 
         if ($cached === self::$nullUserSentinel) {
             return null;
@@ -162,7 +162,7 @@ class JwtGuard implements Guard
         }
 
         if (! $token) {
-            CoroutineContext::set($contextKey, self::$nullUserSentinel);
+            RequestContext::setValue($contextKey, self::$nullUserSentinel);
 
             return null;
         }
@@ -170,7 +170,7 @@ class JwtGuard implements Guard
         try {
             $payload = $this->decodeToken($token);
         } catch (TokenInvalidException|TokenExpiredException|TokenBlacklistedException) {
-            CoroutineContext::set($contextKey, self::$nullUserSentinel);
+            RequestContext::setValue($contextKey, self::$nullUserSentinel);
 
             return null;
         }
@@ -182,7 +182,7 @@ class JwtGuard implements Guard
         $user = $sub !== null ? $this->provider->retrieveById($sub) : null;
 
         if ($user === null) {
-            CoroutineContext::set($contextKey, self::$nullUserSentinel);
+            RequestContext::setValue($contextKey, self::$nullUserSentinel);
 
             return null;
         }
@@ -399,7 +399,7 @@ class JwtGuard implements Guard
             return null;
         }
 
-        $cachedUser = CoroutineContext::get($this->getUserContextKey($token));
+        $cachedUser = RequestContext::getValue($this->getUserContextKey($token));
         $customClaims = $this->pullCustomClaims();
         $ttl = $this->getTTL();
 
@@ -407,8 +407,8 @@ class JwtGuard implements Guard
             $newToken = $this->jwtManager->refresh($token, $forceForever, $resetClaims, $customClaims, $ttl);
         } finally {
             $this->forgetContextState('ttl');
-            CoroutineContext::forget($this->getUserContextKey($token));
-            CoroutineContext::forget($this->getPayloadContextKey($token));
+            RequestContext::forgetValue($this->getUserContextKey($token));
+            RequestContext::forgetValue($this->getPayloadContextKey($token));
         }
 
         $this->setToken($newToken);
@@ -435,7 +435,7 @@ class JwtGuard implements Guard
         $this->forgetUser();
 
         if ($token) {
-            CoroutineContext::forget($this->getPayloadContextKey($token));
+            RequestContext::forgetValue($this->getPayloadContextKey($token));
         }
 
         $this->setContextState('token', false);
@@ -451,8 +451,8 @@ class JwtGuard implements Guard
         $token = $this->requireToken();
 
         $this->jwtManager->invalidate($token, $forceForever);
-        CoroutineContext::forget($this->getUserContextKey($token));
-        CoroutineContext::forget($this->getPayloadContextKey($token));
+        RequestContext::forgetValue($this->getUserContextKey($token));
+        RequestContext::forgetValue($this->getPayloadContextKey($token));
 
         return $this;
     }
@@ -471,7 +471,7 @@ class JwtGuard implements Guard
             return $explicitUser;
         }
 
-        $cached = CoroutineContext::get($this->getUserContextKey());
+        $cached = RequestContext::getValue($this->getUserContextKey());
 
         return ($cached === null || $cached === self::$nullUserSentinel) ? null : $cached;
     }
@@ -501,8 +501,8 @@ class JwtGuard implements Guard
     public function forgetUser(): static
     {
         CoroutineContext::forget($this->getExplicitUserContextKey());
-        CoroutineContext::forget($this->getUserContextKey());
-        CoroutineContext::forget($this->getContextStateKey('user.default'));
+        RequestContext::forgetValue($this->getUserContextKey());
+        RequestContext::forgetValue($this->getContextStateKey('user.default'));
 
         return $this;
     }
@@ -568,11 +568,11 @@ class JwtGuard implements Guard
     }
 
     /**
-     * Decode a JWT token, caching the result per coroutine.
+     * Decode a JWT token, caching the result for the current request.
      */
     protected function decodeToken(#[SensitiveParameter] string $token): array
     {
-        return CoroutineContext::getOrSet(
+        return RequestContext::getOrSetValue(
             $this->getPayloadContextKey($token),
             fn () => $this->jwtManager->decode($token)
         );
@@ -583,7 +583,7 @@ class JwtGuard implements Guard
      */
     protected function cacheUser(AuthenticatableContract $user): void
     {
-        CoroutineContext::set($this->getUserContextKey(), $user);
+        RequestContext::setValue($this->getUserContextKey(), $user);
     }
 
     /**

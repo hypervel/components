@@ -6,10 +6,10 @@ namespace Hypervel\Tests\Sentry\Features;
 
 use Generator;
 use Hypervel\Routing\Router;
-use Hypervel\Tests\Sentry\SentryTestCase;
+use Hypervel\Tests\Sentry\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
-class StrictTraceContinuationIntegrationTest extends SentryTestCase
+class StrictTraceContinuationIntegrationTest extends TestCase
 {
     private const string INCOMING_TRACE_ID = '566e3688a61d4bc888951642d6f14a19';
 
@@ -17,10 +17,13 @@ class StrictTraceContinuationIntegrationTest extends SentryTestCase
 
     private const string INCOMING_SENTRY_TRACE_HEADER = self::INCOMING_TRACE_ID . '-' . self::INCOMING_PARENT_SPAN_ID . '-1';
 
+    /**
+     * Register the test routes.
+     */
     private function registerRoutes(): void
     {
-        $this->app->make('router')->group(['prefix' => 'sentry'], function (Router $router) {
-            $router->get('/strict-trace-continuation', function () {
+        $this->app->make('router')->group(['prefix' => 'sentry'], function (Router $router): void {
+            $router->get('/strict-trace-continuation', function (): string {
                 return 'ok';
             });
         });
@@ -68,6 +71,9 @@ class StrictTraceContinuationIntegrationTest extends SentryTestCase
         }
     }
 
+    /**
+     * Provide org ID, strict mode and baggage combinations with whether the incoming trace is continued.
+     */
     public static function strictTraceContinuationDataProvider(): Generator
     {
         yield [1, false, 'sentry-org_id=1', true];
@@ -107,5 +113,32 @@ class StrictTraceContinuationIntegrationTest extends SentryTestCase
 
         $this->assertSame(self::INCOMING_TRACE_ID, $traceContext['trace_id']);
         $this->assertSame(self::INCOMING_PARENT_SPAN_ID, $traceContext['parent_span_id']);
+    }
+
+    public function testIncomingTraceHeadersPopulatePropagationContextWhenTracingIsDisabled(): void
+    {
+        $this->resetApplicationWithConfig([
+            'sentry.enable_tracing' => false,
+        ]);
+
+        // The request runs in its own coroutine with its own scope, so read it while handling the request
+        $propagationContext = null;
+
+        $this->app->make('router')->get('/sentry/strict-trace-continuation', function () use (&$propagationContext): string {
+            $propagationContext = $this->getCurrentSentryScope()->getPropagationContext();
+
+            return 'ok';
+        });
+
+        $response = $this->call('GET', '/sentry/strict-trace-continuation', [], [], [], [
+            'HTTP_SENTRY_TRACE' => self::INCOMING_SENTRY_TRACE_HEADER,
+        ]);
+
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertSentryTransactionCount(0);
+
+        $this->assertNotNull($propagationContext);
+        $this->assertSame(self::INCOMING_TRACE_ID, (string) $propagationContext->getTraceId());
+        $this->assertSame(self::INCOMING_PARENT_SPAN_ID, (string) $propagationContext->getParentSpanId());
     }
 }

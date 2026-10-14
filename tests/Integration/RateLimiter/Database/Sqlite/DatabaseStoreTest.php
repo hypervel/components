@@ -41,28 +41,6 @@ class DatabaseStoreTest extends DatabaseStoreTestCase
         parent::tearDownAfterClass();
     }
 
-    // @TODO Remove these overrides when the first tagged Swoole release containing
-    // https://github.com/swoole/swoole-src/pull/6140 is the minimum supported version.
-    public function testConcurrentFirstUseAdmitsExactlyTheConfiguredCapacity(): void
-    {
-        $this->markTestSkipped('Requires the Swoole AIO scheduler fix from PR #6140.');
-    }
-
-    public function testConcurrentExistingStateDoesNotLoseUpdates(): void
-    {
-        $this->markTestSkipped('Requires the Swoole AIO scheduler fix from PR #6140.');
-    }
-
-    public function testConcurrentSlidingWindowFirstUseAdmitsExactlyTheConfiguredCapacity(): void
-    {
-        $this->markTestSkipped('Requires the Swoole AIO scheduler fix from PR #6140.');
-    }
-
-    public function testConcurrentCooldownBlocksRetainTheLongestExpiry(): void
-    {
-        $this->markTestSkipped('Requires the Swoole AIO scheduler fix from PR #6140.');
-    }
-
     /**
      * Create a limiter with a deterministic clock for the shared contract.
      */

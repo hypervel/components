@@ -13,8 +13,3 @@ packages:
 # buffer dramatically reduces the chance of pulling a malicious release.
 # Value is in minutes (7 days × 24h × 60min = 10080).
 minimumReleaseAge: 10080
-
-# Allow lifecycle scripts for trusted build-time tools. pnpm 10+ blocks
-# install scripts by default for security; opt-in is explicit.
-allowBuilds:
-  esbuild: true

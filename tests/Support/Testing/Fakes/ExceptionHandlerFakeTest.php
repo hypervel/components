@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Support\Testing\Fakes;
 
-use Exception;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Foundation\Exceptions\Handler;
 use Hypervel\Support\Facades\Exceptions;

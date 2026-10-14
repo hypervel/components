@@ -2300,6 +2300,20 @@ class DatabaseConnectionTest extends TestCase
         $this->assertEquals(['baz'], $queries[0]['bindings']);
     }
 
+    public function testPretendPreparesBindingsBeforeRenderingSql(): void
+    {
+        $connection = new SQLiteConnection(new PDO('sqlite::memory:'));
+        $date = new DateTime('2000-01-01 00:00:00');
+        $bindings = [$date, true, null];
+
+        $queries = $connection->pretend(function (Connection $connection) use ($bindings): void {
+            $connection->select('select ?, ?, ?', $bindings);
+        });
+
+        $this->assertSame("select '2000-01-01 00:00:00', 1, null", $queries[0]['query']);
+        $this->assertSame($bindings, $queries[0]['bindings']);
+    }
+
     public function testPretendRestoresThePreviousQueryLoggingState(): void
     {
         $connection = $this->getMockConnection();

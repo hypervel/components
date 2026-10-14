@@ -8,14 +8,14 @@ use Exception;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Sentry\Integration\ModelViolations\ModelViolationReporter;
-use Hypervel\Tests\Sentry\SentryTestCase;
+use Hypervel\Tests\Sentry\TestCase;
 use Swoole\Coroutine\Channel;
 
 /**
  * Verify that model violation dedupe is per-request (coroutine-scoped),
  * not per-worker (instance property on a long-lived object).
  */
-class ModelViolationDedupeTest extends SentryTestCase
+class ModelViolationDedupeTest extends TestCase
 {
     public function testDedupeIsIsolatedBetweenCoroutines(): void
     {
@@ -96,11 +96,17 @@ class ModelViolationDedupeTest extends SentryTestCase
 
 class ConcreteViolationReporter extends ModelViolationReporter
 {
+    /**
+     * Get the context data for the violation.
+     */
     protected function getViolationContext(Model $model, string $property): array
     {
         return ['property' => $property, 'kind' => 'concrete'];
     }
 
+    /**
+     * Get the exception representing the violation.
+     */
     protected function getViolationException(Model $model, string $property): Exception
     {
         return new Exception("Concrete violation: {$property}");
@@ -109,11 +115,17 @@ class ConcreteViolationReporter extends ModelViolationReporter
 
 class AnotherConcreteViolationReporter extends ModelViolationReporter
 {
+    /**
+     * Get the context data for the violation.
+     */
     protected function getViolationContext(Model $model, string $property): array
     {
         return ['property' => $property, 'kind' => 'another'];
     }
 
+    /**
+     * Get the exception representing the violation.
+     */
     protected function getViolationException(Model $model, string $property): Exception
     {
         return new Exception("Another violation: {$property}");

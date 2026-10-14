@@ -23,10 +23,10 @@ jobs:
       matrix:
         php: ["8.4", "8.5"]
 
-    name: PHP ${{ matrix.php }} (Swoole 6.2.2)
+    name: PHP ${{ matrix.php }} (Swoole 6.3.0 RC1)
 
     container:
-      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.2.2
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
 
     steps:
       - name: Checkout code
@@ -86,7 +86,7 @@ jobs:
     name: Guzzle 7 and promises 2
 
     container:
-      image: ghcr.io/hypervel/components-ci:php8.4-swoole6.2.2
+      image: ghcr.io/hypervel/components-ci:php8.4-swoole6.3.0-rc1
 
     steps:
       - name: Checkout code
@@ -114,7 +114,7 @@ jobs:
       - name: Run ownership and affected consumer tests
         run: >-
           vendor/bin/paratest -c phpunit.xml.dist
-          --filter '(Guzzle|PusherClientTest|AwsCredentialConsumerTest|SerializedCredentialProvider|HttpClientTest|HttpConnectionTest|HttpClientDestinationPolicyTest|CurlStreamingHandlerTest|HttpClientStreamingTest|BedrockHttpHandlerTest|UntrustedUrlTest|AfterEachTestExtensionTest|GenerateProxiesTest|ServiceProviderDiTest)'
+          --filter '(Guzzle|PusherClientTest|AwsCredentialConsumerTest|SerializedCredentialProvider|HttpClientTest|HttpConnectionTest|HttpClientDestinationPolicyTest|CurlStreamingHandlerTest|HttpClientStreamingTest|BedrockHttpHandlerTest|UntrustedUrlTest|AfterEachTestExtensionTest|GenerateProxiesTest|ServiceProviderDiTest|HttpClientIntegrationTest|HttpClientTelescopeOriginTest|HttpClientDataCollectionTest|ClientRequestWatcherTest)'
 
   wayfinder_tests:
     runs-on: ubuntu-latest
@@ -123,7 +123,7 @@ jobs:
     name: Wayfinder
 
     container:
-      image: ghcr.io/hypervel/components-ci:php8.4-swoole6.2.2
+      image: ghcr.io/hypervel/components-ci:php8.4-swoole6.3.0-rc1
 
     steps:
       - name: Checkout code
@@ -145,14 +145,14 @@ jobs:
         run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
 
       - name: Install pnpm
         run: |
           corepack enable
-          corepack prepare pnpm@10.24.0 --activate
+          corepack prepare pnpm@12.10.1 --activate
 
       - name: Install Node dependencies
         run: pnpm install --frozen-lockfile

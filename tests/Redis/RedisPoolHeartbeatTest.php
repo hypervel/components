@@ -398,11 +398,9 @@ class RedisPoolHeartbeatTest extends TestCase
         });
     }
 
-    public function testHeartbeatTimeoutDiscardsWithoutRequeueingLateCompletion(): void
+    public function testHeartbeatTimeoutWaitsForCleanupBeforeDiscarding(): void
     {
         run(function () {
-            SlowHeartbeatRedisConnection::$coroutineId = null;
-
             $pool = $this->createPool([
                 'min_retained_connections' => 1,
                 'max_connections' => 1,
@@ -411,27 +409,31 @@ class RedisPoolHeartbeatTest extends TestCase
             ], SlowHeartbeatRedisPool::class);
 
             $connection = $pool->borrow();
+            $this->assertInstanceOf(SlowHeartbeatRedisConnection::class, $connection);
             $connection->release();
 
-            $startedAt = microtime(true);
-            $pool->runHeartbeatForTest();
-            $elapsed = microtime(true) - $startedAt;
+            $finished = false;
+            $parent = Coroutine::create(static function () use ($pool, &$finished): void {
+                $pool->runHeartbeatForTest();
+                $finished = true;
+            });
 
-            $this->assertLessThan(0.2, $elapsed);
-            $this->assertSame(0, $pool->getManagedCount());
-            $this->assertSame(0, $pool->getIdleCount());
-            $this->assertIsInt(SlowHeartbeatRedisConnection::$coroutineId);
-
-            $deadline = microtime(true) + 0.1;
-            while (Coroutine::exists(SlowHeartbeatRedisConnection::$coroutineId) && microtime(true) < $deadline) {
-                usleep(1000);
+            try {
+                $this->assertTrue($connection->cleanupStarted->pop(1));
+                $this->assertFalse($finished);
+                $this->assertSame(1, $pool->getManagedCount());
+                $connection->releaseCleanup->push(true);
+                FrameworkCoroutine::join([$parent->getId()], 1);
+                $this->assertTrue($finished);
+                $this->assertSame(0, $pool->getManagedCount());
+                $this->assertSame(0, $pool->getIdleCount());
+                $this->assertIsInt($connection->coroutineId);
+                $this->assertFalse(Coroutine::exists($connection->coroutineId));
+            } finally {
+                $connection->blocker->close();
+                $connection->releaseCleanup->close();
+                FrameworkCoroutine::join([$parent->getId()], 1);
             }
-
-            $this->assertFalse(Coroutine::exists(SlowHeartbeatRedisConnection::$coroutineId));
-
-            usleep(100000);
-
-            $this->assertSame(0, $pool->getIdleCount());
         });
     }
 
@@ -481,6 +483,8 @@ class RedisPoolHeartbeatTest extends TestCase
             $hookFailure = new RuntimeException('The startup hook failed.');
             $reportStarted = new Channel(1);
             $releaseReport = new Channel(1);
+            $cleanupStarted = new Channel(1);
+            $releaseCleanup = new Channel(1);
             $parentCoroutineId = null;
             $parentCancellation = null;
             $childCoroutineId = null;
@@ -488,10 +492,16 @@ class RedisPoolHeartbeatTest extends TestCase
             $handler->shouldReceive('report')
                 ->once()
                 ->with($hookFailure)
-                ->andReturnUsing(static function () use ($reportStarted, $releaseReport, &$childCoroutineId): void {
+                ->andReturnUsing(static function () use ($reportStarted, $releaseReport, $cleanupStarted, $releaseCleanup, &$childCoroutineId): void {
                     $childCoroutineId = Coroutine::id();
                     $reportStarted->push(true);
-                    $releaseReport->pop();
+
+                    try {
+                        $releaseReport->pop();
+                    } finally {
+                        $cleanupStarted->push(true);
+                        $releaseCleanup->pop();
+                    }
                 });
 
             FrameworkCoroutine::afterCreated(static function () use ($hookFailure): void {
@@ -517,11 +527,16 @@ class RedisPoolHeartbeatTest extends TestCase
             });
 
             try {
+                $this->assertTrue($cleanupStarted->pop(1));
+                $this->assertNull($parentCancellation);
+                $releaseCleanup->push(true);
+                FrameworkCoroutine::join([$parent->getId()], 1);
                 $this->assertInstanceOf(CanceledException::class, $parentCancellation);
                 $this->assertSame(0, $connection->heartbeatChecks);
                 $this->assertIsInt($childCoroutineId);
                 $this->assertFalse(Coroutine::exists($childCoroutineId));
             } finally {
+                $releaseCleanup->close();
                 $releaseReport->push(true, 0.001);
 
                 if (is_int($childCoroutineId) && Coroutine::exists($childCoroutineId)) {
@@ -560,7 +575,7 @@ class RedisPoolHeartbeatTest extends TestCase
             $this->assertTrue($connection->pingStarted->pop());
             $this->assertTrue(Coroutine::cancelById($parent->getId()));
             $this->assertInstanceOf(CanceledException::class, $captured);
-            $this->assertSame('Waiting for a Redis heartbeat was canceled.', $captured->getMessage());
+            $this->assertSame('Waiting for a child coroutine was canceled.', $captured->getMessage());
             $this->assertInstanceOf(CanceledException::class, $connection->cancellation);
             $this->assertIsInt($connection->coroutineId);
             $this->assertFalse(Coroutine::exists($connection->coroutineId));
@@ -1087,13 +1102,33 @@ class CancellableHeartbeatRedisConnection extends HeartbeatRedisConnection
 
 class SlowHeartbeatRedisConnection extends HeartbeatRedisConnection
 {
-    public static ?int $coroutineId = null;
+    public ?int $coroutineId = null;
+
+    public Channel $blocker;
+
+    public Channel $cleanupStarted;
+
+    public Channel $releaseCleanup;
+
+    public function __construct(Container $container, ConnectionPool $pool, array $config)
+    {
+        parent::__construct($container, $pool, $config);
+
+        $this->blocker = new Channel(1);
+        $this->cleanupStarted = new Channel(1);
+        $this->releaseCleanup = new Channel(1);
+    }
 
     protected function pingForHeartbeat(): bool
     {
-        self::$coroutineId = Coroutine::id();
+        $this->coroutineId = Coroutine::id();
 
-        usleep(500000);
+        try {
+            $this->blocker->pop();
+        } finally {
+            $this->cleanupStarted->push(true);
+            $this->releaseCleanup->pop();
+        }
 
         return true;
     }

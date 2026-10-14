@@ -244,7 +244,7 @@ When this method returns `false`, the provider's `register` and `boot` methods w
 <a name="advanced-provider-apis"></a>
 ### Advanced Provider APIs
 
-Package service providers may also register AOP aspects and class map overrides. These methods should be called within the `register` method before the target classes are loaded:
+Package service providers may also register AOP aspects and class map overrides. Call these methods within `register`, before the target classes are loaded. Registration closes after proxy generation, so calls during `boot` or later throw an exception:
 
 ```php
 use App\Aspects\TraceRequests;

@@ -322,6 +322,7 @@ class EloquentWhereTest extends DatabaseTestCase
             $this->assertEquals([$expected], UserWhereTest::query()->pluck($expression)->all());
         }
 
+        $this->assertSame([1.0], UserWhereTest::query()->withCasts(['id' => 'float'])->pluck('id')->all());
         $this->assertSame(2.0, UserWhereTest::query()->withCasts(['total' => 'float'])->value(new Expression('id + 1 as total')));
         $this->assertSame([2.0], UserWhereTest::query()->withCasts(['total' => 'float'])->pluck(new Expression('id + 1 as total'))->all());
         $this->assertSame(['Taylor' => 2.0], UserWhereTest::query()->withCasts(['total' => 'float'])->pluck(

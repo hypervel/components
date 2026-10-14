@@ -24,12 +24,9 @@ use Symfony\Component\HttpFoundation\Response;
 
 class StartSessionTest extends TestCase
 {
-    public function testResolveSessionCookieConfigReturnsDefaults(): void
+    public function testResolveCookieConfigReturnsDefaults(): void
     {
-        $middleware = $this->createStartSessionMock();
-
-        $config = $this->invokeResolveSessionCookieConfig(
-            $middleware,
+        $config = StartSession::resolveCookieConfig(
             Request::create('/'),
             $this->defaultCookieConfig(),
         );
@@ -42,11 +39,9 @@ class StartSessionTest extends TestCase
         $this->assertFalse($config['partitioned']);
     }
 
-    public function testResolveSessionCookieConfigReturnsConfiguredValues(): void
+    public function testResolveCookieConfigReturnsConfiguredValues(): void
     {
-        $middleware = $this->createStartSessionMock();
-
-        $config = $this->invokeResolveSessionCookieConfig($middleware, Request::create('/'), [
+        $config = StartSession::resolveCookieConfig(Request::create('/'), [
             ...$this->defaultCookieConfig(),
             'path' => '/app',
             'domain' => '.example.com',
@@ -66,15 +61,13 @@ class StartSessionTest extends TestCase
 
     public function testSessionCookieConfigCanBeConfiguredUsingCallback(): void
     {
-        $middleware = $this->createStartSessionMock();
-
         StartSession::configureSessionCookieUsing(function (Request $request, array $cookie): array {
             $cookie['domain'] = '.custom.example.com';
 
             return $cookie;
         });
 
-        $config = $this->invokeResolveSessionCookieConfig($middleware, Request::create('/'), [
+        $config = StartSession::resolveCookieConfig(Request::create('/'), [
             ...$this->defaultCookieConfig(),
             'domain' => '.example.com',
         ]);
@@ -85,16 +78,13 @@ class StartSessionTest extends TestCase
 
     public function testSessionCookieConfigCallbacksReceiveRequest(): void
     {
-        $middleware = $this->createStartSessionMock();
-
         StartSession::configureSessionCookieUsing(function (Request $request, array $cookie): array {
             $cookie['domain'] = '.' . $request->getHost();
 
             return $cookie;
         });
 
-        $config = $this->invokeResolveSessionCookieConfig(
-            $middleware,
+        $config = StartSession::resolveCookieConfig(
             Request::create('https://tenant.example.com'),
             $this->defaultCookieConfig(),
         );
@@ -104,8 +94,6 @@ class StartSessionTest extends TestCase
 
     public function testSessionCookieConfigCallbacksComposeInRegistrationOrder(): void
     {
-        $middleware = $this->createStartSessionMock();
-
         StartSession::configureSessionCookieUsing(function (Request $request, array $cookie): array {
             $cookie['same_site'] = 'strict';
             $cookie['domain'] = '.first.example.com';
@@ -118,8 +106,7 @@ class StartSessionTest extends TestCase
             return $cookie;
         });
 
-        $config = $this->invokeResolveSessionCookieConfig(
-            $middleware,
+        $config = StartSession::resolveCookieConfig(
             Request::create('/'),
             $this->defaultCookieConfig(),
         );
@@ -130,8 +117,6 @@ class StartSessionTest extends TestCase
 
     public function testFlushStateClearsSessionCookieCallbacks(): void
     {
-        $middleware = $this->createStartSessionMock();
-
         StartSession::configureSessionCookieUsing(function (Request $request, array $cookie): array {
             $cookie['domain'] = '.custom.example.com';
 
@@ -140,8 +125,7 @@ class StartSessionTest extends TestCase
 
         $this->assertSame(
             '.custom.example.com',
-            $this->invokeResolveSessionCookieConfig(
-                $middleware,
+            StartSession::resolveCookieConfig(
                 Request::create('/'),
                 $this->defaultCookieConfig(),
             )['domain']
@@ -149,8 +133,7 @@ class StartSessionTest extends TestCase
 
         StartSession::flushState();
 
-        $this->assertNull($this->invokeResolveSessionCookieConfig(
-            $middleware,
+        $this->assertNull(StartSession::resolveCookieConfig(
             Request::create('/'),
             $this->defaultCookieConfig(),
         )['domain']);
@@ -370,16 +353,6 @@ class StartSessionTest extends TestCase
         }
     }
 
-    private function createStartSessionMock(): StartSession
-    {
-        return new TestStartSession;
-    }
-
-    private function invokeResolveSessionCookieConfig(StartSession $middleware, Request $request, array $config): array
-    {
-        return (new ClassInvoker($middleware))->resolveSessionCookieConfig($request, $config);
-    }
-
     /**
      * @return array{path: string, domain: ?string, secure: ?bool, http_only: bool, same_site: ?string, partitioned: bool}
      */
@@ -393,14 +366,6 @@ class StartSessionTest extends TestCase
             'same_site' => null,
             'partitioned' => false,
         ];
-    }
-}
-
-class TestStartSession extends StartSession
-{
-    public function __construct()
-    {
-        // Skip parent constructor for testing.
     }
 }
 

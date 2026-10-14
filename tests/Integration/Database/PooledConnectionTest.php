@@ -1431,6 +1431,8 @@ class PooledConnectionTest extends DatabaseTestCase
         $hookFailure = new RuntimeException('The startup hook failed.');
         $reportStarted = new Channel(1);
         $releaseReport = new Channel(1);
+        $cleanupStarted = new Channel(1);
+        $releaseCleanup = new Channel(1);
         $parentCoroutineId = null;
         $parentCancellation = null;
         $childCoroutineId = null;
@@ -1438,10 +1440,16 @@ class PooledConnectionTest extends DatabaseTestCase
         $handler->shouldReceive('report')
             ->once()
             ->with($hookFailure)
-            ->andReturnUsing(static function () use ($reportStarted, $releaseReport, &$childCoroutineId): void {
+            ->andReturnUsing(static function () use ($reportStarted, $releaseReport, $cleanupStarted, $releaseCleanup, &$childCoroutineId): void {
                 $childCoroutineId = EngineCoroutine::id();
                 $reportStarted->push(true);
-                $releaseReport->pop();
+
+                try {
+                    $releaseReport->pop();
+                } finally {
+                    $cleanupStarted->push(true);
+                    $releaseCleanup->pop();
+                }
             });
 
         FrameworkCoroutine::afterCreated(static function () use ($hookFailure): void {
@@ -1467,11 +1475,16 @@ class PooledConnectionTest extends DatabaseTestCase
         });
 
         try {
+            $this->assertTrue($cleanupStarted->pop(1));
+            $this->assertNull($parentCancellation);
+            $releaseCleanup->push(true);
+            FrameworkCoroutine::join([$parent->getId()], 1);
             $this->assertInstanceOf(CanceledException::class, $parentCancellation);
             $this->assertSame(0, $connection->pingCalls);
             $this->assertIsInt($childCoroutineId);
             $this->assertFalse(EngineCoroutine::exists($childCoroutineId));
         } finally {
+            $releaseCleanup->close();
             $releaseReport->push(true, 0.001);
 
             if (is_int($childCoroutineId) && EngineCoroutine::exists($childCoroutineId)) {
@@ -1482,6 +1495,48 @@ class PooledConnectionTest extends DatabaseTestCase
 
         $this->assertFalse(EngineCoroutine::exists($parent->getId()));
         $this->assertFalse(EngineCoroutine::exists($canceller->getId()));
+    }
+
+    public function testPingTimeoutWaitsForHeartbeatCleanupBeforeReturningFalse(): void
+    {
+        $pool = new DatabasePool($this->app, 'pool_test');
+        $pooledConnection = $this->createPooledConnection($pool);
+        $blocker = new Channel(1);
+        $cleanupStarted = new Channel(1);
+        $releaseCleanup = new Channel(1);
+        $childCoroutineId = null;
+        $result = null;
+        $connection = m::mock(NeutralPoolConnection::class);
+        $connection->shouldReceive('ping')->once()->andReturnUsing(static function () use ($blocker, $cleanupStarted, $releaseCleanup, &$childCoroutineId): bool {
+            $childCoroutineId = EngineCoroutine::id();
+
+            try {
+                $blocker->pop();
+
+                return true;
+            } finally {
+                $cleanupStarted->push(true);
+                $releaseCleanup->pop();
+            }
+        });
+        (new ReflectionProperty(PooledConnection::class, 'connection'))->setValue($pooledConnection, $connection);
+        $parent = EngineCoroutine::create(static function () use ($pooledConnection, &$result): void {
+            $result = $pooledConnection->ping(0.001);
+        });
+
+        try {
+            $this->assertTrue($cleanupStarted->pop(1));
+            $this->assertNull($result);
+            $releaseCleanup->push(true);
+            FrameworkCoroutine::join([$parent->getId()], 1);
+            $this->assertFalse($result);
+            $this->assertIsInt($childCoroutineId);
+            $this->assertFalse(EngineCoroutine::exists($childCoroutineId));
+        } finally {
+            $releaseCleanup->close();
+            $blocker->close();
+            FrameworkCoroutine::join([$parent->getId()], 1);
+        }
     }
 
     public function testConnectionGenerationLifetimeIsJitteredWithinConfiguredUpperBound(): void

@@ -14,7 +14,9 @@ use Hypervel\Telescope\Storage\EntryModel;
 use Hypervel\Telescope\Watchers\QueryWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
+use Hypervel\Tests\Telescope\Fixtures\PromiseHandlerQueryWatcher;
 use Mockery as m;
+use ReflectionClass;
 use TypeError;
 
 #[WithConfig('telescope.watchers', [
@@ -299,6 +301,23 @@ TEXT;
             base_path('vendor' . DIRECTORY_SEPARATOR . 'hypervel'),
             '/custom/path',
         ], $watcher->stackTraceIgnoredPaths());
+    }
+
+    public function testQueryWatcherClassifiesGeneratedProxyFramesByTheirSourceFile(): void
+    {
+        // This repository keeps framework sources in src/, where applications have vendor/.
+        $repositoryPath = dirname(__DIR__, 3);
+        $watcher = new PromiseHandlerQueryWatcher([
+            'ignore_paths' => [
+                $repositoryPath . '/src',
+                $repositoryPath . '/vendor',
+                (new ReflectionClass(PromiseHandlerQueryWatcher::class))->getFileName(),
+            ],
+        ]);
+
+        $caller = $watcher->callerFromPromiseHandler();
+
+        $this->assertSame(__FILE__, $caller['file']);
     }
 
     /**

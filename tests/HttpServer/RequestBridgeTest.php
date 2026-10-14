@@ -552,6 +552,33 @@ class RequestBridgeTest extends TestCase
         $this->assertEmpty($request->files->all());
     }
 
+    public function testHeaderHostTakesPriorityOverServerAddress(): void
+    {
+        $request = RequestBridge::createFromSwoole($this->createSwooleRequest(
+            server: [
+                'server_port' => 9501,
+                'server_addr' => '127.0.0.1',
+                'remote_addr' => '10.0.0.1',
+            ],
+            header: ['host' => 'hypervel.example.com'],
+        ));
+
+        $this->assertSame('hypervel.example.com', $request->getHost());
+        $this->assertSame(80, $request->getPort());
+    }
+
+    public function testHostFallsBackToServerAddressWithoutHostHeader(): void
+    {
+        $request = RequestBridge::createFromSwoole($this->createSwooleRequest(
+            server: [
+                'server_port' => 9501,
+                'server_addr' => '192.168.1.100',
+            ],
+        ));
+
+        $this->assertSame('192.168.1.100', $request->getHost());
+    }
+
     public function testSchemeAndHost(): void
     {
         $swooleRequest = $this->createSwooleRequest(

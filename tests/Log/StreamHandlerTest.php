@@ -6,8 +6,10 @@ namespace Hypervel\Tests\Log;
 
 use ErrorException;
 use Hypervel\Engine\Channel;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Log\Handlers\RotatingFileHandler;
 use Hypervel\Log\Handlers\StreamHandler;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use Monolog\Formatter\LineFormatter;
 use Monolog\Logger;
@@ -19,17 +21,31 @@ class StreamHandlerTest extends TestCase
 {
     private const string STREAM_SCHEME = 'hypervel-log-test';
 
+    private string $directory;
+
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();
+
+        $this->directory = ParallelTesting::tempDir('StreamHandlerTest');
+        $files = new Filesystem;
+        $files->deleteDirectory($this->directory);
+        $files->makeDirectory($this->directory, recursive: true);
 
         stream_wrapper_register(self::STREAM_SCHEME, LogStreamWrapper::class);
         LogStreamWrapper::reset();
     }
 
+    /**
+     * Clean up the test environment.
+     */
     protected function tearDown(): void
     {
         stream_wrapper_unregister(self::STREAM_SCHEME);
+        (new Filesystem)->deleteDirectory($this->directory);
 
         parent::tearDown();
     }
@@ -213,10 +229,40 @@ class StreamHandlerTest extends TestCase
         }
     }
 
+    public function testCreateDirSwallowsFileExistsExceptionUnderConcurrency(): void
+    {
+        $directory = $this->directory . '/race';
+        set_error_handler(static function (int $level, string $message, string $file, int $line): never {
+            throw new ErrorException($message, 0, $level, $file, $line);
+        });
+
+        try {
+            $callbacks = [];
+
+            for ($index = 0; $index < 10; ++$index) {
+                $callbacks[] = static function () use ($directory, $index): void {
+                    $handler = new StreamHandler($directory . '/app-' . $index . '.log');
+
+                    try {
+                        (new Logger('test', [$handler]))->info('message');
+                    } finally {
+                        $handler->close();
+                    }
+                };
+            }
+
+            parallel($callbacks);
+
+            $this->assertDirectoryExists($directory);
+        } finally {
+            restore_error_handler();
+        }
+    }
+
     public function testDirectoryCreationFailureThrowsDeterministically(): void
     {
-        $file = tempnam(sys_get_temp_dir(), 'hypervel-log-parent-');
-        $this->assertIsString($file);
+        $file = $this->directory . '/parent';
+        touch($file);
         set_error_handler(static fn (): bool => true);
 
         try {
@@ -226,31 +272,23 @@ class StreamHandlerTest extends TestCase
             (new Logger('test', [new StreamHandler($file . '/child/app.log')]))->info('message');
         } finally {
             restore_error_handler();
-            @unlink($file);
         }
     }
 
     public function testRotatingHandlerWritesThroughTheSafeStreamBoundary(): void
     {
-        $directory = sys_get_temp_dir() . '/hypervel-rotating-' . bin2hex(random_bytes(8));
-        $path = $directory . '/app.log';
-        $handler = new RotatingFileHandler($path, 1);
+        $handler = new RotatingFileHandler($this->directory . '/app.log', 1);
 
         try {
             (new Logger('test', [$handler]))->info('rotating message');
-            $handler->close();
-
-            $files = glob($directory . '/app-*.log');
-            $this->assertIsArray($files);
-            $this->assertCount(1, $files);
-            $this->assertStringContainsString('rotating message', (string) file_get_contents($files[0]));
         } finally {
-            foreach (glob($directory . '/*') ?: [] as $file) {
-                @unlink($file);
-            }
-
-            @rmdir($directory);
+            $handler->close();
         }
+
+        $files = glob($this->directory . '/app-*.log');
+        $this->assertIsArray($files);
+        $this->assertCount(1, $files);
+        $this->assertStringContainsString('rotating message', (string) file_get_contents($files[0]));
     }
 
     private function captureOpenFailureMessage(string $message): string

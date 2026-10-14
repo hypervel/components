@@ -29,7 +29,7 @@ jobs:
           --health-retries 5
 
     container:
-      image: ghcr.io/hypervel/components-ci:php8.4-swoole6.2.2
+      image: ghcr.io/hypervel/components-ci:php8.4-swoole6.3.0-rc1
 
     name: MySQL Innovation
 
@@ -80,7 +80,7 @@ jobs:
           --health-retries 5
 
     container:
-      image: ghcr.io/hypervel/components-ci:php8.4-swoole6.2.2
+      image: ghcr.io/hypervel/components-ci:php8.4-swoole6.3.0-rc1
 
     name: MariaDB Very Latest
 

@@ -55,7 +55,7 @@ class Caller
     {
         $instance = $this->closure->__invoke();
         $channel = new Channel(1);
-        // A pooled false must remain distinguishable from a failed pop, even after an earlier timeout.
+        // Keep a pooled false value distinct from a failed channel read.
         $channel->push([$instance]);
 
         $previous = $this->channel;

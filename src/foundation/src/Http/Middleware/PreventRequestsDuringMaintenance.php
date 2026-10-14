@@ -100,9 +100,10 @@ class PreventRequestsDuringMaintenance
     protected function hasValidBypassCookie(Request $request, array $data): bool
     {
         return isset($data['secret'])
-                && $request->cookie('hypervel_maintenance')
+                && is_string($cookie = $request->cookie('hypervel_maintenance'))
+                && $cookie !== ''
                 && MaintenanceModeBypassCookie::isValid(
-                    $request->cookie('hypervel_maintenance'),
+                    $cookie,
                     $data['secret']
                 );
     }

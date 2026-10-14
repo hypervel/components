@@ -59,8 +59,6 @@ class ProxyDispatcherTest extends TestCase
         ));
         $chain = AspectManager::get(ProxyDispatcherTarget::class, 'number');
 
-        AspectCollector::flushState();
-
         $this->assertSame(5, ProxyDispatcher::dispatch(
             ProxyDispatcherTarget::class,
             'number',
@@ -69,6 +67,35 @@ class ProxyDispatcherTest extends TestCase
             $target
         ));
         $this->assertSame($chain, AspectManager::get(ProxyDispatcherTarget::class, 'number'));
+    }
+
+    public function testRuleChangesInvalidatePreviouslyCompiledChains(): void
+    {
+        $target = new ProxyDispatcherTarget;
+        $dispatch = fn (): mixed => ProxyDispatcher::dispatch(
+            ProxyDispatcherTarget::class,
+            'number',
+            $this->arguments(['value' => 2]),
+            $target->number(...),
+            $target
+        );
+
+        $this->assertSame(2, $dispatch());
+
+        AspectCollector::setAround(DispatcherIncrementAspect::class, [ProxyDispatcherTarget::class . '::number'], 20);
+        $this->assertSame(3, $dispatch());
+
+        AspectCollector::setAround(DispatcherDoubleAspect::class, [ProxyDispatcherTarget::class . '::number'], 10);
+        $this->assertSame(5, $dispatch());
+
+        AspectCollector::setAround(DispatcherIncrementAspect::class, [ProxyDispatcherTarget::class . '::number'], 5);
+        $this->assertSame(6, $dispatch());
+
+        AspectCollector::forgetAspect(DispatcherIncrementAspect::class);
+        $this->assertSame(4, $dispatch());
+
+        AspectCollector::flushState();
+        $this->assertSame(2, $dispatch());
     }
 
     public function testAspectMayShortCircuitWithoutImplementingAroundInterface(): void

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Concerns;
 
+use Hypervel\Di\Aop\AspectCollector;
 use Hypervel\Di\Aop\ProxyDispatcher;
 use Hypervel\Di\Aop\ProxyMarker;
 use LogicException;
@@ -42,6 +43,9 @@ trait InteractsWithAop
      * matching aspects from AspectCollector, and executes them in priority order.
      * The original method is called via reflection at the end of the pipeline.
      * The instance must not already be proxied.
+     *
+     * After application bootstrap, call {@see AspectCollector::unseal()} before
+     * registering aspects for this helper.
      *
      * @param object $instance The object instance to call the method on
      * @param string $method The method name to intercept

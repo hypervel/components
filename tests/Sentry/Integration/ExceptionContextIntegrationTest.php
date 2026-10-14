@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Sentry\Integration;
 
 use Exception;
 use Hypervel\Sentry\Integration\ExceptionContextIntegration;
-use Hypervel\Tests\Sentry\SentryTestCase;
+use Hypervel\Tests\Sentry\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Sentry\Event;
 use Sentry\EventHint;
@@ -14,7 +14,7 @@ use Sentry\State\Scope;
 
 use function Sentry\withScope;
 
-class ExceptionContextIntegrationTest extends SentryTestCase
+class ExceptionContextIntegrationTest extends TestCase
 {
     public function testExceptionContextIntegrationIsRegistered(): void
     {
@@ -39,6 +39,9 @@ class ExceptionContextIntegrationTest extends SentryTestCase
         });
     }
 
+    /**
+     * Provide exceptions and the exception context expected on their events.
+     */
     public static function invokeDataProvider(): iterable
     {
         yield 'Exception without context method -> no exception context' => [
@@ -59,15 +62,24 @@ class ExceptionContextIntegrationTest extends SentryTestCase
         ];
     }
 
+    /**
+     * Generate an exception whose context method returns the given value.
+     */
     private static function generateExceptionWithContext(mixed $context): Exception
     {
         return new class($context) extends Exception {
+            /**
+             * Create a new exception with the given context.
+             */
             public function __construct(
                 private readonly mixed $context,
             ) {
                 parent::__construct('Exception with context.');
             }
 
+            /**
+             * Get the exception context.
+             */
             public function context(): mixed
             {
                 return $this->context;

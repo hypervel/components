@@ -18,6 +18,7 @@ use Hypervel\Testbench\TestCase;
 use Hypervel\WebSocketServer\Events\ConnectionClosing;
 use Hypervel\WebSocketServer\Events\ConnectionOpening;
 use Hypervel\WebSocketServer\Events\MessageReceived;
+use PHPUnit\Framework\Attributes\Depends;
 use ReflectionFunction;
 use ReflectionProperty;
 use Sentry\SentrySdk;
@@ -28,6 +29,9 @@ class ServiceProviderWithoutDsnTest extends TestCase
 {
     protected InMemoryRuntimeContextStorage $runtimeContextStorage;
 
+    /**
+     * Define the test environment.
+     */
     protected function defineEnvironment(ApplicationContract $app): void
     {
         $this->runtimeContextStorage = new InMemoryRuntimeContextStorage;
@@ -38,6 +42,9 @@ class ServiceProviderWithoutDsnTest extends TestCase
         $app->make('config')->set('sentry.dsn', null);
     }
 
+    /**
+     * Get the package providers.
+     */
     protected function getPackageProviders(ApplicationContract $app): array
     {
         return [
@@ -50,11 +57,13 @@ class ServiceProviderWithoutDsnTest extends TestCase
         $this->assertTrue(app()->bound('sentry'));
     }
 
+    #[Depends('testIsBound')]
     public function testDsnIsNotSet(): void
     {
         $this->assertNull(app('sentry')->getClient()->getOptions()->getDsn());
     }
 
+    #[Depends('testIsBound')]
     public function testDidNotRegisterEvents(): void
     {
         $this->assertFalse(app('events')->hasListeners(RouteMatched::class));
@@ -91,12 +100,16 @@ class ServiceProviderWithoutDsnTest extends TestCase
         }
     }
 
+    #[Depends('testIsBound')]
     public function testArtisanCommandsAreRegistered(): void
     {
         $this->assertArrayHasKey('sentry:test', Artisan::all());
         $this->assertArrayHasKey('sentry:publish', Artisan::all());
     }
 
+    /**
+     * Find the Sentry runtime context boundary listener for the given event.
+     */
     private function findSentryBoundaryListener(string $event): ?Closure
     {
         $listeners = app('events')->getRawListeners()[$event] ?? [];

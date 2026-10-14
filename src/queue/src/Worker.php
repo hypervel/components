@@ -524,9 +524,8 @@ class Worker
             return;
         }
 
-        $lifecycleWaiter = new Waiter(-1);
-        $this->monitorId = $this->timer->tick($options->monitorInterval, function () use ($lifecycleWaiter, $options, $connectionName, $queue): void {
-            $lifecycleWaiter->wait(fn (): mixed => $this->withCoroutineContext($options, function () use ($options, $connectionName, $queue): void {
+        $this->monitorId = $this->timer->tick($options->monitorInterval, function () use ($options, $connectionName, $queue): void {
+            $this->withCoroutineContext($options, function () use ($options, $connectionName, $queue): void {
                 if ($this->monitorLocked) {
                     return;
                 }
@@ -549,7 +548,7 @@ class Worker
                 } finally {
                     $this->monitorLocked = false;
                 }
-            }));
+            });
         });
     }
 

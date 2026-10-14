@@ -24,6 +24,7 @@ use Hypervel\Database\Console\WipeCommand;
  * @method static void forgetExtension(string $name)
  * @method static array<string, \Hypervel\Database\Connection> getConnections()
  * @method static string|null getDefaultConnection()
+ * @method static bool hasApplicableTransaction(\UnitEnum|string|null $name = null)
  * @method static bool hasMacro(string $name)
  * @method static void macro(string $name, callable|object $macro)
  * @method static mixed macroCall(string $method, array $parameters)

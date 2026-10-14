@@ -251,10 +251,13 @@ class RefreshDatabaseTest extends TestCase
         $eventDispatcher = m::mock(Dispatcher::class);
         $connection = m::mock(PdoConnection::class);
         $connection->expects('getPdo')->andReturn($pdo);
+        $connection->expects('getName')->andReturn('default');
         $connection->expects('setTransactionManager');
         $connection->expects('getEventDispatcher')->twice()->andReturn($eventDispatcher);
         $connection->expects('unsetEventDispatcher')->twice();
-        $connection->expects('beginTransaction');
+        $connection->expects('beginTransaction')->andReturnUsing(
+            fn () => $this->app->make('db.transactions')->begin('default', 1)
+        );
         $connection->expects('inTransaction')->andReturnTrue();
         $connection->expects('forgetRecordModificationState');
         $connection->expects('rollBack');
@@ -658,13 +661,16 @@ class RefreshDatabaseTest extends TestCase
     protected function getMockedDatabase(): DatabaseManager
     {
         $connection = m::mock(ConnectionInterface::class);
+        $connection->expects('getName')->andReturn('default');
         $eventDispatcher = m::mock(Dispatcher::class);
         $connection->expects('getEventDispatcher')
             ->twice()
             ->andReturn($eventDispatcher);
         $connection->expects('unsetEventDispatcher')
             ->twice();
-        $connection->expects('beginTransaction');
+        $connection->expects('beginTransaction')->andReturnUsing(
+            fn () => $this->app->make('db.transactions')->begin('default', 1)
+        );
         $connection->expects('rollback');
         $connection->expects('setEventDispatcher')
             ->twice()

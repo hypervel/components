@@ -437,9 +437,9 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
 
         // Verify reverb:install was run via the Process facade.
         Process::assertRan(function (PendingProcess $process): bool {
-            $command = implode(' ', (array) $process->command);
-
-            return str_contains($command, 'reverb:install');
+            return is_array($process->command)
+                && array_slice($process->command, 2) === ['reverb:install', ...($process->tty ? [] : ['--no-interaction'])]
+                && $process->timeout === null;
         });
     }
 

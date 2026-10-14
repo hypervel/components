@@ -11,6 +11,11 @@ use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\RefreshableLock;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Cache\Store;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Database\DatabaseTransactionsManager;
+use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Support\Collection;
 
 /**
  * Coordinate shared model cache fills and exact invalidations.
@@ -33,6 +38,11 @@ class ModelCacheCoordinator
     private const int INVALIDATION_RETRY_MILLISECONDS = 25;
 
     /**
+     * The maximum number of models written and invalidated per batch.
+     */
+    private const int MUTATION_BATCH_SIZE = 1000;
+
+    /**
      * The envelope marker key.
      */
     private const string ENVELOPE_MARKER_KEY = '__hypervel_model_cache';
@@ -48,19 +58,46 @@ class ModelCacheCoordinator
     private const string ENVELOPE_VALUE_KEY = 'value';
 
     /**
+     * Create a model cache coordinator.
+     */
+    public function __construct(protected Container $container)
+    {
+    }
+
+    /**
+     * Determine whether the source has a transaction that prevents shared caching.
+     *
+     * @param Closure(): Model $source
+     */
+    public function hasApplicableTransaction(Closure $source): bool
+    {
+        /** @var DatabaseTransactionsManager $transactions */
+        $transactions = $this->container->make('db.transactions');
+
+        // Check the manager first so ordinary cache hits do not construct a source model.
+        return $transactions->hasApplicableTransaction() && $source()->hasApplicableTransaction();
+    }
+
+    /**
      * Retrieve or fill a shared model cache entry.
      *
+     * @param Closure(): Model $source
      * @param Closure(): mixed $read
      * @param null|(Closure(): CacheRepository) $writeCache
      */
     public function fill(
         CacheRepository $cache,
+        Closure $source,
         string $key,
         int $ttl,
         Closure $read,
         bool $cacheNull = true,
         ?Closure $writeCache = null,
     ): mixed {
+        if ($this->hasApplicableTransaction($source)) {
+            return $read();
+        }
+
         $cached = $cache->get($key);
 
         if ($this->isEnvelope($cached)) {
@@ -110,6 +147,57 @@ class ModelCacheCoordinator
             });
 
         return $acquired ? $result : $read();
+    }
+
+    /**
+     * Mutate selected models atomically and invalidate each written batch.
+     *
+     * @template TModel of Model
+     * @param Builder<TModel> $query
+     * @param Closure(Builder<TModel>): int $write
+     * @param Closure(array<int, int|string>): void $invalidate
+     */
+    public function mutate(Builder $query, Closure $write, Closure $invalidate): int
+    {
+        $query = clone $query;
+        $base = $query->getQuery();
+
+        // Original OR predicates must not escape the batch's key or pagination constraints.
+        $query->setQuery($base->cloneWithout(['wheres'])->cloneWithoutBindings(['where'])->addNestedWhereQuery($base));
+
+        $model = $query->getModel();
+        $key = $model->getKeyName();
+        $qualifiedKey = $model->getQualifiedKeyName();
+
+        // Batching must preserve the atomicity of the uncached, single-statement write.
+        return $model->getConnection()->transaction(function () use ($query, $write, $invalidate, $key, $qualifiedKey): int {
+            $affected = 0;
+
+            $selection = (clone $query)->select($qualifiedKey)->useWritePdo()->toBase();
+            $writeBatch = function (array $ids) use ($query, $write, $invalidate, &$affected): void {
+                $affected += $write((clone $query)->whereKey($ids)->reorder()->limit(null)->offset(null));
+                $invalidate($ids);
+            };
+
+            if ($selection->getLimit() !== null || $selection->getOffset() > 0) {
+                // Writes may change the filter or sort columns, so preserve the selected set first.
+                $ids = array_unique($selection->pluck($qualifiedKey)->all());
+
+                foreach (array_chunk($ids, self::MUTATION_BATCH_SIZE) as $batch) {
+                    $writeBatch($batch);
+                }
+            } else {
+                // Other sort columns would make chunkById skip records between batches.
+                $selection->reorder()->chunkById(
+                    self::MUTATION_BATCH_SIZE,
+                    static fn (Collection $rows) => $writeBatch($rows->pluck($key)->all()),
+                    $qualifiedKey,
+                    $key,
+                );
+            }
+
+            return $affected;
+        });
     }
 
     /**

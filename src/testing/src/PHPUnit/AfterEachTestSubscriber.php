@@ -341,6 +341,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         $this->flushJwtState();
         $this->flushNestedSetState();
         $this->flushPasskeysState();
+        $this->flushPassportState();
         $this->flushPermissionState();
         $this->flushReverbState();
         $this->flushSaloonState();
@@ -442,6 +443,15 @@ class AfterEachTestSubscriber implements FinishedSubscriber
     }
 
     /**
+     * Flush Passport state.
+     */
+    protected function flushPassportState(): void
+    {
+        $this->callIfExists(\Hypervel\Passport\Passport::class, 'flushState');
+        $this->callIfExists(\Hypervel\Passport\Guards\TokenGuard::class, 'flushState');
+    }
+
+    /**
      * Flush Permission state.
      */
     protected function flushPermissionState(): void
@@ -496,8 +506,6 @@ class AfterEachTestSubscriber implements FinishedSubscriber
     {
         $this->callIfExists(\Sentry\SentrySdk::class, 'setRuntimeContextStorage', null);
         $this->callIfExists(\Sentry\SentrySdk::class, 'init');
-        $this->callIfExists(\Hypervel\Sentry\Http\HypervelRequestFetcher::class, 'flushState');
-        $this->callIfExists(\Hypervel\Sentry\Tracing\Middleware::class, 'flushState');
     }
 
     /**

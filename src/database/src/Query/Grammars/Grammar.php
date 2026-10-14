@@ -995,10 +995,18 @@ class Grammar extends BaseGrammar
         }
 
         if (isset($query->unionOffset)) {
-            $sql .= ' ' . $this->compileOffset($query, $query->unionOffset);
+            $sql .= ' ' . $this->compileUnionOffset($query, $query->unionOffset);
         }
 
         return ltrim($sql);
+    }
+
+    /**
+     * Compile the offset applied to the complete union.
+     */
+    protected function compileUnionOffset(Builder $query, int $offset): string
+    {
+        return $this->compileOffset($query, $offset);
     }
 
     /**
@@ -1134,6 +1142,11 @@ class Grammar extends BaseGrammar
      */
     public function compileUpdate(Builder $query, array $values): string
     {
+        // Drivers with a row-identifier rewrite handle offsets before reaching direct DML.
+        if ($query->offset > 0) {
+            throw new RuntimeException('This database engine does not support offsets in this update statement.');
+        }
+
         $table = $this->wrapTable($query->from);
 
         $columns = $this->compileUpdateColumns($query, $values);
@@ -1189,6 +1202,10 @@ class Grammar extends BaseGrammar
      */
     protected function compileUpdateWithJoins(Builder $query, string $table, string $columns, string $where): string
     {
+        if ($query->limit !== null) {
+            throw new RuntimeException('This database engine does not support limits in joined update statements.');
+        }
+
         $joins = $this->compileJoins($query, $query->joins);
 
         return "update {$table} {$joins} set {$columns} {$where}";
@@ -1252,6 +1269,11 @@ class Grammar extends BaseGrammar
      */
     public function compileDelete(Builder $query): string
     {
+        // Ignoring an offset would delete rows the caller explicitly excluded.
+        if ($query->offset > 0) {
+            throw new RuntimeException('This database engine does not support offsets in this delete statement.');
+        }
+
         $table = $this->wrapTable($query->from);
 
         $where = $this->compileWheres($query);

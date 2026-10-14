@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Permission\Middleware;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
+use Hypervel\Passport\Passport;
 use Hypervel\Permission\Exceptions\UnauthorizedException;
 use Hypervel\Permission\Middleware\RoleOrPermissionMiddleware;
 use Hypervel\Support\Facades\Auth;
@@ -69,7 +70,7 @@ class RoleOrPermissionMiddlewareTest extends TestCase
 
     public function testAClientCanAccessARouteProtectedByPermissionOrRoleMiddlewareIfHasThisPermissionOrRole(): void
     {
-        $this->actingAsClient($this->testClient);
+        Passport::actingAsClient($this->testClient, ['*']);
 
         $this->testClient->assignRole('clientRole');
         $this->testClient->givePermissionTo('edit-posts');
@@ -124,7 +125,7 @@ class RoleOrPermissionMiddlewareTest extends TestCase
 
     public function testAClientCanNotAccessARouteProtectedByPermissionOrRoleMiddlewareIfHaveNotThisPermissionAndRole(): void
     {
-        $this->actingAsClient($this->testClient);
+        Passport::actingAsClient($this->testClient, ['*']);
 
         $this->assertSame(403, $this->runMiddleware($this->roleOrPermissionMiddleware, 'clientRole|edit-posts', null, true));
         $this->assertSame(403, $this->runMiddleware($this->roleOrPermissionMiddleware, 'missingRole|missingPermission', null, true));
@@ -157,7 +158,7 @@ class RoleOrPermissionMiddlewareTest extends TestCase
 
     public function testClientCanNotAccessPermissionOrRoleWithGuardAdminWhileLoginUsingDefaultGuard(): void
     {
-        $this->actingAsClient($this->testClient);
+        Passport::actingAsClient($this->testClient, ['*']);
 
         $this->testClient->assignRole('clientRole');
         $this->testClient->givePermissionTo('edit-posts');

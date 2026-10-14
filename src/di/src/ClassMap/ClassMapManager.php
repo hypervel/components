@@ -25,6 +25,8 @@ class ClassMapManager
 
     protected static ?ClassLoader $loader = null;
 
+    protected static bool $sealed = false;
+
     /**
      * Add class map entries and apply them to the Composer autoloader.
      *
@@ -32,12 +34,19 @@ class ClassMapManager
      * Fails if a target is already loaded from a different source.
      *
      * Boot-only. Class-map overrides mutate the worker's Composer autoloader and
-     * must be registered before any target class is autoloaded.
+     * must be registered before application proxy generation and target loading.
      *
      * @param array<class-string, string> $map
      */
     public static function add(array $map): void
     {
+        if (static::$sealed) {
+            throw new RuntimeException(
+                'Cannot register class map overrides after proxy generation. '
+                . 'Register overrides in a service provider\'s register() method, before boot().'
+            );
+        }
+
         foreach ($map as $class => $path) {
             if (class_exists($class, false) || interface_exists($class, false) || trait_exists($class, false)) {
                 $reflection = new ReflectionClass($class);
@@ -65,6 +74,27 @@ class ClassMapManager
 
         static::$entries = array_merge(static::$entries, $map);
         static::$loader->addClassMap($map);
+    }
+
+    /**
+     * Close class map registration after application proxy generation.
+     *
+     * Boot-only. Later registrations in this worker are rejected.
+     */
+    public static function seal(): void
+    {
+        static::$sealed = true;
+    }
+
+    /**
+     * Reopen class map registration while retaining the registered overrides.
+     *
+     * Boot or tests only. This permits worker-wide autoloader changes for a new
+     * application bootstrap; already-loaded classes cannot be replaced.
+     */
+    public static function unseal(): void
+    {
+        static::$sealed = false;
     }
 
     /**
@@ -105,5 +135,6 @@ class ClassMapManager
         static::$loader?->unregister();
         static::$loader = null;
         static::$entries = [];
+        static::unseal();
     }
 }

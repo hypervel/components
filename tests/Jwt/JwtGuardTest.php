@@ -31,6 +31,9 @@ use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use Mockery\MockInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
+
+use function Hypervel\Coroutine\parallel;
 
 class JwtGuardTest extends TestCase
 {
@@ -108,6 +111,28 @@ class JwtGuardTest extends TestCase
 
         $this->assertSame($user, $guard->user());
         $this->assertSame($user, $guard->user()); // Should not call decode again
+    }
+
+    public function testCopiedRequestRechecksBlacklistAfterWarmingUserAndPayload(): void
+    {
+        $user = m::mock(Authenticatable::class);
+        $provider = m::mock(UserProvider::class);
+        $provider->expects('retrieveById')->with(42)->andReturn($user);
+        $manager = m::mock(ManagerContract::class);
+        $this->stubDecodeThenBlacklisted($manager, 'token', ['sub' => 42]);
+        $request = $this->createRequestWithBearer('token');
+        $guard = $this->createGuard(provider: $provider, jwtManager: $manager, request: $request);
+
+        $this->assertSame($user, $guard->user());
+        $this->assertSame(['sub' => 42], $guard->payload());
+
+        parallel([function () use ($guard, $request): void {
+            RequestContext::set(clone $request);
+            $this->assertFalse($guard->hasUser());
+            $this->assertNull($guard->user());
+        }], copyContext: true);
+
+        $this->assertSame($user, $guard->user());
     }
 
     public function testMissingTokenUserIsCachedAsUnauthenticated(): void
@@ -247,8 +272,11 @@ class JwtGuardTest extends TestCase
         $this->assertTrue($guard->attempt(['email' => 'foo@bar.com', 'password' => 'secret'], false));
     }
 
-    public function testLoginReturnsToken(): void
+    #[TestWith([true])]
+    #[TestWith([false])]
+    public function testLoginReturnsToken(bool $withRequest): void
     {
+        RequestContext::forget();
         $user = m::mock(Authenticatable::class);
         $user->shouldReceive('getAuthIdentifier')->andReturn(1);
 
@@ -257,7 +285,7 @@ class JwtGuardTest extends TestCase
 
         $guard = $this->createGuard(
             jwtManager: $jwtManager,
-            request: $this->createRequestWithBearer(null),
+            request: $withRequest ? $this->createRequestWithBearer(null) : null,
         );
 
         $token = $guard->login($user);
@@ -1387,8 +1415,11 @@ class JwtGuardTest extends TestCase
         $guard->user();
     }
 
-    public function testDecodedPayloadIsCachedBetweenUserAndGetPayload(): void
+    #[TestWith([true])]
+    #[TestWith([false])]
+    public function testDecodedPayloadIsCachedBetweenUserAndGetPayload(bool $withRequest): void
     {
+        RequestContext::forget();
         $provider = m::mock(UserProvider::class);
         $provider->shouldReceive('retrieveById')->with(1)->andReturn(
             m::mock(Authenticatable::class)
@@ -1405,8 +1436,12 @@ class JwtGuardTest extends TestCase
         $guard = $this->createGuard(
             provider: $provider,
             jwtManager: $jwtManager,
-            request: $this->createRequestWithBearer('valid-token'),
+            request: $withRequest ? $this->createRequestWithBearer('valid-token') : null,
         );
+
+        if (! $withRequest) {
+            $guard->setToken('valid-token');
+        }
 
         // First call — decodes the token
         $user = $guard->user();

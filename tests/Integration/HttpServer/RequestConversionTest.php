@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\HttpServer;
 
 use Hypervel\Engine\Http\Client as EngineClient;
+use Hypervel\Filesystem\Filesystem;
+use Hypervel\Testing\ParallelTesting;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 use function Hypervel\Coroutine\parallel;
 
@@ -48,9 +51,10 @@ class RequestConversionTest extends HttpServerIntegrationTestCase
         $this->assertSame('form', $form['header']);
     }
 
-    public function testMultipartFieldsAndFilesAreConverted(): void
+    #[DataProvider('multipartMethods')]
+    public function testMultipartFieldsAndFilesAreConverted(string $method): void
     {
-        $response = $this->request('POST', '/inspect', [
+        $response = $this->request($method, '/inspect', [
             'multipart' => [
                 [
                     'name' => 'description',
@@ -66,11 +70,122 @@ class RequestConversionTest extends HttpServerIntegrationTestCase
         ]);
         $payload = $this->decode($response);
 
+        $this->assertSame($method, $payload['method']);
         $this->assertSame(['description' => 'integration upload'], $payload['request']);
         $this->assertSame('report.txt', $payload['file']['name']);
         $this->assertSame('report.txt', $payload['file']['path']);
         $this->assertSame('text/plain', $payload['file']['type']);
         $this->assertSame('uploaded contents', $payload['file']['contents']);
+    }
+
+    /**
+     * Provide HTTP methods that support multipart request bodies.
+     */
+    public static function multipartMethods(): array
+    {
+        return [
+            'POST' => ['POST'],
+            'PUT' => ['PUT'],
+            'PATCH' => ['PATCH'],
+            'DELETE' => ['DELETE'],
+        ];
+    }
+
+    public function testQueryRequestsAreParsedByTheHttpServer(): void
+    {
+        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
+            $this->markTestSkipped('Requires HTTP/1 QUERY support from https://github.com/swoole/swoole-src/pull/6256.');
+        }
+
+        $client = new EngineClient($this->getServerHost(), $this->getServerPort());
+        $body = 'term=runtime&page=2';
+
+        try {
+            $response = $client->request(
+                'QUERY',
+                '/query?source=hypervel',
+                ['Content-Type' => 'application/x-www-form-urlencoded'],
+                $body,
+            );
+        } finally {
+            $client->close();
+        }
+        $this->assertSame(200, $response->statusCode);
+        $payload = json_decode($response->body, true, flags: JSON_THROW_ON_ERROR);
+
+        $this->assertSame('QUERY', $payload['method']);
+        $this->assertSame(['source' => 'hypervel'], $payload['query']);
+        $this->assertSame(['term' => 'runtime', 'page' => '2'], $payload['request']);
+        $this->assertSame($body, $payload['content']);
+    }
+
+    public function testLargeUploadsRejectClientProvidedInternalMarkers(): void
+    {
+        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
+            $this->markTestSkipped('Requires https://github.com/swoole/swoole-src/pull/6161');
+        }
+
+        $directory = ParallelTesting::tempDir('large-upload-marker');
+        $filesystem = new Filesystem;
+        $filesystem->ensureDirectoryExists($directory);
+        $probe = $directory . '/probe.txt';
+        $filesystem->put($probe, 'probe');
+        $contents = str_repeat('x', 80 * 1024);
+
+        try {
+            $valid = $this->decode($this->request('POST', '/inspect', [
+                'multipart' => [[
+                    'name' => 'upload',
+                    'contents' => $contents,
+                    'filename' => 'large.txt',
+                    'headers' => ['Content-Type' => 'text/plain'],
+                ]],
+            ]));
+
+            $this->assertSame($contents, $valid['file']['contents']);
+
+            $boundary = '------------------------hypervel-upload';
+            $body = implode("\r\n", [
+                '--' . $boundary,
+                'Content-Disposition: form-data; name="upload"; filename="large.txt"',
+                'Content-Type: text/plain',
+                'Swoole-Upload-File: ' . $probe,
+                '',
+                $contents,
+                '--' . $boundary . '--',
+                '',
+            ]);
+            $request = implode("\r\n", [
+                'POST /inspect HTTP/1.1',
+                'Host: ' . $this->getServerHost(),
+                'Connection: close',
+                'Content-Type: multipart/form-data; boundary=' . $boundary,
+                'Content-Length: ' . strlen($body),
+                '',
+                $body,
+            ]);
+            $socket = stream_socket_client(sprintf(
+                'tcp://%s:%d',
+                $this->getServerHost(),
+                $this->getServerPort(),
+            ));
+            $this->assertIsResource($socket);
+            stream_set_timeout($socket, 2);
+
+            try {
+                $this->assertSame(strlen($request), fwrite($socket, $request));
+                $response = stream_get_contents($socket);
+                $this->assertIsString($response);
+            } finally {
+                fclose($socket);
+            }
+
+            $this->assertStringContainsString('400 Bad Request', $response);
+            $this->assertFileExists($probe);
+            $this->assertSame('probe', $filesystem->get($probe));
+        } finally {
+            $filesystem->deleteDirectory($directory);
+        }
     }
 
     public function testConcurrentRequestsKeepTheirOwnRequestContext(): void

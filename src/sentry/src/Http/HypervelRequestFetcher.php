@@ -4,73 +4,185 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry\Http;
 
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\RequestContext;
-use Hypervel\Support\Str;
-use Nyholm\Psr7\Factory\Psr17Factory;
+use Hypervel\Http\Request;
+use InvalidArgumentException;
+use Nyholm\Psr7\ServerRequest;
+use Nyholm\Psr7\UploadedFile;
 use Psr\Http\Message\ServerRequestInterface;
+use Sentry\DataCollection\DataCollectionPolicy;
+use Sentry\DataCollection\HttpMessageType;
 use Sentry\Integration\RequestFetcherInterface;
-use Symfony\Bridge\PsrHttpMessage\Factory\PsrHttpFactory;
+use Sentry\SentrySdk;
+use Symfony\Component\HttpFoundation\File\UploadedFile as SymfonyUploadedFile;
 
 class HypervelRequestFetcher implements RequestFetcherInterface
 {
     /**
-     * Cached PSR-7 factory for converting Symfony requests.
+     * The context key of the request a child coroutine inherits for Sentry only.
      *
-     * Stateless and safe for worker-lifetime caching — all properties are readonly.
+     * Child coroutines keep a reference to the request that started them under this key,
+     * leaving the application's request context as the framework set it.
      */
-    private static ?PsrHttpFactory $psrHttpFactory = null;
+    public const string REQUEST_CONTEXT_KEY = '__sentry.request';
+
+    /**
+     * Get the current request, or the request the current coroutine inherited for Sentry.
+     *
+     * @internal
+     */
+    public static function currentRequest(): ?Request
+    {
+        return RequestContext::getOrNull() ?? CoroutineContext::get(self::REQUEST_CONTEXT_KEY);
+    }
 
     /**
      * Fetch the current request as a PSR-7 server request for Sentry.
      */
     public function fetchRequest(): ?ServerRequestInterface
     {
-        if (! RequestContext::has()) {
+        $request = self::currentRequest();
+
+        // Without a request we are not dealing with an HTTP request
+        if ($request === null) {
             return null;
         }
 
-        $httpFoundationRequest = RequestContext::get();
+        $policy = DataCollectionPolicy::fromHub(SentrySdk::getCurrentHub());
+        $canCollectLegacyBody = $this->canCollectLegacyBody($request, $policy);
+        $bodyLimit = $policy->getHttpBodyLimit(HttpMessageType::incomingRequest());
+        $length = $request->headers->get('Content-Length');
+        $canCollectBody = $canCollectLegacyBody
+            || ($bodyLimit !== null && (! is_numeric($length) || (int) $length <= $bodyLimit));
+        $body = $canCollectBody ? $request->getContent() : '';
 
-        $request = self::getPsrHttpFactory()->createRequest($httpFoundationRequest);
+        // Converted only when an event needs it, instead of caching a PSR-7 copy of every
+        // request in the worker-shared container as upstream's SetRequestMiddleware does.
+        // Symfony's PSR-7 bridge is not used because it decodes every JSON body, which
+        // Sentry only reads for legacy error events with bodies within the size limit.
+        try {
+            // Set valid headers together instead of cloning the request for each header.
+            $serverRequest = $this->createServerRequest($request, $request->headers->all(), $body);
+        } catch (InvalidArgumentException) {
+            $serverRequest = $this->createServerRequest($request, [], $body);
 
-        return $request->withCookieParams(
-            $this->filterCookies($request->getCookieParams())
+            foreach ($request->headers->all() as $name => $values) {
+                try {
+                    $serverRequest = $serverRequest->withHeader((string) $name, $values);
+                } catch (InvalidArgumentException) {
+                    // Skip the headers PSR-7 rejects, such as null values, so they cannot drop the event
+                }
+            }
+        }
+
+        $cookies = [];
+
+        foreach ($request->cookies->all() as $name => $value) {
+            $cookies[$name] = SensitiveCookieFilter::filterValue($name, $value);
+        }
+
+        // Only the legacy body collector reads uploaded files
+        if ($canCollectLegacyBody) {
+            $serverRequest = $serverRequest->withUploadedFiles($this->convertUploadedFiles($request->files->all()));
+        }
+
+        return $serverRequest
+            ->withCookieParams($cookies)
+            ->withParsedBody($this->parsedBody($request, $canCollectLegacyBody, $body));
+    }
+
+    /**
+     * Create the PSR-7 request with the given headers.
+     */
+    private function createServerRequest(Request $request, array $headers, string $body): ServerRequest
+    {
+        $queryString = $request->server->getString('QUERY_STRING');
+
+        // The URI uses the query string as it was received
+        return new ServerRequest(
+            $request->getMethod(),
+            $request->getSchemeAndHttpHost() . $request->getBaseUrl() . $request->getPathInfo() . ($queryString !== '' ? '?' . $queryString : ''),
+            $headers,
+            $body,
+            serverParams: $request->server->all(),
         );
     }
 
     /**
-     * Filter sensitive cookies before sending to Sentry.
+     * Determine if the legacy body collector can read the request body.
+     *
+     * It only reads bodies with a known length within its limit, and it is the only reader of
+     * uploaded files and of the parsed bodies of requests that are not forms.
      */
-    protected function filterCookies(array $cookies): array
+    private function canCollectLegacyBody(Request $request, DataCollectionPolicy $policy): bool
     {
-        $forbiddenCookies = [config()->string('session.cookie'), 'remember_*', 'XSRF-TOKEN'];
+        $limit = $policy->getLegacyRequestBodyLimit();
+        $length = (int) $request->headers->get('Content-Length');
 
-        $filtered = [];
-        foreach ($cookies as $key => $value) {
-            $filtered[$key] = Str::is($forbiddenCookies, $key) ? '[Filtered]' : $value;
-        }
-
-        return $filtered;
+        return $limit !== null && $length > 0 && ($limit === -1 || $length <= $limit);
     }
 
     /**
-     * Get or create the PSR-7 factory.
+     * Get the parsed body of the given request.
+     *
+     * Only form requests use their parsed body with data collection, so all other bodies are read
+     * raw. An empty parsed body would also hide the raw body from the legacy body collector.
      */
-    private static function getPsrHttpFactory(): PsrHttpFactory
+    private function parsedBody(Request $request, bool $canCollectLegacyBody, string $content): ?array
     {
-        if (self::$psrHttpFactory === null) {
-            $psr17Factory = new Psr17Factory;
-            self::$psrHttpFactory = new PsrHttpFactory($psr17Factory, $psr17Factory, $psr17Factory, $psr17Factory);
+        if ($this->isFormRequest($request)) {
+            return $request->request->all();
         }
 
-        return self::$psrHttpFactory;
+        if (! $canCollectLegacyBody) {
+            return null;
+        }
+
+        $body = $request->getContentTypeFormat() === 'json'
+            ? json_decode($content, true, flags: JSON_BIGINT_AS_STRING)
+            : $request->request->all();
+
+        return is_array($body) && $body !== [] ? $body : null;
     }
 
     /**
-     * Flush all static state.
+     * Determine if the request body is a form.
      */
-    public static function flushState(): void
+    private function isFormRequest(Request $request): bool
     {
-        self::$psrHttpFactory = null;
+        $mediaType = strtolower(trim(explode(';', (string) $request->headers->get('Content-Type'), 2)[0]));
+
+        return $mediaType === 'application/x-www-form-urlencoded' || $mediaType === 'multipart/form-data';
+    }
+
+    /**
+     * Convert the given uploaded files to PSR-7 uploaded files.
+     *
+     * Sentry only reads their metadata, so the files are not opened.
+     *
+     * @param array<array-key, mixed> $files
+     * @return array<array-key, mixed>
+     */
+    private function convertUploadedFiles(array $files): array
+    {
+        $uploadedFiles = [];
+
+        foreach ($files as $key => $file) {
+            $uploadedFiles[$key] = match (true) {
+                $file === null => new UploadedFile('', 0, UPLOAD_ERR_NO_FILE),
+                $file instanceof SymfonyUploadedFile => new UploadedFile(
+                    $file->getPathname(),
+                    // An upload the application moved no longer exists at its temporary path
+                    $file->isFile() ? (int) $file->getSize() : 0,
+                    $file->getError(),
+                    $file->getClientOriginalName(),
+                    $file->getClientMimeType(),
+                ),
+                default => $this->convertUploadedFiles($file),
+            };
+        }
+
+        return $uploadedFiles;
     }
 }
