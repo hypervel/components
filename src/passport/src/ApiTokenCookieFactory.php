@@ -37,7 +37,7 @@ class ApiTokenCookieFactory
         return new Cookie(
             Passport::cookie(),
             $this->createToken($userId, $csrfToken, $expiration, $this->auth->getUserProviderName($guard)),
-            $expiration,
+            $this->config->boolean('session.expire_on_close') ? 0 : $expiration,
             $config['path'],
             $config['domain'],
             $config['secure'],

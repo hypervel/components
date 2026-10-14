@@ -24,10 +24,11 @@ use Symfony\Component\HttpFoundation\Cookie;
 class ApiTokenCookieFactoryTest extends TestCase
 {
     #[DataProvider('ciphers')]
-    public function testCookieCanBeSuccessfullyCreated(string $cipher, int $keyLength): void
+    public function testCookieCanBeSuccessfullyCreated(string $cipher, int $keyLength, bool $expireOnClose): void
     {
         $config = new Repository(['session' => [
             'lifetime' => 120,
+            'expire_on_close' => $expireOnClose,
             'path' => '/',
             'domain' => null,
             'secure' => true,
@@ -48,7 +49,7 @@ class ApiTokenCookieFactoryTest extends TestCase
         $this->assertSame('token', $claims->csrf);
         $this->assertSame('users', $claims->provider);
         $this->assertEqualsWithDelta(time() + 7200, $claims->exp, 2);
-        $this->assertSame($claims->exp, $cookie->getExpiresTime());
+        $this->assertSame($expireOnClose ? 0 : $claims->exp, $cookie->getExpiresTime());
         $this->assertFalse(property_exists($claims, 'bind'));
     }
 
@@ -57,7 +58,7 @@ class ApiTokenCookieFactoryTest extends TestCase
      */
     public static function ciphers(): array
     {
-        return [['aes-256-cbc', 32], ['aes-128-cbc', 16]];
+        return [['aes-256-cbc', 32, false], ['aes-128-cbc', 16, false], ['aes-256-cbc', 32, true]];
     }
 
     public function testCookieCanBeSuccessfullyCreatedWhenUsingACustomEncryptionKey(): void
@@ -68,6 +69,7 @@ class ApiTokenCookieFactoryTest extends TestCase
 
         $config = new Repository(['session' => [
             'lifetime' => 120,
+            'expire_on_close' => false,
             'path' => '/',
             'domain' => null,
             'secure' => true,
