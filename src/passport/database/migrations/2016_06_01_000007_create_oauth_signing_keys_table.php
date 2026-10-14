@@ -17,7 +17,7 @@ return new class extends Migration {
             $table->text('public_key');
             $table->text('private_key')->nullable();
             $table->dateTime('activates_at');
-            $table->unsignedInteger('max_token_lifetime')->default(0);
+            $table->unsignedBigInteger('max_token_lifetime')->default(0);
             $table->dateTime('retain_until')->nullable();
             $table->dateTime('retires_at')->nullable();
             $table->timestamps();

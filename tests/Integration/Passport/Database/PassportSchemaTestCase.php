@@ -10,6 +10,7 @@ use Hypervel\Passport\Client;
 use Hypervel\Passport\ClientRepository;
 use Hypervel\Passport\Passport;
 use Hypervel\Passport\PassportServiceProvider;
+use Hypervel\Passport\SigningKey;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\TestCase;
@@ -101,5 +102,13 @@ abstract class PassportSchemaTestCase extends TestCase
         foreach (['oauth_access_tokens', 'oauth_auth_codes', 'oauth_refresh_tokens', 'oauth_device_codes'] as $table) {
             $this->assertTrue(Schema::hasIndex($table, ['expires_at']));
         }
+
+        $this->assertSame(match (DB::connection()->getDriverName()) {
+            'pgsql' => 'int8',
+            'mysql', 'mariadb' => 'bigint',
+            'sqlite' => 'integer',
+        }, Schema::getColumnType('oauth_signing_keys', 'max_token_lifetime'));
+        $key = SigningKey::factory()->create(['max_token_lifetime' => 5_000_000_000]);
+        $this->assertSame(5_000_000_000, $key->fresh()->max_token_lifetime);
     }
 }
