@@ -176,6 +176,8 @@ class TokenIssuance implements NonCopyableContext, Transient
 
     /**
      * Reject redemption whose durable security writes could be rolled back by its caller.
+     *
+     * Device polling timestamps and refresh-token replay revocations must survive OAuth error responses.
      */
     public static function ensureRedemptionAllowed(Connection $connection): void
     {
@@ -218,6 +220,7 @@ class TokenIssuance implements NonCopyableContext, Transient
         $grant = $this->grant ?? throw OAuthServerException::invalidGrant();
 
         if ($grant->newQuery()->whereKey($grant->getKey())->where('revoked', false)->update(['revoked' => true]) === 0) {
+            // End the failed issuance first so replay revocation commits independently of its rollback.
             $this->rollBack();
 
             if ($grant instanceof RefreshToken) {

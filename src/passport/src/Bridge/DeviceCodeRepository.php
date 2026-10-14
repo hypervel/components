@@ -52,6 +52,7 @@ class DeviceCodeRepository implements DeviceCodeRepositoryInterface
                 throw OAuthServerException::invalidRequest('user_code');
             }
         } elseif (! is_null($deviceCodeEntity->getLastPolledAt())) {
+            // League returns authorization_pending or slow_down after this write; rolling it back would erase the polling limit.
             Passport::deviceCode()->newQuery()->whereKey($deviceCodeEntity->getIdentifier())->update([
                 'last_polled_at' => $deviceCodeEntity->getLastPolledAt(),
             ]);
