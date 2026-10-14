@@ -246,7 +246,7 @@ class Bootstrapper
                 throw new RuntimeException("Unable to create runtime path [{$runtimePath}].");
             }
 
-            if (! static::copySkeleton($filesystem, $sourcePath, $runtimePath)) {
+            if (! static::copySkeleton($filesystem, $sourcePath, $runtimePath, join_paths($workingPath, 'vendor'))) {
                 throw new RuntimeException("Unable to create the Testbench runtime copy at [{$runtimePath}].");
             }
 
@@ -295,17 +295,26 @@ class Bootstrapper
     /**
      * Copy the skeleton into the runtime copy.
      *
-     * Testbench links the package's vendor directory into whichever skeleton a command
-     * runs on, so a configured skeleton carries that link while package tests copy it.
-     * The copy shares the dependencies instead of duplicating them; everything else is
-     * copied so the runtime stays isolated from the source.
+     * Preserve a configured skeleton's vendor link, or link the package's dependencies
+     * when the skeleton has none. Each worker can then discover installed packages
+     * without changing the shared skeleton or copying its dependencies.
      */
-    protected static function copySkeleton(Filesystem $filesystem, string $sourcePath, string $runtimePath): bool
+    protected static function copySkeleton(Filesystem $filesystem, string $sourcePath, string $runtimePath, string $workingVendorPath): bool
     {
         $vendorPath = join_paths($sourcePath, 'vendor');
 
         if (! is_symlink($vendorPath)) {
-            return $filesystem->copyDirectory($sourcePath, $runtimePath);
+            if (! $filesystem->copyDirectory($sourcePath, $runtimePath)) {
+                return false;
+            }
+
+            $target = join_paths($runtimePath, 'vendor');
+
+            if (! file_exists($target) && ! is_symlink($target) && is_dir($workingVendorPath)) {
+                return $filesystem->link($workingVendorPath, $target) !== false && is_symlink($target);
+            }
+
+            return true;
         }
 
         $vendorTarget = realpath($vendorPath);
