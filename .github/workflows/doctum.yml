@@ -56,7 +56,7 @@ jobs:
       - name: Install pnpm
         run: |
           corepack enable
-          corepack prepare pnpm@10.24.0 --activate
+          corepack prepare pnpm@12.10.1 --activate
           pnpm config set ignore-workspace-root-check true
           pnpm --version
 
