@@ -308,4 +308,25 @@ trait BedrockHelpers
             'messageStop' => ['stopReason' => $stopReason],
         ];
     }
+
+    /**
+     * Encode an AWS event with its headers and checksums.
+     */
+    protected function eventFrame(string $type, string $payload): string
+    {
+        $headers = '';
+
+        foreach ([
+            ':message-type' => 'event',
+            ':event-type' => $type,
+            ':content-type' => 'application/json',
+        ] as $name => $value) {
+            $headers .= chr(strlen($name)) . $name . chr(7) . pack('n', strlen($value)) . $value;
+        }
+
+        $prelude = pack('NN', 16 + strlen($headers) + strlen($payload), strlen($headers));
+        $frame = $prelude . hash('crc32b', $prelude, true) . $headers . $payload;
+
+        return $frame . hash('crc32b', $frame, true);
+    }
 }

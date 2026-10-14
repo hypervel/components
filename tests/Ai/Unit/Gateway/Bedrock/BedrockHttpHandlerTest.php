@@ -19,6 +19,7 @@ use Hypervel\Ai\AiManager;
 use Hypervel\Ai\Gateway\Bedrock\BedrockHttpHandler;
 use Hypervel\Http\Client\Factory;
 use Hypervel\Http\Client\Request as HttpRequest;
+use Hypervel\Tests\Ai\Fixtures\BedrockHelpers;
 use Hypervel\Tests\Http\Fixtures\LoopbackHttpServer;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -26,6 +27,8 @@ use Swoole\Coroutine\CanceledException;
 
 class BedrockHttpHandlerTest extends TestCase
 {
+    use BedrockHelpers;
+
     public function testSignedRequestAndAwsOptionsReachTheFrameworkClient(): void
     {
         $http = (new Factory)->registerConnection(AiManager::HTTP_CONNECTION);
@@ -59,21 +62,7 @@ class BedrockHttpHandlerTest extends TestCase
         // @TODO Remove this skip once the AWS SDK minimum includes the fix for https://github.com/aws/aws-sdk-php/issues/3371.
         $this->markTestSkipped('The AWS SDK rejects a valid event when its checksum is read in parts.');
 
-        $headers = '';
-
-        foreach ([
-            ':message-type' => 'event',
-            ':event-type' => 'messageStop',
-            ':content-type' => 'application/json',
-        ] as $name => $value) {
-            $headers .= chr(strlen($name)) . $name . chr(7) . pack('n', strlen($value)) . $value;
-        }
-
-        $payload = '{"stopReason":"end_turn"}';
-        $prelude = pack('NN', 16 + strlen($headers) + strlen($payload), strlen($headers));
-        $frame = $prelude . hash('crc32b', $prelude, true) . $headers . $payload;
-        $frame .= hash('crc32b', $frame, true);
-        $body = Utils::streamFor($frame);
+        $body = Utils::streamFor($this->eventFrame('messageStop', '{"stopReason":"end_turn"}'));
         // A network stream can return fewer bytes than requested, including inside the checksum.
         $stream = new NoSeekStream(FnStream::decorate($body, [
             'read' => static fn (int $length): string => $body->read(min(1, $length)),
@@ -90,6 +79,32 @@ class BedrockHttpHandlerTest extends TestCase
         ]);
 
         $this->assertSame([['messageStop' => ['stopReason' => 'end_turn']]], iterator_to_array($response['stream'], false));
+    }
+
+    public function testConverseStreamYieldsTheFinalUsageEventAtEof(): void
+    {
+        // @TODO Remove this skip once the AWS SDK minimum includes the fix for https://github.com/aws/aws-sdk-php/issues/3374.
+        $this->markTestSkipped('The AWS SDK discards the final event when reading it reaches EOF.');
+
+        $metadata = [
+            'usage' => ['inputTokens' => 7, 'outputTokens' => 5, 'totalTokens' => 12],
+            'metrics' => ['latencyMs' => 1],
+        ];
+        $server = LoopbackHttpServer::start([[
+            'headers' => ['Content-Type' => 'application/vnd.amazon.eventstream'],
+            'body' => $this->eventFrame('messageStop', '{"stopReason":"end_turn"}')
+                . $this->eventFrame('metadata', json_encode($metadata)),
+        ]]);
+        $http = (new Factory)->registerConnection(AiManager::HTTP_CONNECTION);
+        $response = $this->client($http, endpoint: 'http://127.0.0.1:' . $server->port)->converseStream([
+            'modelId' => 'test-model',
+            'messages' => [['role' => 'user', 'content' => [['text' => 'Hello']]]],
+        ]);
+
+        $this->assertSame([
+            ['messageStop' => ['stopReason' => 'end_turn']],
+            ['metadata' => $metadata],
+        ], iterator_to_array($response['stream'], false));
     }
 
     #[DataProvider('httpErrorOptions')]
@@ -243,7 +258,7 @@ class BedrockHttpHandlerTest extends TestCase
     /**
      * Create an SDK client using the framework transport.
      */
-    protected function client(Factory $http, int $retries = 0): BedrockRuntimeClient
+    protected function client(Factory $http, int $retries = 0, ?string $endpoint = null): BedrockRuntimeClient
     {
         return new BedrockRuntimeClient([
             'region' => 'us-east-1',
@@ -251,6 +266,7 @@ class BedrockHttpHandlerTest extends TestCase
             'credentials' => ['key' => 'test', 'secret' => 'test'],
             'retries' => $retries,
             'http_handler' => new BedrockHttpHandler($http),
+            'endpoint' => $endpoint,
         ]);
     }
 }
