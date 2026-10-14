@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Scout\Engines;
 
 use BackedEnum;
+use Hypervel\Ai\Embeddings;
 use Hypervel\Container\Container;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
@@ -1032,7 +1033,7 @@ class TypesenseEngine extends Engine implements DeletesByFilter, SupportsSemanti
     }
 
     /**
-     * Generate embeddings for the given inputs.
+     * Generate and validate embeddings using the optional Hypervel AI SDK.
      *
      * @param array<int, string> $inputs
      * @param array<string, mixed> $settings
@@ -1040,7 +1041,22 @@ class TypesenseEngine extends Engine implements DeletesByFilter, SupportsSemanti
      */
     protected function generateEmbeddings(array $inputs, array $settings): array
     {
-        throw new ScoutException('AI-generated embeddings are not available in Hypervel. Use native or precomputed embeddings instead.');
+        if (! class_exists(Embeddings::class)) {
+            throw new ScoutException('Semantic search requires the Hypervel AI SDK. Please install the [hypervel/ai] package.');
+        }
+
+        $response = Embeddings::for(array_values($inputs))
+            ->dimensions($settings['dimensions'])
+            ->cache()
+            ->generate($settings['provider'] ?? null, $settings['model'] ?? null);
+
+        $embeddings = $response->embeddings;
+
+        if (count($embeddings) !== count($inputs)) {
+            throw new ScoutException('Hypervel AI returned an unexpected number of embeddings.');
+        }
+
+        return $embeddings;
     }
 
     /**
