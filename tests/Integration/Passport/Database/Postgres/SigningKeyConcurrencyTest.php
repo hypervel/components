@@ -16,12 +16,14 @@ use Hypervel\Passport\SigningKeyRepository;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\Attributes\RequiresDatabase;
+use Hypervel\Testbench\Attributes\ResetRefreshDatabaseState;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 
 use function Hypervel\Coroutine\parallel;
 
 #[RequiresDatabase('pgsql')]
+#[ResetRefreshDatabaseState]
 class SigningKeyConcurrencyTest extends TestCase
 {
     use DatabaseTruncation;
