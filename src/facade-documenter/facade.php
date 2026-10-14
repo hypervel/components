@@ -325,6 +325,11 @@ function resolveCanonicalClassName(string $name): ?string
  */
 function resolveRelativeClassName($method, string $name): ?string
 {
+    // Bounds keep their declaration's imports, but relative types follow the consuming method.
+    if ($method instanceof ReflectionClassDocblockContext && $method->method !== null) {
+        $method = $method->method;
+    }
+
     return match (strtolower(ltrim($name, '\\'))) {
         'self' => $method->getDeclaringClass()->getName(),
         'static' => $method->sourceClass()->getName(),
@@ -778,6 +783,8 @@ function resolveDocblockUnionMembers($method, $typeNode, int $depth): array
  */
 function resolveTemplateType($method, string $name, int $depth): ?string
 {
+    static $resolving = [];
+
     $docblock = parseDocblock($method->getDocComment());
     $template = collect([
         ...$docblock->getTemplateTagValues('@phpstan-template'),
@@ -791,13 +798,28 @@ function resolveTemplateType($method, string $name, int $depth): ?string
     if ($template === null) {
         // Trait methods keep the trait's template declarations and imports.
         return $method instanceof ReflectionMethodDecorator
-            ? resolveTemplateType(new ReflectionClassDocblockContext(resolveImportSource($method)), $name, $depth)
+            ? resolveTemplateType(new ReflectionClassDocblockContext(resolveImportSource($method), $method), $name, $depth)
             : null;
     }
 
-    return $template->bound === null
-        ? 'mixed'
-        : resolveDocblockTypes($method, $template->bound, $depth) ?? 'mixed';
+    $scope = $method instanceof ReflectionMethodDecorator
+        ? $method->getDeclaringClass()->getName() . '::' . $method->getName()
+        : $method->getName();
+    $key = $scope . ':' . $name;
+
+    if (isset($resolving[$key])) {
+        return 'mixed';
+    }
+
+    $resolving[$key] = true;
+
+    try {
+        return $template->bound === null
+            ? 'mixed'
+            : resolveDocblockTypes($method, $template->bound, $depth) ?? 'mixed';
+    } finally {
+        unset($resolving[$key]);
+    }
 }
 
 /**
@@ -1819,8 +1841,10 @@ class ReflectionClassDocblockContext
     /**
      * Create a class docblock context.
      */
-    public function __construct(private ReflectionClass $class)
-    {
+    public function __construct(
+        private ReflectionClass $class,
+        public readonly ?ReflectionMethodDecorator $method = null,
+    ) {
     }
 
     /**
@@ -1868,7 +1892,7 @@ class ReflectionClassDocblockContext
      */
     public function sourceClass(): ReflectionClass
     {
-        return $this->class;
+        return $this->method?->sourceClass() ?? $this->class;
     }
 }
 
