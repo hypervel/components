@@ -89,9 +89,9 @@ class PersonalAccessGrantTest extends PassportTestCase
 
         config([
             'auth.providers.admins' => ['driver' => 'eloquent', 'model' => AdminProviderStub::class],
-            'auth.guards.passport-admins' => ['driver' => 'passport', 'provider' => 'admins'],
+            'auth.guards.api-admins' => ['driver' => 'passport', 'provider' => 'admins'],
             'auth.providers.customers' => ['driver' => 'eloquent', 'model' => CustomerProviderStub::class],
-            'auth.guards.passport-customers' => ['driver' => 'passport', 'provider' => 'customers'],
+            'auth.guards.api-customers' => ['driver' => 'passport', 'provider' => 'customers'],
         ]);
 
         $user = UserFactory::new()->create();

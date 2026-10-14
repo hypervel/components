@@ -24,7 +24,7 @@ use Hypervel\Support\Facades\Date;
 use League\OAuth2\Server\RequestTypes\AuthorizationRequestInterface;
 use League\OAuth2\Server\ResourceServer;
 use League\OAuth2\Server\ResponseTypes\ResponseTypeInterface;
-use Mockery as m;
+use Mockery;
 use Psr\Http\Message\ServerRequestInterface;
 
 class Passport
@@ -521,7 +521,7 @@ class Passport
      */
     public static function actingAsClient(Client $client, array $scopes = [], ?string $guard = self::DEFAULT_GUARD): Client
     {
-        $mock = m::mock(ResourceServer::class);
+        $mock = Mockery::mock(ResourceServer::class);
         $mock->shouldReceive('validateAuthenticatedRequest')->andReturnUsing(
             fn (ServerRequestInterface $request) => $request
                 ->withAttribute('oauth_client_id', (string) $client->getKey())

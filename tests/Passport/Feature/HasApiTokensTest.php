@@ -19,9 +19,9 @@ class HasApiTokensTest extends PassportTestCase
     {
         config([
             'auth.providers.admins' => ['driver' => 'eloquent', 'model' => AdminHasApiTokensStub::class],
-            'auth.guards.passport-admins' => ['driver' => 'passport', 'provider' => 'admins'],
+            'auth.guards.api-admins' => ['driver' => 'passport', 'provider' => 'admins'],
             'auth.providers.customers' => ['driver' => 'eloquent', 'model' => CustomerHasApiTokensStub::class],
-            'auth.guards.passport-customers' => ['driver' => 'passport', 'provider' => 'customers'],
+            'auth.guards.api-customers' => ['driver' => 'passport', 'provider' => 'customers'],
         ]);
 
         $this->assertSame('users', UserFactory::new()->create()->getProviderName());
