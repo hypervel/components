@@ -98,34 +98,15 @@ class ClientTest extends EngineIntegrationTestCase
     {
         $client = new Client($this->getServerHost(), $this->getServerPort());
         $response = $client->request('GET', '/header');
-        if (SWOOLE_VERSION_ID >= 60000) {
-            $this->assertSame($response->body, $response->headers['x-id'][1]);
-        } else {
-            // Co Client won't support getting multi response headers.
-            $this->assertSame($response->body, implode(',', $response->headers['x-id']));
-        }
+        $this->assertSame($response->body, $response->headers['x-id'][1]);
 
         $client = new GuzzleHttp\Client([
             'base_uri' => sprintf('http://%s:%d/', $this->getServerHost(), $this->getServerPort()),
         ]);
 
         $response = $client->get('/header');
-        if (SWOOLE_VERSION_ID >= 60000) {
-            $this->assertSame((string) $response->getBody(), $response->getHeader('x-id')[1]);
-        } else {
-            // Co Client Won't support to get multi response headers.
-            $this->assertSame((string) $response->getBody(), $response->getHeaderLine('x-id'));
-        }
-
-        // When Swoole version > 4.5, The native curl support to get multi response headers.
-        if (SWOOLE_VERSION_ID >= 40600) {
-            $client = new GuzzleHttp\Client([
-                'base_uri' => sprintf('http://%s:%d/', $this->getServerHost(), $this->getServerPort()),
-            ]);
-            $response = $client->get('/header');
-            $this->assertSame(2, count($response->getHeader('x-id')));
-            $this->assertSame((string) $response->getBody(), $response->getHeader('x-id')[1]);
-        }
+        $this->assertCount(2, $response->getHeader('x-id'));
+        $this->assertSame((string) $response->getBody(), $response->getHeader('x-id')[1]);
     }
 
     public function testClientNotFound(): void
