@@ -299,6 +299,7 @@ class TokenGuardTest extends TestCase
         $this->assertEquals($expectedUser, $user);
     }
 
+    // REMOVED: Cookie client lookup; factory cookies carry no aud claim and have no OAuth client.
     public function testCookiesHaveNoOauthClient(): void
     {
         $userProvider = m::mock(PassportUserProvider::class);
