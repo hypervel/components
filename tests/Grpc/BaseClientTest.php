@@ -107,8 +107,9 @@ class BaseClientTest extends TestCase
         $this->assertSame('first,second', $headers['x-default']);
         $this->assertSame('value', $headers['x-call']);
         $this->assertMatchesRegularExpression('/^[0-9]{1,8}[HMSmun]$/', $headers['grpc-timeout']);
-        $this->assertMatchesRegularExpression(
-            '#^grpc-php-hypervel/.+ \(PHP/[0-9.]+; Swoole/[0-9.]+\)$#',
+        $this->assertStringStartsWith('grpc-php-hypervel/', $headers['user-agent']);
+        $this->assertStringEndsWith(
+            ' (PHP/' . PHP_VERSION . '; Swoole/' . SWOOLE_VERSION . ')',
             $headers['user-agent'],
         );
 

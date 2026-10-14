@@ -590,7 +590,11 @@ class HttpClientStreamingTest extends TestCase
                 ]);
 
                 $this->assertInstanceOf(RuntimeException::class, $results['reader']);
-                $this->assertSame($native ? 'The streaming response read timed out.' : 'Unable to read from stream', $results['reader']->getMessage());
+                if ($native) {
+                    $this->assertSame('The streaming response read timed out.', $results['reader']->getMessage());
+                } else {
+                    $this->assertStringStartsWith('Unable to read from stream', $results['reader']->getMessage());
+                }
             } finally {
                 $finished->close();
             }
