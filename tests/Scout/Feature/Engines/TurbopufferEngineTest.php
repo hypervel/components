@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Scout\Feature\Engines;
 
 use GuzzleHttp\Promise\PromiseInterface;
+use Hypervel\Ai\AiServiceProvider;
+use Hypervel\Ai\Embeddings;
+use Hypervel\Ai\Prompts\EmbeddingsPrompt;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Telescope\TelescopeTag;
 use Hypervel\Database\Eloquent\Model;
@@ -42,6 +45,7 @@ class TurbopufferEngineTest extends TestCase
     {
         return [
             ScoutServiceProvider::class,
+            AiServiceProvider::class,
         ];
     }
 
@@ -52,6 +56,7 @@ class TurbopufferEngineTest extends TestCase
     {
         $config = $app->make('config');
 
+        $config->set('ai.caching.embeddings.store', 'array');
         $config->set('scout.driver', 'turbopuffer');
         $config->set('scout.prefix', '');
         $config->set('scout.soft_delete', true);
@@ -146,21 +151,75 @@ class TurbopufferEngineTest extends TestCase
             && $request['schema']['account_id'] === ['type' => 'uint', 'filterable' => true]);
     }
 
-    public function testSemanticSearchReportsThatGeneratedEmbeddingsAreUnavailable(): void
+    public function testSemanticSearchRequiresTheAiSdk(): void
     {
+        if (class_exists(Embeddings::class)) {
+            $this->markTestSkipped('The Hypervel AI SDK is installed.');
+        }
+
         $this->configureEmbeddings();
         Http::preventStrayRequests();
 
         $this->expectException(ScoutException::class);
-        $this->expectExceptionMessageIsOrContains('AI-generated embeddings are not available in Hypervel.');
+        $this->expectExceptionMessageIsOrContains('install the [hypervel/ai] package');
 
         $this->engine()->search(
             (new Builder(new SearchableModelWithPrecomputedEmbedding, 'conceptual query'))->semantic()
         );
     }
 
+    public function testUpdateGeneratesAndUpsertsEmbeddingsInBatches(): void
+    {
+        $this->configureEmbeddings(['provider' => 'openai', 'model' => 'text-embedding-test']);
+        Embeddings::fake([
+            array_fill(0, 100, [0.1, 0.2]),
+            [[0.3, 0.4]],
+        ])->preventStrayEmbeddings();
+        Http::fake(['*' => Http::response(['rows_affected' => 101])]);
+
+        $models = (new SearchableModelWithPrecomputedEmbedding)->newCollection(array_map(
+            fn (int $id): SearchableModelWithPrecomputedEmbedding => new SearchableModelWithPrecomputedEmbedding(['id' => $id, 'name' => "Document {$id}"]),
+            range(1, 101),
+        ));
+
+        $this->engine()->update($models);
+
+        Embeddings::assertGenerated(fn (EmbeddingsPrompt $prompt): bool => count($prompt->inputs) === 100
+            && $prompt->dimensions === 2
+            && $prompt->provider->name() === 'openai'
+            && $prompt->model === 'text-embedding-test');
+        Embeddings::assertGenerated(fn (EmbeddingsPrompt $prompt): bool => $prompt->inputs === ['Document 101']);
+
+        Http::assertSent(fn (Request $request): bool => count($request['upsert_rows']) === 101
+            && $request['upsert_rows'][0]['embedding'] === [0.1, 0.2]
+            && $request['upsert_rows'][100]['embedding'] === [0.3, 0.4]
+            && $request['schema']['embedding'] === ['type' => '[2]f32', 'ann' => true]
+            && $request['distance_metric'] === 'cosine_distance');
+    }
+
+    public function testUpdateAcceptsPrecomputedEmbeddingsAndOnlyGeneratesMissingVectors(): void
+    {
+        $this->configureEmbeddings();
+        Embeddings::fake([[[0.3, 0.4]]])->preventStrayEmbeddings();
+        Http::fake(['*' => Http::response(['rows_affected' => 2])]);
+
+        $precomputed = new SearchableModelWithPrecomputedEmbedding(['id' => 10, 'name' => 'Precomputed']);
+        $precomputed->setAttribute('embedding', [0.1, 0.2]);
+        $generated = new SearchableModelWithPrecomputedEmbedding(['id' => 20, 'name' => 'Generate this']);
+
+        $this->engine()->update($precomputed->newCollection([$precomputed, $generated]));
+
+        Embeddings::assertGenerated(fn (EmbeddingsPrompt $prompt): bool => $prompt->inputs === ['Generate this']);
+        Http::assertSent(fn (Request $request): bool => $request['upsert_rows'] === [
+            ['id' => 10, 'name' => 'Precomputed', 'embedding' => [0.1, 0.2]],
+            ['id' => 20, 'name' => 'Generate this', 'embedding' => [0.3, 0.4]],
+        ]);
+    }
+
     public function testUpdateUpsertsPrecomputedEmbeddingsBeforePreparingRows(): void
     {
+        Embeddings::fake()->preventStrayEmbeddings();
+
         $this->configureEmbeddings(['attribute' => 'vector']);
         Http::fake(['*' => Http::response(['rows_affected' => 2])]);
 
@@ -407,6 +466,28 @@ class TurbopufferEngineTest extends TestCase
             && $request['consistency'] === ['level' => 'eventual']);
     }
 
+    public function testSemanticSearchGeneratesAQueryEmbedding(): void
+    {
+        $this->configureEmbeddings();
+        Embeddings::fake([[[0.25, 0.75]]])->preventStrayEmbeddings();
+        Http::fake(['*' => Http::response(['rows' => [['id' => 10, '$dist' => 0.1]]])]);
+
+        $builder = (new Builder(new SearchableModelWithPrecomputedEmbedding, 'conceptual query'))
+            ->semantic(minSimilarity: 0.9)
+            ->where('status', 'published')
+            ->take(10);
+
+        $results = $this->engine()->search($builder);
+
+        $this->assertSame($results, $this->engine()->search($builder));
+        $this->assertSame(10, $results['rows'][0]['id']);
+        Embeddings::assertGenerated(fn (EmbeddingsPrompt $prompt): bool => $prompt->inputs === ['conceptual query']
+            && $prompt->dimensions === 2);
+        Http::assertSent(fn (Request $request): bool => $request['rank_by'] === ['embedding', 'ANN', [0.25, 0.75]]
+            && $request['filters'] === ['status', 'Eq', 'published']
+            && $request['limit'] === 10);
+    }
+
     public function testSemanticSearchCanUseTurbopufferNativeQueryEmbeddings(): void
     {
         $this->configureNativeEmbeddings();
@@ -486,7 +567,8 @@ class TurbopufferEngineTest extends TestCase
 
     public function testHybridSearchUsesWeightedRrfAndNormalizesResults(): void
     {
-        $this->configureNativeEmbeddings();
+        $this->configureEmbeddings();
+        Embeddings::fake([[[0.4, 0.6]]])->preventStrayEmbeddings();
         Http::fake(['*' => Http::response([
             'results' => [[
                 'rows' => [
@@ -497,7 +579,7 @@ class TurbopufferEngineTest extends TestCase
             ]],
         ])]);
 
-        $builder = (new Builder(new SearchableModelWithNativeEmbedding, 'combined query'))
+        $builder = (new Builder(new SearchableModelWithPrecomputedEmbedding, 'combined query'))
             ->hybrid(textWeight: 1, semanticWeight: 2)
             ->where('status', 'published')
             ->options([
@@ -520,7 +602,7 @@ class TurbopufferEngineTest extends TestCase
                     ['Product', 3, ['name', 'BM25', 'combined query']],
                     ['description', 'BM25', 'combined query'],
                 ]]
-                && $queries[1]['rank_by'] === ['name', 'ANN', ['Embed', 'combined query']]
+                && $queries[1]['rank_by'] === ['embedding', 'ANN', [0.4, 0.6]]
                 && $queries[0]['filters'] === ['status', 'Eq', 'published']
                 && $queries[1]['filters'] === ['status', 'Eq', 'published']
                 && $queries[0]['include_attributes'] === ['name', 'id']
@@ -597,6 +679,32 @@ class TurbopufferEngineTest extends TestCase
 
         Http::assertSent(fn (Request $request): bool => isset($request['aggregate_by'])
             && $request['filters'] === ['status', 'Eq', 'published']);
+    }
+
+    public function testSemanticPaginationOnlyGeneratesTheQueryEmbeddingOnce(): void
+    {
+        config(['ai.caching.embeddings.store' => 'null']);
+        $this->configureEmbeddings();
+        $calls = 0;
+        Embeddings::fake(function (EmbeddingsPrompt $prompt) use (&$calls): array {
+            ++$calls;
+            $this->assertSame(['semantic query'], $prompt->inputs);
+
+            return [[0.2, 0.8]];
+        });
+        Http::fake(fn (Request $request): PromiseInterface => isset($request['aggregate_by'])
+            ? Http::response(['aggregations' => ['count' => 2]])
+            : Http::response(['rows' => [['id' => 1], ['id' => 2]]]));
+
+        $results = $this->engine()->paginate(
+            (new Builder(new SearchableModelWithPrecomputedEmbedding, 'semantic query'))->semantic(),
+            1,
+            2,
+        );
+
+        $this->assertSame([2], array_column($results['rows'], 'id'));
+        $this->assertSame(2, $results['total']);
+        $this->assertSame(1, $calls);
     }
 
     public function testPaginationRejectsWindowsAboveTurbopufferLimit(): void
@@ -708,7 +816,7 @@ class TurbopufferEngineTest extends TestCase
     }
 
     /**
-     * Configure precomputed embeddings for the searchable model fixture.
+     * Configure embeddings for the searchable model fixture.
      *
      * @param array<string, mixed> $overrides
      */
