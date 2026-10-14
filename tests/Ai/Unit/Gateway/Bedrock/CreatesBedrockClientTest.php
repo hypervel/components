@@ -18,7 +18,9 @@ use Hypervel\Events\Dispatcher;
 use Hypervel\Http\Client\Request;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Testbench\Attributes\WithEnv;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Ai\TestCase;
+use Hypervel\Tests\Http\Fixtures\LoopbackHttpServer;
 use Swoole\Coroutine\CanceledException;
 
 use function Hypervel\Coroutine\parallel;
@@ -363,6 +365,61 @@ class CreatesBedrockClientTest extends TestCase
 
         $this->assertSame('environment-key', $first->getAccessKeyId());
         $this->assertSame($first, $second);
+    }
+
+    public function testDefaultChainSharesMetadataCredentialsAndRefreshesBeforeExpiry(): void
+    {
+        $credentials = [
+            'AccessKeyId' => 'metadata-first',
+            'SecretAccessKey' => 'metadata-secret',
+            'Token' => 'metadata-token',
+            'Expiration' => (new DateTimeImmutable('+30 seconds'))->format(DATE_ATOM),
+        ];
+        $server = LoopbackHttpServer::start([
+            ['body' => json_encode($credentials)],
+            // AWS refreshes credentials already inside its refresh window; metadata has not rotated yet.
+            ['body' => json_encode($credentials)],
+            ['body' => json_encode([
+                ...$credentials,
+                'AccessKeyId' => 'metadata-refreshed',
+                'Expiration' => (new DateTimeImmutable('+1 hour'))->format(DATE_ATOM),
+            ])],
+        ]);
+        $directory = ParallelTesting::tempDir('CreatesBedrockClientTest');
+
+        $this->withEnvironmentValues([
+            'AWS_ACCESS_KEY_ID' => null,
+            'AWS_SECRET_ACCESS_KEY' => null,
+            'AWS_SESSION_TOKEN' => null,
+            'AWS_PROFILE' => null,
+            'AWS_CONFIG_FILE' => $directory . '/config',
+            'AWS_SHARED_CREDENTIALS_FILE' => $directory . '/credentials',
+            'AWS_WEB_IDENTITY_TOKEN_FILE' => null,
+            'AWS_ROLE_ARN' => null,
+            'AWS_CONTAINER_CREDENTIALS_RELATIVE_URI' => null,
+            'AWS_CONTAINER_CREDENTIALS_FULL_URI' => 'http://127.0.0.1:' . $server->port . '/credentials',
+            'AWS_CONTAINER_AUTHORIZATION_TOKEN' => null,
+            'AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE' => null,
+        ], function () use ($server): void {
+            $provider = new BedrockProvider(['name' => 'bedrock', 'region' => 'us-west-2'], new Dispatcher);
+            $first = bedrockClientTrait()->create($provider);
+            $second = bedrockClientTrait()->create($provider->withHeaders(['X-Trace' => 'second']));
+            [$firstCredentials, $secondCredentials] = parallel([
+                fn (): CredentialsInterface => $first->getCredentials()->wait(),
+                fn (): CredentialsInterface => $second->getCredentials()->wait(),
+            ]);
+
+            $this->assertSame('metadata-first', $firstCredentials->getAccessKeyId());
+            $this->assertSame($firstCredentials, $secondCredentials);
+
+            $refreshed = $second->getCredentials()->wait();
+
+            $this->assertSame('metadata-refreshed', $refreshed->getAccessKeyId());
+            $this->assertSame($refreshed, $first->getCredentials()->wait());
+            $this->assertStringContainsString('GET /credentials HTTP/1.1', $server->request());
+            $this->assertStringContainsString('GET /credentials HTTP/1.1', $server->request());
+            $this->assertStringContainsString('GET /credentials HTTP/1.1', $server->request());
+        });
     }
 
     public function testAssumeRoleCredentialsAreOwnedByEachProvider(): void
