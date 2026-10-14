@@ -77,6 +77,8 @@ php artisan install:api --passport
 
 This command will publish and run the database migrations necessary for creating the tables your application needs to store OAuth2 clients and access tokens. The command will also create the encryption keys required to generate secure access tokens.
 
+To publish the installation files without running migrations or creating a personal access client, pass `--without-migration-prompt`. This option is also available on `passport:install`. When using the database key store, run `passport:keys` after migrating.
+
 After running the `install:api` command, add the `Hypervel\Passport\HasApiTokens` trait and `Hypervel\Passport\Contracts\OAuthenticatable` interface to your `App\Models\User` model. This trait provides helper methods to inspect the authenticated user's token and scopes:
 
 ```php
@@ -223,7 +225,7 @@ You may also manage keys manually:
 php artisan passport:keys:list
 php artisan passport:keys:rotate --length=2048
 php artisan passport:keys:rotate --due
-php artisan passport:keys:revoke <kid>
+php artisan passport:keys:revoke your-key-id
 ```
 
 Revocation is immediate in storage. If the revoked key was signing, Passport creates an immediately active replacement. Tokens signed by the revoked key stop working as workers refresh their keys; during that refresh interval, a token signed by the replacement may fail on another worker. Use this command for emergency revocation and use ordinary rotation for planned changes.
@@ -679,7 +681,7 @@ When tokens have been revoked or expired, you might want to purge them from the 
 php artisan passport:purge
 
 # Only purge tokens expired for more than 6 hours...
-php artisan passport:purge --hours=6
+php artisan passport:purge --expired --hours=6
 
 # Only purge revoked tokens, auth codes, and device codes...
 php artisan passport:purge --revoked
@@ -1001,6 +1003,8 @@ php artisan passport:client --personal
 ### Customizing the User Provider
 
 If your application uses more than one [authentication user provider](/docs/{{version}}/authentication#introduction), you may specify which user provider the personal access grant client uses by providing a `--provider` option when creating the client via the `artisan passport:client --personal` command. The given provider name should match a valid provider defined in your application's `config/auth.php` configuration file. Personal access clients without an explicit provider use the `passport` guard's provider. You can then [protect your route using middleware](#multiple-authentication-guards) to ensure that only users from the guard's specified provider are authorized.
+
+The `HasApiTokens` trait selects the first configured Eloquent provider matching the model and used by a Passport guard. If several providers use the same model, override the model's `getProviderName(): string` method to select the intended provider when creating or listing tokens.
 
 <a name="managing-personal-access-tokens"></a>
 ### Managing Personal Access Tokens
@@ -1405,16 +1409,23 @@ Passport provides callbacks for applications that need additional ownership or a
 `authenticateAccessTokensUsing` receives the stored token and its normal validity result. Returning false rejects it on both guard and token-middleware paths. Returning true cannot make a revoked token valid. The callback runs even when the token was loaded from the cache:
 
 ```php
+use App\Services\CurrentOrganization;
 use Hypervel\Passport\Passport;
 use Hypervel\Passport\Token;
 
-Passport::authenticateAccessTokensUsing(
-    fn (Token $token, bool $isValid): bool => $isValid
-        && $token->organization_id === $organizations->currentId()
-);
+/**
+ * Bootstrap any application services.
+ */
+public function boot(CurrentOrganization $organizations): void
+{
+    Passport::authenticateAccessTokensUsing(
+        fn (Token $token, bool $isValid): bool => $isValid
+            && $token->organization_id === $organizations->currentId()
+    );
+}
 ```
 
-In this example, `$organizations` is an application service that reads the current request's organization. Register an additional client check with `Passport::authenticateClientsUsing(fn (Client $client): bool => ...)`. It runs at OAuth endpoints and during bearer authentication, and when choosing a personal access client. Cached clients still pass through this check.
+The `CurrentOrganization` application service reads the current request's organization. Register an additional client check with `Passport::authenticateClientsUsing(fn (Client $client): bool => ...)`. It runs at OAuth endpoints and during bearer authentication, and when choosing a personal access client. Cached clients still pass through this check.
 
 Your configured token model may override the static `findToken(string $id): ?static` method to change how bearer authentication loads tokens. For example, a model may omit an application scope during the lookup, then enforce ownership through `authenticateAccessTokensUsing`.
 

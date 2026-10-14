@@ -114,7 +114,7 @@ Next, if your application offers an API that will be consumed by third parties, 
 
 If you are building a single-page application (SPA) that will be powered by a Hypervel backend, you should use [Hypervel Sanctum](/docs/{{version}}/sanctum). When using Sanctum, you will need to [manually implement your own backend authentication routes](#authenticating-users) or use [Hypervel Fortify](/docs/{{version}}/fortify) as a headless authentication backend service that provides routes and controllers for features such as registration, password reset, email verification, and more.
 
-Passport may be chosen when your application absolutely needs all of the features provided by the OAuth2 specification.
+Choose Passport when your application needs an OAuth2 server, such as when third-party applications need access to your users' data.
 
 JWT authentication may be chosen when your application wants stateless signed bearer tokens without storing each issued token in the database.
 
