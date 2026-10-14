@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Permission\Middleware;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
+use Hypervel\Passport\Passport;
 use Hypervel\Permission\Contracts\Role;
 use Hypervel\Permission\Exceptions\UnauthorizedException;
 use Hypervel\Permission\Middleware\RoleMiddleware;
@@ -43,7 +44,7 @@ class RoleMiddlewareTest extends TestCase
 
     public function testAClientCannotAccessARouteProtectedByRoleMiddlewareOfAnotherGuard(): void
     {
-        $this->actingAsClient($this->testClient);
+        Passport::actingAsClient($this->testClient, ['*']);
 
         $this->testClient->assignRole('clientRole');
 
@@ -76,7 +77,7 @@ class RoleMiddlewareTest extends TestCase
 
     public function testAClientCanAccessARouteProtectedByRoleMiddlewareIfHaveThisRole(): void
     {
-        $this->actingAsClient($this->testClient);
+        Passport::actingAsClient($this->testClient, ['*']);
 
         $this->testClient->assignRole('clientRole');
 
@@ -95,7 +96,7 @@ class RoleMiddlewareTest extends TestCase
 
     public function testAClientCanAccessARouteProtectedByThisRoleMiddlewareIfHaveOneOfTheRoles(): void
     {
-        $this->actingAsClient($this->testClient);
+        Passport::actingAsClient($this->testClient, ['*']);
 
         $this->testClient->assignRole('clientRole');
 
@@ -130,7 +131,7 @@ class RoleMiddlewareTest extends TestCase
 
     public function testAClientCannotAccessARouteProtectedByTheRoleMiddlewareIfHaveADifferentRole(): void
     {
-        $this->actingAsClient($this->testClient);
+        Passport::actingAsClient($this->testClient, ['*']);
 
         $this->testClient->assignRole(['clientRole']);
 
@@ -146,7 +147,7 @@ class RoleMiddlewareTest extends TestCase
 
     public function testAClientCannotAccessARouteProtectedByRoleMiddlewareIfHaveNotRoles(): void
     {
-        $this->actingAsClient($this->testClient);
+        Passport::actingAsClient($this->testClient, ['*']);
 
         $this->assertSame(403, $this->runMiddleware($this->roleMiddleware, 'testRole|testRole2', null, true));
     }
@@ -160,7 +161,7 @@ class RoleMiddlewareTest extends TestCase
 
     public function testAClientCannotAccessARouteProtectedByRoleMiddlewareIfRoleIsUndefined(): void
     {
-        $this->actingAsClient($this->testClient);
+        Passport::actingAsClient($this->testClient, ['*']);
 
         $this->assertSame(403, $this->runMiddleware($this->roleMiddleware, '', null, true));
     }
@@ -229,7 +230,7 @@ class RoleMiddlewareTest extends TestCase
 
     public function testClientCanNotAccessRoleWithGuardAdminWhileLoginUsingDefaultGuard(): void
     {
-        $this->actingAsClient($this->testClient);
+        Passport::actingAsClient($this->testClient, ['*']);
 
         $this->testClient->assignRole('clientRole');
 

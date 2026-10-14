@@ -26,7 +26,6 @@ use Hypervel\Permission\Models\Permission as BasePermission;
 use Hypervel\Permission\Models\Role as BaseRole;
 use Hypervel\Permission\PermissionRegistrar;
 use Hypervel\Permission\PermissionServiceProvider;
-use Hypervel\Support\Facades\Auth;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\TestCase as TestbenchTestCase;
@@ -34,7 +33,6 @@ use Hypervel\Tests\Permission\Fixtures\Models\Admin;
 use Hypervel\Tests\Permission\Fixtures\Models\Client;
 use Hypervel\Tests\Permission\Fixtures\Models\Permission;
 use Hypervel\Tests\Permission\Fixtures\Models\Role;
-use Hypervel\Tests\Permission\Fixtures\Models\Team;
 use Hypervel\Tests\Permission\Fixtures\Models\User;
 
 use function Hypervel\Testbench\default_migration_path;
@@ -267,28 +265,12 @@ abstract class TestCase extends TestbenchTestCase
         ]);
 
         Passport::useClientModel(Client::class);
-        Guard::flushState();
 
         (require dirname(__DIR__, 2) . '/src/passport/database/migrations/2016_06_01_000004_create_oauth_clients_table.php')->up();
-
-        // These polymorphic tables hold integer user IDs and Passport's UUID client IDs.
-        foreach (['model_has_roles', 'model_has_permissions'] as $tableKey) {
-            Schema::table(config()->string('permission.table_names.' . $tableKey), function (Blueprint $table): void {
-                $table->string(config()->string('permission.column_names.model_morph_key'))->change();
-            });
-        }
 
         $this->testClient = ClientFactory::new()->asClientCredentials()->create(['name' => 'Test']);
         $this->testClientRole = $this->app->make(RoleContract::class)->create(['name' => 'clientRole', 'guard_name' => 'passport']);
         $this->testClientPermission = $this->app->make(PermissionContract::class)->create(['name' => 'edit-posts', 'guard_name' => 'passport']);
-    }
-
-    /**
-     * Authenticate the given client through the Passport guard.
-     */
-    protected function actingAsClient(Client $client): void
-    {
-        Passport::actingAsClient($client);
     }
 
     /**

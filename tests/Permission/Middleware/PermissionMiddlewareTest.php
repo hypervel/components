@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Permission\Middleware;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
+use Hypervel\Passport\Passport;
 use Hypervel\Permission\Contracts\Permission;
 use Hypervel\Permission\Exceptions\UnauthorizedException;
 use Hypervel\Permission\Middleware\PermissionMiddleware;
@@ -69,7 +70,7 @@ class PermissionMiddlewareTest extends TestCase
         $this->app->make(Permission::class)->create(['name' => 'admin-permission2', 'guard_name' => 'web']);
         $p1 = $this->app->make(Permission::class)->create(['name' => 'admin-permission2', 'guard_name' => 'passport']);
 
-        $this->actingAsClient($this->testClient);
+        Passport::actingAsClient($this->testClient, ['*']);
 
         $this->testClient->givePermissionTo($p1);
 
@@ -114,7 +115,7 @@ class PermissionMiddlewareTest extends TestCase
 
     public function testAClientCanAccessARouteProtectedByPermissionMiddlewareIfHaveThisPermission(): void
     {
-        $this->actingAsClient($this->testClient);
+        Passport::actingAsClient($this->testClient, ['*']);
 
         $this->testClient->givePermissionTo('edit-posts');
 
@@ -123,7 +124,7 @@ class PermissionMiddlewareTest extends TestCase
 
     public function testAClientIsNotUsedWhenPassportClientCredentialsAreDisabled(): void
     {
-        $this->actingAsClient($this->testClient);
+        Passport::actingAsClient($this->testClient, ['*']);
         config()->set('permission.use_passport_client_credentials', false);
 
         $this->testClient->givePermissionTo('edit-posts');
@@ -143,7 +144,7 @@ class PermissionMiddlewareTest extends TestCase
 
     public function testAClientCanAccessARouteProtectedByThisPermissionMiddlewareIfHaveOneOfThePermissions(): void
     {
-        $this->actingAsClient($this->testClient);
+        Passport::actingAsClient($this->testClient, ['*']);
 
         $this->testClient->givePermissionTo('edit-posts');
 
@@ -178,7 +179,7 @@ class PermissionMiddlewareTest extends TestCase
 
     public function testAClientCannotAccessARouteProtectedByThePermissionMiddlewareIfHaveADifferentPermission(): void
     {
-        $this->actingAsClient($this->testClient);
+        Passport::actingAsClient($this->testClient, ['*']);
 
         $this->testClient->givePermissionTo('edit-posts');
 
@@ -194,7 +195,7 @@ class PermissionMiddlewareTest extends TestCase
 
     public function testAClientCannotAccessARouteProtectedByPermissionMiddlewareIfHaveNotPermissions(): void
     {
-        $this->actingAsClient($this->testClient);
+        Passport::actingAsClient($this->testClient, ['*']);
 
         $this->assertSame(403, $this->runMiddleware($this->permissionMiddleware, 'edit-articles|edit-posts', null, true));
     }
@@ -213,7 +214,7 @@ class PermissionMiddlewareTest extends TestCase
 
     public function testAClientCanAccessARouteProtectedByPermissionMiddlewareIfHasPermissionViaRole(): void
     {
-        $this->actingAsClient($this->testClient);
+        Passport::actingAsClient($this->testClient, ['*']);
 
         $this->assertSame(403, $this->runMiddleware($this->permissionMiddleware, 'edit-articles', null, true));
         $this->assertSame(403, $this->runMiddleware($this->permissionMiddleware, 'edit-posts', null, true));
@@ -288,7 +289,7 @@ class PermissionMiddlewareTest extends TestCase
 
     public function testClientCanNotAccessPermissionWithGuardAdminWhileLoginUsingDefaultGuard(): void
     {
-        $this->actingAsClient($this->testClient);
+        Passport::actingAsClient($this->testClient, ['*']);
 
         $this->testClient->givePermissionTo('edit-posts');
 
