@@ -23,8 +23,8 @@ use ReflectionClass;
  *
  * Runs after all service providers have been registered (so all
  * aspects() calls have executed) and before boot() (so no targeted
- * classes have been instantiated yet). No-ops when no aspects are
- * registered.
+ * classes have been instantiated yet). Closes aspect and class map registration
+ * even when no proxies need to be generated.
  */
 class GenerateProxies
 {
@@ -47,6 +47,9 @@ class GenerateProxies
         if (AspectCollector::hasAspects()) {
             $this->generate($app->bootstrapPath('cache/aop'));
         }
+
+        AspectCollector::seal();
+        ClassMapManager::seal();
     }
 
     /**
