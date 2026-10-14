@@ -27,6 +27,8 @@ Remote downloads share the HTTP client's destination checks. The protected `Untr
 
 ## Known Issues
 
+Bedrock streaming is affected by two AWS SDK decoder issues. A valid stream can fail with a checksum error when an event's checksum arrives in parts ([#3371](https://github.com/aws/aws-sdk-php/issues/3371)). The final event can also be lost ([#3374](https://github.com/aws/aws-sdk-php/issues/3374)): token usage then reads zero, or an AWS error sent as the last event is reported as an incomplete stream. These limitations remain until the supported AWS SDK version includes the fixes.
+
 Like Laravel AI, nested objects in tool arguments can lose their JSON type when decoded to PHP arrays: `{"options":{}}` can become `{"options":[]}`. This can fail validation in MCP or Vercel integrations that require an object. This behavior is retained for now; upstream reports and fixes will be considered during normal syncs.
 
 Ported from: https://github.com/laravel/ai
