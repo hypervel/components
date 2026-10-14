@@ -9,7 +9,7 @@ declare(strict_types=1);
  * 200 after an optional delay. Counts are taken when an envelope arrives.
  *
  *   php sink.php PORT
- *   GET /stats, GET /reset, GET /delay?ms=N
+ *   GET /stats, GET /delay?ms=N
  */
 
 use Swoole\Coroutine;
@@ -25,26 +25,16 @@ class SinkState
 
     public static int $inFlight = 0;
 
-    public static array $counts = [];
-
-    /**
-     * Reset the counters between independent measurements.
-     */
-    public static function reset(): void
-    {
-        self::$counts = [
-            'envelopes' => 0,
-            'bytes' => 0,
-            'raw_bytes' => 0,
-            'items' => [],
-            'transactions' => [],
-            'errors' => [],
-            'unparsed' => 0,
-        ];
-    }
+    public static array $counts = [
+        'envelopes' => 0,
+        'bytes' => 0,
+        'raw_bytes' => 0,
+        'items' => [],
+        'transactions' => [],
+        'errors' => [],
+        'unparsed' => 0,
+    ];
 }
-
-SinkState::reset();
 
 /**
  * Count the items in one decoded envelope.
@@ -115,13 +105,6 @@ $server->on('request', static function (Request $request, Response $response): v
             'in_flight' => SinkState::$inFlight,
             'delay_ms' => SinkState::$delayMs,
         ]));
-
-        return;
-    }
-
-    if ($path === '/reset') {
-        SinkState::reset();
-        $response->end('{}');
 
         return;
     }

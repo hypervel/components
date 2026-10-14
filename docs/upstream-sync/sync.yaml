@@ -231,10 +231,9 @@ Sammyjo20/saloon-docs:
 
 hyperf/engine:
   branch: master
-  # Owner-selected history boundary before 2025-11-01, not a historical parity claim.
-  checked_through: 6595d2659ce7ebb940b8740a00ecd199128398f0
-  last_reviewed_pr: null
-  sync_date: null
+  checked_through: 1b56d31e3d1b68b282557646d6811692adab7732
+  last_reviewed_pr: 40
+  sync_date: '2026-10-14'
   notes: >-
     Selective runtime tracking for Hypervel's independently maintained Engine;
     review before hyperf/hyperf. Source maps to src/engine and interfaces to
@@ -252,18 +251,17 @@ hyperf/engine:
 
 hyperf/hyperf:
   branch: master
-  # Owner-selected history boundary before 2025-11-01, not a historical parity claim.
-  checked_through: ded8b966ecf78590e8201a47a56c635f8df99e47
-  last_reviewed_pr: null
-  sync_date: null
+  checked_through: ea13f9f2ecf789ee72cb8f758613e42b3980046f
+  last_reviewed_pr: 7810
+  sync_date: '2026-10-14'
   notes: >-
     Selective runtime tracking under the same applicability rules as hyperf/engine
     above, not a framework merge target. Review the monorepo, not its subtree-split
     mirrors. Upstream src/{context,coroutine,coordinator,server,signal,websocket-server,watcher}
     map to the same Hypervel packages; pool maps to connection-pool, with shared
-    pooling issues also assessed against object-pool; framework bootstrap/events
-    and logging map to core; process maps to server-process; http-server and
-    http-message transport/lifecycle changes map to http-server's bridges; di AOP
+    pooling issues also assessed against object-pool; framework bootstrap, events
+    and StdoutLogger map to core; logger maps to log; process maps to server-process;
+    http-server and http-message transport/lifecycle changes map to http-server's bridges; di AOP
     and proxy generation map to di, not Hyperf's container; contract maps to the
     corresponding runtime interfaces in contracts. Assess db-connection and
     database driver changes against database's connection/pooling code, redis

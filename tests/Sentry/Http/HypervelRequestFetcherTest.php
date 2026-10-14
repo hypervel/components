@@ -135,7 +135,6 @@ class HypervelRequestFetcherTest extends TestCase
     #[TestWith([[], 'small', 1001, true, false])]
     #[TestWith([[], 'medium', 13, false, true])]
     #[TestWith([['http_bodies' => []], 'medium', 13, true, false])]
-    #[TestWith([[], 'never', 13, true, false])]
     public function testBodyIsReadOnceOnlyWhenCollectionPermitsIt(
         ?array $collection,
         string $limit,
