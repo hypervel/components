@@ -126,12 +126,15 @@ class ServerFactoryValidationTest extends TestCase
                 $this->assertSame('', (string) $request->getBody());
                 $this->assertNull($request->getParsedBody());
                 $this->assertSame([], $request->getUploadedFiles());
+                $this->assertSame('POST', $request->getMethod());
+                $this->assertSame('', (string) $request->getUri());
                 $this->assertSame('Bearer token', $request->getHeaderLine('Authorization'));
 
                 return $request;
             });
         CoroutineContext::set(ServerFactory::RESOURCE_SERVER_CONTEXT_KEY, $server);
         $request = Request::create('/api', 'POST', server: ['CONTENT_TYPE' => 'application/json'], content: '{"data":"payload"}');
+        $request->server->set('REQUEST_URI', '/:80');
         $request->headers->set('Authorization', 'Bearer token');
 
         $this->factory()->validateAuthenticatedRequest($request);
