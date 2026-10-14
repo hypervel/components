@@ -19,6 +19,7 @@ use Hypervel\Database\Eloquent\Relations\HasMany;
 use Hypervel\Database\Grammar as BaseGrammar;
 use Hypervel\Database\MariaDbConnection;
 use Hypervel\Database\MySqlConnection;
+use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\Query\Expression as Raw;
 use Hypervel\Database\Query\Grammars\Grammar;
@@ -45,6 +46,7 @@ use Hypervel\Tests\Database\Fixtures\Enums\StringStatus;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
+use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
 use RuntimeException;
@@ -4728,6 +4730,15 @@ class DatabaseQueryBuilderTest extends TestCase
         });
         $results = $builder->from('users')->where('id', '=', 1)->pluck('foo', 'id');
         $this->assertEquals([1 => 'bar', 10 => 'baz'], $results->all());
+    }
+
+    public function testPluckFetchesColumnDirectlyForPdoConnections(): void
+    {
+        $connection = $this->getConnection(connectionClass: PdoConnection::class);
+        $builder = new Builder($connection, new Grammar($connection), new Processor);
+        $connection->expects('select')->with('select "foo" from "users"', [], true, [PDO::FETCH_COLUMN])->andReturn(['bar', 'baz']);
+
+        $this->assertSame(['bar', 'baz'], $builder->from('users')->pluck('foo')->all());
     }
 
     public function testPluckAvoidsDuplicateColumnSelection(): void
