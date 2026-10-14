@@ -51,7 +51,8 @@ class PersonalAccessTokenResult implements Arrayable, Jsonable, JsonSerializable
      */
     public function getToken(): ?Token
     {
-        return $this->token ??= Passport::token()->newQuery()->find($this->accessTokenId);
+        // The token has just been issued and may not have reached a read replica yet.
+        return $this->token ??= Passport::token()->newQuery()->useWritePdo()->find($this->accessTokenId);
     }
 
     /**

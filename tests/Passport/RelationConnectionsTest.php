@@ -16,6 +16,7 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Passport\Fixtures\User;
+use PDO;
 use PHPUnit\Framework\Attributes\TestWith;
 use UnitEnum;
 
@@ -91,6 +92,20 @@ class RelationConnectionsTest extends TestCase
         $owned = $clients->createAuthorizationCodeGrantClient('Owned', ['https://client.example/callback'], user: $user);
         $personal = $clients->createPersonalAccessGrantClient('Personal', 'users');
         $result = $user->createToken('Test');
+        $connection = Passport::token()->getConnection();
+        $reader = $connection->getReadPdo();
+        $replica = new PDO('sqlite::memory:');
+        $replica->exec('create table oauth_access_tokens (id text primary key)');
+        $connection->setReadPdo($replica);
+
+        try {
+            $this->assertNull(Token::query()->find($result->accessTokenId));
+            $this->assertSame($result->accessTokenId, $result->token->id);
+            $this->assertNull(Token::query()->find($result->accessTokenId));
+        } finally {
+            $connection->setReadPdo($reader);
+        }
+
         Route::get('/passport-user', static fn (): string => request()->user()->name)->middleware('auth:passport');
         $this->withToken($result->accessToken)->get('/passport-user')->assertOk()->assertSee('User');
         $this->assertSame($owned->id, $clients->findActive($owned->id)->id);
