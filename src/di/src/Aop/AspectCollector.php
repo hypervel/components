@@ -4,16 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Di\Aop;
 
+use Hypervel\Di\Exceptions\InvalidDefinitionException;
 use Hypervel\Support\ClassMetadataCache;
 use ReflectionProperty;
 
 /**
- * Static registry of aspect class rules and priorities.
- *
- * Tracks which aspect classes target which classes/methods,
- * and their execution priority. Used by ProxyManager to determine
- * which classes need proxy generation and by ProxyDispatcher at runtime
- * to resolve the aspect pipeline for each method call.
+ * Worker-wide aspect rules used to generate proxies and compile dispatch chains.
  */
 class AspectCollector
 {
@@ -24,10 +20,13 @@ class AspectCollector
      */
     protected static array $aspectRules = [];
 
+    protected static bool $sealed = false;
+
     /**
      * Register an aspect using its public default targeting rules and priority.
      *
-     * Boot-only. Register before proxy generation; loaded classes cannot be rewritten.
+     * Boot or tests only. Register before application proxy generation, or explicitly
+     * reopen registration for focused tests. Loaded classes cannot be rewritten.
      *
      * @param class-string $aspect
      */
@@ -53,18 +52,23 @@ class AspectCollector
     /**
      * Register an aspect with its class targeting rules.
      *
-     * Boot-only. Aspect rules persist in a static property used by the
+     * Boot or tests only. Aspect rules persist in a static property used by the
      * compile-time proxy generator; runtime use cannot retroactively apply
      * aspects to already-loaded classes.
      */
     public static function setAround(string $aspect, array $classes, ?int $priority = null): void
     {
+        if (static::$sealed) {
+            throw new InvalidDefinitionException(
+                "Cannot register aspect [{$aspect}] after proxy generation. "
+                . 'Register aspects in a service provider\'s register() method, before boot().'
+            );
+        }
+
         $priority ??= 0;
 
-        // Merge idempotently: a provider re-registering the same aspect on a repeated
-        // boot in the same worker must not append duplicate class rules; the proxy
-        // generator scans every rule against the whole class map, so duplicates make
-        // each boot slower than the last.
+        // Repeated boots re-register aspects. Duplicate rules would change the shared
+        // fingerprint, regenerating every proxy, and wildcards would rescan the class map.
         $existing = static::$aspectRules[$aspect]['classes'] ?? [];
         $classes = array_values(array_unique(array_merge($existing, $classes)));
 
@@ -72,6 +76,29 @@ class AspectCollector
             'priority' => $priority,
             'classes' => $classes,
         ];
+
+        AspectManager::clear();
+    }
+
+    /**
+     * Close aspect registration after application proxy generation.
+     *
+     * Boot-only. Later registrations in this worker are rejected.
+     */
+    public static function seal(): void
+    {
+        static::$sealed = true;
+    }
+
+    /**
+     * Reopen aspect registration while retaining the registered rules.
+     *
+     * Boot or tests only. This permits changes to worker-wide rules for a new
+     * application bootstrap or focused tests; it does not rewrite loaded classes.
+     */
+    public static function unseal(): void
+    {
+        static::$sealed = false;
     }
 
     /**
@@ -91,6 +118,8 @@ class AspectCollector
     public static function forgetAspect(string $aspect): void
     {
         unset(static::$aspectRules[$aspect]);
+
+        AspectManager::clear();
     }
 
     /**
@@ -143,5 +172,7 @@ class AspectCollector
     public static function flushState(): void
     {
         static::$aspectRules = [];
+        static::unseal();
+        AspectManager::clear();
     }
 }
