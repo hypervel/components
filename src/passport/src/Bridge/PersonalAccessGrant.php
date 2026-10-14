@@ -25,7 +25,9 @@ class PersonalAccessGrant extends AbstractGrant
         DateInterval $accessTokenTTL
     ): ResponseTypeInterface {
         // Validate request
-        if (! $userIdentifier = $this->getRequestParameter('user_id', $request)) {
+        $userIdentifier = $this->getRequestParameter('user_id', $request);
+
+        if ($userIdentifier === null || $userIdentifier === '') {
             throw OAuthServerException::invalidRequest('user_id');
         }
 

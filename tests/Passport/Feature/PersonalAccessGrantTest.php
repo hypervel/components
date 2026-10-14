@@ -34,7 +34,10 @@ class PersonalAccessGrantTest extends PassportTestCase
         ]);
 
         $result = $user->createToken('test', ['bar']);
+        $this->assertTrue(isset($result->token));
         $token = $result->getToken();
+        $this->assertSame($token, $result->token ?? null);
+        $this->assertFalse(isset($result->missing));
 
         $this->assertInstanceOf(PersonalAccessTokenResult::class, $result);
         $this->assertArrayHasKey('accessToken', $result->toArray());
@@ -79,6 +82,19 @@ class PersonalAccessGrantTest extends PassportTestCase
         $this->assertSame($client->getKey(), $json['oauth_client_id']);
         $this->assertEquals($user->getAuthIdentifier(), $json['oauth_user_id']);
         $this->assertSame(['*'], $json['oauth_scopes']);
+    }
+
+    public function testIssueTokenForUserWithZeroIdentifier(): void
+    {
+        $user = UserFactory::new()->create(['id' => 0]);
+        ClientFactory::new()->asPersonalAccessTokenClient()->create();
+
+        $result = $user->createToken('test');
+
+        $this->assertSame(0, $result->token->user_id);
+        Route::get('/zero-user', static fn (Request $request) => ['id' => $request->user()->getAuthIdentifier()])
+            ->middleware('auth:passport');
+        $this->withToken($result->accessToken)->get('/zero-user')->assertOk()->assertJson(['id' => 0]);
     }
 
     public function testIssueTokenWithDifferentProviders(): void

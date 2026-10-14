@@ -19,6 +19,7 @@ use JsonSerializable;
  * @property string $accessToken
  * @property string $tokenType
  * @property int $expiresIn
+ * @property-read null|Token $token
  */
 class PersonalAccessTokenResult implements Arrayable, Jsonable, JsonSerializable, Transient
 {
@@ -88,6 +89,10 @@ class PersonalAccessTokenResult implements Arrayable, Jsonable, JsonSerializable
      */
     public function __isset(string $key): bool
     {
+        if ($key === 'token') {
+            return $this->getToken() !== null;
+        }
+
         return isset($this->attributes[$key]);
     }
 
