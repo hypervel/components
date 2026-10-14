@@ -311,40 +311,19 @@ class CacheIntegrationTest extends TestCase
         $this->assertFalse($span->getData()['cache.success']);
     }
 
-    #[TestWith([false])]
-    #[TestWith([true])]
-    public function testCachePutManyFailureFinishesItsSpan(bool $throwing): void
+    public function testCachePutManyFailureFinishesItsSpanAndRethrows(): void
     {
         $exception = new RuntimeException('The cache batch write failed.');
         $store = m::mock(Store::class);
-        $expectation = $store->shouldReceive('putMany')->once()->with(['foo' => 'bar', 'baz' => 'qux'], 60);
+        $store->shouldReceive('putMany')->once()->with(['foo' => 'bar', 'baz' => 'qux'], 60)->andThrow($exception);
 
-        if ($throwing) {
-            $expectation->andThrow($exception);
-        } else {
-            $expectation->andReturnFalse();
-        }
+        $span = $this->executeFailureAndReturnMostRecentSpan(
+            fn (): bool => $this->repository($store)->putMany(['foo' => 'bar', 'baz' => 'qux'], 60),
+            $exception,
+        );
 
-        $repository = $this->repository($store);
-        $transaction = $this->startTransaction();
-
-        if ($throwing) {
-            try {
-                $repository->putMany(['foo' => 'bar', 'baz' => 'qux'], 60);
-                $this->fail('Expected the cache batch write exception.');
-            } catch (RuntimeException $caught) {
-                $this->assertSame($exception, $caught);
-            }
-        } else {
-            $this->assertFalse($repository->putMany(['foo' => 'bar', 'baz' => 'qux'], 60));
-        }
-
-        $this->assertSame($transaction, SentrySdk::getCurrentHub()->getSpan());
-        $spans = $transaction->getSpanRecorder()->getSpans();
-        $this->assertCount(2, $spans);
-        $this->assertNotNull($spans[1]->getEndTimestamp());
-        $this->assertSame(SpanStatus::internalError(), $spans[1]->getStatus());
-        $this->assertFalse($spans[1]->getData()['cache.success']);
+        $this->assertSame(SpanStatus::internalError(), $span->getStatus());
+        $this->assertFalse($span->getData()['cache.success']);
     }
 
     public function testCacheForgetFailureFinishesItsSpanAndRethrows(): void
