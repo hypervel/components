@@ -51,6 +51,31 @@ class CoroutineTest extends TestCase
         $this->assertIsInt($coroutine->getId());
     }
 
+    public function testCreatedCoroutineKeepsErrorReportingEnabledAfterSuspension(): void
+    {
+        // @TODO Remove this skip once Swoole fixes @ suppression leaking into new coroutines.
+        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '==')) {
+            $this->markTestSkipped('Swoole 6.3.0RC1 suppresses error reporting inside coroutines created by Hypervel.');
+        }
+
+        $previousErrorReporting = error_reporting(E_ALL);
+        $levels = [];
+
+        try {
+            $coroutine = Coroutine::create(static function () use (&$levels): void {
+                $levels[] = error_reporting();
+                Coroutine::yield();
+                $levels[] = error_reporting();
+            });
+
+            Coroutine::resumeById($coroutine->getId());
+
+            $this->assertSame([E_ALL, E_ALL], $levels);
+        } finally {
+            error_reporting($previousErrorReporting);
+        }
+    }
+
     public function testCoroutineContext(): void
     {
         $id = uniqid();
