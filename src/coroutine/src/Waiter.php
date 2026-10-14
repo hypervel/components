@@ -45,6 +45,7 @@ class Waiter
      *                                        Hypervel\Context\NonCopyableContext are omitted.
      * @param bool $waitForChildTermination Wait without a limit for a canceled child to terminate: after the cleanup allowance on timeout, and before the waiting coroutine's own cancellation propagates
      * @return TReturn
+     * @throws CanceledException When the waiting coroutine is canceled
      * @throws WaitTimeoutException When the wait times out
      * @throws ChildTerminationTimeoutException When a canceled child outlives the cleanup allowance in strict mode
      */

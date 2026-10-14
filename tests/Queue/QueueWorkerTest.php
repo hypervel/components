@@ -60,6 +60,7 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\TestWith;
+use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel;
 use ReflectionProperty;
 use RuntimeException;
@@ -708,13 +709,17 @@ class QueueWorkerTest extends TestCase
         $ownerCoroutineId = EngineCoroutine::id();
         $callbackCoroutineIds = [];
         $contextValues = [];
-        $timer = new QueueWorkerTimer;
+        $completed = new Channel(1);
+        $logger = m::mock(LoggerInterface::class);
+        $logger->shouldReceive('error')->once()->andReturnUsing(
+            static fn (string $message): bool => $completed->push($message),
+        );
+        $timer = new Timer($logger);
         $worker = new KillTestWorker(...$this->workerDependencies(timer: $timer));
         $worker->currentTime = 100;
-        $options = new WorkerOptions(timeout: 5);
+        $options = new WorkerOptions(timeout: 5, monitorInterval: 0);
         $options->coroutineContext = ['queue.worker.test' => 'configured'];
         $worker->registerCoroutineJobForTest(new WorkerContractOnlyJob, $options);
-        $worker->startMonitorForTest($options, 'default', 'queue');
         $worker->currentTime = 105;
 
         $this->events->shouldReceive('dispatch')->andReturnUsing(
@@ -727,10 +732,12 @@ class QueueWorkerTest extends TestCase
         );
 
         try {
-            $timer->fire(1);
-            $this->fail('Expected the timeout monitor to terminate the worker.');
-        } catch (WorkerKilledException $exception) {
-            $this->assertSame(Worker::EXIT_ERROR, $exception->status);
+            $worker->startMonitorForTest($options, 'default', 'queue');
+            $message = $completed->pop(1.0);
+            $this->assertIsString($message);
+            $this->assertStringContainsString(WorkerKilledException::class, $message);
+        } finally {
+            $timer->clearAll();
         }
 
         $this->assertCount(2, $callbackCoroutineIds);
@@ -741,6 +748,7 @@ class QueueWorkerTest extends TestCase
             static fn (object $event): bool => $event instanceof WorkerStopping
                 && $event->connectionName === 'default'
                 && $event->queue === 'queue'
+                && $event->status === Worker::EXIT_ERROR
                 && $event->terminatesImmediately
         ))->once();
     }
