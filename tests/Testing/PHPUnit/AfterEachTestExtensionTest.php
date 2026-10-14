@@ -8,8 +8,10 @@ use GuzzleHttp\Client;
 use GuzzleHttp\Promise\Promise;
 use Hypervel\Di\Aop\AspectCollector;
 use Hypervel\Di\Aop\ProxyMethod;
+use Hypervel\Di\Exceptions\InvalidDefinitionException;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testing\ParallelTesting;
+use Hypervel\Testing\PHPUnit\AfterEachTestExtension;
 use Hypervel\Tests\TestCase;
 use ReflectionMethod;
 use Symfony\Component\Process\Process;
@@ -83,6 +85,34 @@ class AfterEachTestExtensionTest extends TestCase
         $this->assertFalse(AspectCollector::hasAspects());
         $this->assertCount(1, (new ReflectionMethod(Promise::class, '__construct'))->getAttributes(ProxyMethod::class));
         $this->assertCount(1, (new ReflectionMethod(Client::class, 'transfer'))->getAttributes(ProxyMethod::class));
+    }
+
+    public function testProxyPreparationAcceptsASealedRegistryAndRestoresItsRules(): void
+    {
+        AspectCollector::setAround('SavedAspect', ['Missing\Target']);
+        $rules = AspectCollector::getRules();
+        AspectCollector::seal();
+
+        (new ReflectionMethod(AfterEachTestExtension::class, 'generateGuzzleProxies'))
+            ->invoke(new AfterEachTestExtension);
+
+        $this->assertSame($rules, AspectCollector::getRules());
+    }
+
+    public function testFailedProxyPreparationRestoresTheOriginalRules(): void
+    {
+        AspectCollector::setAround('SavedAspect', [self::class . '::testFailedProxyPreparationRestoresTheOriginalRules']);
+        $rules = AspectCollector::getRules();
+        AspectCollector::seal();
+
+        try {
+            (new ReflectionMethod(AfterEachTestExtension::class, 'generateGuzzleProxies'))
+                ->invoke(new AfterEachTestExtension);
+            $this->fail('An already-loaded target must fail proxy generation.');
+        } catch (InvalidDefinitionException $exception) {
+            $this->assertStringContainsString(self::class, $exception->getMessage());
+            $this->assertSame($rules, AspectCollector::getRules());
+        }
     }
 
     public function testOutsideGuzzleCallbacksAreDiscardedBetweenTestsAndAtShutdown(): void
