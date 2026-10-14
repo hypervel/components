@@ -745,7 +745,7 @@ Requests using `withDestinationPolicy` reject a proxy configured for their schem
 <a name="telescope-recording"></a>
 ### Telescope Recording
 
-If your application uses [Telescope](/docs/{{version}}/telescope), HTTP client requests are automatically recorded by the HTTP client watcher. You may exclude an individual request from being recorded by chaining the `withoutTelescope` method:
+If your application uses [Telescope](/docs/{{version}}/telescope), HTTP client requests are automatically recorded by the HTTP client watcher. The watcher also records third-party SDKs that use Guzzle; see [HTTP client watcher](/docs/{{version}}/telescope#http-client-watcher) for credential masking and direct Guzzle options. You may exclude an individual request from being recorded by chaining the `withoutTelescope` method:
 
 ```php
 $response = Http::withoutTelescope()->get('http://example.com');

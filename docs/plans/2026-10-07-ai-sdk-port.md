@@ -221,6 +221,8 @@ Port store/model/middleware/approval tests and extend them for partition reads/w
 
 ## 5. Provider I/O and Bedrock
 
+Telescope must mask the credential headers and token fields used by AI gateways, AWS credential sources, Socialite and Scout through its existing shared defaults. Preserve identifiers and expiration values. Apply hidden request parameters to recorded query strings too, including signed URLs, redirect descriptions, Location/Referer headers and the framework's previous/intended session URLs on incoming and outgoing entries, including failed outgoing requests. Preserve unrelated query bytes, repeated/dotted names and fragments; never mutate the actual request, response or session. Use one small shared watcher helper, no host classifiers or recursive secret scanner. Verify the real recorded entries with representative credential payloads, and document all-Guzzle capture, default masking, custom hiding and the existing `telescope_enabled` opt-out in Telescope's canonical page; link the capture difference from its README.
+
 The Bedrock image gateway retains text-to-image generation and rejects attachments before creating a client; its model-specific conditioning, variation and masked-edit tasks require an explicit task design rather than guessing from `attachments()`.
 
 Remote downloads reuse framework destination validation while ordinary Http/Guzzle owns routing through the application's existing proxy configuration. The owner accepts the proxy as an infrastructure trust boundary: when it resolves untrusted hostnames, it must filter its actual destinations. Do not add an AI proxy setting, duplicate proxy selection, force numeric CONNECT tunnels or add a retry layer.
