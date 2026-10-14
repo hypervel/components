@@ -54,7 +54,7 @@ Route::middleware(['web', $guard ? 'auth:' . $guard : 'auth'])->group(function (
         Route::get('/device/authorize', [
             'uses' => 'DeviceAuthorizationController',
             'as' => 'device.authorizations.authorize',
-            'middleware' => FrameGuard::class,
+            'middleware' => [FrameGuard::class, 'throttle:passport'],
         ]);
 
         Route::post('/device/authorize', [

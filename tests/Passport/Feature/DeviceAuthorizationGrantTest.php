@@ -8,6 +8,8 @@ use Hypervel\Http\Middleware\TrustProxies;
 use Hypervel\Http\Request;
 use Hypervel\Passport\Database\Factories\ClientFactory;
 use Hypervel\Passport\Passport;
+use Hypervel\RateLimiter\Limit;
+use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\Attributes\WithConfig;
@@ -94,6 +96,18 @@ class DeviceAuthorizationGrantTest extends PassportTestCase
         ]);
 
         $this->get('http://localhost/identity/device')->assertOk()->assertHeader('X-Frame-Options', 'SAMEORIGIN');
+    }
+
+    public function testUserCodeAttemptsUseTheApplicationRateLimiter(): void
+    {
+        $this->app->make(RateLimiter::class)->for(
+            'passport',
+            static fn (Request $request): Limit => Limit::perMinute(1)->by($request->user()->getAuthIdentifier())
+        );
+        $this->actingAs(UserFactory::new()->create(), 'web');
+
+        $this->get('/oauth/device/authorize?user_code=BCDFGHJK')->assertRedirectToRoute('passport.device');
+        $this->get('/oauth/device/authorize?user_code=LMNPQRST')->assertTooManyRequests();
     }
 
     public function testRequestAccessTokenAuthorizationPending(): void
@@ -206,6 +220,7 @@ class DeviceAuthorizationGrantTest extends PassportTestCase
 
         $json = $this->get('/oauth/device/authorize?user_code=' . $userCode)
             ->assertOk()
+            ->assertHeader('X-Frame-Options', 'SAMEORIGIN')
             ->assertSessionHas('deviceCode')
             ->assertSessionHas('authToken')
             ->json();
@@ -409,6 +424,7 @@ class DeviceAuthorizationGrantTest extends PassportTestCase
         match ($change) {
             'revoked' => $client->revoke(),
             'grant' => $client->forceFill(['grant_types' => []])->save(),
+            'provider' => $client->forceFill(['provider' => 'staff'])->save(),
             'scope' => Passport::tokensCan([]),
         };
 
@@ -427,6 +443,7 @@ class DeviceAuthorizationGrantTest extends PassportTestCase
         foreach (['post', 'delete'] as $method) {
             yield $method . ' revoked' => [$method, 'revoked', 'unauthorized_client'];
             yield $method . ' grant' => [$method, 'grant', 'unauthorized_client'];
+            yield $method . ' provider' => [$method, 'provider', 'unauthorized_client'];
             yield $method . ' scope' => [$method, 'scope', 'invalid_scope'];
         }
     }
