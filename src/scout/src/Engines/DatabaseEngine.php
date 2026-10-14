@@ -15,6 +15,9 @@ use Hypervel\Scout\Attributes\SearchUsingPrefix;
 use Hypervel\Scout\Builder;
 use Hypervel\Scout\Contracts\PaginatesEloquentModelsUsingDatabase;
 use Hypervel\Scout\Contracts\SearchableInterface;
+use Hypervel\Scout\Contracts\SupportsSemanticSearch;
+use Hypervel\Scout\Engines\Concerns\PaginatesDatabaseVectorSearch;
+use Hypervel\Scout\Engines\Concerns\PerformsDatabaseVectorSearch;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
 use ReflectionMethod;
@@ -24,12 +27,13 @@ use function blank;
 /**
  * Database search engine implementation.
  *
- * Searches directly in the database using LIKE queries and optional full-text
- * search. This engine requires no external services and works with any database
- * that Hypervel supports.
+ * Searches model tables directly, with vector search available through PostgreSQL's pgvector extension.
  */
-class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatabase
+class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatabase, SupportsSemanticSearch
 {
+    use PaginatesDatabaseVectorSearch;
+    use PerformsDatabaseVectorSearch;
+
     /**
      * Cached searchable attribute columns by model class and attribute class.
      *
@@ -51,6 +55,15 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
      */
     public function search(Builder $builder): array
     {
+        if ($this->shouldPerformHybridSearch($builder)) {
+            $models = $this->hybridSearchModels($builder, min($builder->limit ?? 1000, 1000));
+
+            return [
+                'results' => $models,
+                'total' => $models->count(),
+            ];
+        }
+
         $models = $this->searchModels($builder);
 
         return [
@@ -61,17 +74,10 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
 
     /**
      * Perform a paginated search against the engine.
-     *
-     * @return array{results: EloquentCollection<int, Model&SearchableInterface>, total: int}
      */
-    public function paginate(Builder $builder, int $perPage, int $page): array
+    public function paginate(Builder $builder, int $perPage, int $page): LengthAwarePaginatorContract
     {
-        $models = $this->searchModels($builder, $page, $perPage);
-
-        return [
-            'results' => $models,
-            'total' => $this->buildSearchQuery($builder)->count(),
-        ];
+        return $this->paginateUsingDatabase($builder, $perPage, 'page', $page);
     }
 
     /**
@@ -79,10 +85,18 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
      */
     public function paginateUsingDatabase(
         Builder $builder,
-        int $perPage,
+        ?int $perPage,
         string $pageName,
-        int $page
+        ?int $page
     ): LengthAwarePaginatorContract {
+        if ($this->shouldPerformHybridSearch($builder)) {
+            return $this->paginateHybridSearch($builder, $perPage, $pageName, $page);
+        }
+
+        if ($builder->semanticSearch) {
+            return $this->paginateSemanticSearch($builder, $perPage, $pageName, $page);
+        }
+
         return $this->buildSearchQuery($builder)
             ->when(count($builder->orders) > 0, function (EloquentBuilder $query) use ($builder): void {
                 foreach ($builder->orders as $order) {
@@ -99,14 +113,30 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
     }
 
     /**
+     * Paginate the given search on the engine using simple pagination.
+     */
+    public function simplePaginate(Builder $builder, int $perPage, int $page): PaginatorContract
+    {
+        return $this->simplePaginateUsingDatabase($builder, $perPage, 'page', $page);
+    }
+
+    /**
      * Paginate the given search on the engine using simple database pagination.
      */
     public function simplePaginateUsingDatabase(
         Builder $builder,
-        int $perPage,
+        ?int $perPage,
         string $pageName,
-        int $page
+        ?int $page
     ): PaginatorContract {
+        if ($this->shouldPerformHybridSearch($builder)) {
+            return $this->simplePaginateHybridSearch($builder, $perPage, $pageName, $page);
+        }
+
+        if ($builder->semanticSearch) {
+            return $this->simplePaginateSemanticSearch($builder, $perPage, $pageName, $page);
+        }
+
         return $this->buildSearchQuery($builder)
             ->when(count($builder->orders) > 0, function (EloquentBuilder $query) use ($builder): void {
                 foreach ($builder->orders as $order) {
@@ -129,6 +159,15 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
      */
     protected function searchModels(Builder $builder, ?int $page = null, ?int $perPage = null): EloquentCollection
     {
+        if ($builder->semanticSearch) {
+            /** @var EloquentCollection<int, Model&SearchableInterface> */
+            return $this->buildSemanticSearchQuery($builder)
+                ->when($page !== null && $perPage !== null, function (EloquentBuilder $query) use ($page, $perPage): void {
+                    $query->forPage($page, $perPage);
+                })
+                ->get();
+        }
+
         /** @var EloquentCollection<int, Model&SearchableInterface> */
         return $this->buildSearchQuery($builder)
             ->when($page !== null && $perPage !== null, function (EloquentBuilder $query) use ($page, $perPage): void {
@@ -160,11 +199,9 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
             $this->getFullTextColumns($builder)
         );
 
-        $queryWithLimit = $builder->limit !== null ? $query->take($builder->limit) : $query;
-
         return $this->constrainForSoftDeletes(
             $builder,
-            $this->addAdditionalConstraints($builder, $queryWithLimit)
+            $this->addAdditionalConstraints($builder, $query->take($builder->limit))
         );
     }
 
@@ -181,9 +218,46 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
         array $prefixColumns = [],
         array $fullTextColumns = []
     ): EloquentBuilder {
-        $query = method_exists($builder->model, 'newScoutQuery')
+        return $this->addTextSearchConstraints(
+            $this->newSearchQuery($builder),
+            $builder,
+            $columns,
+            $prefixColumns,
+            $fullTextColumns
+        );
+    }
+
+    /**
+     * Create the model query used for a Scout search.
+     */
+    protected function newSearchQuery(Builder $builder): EloquentBuilder
+    {
+        return method_exists($builder->model, 'newScoutQuery')
             ? $builder->model->newScoutQuery($builder)
             : $builder->model->newQuery();
+    }
+
+    /**
+     * Add text search constraints to the given query.
+     *
+     * @param array<string> $columns
+     * @param array<string> $prefixColumns
+     * @param array<string> $fullTextColumns
+     */
+    protected function addTextSearchConstraints(
+        EloquentBuilder $query,
+        Builder $builder,
+        array $columns,
+        array $prefixColumns = [],
+        array $fullTextColumns = []
+    ): EloquentBuilder {
+        if (method_exists($builder->model, 'toSearchableEmbedding')) {
+            $embeddingColumn = $this->embeddingColumn($builder->model);
+
+            $columns = array_values(array_diff($columns, [$embeddingColumn]));
+            $prefixColumns = array_values(array_diff($prefixColumns, [$embeddingColumn]));
+            $fullTextColumns = array_values(array_diff($fullTextColumns, [$embeddingColumn]));
+        }
 
         if (blank($builder->query)) {
             return $query;
@@ -479,22 +553,30 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
     /**
      * Update the given models in the search index.
      *
-     * The database engine doesn't need to update an external index.
-     *
      * @param EloquentCollection<int, Model> $models
      */
     public function update(EloquentCollection $models): void
     {
-        // No-op: The database is the index.
+        $this->updateSearchableEmbeddings($models);
     }
 
     /**
-     * Update the given models without observing an external index operation.
+     * Observe embedding updates while bypassing no-op database indexing.
      *
      * @param EloquentCollection<int, Model> $models
      */
     public function runUpdate(EloquentCollection $models): void
     {
+        $model = $models->first();
+
+        if ($model !== null
+            && method_exists($model, 'toSearchableEmbedding')
+            && $this->supportsVectorSearch($model)) {
+            parent::runUpdate($models);
+
+            return;
+        }
+
         $this->update($models);
     }
 

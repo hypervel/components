@@ -449,6 +449,14 @@ trait Searchable
     }
 
     /**
+     * Get the database column that stores the searchable embedding.
+     */
+    public function searchableEmbeddingColumn(): string
+    {
+        return 'embedding';
+    }
+
+    /**
      * Get the indexable data array for the model.
      */
     public function toSearchableArray(): array
