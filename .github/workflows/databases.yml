@@ -343,7 +343,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:17
+        image: pgvector/pgvector:0.8.7-pg17
         env:
           POSTGRES_PASSWORD: password
           POSTGRES_DB: testing
@@ -397,7 +397,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:18
+        image: pgvector/pgvector:0.8.7-pg18
         env:
           POSTGRES_PASSWORD: password
           POSTGRES_DB: testing
