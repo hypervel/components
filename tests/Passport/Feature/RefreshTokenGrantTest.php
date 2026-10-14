@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Passport\Feature;
 
+use Defuse\Crypto\Crypto;
+use Defuse\Crypto\Encoding;
+use Defuse\Crypto\Key;
 use Hypervel\Http\Request;
 use Hypervel\Passport\Client;
 use Hypervel\Passport\Database\Factories\ClientFactory;
@@ -40,6 +43,13 @@ class RefreshTokenGrantTest extends PassportTestCase
         $client = ClientFactory::new()->create();
 
         $oldToken = $this->getNewAccessToken($client);
+
+        $key = Key::loadFromAsciiSafeString(Encoding::saveBytesToChecksummedAsciiSafeString(
+            Key::KEY_CURRENT_VERSION,
+            hash_hkdf('sha256', $this->app->make('encrypter')->getKey(), Key::KEY_BYTE_SIZE, 'hypervel-passport'),
+        ));
+        $decrypted = json_decode(Crypto::decrypt($oldToken['refresh_token'], $key), true, flags: JSON_THROW_ON_ERROR);
+        $this->assertSame($client->getKey(), $decrypted['client_id']);
 
         $newToken = $this->post('/oauth/token', [
             'grant_type' => 'refresh_token',
