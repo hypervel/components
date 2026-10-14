@@ -579,7 +579,7 @@ Rotate `JWT_SECRET` or your key pair when you switch, so clients sign in again. 
 
 Hypervel compiles integer and float values passed to Scout's Algolia `where`, `whereIn`, and `whereNotIn` methods as numeric comparisons. Numeric-looking strings remain facet values. When porting an Algolia index, ensure the indexed attribute type matches the PHP value type used by these filters.
 
-Scout cannot generate embeddings with the Laravel AI SDK, and its database engine does not support semantic or hybrid search. Models whose `toSearchableEmbedding` method returns text must return precomputed embedding arrays or switch to the engine's native embeddings. See [semantic search](/docs/{{version}}/scout#semantic-search).
+Scout's database engine does not support semantic or hybrid search. Use Meilisearch, Typesense, or Turbopuffer for these searches. See [semantic search](/docs/{{version}}/scout#semantic-search).
 
 <a name="socialite"></a>
 ### Socialite

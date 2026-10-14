@@ -310,6 +310,7 @@ Track the separate MCP port and integration verification in `docs/todo.md`. Its 
 
 ## 9. Package wiring and documentation
 
+- Restore Scout's deferred AI integrations: generated embeddings for Meilisearch, Typesense and Turbopuffer, and database semantic/hybrid search. Keep the SDK optional, preserve upstream batching, caching, engine-native/precomputed vectors and public search methods, and port the corresponding upstream tests. Update Scout's canonical documentation, package metadata and compatibility guidance; remove its sync exclusion once the integrations are complete.
 - Wire root and split manifests: PSR-4, AI functions, replace entries, providers/aliases, actual runtime dependencies and optional feature suggestions. AI uses discovery, not DefaultProviders. Remove redundant concrete self-singleton bindings. Do not register upstream's currently unregistered ChatCommand without a deliberate decision.
 - Symfony YAML is runtime. AWS remains optional for the split AI package with its real minimum (`3.369.1` in the reference); mirror its conflict constraint in the root while retaining the filesystem package's required version range. No MCP dependency is needed for this port. Do not add redundant bundled extension requirements or compatibility branches for unsupported library versions.
 - Use the existing `Filesystem::fileExists()` and `directoryExists()` contract methods and remove the AI capability/size fallback; `exists()` retains file-or-directory semantics.

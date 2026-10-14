@@ -59,6 +59,7 @@
     },
     "suggest": {
         "algolia/algoliasearch-client-php": "Required for Algolia driver (^4.49.0)",
+        "hypervel/ai": "Required to generate embeddings for semantic and hybrid search (^0.4)",
         "meilisearch/meilisearch-php": "Required for Meilisearch driver (^1.16)",
         "typesense/typesense-php": "Required for Typesense driver (^5.2)"
     },

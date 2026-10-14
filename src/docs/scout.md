@@ -668,21 +668,7 @@ To use semantic or hybrid search with Meilisearch, configure an embedder in the 
 ],
 ```
 
-The model's `toSearchableEmbedding` method should return the record's precomputed embedding, which Scout adds to the indexed document. After updating the configuration, run the `scout:sync-index-settings` command:
-
-```php
-/**
- * Get the embedding for the model.
- *
- * @return array<int, float>
- */
-public function toSearchableEmbedding(): array
-{
-    return $this->embedding;
-}
-```
-
-Scout does not generate embeddings, so provide each semantic or hybrid search's [query embedding](#semantic-search) using the `vector` search option.
+The model's `toSearchableEmbedding` method may return source text, which Scout embeds using the [Hypervel AI SDK](/docs/{{version}}/ai-sdk), or a precomputed embedding array. After updating the configuration, run the `scout:sync-index-settings` command.
 
 Alternatively, you may use Meilisearch's native embeddings by setting the embedding `driver` to `meilisearch`. In this mode, Meilisearch generates document and query embeddings using the configured embedder, so the `dimensions` option and `toSearchableEmbedding` method are not required:
 
@@ -805,7 +791,7 @@ User::class => [
 <a name="typesense-embeddings"></a>
 #### Embeddings
 
-To enable semantic and hybrid search, define an `embedding` setting and vector field in the model's Typesense configuration:
+To enable semantic and hybrid search, define an `embedding` setting and vector field in the model's Typesense configuration. By default, Scout uses the [Hypervel AI SDK](/docs/{{version}}/ai-sdk) to generate embeddings:
 
 ```php
 use App\Models\Article;
@@ -827,12 +813,12 @@ use App\Models\Article;
 ],
 ```
 
-Your model's `toSearchableEmbedding` method should return the record's precomputed embedding array. Scout does not generate embeddings, so provide each semantic or hybrid search's [query embedding](#semantic-search) using the `vector` search option:
+Your model's `toSearchableEmbedding` method should return the source text that Scout should embed or a precomputed embedding array:
 
 ```php
-public function toSearchableEmbedding(): array
+public function toSearchableEmbedding(): string|array
 {
-    return $this->embedding;
+    return $this->title.' '.$this->content;
 }
 ```
 
@@ -906,7 +892,34 @@ use App\Models\Article;
 
 The numeric values assigned to `searchable-attributes` are relative BM25 weights. In the example above, matches in the article title contribute three times the score of matches in the body.
 
-To enable semantic and hybrid search, use Turbopuffer's native embeddings. Set the embedding `driver` to `turbopuffer` and configure an `embed` schema on the searchable source attribute:
+To enable semantic and hybrid search, add an `embedding` setting and vector schema to the model's configuration:
+
+```php
+'turbopuffer' => [
+    // ...
+    'model-settings' => [
+        Article::class => [
+            'searchable-attributes' => [
+                'title' => 3,
+                'body' => 1,
+            ],
+            'embedding' => [
+                'attribute' => 'embedding',
+                'dimensions' => 1536,
+            ],
+            'schema' => [
+                'title' => ['type' => 'string', 'full_text_search' => true],
+                'body' => ['type' => 'string', 'full_text_search' => true],
+                'embedding' => ['type' => '[1536]f32', 'ann' => true],
+            ],
+        ],
+    ],
+],
+```
+
+Your model's `toSearchableEmbedding` method should return the source text that Scout should embed or a precomputed embedding array. Scout generates source-text embeddings using the [Hypervel AI SDK](/docs/{{version}}/ai-sdk).
+
+Alternatively, you may use Turbopuffer's native embeddings without installing the Hypervel AI SDK or defining a `toSearchableEmbedding` method. Set the embedding driver to `turbopuffer` and configure an `embed` schema on the searchable source attribute:
 
 ```php
 'embedding' => [
@@ -929,21 +942,7 @@ To enable semantic and hybrid search, use Turbopuffer's native embeddings. Set t
 
 The source attribute must be included in the model's `toSearchableArray` output.
 
-You may also index precomputed embeddings by adding an `embedding` setting and vector schema to the model's configuration, then returning the embedding array from the model's `toSearchableEmbedding` method:
-
-```php
-'embedding' => [
-    'attribute' => 'embedding',
-    'dimensions' => 1536,
-],
-
-'schema' => [
-    // ...
-    'embedding' => ['type' => '[1536]f32', 'ann' => true],
-],
-```
-
-Since Scout does not generate query embeddings, search precomputed embeddings by passing a Turbopuffer `rank_by` expression to the `options` method rather than using the `semantic` and `hybrid` methods:
+To search with a precomputed query vector, pass a Turbopuffer `rank_by` expression to the `options` method:
 
 ```php
 $articles = Article::search()
@@ -1392,7 +1391,15 @@ When using a third-party engine, this callback is invoked after the relevant mod
 <a name="semantic-search"></a>
 ### Semantic Search
 
-The Meilisearch, Typesense, and Turbopuffer engines support semantic search, which matches records based on the meaning of a query. Scout does not generate embeddings, so semantic and hybrid searches use [Meilisearch's](#meilisearch-semantic-and-hybrid-search), [Typesense's](#typesense-embeddings), or [Turbopuffer's](#turbopuffer-configuration) native embeddings, or a precomputed query vector on Meilisearch and Typesense.
+The Meilisearch, Typesense, and Turbopuffer engines support semantic search, which matches records based on the meaning of a query. When Scout generates embeddings, semantic and hybrid searches require the [Hypervel AI SDK](/docs/{{version}}/ai-sdk). [Meilisearch's](#meilisearch-semantic-and-hybrid-search), [Typesense's](#typesense-embeddings), and [Turbopuffer's](#turbopuffer-configuration) native embeddings and precomputed query vectors do not require the AI SDK.
+
+Install the SDK and configure its embedding provider before using generated embeddings:
+
+```shell
+composer require hypervel/ai
+```
+
+Scout enables caching for generated embeddings even when `ai.caching.embeddings.cache` is disabled. The cache store, duration, and individual-input caching follow the AI SDK's [embedding cache configuration](/docs/{{version}}/ai-sdk#caching-embeddings). You may set `provider` and `model` in a model's `embedding` configuration to override the SDK's defaults.
 
 After configuring embeddings for the selected engine, invoke the `semantic` method on a search query:
 
@@ -1402,7 +1409,7 @@ $articles = Article::search('staying cool in the summer')
     ->get();
 ```
 
-When the engine searches precomputed embeddings, provide the query's embedding using the `vector` option:
+When using Meilisearch or Typesense, you may provide the query's embedding using the `vector` option:
 
 ```php
 $articles = Article::search('staying cool in the summer')
