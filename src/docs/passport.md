@@ -384,7 +384,7 @@ Use a cache store shared by every process that changes clients or revokes tokens
 
 Passport invalidates entries after model updates and deletes, package revocations, and `update` or `delete` through `$user->tokens()`, `$client->tokens()` and `$user->oauthApps()`. Invalidation waits until a database transaction commits. Reads inside a transaction use the database directly.
 
-Invalidation waits for any cache fill on the same entry. If the lock times out, `LockTimeoutException` is thrown after the database change has been saved. The affected entry may remain cached until it is cleared or expires.
+Invalidation waits for any cache fill on the same entry. If the lock times out, `LockTimeoutException` is thrown after the database change has been saved. During token issuance, Passport reports invalidation failures after its commit and returns the issued credentials, so the client receives its replacement tokens. Explicit revocation operations still throw. The affected entry may remain cached until it is cleared or expires.
 
 When your database uses separate read and write connections, Passport reads access tokens and clients from the write connection, whether caching is enabled or disabled. This ensures that newly issued credentials and revocations are visible immediately.
 
@@ -945,6 +945,7 @@ php artisan passport:client --client
 Next, assign the `Hypervel\Passport\Http\Middleware\EnsureClientIsResourceOwner` middleware to a route:
 
 ```php
+use Hypervel\Http\Request;
 use Hypervel\Passport\Http\Middleware\EnsureClientIsResourceOwner;
 
 Route::get('/orders', function (Request $request) {
@@ -1348,6 +1349,8 @@ Passport raises events when issuing and revoking tokens. You may [listen for the
 | `Hypervel\Passport\Events\RefreshTokenCreated` |
 
 </div>
+
+Because these events dispatch after the issuance commits, listeners cannot stop it. If a listener throws, Passport reports the exception and still returns the issued tokens.
 
 Bulk updates through `tokens()` relationships or query builders do not dispatch `AccessTokenRevoked`. Revoke tokens through their model's `revoke()` method when you rely on this event.
 
