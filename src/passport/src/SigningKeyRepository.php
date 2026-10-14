@@ -214,6 +214,7 @@ class SigningKeyRepository
             }
 
             $now = CarbonImmutable::now();
+            /** @var Collection<int, SigningKey> $keys */
             $keys = new Collection;
             // File workers can still issue tokens between this import and their restart.
             $maxTokenLifetime = max(
