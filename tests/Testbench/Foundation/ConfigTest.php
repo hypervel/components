@@ -42,7 +42,7 @@ class ConfigTest extends TestCase
         $config = Config::loadFromYaml(__DIR__ . '/Fixtures/');
 
         $this->assertNull($config['hypervel']);
-        $this->assertSame(['APP_DEBUG=(false)'], $config['env']);
+        $this->assertSame(['APP_DEBUG=false'], $config['env']);
         $this->assertSame([], $config['bootstrappers']);
         $this->assertSame([TestbenchServiceProvider::class], $config['providers']);
         $this->assertSame([], $config['dont-discover']);
@@ -51,7 +51,7 @@ class ConfigTest extends TestCase
 
         $this->assertSame([
             'env' => [
-                'APP_DEBUG=(false)',
+                'APP_DEBUG=false',
             ],
             'bootstrappers' => [],
             'providers' => [
@@ -213,6 +213,40 @@ class ConfigTest extends TestCase
 
         $this->assertSame([], $config['purge']);
         $this->assertSame([], $config['workbench']);
+    }
+
+    #[Test]
+    public function itNormalizesCommentOnlyYamlLists(): void
+    {
+        file_put_contents($this->temporaryDirectory . '/testbench.yaml', <<<'YAML'
+            env:
+              # APP_DEBUG: true
+            providers:
+              # - Workbench\App\Providers\WorkbenchServiceProvider
+            dont-discover:
+              # - example/package
+            migrations:
+              # - workbench/database/migrations
+            bootstrappers:
+              # - App\Bootstrapper
+            workbench:
+              discovers:
+                # web: true
+            YAML);
+
+        $config = Config::loadFromYaml($this->temporaryDirectory);
+
+        $this->assertSame([
+            'env' => [],
+            'bootstrappers' => [],
+            'providers' => [],
+            'dont-discover' => [],
+        ], $config->getExtraAttributes());
+        $this->assertSame([], $config['migrations']);
+        $this->assertSame(
+            (new Config)->getWorkbenchDiscoversAttributes(),
+            $config->getWorkbenchDiscoversAttributes(),
+        );
     }
 
     #[Test]
