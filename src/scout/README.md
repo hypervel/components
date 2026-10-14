@@ -13,6 +13,5 @@ Documentation: https://hypervel.org/docs/scout
 - Pausing search syncing with `withoutSyncingToSearch()` or `disableSearchSyncing()` applies only to the current coroutine, so other requests keep indexing. See [Pausing Indexing](https://hypervel.org/docs/scout#pausing-indexing).
 - `MeilisearchEngine::generateTenantToken()` takes the search rules, the parent key's UID, the key itself and an optional expiry. Laravel's engine forwards the call to the Meilisearch client, whose method takes the UID, the search rules and an options array. See [Tenant Tokens](https://hypervel.org/docs/scout#meilisearch-tenant-tokens).
 - `scout:delete-all-indexes` refuses to run without a configured Scout prefix unless you pass `--force`.
-- The database engine does not support semantic or hybrid search. See [Semantic Search](https://hypervel.org/docs/scout#semantic-search).
 
 Ported from: https://github.com/laravel/scout

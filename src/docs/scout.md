@@ -352,7 +352,7 @@ Registering a callback replaces the previously registered callback for that life
 ### Database Engine
 
 > [!WARNING]
-> The database engine currently supports MySQL and PostgreSQL, both of which provide support for fast, full-text column indexing.
+> Full-text searching requires MySQL, MariaDB, or PostgreSQL. SQLite supports the database engine's `LIKE` queries.
 
 The `database` engine uses MySQL / PostgreSQL full-text indexes and `LIKE` clauses to search your existing database directly. For many applications, this is the simplest and most practical way to add search — no external service or additional infrastructure required.
 
@@ -362,7 +362,48 @@ To use the database engine, set the `SCOUT_DRIVER` environment variable to `data
 SCOUT_DRIVER=database
 ```
 
-Once configured, you may [define your searchable data](#configuring-searchable-data) and start [executing search queries](#searching) against your models. Unlike third-party engines, the database engine requires no separate indexing step — it searches your database tables directly.
+Once configured, you may [define your searchable data](#configuring-searchable-data) and start [executing search queries](#searching) against your models. Unlike third-party engines, ordinary text searching with the database engine requires no separate indexing step — it searches your database tables directly.
+
+<a name="database-semantic-and-hybrid-search"></a>
+#### Semantic and Hybrid Search
+
+The database engine supports semantic and hybrid search when using PostgreSQL with the `pgvector` extension. To get started, add a nullable vector column and a full-text index to your model's table. The vector column must be nullable because Scout stores the embedding after the model has been persisted:
+
+```php
+Schema::ensureVectorExtensionExists();
+
+Schema::table('articles', function (Blueprint $table) {
+    // ...
+
+    $table->vector('embedding', dimensions: 1536)->nullable();
+    $table->vectorIndex('embedding');
+    $table->fullText(['title', 'body']);
+});
+```
+
+Next, define a `toSearchableEmbedding` method on the model. This method may return the source text that Scout should embed or a precomputed embedding array. Scout stores embeddings in the `embedding` column by default; to use another column, define a `searchableEmbeddingColumn` method on the model. Configure the AI SDK's default embedding provider and model to produce vectors matching the column's dimensions. The database engine uses these defaults for both stored and search embeddings it generates.
+
+> [!WARNING]
+> Database hybrid search loads up to 1,000 text matches and 1,000 semantic matches before ranking and paginating them. Select only the columns you need, including the model's primary key, to avoid transferring large embedding values. The same projection also helps semantic searches. This reduces data transfer and model size; it does not reduce the number of candidate models or disable their eager-loaded relationships.
+
+```php
+use Hypervel\Database\Eloquent\Builder;
+
+$articles = Article::search('renewable energy storage')
+    ->hybrid()
+    ->query(fn (Builder $query) => $query->select(['articles.id', 'articles.title']))
+    ->paginate(20);
+```
+
+Hybrid pagination is limited to the first 1,000 ranked results. Semantic search supports pagination beyond this window, but approximate vector indexes can return fewer matches than requested. For HNSW indexes, pgvector 0.8 or later supports [iterative scanning](https://github.com/pgvector/pgvector#iterative-index-scans), which searches further when needed. You may enable it in your PostgreSQL connection's [server options](/docs/{{version}}/database#postgresql-server-options):
+
+```php
+'server_options' => [
+    'hnsw.iterative_scan' => 'strict_order',
+],
+```
+
+Searching further requires more database work and remains subject to pgvector's scan and memory limits; it does not guarantee that every matching row will be returned. Semantic `paginate()` also counts all rows satisfying the similarity filter, which can require scanning the table and can exceed the results available through an approximate index. Use `simplePaginate()` when you don't need a total count.
 
 #### Customizing Database Searching Strategies
 
@@ -1391,7 +1432,7 @@ When using a third-party engine, this callback is invoked after the relevant mod
 <a name="semantic-search"></a>
 ### Semantic Search
 
-The Meilisearch, Typesense, and Turbopuffer engines support semantic search, which matches records based on the meaning of a query. When Scout generates embeddings, semantic and hybrid searches require the [Hypervel AI SDK](/docs/{{version}}/ai-sdk). [Meilisearch's](#meilisearch-semantic-and-hybrid-search), [Typesense's](#typesense-embeddings), and [Turbopuffer's](#turbopuffer-configuration) native embeddings and precomputed query vectors do not require the AI SDK.
+The database, Meilisearch, Typesense, and Turbopuffer engines support semantic search, which matches records based on the meaning of a query. The [database engine](#database-semantic-and-hybrid-search) requires PostgreSQL with pgvector. When Scout generates embeddings, semantic and hybrid searches require the [Hypervel AI SDK](/docs/{{version}}/ai-sdk). [Meilisearch's](#meilisearch-semantic-and-hybrid-search), [Typesense's](#typesense-embeddings), and [Turbopuffer's](#turbopuffer-configuration) native embeddings and their supported precomputed query vectors do not require the AI SDK.
 
 Install the SDK and configure its embedding provider before using generated embeddings:
 
@@ -1399,7 +1440,7 @@ Install the SDK and configure its embedding provider before using generated embe
 composer require hypervel/ai
 ```
 
-Scout enables caching for generated embeddings even when `ai.caching.embeddings.cache` is disabled. The cache store, duration, and individual-input caching follow the AI SDK's [embedding cache configuration](/docs/{{version}}/ai-sdk#caching-embeddings). You may set `provider` and `model` in a model's `embedding` configuration to override the SDK's defaults.
+Scout enables caching for generated embeddings even when `ai.caching.embeddings.cache` is disabled. The cache store, duration, and individual-input caching follow the AI SDK's [embedding cache configuration](/docs/{{version}}/ai-sdk#caching-embeddings). For Meilisearch, Typesense, and Turbopuffer, you may set `provider` and `model` in a model's `embedding` configuration to override the SDK's defaults.
 
 After configuring embeddings for the selected engine, invoke the `semantic` method on a search query:
 
@@ -1418,7 +1459,7 @@ $articles = Article::search('staying cool in the summer')
     ->get();
 ```
 
-When using Meilisearch or Typesense, you may provide a minimum similarity threshold between `0` and `1`. Turbopuffer does not support similarity thresholds and ignores this argument:
+When using the database engine, Meilisearch, or Typesense, you may provide a minimum similarity threshold between `0` and `1`. Turbopuffer does not support similarity thresholds and ignores this argument:
 
 ```php
 $articles = Article::search('renewable energy storage')

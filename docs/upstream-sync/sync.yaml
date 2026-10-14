@@ -112,7 +112,6 @@ laravel/scout:
   checked_through: ce2542f5a7297d21975ddcd7115dbf798fd8ba00
   last_reviewed_pr: 1012
   sync_date: '2026-10-03'
-  notes: "The database engine's semantic and hybrid search from #1007 is not ported yet and is not covered by checked_through; port it with Hypervel's AI SDK."
 
 laravel/slack-notification-channel:
   branch: 3.x
