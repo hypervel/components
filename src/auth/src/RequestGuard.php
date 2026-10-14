@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Auth;
 
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Auth\UserProvider;
@@ -50,10 +51,9 @@ class RequestGuard implements Guard
     /**
      * Get the currently authenticated user.
      *
-     * Uses coroutine Context to cache the resolved user per-request,
-     * since this guard is a process-global singleton. A sentinel value
-     * is used to cache "no user found" so repeated calls don't trigger
-     * redundant provider lookups.
+     * RequestContext keeps resolved users local to the coroutine and clears them
+     * when its request changes. A sentinel caches "no user found" so repeated
+     * calls don't trigger redundant provider lookups.
      */
     public function user(): ?AuthenticatableContract
     {
@@ -67,7 +67,7 @@ class RequestGuard implements Guard
         }
 
         $contextKey = $this->getResolvedUserContextKey();
-        $cached = CoroutineContext::get($contextKey);
+        $cached = RequestContext::getValue($contextKey);
 
         if ($cached === self::$nullUserSentinel) {
             return null;
@@ -82,7 +82,7 @@ class RequestGuard implements Guard
             $this->getProvider()
         );
 
-        CoroutineContext::set($contextKey, $user ?? self::$nullUserSentinel);
+        RequestContext::setValue($contextKey, $user ?? self::$nullUserSentinel);
 
         return $user;
     }
@@ -109,7 +109,7 @@ class RequestGuard implements Guard
             return true;
         }
 
-        $cached = CoroutineContext::get($this->getResolvedUserContextKey());
+        $cached = RequestContext::getValue($this->getResolvedUserContextKey());
 
         return $cached !== null && $cached !== self::$nullUserSentinel;
     }
@@ -130,7 +130,7 @@ class RequestGuard implements Guard
     public function forgetUser(): static
     {
         CoroutineContext::forget($this->getExplicitUserContextKey());
-        CoroutineContext::forget($this->getResolvedUserContextKey());
+        RequestContext::forgetValue($this->getResolvedUserContextKey());
 
         return $this;
     }

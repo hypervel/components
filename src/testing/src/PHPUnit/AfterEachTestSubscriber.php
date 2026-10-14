@@ -337,6 +337,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         $this->flushJwtState();
         $this->flushNestedSetState();
         $this->flushPasskeysState();
+        $this->flushPassportState();
         $this->flushPermissionState();
         $this->flushReverbState();
         $this->flushSaloonState();
@@ -425,6 +426,15 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         $this->callIfExists(\Hypervel\Passkeys\Passkeys::class, 'flushState');
         $this->callIfExists(\Hypervel\Passkeys\Support\Aaguids::class, 'flushState');
         $this->callIfExists(\Hypervel\Passkeys\Support\WebAuthn::class, 'flushState');
+    }
+
+    /**
+     * Flush Passport state.
+     */
+    protected function flushPassportState(): void
+    {
+        $this->callIfExists(\Hypervel\Passport\Passport::class, 'flushState');
+        $this->callIfExists(\Hypervel\Passport\Guards\TokenGuard::class, 'flushState');
     }
 
     /**

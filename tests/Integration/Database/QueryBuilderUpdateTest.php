@@ -10,6 +10,7 @@ use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\Attributes\RequiresDatabase;
 use Hypervel\Tests\Database\Fixtures\Enums\StringStatus;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class QueryBuilderUpdateTest extends DatabaseTestCase
 {
@@ -29,6 +30,28 @@ class QueryBuilderUpdateTest extends DatabaseTestCase
             $table->unsignedBigInteger('example_id');
             $table->integer('credits');
         });
+    }
+
+    #[RequiresDatabase(['sqlite', 'pgsql'])]
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testOffsetOnlyWritesPreserveTheExcludedRows(bool $delete): void
+    {
+        DB::table('example')->insert([
+            ['name' => 'Keep', 'credits' => 30],
+            ['name' => 'Last', 'credits' => 10],
+            ['name' => 'Middle', 'credits' => 20],
+        ]);
+
+        $query = DB::table('example')->orderByDesc('credits')->offset(1);
+        $this->assertSame(2, $delete ? $query->delete() : $query->update(['status' => 'changed']));
+        $this->assertDatabaseHas('example', ['name' => 'Keep', 'status' => null]);
+
+        if ($delete) {
+            $this->assertSame(['Keep'], DB::table('example')->pluck('name')->all());
+        } else {
+            $this->assertSame(['Last', 'Middle'], DB::table('example')->where('status', 'changed')->orderBy('id')->pluck('name')->all());
+        }
     }
 
     #[DataProvider('jsonValuesDataProvider')]

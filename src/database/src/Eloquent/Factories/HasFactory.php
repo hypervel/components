@@ -55,7 +55,10 @@ trait HasFactory
         if ($attributes !== []) {
             $useFactory = $attributes[0]->newInstance();
 
-            return $useFactory->factoryClass::new()->useModel(static::class);
+            /** @var TFactory $factory */
+            $factory = $useFactory->factoryClass::new();
+
+            return $factory->useModel(static::class);
         }
 
         return null;

@@ -170,6 +170,7 @@ class ExceptionHandlerTest extends TestCase
 
     public function testItHandlesMalformedErrorViewsInProduction(): void
     {
+        // @TODO: Restore Laravel's undefined-variable fixture and both tests' assertions once https://github.com/swoole/swoole-src/pull/6305 is released.
         Config::set('view.paths', [__DIR__ . '/Fixtures/MalformedErrorViews']);
         Config::set('app.debug', false);
         $reported = [];

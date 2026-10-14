@@ -10,6 +10,7 @@ use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\Pool\PoolManager;
 use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
+use Hypervel\Foundation\Testing\DatabaseTransactionsManager as TestingTransactionsManager;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
@@ -211,6 +212,28 @@ class DatabaseConnectionResolverTest extends TestCase
         $this->assertNotSame($connection, $resolver->connection('testing'));
     }
 
+    public function testCachedConnectionTransactionsExcludeTheTestWrapperAndHonorAliases(): void
+    {
+        $resolver = $this->app->make(DatabaseConnectionResolver::class);
+        $this->assertFalse($resolver->hasApplicableTransaction());
+        $this->assertNull($resolver->getResolvedConnection('testing'));
+
+        $connection = $resolver->connection('testing::write');
+        (new TestingTransactionsManager(['testing']))->beginTransactions($this->app->make('db'));
+
+        try {
+            $this->assertFalse($resolver->hasApplicableTransaction());
+            $connection->beginTransaction();
+            $this->assertTrue($resolver->hasApplicableTransaction());
+            $this->assertTrue($resolver->hasApplicableTransaction('testing::read'));
+            $this->assertTrue($resolver->hasApplicableTransaction('testing::write'));
+            $connection->rollBack();
+            $this->assertFalse($resolver->hasApplicableTransaction());
+        } finally {
+            $connection->rollBack(0);
+        }
+    }
+
     public function testIntegerBackedEnumConnectionNamesAreNormalizedInTestingAndPooledModes(): void
     {
         $config = $this->app->make('config');
@@ -226,6 +249,42 @@ class DatabaseConnectionResolverTest extends TestCase
         $this->assertSame($resolver->connection(), $resolver->connection(''));
         $this->assertSame('0', $resolver->connection(DatabaseTestingConnectionName::Zero)->getName());
         $this->assertSame('1', $resolver->connection(DatabaseTestingConnectionName::One)->getName());
+    }
+
+    public function testPooledTransactionChecksIgnoreARetainedTestingConnection(): void
+    {
+        $database = $this->app->storagePath('transaction-resolver.sqlite');
+        touch($database);
+        try {
+            config(['database.connections.testing.database' => $database]);
+            $resolver = $this->app->make(DatabaseConnectionResolver::class);
+            $retained = $resolver->connection();
+            $pool = $this->app->make(PoolManager::class)->pool('testing');
+            $borrowed = $pool->getBorrowedCount();
+            $retained->beginTransaction();
+
+            try {
+                $this->assertTrue($resolver->hasApplicableTransaction());
+                config(['database.connections.testing.pool.testing_enabled' => true]);
+                $this->assertFalse($resolver->hasApplicableTransaction());
+                $this->assertSame($borrowed, $pool->getBorrowedCount());
+            } finally {
+                $retained->rollBack();
+            }
+
+            $pooled = $resolver->connection();
+            $this->assertNotSame($retained, $pooled);
+            $pooled->beginTransaction();
+
+            try {
+                $this->assertFalse($retained->hasApplicableTransaction());
+                $this->assertTrue($resolver->hasApplicableTransaction());
+            } finally {
+                $pooled->rollBack();
+            }
+        } finally {
+            unlink($database);
+        }
     }
 
     public function testNamedFlushDiscardsTheOwningWrapperAndRestoresPoolCapacity(): void

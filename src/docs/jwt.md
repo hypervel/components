@@ -112,11 +112,11 @@ php artisan jwt:generate-certs --ask-passphrase
 <a name="configuring-the-guard"></a>
 ### Configuring the Guard
 
-To use JWT authentication, configure an auth guard that uses the `jwt` driver:
+Hypervel's `config/auth.php` file already includes a `jwt` guard that uses the `jwt` driver:
 
 ```php
 'guards' => [
-    'api' => [
+    'jwt' => [
         'driver' => 'jwt',
         'provider' => 'users',
     ],
@@ -126,14 +126,14 @@ To use JWT authentication, configure an auth guard that uses the `jwt` driver:
 If JWT is your application's main way of authenticating users, you may make this guard the default by setting the `AUTH_GUARD` environment variable. Calls such as `Auth::user()` and the `auth` middleware then use it without naming the guard:
 
 ```ini
-AUTH_GUARD=api
+AUTH_GUARD=jwt
 ```
 
 You may then protect routes using Hypervel's normal authentication middleware:
 
 ```php
-Route::middleware('auth:api')->get('/user', function () {
-    return Auth::guard('api')->user();
+Route::middleware('auth:jwt')->get('/user', function () {
+    return Auth::guard('jwt')->user();
 });
 ```
 
@@ -178,7 +178,7 @@ Custom claims may also set the registered `exp`, `nbf`, `iat`, `iss`, and `jti` 
 use Hypervel\Support\Facades\Auth;
 use Hypervel\Support\Facades\Date;
 
-$token = Auth::guard('api')
+$token = Auth::guard('jwt')
     ->claims(['exp' => Date::now()->addDays(7)])
     ->login($user);
 ```
@@ -284,7 +284,7 @@ The global `jwt.ttl` option accepts an integer or `null`.
 For one token-producing operation, use `setTTL`:
 
 ```php
-$token = Auth::guard('api')
+$token = Auth::guard('jwt')
     ->setTTL(15)
     ->attempt($credentials);
 ```
@@ -487,7 +487,7 @@ The `attempt` method validates credentials and returns a JWT string when authent
 use Hypervel\Support\Facades\Auth;
 
 $credentials = $request->only(['email', 'password']);
-$guard = Auth::guard('api');
+$guard = Auth::guard('jwt');
 $ttl = $guard->getTTL();
 
 if (! $token = $guard->attempt($credentials)) {
@@ -506,15 +506,15 @@ Like Hypervel's session guard, the `attempt` and `once` methods [rehash the user
 You may issue a token for an existing user model using `login`:
 
 ```php
-$token = Auth::guard('api')->login($user);
+$token = Auth::guard('jwt')->login($user);
 ```
 
 To issue a token for a user without making them the current guard user, use `fromUser`, or `tokenById` when you only have the user's ID:
 
 ```php
-$token = Auth::guard('api')->fromUser($user);
+$token = Auth::guard('jwt')->fromUser($user);
 
-$token = Auth::guard('api')->tokenById($userId);
+$token = Auth::guard('jwt')->tokenById($userId);
 ```
 
 <a name="protecting-routes"></a>
@@ -523,12 +523,12 @@ $token = Auth::guard('api')->tokenById($userId);
 Use Hypervel's normal authentication middleware:
 
 ```php
-Route::middleware('auth:api')->get('/profile', function () {
-    return Auth::guard('api')->user();
+Route::middleware('auth:jwt')->get('/profile', function () {
+    return Auth::guard('jwt')->user();
 });
 ```
 
-Routes that allow guests don't need any middleware. Calling `Auth::guard('api')->user()` reads the token when it is first needed, and returns `null` when the request has no usable token.
+Routes that allow guests don't need any middleware. Calling `Auth::guard('jwt')->user()` reads the token when it is first needed, and returns `null` when the request has no usable token.
 
 <a name="reading-the-authenticated-user"></a>
 ### Reading the Authenticated User
@@ -536,27 +536,27 @@ Routes that allow guests don't need any middleware. Calling `Auth::guard('api')-
 Use the usual auth APIs to read the authenticated user or ID:
 
 ```php
-$user = Auth::guard('api')->user();
+$user = Auth::guard('jwt')->user();
 
-$userId = Auth::guard('api')->id();
+$userId = Auth::guard('jwt')->id();
 ```
 
 The `id` method loads the user, like the other guards. When you only need the ID, the `getUserId` method reads the token subject without loading the user model, so it does not check that the user still exists:
 
 ```php
-$userId = Auth::guard('api')->getUserId();
+$userId = Auth::guard('jwt')->getUserId();
 ```
 
 The `userOrFail` method throws a `UserNotDefinedException` when there is no authenticated user:
 
 ```php
-$user = Auth::guard('api')->userOrFail();
+$user = Auth::guard('jwt')->userOrFail();
 ```
 
 The `payload` method returns the current token's claims as an array, or an empty array when the request has no token:
 
 ```php
-$payload = Auth::guard('api')->payload();
+$payload = Auth::guard('jwt')->payload();
 
 $tenantId = $payload['tenant_id'] ?? null;
 ```
@@ -564,7 +564,7 @@ $tenantId = $payload['tenant_id'] ?? null;
 To authenticate a token that is not in the current request, pass it to the `setToken` method. The guard uses that token for the rest of the request:
 
 ```php
-$user = Auth::guard('api')->setToken($token)->user();
+$user = Auth::guard('jwt')->setToken($token)->user();
 ```
 
 <a name="refreshing-tokens"></a>
@@ -573,7 +573,7 @@ $user = Auth::guard('api')->setToken($token)->user();
 The `refresh` method creates a new token from the current token:
 
 ```php
-$newToken = Auth::guard('api')->refresh();
+$newToken = Auth::guard('jwt')->refresh();
 ```
 
 Expose refresh through a dedicated endpoint:
@@ -586,7 +586,7 @@ use Hypervel\Support\Facades\Auth;
 
 Route::post('/token/refresh', function () {
     try {
-        $token = Auth::guard('api')->refresh();
+        $token = Auth::guard('jwt')->refresh();
     } catch (TokenInvalidException|TokenExpiredException|TokenBlacklistedException) {
         abort(401, 'Token cannot be refreshed.');
     }
@@ -597,7 +597,7 @@ Route::post('/token/refresh', function () {
 });
 ```
 
-Do not protect the refresh route with `auth:api`. Refresh must be able to read an expired token that is still inside the refresh window, and normal auth middleware rejects expired access tokens before the handler runs.
+Do not protect the refresh route with `auth:jwt`. Refresh must be able to read an expired token that is still inside the refresh window, and normal auth middleware rejects expired access tokens before the handler runs.
 
 The refresh window is controlled by `refresh_ttl`, in minutes:
 
@@ -619,13 +619,13 @@ If `refresh_iat` is `false`, refreshed tokens keep the original `iat` claim. If 
 You may force the old token to remain blacklisted forever when blacklist is enabled:
 
 ```php
-$newToken = Auth::guard('api')->refresh(forceForever: true);
+$newToken = Auth::guard('jwt')->refresh(forceForever: true);
 ```
 
 You may also reset non-persistent custom claims during refresh:
 
 ```php
-$newToken = Auth::guard('api')->refresh(resetClaims: true);
+$newToken = Auth::guard('jwt')->refresh(resetClaims: true);
 ```
 
 Claims listed in `persistent_claims` are preserved during refresh when they are present on the old token:
@@ -644,7 +644,7 @@ Every refreshed token receives a new `nbf` claim. It also receives a new `exp` c
 The `logout` method invalidates the current token when the blacklist is enabled, then clears the guard's user, token, and decoded payload. For the rest of the request, the guard no longer reads the token from the request:
 
 ```php
-Auth::guard('api')->logout();
+Auth::guard('jwt')->logout();
 ```
 
 Without the blacklist, tokens cannot be revoked, so a logged out token remains valid until it expires. If the blacklist write fails, a `JwtException` is thrown, the guard keeps its current state, and the `Logout` event is not dispatched.
@@ -652,15 +652,15 @@ Without the blacklist, tokens cannot be revoked, so a logged out token remains v
 While the blacklist is enabled, you may invalidate a token directly using the `invalidate` method:
 
 ```php
-Auth::guard('api')->invalidate();
+Auth::guard('jwt')->invalidate();
 ```
 
 You may pass `true` to blacklist the token forever. This also bypasses the configured grace period, so the revocation takes effect immediately. The `logout` method accepts the same argument:
 
 ```php
-Auth::guard('api')->invalidate(true);
+Auth::guard('jwt')->invalidate(true);
 
-Auth::guard('api')->logout(true);
+Auth::guard('jwt')->logout(true);
 ```
 
 <a name="managing-revocations"></a>
@@ -686,29 +686,29 @@ A token whose revocation is removed can authenticate again until it expires. The
 The JWT guard supports these methods:
 
 ```php
-Auth::guard('api')->attempt($credentials);      // string|false
-Auth::guard('api')->validate($credentials);     // bool
-Auth::guard('api')->once($credentials);         // bool
-Auth::guard('api')->onceUsingId($id);           // Authenticatable|false
-Auth::guard('api')->login($user);               // string
-Auth::guard('api')->fromUser($user);            // string
-Auth::guard('api')->tokenById($id);             // string|null
-Auth::guard('api')->byId($id);                  // Authenticatable|false
-Auth::guard('api')->user();                     // Authenticatable|null
-Auth::guard('api')->getUser();                  // Authenticatable|null
-Auth::guard('api')->userOrFail();               // Authenticatable
-Auth::guard('api')->check();                    // bool
-Auth::guard('api')->id();                       // int|string|null
-Auth::guard('api')->getUserId();                // int|string|null
-Auth::guard('api')->claims(['role' => 'admin']);
-Auth::guard('api')->setTTL(15);
-Auth::guard('api')->getTTL();                   // int|null
-Auth::guard('api')->setToken($token);
-Auth::guard('api')->getToken();
-Auth::guard('api')->payload();                  // array
-Auth::guard('api')->refresh();
-Auth::guard('api')->logout();
-Auth::guard('api')->invalidate();
+Auth::guard('jwt')->attempt($credentials);      // string|false
+Auth::guard('jwt')->validate($credentials);     // bool
+Auth::guard('jwt')->once($credentials);         // bool
+Auth::guard('jwt')->onceUsingId($id);           // Authenticatable|false
+Auth::guard('jwt')->login($user);               // string
+Auth::guard('jwt')->fromUser($user);            // string
+Auth::guard('jwt')->tokenById($id);             // string|null
+Auth::guard('jwt')->byId($id);                  // Authenticatable|false
+Auth::guard('jwt')->user();                     // Authenticatable|null
+Auth::guard('jwt')->getUser();                  // Authenticatable|null
+Auth::guard('jwt')->userOrFail();               // Authenticatable
+Auth::guard('jwt')->check();                    // bool
+Auth::guard('jwt')->id();                       // int|string|null
+Auth::guard('jwt')->getUserId();                // int|string|null
+Auth::guard('jwt')->claims(['role' => 'admin']);
+Auth::guard('jwt')->setTTL(15);
+Auth::guard('jwt')->getTTL();                   // int|null
+Auth::guard('jwt')->setToken($token);
+Auth::guard('jwt')->getToken();
+Auth::guard('jwt')->payload();                  // array
+Auth::guard('jwt')->refresh();
+Auth::guard('jwt')->logout();
+Auth::guard('jwt')->invalidate();
 ```
 
 The `claims` and `setTTL` methods affect only the next token-producing operation. The `getUser` method returns the user the guard has already resolved, without decoding the token or loading the user.

@@ -71,6 +71,8 @@ class PermissionRegistrar
 
     public const string MODEL_VIA_ROLE_PERMISSIONS_CONTEXT_KEY = '__permission.model_via_role_permissions';
 
+    protected const string MODEL_ROLE_ASSIGNMENTS_CONTEXT_KEY = '__permission.model_role_assignments';
+
     protected const string MODEL_DIRECT_PERMISSIONS_CONTEXT_KEY = '__permission.model_direct_permissions';
 
     protected const string MODEL_CLASS_CATALOG_CONTEXT_KEY = '__permission.model_class_catalog';
@@ -445,8 +447,11 @@ class PermissionRegistrar
         Closure $read,
     ): mixed {
         if (! $this->cacheKeyIsDirty($cacheKey)) {
+            $permissionClass = $this->permissionClass;
+
             return $this->modelCacheCoordinator->fill(
                 $this->cacheRepository(),
+                static fn (): Model => new $permissionClass,
                 $cacheKey,
                 $this->cacheExpirationTime,
                 $read,
@@ -814,6 +819,7 @@ class PermissionRegistrar
                 $team,
             ),
             function () use ($runtimeKey): void {
+                $this->forgetRuntimeCacheItem(self::MODEL_ROLE_ASSIGNMENTS_CONTEXT_KEY, $runtimeKey);
                 $this->forgetRuntimeCacheItem(self::MODEL_VIA_ROLE_PERMISSIONS_CONTEXT_KEY, $runtimeKey);
                 $this->forgetRuntimeCacheItem(self::WILDCARD_PERMISSION_INDEX_CONTEXT_KEY, $runtimeKey);
             },
@@ -915,13 +921,22 @@ class PermissionRegistrar
      */
     public function rememberModelRoleAssignments(Model $model, Closure $callback): array
     {
+        $key = $this->modelRuntimeCacheKey($model);
+        $items = CoroutineContext::get(self::MODEL_ROLE_ASSIGNMENTS_CONTEXT_KEY, []);
+
+        if (isset($items[$key])) {
+            return $items[$key];
+        }
+
         $cacheKey = $this->modelCacheKey($this->modelRolesCacheKeyPrefix, $model);
 
-        /** @var array<int, array<string, mixed>> */
-        return $this->rememberSharedOrDirtyValue(
+        $items[$key] = $this->rememberSharedOrDirtyValue(
             $cacheKey,
             $callback,
         );
+        CoroutineContext::set(self::MODEL_ROLE_ASSIGNMENTS_CONTEXT_KEY, $items);
+
+        return $items[$key];
     }
 
     /**
@@ -1169,6 +1184,7 @@ class PermissionRegistrar
         CoroutineContext::forget(self::PERMISSION_CATALOG_CONTEXT_KEY);
         CoroutineContext::forget(self::WILDCARD_PERMISSION_INDEX_CONTEXT_KEY);
         CoroutineContext::forget(self::MODEL_VIA_ROLE_PERMISSIONS_CONTEXT_KEY);
+        CoroutineContext::forget(self::MODEL_ROLE_ASSIGNMENTS_CONTEXT_KEY);
         CoroutineContext::forget(self::MODEL_DIRECT_PERMISSIONS_CONTEXT_KEY);
         CoroutineContext::forget(self::MODEL_CLASS_CATALOG_CONTEXT_KEY);
     }
@@ -1194,6 +1210,10 @@ class PermissionRegistrar
         );
         $this->forgetRuntimeCacheItemsForPartition(
             self::MODEL_VIA_ROLE_PERMISSIONS_CONTEXT_KEY,
+            $partition,
+        );
+        $this->forgetRuntimeCacheItemsForPartition(
+            self::MODEL_ROLE_ASSIGNMENTS_CONTEXT_KEY,
             $partition,
         );
         $this->forgetRuntimeCacheItemsForPartition(

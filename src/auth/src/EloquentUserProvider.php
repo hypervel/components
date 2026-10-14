@@ -131,6 +131,7 @@ class EloquentUserProvider implements UserProvider
 
         return $this->cacheCoordinator->fill(
             $this->cache,
+            fn (): Model => $this->createModel(),
             $this->buildCacheKey($identifier),
             $this->cacheTtl,
             fn () => $this->fetchUserByIdForCache($identifier),

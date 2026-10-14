@@ -104,6 +104,31 @@ class DatabaseManager implements ConnectionResolverInterface
     }
 
     /**
+     * Determine whether a connection has an applicable transaction without borrowing a pool slot.
+     */
+    public function hasApplicableTransaction(UnitEnum|string|null $name = null): bool
+    {
+        if ($name instanceof UnitEnum) {
+            $name = (string) enum_value($name);
+        }
+
+        $name = $name === null || $name === ''
+            ? $this->getDefaultConnection()
+            : $name;
+
+        $resolver = $this->app->make('db.resolver');
+
+        if ($resolver instanceof ConnectionResolver) {
+            return $resolver->hasApplicableTransaction($name);
+        }
+
+        /** @var Connection $connection */
+        $connection = $resolver->connection($name);
+
+        return $connection->hasApplicableTransaction();
+    }
+
+    /**
      * Get the query grammar date format of a connection.
      *
      * The pooled resolver answers without holding a connection once its pool

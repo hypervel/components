@@ -68,6 +68,10 @@ abstract class EloquentUserProviderCacheTestCase extends DatabaseTestCase
         $provider = $this->cachedProvider();
 
         $this->assertSame('Original', $provider->retrieveById($user->getKey())?->name);
+        $cache = $this->app->make('cache')->store(self::CACHE_STORE);
+        $cacheKey = EloquentUserProvider::DEFAULT_CACHE_PREFIX . ':' . AuthDatabaseCacheUser::class . ':' . $user->getKey();
+        $cached = $cache->get($cacheKey);
+        $this->assertNotNull($cached);
 
         DB::beginTransaction();
 
@@ -75,7 +79,8 @@ abstract class EloquentUserProviderCacheTestCase extends DatabaseTestCase
             AuthDatabaseCacheUser::query()->whereKey($user->getKey())->update(['name' => 'Rolled back']);
             $provider->clearUserCache($user->getKey());
 
-            $this->assertSame('Original', $provider->retrieveById($user->getKey())?->name);
+            $this->assertSame('Rolled back', $provider->retrieveById($user->getKey())?->name);
+            $this->assertEquals($cached, $cache->get($cacheKey));
 
             DB::rollBack();
         } finally {
@@ -84,6 +89,7 @@ abstract class EloquentUserProviderCacheTestCase extends DatabaseTestCase
             }
         }
 
+        $this->assertEquals($cached, $cache->get($cacheKey));
         $this->assertSame('Original', $provider->retrieveById($user->getKey())?->name);
 
         DB::beginTransaction();
@@ -91,10 +97,12 @@ abstract class EloquentUserProviderCacheTestCase extends DatabaseTestCase
         AuthDatabaseCacheUser::query()->whereKey($user->getKey())->update(['name' => 'Committed']);
         $provider->clearUserCache($user->getKey());
 
-        $this->assertSame('Original', $provider->retrieveById($user->getKey())?->name);
+        $this->assertSame('Committed', $provider->retrieveById($user->getKey())?->name);
+        $this->assertEquals($cached, $cache->get($cacheKey));
 
         DB::commit();
 
+        $this->assertNull($cache->get($cacheKey));
         $this->assertSame('Committed', $provider->retrieveById($user->getKey())?->name);
     }
 
@@ -108,13 +116,18 @@ abstract class EloquentUserProviderCacheTestCase extends DatabaseTestCase
         $provider = $this->cachedProvider();
 
         $this->assertSame('Original', $provider->retrieveById($user->getKey())?->name);
+        $cache = $this->app->make('cache')->store(self::CACHE_STORE);
+        $cacheKey = EloquentUserProvider::DEFAULT_CACHE_PREFIX . ':' . AuthDatabaseCacheUser::class . ':' . $user->getKey();
+        $cached = $cache->get($cacheKey);
+        $this->assertNotNull($cached);
 
         DB::beginTransaction();
 
         try {
             $user->forceFill(['name' => 'Rolled back'])->save();
 
-            $this->assertSame('Original', $provider->retrieveById($user->getKey())?->name);
+            $this->assertSame('Rolled back', $provider->retrieveById($user->getKey())?->name);
+            $this->assertEquals($cached, $cache->get($cacheKey));
 
             DB::rollBack();
         } finally {
@@ -123,6 +136,7 @@ abstract class EloquentUserProviderCacheTestCase extends DatabaseTestCase
             }
         }
 
+        $this->assertEquals($cached, $cache->get($cacheKey));
         $this->assertSame('Original', $provider->retrieveById($user->getKey())?->name);
 
         $user = AuthDatabaseCacheUser::query()->findOrFail($user->getKey());
@@ -131,10 +145,12 @@ abstract class EloquentUserProviderCacheTestCase extends DatabaseTestCase
 
         $user->forceFill(['name' => 'Committed'])->save();
 
-        $this->assertSame('Original', $provider->retrieveById($user->getKey())?->name);
+        $this->assertSame('Committed', $provider->retrieveById($user->getKey())?->name);
+        $this->assertEquals($cached, $cache->get($cacheKey));
 
         DB::commit();
 
+        $this->assertNull($cache->get($cacheKey));
         $this->assertSame('Committed', $provider->retrieveById($user->getKey())?->name);
     }
 

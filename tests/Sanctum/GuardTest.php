@@ -1140,6 +1140,26 @@ class GuardTest extends TestCase
         $this->assertNull($token->fresh()->last_used_at);
     }
 
+    public function testCopiedRequestsRecheckTheAuthenticationCallbackForTheSameToken(): void
+    {
+        [$user, , $plainToken] = $this->createUserWithToken();
+        $hosts = [];
+        Sanctum::authenticateAccessTokensUsing(function (PersonalAccessToken $token, bool $isValid) use (&$hosts): bool {
+            $hosts[] = $host = request()->getHost();
+
+            return $isValid && $host === 'first.example';
+        });
+        RequestContext::set(Request::create('https://first.example/test/user', server: [
+            'HTTP_AUTHORIZATION' => 'Bearer ' . $plainToken,
+        ]));
+        $this->assertSame($user->getKey(), auth('sanctum')->user()->getKey());
+
+        $this->withToken($plainToken)->getJson('https://second.example/test/user')
+            ->assertOk()->assertJson(['authenticated' => false, 'user_id' => null]);
+
+        $this->assertSame(['first.example', 'second.example'], $hosts);
+    }
+
     public function testAuthenticationWithCustomTokenHeader(): void
     {
         [$user, $token, $plainToken] = $this->createUserWithToken();

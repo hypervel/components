@@ -38,13 +38,11 @@ class Caller
                 throw new ChannelClosedException('The channel was closed.');
             }
 
-            if ($channel->isTimeout()) {
-                throw new WaitTimeoutException('The instance pop from channel timeout.');
-            }
+            throw new WaitTimeoutException('The instance pop from channel timeout.');
         }
 
         try {
-            return $closure($entry['instance']);
+            return $closure($entry[0]);
         } finally {
             $channel->push($entry);
         }
@@ -57,7 +55,8 @@ class Caller
     {
         $instance = $this->closure->__invoke();
         $channel = new Channel(1);
-        $channel->push(['instance' => $instance]);
+        // Keep a pooled false value distinct from a failed channel read.
+        $channel->push([$instance]);
 
         $previous = $this->channel;
         $this->channel = $channel;

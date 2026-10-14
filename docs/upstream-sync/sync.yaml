@@ -71,6 +71,32 @@ laravel/sanctum:
   last_reviewed_pr: 620
   sync_date: '2026-10-02'
 
+laravel/passport:
+  branch: 13.x
+  checked_through: f5f5e9f64559dd52339daa0d6102cb1c30e4a0d7
+  last_reviewed_pr: null
+  sync_date: '2026-10-14'
+  notes: >-
+    PassportServiceProvider's server and grant construction maps to ServerFactory;
+    KeysCommand's phpseclib key generation maps to the OpenSSL-based KeyGenerator.
+    Token issuance changes also affect Bridge/AuthorizationServer, Bridge/TokenIssuance
+    and the bridge grants and repositories; credential lookup and mutation changes
+    also affect PassportCache, TokenRelation and ClientRelation. Bridge/BearerTokenValidator
+    adapts League's AuthorizationValidators/BearerTokenValidator, and
+    Bridge/AccessToken::convertToJWT() replaces League's AccessTokenTrait method;
+    compare these with league/oauth2-server when its dependency version changes.
+    Also recheck League's grant-to-repository call order against TokenIssuance's
+    validation, claim and commit boundaries, and its public request entry points
+    against Bridge/AuthorizationServer and Bridge/ResourceServer's delegation to
+    the current settings. Compare Bridge/ParsedKey and RsaSigner with lcobucci/jwt's
+    key checks and signing behavior when that dependency changes.
+    Upstream tests retain their Feature and Unit paths under tests/Passport;
+    jasonmccreary/double test doubles use Mockery here. Workbench user models and
+    factories map to tests/Passport/Fixtures. Test keys
+    are generated in per-process temporary directories by PassportTestCase, using
+    SigningKeyFactory's shared test key, rather than upstream's tests/keys directory.
+    User documentation maps to src/docs/passport.md through the laravel/docs entry.
+
 laravel/socialite:
   branch: 5.x
   checked_through: fa0181ee6204ca28a55cd67145fadd631ac209cf
@@ -164,7 +190,7 @@ spatie/laravel-permission:
   checked_through: 6615eefac655efcd652fe394a20cbdf4f72c609f
   last_reviewed_pr: null
   sync_date: '2026-10-05'
-  notes: Upstream Pest files map to PHPUnit classes at the same paths under tests/Permission, with each it()/test() description as the method name. Upstream's permission.testing migration flag, which adds the roles team column while teams are off so cases can enable teams mid-test, is not ported; those cases enable teams before migrating through the DefineEnvironment attribute's usesTeams method. The CACHE_DRIVER cache-driver test runs map to CACHE_STORE. Passport::actingAsClient() maps to TestCase::actingAsClient() with the PassportGuard fixture because Hypervel has no Passport package. Upstream's single cached permission collection maps to PermissionRegistrar's catalog payload (getSerializedPermissionsForCache() stores role keys per permission; permissionCatalog() and modelClassCatalog() hydrate it) plus the per-model assignment caches (rememberModel*()), which are filled through Cache\ModelCacheCoordinator and invalidated after commit; apply upstream cache or loading changes to both. Upstream relation definitions map to the Role and Permission relation methods built through BuildsPermissionRelations, whose Partitioned* relations add partition and team constraints and loaded-relation tracking. Upstream's detach-then-attach syncs map to HasRoles::syncRoles() and HasPermissions::synchronizePermissionAssignments(), which read the current pivots and write only the differences, keeping each permission's is_denied effect. Upstream docs map to sections of src/docs/permission.md; the example app, PhpStorm, UI options, schema diagram, upgrade and project pages are not ported. Upstream's ide.json code-generation metadata for the Laravel Idea PhpStorm plugin is not ported either.
+  notes: Upstream Pest files map to PHPUnit classes at the same paths under tests/Permission, with each it()/test() description as the method name. Upstream's permission.testing migration flag, which adds the roles team column while teams are off so cases can enable teams mid-test, is not ported; those cases enable teams before migrating through the DefineEnvironment attribute's usesTeams method. The CACHE_DRIVER cache-driver test runs map to CACHE_STORE. Upstream's single cached permission collection maps to PermissionRegistrar's catalog payload (getSerializedPermissionsForCache() stores role keys per permission; permissionCatalog() and modelClassCatalog() hydrate it) plus the per-model assignment caches (rememberModel*()), which are filled through Cache\ModelCacheCoordinator and invalidated after commit; apply upstream cache or loading changes to both. Upstream relation definitions map to the Role and Permission relation methods built through BuildsPermissionRelations, whose Partitioned* relations add partition and team constraints and loaded-relation tracking. Upstream's detach-then-attach syncs map to HasRoles::syncRoles() and HasPermissions::synchronizePermissionAssignments(), which read the current pivots and write only the differences, keeping each permission's is_denied effect. Upstream docs map to sections of src/docs/permission.md; the example app, PhpStorm, UI options, schema diagram, upgrade and project pages are not ported. Upstream's ide.json code-generation metadata for the Laravel Idea PhpStorm plugin is not ported either.
 
 aimeos/laravel-nestedset:
   branch: master

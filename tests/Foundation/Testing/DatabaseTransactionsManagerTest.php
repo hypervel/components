@@ -4,8 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Testing;
 
+use Hypervel\Coroutine\Waiter;
+use Hypervel\Database\DatabaseManager;
+use Hypervel\Database\SQLiteConnection;
 use Hypervel\Foundation\Testing\DatabaseTransactionsManager;
 use Hypervel\Tests\TestCase;
+use Mockery as m;
+use PDO;
 
 class DatabaseTransactionsManagerTest extends TestCase
 {
@@ -14,7 +19,7 @@ class DatabaseTransactionsManagerTest extends TestCase
         $testObject = new TestingDatabaseTransactionsManagerTestObject;
         $manager = new DatabaseTransactionsManager([null]);
 
-        $manager->begin('foo', 1);
+        $this->beginWrappingTransactions($manager);
 
         $manager->addCallback(fn () => $testObject->handle());
 
@@ -26,7 +31,7 @@ class DatabaseTransactionsManagerTest extends TestCase
     {
         $manager = new DatabaseTransactionsManager([null]);
 
-        $manager->begin('foo', 1);
+        $this->beginWrappingTransactions($manager);
         $manager->begin('foo', 2);
 
         $this->assertCount(1, $manager->callbackApplicableTransactions());
@@ -37,7 +42,7 @@ class DatabaseTransactionsManagerTest extends TestCase
     {
         $manager = new DatabaseTransactionsManager([null]);
 
-        $manager->begin('foo', 1);
+        $this->beginWrappingTransactions($manager);
 
         $manager->begin('foo', 2);
         $manager->commit('foo', 2, 1);
@@ -54,7 +59,7 @@ class DatabaseTransactionsManagerTest extends TestCase
     {
         $testObject = new TestingDatabaseTransactionsManagerTestObject;
         $manager = new DatabaseTransactionsManager([null]);
-        $manager->begin('foo', 1);
+        $this->beginWrappingTransactions($manager);
         $manager->begin('foo', 2);
 
         $manager->addCallback(fn () => $testObject->handle());
@@ -72,8 +77,7 @@ class DatabaseTransactionsManagerTest extends TestCase
         $callbacks = [];
         $manager = new DatabaseTransactionsManager(['default', 'admin']);
 
-        $manager->begin('default', 1);
-        $manager->begin('admin', 1);
+        $this->beginWrappingTransactions($manager, ['default', 'admin']);
         $manager->begin('default', 2);
         $manager->begin('admin', 2);
 
@@ -106,10 +110,47 @@ class DatabaseTransactionsManagerTest extends TestCase
     {
         $manager = new DatabaseTransactionsManager([null]);
 
-        $manager->begin('foo', 1);
+        $this->beginWrappingTransactions($manager);
         $manager->begin('foo', 2);
 
         $this->assertCount(1, $manager->callbackApplicableTransactions());
+    }
+
+    public function testPooledChildTransactionsDoNotCountAsTheirParentsWrapper(): void
+    {
+        $manager = new DatabaseTransactionsManager([null]);
+        $this->beginWrappingTransactions($manager);
+
+        (new Waiter)->wait(function () use ($manager): void {
+            $called = false;
+            $manager->begin('foo', 1);
+            $manager->addCallback(function () use (&$called): void {
+                $called = true;
+            }, 'foo');
+
+            $this->assertFalse($called);
+            $this->assertTrue($manager->hasApplicableTransaction('foo'));
+            $manager->commit('foo', 1, 0);
+            $this->assertTrue($called);
+        });
+
+        $this->assertCount(1, $manager->getPendingTransactions());
+        $this->assertFalse($manager->hasApplicableTransaction('foo'));
+    }
+
+    /**
+     * Begin the real wrappers while keeping these manager tests independent of an application.
+     */
+    protected function beginWrappingTransactions(DatabaseTransactionsManager $manager, array $names = [null]): void
+    {
+        $database = m::mock(DatabaseManager::class);
+
+        foreach ($names as $name) {
+            $connection = new SQLiteConnection(new PDO('sqlite::memory:'), config: ['name' => $name ?? 'foo']);
+            $database->shouldReceive('connection')->once()->with($name)->andReturn($connection);
+        }
+
+        $manager->beginTransactions($database);
     }
 }
 
@@ -119,7 +160,10 @@ class TestingDatabaseTransactionsManagerTestObject
 
     public int $runs = 0;
 
-    public function handle()
+    /**
+     * Record the callback execution.
+     */
+    public function handle(): void
     {
         $this->ran = true;
         ++$this->runs;

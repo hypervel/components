@@ -12,6 +12,8 @@ use Hypervel\Jwt\Contracts\ProviderContract;
 use Hypervel\Jwt\Exceptions\JwtException;
 use Hypervel\Jwt\Exceptions\SecretMissingException;
 use Hypervel\Jwt\Exceptions\TokenInvalidException;
+use Hypervel\Jwt\Providers\Lcobucci\OpenSslSigner;
+use Hypervel\Jwt\Providers\Lcobucci\ParsedKey;
 use Hypervel\Support\Facades\Date;
 use Lcobucci\JWT\Builder;
 use Lcobucci\JWT\Configuration;
@@ -195,18 +197,19 @@ class Lcobucci extends Provider implements ProviderContract
      */
     protected function buildConfig(): Configuration
     {
+        $verificationKey = $this->getVerificationKey();
         $config = $this->isAsymmetric()
             ? Configuration::forAsymmetricSigner(
                 $this->signer,
                 // lcobucci needs a signing key even to verify, so a provider without a private
                 // key fills the slot with the public key, and encode() refuses to sign.
-                $this->verifiesOnly ? $this->getVerificationKey() : $this->getSigningKey(),
-                $this->getVerificationKey()
+                $this->verifiesOnly ? $verificationKey : $this->getSigningKey(),
+                $verificationKey
             )
             : Configuration::forSymmetricSigner($this->signer, $this->getSigningKey());
 
         return $config->withValidationConstraints(
-            new SignedWith($this->signer, $this->getVerificationKey())
+            new SignedWith($this->signer, $verificationKey)
         );
     }
 
@@ -246,9 +249,9 @@ class Lcobucci extends Provider implements ProviderContract
             throw new JwtException('The given algorithm could not be found');
         }
 
-        $signer = $this->signers[$this->algo];
+        $signer = new $this->signers[$this->algo];
 
-        return new $signer;
+        return $signer instanceof Rsa || $signer instanceof Ecdsa ? new OpenSslSigner($signer) : $signer;
     }
 
     /**
@@ -256,8 +259,9 @@ class Lcobucci extends Provider implements ProviderContract
      */
     protected function isAsymmetric(): bool
     {
-        return is_subclass_of($this->signer, Rsa::class)
-            || is_subclass_of($this->signer, Ecdsa::class);
+        return $this->signer instanceof OpenSslSigner
+            || $this->signer instanceof Rsa
+            || $this->signer instanceof Ecdsa;
     }
 
     /**
@@ -272,7 +276,11 @@ class Lcobucci extends Provider implements ProviderContract
                 throw new JwtException('Private key is not set.');
             }
 
-            return $this->getKey($privateKey, $this->getPassphrase() ?? '');
+            $key = $this->getKey($privateKey, $this->getPassphrase() ?? '');
+
+            return $this->signer instanceof OpenSslSigner
+                ? ParsedKey::fromPrivateKey($key->contents(), $key->passphrase())
+                : $key;
         }
 
         if (! $secret = $this->getSecret()) {
@@ -294,7 +302,11 @@ class Lcobucci extends Provider implements ProviderContract
                 throw new JwtException('Public key is not set.');
             }
 
-            return $this->getKey($public);
+            $key = $this->getKey($public);
+
+            return $this->signer instanceof OpenSslSigner
+                ? ParsedKey::fromPublicKey($key->contents())
+                : $key;
         }
 
         if (! $secret = $this->getSecret()) {
