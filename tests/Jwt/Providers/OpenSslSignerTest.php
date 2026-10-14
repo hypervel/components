@@ -82,6 +82,8 @@ class OpenSslSignerTest extends TestCase
             'EC key for RSA' => [new Rsa\Sha256, ['private_key_type' => OPENSSL_KEYTYPE_EC, 'curve_name' => 'prime256v1']],
             'RSA key for EC' => [new Ecdsa\Sha256, ['private_key_type' => OPENSSL_KEYTYPE_RSA, 'private_key_bits' => 2048]],
             'wrong EC size' => [new Ecdsa\Sha384, ['private_key_type' => OPENSSL_KEYTYPE_EC, 'curve_name' => 'prime256v1']],
+            'Ed25519 key for RSA' => [new Rsa\Sha256, ['private_key_type' => OPENSSL_KEYTYPE_ED25519]],
+            'Ed25519 key for EC' => [new Ecdsa\Sha256, ['private_key_type' => OPENSSL_KEYTYPE_ED25519]],
         ] as $name => [$signer, $options]) {
             yield $name . ' signing' => [$signer, $options, false];
             yield $name . ' verification' => [$signer, $options, true];

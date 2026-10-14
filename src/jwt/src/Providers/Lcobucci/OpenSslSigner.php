@@ -108,7 +108,7 @@ class OpenSslSigner implements Signer
         $type = $this->signer instanceof Rsa ? OPENSSL_KEYTYPE_RSA : OPENSSL_KEYTYPE_EC;
 
         if ($key->type !== $type) {
-            throw InvalidKeyProvided::incompatibleKeyType(self::KEY_TYPES[$type], self::KEY_TYPES[$key->type]);
+            throw InvalidKeyProvided::incompatibleKeyType(self::KEY_TYPES[$type], self::KEY_TYPES[$key->type] ?? 'unknown');
         }
 
         if ($this->signer instanceof Rsa) {
