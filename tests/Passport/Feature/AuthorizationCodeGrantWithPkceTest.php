@@ -19,6 +19,9 @@ class AuthorizationCodeGrantWithPkceTest extends PassportTestCase
 {
     use WithHypervelMigrations;
 
+    /**
+     * Register the available scopes and authorization view.
+     */
     protected function setUp(): void
     {
         parent::setUp();

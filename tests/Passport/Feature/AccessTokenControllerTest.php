@@ -145,11 +145,17 @@ class AccessTokenControllerTest extends PassportTestCase
 
 class IdTokenResponse extends BearerTokenResponse
 {
+    /**
+     * Create a response with the given ID token.
+     */
     public function __construct(
         protected string $idToken,
     ) {
     }
 
+    /**
+     * Add the ID token to the access token response.
+     */
     protected function getExtraParams(AccessTokenEntityInterface $accessToken): array
     {
         return [
