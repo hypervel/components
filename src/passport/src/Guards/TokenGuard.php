@@ -194,7 +194,7 @@ class TokenGuard implements Guard
 
         $token = AccessToken::fromPsrRequest($psr);
 
-        if ($token->provider === null || $token->provider !== $this->provider->getProviderName()) {
+        if ($token->provider !== $this->provider->getProviderName()) {
             return null;
         }
 
@@ -255,6 +255,13 @@ class TokenGuard implements Guard
      */
     protected function getTokenViaCookie(Request $request): ?array
     {
+        $cookie = $request->cookie(Passport::cookie());
+
+        // Cookie names using array syntax are parsed into arrays by PHP and Swoole.
+        if (! is_string($cookie) || $cookie === '') {
+            return null;
+        }
+
         // If we need to retrieve the token from the cookie, it'll be encrypted so we must
         // first decrypt the cookie and then verify the token's signature and expiration.
         // If we can't decrypt or verify the value we'll bail out with a null return.

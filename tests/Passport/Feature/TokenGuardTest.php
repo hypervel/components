@@ -11,6 +11,7 @@ use Hypervel\Passport\Database\Factories\ClientFactory;
 use Hypervel\Passport\Http\Middleware\CheckToken;
 use Hypervel\Passport\Http\Middleware\EnsureClientIsResourceOwner;
 use Hypervel\Passport\Passport;
+use Hypervel\Passport\TransientToken;
 use Hypervel\Sanctum\HasApiTokens as HasSanctumTokens;
 use Hypervel\Sanctum\PersonalAccessToken;
 use Hypervel\Support\Facades\DB;
@@ -34,6 +35,7 @@ class TokenGuardTest extends PassportTestCase
         Route::get('/guard', fn () => [
             'user' => auth('passport')->user()?->getKey(),
             'token' => auth('passport')->user()?->currentAccessToken()?->oauth_access_token_id,
+            'bearer_token' => auth('passport')->token()?->oauth_access_token_id,
             'client' => auth('passport')->client()?->getKey(),
         ]);
 
@@ -70,6 +72,7 @@ class TokenGuardTest extends PassportTestCase
             ->assertExactJson([
                 'user' => $user->getKey(),
                 'token' => $result->accessTokenId,
+                'bearer_token' => $result->accessTokenId,
                 'client' => $client->getKey(),
             ]);
     }
@@ -126,6 +129,7 @@ class TokenGuardTest extends PassportTestCase
         $this->withToken($token)
             ->getJson('/guard')
             ->assertJsonPath('user', null)
+            ->assertJsonPath('bearer_token', $client->tokens()->sole()->getKey())
             ->assertJsonPath('client', $client->getKey());
     }
 
@@ -157,7 +161,15 @@ class TokenGuardTest extends PassportTestCase
 
         $this->assertSame('users', $result->getToken()->provider);
         $this->withToken($result->accessToken)->getJson('/admins')->assertUnauthorized();
+
+        $validations = 0;
+        Passport::authenticateAccessTokensUsing(function ($token, bool $valid) use (&$validations): bool {
+            ++$validations;
+
+            return $valid;
+        });
         $this->getJson('/either')->assertOk()->assertSee((string) $user->getKey());
+        $this->assertSame(1, $validations);
     }
 
     public function testExplicitValidationRechecksRevocationWithoutModifyingTheRequest(): void
@@ -175,6 +187,14 @@ class TokenGuardTest extends PassportTestCase
         $result->getToken()->revoke();
         $this->assertFalse($guard->validate(['request' => $request]));
         $this->assertSame($authorization, $request->header('Authorization'));
+
+        $this->assertTrue($guard->hasUser());
+        $guard->forgetUser();
+        $this->assertFalse($guard->hasUser());
+        $guard->setUser($user);
+        $this->assertTrue($guard->hasUser());
+        $guard->forgetUser();
+        $this->assertFalse($guard->hasUser());
     }
 
     #[TestWith([false])]
@@ -196,7 +216,7 @@ class TokenGuardTest extends PassportTestCase
         })->middleware('auth:passport');
 
         $this->withToken($result->accessToken)->postJson('/revoke')->assertSuccessful();
-        $this->getJson('/guard')->assertExactJson(['user' => null, 'token' => null, 'client' => null]);
+        $this->getJson('/guard')->assertExactJson(['user' => null, 'token' => null, 'bearer_token' => null, 'client' => null]);
     }
 
     public function testRevokedClientsAreRejectedByBothTokenMiddlewarePaths(): void
@@ -210,7 +230,15 @@ class TokenGuardTest extends PassportTestCase
         Route::get('/scopes', fn () => 'response')->middleware(CheckToken::class);
         Route::get('/machine', fn () => 'response')->middleware(EnsureClientIsResourceOwner::class);
 
+        auth()->shouldUse('passport');
+        $validations = 0;
+        Passport::authenticateAccessTokensUsing(function ($token, bool $valid) use (&$validations): bool {
+            ++$validations;
+
+            return $valid;
+        });
         $this->withToken($token)->getJson('/scopes')->assertOk();
+        $this->assertSame(1, $validations);
         $this->getJson('/machine')->assertOk();
         $client->revoke();
         $this->getJson('/scopes')->assertUnauthorized();
@@ -234,6 +262,23 @@ class TokenGuardTest extends PassportTestCase
         $this->withToken($result->accessToken)->getJson('/guard')->assertJson(['user' => null, 'client' => null]);
         $this->getJson('/scopes')->assertUnauthorized();
         $this->assertSame([[$result->accessTokenId, false], [$result->accessTokenId, false]], $observed);
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testUserTokensCannotAuthorizeMachineRoutes(bool $transient): void
+    {
+        $user = UserFactory::new()->create();
+        Route::get('/machine', fn () => 'response')->middleware(['auth:passport', EnsureClientIsResourceOwner::class]);
+
+        if ($transient) {
+            $this->actingAs($user->withAccessToken(new TransientToken), 'passport');
+        } else {
+            ClientFactory::new()->asPersonalAccessTokenClient()->create();
+            $this->withToken($user->createToken('user token')->accessToken);
+        }
+
+        $this->getJson('/machine')->assertUnauthorized();
     }
 
     #[TestWith([false])]

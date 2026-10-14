@@ -201,6 +201,24 @@ class TokenGuardTest extends TestCase
         $this->assertEquals($expectedUser, $user);
     }
 
+    #[TestWith([true])]
+    #[TestWith([false])]
+    public function testArrayCookiesAreRejected(bool $encrypted): void
+    {
+        if (! $encrypted) {
+            Passport::withoutCookieEncryption();
+        }
+
+        $userProvider = m::mock(PassportUserProvider::class);
+        $userProvider->shouldNotReceive('retrieveById');
+        $encrypter = new Encrypter(str_repeat('a', 32), 'aes-256-cbc');
+        $request = Request::create('/', cookies: [Passport::cookie() => ['x' => '1']]);
+        $guard = $this->makeGuard($userProvider, m::mock(ClientRepository::class), $encrypter, $request);
+
+        $this->assertNull($guard->user());
+        $this->assertFalse($guard->validate(['request' => $request]));
+    }
+
     public function testXsrfTokenCookieWithoutATokenHeaderIsNotAccepted(): void
     {
         $userProvider = m::mock(PassportUserProvider::class);
