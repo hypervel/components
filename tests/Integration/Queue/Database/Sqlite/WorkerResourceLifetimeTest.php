@@ -209,8 +209,12 @@ class WorkerResourceLifetimeTest extends TestCase
              */
             protected function terminateTimeoutJobs(WorkerOptions $options): void
             {
-                Coroutine::defer(fn (): bool => $this->completed->push(true));
+                $succeeded = false;
+                Coroutine::defer(function () use (&$succeeded): void {
+                    $this->completed->push($succeeded);
+                });
                 DB::selectOne('SELECT 1');
+                $succeeded = true;
             }
         };
         $worker->completed = new Channel(1);
