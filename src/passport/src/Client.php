@@ -134,6 +134,7 @@ class Client extends Model
             set: function (#[SensitiveParameter] ?string $value): ?string {
                 $this->plainSecret = $value;
 
+                // Generated secrets already resist guessing; password hashing would only add worker-blocking CPU cost.
                 return $value === null ? null : hash('sha256', $value);
             },
         );

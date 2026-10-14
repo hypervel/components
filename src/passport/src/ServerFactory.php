@@ -169,6 +169,7 @@ class ServerFactory
         }
 
         $material = Passport::tokenEncryptionKey($this->encrypter);
+        // A Key avoids League's per-operation PBKDF2 password stretching; this material is already random.
         $this->encryptionKey = Key::loadFromAsciiSafeString(Encoding::saveBytesToChecksummedAsciiSafeString(
             Key::KEY_CURRENT_VERSION,
             hash_hkdf('sha256', $material, Key::KEY_BYTE_SIZE, 'hypervel-passport'),
