@@ -79,12 +79,10 @@ class ApiInstallCommand extends Command
         }
 
         if ($this->option('passport')) {
-            Process::run([
-                php_binary(),
-                artisan_binary(),
+            $this->runInstallationCommand([
                 'passport:install',
                 ...($this->option('without-migration-prompt') ? ['--without-migration-prompt'] : []),
-            ])->throw();
+            ]);
 
             $this->components->info('API scaffolding installed. Please add the [Hypervel\Passport\HasApiTokens] trait and [Hypervel\Passport\Contracts\OAuthenticatable] interface to your User model.');
         } else {

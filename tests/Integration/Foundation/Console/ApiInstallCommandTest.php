@@ -211,23 +211,38 @@ class ApiInstallCommandTest extends \Hypervel\Testbench\TestCase
             static fn (PendingProcess $process): bool => is_array($process->command)
                 && array_slice($process->command, 2) === [
                     'passport:install', ...($withoutMigrationPrompt ? ['--without-migration-prompt'] : []),
-                ],
+                    ...($process->tty ? [] : ['--no-interaction']),
+                ]
+                && $process->timeout === null,
         ]);
     }
 
-    public function testFailedPassportInstallationDoesNotReportSuccess(): void
+    #[TestWith([0])]
+    #[TestWith([17])]
+    public function testPassportInstallerStreamsChildOutputAndPreservesFailure(int $exitCode): void
     {
-        Process::fake(static fn () => Process::result(exitCode: 1));
+        $files = new Filesystem;
+        $artisan = $this->app->basePath('artisan');
+        $original = $files->get($artisan);
         $this->createdFiles[] = $this->app->basePath('routes/api.php');
         $tester = $this->commandTester(new TestableApiInstallCommand);
+        $files->put($artisan, '<?php fwrite(STDOUT, implode(" ", $argv)); fwrite(STDERR, "child diagnostic"); exit(' . $exitCode . ');');
 
         try {
-            $tester->execute(['--passport' => true]);
-            $this->fail('Expected Passport installation to fail.');
-        } catch (ProcessFailedException) {
-        }
+            try {
+                $tester->execute(['--passport' => true, '--without-migration-prompt' => true], ['interactive' => false]);
+                $this->assertSame(0, $exitCode);
+            } catch (ProcessFailedException $exception) {
+                $this->assertSame($exitCode, $exception->result->exitCode());
+            }
 
-        $this->assertStringNotContainsString('API scaffolding installed.', $tester->getDisplay());
+            $output = $tester->getDisplay();
+            $this->assertStringContainsString('passport:install --without-migration-prompt --no-interaction', $output);
+            $this->assertStringContainsString('child diagnostic', $output);
+            $this->assertSame($exitCode === 0, str_contains($output, 'API scaffolding installed.'));
+        } finally {
+            $files->put($artisan, $original);
+        }
     }
 
     public function testPublishesSanctumMigrationWhenMissing(): void
