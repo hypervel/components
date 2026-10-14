@@ -11,6 +11,7 @@ use Hypervel\Tests\TestCase;
 use Lcobucci\JWT\Signer\InvalidKeyProvided;
 use Lcobucci\JWT\Signer\Key\InMemory;
 use Lcobucci\JWT\Signer\Rsa\Sha256;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class RsaSignerTest extends TestCase
 {
@@ -130,12 +131,20 @@ class RsaSignerTest extends TestCase
         ParsedKey::fromPublicKey(openssl_pkey_get_details($key)['key']);
     }
 
-    public function testOtherKeyTypesAreRejected(): void
+    #[TestWith([['curve_name' => 'prime256v1', 'private_key_type' => OPENSSL_KEYTYPE_EC], 'EC', false])]
+    #[TestWith([['private_key_type' => OPENSSL_KEYTYPE_ED25519], 'unknown', false])]
+    #[TestWith([['private_key_type' => OPENSSL_KEYTYPE_ED25519], 'unknown', true])]
+    public function testOtherKeyTypesAreRejected(array $options, string $type, bool $private): void
     {
-        $key = openssl_pkey_new(['curve_name' => 'prime256v1', 'private_key_type' => OPENSSL_KEYTYPE_EC]);
+        $key = openssl_pkey_new($options);
+        openssl_pkey_export($key, $privateKey);
         $this->expectException(InvalidKeyProvided::class);
-        $this->expectExceptionMessage('"RSA", "EC" provided');
+        $this->expectExceptionMessage('"RSA", "' . $type . '" provided');
 
-        ParsedKey::fromPublicKey(openssl_pkey_get_details($key)['key']);
+        if ($private) {
+            ParsedKey::fromPrivateKey($privateKey);
+        } else {
+            ParsedKey::fromPublicKey(openssl_pkey_get_details($key)['key']);
+        }
     }
 }

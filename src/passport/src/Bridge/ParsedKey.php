@@ -46,7 +46,7 @@ final readonly class ParsedKey implements Key
         }
 
         if ($details['type'] !== OPENSSL_KEYTYPE_RSA) {
-            throw InvalidKeyProvided::incompatibleKeyType('RSA', self::KEY_TYPES[$details['type']]);
+            throw InvalidKeyProvided::incompatibleKeyType('RSA', self::KEY_TYPES[$details['type']] ?? 'unknown');
         }
 
         if ($details['bits'] < self::MINIMUM_KEY_LENGTH) {
