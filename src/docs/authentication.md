@@ -95,8 +95,6 @@ Hypervel provides optional packages to assist you in managing API tokens and aut
 
 Passport is an OAuth2 authentication provider, offering a variety of OAuth2 "grant types" which allow you to issue various types of tokens. In general, this is a robust and complex package for API authentication. However, most applications do not require the complex features offered by the OAuth2 spec, which can be confusing for both users and developers. In addition, developers have been historically confused about how to authenticate SPA applications or mobile applications using OAuth2 authentication providers like Passport.
 
-If your application needs to act as an OAuth2 server, consult the [Passport documentation](/docs/{{version}}/passport) to get started.
-
 **Sanctum**
 
 In response to the complexity of OAuth2 and developer confusion, we set out to build a simpler, more streamlined authentication package that could handle both first-party web requests from a web browser and API requests via tokens. This goal was realized with the release of [Hypervel Sanctum](/docs/{{version}}/sanctum), which should be considered the preferred and recommended authentication package for applications that will be offering a first-party web UI in addition to an API, or will be powered by a single-page application (SPA) that exists separately from the backend Hypervel application, or applications that offer a mobile client.
@@ -112,11 +110,11 @@ Hypervel Sanctum is a hybrid web / API authentication package that can manage yo
 
 In summary, if your application will be accessed using a browser and you are building a monolithic Hypervel application, your application will use Hypervel's built-in authentication services.
 
-Next, if your application offers an API that will be consumed by third parties, you will choose between [Sanctum](/docs/{{version}}/sanctum), [JWT authentication](/docs/{{version}}/jwt), or an OAuth2 server to provide API token authentication for your application. In general, Sanctum should be preferred when possible since it is a simple, complete solution for API authentication, SPA authentication, and mobile authentication, including support for "scopes" or "abilities".
+Next, if your application offers an API that will be consumed by third parties, you will choose between [Passport](/docs/{{version}}/passport), [Sanctum](/docs/{{version}}/sanctum), or [JWT authentication](/docs/{{version}}/jwt) to provide API token authentication for your application. In general, Sanctum should be preferred when possible since it is a simple, complete solution for API authentication, SPA authentication, and mobile authentication, including support for "scopes" or "abilities".
 
 If you are building a single-page application (SPA) that will be powered by a Hypervel backend, you should use [Hypervel Sanctum](/docs/{{version}}/sanctum). When using Sanctum, you will need to [manually implement your own backend authentication routes](#authenticating-users) or use [Hypervel Fortify](/docs/{{version}}/fortify) as a headless authentication backend service that provides routes and controllers for features such as registration, password reset, email verification, and more.
 
-An OAuth2 server may be chosen when your application absolutely needs all of the features provided by the OAuth2 specification.
+Passport may be chosen when your application absolutely needs all of the features provided by the OAuth2 specification.
 
 JWT authentication may be chosen when your application wants stateless signed bearer tokens without storing each issued token in the database.
 
@@ -314,7 +312,7 @@ Auth::clearUserCache($admin->getAuthIdentifier(), guard: 'admin');
 
 Manual invalidation follows the provider model's database connection. When called inside a transaction, the cache entry remains unchanged until the outer transaction commits and is left in place if the transaction rolls back. Calls to the provider's `retrieveById` method inside a transaction on that connection bypass the shared cache and read the database, including the transaction's own changes.
 
-Invalidation waits for any in-flight cache fill on the same user. When a transaction scheduled the invalidation and its lock cannot be acquired, the cache lock timeout is thrown from the commit after the database write has committed, rather than leaving the stale user cached.
+Invalidation waits for any in-flight cache fill on the same user. When a transaction scheduled the invalidation and its lock cannot be acquired, the cache lock timeout is thrown from the commit after the database write has committed. The stale cache entry may remain until it is cleared or expires.
 
 If `withQuery()` eager-loads relations, the first uncached lookup stores that graph. Declare every application relation and custom container class so later cache hits restore the complete shape.
 
