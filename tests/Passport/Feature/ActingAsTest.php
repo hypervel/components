@@ -9,9 +9,11 @@ use Hypervel\Http\Request;
 use Hypervel\Passport\Client;
 use Hypervel\Passport\Http\Middleware\CheckToken;
 use Hypervel\Passport\Http\Middleware\CheckTokenForAnyScope;
+use Hypervel\Passport\Http\Middleware\EnsureClientIsResourceOwner;
 use Hypervel\Passport\Passport;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Tests\Passport\Fixtures\User;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class ActingAsTest extends PassportTestCase
 {
@@ -25,6 +27,7 @@ class ActingAsTest extends PassportTestCase
         $router->get('/foo', function (Request $request) {
             $this->assertSame('client-1234', $request->user()->token()->oauth_client_id);
             $this->assertSame(1234, $request->user()->token()->oauth_user_id);
+            $this->assertSame(1234, $request->user()->token()->user_id);
             $this->assertSame(['admin'], $request->user()->token()->oauth_scopes);
 
             return 'bar';
@@ -38,6 +41,20 @@ class ActingAsTest extends PassportTestCase
         $response = $this->get('/foo');
         $response->assertSuccessful();
         $response->assertSee('bar');
+    }
+
+    #[TestWith([null])]
+    #[TestWith(['9167d3ab-76d9-487e-a1b8-3aba8f30faef'])]
+    public function testActingAsUserCannotAuthorizeMachineRoutes(?string $identifier): void
+    {
+        $user = (new User)->setKeyType('string')->forceFill(['id' => $identifier]);
+        $client = $identifier === null ? null : new Client(['id' => $identifier]);
+        Passport::actingAs($user, ['admin'], client: $client);
+
+        Route::get('/machine', static fn () => 'response')
+            ->middleware(['auth:passport', EnsureClientIsResourceOwner::using('admin')]);
+
+        $this->getJson('/machine')->assertUnauthorized();
     }
 
     public function testActingAsWhenTheRouteIsProtectedByCheckScopesMiddleware(): void

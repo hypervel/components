@@ -496,6 +496,7 @@ class Passport
         $token = new AccessToken([
             'oauth_client_id' => $client?->getKey(),
             'oauth_user_id' => $user->getAuthIdentifier(),
+            'user_id' => $user->getAuthIdentifier(),
             'oauth_scopes' => $scopes,
         ]);
 
