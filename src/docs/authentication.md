@@ -310,7 +310,7 @@ Auth::clearUserCache($admin->getAuthIdentifier(), guard: 'admin');
 
 `clearUserCache` accepts the same identifier as `retrieveById`, which is normally the user's primary key. When the guard argument is omitted, the current default guard is used.
 
-Manual invalidation follows the provider model's database connection. When called inside a transaction, the cache entry remains unchanged until the outer transaction commits and is left in place if the transaction rolls back. Calls to the provider's `retrieveById` method inside a transaction on that connection bypass the shared cache and read the database, including the transaction's own changes.
+Manual invalidation follows the provider model's database connection. When called inside a transaction, the cache entry remains unchanged until the outer transaction commits and is left in place if the transaction rolls back. Calls to the Eloquent provider's `retrieveById` method inside a transaction on that connection bypass the shared cache and read the database, including the transaction's own changes.
 
 Invalidation waits for any in-flight cache fill on the same user. When a transaction scheduled the invalidation and its lock cannot be acquired, the cache lock timeout is thrown from the commit after the database write has committed. The stale cache entry may remain until it is cleared or expires.
 
