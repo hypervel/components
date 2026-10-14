@@ -3439,11 +3439,11 @@ It's also possible to return a promise from the `onSuccess()` and `onError()` ca
 ```js tab=Vue
 import { router } from '@inertiajs/vue3'
 
-router.post(url, {
+router.post(url, {}, {
     onSuccess: () => {
         return Promise.all([
-            this.firstTask(),
-            this.secondTask()
+            firstTask(),
+            secondTask()
         ])
     },
     onFinish: visit => {
@@ -3455,11 +3455,11 @@ router.post(url, {
 ```js tab=React
 import { router } from '@inertiajs/react'
 
-router.post(url, {
+router.post(url, {}, {
     onSuccess: () => {
         return Promise.all([
-            this.firstTask(),
-            this.secondTask()
+            firstTask(),
+            secondTask()
         ])
     },
     onFinish: visit => {
@@ -3471,11 +3471,11 @@ router.post(url, {
 ```js tab=Svelte
 import { router } from '@inertiajs/svelte'
 
-router.post(url, {
+router.post(url, {}, {
     onSuccess: () => {
         return Promise.all([
-            this.firstTask(),
-            this.secondTask()
+            firstTask(),
+            secondTask()
         ])
     },
     onFinish: visit => {
@@ -4514,12 +4514,14 @@ export default function CreateUser() {
     }
 
     return (
-        <Form ref={formRef} action="/users" method="post">
-            <input type="text" name="name" />
-            <button type="submit">Submit</button>
-        </Form>
+        <>
+            <Form ref={formRef} action="/users" method="post">
+                <input type="text" name="name" />
+                <button type="submit">Submit</button>
+            </Form>
 
-        <button onClick={handleSubmit}>Submit Programmatically</button>
+            <button onClick={handleSubmit}>Submit Programmatically</button>
+        </>
     )
 }
 ```
@@ -7573,7 +7575,7 @@ Persistent layouts often need dynamic data from the current page, such as a page
 Layout props are defined as regular component props with default values.
 
 ```vue tab=Vue
-<script setup>
+<script setup lang="ts">
 const props = withDefaults(defineProps<{
     title?: string
     showSidebar?: boolean
@@ -10744,7 +10746,7 @@ You can reset data using the `reset` visit option.
 import { router } from "@inertiajs/vue3";
 
 const show = (role) => {
-  router.visit(route("users"), {
+  router.visit("/users", {
     data: { filter: { role } },
     only: ["users"],
     reset: ["users"],
@@ -10769,7 +10771,7 @@ import { InfiniteScroll, router } from '@inertiajs/react'
 
 export default function Users({ users }) {
     const show = (role) => {
-        router.visit(route('users'), {
+        router.visit('/users', {
             data: { filter: { role } },
             only: ['users'],
             reset: ['users'],
@@ -10777,7 +10779,7 @@ export default function Users({ users }) {
     }
 
     return (
-
+        <>
             <button onClick={() => show('admin')}>Show admins</button>
             <button onClick={() => show('customer')}>Show customers</button>
 
@@ -10788,7 +10790,7 @@ export default function Users({ users }) {
                     </div>
                 ))}
             </InfiniteScroll>
-
+        </>
     )
 }
 ```
@@ -10799,7 +10801,7 @@ export default function Users({ users }) {
     let { users } = $props()
 
     const show = (role) => {
-        router.visit(route('users'), {
+        router.visit('/users', {
             data: { filter: { role } },
             only: ['users'],
             reset: ['users'],
@@ -11208,7 +11210,7 @@ The infinite scroll component automatically tracks content and assigns page numb
     </thead>
     <tbody id="table-body">
       {users.data.map((user) => (
-        <tr key="{user.id}">
+        <tr key={user.id}>
           <td>{user.name}</td>
         </tr>
       ))}
@@ -11530,7 +11532,7 @@ export default ({ users }) => {
     }
 
     return (
-
+        <>
             <button onClick={fetchNext}>Load More</button>
 
             <InfiniteScroll ref={infiniteScrollRef} data="users" manual>
@@ -11538,7 +11540,7 @@ export default ({ users }) => {
                     <div key={user.id}>{user.name}</div>
                 ))}
             </InfiniteScroll>
-
+        </>
     )
 }
 ```
@@ -11758,13 +11760,13 @@ const form = useRemember(
 ```jsx tab=React
 import { useRemember } from "@inertiajs/react";
 
-export default function Profile() {
+export default function Profile({ user }) {
   const [formState, setFormState] = useRemember(
     {
-      first_name: props.user.first_name,
-      last_name: props.user.last_name,
+      first_name: user.first_name,
+      last_name: user.last_name,
     },
-    `Users/Edit:${this.user.id}`,
+    `Users/Edit:${user.id}`,
   );
 }
 ```
