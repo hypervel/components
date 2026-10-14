@@ -32,24 +32,39 @@ class PersonalAccessTokenRelation extends MorphMany
         $key = $this->getRelated()->getKeyName();
         $qualifiedKey = $this->getRelated()->getQualifiedKeyName();
         $tokenModel = $this->getRelated()::class;
+        $query = $this->getQuery();
 
         // Batching must preserve the atomicity of the uncached, single-statement delete.
-        return $this->getRelated()->getConnection()->transaction(function () use ($key, $qualifiedKey, $tokenModel): int {
+        return $this->getRelated()->getConnection()->transaction(function () use ($query, $key, $qualifiedKey, $tokenModel): int {
             $deleted = 0;
 
-            (clone $this->getQuery())->select($qualifiedKey)->useWritePdo()->toBase()->chunkById(
-                self::DELETE_BATCH_SIZE,
-                function (Collection $rows) use ($key, $tokenModel, &$deleted): void {
-                    $ids = $rows->pluck($key)->all();
-                    $deleted += (clone $this->getQuery())->whereKey($ids)->delete();
+            $selection = (clone $query)->select($qualifiedKey)->useWritePdo()->toBase();
+            $deleteBatch = function (array $ids) use ($query, $tokenModel, &$deleted): void {
+                $deleted += (clone $query)->whereKey($ids)->limit(null)->offset(null)->delete();
 
-                    foreach ($ids as $id) {
-                        $tokenModel::clearTokenCache($id);
-                    }
-                },
-                $qualifiedKey,
-                $key,
-            );
+                foreach ($ids as $id) {
+                    $tokenModel::clearTokenCache($id);
+                }
+            };
+
+            if ($selection->getLimit() !== null) {
+                foreach (array_chunk($selection->pluck($qualifiedKey)->all(), self::DELETE_BATCH_SIZE) as $ids) {
+                    $deleteBatch($ids);
+                }
+            } else {
+                if ($offset = $selection->getOffset()) {
+                    $excluded = (clone $selection)->offset(0)->limit($offset)->pluck($qualifiedKey)->all();
+                    $selection->whereNotIn($qualifiedKey, $excluded)->offset(0);
+                }
+
+                // Other sort columns would make chunkById skip records between batches.
+                $selection->reorder()->chunkById(
+                    self::DELETE_BATCH_SIZE,
+                    static fn (Collection $rows) => $deleteBatch($rows->pluck($key)->all()),
+                    $qualifiedKey,
+                    $key,
+                );
+            }
 
             return $deleted;
         });

@@ -1294,12 +1294,13 @@ class PersonalAccessTokenCacheTest extends TestCase
     public function testDeletingTokenRelationInvalidatesEverySelectedToken(): void
     {
         $first = $this->createToken();
+        $first->update(['name' => '0000']);
         $user = $first->tokenable;
         $rows = [];
 
         for ($index = 0; $index < 1000; ++$index) {
             $rows[] = [
-                'name' => 'Batch Token',
+                'name' => sprintf('%04d', $index + 1),
                 'token' => hash('sha256', 'batch-' . $index),
                 'tokenable_type' => $first->tokenable_type,
                 'tokenable_id' => $first->tokenable_id,
@@ -1308,7 +1309,7 @@ class PersonalAccessTokenCacheTest extends TestCase
 
         PersonalAccessToken::query()->insert($rows);
         $second = $user->tokens()->create([
-            'name' => 'Second Token',
+            'name' => '1001',
             'token' => hash('sha256', 'second-secret'),
             'abilities' => ['*'],
         ]);
@@ -1317,7 +1318,7 @@ class PersonalAccessTokenCacheTest extends TestCase
         $this->assertInstanceOf(PersonalAccessToken::class, $secondFound);
         $this->assertInstanceOf(TestUser::class, PersonalAccessToken::findTokenable($secondFound));
 
-        $this->assertSame(1002, $user->tokens()->delete());
+        $this->assertSame(1002, $user->tokens()->orderByDesc('name')->delete());
         $this->assertSame(0, $user->tokens()->count());
 
         $this->assertDatabaseMissing('personal_access_tokens', ['id' => $first->id]);
@@ -1328,6 +1329,31 @@ class PersonalAccessTokenCacheTest extends TestCase
         }
 
         $this->assertNotNull($this->cacheRepository()->getRaw($this->tokenableCacheKey($first)));
+    }
+
+    #[TestWith([null, ['C', 'A', 'B']])]
+    #[TestWith([2, ['C', 'B']])]
+    public function testOrderedRelationDeletesPreserveOffsetAndLimit(?int $limit, array $deleted): void
+    {
+        $user = TestUser::query()->create(['name' => 'Taylor', 'email' => 'taylor@example.com', 'password' => 'secret']);
+        $tokens = [];
+
+        foreach (['C', 'A', 'D', 'B'] as $name) {
+            $tokens[$name] = $user->createToken($name);
+            $this->assertInstanceOf(PersonalAccessToken::class, PersonalAccessToken::findToken($tokens[$name]->plainTextToken));
+        }
+
+        $relation = $user->tokens()->orderByDesc('name')->offset(1);
+
+        if ($limit !== null) {
+            $relation->limit($limit);
+        }
+
+        $this->assertSame(count($deleted), $relation->delete());
+
+        foreach ($tokens as $name => $token) {
+            $this->assertSame(! in_array($name, $deleted, true), PersonalAccessToken::findToken($token->plainTextToken) !== null);
+        }
     }
 
     public function testLaterDeleteBatchFailureRollsBackEarlierBatchesAndKeepsCache(): void
