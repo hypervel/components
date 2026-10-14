@@ -68,6 +68,7 @@ class ClientRepository implements ClientRepositoryInterface
             $model->grant_types
         );
 
+        // League's refresh-token policy hook receives no client, so keep it on the issuance.
         TokenIssuance::current()?->setClient($client);
 
         return $client;

@@ -61,6 +61,11 @@ class BridgeAccessTokenRepositoryTest extends PassportTestCase
 
         $this->assertDatabaseHas('oauth_access_tokens', ['id' => 'token-id', 'revoked' => true]);
         Event::assertDispatched(fn (AccessTokenRevoked $event) => $event->tokenId === 'token-id');
+
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinute());
+        $repository->revokeAccessToken('token-id');
+
+        Event::assertDispatchedTimes(AccessTokenRevoked::class, 1);
     }
 
     public function testAccessTokenRevokeEventIsNotDispatchedWhenNothingHappened(): void

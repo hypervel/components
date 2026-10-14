@@ -15,23 +15,22 @@ use Hypervel\Passport\Client;
 use Hypervel\Passport\Database\Factories\ClientFactory;
 use Hypervel\Passport\Database\Factories\SigningKeyFactory;
 use Hypervel\Passport\DeviceCode;
-use Hypervel\Passport\Events\AccessTokenCreated;
-use Hypervel\Passport\Events\RefreshTokenCreated;
 use Hypervel\Passport\PassportServiceProvider;
 use Hypervel\Passport\RefreshToken;
 use Hypervel\Passport\RefreshTokenFamily;
 use Hypervel\Passport\ServerFactory;
 use Hypervel\Passport\Token;
-use Hypervel\Support\Facades\Event;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Testbench\Attributes\ResetRefreshDatabaseState;
 use Hypervel\Testbench\TestCase;
 use League\OAuth2\Server\Exception\OAuthServerException;
-use League\OAuth2\Server\Exception\UniqueTokenIdentifierConstraintViolationException;
 use Nyholm\Psr7\Response;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\Attributes\TestWith;
 
 use function Hypervel\Coroutine\parallel;
 
+#[ResetRefreshDatabaseState]
 abstract class GrantConcurrencyTestCase extends TestCase
 {
     use DatabaseTruncation;
@@ -176,50 +175,7 @@ abstract class GrantConcurrencyTestCase extends TestCase
         $this->assertFalse(RefreshToken::where('revoked', false)->exists());
     }
 
-    #[TestWith(['authorization_code', false])]
-    #[TestWith(['authorization_code', true])]
-    #[TestWith(['device_code', false])]
-    #[TestWith(['device_code', true])]
-    public function testRefreshIdentifierRetriesLeaveOneFamilyAndExhaustionRollsBackTheGrant(string $grant, bool $exhausted): void
-    {
-        $client = $grant === 'device_code'
-            ? ClientFactory::new()->asDeviceCodeClient()->create()
-            : ClientFactory::new()->create();
-        $request = $this->grantRequest($client, $grant);
-        $credential = $grant === 'device_code' ? DeviceCode::sole() : AuthCode::sole();
-        $existingFamily = RefreshTokenFamily::create();
-        RefreshToken::forceCreate([
-            'id' => 'collision', 'access_token_id' => 'existing',
-            'family_id' => $existingFamily->id, 'revoked' => false,
-        ]);
-        $attempts = 0;
-        RefreshToken::creating(static function (RefreshToken $token) use (&$attempts, $exhausted): void {
-            if (++$attempts === 1 || $exhausted) {
-                $token->id = 'collision';
-            }
-        });
-        $events = [];
-        Event::listen([AccessTokenCreated::class, RefreshTokenCreated::class], static function (object $event) use (&$events): void {
-            $events[] = $event;
-        });
-
-        try {
-            $response = $this->exchange($request);
-            $this->assertFalse($exhausted);
-            $this->assertArrayHasKey('refresh_token', $response);
-        } catch (UniqueTokenIdentifierConstraintViolationException) {
-            $this->assertTrue($exhausted);
-        }
-
-        $this->assertSame($exhausted ? 10 : 2, $attempts);
-        $this->assertSame(! $exhausted, $credential->fresh()->revoked);
-        $this->assertSame($exhausted ? 0 : 1, Token::count());
-        $this->assertSame($exhausted ? 1 : 2, RefreshToken::count());
-        $this->assertSame($exhausted ? 1 : 2, RefreshTokenFamily::count());
-        $this->assertCount($exhausted ? 0 : 2, $events);
-    }
-
-    public function testDeviceUserCodeCollisionIsRetriedInsideTheIssuanceTransaction(): void
+    public function testDeviceUserCodeCollisionIsRetriedInsideACallerTransaction(): void
     {
         $client = ClientFactory::new()->asDeviceCodeClient()->create();
         $this->grantRequest($client, 'device_code');
@@ -230,7 +186,7 @@ abstract class GrantConcurrencyTestCase extends TestCase
                 $code->user_code = $existing->user_code;
             }
         });
-        $request = $this->grantRequest($client, 'device_code');
+        $request = DB::transaction(fn (): array => $this->grantRequest($client, 'device_code'));
         $created = DeviceCode::findOrFail($request['device_code']);
 
         $this->assertSame(2, $attempts);

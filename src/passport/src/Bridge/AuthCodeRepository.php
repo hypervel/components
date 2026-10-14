@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Passport\Bridge;
 
-use Hypervel\Passport\Concerns\PersistsTokens;
 use Hypervel\Passport\Passport;
 use League\OAuth2\Server\Entities\AuthCodeEntityInterface;
 use League\OAuth2\Server\Repositories\AuthCodeRepositoryInterface;
@@ -31,7 +30,6 @@ class AuthCodeRepository implements AuthCodeRepositoryInterface
     public function persistNewAuthCode(AuthCodeEntityInterface $authCodeEntity): void
     {
         $issuance = TokenIssuance::current();
-        $issuance?->begin();
 
         $code = Passport::authCode()->forceFill([
             ...($issuance?->attributes() ?? []),
@@ -43,7 +41,7 @@ class AuthCodeRepository implements AuthCodeRepositoryInterface
             'expires_at' => $authCodeEntity->getExpiryDateTime(),
         ]);
 
-        $this->persistToken($code);
+        $this->saveToken($code);
     }
 
     /**

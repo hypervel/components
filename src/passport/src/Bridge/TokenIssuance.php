@@ -19,6 +19,7 @@ use Hypervel\Passport\Passport;
 use Hypervel\Passport\RefreshToken;
 use Hypervel\Passport\ServerEntry;
 use Hypervel\Passport\ServerFactory;
+use Hypervel\Passport\SigningKeyRepository;
 use Hypervel\Passport\StoredServerKey;
 use Hypervel\Passport\Token;
 use Hypervel\Support\CarbonImmutable;
@@ -27,6 +28,7 @@ use Hypervel\Support\Facades\Event;
 use League\OAuth2\Server\Entities\ClientEntityInterface;
 use League\OAuth2\Server\Exception\OAuthServerException;
 use LogicException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class TokenIssuance implements NonCopyableContext, Transient
@@ -41,7 +43,7 @@ class TokenIssuance implements NonCopyableContext, Transient
 
     public ?Token $accessToken = null;
 
-    public ?string $name = null;
+    public ?string $tokenName = null;
 
     protected ?Connection $connection = null;
 
@@ -97,7 +99,15 @@ class TokenIssuance implements NonCopyableContext, Transient
 
                 return $result;
             } catch (Throwable $exception) {
-                $issuance->rollBack();
+                try {
+                    $issuance->rollBack();
+                } catch (CanceledException $cancellation) {
+                    if (! $exception instanceof CanceledException) {
+                        throw $cancellation;
+                    }
+                } catch (Throwable) {
+                    // A failed rollback must not replace the issuance failure.
+                }
 
                 throw $exception;
             }
@@ -265,10 +275,7 @@ class TokenIssuance implements NonCopyableContext, Transient
         $seconds = (int) ceil((float) $expiresAt->format('U.u') - (float) $this->startedAt->format('U.u'));
 
         if ($lifetime !== null) {
-            $seconds = max($seconds, (int) ceil(
-                (($lifetime->y * 366 + $lifetime->m * 31 + $lifetime->d) * 86400)
-                + $lifetime->h * 3600 + $lifetime->i * 60 + $lifetime->s + $lifetime->f
-            ));
+            $seconds = max($seconds, SigningKeyRepository::lifetimeInSeconds($lifetime));
         }
 
         if ($seconds <= $this->entry->retentionBounds[$key->id]) {
@@ -307,7 +314,7 @@ class TokenIssuance implements NonCopyableContext, Transient
         $connection->transaction(static function () use ($family, $familyId, $connection): void {
             $record = $family->newQuery()->whereKey($familyId)->lockForUpdate()->first();
 
-            if ($record === null) {
+            if ($record === null || $record->revoked_at !== null) {
                 return;
             }
 
@@ -316,10 +323,16 @@ class TokenIssuance implements NonCopyableContext, Transient
             $refresh->newQuery()->where('family_id', $familyId)
                 ->select([$refresh->getKeyName(), 'access_token_id'])->useWritePdo()->toBase()
                 ->chunkById(self::REVOCATION_BATCH_SIZE, static function (Collection $rows) use ($refresh, $connection): void {
-                    $refresh->newQuery()->whereKey($rows->pluck($refresh->getKeyName())->all())->update(['revoked' => true]);
+                    $refresh->newQuery()->whereKey($rows->pluck($refresh->getKeyName())->all())
+                        ->where('revoked', false)->update(['revoked' => true]);
                     $token = Passport::token();
                     $ids = $token->newQuery()->whereKey($rows->pluck('access_token_id')->all())
                         ->where('revoked', false)->useWritePdo()->pluck($token->getKeyName())->all();
+
+                    if ($ids === []) {
+                        return;
+                    }
+
                     $token->newQuery()->whereKey($ids)->update(['revoked' => true]);
 
                     foreach ($ids as $id) {

@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Passport\Bridge;
 
-use Hypervel\Passport\Concerns\PersistsTokens;
+use Hypervel\Database\UniqueConstraintViolationException;
 use Hypervel\Passport\DeviceCode as DeviceCodeModel;
 use Hypervel\Passport\Passport;
 use Hypervel\Support\Facades\Date;
 use League\OAuth2\Server\Entities\DeviceCodeEntityInterface;
 use League\OAuth2\Server\Exception\OAuthServerException;
+use League\OAuth2\Server\Exception\UniqueTokenIdentifierConstraintViolationException;
 use League\OAuth2\Server\Repositories\DeviceCodeRepositoryInterface;
 
 class DeviceCodeRepository implements DeviceCodeRepositoryInterface
@@ -35,7 +36,6 @@ class DeviceCodeRepository implements DeviceCodeRepositoryInterface
     {
         if (! is_null($deviceCodeEntity->getUserIdentifier())) {
             $issuance = TokenIssuance::current();
-            $issuance?->begin();
 
             $updated = Passport::deviceCode()->newQuery()
                 ->whereKey($deviceCodeEntity->getIdentifier())
@@ -56,8 +56,6 @@ class DeviceCodeRepository implements DeviceCodeRepositoryInterface
                 'last_polled_at' => $deviceCodeEntity->getLastPolledAt(),
             ]);
         } else {
-            TokenIssuance::current()?->begin();
-
             $code = Passport::deviceCode()->forceFill([
                 'id' => $deviceCodeEntity->getIdentifier(),
                 'user_id' => null,
@@ -70,8 +68,55 @@ class DeviceCodeRepository implements DeviceCodeRepositoryInterface
                 'expires_at' => $deviceCodeEntity->getExpiryDateTime(),
             ]);
 
-            $this->persistToken($code, [$code->getKeyName(), 'user_code']);
+            $this->persistNewDeviceCode($code);
         }
+    }
+
+    /**
+     * Persist a device code, translating collisions that League can retry.
+     */
+    protected function persistNewDeviceCode(DeviceCodeModel $code): void
+    {
+        try {
+            $code->newQuery()->withSavepointIfNeeded(fn () => $this->saveToken($code));
+        } catch (UniqueConstraintViolationException $exception) {
+            if (! $this->isDeviceCodeCollision($code, $exception)) {
+                throw $exception;
+            }
+
+            throw UniqueTokenIdentifierConstraintViolationException::create();
+        }
+    }
+
+    /**
+     * Determine whether the failed insert collided on a regenerated device identifier.
+     */
+    protected function isDeviceCodeCollision(DeviceCodeModel $code, UniqueConstraintViolationException $exception): bool
+    {
+        $connection = $code->getConnection();
+        $table = $connection->getQueryGrammar()->wrapTable($code->getTable());
+
+        // A model observer can fail on another table with an identically named column.
+        if (! str_starts_with($exception->getSql(), 'insert into ' . $table . ' ')) {
+            return false;
+        }
+
+        $failedColumns = $exception->columns;
+
+        if ($failedColumns === [] && $exception->index !== null) {
+            // Schema inspection normalizes index names to lowercase.
+            $indexName = strtolower($exception->index);
+
+            foreach ($connection->getSchemaBuilder()->getIndexes($code->getTable()) as $index) {
+                if ($index['name'] === $indexName) {
+                    $failedColumns = $index['columns'];
+
+                    break;
+                }
+            }
+        }
+
+        return array_intersect([$code->getKeyName(), 'user_code'], $failedColumns) !== [];
     }
 
     /**

@@ -32,12 +32,13 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
 use League\OAuth2\Server\Exception\OAuthServerException;
-use League\OAuth2\Server\Exception\UniqueTokenIdentifierConstraintViolationException;
 use LogicException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 use function Hypervel\Coroutine\parallel;
 
@@ -129,36 +130,96 @@ class TokenIssuanceTest extends TestCase
         yield 'failure' => [false];
     }
 
-    public function testRefreshIdentifierRetryDoesNotLeaveAnExtraFamilyOrEvent(): void
+    public function testFailedDirectRefreshPersistenceRollsBackItsFamilyAndEvent(): void
     {
-        $family = RefreshTokenFamily::create();
-        RefreshToken::forceCreate(['id' => 'duplicate', 'access_token_id' => 'old', 'family_id' => $family->id, 'revoked' => false]);
         $events = [];
         Event::listen(RefreshTokenCreated::class, static function (RefreshTokenCreated $event) use (&$events): void {
             $events[] = $event;
         });
+        $failure = new RuntimeException('Refresh token insert failed.');
+        RefreshToken::creating(static function () use ($failure): never {
+            throw $failure;
+        });
         $entity = new RefreshTokenEntity;
-        $entity->setIdentifier('duplicate');
+        $entity->setIdentifier('refresh');
         $entity->setAccessToken($this->accessToken('access'));
         $entity->setExpiryDateTime(new CarbonImmutable('+1 day'));
 
-        TokenIssuance::run($this->servers, function () use ($entity): void {
-            $repository = $this->app->make(RefreshTokenRepository::class);
+        try {
+            $this->app->make(RefreshTokenRepository::class)->persistNewRefreshToken($entity);
+            $this->fail('The persistence failure must propagate.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+        }
+
+        $this->assertSame(0, RefreshTokenFamily::count());
+        $this->assertSame(0, RefreshToken::count());
+        $this->assertSame([], $events);
+        $this->assertSame(0, DB::transactionLevel());
+    }
+
+    public function testReplayingARevokedFamilyDoesNotRewriteItOrDispatchEvents(): void
+    {
+        $family = RefreshTokenFamily::create();
+        Token::forceCreate(['id' => 'access', 'client_id' => 'client', 'revoked' => false]);
+        $refresh = RefreshToken::forceCreate([
+            'id' => 'refresh', 'access_token_id' => 'access', 'family_id' => $family->id, 'revoked' => true,
+        ]);
+        $repository = $this->app->make(RefreshTokenRepository::class);
+        $this->assertTrue($repository->isRefreshTokenRevoked($refresh->id));
+        $this->assertTrue(Token::findOrFail('access')->revoked);
+        $revokedAt = $family->fresh()->revoked_at;
+        $this->assertNotNull($revokedAt);
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addHour());
+        Event::fake([AccessTokenRevoked::class]);
+        DB::enableQueryLog();
+
+        try {
+            $this->assertTrue($repository->isRefreshTokenRevoked($refresh->id));
+            $queries = DB::getQueryLog();
+        } finally {
+            DB::disableQueryLog();
+        }
+
+        foreach ($queries as $query) {
+            $this->assertDoesNotMatchRegularExpression('/^\s*(insert|update|delete)\b/i', $query['query']);
+        }
+
+        $this->assertEquals($revokedAt, $family->fresh()->revoked_at);
+        Event::assertNotDispatched(AccessTokenRevoked::class);
+    }
+
+    #[TestWith([false, false])]
+    #[TestWith([true, false])]
+    #[TestWith([false, true])]
+    #[TestWith([true, true])]
+    public function testRollbackFailuresPreserveTheIssuanceErrorAndRestoreContext(bool $canceled, bool $cleanupCanceled): void
+    {
+        $failure = $canceled ? new CanceledException('Issuance canceled.') : new RuntimeException('Issuance failed.');
+        $cleanup = $cleanupCanceled ? new CanceledException('Rollback canceled.') : new RuntimeException('Rollback failed.');
+
+        TokenIssuance::run($this->servers, function () use ($failure, $cleanup, $canceled, $cleanupCanceled): void {
+            $outer = TokenIssuance::current();
 
             try {
-                $repository->persistNewRefreshToken($entity);
-                $this->fail('The duplicate identifier must fail.');
-            } catch (UniqueTokenIdentifierConstraintViolationException) {
-                $this->assertSame(1, RefreshTokenFamily::count());
+                TokenIssuance::run($this->servers, static function () use ($failure, $cleanup): never {
+                    TokenIssuance::current()->begin();
+                    DB::afterRollBack(static function () use ($cleanup): never {
+                        throw $cleanup;
+                    });
+
+                    throw $failure;
+                });
+                $this->fail('The issuance failure must propagate.');
+            } catch (Throwable $exception) {
+                $this->assertSame($cleanupCanceled && ! $canceled ? $cleanup : $failure, $exception);
             }
 
-            $entity->setIdentifier('successor');
-            $repository->persistNewRefreshToken($entity);
+            $this->assertSame($outer, TokenIssuance::current());
+            $this->assertSame(0, DB::transactionLevel());
         });
 
-        $this->assertSame(2, RefreshTokenFamily::count());
-        $this->assertSame(2, RefreshToken::count());
-        $this->assertCount(1, $events);
+        $this->assertNull(TokenIssuance::current());
     }
 
     public function testLostRefreshClaimRevokesTheFamilyAfterRollingBackItsIssuance(): void

@@ -50,7 +50,7 @@ class PersonalAccessGrant extends AbstractGrant
         // Issue and persist access token
         $issuance = TokenIssuance::current();
         $issuance->setAuthorizationAttributes(['provider' => $provider]);
-        $issuance->name = $this->getRequestParameter('name', $request);
+        $issuance->tokenName = $this->getRequestParameter('name', $request);
 
         $accessToken = $this->issueAccessToken(
             $accessTokenTTL,

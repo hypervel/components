@@ -6,7 +6,6 @@ namespace Hypervel\Passport\Bridge;
 
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Passport\ClientRepository as PassportClientRepository;
-use Hypervel\Passport\Concerns\PersistsTokens;
 use Hypervel\Passport\Events\AccessTokenCreated;
 use Hypervel\Passport\Events\AccessTokenRevoked;
 use Hypervel\Passport\Passport;
@@ -59,11 +58,11 @@ class AccessTokenRepository implements AccessTokenRepositoryInterface
             'expires_at' => $accessTokenEntity->getExpiryDateTime(),
         ]);
 
-        if ($issuance?->name !== null) {
-            $token->name = $issuance->name;
+        if ($issuance?->tokenName !== null) {
+            $token->name = $issuance->tokenName;
         }
 
-        $this->persistToken($token);
+        $this->saveToken($token);
         $issuance?->setAccessToken($token);
 
         if ($accessTokenEntity instanceof AccessToken) {
@@ -87,7 +86,7 @@ class AccessTokenRepository implements AccessTokenRepositoryInterface
         TokenIssuance::current()?->begin();
         $token = Passport::token();
 
-        if ($token->newQuery()->whereKey($tokenId)->update(['revoked' => true])) {
+        if ($token->newQuery()->whereKey($tokenId)->where('revoked', false)->update(['revoked' => true])) {
             $token::clearTokenCache($tokenId);
             $token->getConnection()->afterCommitOrNow(function () use ($tokenId): void {
                 if ($this->events->hasListeners(AccessTokenRevoked::class)) {

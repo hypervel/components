@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Passport\Bridge;
 
 use Hypervel\Contracts\Events\Dispatcher;
-use Hypervel\Passport\Concerns\PersistsTokens;
 use Hypervel\Passport\Events\RefreshTokenCreated;
 use Hypervel\Passport\Passport;
 use Hypervel\Passport\RefreshToken as RefreshTokenModel;
@@ -60,7 +59,7 @@ class RefreshTokenRepository implements RefreshTokenRepositoryInterface
         $issuance?->begin();
         $token = Passport::refreshToken();
 
-        $this->persistToken($token, persist: function () use ($issuance, $token, $refreshTokenEntity): void {
+        $persist = function () use ($issuance, $token, $refreshTokenEntity): void {
             $attributes = $issuance?->attributes() ?? [];
 
             if ($issuance?->grant instanceof RefreshTokenModel) {
@@ -89,7 +88,14 @@ class RefreshTokenRepository implements RefreshTokenRepositoryInterface
                     $this->events->dispatch(new RefreshTokenCreated($id, $accessTokenId));
                 }
             });
-        });
+        };
+
+        if ($issuance !== null) {
+            $persist();
+        } else {
+            // Direct repository calls still need to save the family and token atomically.
+            $token->getConnection()->transaction($persist);
+        }
     }
 
     /**
