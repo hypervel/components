@@ -464,7 +464,9 @@
         "test:dogfood": [
             "Composer\\Config::disableProcessTimeout",
             "composer --working-dir=dogfood/testbench-package install --prefer-dist -n -o",
-            "composer --working-dir=dogfood/testbench-package test"
+            "composer --working-dir=dogfood/testbench-package test",
+            "composer --working-dir=dogfood/ai install --prefer-dist -n -o",
+            "composer --working-dir=dogfood/ai test"
         ],
         "test:parallel": [
             "Composer\\Config::disableProcessTimeout",

@@ -71,6 +71,14 @@ jobs:
           OTEL_SDK_DISABLED: true
         run: vendor/bin/testbench package:test --parallel
 
+      - name: Install AI demo dependencies
+        working-directory: dogfood/ai
+        run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
+
+      - name: Run AI demo suite
+        working-directory: dogfood/ai
+        run: vendor/bin/testbench package:test --no-progress
+
   guzzle_7_compatibility:
     runs-on: ubuntu-latest
     timeout-minutes: 15
