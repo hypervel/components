@@ -45,6 +45,10 @@
 - [Multiple Authorization Servers](#multiple-authorization-servers)
 - [Customizing Authentication](#customizing-authentication)
 - [Building on Passport](#building-on-passport)
+    - [Authorization Attributes](#authorization-attributes)
+    - [Additional Access Token Claims](#additional-access-token-claims)
+    - [Authorization Interaction and Refresh Policy](#authorization-interaction-and-refresh-policy)
+    - [Token Responses, Issuers and Public Keys](#token-responses-issuers-and-public-keys)
 - [Testing](#testing)
 
 <a name="introduction"></a>
@@ -123,7 +127,7 @@ Keys default to 4096 bits. You may choose a different length with `--length`; th
 php artisan passport:keys --length=2048
 ```
 
-The `passport:install` and `passport:keys:rotate` commands also accept `--length`. Keys are parsed and retained by each worker. After changing file or environment keys, restart the server and every other long-running process that issues or verifies tokens, including queue workers. `server:reload` alone does not reload application key configuration.
+The `passport:install` command also accepts `--length`, as does `passport:keys:rotate` when using the [database key store](#database-signing-keys). Keys are parsed and retained by each worker. After changing file or environment keys, restart the server and every other long-running process that issues or verifies tokens, including queue workers. `server:reload` is not sufficient.
 
 If necessary, you may define the path where Passport's keys should be loaded from. You may use the `Passport::loadKeysFrom` method to accomplish this. Typically, this method should be called from the `boot` method of your application's `App\Providers\AppServiceProvider` class:
 
@@ -171,6 +175,8 @@ Access tokens include a `kid` header identifying their signing key. Existing tok
 
 If you customize grant encryption through `Passport::encryptTokensUsing`, return random key material that remains the same for the worker lifetime. Configure this callback during provider boot.
 
+By default, rotating `APP_KEY` invalidates outstanding authorization codes, refresh tokens and API cookies. With the database key store, `app.previous_keys` keeps stored private keys readable, but does not preserve the derived keys used for those credentials. Applications using `Passport::encryptTokensUsing` may supply separate, stable key material.
+
 <a name="database-signing-keys"></a>
 ### Database Signing Keys
 
@@ -192,7 +198,7 @@ To move an existing file-based installation to the database store, import its ke
 php artisan passport:keys:import
 ```
 
-The database key store must be empty before importing. The import includes `verification_keys` and retains the keys until the latest stored access token expires. If other services have issued longer-lived tokens using those same keys, provide their latest expiry explicitly:
+The database key store must be empty before importing. The import includes `verification_keys` and retains the keys until the latest stored access token expires. It also accounts for your configured token lifetimes so tokens issued before file workers restart remain valid. If other services use those keys with longer token lifetimes, or custom signing code uses lifetimes Passport cannot determine, provide their latest expiry explicitly:
 
 ```shell
 php artisan passport:keys:import --retain-until="2030-01-01T00:00:00Z"
@@ -200,7 +206,7 @@ php artisan passport:keys:import --retain-until="2030-01-01T00:00:00Z"
 
 After importing, set `PASSPORT_KEY_STORE=database` and restart your long-running processes once to select the new store. Later rotations require no restart.
 
-Passport registers a daily rotation check when the database store is enabled. Run your application's [scheduler](/docs/{{version}}/scheduling#running-the-scheduler); you do not need to add the rotation task yourself. Configure automatic rotation in `config/passport.php`:
+Passport registers a daily rotation check when the database store and key rotation are enabled. Run your application's [scheduler](/docs/{{version}}/scheduling#running-the-scheduler); you do not need to add the rotation task yourself. Configure automatic rotation in `config/passport.php`:
 
 ```php
 'key_rotation' => [
@@ -222,7 +228,7 @@ php artisan passport:keys:revoke <kid>
 
 Revocation is immediate in storage. If the revoked key was signing, Passport creates an immediately active replacement. Tokens signed by the revoked key stop working as workers refresh their keys; during that refresh interval, a token signed by the replacement may fail on another worker. Use this command for emergency revocation and use ordinary rotation for planned changes.
 
-Applications may import customer-supplied private keys through `Hypervel\Passport\SigningKeyRepository::import`. Imported keys must be RSA keys of at least 2048 bits. They activate after the publication delay, following any key already waiting to activate. An imported key follows the same automatic rotation policy as a generated key. If your application promises customer-managed keys, disable automatic rotation for that key set in your integration and let customers supply replacements.
+Applications may import customer-supplied private keys through `Hypervel\Passport\SigningKeyRepository::import`. Imported keys must be RSA keys of at least 2048 bits. They activate after `passport.key_activation_delay`, following any key already waiting to activate. An imported key follows the same automatic rotation policy as a generated key. If your application promises customer-managed keys, set `passport.key_rotation.enabled` to false, or override `SigningKeyRepository::rotateDueKeys()` when managing several key sets, and let customers supply replacements.
 
 Key management uses the default cache store for atomic locks. The store must be shared by every process that manages the same key set. Key-management operations cannot run inside an application database transaction; Passport commits its own changes before releasing the lock.
 
@@ -343,7 +349,7 @@ Route::group([
 <a name="rate-limiting"></a>
 ### Rate Limiting
 
-Passport's token and device-code endpoints use the named `passport` rate limiter. By default, it allows 60 requests per minute for each authenticated user or IP address. You may customize this limit in your application's `AppServiceProvider`:
+Passport's token and device-code endpoints use the named `passport` rate limiter. The device authorization page also uses this limiter to limit repeated attempts to guess user codes. By default, it allows 60 requests per minute for each authenticated user or IP address. You may customize this limit in your application's `AppServiceProvider`:
 
 ```php
 use Hypervel\Http\Request;
@@ -376,9 +382,24 @@ Use a cache store shared by every process that changes clients or revokes tokens
 
 Passport invalidates entries after model updates and deletes, package revocations, and `update` or `delete` through `$user->tokens()`, `$client->tokens()` and `$user->oauthApps()`. Invalidation waits until a database transaction commits. Reads inside a transaction use the database directly.
 
+Invalidation waits for any cache fill on the same entry. If the lock times out, `LockTimeoutException` is thrown after the database change has been saved. The affected entry may remain cached until it is cleared or expires.
+
 When your database uses separate read and write connections, Passport reads access tokens and clients from the write connection, whether caching is enabled or disabled. This ensures that newly issued credentials and revocations are visible immediately.
 
 Other bulk writes, such as `DB::table('oauth_access_tokens')->update(...)` or `Token::query()->update(...)`, bypass model events and Passport's invalidation. Their changes become visible when cached entries expire. Use the supported model or relationship methods when a revocation must take effect immediately.
+
+If you update access tokens through a query builder, you may clear each affected token's cache entry explicitly:
+
+```php
+use Hypervel\Passport\Passport;
+
+$tokenModel = Passport::tokenModel();
+
+$tokenModel::query()->whereKey($tokenId)->update(['revoked' => true]);
+$tokenModel::clearTokenCache($tokenId);
+```
+
+This method uses the token model's database connection. If a transaction is open, shared cache invalidation waits for its outermost commit; otherwise, it runs immediately. A rollback leaves the existing committed cache entry in place.
 
 <a name="authorization-code-grant"></a>
 ## Authorization Code Grant
@@ -937,7 +958,7 @@ Route::get('/orders', function (Request $request) {
 })->middleware(EnsureClientIsResourceOwner::using('servers:read', 'servers:create'));
 ```
 
-Client-credentials tokens use the client identifier as their subject and do not authenticate an application user. Passport clients use UUIDs.
+Client-credentials tokens use the client identifier as their subject and do not authenticate an application user.
 
 <a name="retrieving-tokens"></a>
 ### Retrieving Tokens
@@ -1324,6 +1345,8 @@ Passport raises events when issuing and revoking tokens. You may [listen for the
 
 </div>
 
+Bulk updates through `tokens()` relationships or query builders do not dispatch `AccessTokenRevoked`. Revoke tokens through their model's `revoke()` method when you rely on this event.
+
 <a name="multiple-authorization-servers"></a>
 ## Multiple Authorization Servers
 
@@ -1341,7 +1364,7 @@ public function register(): void
 
 The resolver has two methods:
 
-- `current(): ?string` returns the current settings identifier, or null to use the default server. It runs during OAuth processing and should read already-resolved request context without querying the database. Include both the authorization server's identity and its settings version in the identifier, and change it whenever its keys, issuer, scopes or lifetimes change.
+- `current(): ?string` returns the current settings identifier, or null to use the default server. It runs on every OAuth endpoint request and every bearer-token authentication, and should read already-resolved request context without querying the database. Include both the authorization server's identity and its settings version in the identifier, and change it whenever its keys, issuer, scopes or lifetimes change.
 - `resolve(string $identifier): ServerSettings` loads the settings for that identifier. Passport caches the resulting servers and parsed keys for reuse by the worker.
 
 For example, your resolver may return the following settings:
@@ -1362,9 +1385,11 @@ return new ServerSettings(
 
 `ServerKey` accepts PEM contents or file paths. Omit its private key for verification-only use. An optional `activatesAt` selects when a private key may start signing; publish future public keys before that date. The newest active private key signs tokens, and every supplied public key may verify them.
 
-`ServerSettings` also accepts `personalAccessTokensExpireIn` and `clientCredentialsTokensExpireIn`. A null lifetime uses the corresponding global Passport lifetime. Its scope definitions extend the global catalog configured by `Passport::tokensCan`.
+`ServerSettings` also accepts `personalAccessTokensExpireIn` and `clientCredentialsTokensExpireIn`. A null lifetime uses the corresponding global Passport lifetime. Its scope definitions extend the global catalog configured by `Passport::tokensCan`. A null issuer omits the `iss` claim; it does not fall back to `passport.issuer`.
 
 When using database-managed keys, return the keys from `SigningKeyRepository::serverKeys()` instead of rebuilding plain `ServerKey` objects from database rows. This preserves the information Passport needs to retain each signing key for its tokens' lifetimes. Your configured signing-key model and repository select the appropriate key set; Passport does not supply an organization schema or resolve organizations itself.
+
+To manage separate database key sets, add an owner column and scope to your signing-key model and bind a `SigningKeyRepository` subclass. Override `keySetName()` to name the set's lock, which serializes key changes, and `rotateDueKeys()` to rotate each eligible set. Run key management operations in the appropriate set's context.
 
 Resolve the authorization server before OAuth processing, for example from a trusted host or path. A token cannot select its own server when that selection determines which keys are trusted. Applications using separate keys therefore need server-specific OAuth endpoints, including the token endpoint. Applications sharing one server and key pair can use a shared token endpoint and carry ownership attributes from authorization through refreshes.
 
@@ -1390,6 +1415,8 @@ Passport::authenticateAccessTokensUsing(
 ```
 
 In this example, `$organizations` is an application service that reads the current request's organization. Register an additional client check with `Passport::authenticateClientsUsing(fn (Client $client): bool => ...)`. It runs at OAuth endpoints and during bearer authentication, and when choosing a personal access client. Cached clients still pass through this check.
+
+Your configured token model may override the static `findToken(string $id): ?static` method to change how bearer authentication loads tokens. For example, a model may omit an application scope during the lookup, then enforce ownership through `authenticateAccessTokensUsing`.
 
 Use `Passport::bindCookiesUsing` to bind first-party API cookies to a request-derived value when several application partitions share a cookie domain:
 
@@ -1431,6 +1458,7 @@ Passport::inheritGrantAttributes(['organization_id']);
 
 Personal access and client-credentials tokens have no earlier authorization to inherit from. Use your configured models' creation hooks to assign their application-specific attributes.
 
+<a name="additional-access-token-claims"></a>
 ### Additional Access Token Claims
 
 Use `accessTokenClaimsUsing` to add claims for APIs that validate access tokens independently. The callback receives the saved token model, including inherited authorization attributes:
@@ -1445,6 +1473,7 @@ Passport::accessTokenClaimsUsing(fn (Token $token): array => [
 
 The claims `iss`, `sub`, `aud`, `exp`, `iat`, `nbf`, `jti` and `scopes` are reserved. Attempting to replace one throws an `InvalidArgumentException`. JWT claims are readable by their recipient, so include only information appropriate for that client.
 
+<a name="authorization-interaction-and-refresh-policy"></a>
 ### Authorization Interaction and Refresh Policy
 
 `Passport::resolvePromptsUsing` receives the HTTP request and League's validated authorization request. Return additional `login` or `consent` prompts to apply your application's interaction policy. With `prompt=none`, a required interaction produces `login_required` or `consent_required`. The callback may throw a League `OAuthServerException` to reject invalid parameters.
@@ -1452,6 +1481,8 @@ The claims `iss`, `sub`, `aud`, `exp`, `iat`, `nbf`, `jti` and `scopes` are rese
 `Passport::issueRefreshTokensUsing` receives the newly saved access token and returns whether a refresh token may be issued:
 
 ```php
+use Hypervel\Passport\Token;
+
 Passport::issueRefreshTokensUsing(
     fn (Token $accessToken): bool => $accessToken->can('offline_access')
 );
@@ -1459,9 +1490,10 @@ Passport::issueRefreshTokensUsing(
 
 For authorization-code and device exchanges, false omits the refresh token. During a refresh exchange, false rejects the exchange with `invalid_grant` and rolls back the new tokens, leaving the existing credentials unchanged. Applications may use inherited authorization attributes to enforce an absolute renewal limit.
 
+<a name="token-responses-issuers-and-public-keys"></a>
 ### Token Responses, Issuers and Public Keys
 
-Set `passport.issuer` or `PASSPORT_ISSUER` to include an `iss` claim in access tokens. Per-request server settings may supply their own issuer. A null issuer leaves the claim out.
+Set `passport.issuer` or `PASSPORT_ISSUER` to include an `iss` claim in the default server's access tokens. Custom server settings use their own issuer; a null issuer leaves the claim out without falling back to the configuration value.
 
 You may register a custom League response type with `Passport::useAuthorizationServerResponseType`. Passport's access token entity exposes its saved model through `getToken()`. Repeated calls to `toString()` return the same signed token, allowing your response to include a hash of the exact access token sent to the client. If response generation or signing fails, Passport rolls back the new tokens.
 
