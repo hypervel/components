@@ -197,6 +197,10 @@ class QueryBuilderTest extends DatabaseTestCase
 
         $this->assertCount(2, $products);
         $this->assertSame('Gadget X', $products->first()->name);
+
+        $products = $this->table()->orderBy('id')->offset(2)->get();
+
+        $this->assertSame(['Gadget X', 'Gadget Y', 'Tool Z'], $products->pluck('name')->all());
     }
 
     public function testFirst(): void

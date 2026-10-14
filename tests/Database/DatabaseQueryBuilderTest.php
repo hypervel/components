@@ -3045,6 +3045,107 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertSame('select * from "users" offset 5', $builder->toSql());
     }
 
+    #[DataProvider('offsetSelectGrammars')]
+    public function testOffsetOnlySelectsAndUnionPagination(string $driver, string $unbounded, string $quote, string $wrapper): void
+    {
+        $make = fn (): Builder => match ($driver) {
+            'mysql' => $this->getMySqlBuilder(),
+            'mariadb' => $this->getMariaDbBuilder(),
+            default => $this->getSQLiteBuilder(),
+        };
+        $users = $quote . 'users' . $quote;
+        $archives = $quote . 'archives' . $quote;
+
+        $this->assertSame("select * from {$users} limit {$unbounded} offset 3", $make()->from('users')->offset(3)->toSql());
+        $this->assertSame("select * from {$users} limit {$unbounded} offset 0", $make()->from('users')->offset(0)->toSql());
+
+        $query = $make()->from('users')->offset(3)->union($make()->from('archives'))->limit(5)->offset(2);
+        $this->assertSame("{$wrapper}(select * from {$users} limit {$unbounded} offset 3) union {$wrapper}(select * from {$archives}) limit 5 offset 2", $query->toSql());
+
+        $query = $make()->from('users')->limit(5)->offset(3)->union($make()->from('archives'))->offset(2);
+        $this->assertSame("{$wrapper}(select * from {$users} limit 5 offset 3) union {$wrapper}(select * from {$archives}) limit {$unbounded} offset 2", $query->toSql());
+    }
+
+    /**
+     * Provide grammars that require a limit before an offset.
+     */
+    public static function offsetSelectGrammars(): array
+    {
+        return [
+            ['mysql', '18446744073709551615', '`', ''],
+            ['mariadb', '18446744073709551615', '`', ''],
+            ['sqlite', '-1', '"', 'select * from '],
+        ];
+    }
+
+    #[DataProvider('unsupportedWriteConstraints')]
+    public function testUnsupportedWriteConstraintsFailBeforeExecuting(string $driver, string $operation, ?int $limit, int $offset, bool $join, string $message): void
+    {
+        $builder = match ($driver) {
+            'mysql' => $this->getMySqlBuilder(),
+            'mariadb' => $this->getMariaDbBuilder(),
+            default => $this->getPostgresBuilder(),
+        };
+        $builder->getConnection()->shouldNotReceive('update');
+        $builder->getConnection()->shouldNotReceive('delete');
+        $builder->from('users')->limit($limit)->offset($offset);
+
+        if ($join) {
+            $builder->join('contacts', 'users.id', '=', 'contacts.user_id');
+        }
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage($message);
+
+        match ($operation) {
+            'delete' => $builder->delete(),
+            'updateFrom' => $builder->updateFrom(['active' => false]),
+            default => $builder->update(['active' => false]),
+        };
+    }
+
+    /**
+     * Provide write constraints that cannot be represented by the selected SQL form.
+     */
+    public static function unsupportedWriteConstraints(): array
+    {
+        return [
+            ['mysql', 'update', 5, 10, false, 'does not support offsets'],
+            ['mysql', 'delete', null, 10, false, 'does not support offsets'],
+            ['mariadb', 'update', null, 10, true, 'does not support offsets'],
+            ['mariadb', 'delete', 5, 10, true, 'does not support offsets'],
+            ['mysql', 'update', 5, 0, true, 'does not support limits in joined update'],
+            ['mysql', 'update', 0, 0, true, 'does not support limits in joined update'],
+            ['mariadb', 'update', 5, 0, true, 'does not support limits in joined update'],
+            ['postgres', 'updateFrom', 5, 0, true, 'does not support limits or offsets'],
+            ['postgres', 'updateFrom', 0, 0, false, 'does not support limits or offsets'],
+            ['postgres', 'updateFrom', null, 10, true, 'does not support limits or offsets'],
+        ];
+    }
+
+    #[DataProvider('offsetOnlyWrites')]
+    public function testOffsetOnlyWritesUseRowIdentifiers(string $driver, string $operation, string $sql): void
+    {
+        $builder = $driver === 'sqlite' ? $this->getSQLiteBuilder() : $this->getPostgresBuilder();
+        $builder->getConnection()->expects($operation)->with($sql, $operation === 'update' ? [false] : [])->andReturn(3);
+        $builder->from('users')->orderBy('id')->offset(2);
+
+        $this->assertSame(3, $operation === 'update' ? $builder->update(['active' => false]) : $builder->delete());
+    }
+
+    /**
+     * Provide offset-only writes using each driver's row identifiers.
+     */
+    public static function offsetOnlyWrites(): array
+    {
+        return [
+            ['sqlite', 'update', 'update "users" set "active" = ? where "rowid" in (select "users"."rowid" from "users" order by "id" asc limit -1 offset 2)'],
+            ['sqlite', 'delete', 'delete from "users" where "rowid" in (select "users"."rowid" from "users" order by "id" asc limit -1 offset 2)'],
+            ['postgres', 'update', 'update "users" set "active" = ? where ("tableoid", "ctid") in (select "users"."tableoid", "users"."ctid" from "users" order by "id" asc offset 2)'],
+            ['postgres', 'delete', 'delete from "users" where ("tableoid", "ctid") in (select "users"."tableoid", "users"."ctid" from "users" order by "id" asc offset 2)'],
+        ];
+    }
+
     public function testForPage(): void
     {
         $builder = $this->getBuilder();
