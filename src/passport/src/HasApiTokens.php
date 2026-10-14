@@ -55,7 +55,7 @@ trait HasApiTokens
             $this,
             $token->qualifyColumn('user_id'),
             $this->getAuthIdentifierName()
-        ))->where($token->qualifyColumn('provider'), $this->getProviderName());
+        ))->withAttributes(['provider' => $this->getProviderName()]);
     }
 
     /**

@@ -51,6 +51,23 @@ class HasApiTokensTest extends PassportTestCase
         $this->assertSame(['users'], $tokens->modelKeys());
         $this->assertSame('My OAuth App', $tokens->first()->client_name);
     }
+
+    public function testTokensCreatedThroughTheRelationRecordTheUserProvider(): void
+    {
+        $user = UserFactory::new()->create();
+        $client = ClientFactory::new()->create();
+        $token = $user->tokens()->create(['id' => 'users-token', 'client_id' => $client->id, 'revoked' => false]);
+
+        $this->assertSame('users', $token->fresh()->provider);
+        $this->assertSame(['users-token'], $user->tokens()->pluck('id')->all());
+
+        config([
+            'auth.providers.admins' => ['driver' => 'eloquent', 'model' => AdminHasApiTokensStub::class],
+            'auth.guards.api-admins' => ['driver' => 'passport', 'provider' => 'admins'],
+        ]);
+        $admin = (new AdminHasApiTokensStub)->forceFill(['id' => $user->id]);
+        $this->assertSame([], $admin->tokens()->pluck('id')->all());
+    }
 }
 
 class AdminHasApiTokensStub extends Authenticatable implements OAuthenticatable
