@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Queue\Database\Sqlite;
 
-use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Foundation\Testing\DatabaseMigrations;
 use Hypervel\Support\Facades\DB;
@@ -22,15 +21,6 @@ class DatabaseQueueBulkTest extends TestCase
 {
     use DatabaseMigrations;
 
-    protected function defineEnvironment(ApplicationContract $app): void
-    {
-        parent::defineEnvironment($app);
-
-        $config = $app->make('config');
-        $connection = $config->string('database.default');
-        $config->set("database.connections.{$connection}.version", '3.31.1');
-    }
-
     public function testOversizedBulkInsertIsChunkedAndCommittedCompletely(): void
     {
         $insertCount = 0;
@@ -43,10 +33,11 @@ class DatabaseQueueBulkTest extends TestCase
             }
         });
 
-        $jobs = array_map(static fn (int $index): string => "job-{$index}", range(1, 167));
+        // Six bindings per job put this batch just above SQLite's 32,766-binding limit.
+        $jobs = array_map(static fn (int $index): string => "job-{$index}", range(1, 5462));
 
         $this->assertTrue(Queue::connection()->bulk($jobs, queue: IntegerQueueName::Zero));
-        $this->assertSame(167, DB::table('jobs')->where('queue', '0')->count());
+        $this->assertSame(5462, DB::table('jobs')->where('queue', '0')->count());
         $this->assertSame(2, $insertCount);
     }
 }

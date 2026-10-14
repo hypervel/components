@@ -24,6 +24,7 @@ class Http2ClientTest extends TestCase
 {
     public function testConstructionRejectsAFailedConnection(): void
     {
+        // Bind without listening so the connection is refused on every Swoole version.
         $socket = new Socket(AF_INET, SOCK_STREAM, 0);
         $this->assertTrue($socket->bind('127.0.0.1', 0));
 
@@ -46,6 +47,7 @@ class Http2ClientTest extends TestCase
 
             $this->assertInstanceOf(NativeHttp2Exception::class, $previous);
             $this->assertSame($previous->getMessage(), $exception->getMessage());
+            $this->assertSame($previous->getCode(), $exception->getCode());
             $this->assertStringContainsStringIgnoringCase('host is empty', $exception->getMessage());
         }
     }

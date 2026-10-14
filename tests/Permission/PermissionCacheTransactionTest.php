@@ -25,6 +25,7 @@ use Hypervel\Permission\Traits\HasRoles;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Permission\Fixtures\Models\User;
 use Hypervel\Tests\Permission\Fixtures\Models\UserWithoutHasRoles;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use UnitEnum;
 
@@ -64,6 +65,45 @@ class PermissionCacheTransactionTest extends TestCase
         parent::tearDown();
     }
 
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testRepeatedRoleChecksReuseAssignmentsInsideATransaction(bool $warm): void
+    {
+        $this->testUserRole->givePermissionTo('edit-articles');
+        $this->testUser->assignRole($this->testUserRole);
+        $this->useSharedPermissionCache();
+
+        if ($warm) {
+            $this->assertTrue($this->testUser->hasRole('testRole'));
+            $this->assertTrue($this->testUser->hasPermissionTo('edit-articles'));
+        }
+
+        $connection = $this->testUserRole->getConnection();
+        $connection->beginTransaction();
+        $connection->enableQueryLog();
+        $connection->flushQueryLog();
+
+        try {
+            for ($check = 0; $check < 3; ++$check) {
+                $this->assertTrue($this->testUser->hasRole('testRole'));
+                $this->assertTrue($this->testUser->hasPermissionTo('edit-articles'));
+            }
+
+            if ($warm) {
+                $this->assertSame([], $connection->getQueryLog());
+            }
+
+            $assignmentQueries = array_filter(
+                $connection->getQueryLog(),
+                static fn (array $query): bool => str_contains($query['query'], 'model_has_roles'),
+            );
+            $this->assertCount($warm ? 0 : 1, $assignmentQueries);
+        } finally {
+            $connection->disableQueryLog();
+            $connection->rollBack();
+        }
+    }
+
     public function testRolledBackAssignmentReadInsideTransactionIsNotPublishedToSharedCache(): void
     {
         $this->useSharedPermissionCache();
@@ -82,7 +122,7 @@ class PermissionCacheTransactionTest extends TestCase
             $connection->rollBack();
         }
 
-        $this->app->make(PermissionRegistrar::class)->clearPermissionsCollection();
+        $this->assertFalse($this->testUser->hasRole('testRole'));
 
         [$hasRole] = parallel([
             fn (): bool => User::findOrFail($this->testUser->getKey())->hasRole('testRole'),
@@ -127,6 +167,8 @@ class PermissionCacheTransactionTest extends TestCase
         $this->assertTrue($this->testUser->hasRole('testRole'));
 
         $connection->rollBack();
+
+        $this->assertFalse($this->testUser->hasRole('testRole'));
 
         [$hasRole] = parallel([
             fn (): bool => User::findOrFail($this->testUser->getKey())->hasRole('testRole'),
@@ -353,7 +395,7 @@ class PermissionCacheTransactionTest extends TestCase
             $this->testUser,
             $outerProvisionalToken,
         );
-        $this->assertTrue($registrar->getCacheRepository()->has($outerAssignmentCacheKey));
+        $this->assertFalse($registrar->getCacheRepository()->has($outerAssignmentCacheKey));
 
         $connection->beginTransaction();
         $this->testUserRole->syncModels($this->testUser);
@@ -370,10 +412,10 @@ class PermissionCacheTransactionTest extends TestCase
             $this->testUser,
             $afterRollbackToken,
         );
-        $this->assertTrue($registrar->getCacheRepository()->has($outerAssignmentCacheKey));
+        $this->assertFalse($registrar->getCacheRepository()->has($outerAssignmentCacheKey));
         $this->assertFalse($registrar->getCacheRepository()->has($afterRollbackCacheKey));
         $this->assertFalse($this->testUser->hasRole('testRole'));
-        $this->assertTrue($registrar->getCacheRepository()->has($afterRollbackCacheKey));
+        $this->assertFalse($registrar->getCacheRepository()->has($afterRollbackCacheKey));
         $this->assertTrue($secondUser->hasRole('testRole'));
 
         $connection->commit();
@@ -586,7 +628,7 @@ class PermissionCacheTransactionTest extends TestCase
 
     public function testSameConnectionHardDeleteInvalidatesTheCatalogOnce(): void
     {
-        $coordinator = new CountingPermissionCacheCoordinator;
+        $coordinator = new CountingPermissionCacheCoordinator($this->app);
         $this->app->instance(ModelCacheCoordinator::class, $coordinator);
         $this->app->forgetInstance(PermissionRegistrar::class);
 

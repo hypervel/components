@@ -7,9 +7,43 @@ namespace Hypervel\Foundation\Testing;
 use ArrayAccess;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\ParentCoroutineContext;
+use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\DatabaseTransactionRecord;
+use Hypervel\Database\DatabaseTransactionState;
 
 class RequestContextSynchronizer
 {
+    /**
+     * Copy the retained database sessions' transaction records between test coroutines.
+     *
+     * @param array<string, ConnectionInterface> $connections
+     */
+    public function syncTransactionState(
+        DatabaseTransactionState $source,
+        DatabaseTransactionState $target,
+        array $connections,
+    ): void {
+        $names = [];
+
+        foreach ($connections as $connection) {
+            $names[$connection->getName() ?? ''] = true;
+        }
+
+        foreach (['pending', 'committed'] as $property) {
+            // Keep surviving records in their original order: connection-less callbacks
+            // belong to the most recently started applicable transaction.
+            $target->{$property} = $target->{$property}->reject(
+                fn (DatabaseTransactionRecord $transaction): bool => isset($names[$transaction->connection])
+                    && ! $source->{$property}->containsStrict($transaction)
+            )->concat($source->{$property}->filter(
+                fn (DatabaseTransactionRecord $transaction): bool => isset($names[$transaction->connection])
+            ))->uniqueStrict()->values();
+        }
+
+        $target->current = array_diff_key($target->current, $names)
+            + array_intersect_key($source->current, $names);
+    }
+
     /**
      * Sync selected Context keys from the current request coroutine to its parent.
      *

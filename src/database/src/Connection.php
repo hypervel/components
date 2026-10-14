@@ -815,7 +815,7 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
         }
 
         $query = $this->pretending === true
-            ? $this->queryGrammar->substituteBindingsIntoRawSql($query, $bindings)
+            ? $this->queryGrammar->substituteBindingsIntoRawSql($query, $this->prepareBindings($bindings))
             : $query;
 
         if ($this->loggingQueries) {

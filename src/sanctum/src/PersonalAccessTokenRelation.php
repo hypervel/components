@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Sanctum;
 
+use Hypervel\Cache\ModelCacheCoordinator;
+use Hypervel\Container\Container;
+use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\MorphMany;
 
@@ -23,22 +26,16 @@ class PersonalAccessTokenRelation extends MorphMany
             return $this->getQuery()->delete();
         }
 
-        /** @var array<int, int|string> $ids */
-        $ids = (clone $this->getQuery())
-            ->pluck($this->getRelated()->getQualifiedKeyName())
-            ->all();
-
-        if ($ids === []) {
-            return 0;
-        }
-
-        $deleted = (clone $this->getQuery())->whereKey($ids)->delete();
         $tokenModel = $this->getRelated()::class;
 
-        foreach ($ids as $id) {
-            $tokenModel::clearTokenCache($id);
-        }
-
-        return $deleted;
+        return Container::getInstance()->make(ModelCacheCoordinator::class)->mutate(
+            $this->getQuery(),
+            static fn (Builder $batch): int => $batch->delete(),
+            static function (array $ids) use ($tokenModel): void {
+                foreach ($ids as $id) {
+                    $tokenModel::clearTokenCache($id);
+                }
+            },
+        );
     }
 }

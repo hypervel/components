@@ -14,6 +14,8 @@ use Hypervel\Contracts\Auth\UserProvider;
  * so per-request user state cannot be stored as instance properties. Each guard must
  * implement its own coroutine-safe user(), setUser(), and hasUser() using Context.
  * This trait provides only the methods that are truly universal across all guards.
+ *
+ * @template TProvider of UserProvider = UserProvider
  */
 trait GuardHelpers
 {
@@ -21,6 +23,8 @@ trait GuardHelpers
      * The user provider implementation.
      *
      * Nullable because some guards (e.g. RequestGuard) may not require a provider.
+     *
+     * @var null|TProvider
      */
     protected ?UserProvider $provider = null;
 
@@ -60,6 +64,8 @@ trait GuardHelpers
 
     /**
      * Get the user provider used by the guard.
+     *
+     * @return null|TProvider
      */
     public function getProvider(): ?UserProvider
     {
@@ -71,6 +77,8 @@ trait GuardHelpers
      *
      * Boot or tests only. The provider is stored on the worker-lifetime guard
      * and affects every subsequent request.
+     *
+     * @param TProvider $provider
      */
     public function setProvider(UserProvider $provider): void
     {

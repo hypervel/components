@@ -304,6 +304,24 @@ class MySqlGrammar extends Grammar
     }
 
     /**
+     * Compile an offset, supplying MySQL's unbounded limit when needed.
+     */
+    protected function compileOffset(Builder $query, int $offset): string
+    {
+        return ($query->limit === null ? 'limit 18446744073709551615 ' : '')
+            . parent::compileOffset($query, $offset);
+    }
+
+    /**
+     * Compile a union offset independently of the first select's limit.
+     */
+    protected function compileUnionOffset(Builder $query, int $offset): string
+    {
+        return ($query->unionLimit === null ? 'limit 18446744073709551615 ' : '')
+            . parent::compileOffset($query, $offset);
+    }
+
+    /**
      * Compile the lock into SQL.
      */
     protected function compileLock(Builder $query, bool|string $value): string

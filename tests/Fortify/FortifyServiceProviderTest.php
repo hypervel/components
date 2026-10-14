@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Fortify;
 
 use Closure;
 use Hypervel\Config\Repository as ConfigRepository;
+use Hypervel\Contracts\Routing\ResponseFactory;
 use Hypervel\Contracts\Support\Responsable;
 use Hypervel\Fortify\Contracts\CreatesNewUsers;
 use Hypervel\Fortify\Contracts\RedirectsIfTwoFactorAuthenticatable;
@@ -17,6 +18,7 @@ use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Configuration\ConfigMutationTracker;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
+use Hypervel\Http\Response as HttpResponse;
 use Hypervel\Passkeys\Passkeys;
 use Hypervel\RateLimiter\Limit;
 use Hypervel\RateLimiter\RateLimiter;
@@ -24,6 +26,7 @@ use Hypervel\Session\Store;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Tests\Fortify\Fixtures\FixedClock;
 use Mockery as m;
+use Nyholm\Psr7\Response as PsrResponse;
 use OTPHP\TOTP;
 use Psr\Clock\ClockInterface;
 use ReflectionClass;
@@ -60,6 +63,32 @@ class FortifyServiceProviderTest extends TestCase
 
         $response->assertOk();
         $response->assertExactJson(['foo' => 'bar']);
+    }
+
+    public function testNamedViewsReceiveTheRequest(): void
+    {
+        $factory = m::mock(ResponseFactory::class);
+        $factory->shouldReceive('view')->once()->with('auth.login', m::on(
+            static fn (array $parameters): bool => $parameters['request'] instanceof Request,
+        ))->andReturn(new HttpResponse('Login'));
+        $this->app->instance(ResponseFactory::class, $factory);
+        Fortify::loginView('auth.login');
+
+        $this->get('/login')->assertOk()->assertSee('Login');
+    }
+
+    public function testCustomizedViewsCanReturnArrays(): void
+    {
+        Fortify::loginView(fn (): array => ['page' => 'login']);
+
+        $this->get('/login')->assertOk()->assertExactJson(['page' => 'login']);
+    }
+
+    public function testCustomizedViewsCanReturnPsrResponses(): void
+    {
+        Fortify::loginView(fn (): PsrResponse => new PsrResponse(202, ['X-Login' => 'pending'], 'Login'));
+
+        $this->get('/login')->assertStatus(202)->assertHeader('X-Login', 'pending')->assertSee('Login');
     }
 
     public function testTwoFactorAuthenticationProviderUsesFrameworkClock(): void

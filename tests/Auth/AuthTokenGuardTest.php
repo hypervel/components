@@ -373,6 +373,26 @@ class AuthTokenGuardTest extends TestCase
         $this->assertSame($user2, $guard->user());
     }
 
+    public function testCopiedRequestRechecksTheSameTokenWithoutChangingItsParent(): void
+    {
+        $user = new AuthTokenGuardTestUser;
+        $user->id = 1;
+        $provider = m::mock(UserProvider::class);
+        $provider->shouldReceive('retrieveByCredentials')->with(['api_token' => 'token'])
+            ->twice()->andReturn($user, null);
+        $request = Request::create('/', 'GET', ['api_token' => 'token']);
+        $guard = $this->createGuard($provider, $request);
+        $this->assertSame($user, $guard->user());
+
+        parallel([function () use ($request, $guard): void {
+            RequestContext::set(clone $request);
+            $this->assertFalse($guard->hasUser());
+            $this->assertNull($guard->user());
+        }], copyContext: true);
+
+        $this->assertSame($user, $guard->user());
+    }
+
     public function testEmptyTokenUsesDefaultKey(): void
     {
         $provider = m::mock(UserProvider::class);

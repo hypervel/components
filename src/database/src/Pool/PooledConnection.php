@@ -4,21 +4,17 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Pool;
 
-use Closure;
 use Hypervel\ConnectionPool\Events\ConnectionReleasing;
 use Hypervel\Contracts\ConnectionPool\Connection as PoolConnection;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
-use Hypervel\Coroutine\Coroutine as FrameworkCoroutine;
+use Hypervel\Coroutine\Waiter;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionName;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\Events\ConnectionEstablished;
 use Hypervel\Database\PdoConnection;
-use Hypervel\Engine\Channel;
-use Hypervel\Engine\Coroutine;
-use Hypervel\Engine\Exceptions\CoroutineCreateException;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -302,69 +298,28 @@ class PooledConnection implements PoolConnection
             return false;
         }
 
-        $result = new Channel(1);
         $connection = $this->connection;
-        $started = null;
-        $callable = static function () use ($connection, $result): void {
-            try {
-                $healthy = $connection->ping();
-            } catch (CanceledException) {
-                return;
-            } catch (Throwable) {
-                $healthy = false;
-            }
-
-            $result->push($healthy, 0.0);
-        };
-        $wrapper = static function (Closure $run) use (&$started): void {
-            $started = Coroutine::id();
-            $run();
-        };
 
         try {
-            FrameworkCoroutine::createOwned($callable, $wrapper);
+            // The pool must not discard the connection while canceled heartbeat cleanup is still running.
+            $healthy = (new Waiter)->wait(
+                static fn (): bool => $connection->ping(),
+                $timeout,
+                waitForChildTermination: true,
+            );
         } catch (CanceledException $exception) {
-            $this->cancelHeartbeatCoroutine($started);
-
             throw $exception;
-        } catch (CoroutineCreateException) {
+        } catch (Throwable) {
             return false;
         }
 
-        try {
-            $healthy = $result->pop($timeout);
-        } catch (CanceledException $exception) {
-            $this->cancelHeartbeatCoroutine($started);
-
-            throw $exception;
-        }
-
-        if ($healthy === false && $result->isCanceled()) {
-            $exception = new CanceledException('Waiting for a database heartbeat was canceled.');
-            $this->cancelHeartbeatCoroutine($started);
-
-            throw $exception;
-        }
-
-        if ($healthy !== true) {
-            $this->cancelHeartbeatCoroutine($started);
-
+        if (! $healthy) {
             return false;
         }
 
         $this->lastUseTime = hrtime(true) / 1e9;
 
         return true;
-    }
-
-    /**
-     * Cancel a live heartbeat coroutine.
-     */
-    private function cancelHeartbeatCoroutine(?int $coroutineId): void
-    {
-        if (is_int($coroutineId) && Coroutine::exists($coroutineId)) {
-            Coroutine::cancelById($coroutineId, throwException: true);
-        }
     }
 
     /**

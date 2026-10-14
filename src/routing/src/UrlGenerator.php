@@ -29,12 +29,12 @@ class UrlGenerator implements UrlGeneratorContract
     use Macroable;
 
     /**
-     * Context key for the cached URL scheme.
+     * Context key for the URL scheme and the request it was computed from.
      */
     protected const string CACHED_SCHEME_CONTEXT_KEY = '__routing.url.cached_scheme';
 
     /**
-     * Context key for the cached root URL.
+     * Context key for the root URL and the request it was computed from.
      */
     protected const string CACHED_ROOT_CONTEXT_KEY = '__routing.url.cached_root';
 
@@ -315,9 +315,19 @@ class UrlGenerator implements UrlGeneratorContract
             return $secure ? 'https://' : 'http://';
         }
 
-        return CoroutineContext::getOrSet(self::CACHED_SCHEME_CONTEXT_KEY, function () {
-            return $this->forceScheme ?: $this->getRequest()->getScheme() . '://';
-        });
+        if ($this->forceScheme !== null) {
+            return $this->forceScheme;
+        }
+
+        $request = $this->getRequest();
+        $cached = CoroutineContext::get(self::CACHED_SCHEME_CONTEXT_KEY);
+
+        if ($cached === null || $cached['request'] !== $request) {
+            $cached = ['request' => $request, 'value' => $request->getScheme() . '://'];
+            CoroutineContext::set(self::CACHED_SCHEME_CONTEXT_KEY, $cached);
+        }
+
+        return $cached['value'];
     }
 
     /**
@@ -587,10 +597,19 @@ class UrlGenerator implements UrlGeneratorContract
             $root = $resolvedRoot === null ? null : rtrim($resolvedRoot, '/');
         }
 
-        return $root ?: CoroutineContext::getOrSet(
-            self::CACHED_ROOT_CONTEXT_KEY,
-            fn (): string => $this->getRequest()->root(),
-        );
+        if ($root) {
+            return $root;
+        }
+
+        $request = $this->getRequest();
+        $cached = CoroutineContext::get(self::CACHED_ROOT_CONTEXT_KEY);
+
+        if ($cached === null || $cached['request'] !== $request) {
+            $cached = ['request' => $request, 'value' => $request->root()];
+            CoroutineContext::set(self::CACHED_ROOT_CONTEXT_KEY, $cached);
+        }
+
+        return $cached['value'];
     }
 
     /**
@@ -716,8 +735,6 @@ class UrlGenerator implements UrlGeneratorContract
      */
     public function forceScheme(?string $scheme): void
     {
-        CoroutineContext::forget(self::CACHED_SCHEME_CONTEXT_KEY);
-
         $this->forceScheme = $scheme ? $scheme . '://' : null;
     }
 

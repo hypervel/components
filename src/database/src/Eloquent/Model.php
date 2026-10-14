@@ -2399,6 +2399,18 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     }
 
     /**
+     * Check for an applicable transaction without borrowing a standard pooled connection.
+     */
+    public function hasApplicableTransaction(): bool
+    {
+        if ($this->usesDefaultConnectionResolution() && static::$resolver instanceof DatabaseManager) {
+            return static::$resolver->hasApplicableTransaction($this->getConnectionName());
+        }
+
+        return $this->getConnection()->hasApplicableTransaction();
+    }
+
+    /**
      * Get the date format of the query grammar of the model's connection.
      *
      * Through the database manager this holds no pooled connection once the
@@ -2408,14 +2420,20 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     public function getConnectionDateFormat(): string
     {
-        $resolvesDefaultConnections = static::$resolvesDefaultConnections[static::class] ??= (new ReflectionMethod(static::class, 'getConnection'))->class === self::class
-            && (new ReflectionMethod(static::class, 'resolveConnection'))->class === self::class;
-
-        if ($resolvesDefaultConnections && static::$resolver instanceof DatabaseManager) {
+        if ($this->usesDefaultConnectionResolution() && static::$resolver instanceof DatabaseManager) {
             return static::$resolver->connectionDateFormat($this->getConnectionName());
         }
 
         return $this->getConnection()->getQueryGrammar()->getDateFormat();
+    }
+
+    /**
+     * Determine whether this model uses the framework's normal connection resolution.
+     */
+    protected function usesDefaultConnectionResolution(): bool
+    {
+        return static::$resolvesDefaultConnections[static::class] ??= (new ReflectionMethod(static::class, 'getConnection'))->class === self::class
+            && (new ReflectionMethod(static::class, 'resolveConnection'))->class === self::class;
     }
 
     /**

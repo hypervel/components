@@ -65,9 +65,9 @@ class SanctumGuard implements GuardContract
     /**
      * Get the currently authenticated user.
      *
-     * Uses coroutine Context to cache the resolved user per-request,
-     * keyed by token fingerprint. A sentinel value caches "no user
-     * found" so repeated calls don't trigger redundant lookups.
+     * RequestContext keeps resolved users local to the coroutine and clears them
+     * when its request changes. Token fingerprints separate credentials, and a
+     * sentinel caches "no user found" to avoid redundant lookups.
      */
     public function user(): ?Authenticatable
     {
@@ -82,7 +82,7 @@ class SanctumGuard implements GuardContract
 
         $token = $this->getTokenFromRequest();
         $contextKey = $this->getContextKeyForToken($token);
-        $cached = CoroutineContext::get($contextKey);
+        $cached = RequestContext::getValue($contextKey);
 
         if ($cached === self::$nullUserSentinel) {
             return null;
@@ -119,7 +119,7 @@ class SanctumGuard implements GuardContract
                 $user = $tokenUser->withAccessToken(new TransientToken);
             }
 
-            CoroutineContext::set($contextKey, $user);
+            RequestContext::setValue($contextKey, $user);
 
             return $user;
         }
@@ -144,14 +144,14 @@ class SanctumGuard implements GuardContract
                         $accessToken->updateLastUsedAt();
                     }
 
-                    CoroutineContext::set($contextKey, $user);
+                    RequestContext::setValue($contextKey, $user);
 
                     return $user;
                 }
             }
         }
 
-        CoroutineContext::set($contextKey, self::$nullUserSentinel);
+        RequestContext::setValue($contextKey, self::$nullUserSentinel);
 
         return null;
     }
@@ -231,7 +231,7 @@ class SanctumGuard implements GuardContract
             return true;
         }
 
-        $cached = CoroutineContext::get($this->getContextKeyForToken($this->getTokenFromRequest()));
+        $cached = RequestContext::getValue($this->getContextKeyForToken($this->getTokenFromRequest()));
 
         return $cached !== null && $cached !== self::$nullUserSentinel;
     }
@@ -252,7 +252,7 @@ class SanctumGuard implements GuardContract
     public function forgetUser(): static
     {
         CoroutineContext::forget($this->getExplicitUserContextKey());
-        CoroutineContext::forget($this->getContextKeyForToken($this->getTokenFromRequest()));
+        RequestContext::forgetValue($this->getContextKeyForToken($this->getTokenFromRequest()));
 
         return $this;
     }

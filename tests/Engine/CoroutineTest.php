@@ -53,7 +53,7 @@ class CoroutineTest extends TestCase
 
     public function testCreatedCoroutineKeepsErrorReportingEnabledAfterSuspension(): void
     {
-        // @TODO Remove this skip once Swoole fixes @ suppression leaking into new coroutines.
+        // @TODO: Remove this skip once https://github.com/swoole/swoole-src/pull/6305 is released.
         if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '==')) {
             $this->markTestSkipped('Swoole 6.3.0RC1 suppresses error reporting inside coroutines created by Hypervel.');
         }

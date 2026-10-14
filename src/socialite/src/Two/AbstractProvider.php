@@ -443,19 +443,29 @@ abstract class AbstractProvider extends BaseProvider implements ProviderContract
      */
     protected function getRedirectUrl(): string
     {
-        return $this->getOrSetContext('resolvedRedirectUrl', function (): string {
-            $redirect = $this->getContext('redirectUrl', $this->redirectUrl);
+        // Stateless redirects need no request; copied contexts must not reuse another request's origin.
+        $request = $this->getContext('request');
+        $resolved = $this->getContext('resolvedRedirectUrl');
 
-            if ($this->redirectFormatter === null) {
-                return value($redirect);
-            }
+        if ($resolved !== null && $resolved['request'] === $request) {
+            return $resolved['value'];
+        }
 
+        $redirect = $this->getContext('redirectUrl', $this->redirectUrl);
+
+        if ($this->redirectFormatter === null) {
+            $url = value($redirect);
+        } else {
             /** @var array $config */
             $config = $this->getConfig();
             $config['redirect'] = $redirect;
 
-            return ($this->redirectFormatter)($config);
-        });
+            $url = ($this->redirectFormatter)($config);
+        }
+
+        $this->setContext('resolvedRedirectUrl', ['request' => $request, 'value' => $url]);
+
+        return $url;
     }
 
     /**

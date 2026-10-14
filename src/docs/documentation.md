@@ -103,6 +103,7 @@
     - [Inertia](/docs/{{version}}/inertia)
     - [Nested Set](/docs/{{version}}/nested-set)
     - [OpenTelemetry](/docs/{{version}}/opentelemetry)
+    - [Passport](/docs/{{version}}/passport)
     - [Precognition](/docs/{{version}}/precognition)
     - [Prompts](/docs/{{version}}/prompts)
     - [Reverb](/docs/{{version}}/reverb)

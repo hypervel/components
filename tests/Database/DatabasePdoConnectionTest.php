@@ -449,8 +449,7 @@ class DatabasePdoConnectionTest extends TestCase
             'PlanetScale with SKIP LOCKED' => [MySqlConnection::class, '8.0.0', '19.0.0-PlanetScale', 'FOR UPDATE SKIP LOCKED', 65_535],
             'PostgreSQL before SKIP LOCKED' => [PostgresConnection::class, '9.4', null, true, 65_535],
             'PostgreSQL with SKIP LOCKED' => [PostgresConnection::class, '9.5', null, 'FOR UPDATE SKIP LOCKED', 65_535],
-            'SQLite before expanded binding limit' => [SQLiteConnection::class, '3.31.1', null, true, 999],
-            'SQLite with expanded binding limit' => [SQLiteConnection::class, '3.32.0', null, true, 32_766],
+            'SQLite' => [SQLiteConnection::class, '', null, true, 32_766],
         ];
     }
 
