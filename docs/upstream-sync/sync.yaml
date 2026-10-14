@@ -147,10 +147,10 @@ inertiajs/inertia-laravel:
 
 inertiajs/docs:
   branch: main
-  checked_through: null
+  checked_through: b2361128a0013d24f7a2d1c98a994da35c4b1147
   last_reviewed_pr: null
-  sync_date: null
-  notes: Inertia documentation applicable to Hypervel's server adapter and supported integrations.
+  sync_date: '2026-10-14'
+  notes: Reconcile relevant v3 application documentation into src/docs/inertia.md, generally matching upstream page titles to section headings. Preserve upstream wording and examples, adapting only what Hypervel and the Markdown format require; preserve Hypervel-specific guidance and check related frontend, Vite and starter-kit pages. Exclude older versions, the landing/demo/audience pages, protocol implementation guides, other backend adapters and Laravel-only tooling or hosting. Wayfinder next features remain excluded until Hypervel adopts that version; verify server-side examples against src/inertia and retain client-version requirements.
 
 spatie/laravel-data:
   branch: main
