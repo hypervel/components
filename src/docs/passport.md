@@ -77,7 +77,7 @@ php artisan install:api --passport
 
 This command will publish and run the database migrations necessary for creating the tables your application needs to store OAuth2 clients and access tokens. The command will also create the encryption keys required to generate secure access tokens.
 
-To publish the installation files without running migrations or creating a personal access client, pass `--without-migration-prompt`. This option is also available on `passport:install`. When using the database key store, run `passport:keys` after migrating.
+To publish the installation files without running migrations or creating a personal access client, pass `--without-migration-prompt`. This option is also available on `passport:install`. After migrating, run `passport:keys` if you use the database key store, and `passport:client --personal` if you need personal access tokens.
 
 After running the `install:api` command, add the `Hypervel\Passport\HasApiTokens` trait and `Hypervel\Passport\Contracts\OAuthenticatable` interface to your `App\Models\User` model. This trait provides helper methods to inspect the authenticated user's token and scopes:
 
@@ -351,7 +351,7 @@ Route::group([
 <a name="rate-limiting"></a>
 ### Rate Limiting
 
-Passport's token and device-code endpoints use the named `passport` rate limiter. The device authorization page also uses this limiter to limit repeated attempts to guess user codes. By default, it allows 60 requests per minute for each authenticated user or IP address. You may customize this limit in your application's `AppServiceProvider`:
+Passport uses the named `passport` rate limiter on `POST /oauth/token`, `POST /oauth/device/code` and `GET /oauth/device/authorize`. Limiting the device authorization page prevents repeated attempts to guess user codes. By default, the limiter allows 60 requests per minute for each authenticated user or IP address. You may customize this limit in your application's `AppServiceProvider`:
 
 ```php
 use Hypervel\Http\Request;
@@ -903,13 +903,13 @@ Once a device code request has been obtained, the consuming device should instru
 <a name="polling-token-request"></a>
 #### Polling Token Request
 
-Since the user will be using a separate device to grant (or deny) access, the consuming device should poll your application's `/oauth/token` route to determine when the user has responded to the request. The consuming device should use the minimum polling `interval` provided in the JSON response when requesting device code to avoid rate limit errors:
+Since the user will be using a separate device to grant (or deny) access, the consuming device should poll your application's `/oauth/token` route to determine when the user has responded to the request. The consuming device should use the minimum polling `interval` provided in the JSON response when requesting device code to avoid rate limit errors. In this example, `$deviceCode` is the decoded JSON response from the device code request:
 
 ```php
 use Hypervel\Support\Facades\Http;
 use Hypervel\Support\Sleep;
 
-$interval = 5;
+$interval = $deviceCode['interval'];
 
 do {
     Sleep::for($interval)->seconds();
@@ -918,7 +918,7 @@ do {
         'grant_type' => 'urn:ietf:params:oauth:grant-type:device_code',
         'client_id' => 'your-client-id',
         'client_secret' => 'your-client-secret', // Required for confidential clients only...
-        'device_code' => 'the-device-code',
+        'device_code' => $deviceCode['device_code'],
     ]);
 
     if ($response->json('error') === 'slow_down') {
