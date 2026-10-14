@@ -13,7 +13,6 @@ use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Support\Collection;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
 
@@ -23,8 +22,6 @@ use Throwable;
 class PassportCache
 {
     protected const string CONTEXT_KEY_PREFIX = '__passport.cache.';
-
-    protected const int MUTATION_BATCH_SIZE = 1000;
 
     /**
      * Create the Passport cache.
@@ -196,7 +193,8 @@ class PassportCache
     /**
      * Update related credentials and invalidate exactly the selected rows.
      *
-     * @param Builder<Client>|Builder<Token> $query
+     * @template TModel of Client|Token
+     * @param Builder<TModel> $query
      * @param array<string, mixed> $values
      */
     public function update(Builder $query, array $values): int
@@ -207,7 +205,8 @@ class PassportCache
     /**
      * Delete related credentials and invalidate exactly the selected rows.
      *
-     * @param Builder<Client>|Builder<Token> $query
+     * @template TModel of Client|Token
+     * @param Builder<TModel> $query
      */
     public function delete(Builder $query): int
     {
@@ -217,8 +216,9 @@ class PassportCache
     /**
      * Apply a relation mutation in bounded primary-key batches.
      *
-     * @param Builder<Client>|Builder<Token> $query
-     * @param Closure(Builder): int $write
+     * @template TModel of Client|Token
+     * @param Builder<TModel> $query
+     * @param Closure(Builder<TModel>): int $write
      */
     protected function mutate(Builder $query, Closure $write): int
     {
@@ -231,41 +231,13 @@ class PassportCache
             return $write($query);
         }
 
-        $key = $model->getKeyName();
-        $qualifiedKey = $model->getQualifiedKeyName();
         $connection = $model->getConnection();
 
-        // Batching must preserve the atomicity of the uncached, single-statement write.
-        return $connection->transaction(function () use ($query, $write, $type, $key, $qualifiedKey, $connection): int {
-            $affected = 0;
-
-            $selection = (clone $query)->select($qualifiedKey)->useWritePdo()->toBase();
-            $writeBatch = function (array $ids) use ($query, $write, $type, $connection, &$affected): void {
-                $affected += $write((clone $query)->whereKey($ids)->limit(null)->offset(null));
-                $this->forgetMany($type, $ids, $connection);
-            };
-
-            if ($selection->getLimit() !== null) {
-                foreach (array_chunk($selection->pluck($qualifiedKey)->all(), self::MUTATION_BATCH_SIZE) as $ids) {
-                    $writeBatch($ids);
-                }
-            } else {
-                if ($offset = $selection->getOffset()) {
-                    $excluded = (clone $selection)->offset(0)->limit($offset)->pluck($qualifiedKey)->all();
-                    $selection->whereNotIn($qualifiedKey, $excluded)->offset(0);
-                }
-
-                // Other sort columns would make chunkById skip records between batches.
-                $selection->reorder()->chunkById(
-                    self::MUTATION_BATCH_SIZE,
-                    static fn (Collection $rows) => $writeBatch($rows->pluck($key)->all()),
-                    $qualifiedKey,
-                    $key,
-                );
-            }
-
-            return $affected;
-        });
+        return $this->coordinator->mutate(
+            $query,
+            $write,
+            fn (array $ids) => $this->forgetMany($type, $ids, $connection),
+        );
     }
 
     /**

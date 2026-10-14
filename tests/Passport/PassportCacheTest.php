@@ -300,7 +300,9 @@ class PassportCacheTest extends TestCase
         $this->assertTrue($revoked);
     }
 
-    public function testTokenRelationUpdatesAndDeletesAcrossSeveralBatches(): void
+    #[TestWith([null])]
+    #[TestWith([1002])]
+    public function testTokenRelationUpdatesAndDeletesAcrossSeveralBatches(?int $limit): void
     {
         $client = $this->createClient();
         $rows = [];
@@ -312,11 +314,22 @@ class PassportCacheTest extends TestCase
         Token::query()->insert($rows);
         $this->assertFalse(Token::findToken('token-0000')->revoked);
         $this->assertFalse(Token::findToken('token-1001')->revoked);
-        $relation = $client->tokens()->orderByDesc('name');
-        $this->assertSame(1002, $relation->update(['revoked' => true]));
+        $relation = $client->tokens()->where('revoked', false)->orWhere('id', 'token-0000')->orderByDesc('name');
+
+        if ($limit !== null) {
+            $relation->limit($limit);
+        }
+
+        $writes = 0;
+        DB::listen(function (QueryExecuted $query) use (&$writes): void {
+            if (str_starts_with($query->sql, 'update "oauth_access_tokens"')) {
+                $this->assertLessThanOrEqual(2, ++$writes, 'The key cursor must advance past every selected batch.');
+            }
+        });
+        $this->assertSame(1002, $relation->update(['revoked' => true, 'name' => 'updated']));
         $this->assertTrue(Token::findToken('token-0000')->revoked);
         $this->assertTrue(Token::findToken('token-1001')->revoked);
-        $this->assertSame(1002, $relation->delete());
+        $this->assertSame(1002, $client->tokens()->delete());
         $this->assertNull(Token::findToken('token-0000'));
         $this->assertNull(Token::findToken('token-1001'));
         $this->assertSame(0, $client->tokens()->count());
@@ -334,17 +347,42 @@ class PassportCacheTest extends TestCase
             $this->assertFalse(Token::findToken($id)->revoked);
         }
 
-        $relation = $client->tokens()->orderByDesc('name')->offset(1);
+        $relation = $client->tokens()->where('revoked', false)->orWhere('id', 'three')->orderByDesc('name')->offset(1);
 
         if ($limit !== null) {
             $relation->limit($limit);
         }
 
-        $this->assertSame(count($changed), $relation->update(['revoked' => true]));
+        $originalQuery = [$relation->toSql(), $relation->getBindings()];
+        $this->assertSame(count($changed), $relation->update(['revoked' => true, 'name' => 'changed']));
+        $this->assertSame($originalQuery, [$relation->toSql(), $relation->getBindings()]);
 
         foreach ($names as $id => $name) {
             $this->assertSame(in_array($id, $changed, true), Token::findToken($id)->revoked);
         }
+    }
+
+    public function testPaginatedJoinedRelationUpdatesEachSelectedTokenOnce(): void
+    {
+        $client = $this->createClient();
+        $rows = [];
+
+        for ($index = 0; $index < 1002; ++$index) {
+            $rows[] = ['id' => sprintf('token-%04d', $index), 'client_id' => $client->id, 'name' => 'original'];
+        }
+
+        Token::query()->insert($rows);
+        $this->assertSame('original', Token::findToken('token-0000')->name);
+
+        $relation = $client->tokens()
+            ->crossJoin('oauth_access_tokens as copies')
+            ->where('oauth_access_tokens.id', 'token-0000')
+            ->orderBy('copies.id')
+            ->limit(1002);
+
+        $this->assertSame(1, $relation->update(['name' => DB::raw("oauth_access_tokens.name || '-updated'")]));
+        $this->assertSame('original-updated', Token::findToken('token-0000')->name);
+        $this->assertSame('original', Token::findToken('token-0001')->name);
     }
 
     public function testBatchInvalidationContinuesAfterAFailureFollowingCommit(): void
