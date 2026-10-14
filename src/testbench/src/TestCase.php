@@ -5,14 +5,17 @@ declare(strict_types=1);
 namespace Hypervel\Testbench;
 
 use Closure;
+use Hypervel\Container\Container;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Testing\DatabaseMigrations;
 use Hypervel\Foundation\Testing\DatabaseTransactions;
 use Hypervel\Foundation\Testing\DatabaseTruncation;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Foundation\Testing\TestCase as BaseTestCase;
+use Hypervel\Support\Facades\Facade;
 use Hypervel\Testbench\Attributes\ResetRefreshDatabaseState;
 use Hypervel\Testbench\Attributes\WithMigration;
 use ReflectionMethod;
@@ -189,7 +192,21 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
      */
     protected function refreshApplication(): void
     {
-        $this->app = $this->createApplication();
+        try {
+            $this->app = $this->createApplication();
+        } catch (Throwable $exception) {
+            // Failed creation flushes the replacement, but the test still owns its previous app.
+            if ($this->app !== null) {
+                /** @var Application $application */
+                $application = $this->app;
+
+                Container::setInstance($application);
+                Facade::clearResolvedInstances();
+                Facade::setFacadeApplication($application);
+            }
+
+            throw $exception;
+        }
 
         // Setup routes after application is created (providers are booted).
         $this->setUpApplicationRoutes($this->app);
