@@ -8,12 +8,38 @@ use Hypervel\Contracts\Routing\ResponseFactory;
 use Hypervel\Contracts\Support\Responsable;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
+use Hypervel\Passport\Contracts\AuthorizationViewResponse;
+use Hypervel\Passport\Contracts\DeviceAuthorizationViewResponse;
+use Hypervel\Passport\Contracts\DeviceUserCodeViewResponse;
 use Hypervel\Passport\Http\Responses\SimpleViewResponse;
+use Hypervel\Passport\Passport;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class SimpleViewResponseTest extends TestCase
 {
+    #[TestWith(['viewNamespace', 'passport', 'passport::'])]
+    #[TestWith(['viewPrefix', 'auth', 'auth.'])]
+    #[TestWith(['viewPrefix', 'auth.', 'auth.'])]
+    public function testConventionalViewsPreserveNamespacesAndDirectoryPrefixes(string $method, string $prefix, string $expectedPrefix): void
+    {
+        Passport::{$method}($prefix);
+        $factory = m::mock(ResponseFactory::class);
+        $this->app->instance(ResponseFactory::class, $factory);
+
+        foreach ([
+            AuthorizationViewResponse::class => 'authorize',
+            DeviceAuthorizationViewResponse::class => 'device.authorize',
+            DeviceUserCodeViewResponse::class => 'device.user-code',
+        ] as $contract => $name) {
+            $expected = new Response('Consent');
+            $factory->shouldReceive('view')->once()->with($expectedPrefix . $name, [])->andReturn($expected);
+
+            $this->assertSame($expected, $this->app->make($contract)->toResponse(Request::create('/')));
+        }
+    }
+
     public function testNamedViewsReceiveTheirParameters(): void
     {
         $expected = new Response('Consent');

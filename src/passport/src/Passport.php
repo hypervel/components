@@ -936,11 +936,11 @@ class Passport
      */
     public static function viewPrefix(string $prefix): void
     {
-        $prefix = rtrim($prefix, '.');
+        $prefix = str_ends_with($prefix, '::') ? $prefix : rtrim($prefix, '.') . '.';
 
-        static::authorizationView($prefix . '.authorize');
-        static::deviceAuthorizationView($prefix . '.device.authorize');
-        static::deviceUserCodeView($prefix . '.device.user-code');
+        static::authorizationView($prefix . 'authorize');
+        static::deviceAuthorizationView($prefix . 'device.authorize');
+        static::deviceUserCodeView($prefix . 'device.user-code');
     }
 
     /**
