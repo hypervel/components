@@ -195,7 +195,8 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
         try {
             $this->app = $this->createApplication();
         } catch (Throwable $exception) {
-            // Failed creation flushes the replacement, but the test still owns its previous app.
+            // Failed creation flushes the replacement. Restore the previous container
+            // and facades so framework teardown can run.
             if ($this->app !== null) {
                 /** @var Application $application */
                 $application = $this->app;

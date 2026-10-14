@@ -30,7 +30,7 @@ class RefreshApplicationTest extends TestCase
         return [FailingRefreshApplicationProvider::class];
     }
 
-    public function testFailedRefreshRestoresThePreviousApplicationGlobals(): void
+    public function testFailedRefreshRestoresContainerAndFacadesForTeardown(): void
     {
         $previousApplication = $this->app;
         $previousConfig = Config::getFacadeRoot();
