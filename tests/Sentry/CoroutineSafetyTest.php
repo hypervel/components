@@ -8,7 +8,6 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Events\TransactionBeginning;
-use Hypervel\Sentry\Features\CacheFeature;
 use Hypervel\Sentry\Integration;
 use Hypervel\Sentry\Tracing\EventHandler as TracingEventHandler;
 use Mockery as m;
@@ -16,13 +15,7 @@ use Sentry\SentrySdk;
 use Sentry\Tracing\TransactionContext;
 use Swoole\Coroutine\Channel;
 
-/**
- * Verify that per-request mutable state is isolated between concurrent coroutines.
- *
- * Verifies that instance properties and static properties used for per-request
- * mutable state are properly isolated between concurrent coroutines.
- */
-class CoroutineSafetyTest extends SentryTestCase
+class CoroutineSafetyTest extends TestCase
 {
     public function testIntegrationTransactionNameIsIsolatedPerCoroutine(): void
     {
@@ -42,7 +35,7 @@ class CoroutineSafetyTest extends SentryTestCase
             $channel->push(true);
         });
 
-        $channel->pop(1.0);
+        $this->assertTrue($channel->pop(1.0));
 
         // Parent should still have its own transaction name
         $this->assertSame('/parent-route', Integration::getTransaction());
@@ -86,38 +79,5 @@ class CoroutineSafetyTest extends SentryTestCase
 
         // Parent's stack should be unaffected
         $this->assertCount(1, CoroutineContext::get($parentStackKey, []));
-    }
-
-    public function testTracksPushedScopesAndSpansTraitIsIsolatedPerCoroutine(): void
-    {
-        // The trait uses Context keys namespaced by class name.
-        // Verify that different coroutines get independent stacks.
-        $featureClass = 'Hypervel\Sentry\Features\CacheFeature';
-        $scopeKey = CacheFeature::SPANS_CONTEXT_PREFIX . $featureClass . '.scope_count';
-        $currentSpansKey = CacheFeature::SPANS_CONTEXT_PREFIX . $featureClass . '.current_spans';
-
-        // Simulate pushing scope/span state in parent
-        CoroutineContext::set($scopeKey, 3);
-        CoroutineContext::set($currentSpansKey, ['span1', 'span2', 'span3']);
-
-        $childScopeCount = null;
-        $childSpanCount = null;
-        $channel = new Channel(1);
-
-        Coroutine::create(function () use ($scopeKey, $currentSpansKey, &$childScopeCount, &$childSpanCount, $channel) {
-            $childScopeCount = CoroutineContext::get($scopeKey, 0);
-            $childSpanCount = count(CoroutineContext::get($currentSpansKey, []));
-            $channel->push(true);
-        });
-
-        $channel->pop(1.0);
-
-        // Child should have fresh (empty) state
-        $this->assertSame(0, $childScopeCount);
-        $this->assertSame(0, $childSpanCount);
-
-        // Parent should be unaffected
-        $this->assertSame(3, CoroutineContext::get($scopeKey, 0));
-        $this->assertCount(3, CoroutineContext::get($currentSpansKey, []));
     }
 }

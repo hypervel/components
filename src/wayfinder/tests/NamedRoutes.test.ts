@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { dashboard, invalid_js_name, invokable } from "./.generated/routes";
+import { dashboard, invalid_js_name, invokable, query } from "./.generated/routes";
 import { edit } from "./.generated/routes/posts";
 
 it("exports named routes", () => {
@@ -26,4 +26,9 @@ it("exports named routes", () => {
         url: "/invalid-js-name",
         method: "get",
     });
+});
+
+it("exports QUERY routes and their form variants", () => {
+    expect(query()).toEqual({ url: "/query", method: "query" });
+    expect(query.form()).toEqual({ action: "/query?_method=QUERY", method: "post" });
 });

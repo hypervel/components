@@ -11,6 +11,7 @@ use Hypervel\Coroutine\WaitGroup;
 use Hypervel\ObjectPool\Exceptions\PoolClosedException;
 use Hypervel\ObjectPool\Exceptions\PoolExhaustedException;
 use Sentry\Event;
+use Sentry\Options;
 use Sentry\Transport\HttpTransport;
 use Sentry\Transport\Result;
 use Sentry\Transport\ResultStatus;
@@ -30,18 +31,26 @@ class HttpPoolTransport implements TransportInterface
     /**
      * Create a transport that sends events through an owned pool.
      */
-    public function __construct(protected HttpTransportPool $pool)
-    {
+    public function __construct(
+        protected HttpTransportPool $pool,
+        protected Options $options,
+    ) {
         $this->group = new WaitGroup;
     }
 
     /**
      * Send an event to Sentry via a pooled transport.
      *
-     * Skip the event when pool acquisition times out or the pool is closed.
+     * Skip the event when there is nowhere to send it, pool acquisition times out, or the pool is closed.
      */
     public function send(Event $event): Result
     {
+        // Without a DSN or Spotlight the SDK transport would skip the event too, so don't borrow a transport or
+        // start a coroutine for it. Client builder customizations can set the endpoint after this is created.
+        if ($this->options->getDsn() === null && ! $this->options->isSpotlightEnabled()) {
+            return new Result(ResultStatus::skipped(), $event);
+        }
+
         try {
             /** @var HttpTransport $transport */
             $transport = $this->pool->borrow();

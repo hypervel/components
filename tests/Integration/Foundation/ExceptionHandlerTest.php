@@ -170,6 +170,7 @@ class ExceptionHandlerTest extends TestCase
 
     public function testItHandlesMalformedErrorViewsInProduction(): void
     {
+        // @TODO: Restore Laravel's undefined-variable fixture and both tests' assertions once https://github.com/swoole/swoole-src/pull/6305 is released.
         Config::set('view.paths', [__DIR__ . '/Fixtures/MalformedErrorViews']);
         Config::set('app.debug', false);
         $reported = [];
@@ -184,7 +185,7 @@ class ExceptionHandlerTest extends TestCase
         }
 
         $this->assertCount(1, $reported);
-        $this->assertSame('Undefined variable $foo (View: ' . __DIR__ . DIRECTORY_SEPARATOR . 'Fixtures' . DIRECTORY_SEPARATOR . 'MalformedErrorViews' . DIRECTORY_SEPARATOR . 'errors' . DIRECTORY_SEPARATOR . '404.blade.php)', $reported[0]->getMessage());
+        $this->assertSame('Malformed error view. (View: ' . __DIR__ . DIRECTORY_SEPARATOR . 'Fixtures' . DIRECTORY_SEPARATOR . 'MalformedErrorViews' . DIRECTORY_SEPARATOR . 'errors' . DIRECTORY_SEPARATOR . '404.blade.php)', $reported[0]->getMessage());
         $this->assertNotNull($response);
         $response->assertStatus(404);
     }
@@ -205,7 +206,7 @@ class ExceptionHandlerTest extends TestCase
         }
 
         $this->assertCount(1, $reported);
-        $this->assertSame('Undefined variable $foo (View: ' . __DIR__ . DIRECTORY_SEPARATOR . 'Fixtures' . DIRECTORY_SEPARATOR . 'MalformedErrorViews' . DIRECTORY_SEPARATOR . 'errors' . DIRECTORY_SEPARATOR . '404.blade.php)', $reported[0]->getMessage());
+        $this->assertSame('Malformed error view. (View: ' . __DIR__ . DIRECTORY_SEPARATOR . 'Fixtures' . DIRECTORY_SEPARATOR . 'MalformedErrorViews' . DIRECTORY_SEPARATOR . 'errors' . DIRECTORY_SEPARATOR . '404.blade.php)', $reported[0]->getMessage());
         $this->assertNotNull($response);
         $response->assertStatus(500);
     }

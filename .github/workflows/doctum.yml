@@ -11,7 +11,7 @@ jobs:
     timeout-minutes: 10
 
     container:
-      image: ghcr.io/hypervel/components-ci:php8.4-swoole6.2.2
+      image: ghcr.io/hypervel/components-ci:php8.4-swoole6.3.0-rc1
 
     permissions:
       contents: read
@@ -56,7 +56,7 @@ jobs:
       - name: Install pnpm
         run: |
           corepack enable
-          corepack prepare pnpm@10.24.0 --activate
+          corepack prepare pnpm@12.10.1 --activate
           pnpm config set ignore-workspace-root-check true
           pnpm --version
 

@@ -212,10 +212,15 @@ class GenerateProxiesTest extends TestCase
             $this->loader->addClassMap([$className => $overrideFile]);
             (new IsolatedProxyGenerator)->bootstrap($second);
 
-            $this->assertNotSame($firstProxy, IsolatedProxyGenerator::getProxyMap()[$className]);
+            $secondProxy = IsolatedProxyGenerator::getProxyMap()[$className];
+            $this->assertNotSame($firstProxy, $secondProxy);
             require $firstProxy;
 
             $this->assertSame('intercepted:original-source', (new $className)->value());
+            $this->assertSame([
+                realpath($firstProxy) => realpath($sourceFile),
+                realpath($secondProxy) => realpath($overrideFile),
+            ], IsolatedProxyGenerator::proxySources());
         });
     }
 
@@ -365,10 +370,12 @@ class GenerateProxiesTest extends TestCase
             $this->assertSame('intercepted:override-source', (new $className)->value());
             $this->assertStringContainsString('original-source', $this->filesystem->get($ordinaryProxy));
             $this->assertSame([$className => $overrideFile], ClassMapManager::getEntries());
-            $this->assertSame(
-                rawurlencode($className) . '.replacement.proxy.php',
-                basename((new ReflectionMethod($className, 'value'))->getFileName())
-            );
+            $replacementProxy = (new ReflectionMethod($className, 'value'))->getFileName();
+            $this->assertSame(rawurlencode($className) . '.replacement.proxy.php', basename($replacementProxy));
+            $this->assertSame([
+                realpath($ordinaryProxy) => realpath($sourceFile),
+                $replacementProxy => realpath($overrideFile),
+            ], IsolatedProxyGenerator::proxySources());
         });
     }
 
@@ -553,6 +560,7 @@ PHP);
 
         $this->assertInstanceOf(InvalidDefinitionException::class, $exception);
         $this->assertSame([], IsolatedProxyGenerator::getProxyMap());
+        $this->assertSame([], IsolatedProxyGenerator::proxySources());
         $this->assertSame($validSource, $this->loader->getClassMap()[$validClass]);
         $this->assertSame($invalidSource, $this->loader->getClassMap()[$invalidClass]);
         $this->assertFileDoesNotExist(
@@ -665,6 +673,8 @@ class OverrideSourceAspect extends AbstractAspect
 class IsolatedProxyGenerator extends GenerateProxies
 {
     protected static ?ClassLoader $proxyLoader = null;
+
+    protected static array $proxySources = [];
 
     /**
      * Get the proxy entries published by this fixture's loader.

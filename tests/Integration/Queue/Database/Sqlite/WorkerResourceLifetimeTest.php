@@ -4,17 +4,17 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Queue\Database\Sqlite;
 
-use Closure;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Queue\Factory as QueueManager;
 use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Contracts\Queue\Queue;
-use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\Timer;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Waiter;
 use Hypervel\Database\Pool\PoolManager;
+use Hypervel\Engine\Channel;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Queue\Events\JobPopping;
 use Hypervel\Queue\Events\Looping;
@@ -180,54 +180,55 @@ class WorkerResourceLifetimeTest extends TestCase
         $connectionName = $this->app->make('config')->string('database.default');
         $pool = $this->app->make(PoolManager::class)->pool($connectionName);
         $events = $this->app->make(EventDispatcher::class);
-        $timer = new WorkerResourceTimer;
+        $timer = new Timer;
         $events->listen(WorkerPausing::class, static function (): void {
             DB::selectOne('SELECT 1');
         });
         $worker = new class(m::mock(QueueManager::class), $events, $this->app->make(ExceptionHandlerContract::class), static fn (): bool => false, $timer) extends Worker {
+            public Channel $completed;
+
+            /**
+             * Start the timeout monitor.
+             */
             public function startMonitorForTest(WorkerOptions $options): void
             {
                 $this->monitorTimeoutJobs($options, 'default', 'queue');
             }
 
+            /**
+             * Dispatch and drain a pause signal.
+             */
             public function pauseForTest(WorkerOptions $options): void
             {
                 $this->handlePauseSignal('default', 'queue', $options);
                 $this->drainPendingSignals(new Waiter(-1));
             }
 
+            /**
+             * Borrow a connection and signal after deferred cleanup.
+             */
             protected function terminateTimeoutJobs(WorkerOptions $options): void
             {
+                $succeeded = false;
+                Coroutine::defer(function () use (&$succeeded): void {
+                    $this->completed->push($succeeded);
+                });
                 DB::selectOne('SELECT 1');
+                $succeeded = true;
             }
         };
-        $options = new WorkerOptions;
+        $worker->completed = new Channel(1);
+        $options = new WorkerOptions(monitorInterval: 0);
 
-        $worker->startMonitorForTest($options);
-        $timer->fire();
-        $this->assertSame(1, $pool->getIdleCount());
+        try {
+            $worker->startMonitorForTest($options);
+            $this->assertTrue($worker->completed->pop(1.0));
+            $this->assertSame(1, $pool->getIdleCount());
+        } finally {
+            $timer->clearAll();
+        }
 
         $worker->pauseForTest($options);
         $this->assertSame(1, $pool->getIdleCount());
-    }
-}
-
-class WorkerResourceTimer extends Timer
-{
-    protected ?Closure $callback = null;
-
-    public function tick(
-        float $timeout,
-        callable $closure,
-        string $identifier = Constants::WORKER_EXIT,
-    ): int {
-        $this->callback = Closure::fromCallable($closure);
-
-        return 1;
-    }
-
-    public function fire(): void
-    {
-        ($this->callback)();
     }
 }

@@ -16,6 +16,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
 use Swoole\Coroutine\Http2\Client as NativeClient;
 use Swoole\Coroutine\Http2\Client\Exception as NativeHttp2Exception;
+use Swoole\Coroutine\Socket;
 use Swoole\Http2\Request as NativeRequest;
 use Swoole\Http2\Response as NativeResponse;
 
@@ -23,17 +24,16 @@ class Http2ClientTest extends TestCase
 {
     public function testConstructionRejectsAFailedConnection(): void
     {
-        // Reserve a port without listening so the connection is refused on every Swoole version.
-        $socket = stream_socket_server('tcp://127.0.0.1:0', flags: STREAM_SERVER_BIND);
-        $this->assertIsResource($socket);
-        $port = (int) substr(strrchr(stream_socket_get_name($socket, false), ':'), 1);
+        // Bind without listening so the connection is refused on every Swoole version.
+        $socket = new Socket(AF_INET, SOCK_STREAM, 0);
+        $this->assertTrue($socket->bind('127.0.0.1', 0));
 
         try {
             $this->expectException(HttpClientException::class);
 
-            new Client('127.0.0.1', $port);
+            new Client('127.0.0.1', $socket->getsockname()['port']);
         } finally {
-            fclose($socket);
+            $socket->close();
         }
     }
 
@@ -43,9 +43,12 @@ class Http2ClientTest extends TestCase
             new Client('');
             $this->fail('Expected native construction to fail.');
         } catch (HttpClientException $exception) {
-            $this->assertInstanceOf(NativeHttp2Exception::class, $exception->getPrevious());
-            $this->assertSame($exception->getPrevious()->getMessage(), $exception->getMessage());
-            $this->assertSame($exception->getPrevious()->getCode(), $exception->getCode());
+            $previous = $exception->getPrevious();
+
+            $this->assertInstanceOf(NativeHttp2Exception::class, $previous);
+            $this->assertSame($previous->getMessage(), $exception->getMessage());
+            $this->assertSame($previous->getCode(), $exception->getCode());
+            $this->assertStringContainsStringIgnoringCase('host is empty', $exception->getMessage());
         }
     }
 

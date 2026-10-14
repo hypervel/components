@@ -22,7 +22,7 @@ class TracingCallableDispatcherTracing extends TracingRoutingDispatcher implemen
      */
     public function dispatch(Route $route, callable $callable): mixed
     {
-        return $this->wrapRouteDispatch(function () use ($route, $callable) {
+        return $this->wrapRouteDispatch(function () use ($route, $callable): mixed {
             return $this->dispatcher->dispatch($route, $callable);
         }, $route);
     }

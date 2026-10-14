@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Telescope\Watchers;
 
 use GuzzleHttp\Client;
+use GuzzleHttp\Exception\ClientException;
 use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
@@ -14,6 +15,7 @@ use GuzzleHttp\TransferStats;
 use Hypervel\Contracts\Telescope\TelescopeTag;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Http;
 use Hypervel\Support\Json;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Telescope;
@@ -22,6 +24,7 @@ use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Http\Message\RequestInterface;
+use RuntimeException;
 
 enum ClientRequestWatcherTestIntTag: int
 {
@@ -35,17 +38,14 @@ class ClientRequestWatcherTest extends FeatureTestCase
 {
     public function testClientRequestWatcherRegistersSuccessfulClientRequestAndResponse(): void
     {
-        $client = $this->makeClient([
-            new Response(201, ['Content-Type' => 'application/json', 'Cache-Control' => 'no-cache,private'], json_encode(['foo' => 'bar'])),
-        ], ['http_errors' => false]);
+        Http::fake([
+            '*' => Http::response(['foo' => 'bar'], 201, ['Content-Type' => 'application/json', 'Cache-Control' => 'no-cache,private']),
+        ]);
 
-        $this->executeTransfer(
-            $client,
-            new Request('GET', 'https://hypervel.org/foo/bar', ['Accept-Language' => 'nl_BE']),
-            ['http_errors' => false]
-        );
+        Http::withHeaders(['Accept-Language' => 'nl_BE'])->get('https://hypervel.org/foo/bar');
 
         $entry = $this->loadTelescopeEntries()->first();
+        $tags = $this->entryTags($entry->uuid);
 
         $this->assertNotNull($entry);
         $this->assertSame(EntryType::CLIENT_REQUEST, $entry->type);
@@ -56,6 +56,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $this->assertSame(201, $entry->content['response_status']);
         $this->assertSame(['content-type' => 'application/json', 'cache-control' => 'no-cache,private'], $entry->content['response_headers']);
         $this->assertSame(['foo' => 'bar'], $entry->content['response']);
+        $this->assertContains('hypervel.org', $tags);
     }
 
     public function testClientRequestWatcherHidesNestedFalseySecrets(): void
@@ -200,6 +201,9 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $this->assertSame('Purged By Telescope', $entry->content['payload']);
     }
 
+    /**
+     * Provide JSON content types.
+     */
     public static function jsonContentTypeProvider(): array
     {
         return [
@@ -336,29 +340,51 @@ class ClientRequestWatcherTest extends FeatureTestCase
 
     public function testClientRequestWatcherRegistersRedirectResponse(): void
     {
-        $client = $this->makeClient([
-            new Response(301, ['Location' => 'https://foo.bar']),
-        ], ['allow_redirects' => false, 'http_errors' => false]);
+        Http::fake([
+            '*' => Http::response(null, 301, ['Location' => 'https://foo.bar']),
+        ]);
 
-        $this->executeTransfer(
-            $client,
-            new Request('GET', 'https://hypervel.org'),
-            ['allow_redirects' => false, 'http_errors' => false]
-        );
+        Http::withoutRedirecting()->get('https://hypervel.org');
 
         $entry = $this->loadTelescopeEntries()->first();
+        $tags = $this->entryTags($entry->uuid);
 
         $this->assertNotNull($entry);
         $this->assertEquals('Redirected to https://foo.bar', $entry->content['response']);
+        $this->assertContains('hypervel.org', $tags);
+    }
+
+    public function testFollowedRedirectIsRecordedOnceWithTheFinalResponse(): void
+    {
+        $hops = [];
+        $client = $this->makeClient([
+            new Response(302, ['Location' => 'https://hypervel.org/final']),
+            new Response(200, ['Content-Type' => 'text/plain'], 'final response'),
+        ]);
+
+        $this->executeTransfer($client, new Request('GET', 'https://hypervel.org/start'), [
+            'on_stats' => static function (TransferStats $stats) use (&$hops): void {
+                $hops[] = (string) $stats->getRequest()->getUri();
+            },
+        ]);
+
+        $this->assertSame(['https://hypervel.org/start', 'https://hypervel.org/final'], $hops);
+
+        $entries = $this->loadTelescopeEntries();
+
+        $this->assertCount(1, $entries);
+        $this->assertSame('https://hypervel.org/final', $entries->first()->content['uri']);
+        $this->assertSame(200, $entries->first()->content['response_status']);
+        $this->assertSame('final response', $entries->first()->content['response']);
     }
 
     public function testClientRequestWatcherPlainTextResponse(): void
     {
-        $client = $this->makeClient([
-            new Response(200, ['Content-Type' => 'text/plain'], 'plain telescope response'),
+        Http::fake([
+            '*' => Http::response('plain telescope response', 200, ['Content-Type' => 'text/plain']),
         ]);
 
-        $this->executeTransfer($client, new Request('GET', 'https://hypervel.org/fake-plain-text'));
+        Http::get('https://hypervel.org/fake-plain-text');
 
         $entry = $this->loadTelescopeEntries()->first();
 
@@ -422,29 +448,50 @@ class ClientRequestWatcherTest extends FeatureTestCase
 
     public function testClientRequestWatcherRegistersServerErrorResponse(): void
     {
-        $client = $this->makeClient([
-            new Response(500, [], json_encode(['error' => 'Something went wrong!'])),
-        ], ['http_errors' => false]);
+        Http::fake([
+            '*' => Http::response(['error' => 'Something went wrong!'], 500),
+        ]);
 
-        $this->executeTransfer($client, new Request('GET', 'https://hypervel.org'), ['http_errors' => false]);
+        Http::get('https://hypervel.org');
+
+        $entry = $this->loadTelescopeEntries()->first();
+        $tags = $this->entryTags($entry->uuid);
+
+        $this->assertNotNull($entry);
+        $this->assertEquals(['error' => 'Something went wrong!'], $entry->content['response']);
+        $this->assertContains('hypervel.org', $tags);
+    }
+
+    public function testErrorResponseRejectedByGuzzleIsRecordedWithItsResponse(): void
+    {
+        $client = $this->makeClient([
+            new Response(404, ['Content-Type' => 'application/json'], json_encode(['error' => 'Not found'])),
+        ]);
+
+        try {
+            $client->send(new Request('GET', 'https://hypervel.org/missing'));
+            $this->fail('Expected Guzzle to reject the error response.');
+        } catch (ClientException) {
+        }
 
         $entry = $this->loadTelescopeEntries()->first();
 
         $this->assertNotNull($entry);
-        $this->assertEquals(['error' => 'Something went wrong!'], $entry->content['response']);
+        $this->assertSame(404, $entry->content['response_status']);
+        $this->assertSame(['error' => 'Not found'], $entry->content['response']);
     }
 
     public function testClientRequestWatcherHidesPassword(): void
     {
-        $client = $this->makeClient([new Response(204)]);
+        Http::fake([
+            '*' => Http::response(null, 204),
+        ]);
 
-        $payload = ['email' => 'telescope@hypervel.org', 'password' => 'secret', 'password_confirmation' => 'secret'];
-
-        $this->executeTransfer(
-            $client,
-            new Request('POST', 'https://hypervel.org/auth', ['Content-Type' => 'application/json'], json_encode($payload)),
-            ['hypervel_data' => $payload]
-        );
+        Http::post('https://hypervel.org/auth', [
+            'email' => 'telescope@hypervel.org',
+            'password' => 'secret',
+            'password_confirmation' => 'secret',
+        ]);
 
         $entry = $this->loadTelescopeEntries()->first();
 
@@ -457,15 +504,14 @@ class ClientRequestWatcherTest extends FeatureTestCase
 
     public function testClientRequestWatcherHidesAuthorization(): void
     {
-        $client = $this->makeClient([new Response(204)]);
+        Http::fake([
+            '*' => Http::response(null, 204),
+        ]);
 
-        $this->executeTransfer(
-            $client,
-            new Request('POST', 'https://hypervel.org/dashboard', [
-                'Authorization' => 'Basic YWxhZGRpbjpvcGVuc2VzYW1l',
-                'Content-Type' => 'application/json',
-            ])
-        );
+        Http::withHeaders([
+            'Authorization' => 'Basic YWxhZGRpbjpvcGVuc2VzYW1l',
+            'Content-Type' => 'application/json',
+        ])->post('https://hypervel.org/dashboard');
 
         $entry = $this->loadTelescopeEntries()->first();
 
@@ -477,12 +523,13 @@ class ClientRequestWatcherTest extends FeatureTestCase
 
     public function testClientRequestWatcherHidesPhpAuthPw(): void
     {
-        $client = $this->makeClient([new Response(204)]);
+        Http::fake([
+            '*' => Http::response(null, 204),
+        ]);
 
-        $this->executeTransfer(
-            $client,
-            new Request('POST', 'https://hypervel.org/dashboard', ['php-auth-pw' => 'secret'])
-        );
+        Http::withHeaders([
+            'php-auth-pw' => 'secret',
+        ])->post('https://hypervel.org/dashboard');
 
         $entry = $this->loadTelescopeEntries()->first();
 
@@ -493,14 +540,11 @@ class ClientRequestWatcherTest extends FeatureTestCase
 
     public function testClientRequestWatcherHandlesFormRequest(): void
     {
-        $client = $this->makeClient([new Response(204)]);
-        $payload = ['firstname' => 'Taylor', 'lastname' => 'Otwell'];
+        Http::fake([
+            '*' => Http::response(null, 204),
+        ]);
 
-        $this->executeTransfer(
-            $client,
-            new Request('POST', 'https://hypervel.org/form-route', ['Content-Type' => 'application/x-www-form-urlencoded'], http_build_query($payload)),
-            ['hypervel_data' => $payload]
-        );
+        Http::asForm()->post('https://hypervel.org/form-route', ['firstname' => 'Taylor', 'lastname' => 'Otwell']);
 
         $entry = $this->loadTelescopeEntries()->first();
 
@@ -511,14 +555,11 @@ class ClientRequestWatcherTest extends FeatureTestCase
 
     public function testClientRequestWatcherHandlesMultipartRequest(): void
     {
-        $client = $this->makeClient([new Response(204)]);
-        $payload = ['firstname' => 'Taylor', 'lastname' => 'Otwell'];
+        Http::fake([
+            '*' => Http::response(null, 204),
+        ]);
 
-        $this->executeTransfer(
-            $client,
-            new Request('POST', 'https://hypervel.org/multipart-route'),
-            ['hypervel_data' => $payload]
-        );
+        Http::asMultipart()->post('https://hypervel.org/multipart-route', ['firstname' => 'Taylor', 'lastname' => 'Otwell']);
 
         $entry = $this->loadTelescopeEntries()->first();
 
@@ -529,17 +570,13 @@ class ClientRequestWatcherTest extends FeatureTestCase
 
     public function testClientRequestWatcherHandlesFileContentsUpload(): void
     {
-        $client = $this->makeClient([new Response(204)]);
-        $image = UploadedFile::fake()->image('avatar.jpg');
-        $contents = file_get_contents($image->getPathname());
+        Http::fake([
+            '*' => Http::response(null, 204),
+        ]);
 
-        $this->executeTransfer(
-            $client,
-            new Request('POST', 'https://hypervel.org/fake-upload-file-route', ['Content-Type' => 'multipart/form-data']),
-            ['hypervel_data' => [
-                ['name' => 'image', 'contents' => $contents, 'filename' => 'photo.jpg', 'headers' => ['foo' => 'bar']],
-            ]]
-        );
+        $image = UploadedFile::fake()->image('avatar.jpg');
+
+        Http::attach('image', file_get_contents($image->getPathname()), 'photo.jpg', ['foo' => 'bar'])->post('https://hypervel.org/fake-upload-file-route');
 
         $entry = $this->loadTelescopeEntries()->first();
 
@@ -552,17 +589,13 @@ class ClientRequestWatcherTest extends FeatureTestCase
 
     public function testClientRequestWatcherHandlesFileContentsUploadWithoutExplicitFilenameOrHeaders(): void
     {
-        $client = $this->makeClient([new Response(204)]);
-        $image = UploadedFile::fake()->image('avatar.jpg');
-        $contents = file_get_contents($image->getPathname());
+        Http::fake([
+            '*' => Http::response(null, 204),
+        ]);
 
-        $this->executeTransfer(
-            $client,
-            new Request('POST', 'https://hypervel.org/fake-upload-file-route', ['Content-Type' => 'multipart/form-data']),
-            ['hypervel_data' => [
-                ['name' => 'image', 'contents' => $contents],
-            ]]
-        );
+        $image = UploadedFile::fake()->image('avatar.jpg');
+
+        Http::attach('image', file_get_contents($image->getPathname()))->post('https://hypervel.org/fake-upload-file-route');
 
         $entry = $this->loadTelescopeEntries()->first();
 
@@ -575,16 +608,13 @@ class ClientRequestWatcherTest extends FeatureTestCase
 
     public function testClientRequestWatcherHandlesResourceFileUpload(): void
     {
-        $client = $this->makeClient([new Response(204)]);
+        Http::fake([
+            '*' => Http::response(null, 204),
+        ]);
+
         $image = UploadedFile::fake()->image('avatar.jpg');
 
-        $this->executeTransfer(
-            $client,
-            new Request('POST', 'https://hypervel.org/fake-upload-file-route', ['Content-Type' => 'multipart/form-data']),
-            ['hypervel_data' => [
-                ['name' => 'image', 'contents' => $image->tempFile],
-            ]]
-        );
+        Http::attach('image', $image->tempFile)->post('https://hypervel.org/fake-upload-file-route');
 
         $entry = $this->loadTelescopeEntries()->first();
 
@@ -597,16 +627,13 @@ class ClientRequestWatcherTest extends FeatureTestCase
 
     public function testClientRequestWatcherHandlesResourceFileUploadWithFilenameAndHeaders(): void
     {
-        $client = $this->makeClient([new Response(204)]);
+        Http::fake([
+            '*' => Http::response(null, 204),
+        ]);
+
         $image = UploadedFile::fake()->image('avatar.jpg');
 
-        $this->executeTransfer(
-            $client,
-            new Request('POST', 'https://hypervel.org/fake-upload-file-route', ['Content-Type' => 'multipart/form-data']),
-            ['hypervel_data' => [
-                ['name' => 'image', 'contents' => $image->tempFile, 'filename' => 'photo.jpg', 'headers' => ['foo' => 'bar']],
-            ]]
-        );
+        Http::attach('image', $image->tempFile, 'photo.jpg', ['foo' => 'bar'])->post('https://hypervel.org/fake-upload-file-route');
 
         $entry = $this->loadTelescopeEntries()->first();
 
@@ -619,12 +646,12 @@ class ClientRequestWatcherTest extends FeatureTestCase
 
     public function testItStoresAndDisplaysArrayOfRequestHeaders(): void
     {
-        $client = $this->makeClient([new Response(200)]);
+        Http::fake(['*' => '']);
 
-        $this->executeTransfer(
-            $client,
-            new Request('GET', 'https://hypervel.org', ['X-Foo' => ['first', 'second'], 'X-Bar' => 'single'])
-        );
+        Http::withHeaders(['X-Foo' => 'first'])
+            ->withHeaders(['X-Foo' => 'second'])
+            ->withHeaders(['X-Bar' => 'single'])
+            ->get('https://hypervel.org');
 
         $entry = $this->loadTelescopeEntries()->first();
 
@@ -679,6 +706,22 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $this->assertArrayNotHasKey('response_status', $entry->content);
     }
 
+    public function testRecordingFailuresSurfaceFromTheTransfer(): void
+    {
+        $exception = new RuntimeException('Recording failed.');
+        Telescope::tag(static function () use ($exception): array {
+            throw $exception;
+        });
+        $client = $this->makeClient([new Response(200, [], 'OK')]);
+
+        try {
+            $client->send(new Request('GET', 'https://hypervel.org'));
+            $this->fail('Expected the recording failure to surface.');
+        } catch (RuntimeException $thrown) {
+            $this->assertSame($exception, $thrown);
+        }
+    }
+
     public function testClientRequestWatcherRespectsWithoutTelescopeOnConnectionFailed(): void
     {
         $client = $this->makeClient([
@@ -712,24 +755,6 @@ class ClientRequestWatcherTest extends FeatureTestCase
 
         $this->assertCount(1, $entries);
         $this->assertSame('https://recorded.example.com/api/data', $entries->first()->content['uri']);
-    }
-
-    public function testClientRequestWatcherHostIgnoreCanBeExtended(): void
-    {
-        $watcher = new class extends ClientRequestWatcher {
-            public function ignores(string $host): bool
-            {
-                return $this->shouldIgnoreHost($host);
-            }
-
-            protected function shouldIgnoreHost(string $host): bool
-            {
-                return str_ends_with($host, '.internal');
-            }
-        };
-
-        $this->assertTrue($watcher->ignores('api.internal'));
-        $this->assertFalse($watcher->ignores('hypervel.org'));
     }
 
     #[WithConfig('telescope.watchers', [
@@ -982,47 +1007,6 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $this->assertSame('HTML Response', $entry->content['response']);
     }
 
-    public function testDirectGuzzleClientRequestIsCaptured(): void
-    {
-        $client = $this->makeClient([
-            new Response(200, ['Content-Type' => 'application/json'], json_encode(['captured' => true])),
-        ]);
-
-        $this->executeTransfer($client, new Request('GET', 'https://third-party.example.com/api'));
-
-        $entry = $this->loadTelescopeEntries()->first();
-
-        $this->assertNotNull($entry);
-        $this->assertSame(EntryType::CLIENT_REQUEST, $entry->type);
-        $this->assertSame('GET', $entry->content['method']);
-        $this->assertSame('https://third-party.example.com/api', $entry->content['uri']);
-        $this->assertSame(['captured' => true], $entry->content['response']);
-    }
-
-    #[WithConfig('telescope.watchers', [
-        ClientRequestWatcher::class => [
-            'enabled' => true,
-            'request_size_limit' => 1,
-            'truncate_oversized' => true,
-        ],
-    ])]
-    public function testDirectGuzzleLargeRequestPayloadIsTruncated(): void
-    {
-        $largeBody = json_encode(['data' => str_repeat('x', 2000)]);
-
-        $client = $this->makeClient([new Response(200, [], 'OK')]);
-
-        $this->executeTransfer(
-            $client,
-            new Request('POST', 'https://example.com/api', ['Content-Type' => 'application/json'], $largeBody)
-        );
-
-        $entry = $this->loadTelescopeEntries()->first();
-
-        $this->assertNotNull($entry);
-        $this->assertStringEndsWith('(truncated...)', $entry->content['payload']);
-    }
-
     public function testTelescopeEnabledFalsePerRequestOptOut(): void
     {
         $client = $this->makeClient([new Response(200, [], 'OK')]);
@@ -1058,10 +1042,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $entry = $this->loadTelescopeEntries()->first();
 
         $this->assertNotNull($entry);
-        $tags = DB::table('telescope_entries_tags')
-            ->where('entry_uuid', $entry->uuid)
-            ->pluck('tag')
-            ->all();
+        $tags = $this->entryTags($entry->uuid);
         $this->assertContains('stripe', $tags);
         $this->assertContains('charges', $tags);
         $this->assertContains('example.com', $tags);
@@ -1069,23 +1050,17 @@ class ClientRequestWatcherTest extends FeatureTestCase
 
     public function testWithTelescopeTagsViaHttpClient(): void
     {
-        $client = $this->makeClient([new Response(200, [], json_encode(['ok' => true]))]);
+        Http::fake();
 
-        $this->executeTransfer(
-            $client,
-            new Request('GET', 'https://hypervel.org/api'),
-            ['telescope_tags' => ['billing', 'invoice']]
-        );
+        Http::withTelescopeTags(['billing', 'invoice'])->get('https://hypervel.org/api');
 
         $entry = $this->loadTelescopeEntries()->first();
 
         $this->assertNotNull($entry);
-        $tags = DB::table('telescope_entries_tags')
-            ->where('entry_uuid', $entry->uuid)
-            ->pluck('tag')
-            ->all();
+        $tags = $this->entryTags($entry->uuid);
         $this->assertContains('billing', $tags);
         $this->assertContains('invoice', $tags);
+        $this->assertContains('hypervel.org', $tags);
     }
 
     public function testTelescopeTagsViaGuzzleConstructorConfig(): void
@@ -1104,17 +1079,14 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $entry = $this->loadTelescopeEntries()->first();
 
         $this->assertNotNull($entry);
-        $tags = DB::table('telescope_entries_tags')
-            ->where('entry_uuid', $entry->uuid)
-            ->pluck('tag')
-            ->all();
+        $tags = $this->entryTags($entry->uuid);
         $this->assertContains('scout', $tags);
         $this->assertContains('algolia', $tags);
     }
 
     public function testBackedEnumTelescopeTagsAreNormalizedToStrings(): void
     {
-        // The aspect's array_map normalizes enum cases via enum_value() so
+        // The watcher normalizes enum cases via enum_value() so
         // tags reach storage as strings. Uses the real TelescopeTag enum —
         // proves the end-to-end path the framework itself relies on.
         $client = $this->makeClient([new Response(200, [], 'OK')]);
@@ -1128,10 +1100,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $entry = $this->loadTelescopeEntries()->first();
 
         $this->assertNotNull($entry);
-        $tags = DB::table('telescope_entries_tags')
-            ->where('entry_uuid', $entry->uuid)
-            ->pluck('tag')
-            ->all();
+        $tags = $this->entryTags($entry->uuid);
         $this->assertContains('scout', $tags);
         $this->assertContains('algolia', $tags);
     }
@@ -1149,51 +1118,26 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $entry = $this->loadTelescopeEntries()->first();
 
         $this->assertNotNull($entry);
-        $tags = DB::table('telescope_entries_tags')
-            ->where('entry_uuid', $entry->uuid)
-            ->pluck('tag')
-            ->all();
+        $tags = $this->entryTags($entry->uuid);
         $this->assertContains('0', $tags);
     }
 
-    public function testExistingOnStatsCallbackIsPreserved(): void
+    /**
+     * Get the stored tags of an entry.
+     *
+     * @return list<string>
+     */
+    private function entryTags(string $uuid): array
     {
-        $callbackFired = false;
-
-        $client = $this->makeClient([new Response(200, [], 'OK')]);
-
-        $this->executeTransfer(
-            $client,
-            new Request('GET', 'https://example.com'),
-            ['on_stats' => function (TransferStats $stats) use (&$callbackFired) {
-                $callbackFired = true;
-            }]
-        );
-
-        $this->assertTrue($callbackFired, 'Existing on_stats callback should be preserved');
-
-        $entry = $this->loadTelescopeEntries()->first();
-        $this->assertNotNull($entry);
-        $this->assertSame(EntryType::CLIENT_REQUEST, $entry->type);
+        return DB::table('telescope_entries_tags')
+            ->where('entry_uuid', $uuid)
+            ->pluck('tag')
+            ->all();
     }
 
-    public function testDirectGuzzleFailedConnectionIsCaptured(): void
-    {
-        $client = $this->makeClient([
-            new ConnectException('Connection refused', new Request('GET', 'https://unreachable.example.com')),
-        ]);
-
-        $this->executeTransfer($client, new Request('GET', 'https://unreachable.example.com/api'));
-
-        $entry = $this->loadTelescopeEntries()->first();
-
-        $this->assertNotNull($entry);
-        $this->assertSame(EntryType::CLIENT_REQUEST, $entry->type);
-        $this->assertSame('GET', $entry->content['method']);
-        $this->assertSame('https://unreachable.example.com/api', $entry->content['uri']);
-        $this->assertArrayNotHasKey('response_status', $entry->content);
-    }
-
+    /**
+     * Create a Guzzle client with a MockHandler queuing the given responses.
+     */
     private function makeClient(array $responses, array $config = []): Client
     {
         return new Client(array_merge($config, [
@@ -1201,6 +1145,9 @@ class ClientRequestWatcherTest extends FeatureTestCase
         ]));
     }
 
+    /**
+     * Build a value nested to the given depth.
+     */
     private function nestedValue(int $depth): array
     {
         $value = 'leaf';

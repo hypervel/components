@@ -100,6 +100,7 @@
     - [Fortify](/docs/{{version}}/fortify)
     - [gRPC](/docs/{{version}}/grpc)
     - [Horizon](/docs/{{version}}/horizon)
+    - [Inertia](/docs/{{version}}/inertia)
     - [Nested Set](/docs/{{version}}/nested-set)
     - [OpenTelemetry](/docs/{{version}}/opentelemetry)
     - [Passport](/docs/{{version}}/passport)

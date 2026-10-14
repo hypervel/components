@@ -79,7 +79,7 @@ class AaguidSyncScriptTest extends TestCase
         $this->assertArrayHasKey('workflow_dispatch', $workflow['on']);
         $this->assertSame(['contents' => 'write', 'pull-requests' => 'write'], $workflow['permissions']);
         $this->assertSame(
-            'ghcr.io/hypervel/components-ci:php8.4-swoole6.2.2',
+            'ghcr.io/hypervel/components-ci:php8.4-swoole6.3.0-rc1',
             $workflow['jobs']['synchronize']['container']['image'],
         );
         $this->assertSame($defaultBranch, $steps['Checkout default branch']['with']['ref']);

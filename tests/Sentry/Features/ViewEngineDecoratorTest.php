@@ -4,21 +4,55 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sentry\Features;
 
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Sentry\SentryServiceProvider;
 use Hypervel\Sentry\Tracing\ViewEngineDecorator;
-use Hypervel\Tests\Sentry\SentryTestCase;
+use Hypervel\Testing\ParallelTesting;
+use Hypervel\Tests\Sentry\TestCase;
 use Hypervel\View\Engines\EngineResolver;
 use Hypervel\View\Factory;
+use Override;
 use ReflectionProperty;
+use Sentry\Tracing\Span;
 use Sentry\Tracing\Transaction;
 
 use function Hypervel\Coroutine\parallel;
 
-class ViewEngineDecoratorTest extends SentryTestCase
+class ViewEngineDecoratorTest extends TestCase
 {
     protected array $defaultSetupConfig = [
         'sentry.traces_sample_rate' => 1.0,
     ];
+
+    private string $viewPath;
+
+    private Filesystem $filesystem;
+
+    /**
+     * Set up the test environment.
+     */
+    #[Override]
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->filesystem = new Filesystem;
+        $this->viewPath = ParallelTesting::tempDir('SentryViewEngineDecoratorTest');
+
+        $this->filesystem->deleteDirectory($this->viewPath);
+        $this->filesystem->ensureDirectoryExists($this->viewPath);
+    }
+
+    /**
+     * Clean up the test environment.
+     */
+    #[Override]
+    protected function tearDown(): void
+    {
+        $this->filesystem->deleteDirectory($this->viewPath);
+
+        parent::tearDown();
+    }
 
     public function testViewEngineIsDecorated(): void
     {
@@ -53,71 +87,59 @@ class ViewEngineDecoratorTest extends SentryTestCase
 
     public function testViewNameIsAvailableDuringRender(): void
     {
-        $viewDir = sys_get_temp_dir() . '/sentry_view_test_' . uniqid();
-        mkdir($viewDir);
-        file_put_contents($viewDir . '/hello.blade.php', 'Hello');
+        $this->filesystem->put($this->viewPath . '/hello.blade.php', 'Hello');
 
-        try {
-            /** @var Factory $viewFactory */
-            $viewFactory = $this->app->make('view');
-            $viewFactory->addNamespace('sentrytest', $viewDir);
+        /** @var Factory $viewFactory */
+        $viewFactory = $this->app->make('view');
+        $viewFactory->addNamespace('sentrytest', $this->viewPath);
 
-            $transaction = $this->startTransaction();
+        $transaction = $this->startTransaction();
 
-            $viewFactory->make('sentrytest::hello')->render();
+        $viewFactory->make('sentrytest::hello')->render();
 
-            $this->assertSame(
-                'sentrytest::hello',
-                $this->lastViewSpanDescription($transaction)
-            );
-        } finally {
-            @unlink($viewDir . '/hello.blade.php');
-            @rmdir($viewDir);
-        }
+        $this->assertSame(
+            'sentrytest::hello',
+            $this->lastViewSpanDescription($transaction)
+        );
     }
 
     public function testViewNamesAreIsolatedBetweenConcurrentRenders(): void
     {
-        $viewDir = sys_get_temp_dir() . '/sentry_view_race_test_' . uniqid();
-        mkdir($viewDir);
-        file_put_contents($viewDir . '/first.blade.php', 'First');
-        file_put_contents($viewDir . '/second.blade.php', 'Second');
+        $this->filesystem->put($this->viewPath . '/first.blade.php', 'First');
+        $this->filesystem->put($this->viewPath . '/second.blade.php', 'Second');
 
-        try {
-            /** @var Factory $viewFactory */
-            $viewFactory = $this->app->make('view');
-            $viewFactory->addNamespace('sentryrace', $viewDir);
+        /** @var Factory $viewFactory */
+        $viewFactory = $this->app->make('view');
+        $viewFactory->addNamespace('sentryrace', $this->viewPath);
 
-            $viewFactory->observeRendering(static function (): void {
-                usleep(5000);
-            });
+        $viewFactory->observeRendering(static function (): void {
+            usleep(5000);
+        });
 
-            $results = parallel([
-                'first' => function () use ($viewFactory) {
-                    $transaction = $this->startTransaction();
+        $results = parallel([
+            'first' => function () use ($viewFactory): ?string {
+                $transaction = $this->startTransaction();
 
-                    $viewFactory->make('sentryrace::first')->render();
+                $viewFactory->make('sentryrace::first')->render();
 
-                    return $this->lastViewSpanDescription($transaction);
-                },
-                'second' => function () use ($viewFactory) {
-                    $transaction = $this->startTransaction();
+                return $this->lastViewSpanDescription($transaction);
+            },
+            'second' => function () use ($viewFactory): ?string {
+                $transaction = $this->startTransaction();
 
-                    $viewFactory->make('sentryrace::second')->render();
+                $viewFactory->make('sentryrace::second')->render();
 
-                    return $this->lastViewSpanDescription($transaction);
-                },
-            ]);
+                return $this->lastViewSpanDescription($transaction);
+            },
+        ]);
 
-            $this->assertSame('sentryrace::first', $results['first']);
-            $this->assertSame('sentryrace::second', $results['second']);
-        } finally {
-            @unlink($viewDir . '/first.blade.php');
-            @unlink($viewDir . '/second.blade.php');
-            @rmdir($viewDir);
-        }
+        $this->assertSame('sentryrace::first', $results['first']);
+        $this->assertSame('sentryrace::second', $results['second']);
     }
 
+    /**
+     * Get the engine wrapped by the given decorator.
+     */
     private function getInnerEngine(ViewEngineDecorator $decorator): object
     {
         $property = new ReflectionProperty(ViewEngineDecorator::class, 'engine');
@@ -125,11 +147,14 @@ class ViewEngineDecoratorTest extends SentryTestCase
         return $property->getValue($decorator);
     }
 
+    /**
+     * Get the description of the last view span recorded by the given transaction.
+     */
     private function lastViewSpanDescription(Transaction $transaction): ?string
     {
         $spans = array_filter(
             $transaction->getSpanRecorder()?->getSpans() ?? [],
-            static fn ($span) => $span->getOp() === 'view.render'
+            static fn (Span $span): bool => $span->getOp() === 'view.render'
         );
 
         $span = end($spans);
