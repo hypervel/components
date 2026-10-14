@@ -8,6 +8,7 @@ use Closure;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Exception\TransferException;
 use GuzzleHttp\Handler\StreamHandler;
+use GuzzleHttp\Psr7\Exception\TimeoutException;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Http\Client\ConnectionException;
 use Hypervel\Http\Client\CurlStreamingHandler;
@@ -106,7 +107,7 @@ class HttpClientStreamingTest extends TestCase
 
     public function testConcurrentPhpStreamsReleaseTheirResponseHeaders(): void
     {
-        // @TODO: Update the version gate when Swoole releases the response-header ownership fix.
+        // @TODO: Update the version gate when https://github.com/swoole/swoole-src/issues/6307 is fixed and released.
         if (SWOOLE_VERSION_ID <= 60203) {
             $this->markTestSkipped('Swoole 6.2.3 and earlier do not isolate PHP response-header ownership between coroutines.');
         }
@@ -588,7 +589,16 @@ class HttpClientStreamingTest extends TestCase
                 ]);
 
                 $this->assertInstanceOf(RuntimeException::class, $results['reader']);
-                $this->assertSame($native ? 'The streaming response read timed out.' : 'Unable to read from stream', $results['reader']->getMessage());
+
+                // @TODO: Remove the class_exists() check and the PSR-7 2.x branch when Guzzle 7 support is dropped.
+                if ($native) {
+                    $this->assertSame('The streaming response read timed out.', $results['reader']->getMessage());
+                } elseif (class_exists(TimeoutException::class)) {
+                    $this->assertInstanceOf(TimeoutException::class, $results['reader']);
+                    $this->assertSame('Unable to read from stream: timed out', $results['reader']->getMessage());
+                } else {
+                    $this->assertSame('Unable to read from stream', $results['reader']->getMessage());
+                }
             } finally {
                 $finished->close();
             }
