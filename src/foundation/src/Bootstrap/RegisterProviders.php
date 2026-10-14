@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Bootstrap;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Di\Aop\AspectCollector;
+use Hypervel\Di\ClassMap\ClassMapManager;
 
 class RegisterProviders
 {
@@ -25,6 +27,10 @@ class RegisterProviders
      */
     public function bootstrap(ApplicationContract $app): void
     {
+        // Each application opens a registration window; GenerateProxies closes it before provider boot.
+        AspectCollector::unseal();
+        ClassMapManager::unseal();
+
         if (! $app->bound('config_loaded_from_cache')
             || $app->make('config_loaded_from_cache') === false) {
             $this->mergeAdditionalProviders($app);
