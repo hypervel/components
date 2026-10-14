@@ -261,9 +261,9 @@ $tokenModel::clearTokenCache($tokenId);
 $tokenModel::clearTokenableCache($user);
 ```
 
-These methods use the token or tokenable model's database connection and wait for its outer transaction to commit. A rollback leaves the existing committed cache entry in place.
+These methods use the token or tokenable model's database connection. If a transaction is open, shared cache invalidation waits for its outermost commit; otherwise, it runs immediately. A rollback leaves the existing committed cache entry in place.
 
-Invalidation waits for any in-flight cache fill on the same entry. When a transaction scheduled the invalidation and its lock cannot be acquired, the cache lock timeout is thrown from the commit after the database write has committed, rather than leaving the stale token or user cached.
+Invalidation waits for any cache fill on the same entry. If the lock times out, `LockTimeoutException` is thrown after the database change has been saved. The affected entry may remain cached until it is cleared or expires.
 
 The `sanctum:prune-expired` command also deletes records without immediately clearing their cache entries. These tokens are already expired and cannot authenticate, and their cache entries are removed when the configured cache TTL elapses.
 
