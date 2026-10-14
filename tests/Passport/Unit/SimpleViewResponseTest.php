@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Passport\Unit;
 
 use Hypervel\Contracts\Routing\ResponseFactory;
+use Hypervel\Contracts\Support\Responsable;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
 use Hypervel\Passport\Http\Responses\SimpleViewResponse;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
-use Nyholm\Psr7\Response as PsrResponse;
 
 class SimpleViewResponseTest extends TestCase
 {
@@ -26,22 +26,18 @@ class SimpleViewResponseTest extends TestCase
         $this->assertSame($expected, $response->toResponse(Request::create('/oauth/authorize')));
     }
 
-    public function testCallbackParametersCanBeReturnedAsJson(): void
+    public function testCallbacksCanReturnResponsableObjects(): void
     {
-        $response = (new SimpleViewResponse(fn (array $parameters): array => $parameters))
-            ->withParameters(['client' => 'example'])->toResponse(Request::create('/oauth/authorize'));
+        $request = Request::create('/oauth/authorize');
+        $expected = new Response('Consent', 202, ['X-Consent' => 'pending']);
+        $responsable = m::mock(Responsable::class);
+        $responsable->shouldReceive('toResponse')->once()->with($request)->andReturn($expected);
+        $response = new SimpleViewResponse(function (array $parameters) use ($responsable): Responsable {
+            $this->assertSame(['client' => 'example'], $parameters);
 
-        $this->assertSame('application/json', $response->headers->get('Content-Type'));
-        $this->assertSame(['client' => 'example'], json_decode($response->getContent(), true));
-    }
+            return $responsable;
+        });
 
-    public function testCallbacksCanReturnPsrResponsesWithTheirStatusAndHeaders(): void
-    {
-        $response = (new SimpleViewResponse(fn (): PsrResponse => new PsrResponse(202, ['X-Consent' => 'pending'], 'Review')))
-            ->toResponse(Request::create('/oauth/authorize'));
-
-        $this->assertSame(202, $response->getStatusCode());
-        $this->assertSame('pending', $response->headers->get('X-Consent'));
-        $this->assertSame('Review', $response->getContent());
+        $this->assertSame($expected, $response->withParameters(['client' => 'example'])->toResponse($request));
     }
 }
