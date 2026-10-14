@@ -18,6 +18,16 @@ class InteractsWithAopTest extends TestCase
 {
     use InteractsWithAop;
 
+    /**
+     * Allow focused aspect registration after the test application has booted.
+     */
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        AspectCollector::unseal();
+    }
+
     public function testCallWithAspectsRunsMatchingAspect(): void
     {
         AspectCollector::setAround(UppercaseGreetingAspect::class, [InteractsWithAopTarget::class . '::greet']);
