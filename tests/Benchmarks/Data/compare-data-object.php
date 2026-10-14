@@ -864,26 +864,31 @@ function profileTransformation(): void
     }
 }
 
-$options = getopt('', ['cold:', 'profile', 'cold-profile', 'transform-profile']);
+try {
+    $options = getopt('', ['cold:', 'profile', 'cold-profile', 'transform-profile']);
 
-if (is_array($options) && isset($options['cold']) && is_string($options['cold'])) {
-    echo coldMeasurement($options['cold']);
-    exit(0);
+    if (is_array($options) && isset($options['cold']) && is_string($options['cold'])) {
+        echo coldMeasurement($options['cold']);
+        exit(0);
+    }
+
+    if (is_array($options) && array_key_exists('profile', $options)) {
+        profileDefaultCreation();
+        exit(0);
+    }
+
+    if (is_array($options) && array_key_exists('cold-profile', $options)) {
+        profileColdServices();
+        exit(0);
+    }
+
+    if (is_array($options) && array_key_exists('transform-profile', $options)) {
+        profileTransformation();
+        exit(0);
+    }
+
+    execute();
+} catch (Throwable $exception) {
+    fwrite(STDERR, (string) $exception . PHP_EOL);
+    exit(1);
 }
-
-if (is_array($options) && array_key_exists('profile', $options)) {
-    profileDefaultCreation();
-    exit(0);
-}
-
-if (is_array($options) && array_key_exists('cold-profile', $options)) {
-    profileColdServices();
-    exit(0);
-}
-
-if (is_array($options) && array_key_exists('transform-profile', $options)) {
-    profileTransformation();
-    exit(0);
-}
-
-execute();
