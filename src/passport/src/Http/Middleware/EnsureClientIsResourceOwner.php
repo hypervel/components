@@ -20,7 +20,9 @@ class EnsureClientIsResourceOwner extends ValidateToken
     {
         if (
             ! $token instanceof AccessToken
+            || $token->oauth_user_id === null
             || $token->oauth_user_id !== $token->oauth_client_id
+            || $token->user_id !== null
         ) {
             throw new AuthenticationException;
         }

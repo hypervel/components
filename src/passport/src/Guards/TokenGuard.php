@@ -188,13 +188,13 @@ class TokenGuard implements Guard
 
         $oauthUserId = $psr->getAttribute('oauth_user_id');
 
-        // League uses the client ID for tokens without a user, even if the client's allowed grants later change.
-        if ($oauthUserId === null || $oauthUserId === '' || $oauthUserId === $psr->getAttribute('oauth_client_id')) {
+        if ($oauthUserId === null || $oauthUserId === '') {
             return null;
         }
 
         $token = AccessToken::fromPsrRequest($psr);
 
+        // Machine tokens have no user provider; a user's identifier may equal the client's ID.
         if ($token->provider !== $this->provider->getProviderName()) {
             return null;
         }

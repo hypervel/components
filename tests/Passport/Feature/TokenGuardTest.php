@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Passport\Feature;
 
 use Hypervel\Context\RequestContext;
+use Hypervel\Database\Eloquent\Concerns\HasUuids;
+use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Foundation\Auth\User as Authenticatable;
 use Hypervel\Http\Request;
 use Hypervel\Passport\Database\Factories\ClientFactory;
@@ -17,7 +19,9 @@ use Hypervel\Sanctum\PersonalAccessToken;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Exceptions;
 use Hypervel\Support\Facades\Route;
+use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\Concerns\WithHypervelMigrations;
+use Hypervel\Tests\Passport\Fixtures\User;
 use Hypervel\Tests\Passport\Fixtures\UserFactory;
 use PHPUnit\Framework\Attributes\TestWith;
 
@@ -75,6 +79,24 @@ class TokenGuardTest extends PassportTestCase
                 'bearer_token' => $result->accessTokenId,
                 'client' => $client->getKey(),
             ]);
+    }
+
+    public function testUserWithTheClientIdentifierAuthenticatesOnlyAsAUser(): void
+    {
+        Schema::create('token_guard_uuid_users', static function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+        });
+        config(['auth.providers.users.model' => TokenGuardUuidUser::class]);
+        $client = ClientFactory::new()->asPersonalAccessTokenClient()->create();
+        $user = TokenGuardUuidUser::forceCreate(['id' => $client->id]);
+
+        Route::get('/user', static fn (Request $request) => ['id' => $request->user()->getAuthIdentifier()])
+            ->middleware('auth:passport');
+        Route::get('/machine', static fn () => 'response')->middleware(EnsureClientIsResourceOwner::class);
+
+        $this->withToken($user->createToken('user token')->accessToken);
+        $this->getJson('/user')->assertOk()->assertExactJson(['id' => $user->id]);
+        $this->getJson('/machine')->assertUnauthorized();
     }
 
     public function testUserAndClientAreResolvedOnlyOnce(): void
@@ -305,6 +327,13 @@ class TokenGuardTest extends PassportTestCase
         $this->withToken('invalid')->getJson('/scopes')->assertUnauthorized();
         $this->getJson('/machine')->assertUnauthorized();
     }
+}
+
+class TokenGuardUuidUser extends User
+{
+    use HasUuids;
+
+    public bool $timestamps = false;
 }
 
 class TokenGuardSanctumUser extends Authenticatable
