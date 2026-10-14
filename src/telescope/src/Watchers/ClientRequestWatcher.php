@@ -111,7 +111,7 @@ class ClientRequestWatcher extends Watcher
                     Telescope::recordClientRequest(
                         IncomingEntry::make([
                             'method' => $request->getMethod(),
-                            'uri' => (string) $request->getUri(),
+                            'uri' => $this->hideQueryParameters((string) $request->getUri()),
                             'headers' => $this->headers($request->getHeaders()),
                             'payload' => $this->buildPayload($request, $options),
                         ])
@@ -144,7 +144,7 @@ class ClientRequestWatcher extends Watcher
     {
         return [
             'method' => $request->getMethod(),
-            'uri' => (string) $request->getUri(),
+            'uri' => $this->hideQueryParameters((string) $request->getUri()),
             'headers' => $this->headers($request->getHeaders()),
             'payload' => $this->buildPayload($request, $options),
             'duration' => floor($stats->getTransferTime() * 1000),
@@ -356,7 +356,7 @@ class ClientRequestWatcher extends Watcher
         try {
             $statusCode = $response->getStatusCode();
             if ($statusCode >= 300 && $statusCode < 400) {
-                return 'Redirected to ' . $response->getHeaderLine('Location');
+                return 'Redirected to ' . $this->hideQueryParameters($response->getHeaderLine('Location'));
             }
 
             $sizeLimit = ($this->options['response_size_limit'] ?? 64) * 1024;
@@ -422,6 +422,12 @@ class ClientRequestWatcher extends Watcher
         );
 
         $headers = array_combine($headerNames, $headerValues);
+
+        foreach (['location', 'referer'] as $header) {
+            if (isset($headers[$header])) {
+                $headers[$header] = $this->hideQueryParameters($headers[$header]);
+            }
+        }
 
         return $this->hideParameters(
             $headers,

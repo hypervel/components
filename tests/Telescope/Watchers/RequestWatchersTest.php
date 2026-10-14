@@ -15,6 +15,7 @@ use Hypervel\Session\Middleware\StartSession;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Response;
 use Hypervel\Support\Facades\Route;
+use Hypervel\Support\Facades\URL;
 use Hypervel\Support\Facades\View;
 use Hypervel\Support\Json;
 use Hypervel\Telescope\EntryType;
@@ -150,6 +151,48 @@ class RequestWatchersTest extends FeatureTestCase
         $this->assertSame(EntryType::REQUEST, $entry->type);
         $this->assertSame('POST', $entry->content['method']);
         $this->assertSame('********', $entry->content['headers']['php-auth-pw']);
+    }
+
+    public function testSignedRequestCredentialsAreHiddenInTheUriAndPayload(): void
+    {
+        Route::get('/signed-download', fn () => 'file')->name('signed-download')->middleware(['web', 'signed']);
+        $url = URL::temporarySignedRoute('signed-download', now()->addMinutes(5));
+        parse_str(parse_url($url, PHP_URL_QUERY), $query);
+
+        $this->withHeader('Referer', $url)->get($url)->assertSuccessful()->assertSessionHas('_previous.url', $url);
+
+        $entry = $this->loadTelescopeEntries()->first();
+        $maskedUrl = str_replace($query['signature'], Telescope::REDACTED_VALUE, $url);
+        $this->assertSame('/signed-download?expires=' . $query['expires'] . '&signature=********', $entry->content['uri']);
+        $this->assertSame(['expires' => $query['expires'], 'signature' => Telescope::REDACTED_VALUE], $entry->content['payload']);
+        $this->assertSame($maskedUrl, $entry->content['headers']['referer']);
+        $this->assertSame($maskedUrl, $entry->content['session']['_previous']['url']);
+    }
+
+    public function testIntendedSignedUrlIsHiddenInTheRecordedSession(): void
+    {
+        Route::get('/login', fn () => 'Login')->name('login')->middleware('web');
+        Route::get('/protected', fn () => 'Private')->name('protected')->middleware(['web', 'auth', 'signed']);
+        $url = URL::signedRoute('protected');
+        parse_str(parse_url($url, PHP_URL_QUERY), $query);
+
+        $this->get($url)->assertRedirect(route('login'))->assertSessionHas('url.intended', $url);
+
+        $entry = $this->loadTelescopeEntries()->first();
+        $this->assertSame(str_replace($query['signature'], Telescope::REDACTED_VALUE, $url), $entry->content['session']['url']['intended']);
+    }
+
+    public function testRedirectCredentialsAreHiddenInTheRecordedTargetAndHeader(): void
+    {
+        $url = 'https://bucket.s3.amazonaws.com/private.txt?X-Amz-Signature=signature&X-Amz-Security-Token=session&X-Amz-Expires=300';
+        Route::get('/download', fn () => redirect($url));
+
+        $this->get('/download')->assertRedirect($url);
+
+        $entry = $this->loadTelescopeEntries()->first();
+        $masked = 'https://bucket.s3.amazonaws.com/private.txt?X-Amz-Signature=********&X-Amz-Security-Token=********&X-Amz-Expires=300';
+        $this->assertSame('Redirected to ' . $masked, $entry->content['response']);
+        $this->assertSame($masked, $entry->content['response_headers']['location']);
     }
 
     public function testRequestWatcherHidesNestedFalseySecrets(): void

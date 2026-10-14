@@ -36,11 +36,40 @@ class Telescope
     protected const array DEFAULT_HIDDEN_REQUEST_HEADERS = [
         'authorization',
         'php-auth-pw',
+        'api-key',
+        'x-api-key',
+        'x-goog-api-key',
+        'xi-api-key',
+        'x-algolia-api-key',
+        'x-typesense-api-key',
+        'x-amz-security-token',
+        'x-amz-sso_bearer_token',
     ];
 
     protected const array DEFAULT_HIDDEN_REQUEST_PARAMETERS = [
         'password',
         'password_confirmation',
+        'client_secret',
+        'refresh_token',
+        'clientSecret',
+        'refreshToken',
+        'WebIdentityToken',
+        'access_token',
+        'signature',
+        'X-Amz-Signature',
+        'X-Amz-Security-Token',
+    ];
+
+    protected const array DEFAULT_HIDDEN_RESPONSE_PARAMETERS = [
+        'access_token',
+        'refresh_token',
+        'id_token',
+        'accessToken',
+        'refreshToken',
+        'SecretAccessKey',
+        'Token',
+        'roleCredentials.secretAccessKey',
+        'roleCredentials.sessionToken',
     ];
 
     public const string PURGED_VALUE = 'Purged By Telescope';
@@ -97,7 +126,7 @@ class Telescope
     /**
      * The list of hidden response parameters.
      */
-    public static array $hiddenResponseParameters = [];
+    public static array $hiddenResponseParameters = self::DEFAULT_HIDDEN_RESPONSE_PARAMETERS;
 
     /**
      * Indicates if Telescope should ignore events fired by Hypervel.
@@ -899,7 +928,7 @@ class Telescope
         static::$tagUsing = [];
         static::$hiddenRequestHeaders = self::DEFAULT_HIDDEN_REQUEST_HEADERS;
         static::$hiddenRequestParameters = self::DEFAULT_HIDDEN_REQUEST_PARAMETERS;
-        static::$hiddenResponseParameters = [];
+        static::$hiddenResponseParameters = self::DEFAULT_HIDDEN_RESPONSE_PARAMETERS;
         static::$ignoreFrameworkEvents = true;
         static::$useDarkTheme = false;
         static::$started = false;

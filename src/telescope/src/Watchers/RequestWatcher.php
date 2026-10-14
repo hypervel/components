@@ -13,6 +13,7 @@ use Hypervel\Http\Request;
 use Hypervel\Http\Response as HypervelResponse;
 use Hypervel\HttpServer\Events\RequestHandled;
 use Hypervel\Log\Context\Repository as ContextRepository;
+use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Json;
 use Hypervel\Support\Str;
@@ -57,7 +58,7 @@ class RequestWatcher extends Watcher
 
         Telescope::recordRequest(IncomingEntry::make([
             'ip_address' => $event->request->ip(),
-            'uri' => str_replace($event->request->root(), '', $event->request->fullUrl()) ?: '/',
+            'uri' => $this->hideQueryParameters(str_replace($event->request->root(), '', $event->request->fullUrl()) ?: '/'),
             'method' => $event->request->method(),
             'controller_action' => $event->request->route()?->getActionName(),
             // Closure middleware would otherwise be stored as an empty JSON object.
@@ -116,6 +117,12 @@ class RequestWatcher extends Watcher
             ->map(fn ($header) => implode(', ', $header))
             ->all();
 
+        foreach (['location', 'referer'] as $header) {
+            if (isset($headers[$header])) {
+                $headers[$header] = $this->hideQueryParameters($headers[$header]);
+            }
+        }
+
         return $this->hideParameters(
             $headers,
             Telescope::$hiddenRequestHeaders
@@ -142,7 +149,17 @@ class RequestWatcher extends Watcher
      */
     private function sessionVariables(Request $request): array
     {
-        return $request->hasSession() ? $request->session()->all() : [];
+        $session = $request->hasSession() ? $request->session()->all() : [];
+
+        foreach (['_previous.url', 'url.intended'] as $key) {
+            $url = Arr::get($session, $key);
+
+            if (is_string($url)) {
+                Arr::set($session, $key, $this->hideQueryParameters($url));
+            }
+        }
+
+        return $session;
     }
 
     /**
@@ -200,7 +217,7 @@ class RequestWatcher extends Watcher
         }
 
         if ($response instanceof RedirectResponse) {
-            return 'Redirected to ' . $response->getTargetUrl();
+            return 'Redirected to ' . $this->hideQueryParameters($response->getTargetUrl());
         }
 
         if ($response instanceof HypervelResponse && $response->getOriginalContent() instanceof View) {
