@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Integration\HttpServer;
 use Hypervel\Engine\Http\Client as EngineClient;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testing\ParallelTesting;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 use function Hypervel\Coroutine\parallel;
 
@@ -50,9 +51,10 @@ class RequestConversionTest extends HttpServerIntegrationTestCase
         $this->assertSame('form', $form['header']);
     }
 
-    public function testMultipartFieldsAndFilesAreConverted(): void
+    #[DataProvider('multipartMethods')]
+    public function testMultipartFieldsAndFilesAreConverted(string $method): void
     {
-        $response = $this->request('POST', '/inspect', [
+        $response = $this->request($method, '/inspect', [
             'multipart' => [
                 [
                     'name' => 'description',
@@ -68,11 +70,25 @@ class RequestConversionTest extends HttpServerIntegrationTestCase
         ]);
         $payload = $this->decode($response);
 
+        $this->assertSame($method, $payload['method']);
         $this->assertSame(['description' => 'integration upload'], $payload['request']);
         $this->assertSame('report.txt', $payload['file']['name']);
         $this->assertSame('report.txt', $payload['file']['path']);
         $this->assertSame('text/plain', $payload['file']['type']);
         $this->assertSame('uploaded contents', $payload['file']['contents']);
+    }
+
+    /**
+     * Provide HTTP methods that support multipart request bodies.
+     */
+    public static function multipartMethods(): array
+    {
+        return [
+            'POST' => ['POST'],
+            'PUT' => ['PUT'],
+            'PATCH' => ['PATCH'],
+            'DELETE' => ['DELETE'],
+        ];
     }
 
     public function testQueryRequestsAreParsedByTheHttpServer(): void
