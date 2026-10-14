@@ -320,6 +320,8 @@ class ServerFactory
 
     /**
      * Get the current settings entry without changing a pinned issuance.
+     *
+     * @internal shared with the issuance context
      */
     public function entry(): ServerEntry
     {
@@ -380,6 +382,8 @@ class ServerFactory
 
     /**
      * Get the configured file or PEM keys, including retained verification keys.
+     *
+     * @internal shared with the signing-key repository for file imports
      *
      * @return list<ServerKey>
      */
