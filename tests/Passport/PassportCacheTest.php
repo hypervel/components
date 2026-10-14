@@ -186,15 +186,18 @@ class PassportCacheTest extends TestCase
         $original = $connection->getRawReadPdo();
         $replica = new PDO('sqlite::memory:');
         $replica->exec('create table oauth_access_tokens (id text primary key, revoked integer)');
-        $replica->exec('create table oauth_clients (id text primary key, revoked integer)');
+        $replica->exec('create table oauth_clients (id text primary key, revoked integer, provider text, grant_types text, created_at text)');
+        $personal = $repository->createPersonalAccessGrantClient('Personal', 'users');
         $connection->setReadPdo($replica);
 
         try {
             $this->assertNull($connection->table('oauth_access_tokens')->find($token->id));
             $this->assertFalse(Token::findToken($token->id)->revoked);
             $this->assertNotNull($repository->findActive($client->id));
+            $this->assertSame($personal->id, $repository->personalAccessClient('users')->id);
+            $this->assertNull(Client::query()->find($personal->id));
             $replica->prepare('insert into oauth_access_tokens values (?, 0)')->execute([$token->id]);
-            $replica->prepare('insert into oauth_clients values (?, 0)')->execute([$client->id]);
+            $replica->prepare('insert into oauth_clients (id, revoked) values (?, 0)')->execute([$client->id]);
             $token->revoke();
             $client->revoke();
             $this->assertSame(0, $connection->table('oauth_access_tokens')->find($token->id)->revoked);
@@ -303,13 +306,13 @@ class PassportCacheTest extends TestCase
         $rows = [];
 
         for ($index = 0; $index < 1002; ++$index) {
-            $rows[] = ['id' => sprintf('token-%04d', $index), 'client_id' => $client->id];
+            $rows[] = ['id' => sprintf('token-%04d', $index), 'client_id' => $client->id, 'name' => sprintf('%04d', $index)];
         }
 
         Token::query()->insert($rows);
         $this->assertFalse(Token::findToken('token-0000')->revoked);
         $this->assertFalse(Token::findToken('token-1001')->revoked);
-        $relation = $client->tokens();
+        $relation = $client->tokens()->orderByDesc('name');
         $this->assertSame(1002, $relation->update(['revoked' => true]));
         $this->assertTrue(Token::findToken('token-0000')->revoked);
         $this->assertTrue(Token::findToken('token-1001')->revoked);
@@ -317,6 +320,31 @@ class PassportCacheTest extends TestCase
         $this->assertNull(Token::findToken('token-0000'));
         $this->assertNull(Token::findToken('token-1001'));
         $this->assertSame(0, $client->tokens()->count());
+    }
+
+    #[TestWith([null, ['one', 'two', 'four']])]
+    #[TestWith([2, ['one', 'four']])]
+    public function testOrderedRelationUpdatesPreserveOffsetAndLimit(?int $limit, array $changed): void
+    {
+        $client = $this->createClient();
+        $names = ['one' => 'C', 'two' => 'A', 'three' => 'D', 'four' => 'B'];
+
+        foreach ($names as $id => $name) {
+            Token::query()->create(['id' => $id, 'name' => $name, 'client_id' => $client->id]);
+            $this->assertFalse(Token::findToken($id)->revoked);
+        }
+
+        $relation = $client->tokens()->orderByDesc('name')->offset(1);
+
+        if ($limit !== null) {
+            $relation->limit($limit);
+        }
+
+        $this->assertSame(count($changed), $relation->update(['revoked' => true]));
+
+        foreach ($names as $id => $name) {
+            $this->assertSame(in_array($id, $changed, true), Token::findToken($id)->revoked);
+        }
     }
 
     public function testBatchInvalidationContinuesAfterAFailureFollowingCommit(): void
@@ -533,6 +561,11 @@ class PassportCacheTest extends TestCase
                 'loaded-wrapper', 'query-wrapper' => $access->revoke(),
                 'repository' => $this->app->make(AccessTokenRepository::class)->revokeAccessToken($token->id),
             };
+
+            if ($path === 'query-wrapper') {
+                $this->assertFalse($access->revoke());
+            }
+
             $this->assertTrue(Token::findToken($token->id)->revoked);
             $this->assertEquals($cachedBefore, $cache->get('passport:tokens:' . $token->id));
             $this->assertSame([], $events);

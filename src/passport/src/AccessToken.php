@@ -104,7 +104,7 @@ class AccessToken implements ScopeAuthorizable, Arrayable, Jsonable, JsonSeriali
         if (isset($this->attributes['oauth_access_token_id'])) {
             $token = Passport::token();
             $tokenId = $this->attributes['oauth_access_token_id'];
-            $revoked = (bool) $token->newQuery()->whereKey($tokenId)->update(['revoked' => true]);
+            $revoked = (bool) $token->newQuery()->whereKey($tokenId)->where('revoked', false)->update(['revoked' => true]);
 
             if ($revoked) {
                 $token::clearTokenCache($tokenId);

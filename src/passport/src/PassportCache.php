@@ -239,17 +239,30 @@ class PassportCache
         return $connection->transaction(function () use ($query, $write, $type, $key, $qualifiedKey, $connection): int {
             $affected = 0;
 
-            (clone $query)->select($qualifiedKey)->useWritePdo()->toBase()->chunkById(
-                self::MUTATION_BATCH_SIZE,
-                function (Collection $rows) use ($query, $write, $type, $key, $connection, &$affected): void {
-                    $ids = $rows->pluck($key)->all();
-                    $affected += $write((clone $query)->whereKey($ids));
+            $selection = (clone $query)->select($qualifiedKey)->useWritePdo()->toBase();
+            $writeBatch = function (array $ids) use ($query, $write, $type, $connection, &$affected): void {
+                $affected += $write((clone $query)->whereKey($ids)->limit(null)->offset(null));
+                $this->forgetMany($type, $ids, $connection);
+            };
 
-                    $this->forgetMany($type, $ids, $connection);
-                },
-                $qualifiedKey,
-                $key,
-            );
+            if ($selection->getLimit() !== null) {
+                foreach (array_chunk($selection->pluck($qualifiedKey)->all(), self::MUTATION_BATCH_SIZE) as $ids) {
+                    $writeBatch($ids);
+                }
+            } else {
+                if ($offset = $selection->getOffset()) {
+                    $excluded = (clone $selection)->offset(0)->limit($offset)->pluck($qualifiedKey)->all();
+                    $selection->whereNotIn($qualifiedKey, $excluded)->offset(0);
+                }
+
+                // Other sort columns would make chunkById skip records between batches.
+                $selection->reorder()->chunkById(
+                    self::MUTATION_BATCH_SIZE,
+                    static fn (Collection $rows) => $writeBatch($rows->pluck($key)->all()),
+                    $qualifiedKey,
+                    $key,
+                );
+            }
 
             return $affected;
         });
