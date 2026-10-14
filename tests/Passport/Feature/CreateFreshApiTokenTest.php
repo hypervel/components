@@ -7,10 +7,12 @@ namespace Hypervel\Tests\Passport\Feature;
 use Hypervel\Http\Request;
 use Hypervel\Passport\Http\Middleware\CreateFreshApiToken;
 use Hypervel\Passport\Passport;
+use Hypervel\Session\Middleware\StartSession;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\Concerns\WithHypervelMigrations;
 use Hypervel\Tests\Passport\Fixtures\User;
 use Hypervel\Tests\Passport\Fixtures\UserFactory;
+use PHPUnit\Framework\Attributes\TestWith;
 use Symfony\Component\HttpFoundation\Cookie;
 
 class CreateFreshApiTokenTest extends PassportTestCase
@@ -77,5 +79,39 @@ class CreateFreshApiTokenTest extends PassportTestCase
     public function testShouldResolveTheUserFromTheGivenGuard(): void
     {
         $this->actingAs($this->user, 'web')->get('/fresh-api')->assertOk()->assertCookieMissing(Passport::cookie());
+    }
+
+    #[TestWith([true])]
+    #[TestWith([false])]
+    public function testLogoutExpiresTheExistingApiCookie(bool $hasCookie): void
+    {
+        config(['session.domain' => '.example.com']);
+        StartSession::configureSessionCookieUsing(fn (Request $request, array $config): array => [
+            ...$config,
+            'path' => '/organization',
+            'domain' => '',
+        ]);
+        Route::post('/organization/logout', function (): string {
+            auth('web')->logout();
+
+            return 'logged out';
+        })->middleware('web');
+        $this->actingAs($this->user, 'web');
+
+        if ($hasCookie) {
+            $fresh = $this->get('/fresh')->assertOk()->getCookie(Passport::cookie());
+            $this->withCookie(Passport::cookie(), $fresh->getValue());
+        }
+
+        $response = $this->post('/organization/logout')->assertOk();
+
+        if ($hasCookie) {
+            $response->assertCookieExpired(Passport::cookie());
+            $expired = $response->getCookie(Passport::cookie(), false);
+            $this->assertSame('/organization', $expired->getPath());
+            $this->assertSame('', $expired->getDomain());
+        } else {
+            $response->assertCookieMissing(Passport::cookie());
+        }
     }
 }
