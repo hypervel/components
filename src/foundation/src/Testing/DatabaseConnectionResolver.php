@@ -19,8 +19,6 @@ use Hypervel\Database\Pool\PooledConnection;
 use Throwable;
 use UnitEnum;
 
-use function Hypervel\Support\enum_value;
-
 /**
  * Database connection resolver for the testing environment.
  *
@@ -171,6 +169,11 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
     public function hasApplicableTransaction(UnitEnum|string|null $name = null): bool
     {
         $name = $this->connectionName($name);
+
+        if ($this->poolEnabled(ConnectionName::parse($name))) {
+            return parent::hasApplicableTransaction($name);
+        }
+
         $connection = $this->getResolvedConnection($name);
 
         return $connection instanceof Connection
@@ -230,21 +233,10 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
      */
     public function connection(UnitEnum|string|null $name = null): ConnectionInterface
     {
-        if ($name instanceof UnitEnum) {
-            $name = (string) enum_value($name);
-        }
-
-        $name = $name === null || $name === ''
-            ? $this->getDefaultConnection()
-            : $name;
-
-        $connectionName = ConnectionName::parse($name);
+        $connectionName = ConnectionName::parse($this->connectionName($name));
 
         // If the pool is enabled, we should use the default connection resolver.
-        /** @var ConfigRepository $config */
-        $config = $this->container->make('config');
-        $poolEnabled = $config->boolean("database.connections.{$connectionName->base}.pool.testing_enabled", false);
-        if ($poolEnabled) {
+        if ($this->poolEnabled($connectionName)) {
             return parent::connection($connectionName->requested);
         }
 
@@ -301,6 +293,17 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
         }
 
         return $connection;
+    }
+
+    /**
+     * Determine whether this test uses coroutine-owned pooled connections.
+     */
+    protected function poolEnabled(ConnectionName $name): bool
+    {
+        /** @var ConfigRepository $config */
+        $config = $this->container->make('config');
+
+        return $config->boolean("database.connections.{$name->base}.pool.testing_enabled", false);
     }
 
     /**

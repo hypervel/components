@@ -251,6 +251,42 @@ class DatabaseConnectionResolverTest extends TestCase
         $this->assertSame('1', $resolver->connection(DatabaseTestingConnectionName::One)->getName());
     }
 
+    public function testPooledTransactionChecksIgnoreARetainedTestingConnection(): void
+    {
+        $database = $this->app->storagePath('transaction-resolver.sqlite');
+        touch($database);
+        try {
+            config(['database.connections.testing.database' => $database]);
+            $resolver = $this->app->make(DatabaseConnectionResolver::class);
+            $retained = $resolver->connection();
+            $pool = $this->app->make(PoolManager::class)->pool('testing');
+            $borrowed = $pool->getBorrowedCount();
+            $retained->beginTransaction();
+
+            try {
+                $this->assertTrue($resolver->hasApplicableTransaction());
+                config(['database.connections.testing.pool.testing_enabled' => true]);
+                $this->assertFalse($resolver->hasApplicableTransaction());
+                $this->assertSame($borrowed, $pool->getBorrowedCount());
+            } finally {
+                $retained->rollBack();
+            }
+
+            $pooled = $resolver->connection();
+            $this->assertNotSame($retained, $pooled);
+            $pooled->beginTransaction();
+
+            try {
+                $this->assertFalse($retained->hasApplicableTransaction());
+                $this->assertTrue($resolver->hasApplicableTransaction());
+            } finally {
+                $pooled->rollBack();
+            }
+        } finally {
+            unlink($database);
+        }
+    }
+
     public function testNamedFlushDiscardsTheOwningWrapperAndRestoresPoolCapacity(): void
     {
         $this->app->make('config')->set('database.connections.testing.pool.max_connections', 1);
