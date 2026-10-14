@@ -86,14 +86,14 @@ interface ChannelInterface
     public function isClosing(): bool;
 
     /**
-     * Determine whether the last operation was canceled.
+     * Determine whether the last failed operation was canceled.
      *
      * This state must be inspected immediately after a failed operation.
      */
     public function isCanceled(): bool;
 
     /**
-     * Determine whether the last operation timed out.
+     * Determine whether the last failed operation timed out.
      *
      * This state must be inspected immediately after a failed operation.
      */

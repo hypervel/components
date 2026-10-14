@@ -465,7 +465,7 @@ After a failed operation, you may inspect the channel state:
 
 ```php
 if ($channel->isTimeout()) {
-    // The last operation timed out...
+    // The last failed operation timed out...
 }
 
 if ($channel->isClosing()) {
@@ -473,11 +473,11 @@ if ($channel->isClosing()) {
 }
 
 if ($channel->isCanceled()) {
-    // The last operation was canceled...
+    // The last failed operation was canceled...
 }
 ```
 
-The timeout, closure, and cancellation state describes only the last channel operation. Inspect it immediately after `push` or `pop` returns `false`.
+Inspect these methods immediately after a failed operation. Since `pop` also returns `false` when it fails, wrap `false` values, for example as `[$value]`, when a channel needs to carry them.
 
 You may also inspect the channel's capacity, current length, and availability:
 
