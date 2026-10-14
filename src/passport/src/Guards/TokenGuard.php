@@ -188,6 +188,7 @@ class TokenGuard implements Guard
 
         $oauthUserId = $psr->getAttribute('oauth_user_id');
 
+        // League uses the client ID for tokens without a user, even if the client's allowed grants later change.
         if (empty($oauthUserId) || $oauthUserId === $psr->getAttribute('oauth_client_id')) {
             return null;
         }
@@ -217,6 +218,7 @@ class TokenGuard implements Guard
         try {
             return $this->servers->validateAuthenticatedRequest($request, $cache);
         } catch (OAuthServerException) {
+            // Invalid tokens are expected client errors; leave the header for other guards and do not report them.
             return null;
         }
     }

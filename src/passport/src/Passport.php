@@ -951,6 +951,7 @@ class Passport
      */
     public static function authorizationView(Closure|string $view): void
     {
+        // withParameters() stores consent data, so each resolution needs its own response.
         app()->bind(AuthorizationViewResponse::class, fn () => new SimpleViewResponse($view));
     }
 
