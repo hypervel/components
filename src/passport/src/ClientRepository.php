@@ -62,6 +62,7 @@ class ClientRepository
     {
         return Passport::client()
             ->newQuery()
+            ->useWritePdo()
             ->where('revoked', false)
             ->whereJsonContains('grant_types', 'personal_access')
             ->where(function (Builder $query) use ($provider): void {
