@@ -104,7 +104,7 @@ class Token extends Model
         return $this->newBelongsTo(
             $client->newQuery(),
             $this,
-            'client_' . $client->getKeyName(),
+            'client_id',
             $client->getKeyName(),
             'client'
         );

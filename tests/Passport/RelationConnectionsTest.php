@@ -129,6 +129,23 @@ class RelationConnectionsTest extends TestCase
         $this->assertNull($clients->find($owned->id));
         $this->assertSame($personal->id, $clients->findActive($personal->id)->id);
     }
+
+    public function testTokenClientRelationKeepsItsForeignKeyWithACustomClientPrimaryKey(): void
+    {
+        Passport::useClientModel(PassportCustomKeyClient::class);
+        DB::connection()->getSchemaBuilder()->create('oauth_clients', static function (Blueprint $table): void {
+            $table->uuid('client_uuid')->primary();
+            $table->timestamps();
+        });
+        (require __DIR__ . '/../../src/passport/database/migrations/2016_06_01_000002_create_oauth_access_tokens_table.php')->up();
+
+        $client = PassportCustomKeyClient::create();
+        $token = $client->tokens()->create(['id' => 'token', 'revoked' => false]);
+
+        $this->assertSame($client->getKey(), $token->client_id);
+        $this->assertSame($client->getKey(), $token->client->getKey());
+        $this->assertSame($client->getKey(), $token->fresh()->load('client')->client->getKey());
+    }
 }
 
 class PassportConnectionUser extends User
@@ -141,4 +158,9 @@ class PassportConnectionUser extends User
 class PassportConnectionClient extends Client
 {
     protected UnitEnum|string|null $connection = 'passport_clients';
+}
+
+class PassportCustomKeyClient extends Client
+{
+    protected string $primaryKey = 'client_uuid';
 }
