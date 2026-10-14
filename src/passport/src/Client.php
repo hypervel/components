@@ -157,7 +157,7 @@ class Client extends Model
      */
     public function firstParty(): bool
     {
-        return empty($this->owner_id);
+        return $this->owner_id === null;
     }
 
     /**

@@ -45,6 +45,13 @@ final class ClientTest extends TestCase
         $this->assertFalse($client->hasScope('foo'));
     }
 
+    public function testAClientOwnedByUserZeroIsNotFirstParty(): void
+    {
+        $client = new Client(['owner_id' => 0]);
+
+        $this->assertFalse($client->firstParty());
+    }
+
     public function testScopesWhenClientHasScope(): void
     {
         $client = new Client(['scopes' => ['foo', 'bar']]);
