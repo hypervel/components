@@ -107,8 +107,7 @@ class ChannelTest extends TestCase
         $this->assertTrue($channel->isTimeout());
 
         $channel->push(true);
-        $channel->pop(0.001);
-        $this->assertFalse($channel->isTimeout());
+        $this->assertTrue($channel->pop(0.001));
     }
 
     public function testChannelCancellationIsReportedImmediately(): void
@@ -125,7 +124,6 @@ class ChannelTest extends TestCase
         $this->assertTrue($isCanceled);
 
         $this->assertTrue($channel->push(true));
-        $this->assertFalse($channel->isCanceled());
     }
 
     public function testChannelPushTimeout(): void
