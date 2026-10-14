@@ -21,7 +21,7 @@ Custom conversation stores must implement `ClaimsPendingApprovals` to resume sto
 
 Skill discovery is cached for the fixed paths in `ai.skills.cached_paths`. [Reload services](https://hypervel.org/docs/deployment#reloading-services) after changing those files; skills loaded during application boot require a full restart. Other skill sources remain dynamic. Set `cached_paths` to `[]` to disable caching. See [skills](https://hypervel.org/docs/ai-sdk#skills).
 
-The conversation migrations use Hypervel's column types, indexes, and approval claim fields. Existing Laravel conversation data requires a schema migration before use.
+The conversation migrations use Hypervel's column types, indexes, and approval claim fields. Existing Laravel conversation data requires a [schema migration](https://hypervel.org/docs/ai-sdk#migrating-conversation-data) before use.
 
 Remote downloads share the HTTP client's destination checks. The protected `UntrustedUrl::validate()`, `resolve()`, and `isBlocked()` helpers and hostname-blocklist constants are removed; `resolveUsing()` remains available. URLs containing embedded credentials are rejected. Downloads are limited to 32 MiB of decoded content by default; configure `ai.remote_files.max_size` to change or disable the limit. See [remote attachments](https://hypervel.org/docs/ai-sdk#remote-attachments).
 
