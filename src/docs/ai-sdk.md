@@ -1,4 +1,4 @@
-# Laravel AI SDK
+# Hypervel AI SDK
 
 - [Introduction](#introduction)
 - [Installation](#installation)
@@ -6,13 +6,18 @@
     - [Custom Base URLs](#custom-base-urls)
     - [OpenAI-Compatible Providers](#openai-compatible-providers)
     - [On-Demand Providers](#on-demand-providers)
+    - [Resolving Provider Configuration](#resolving-provider-configuration)
+    - [Amazon Bedrock](#amazon-bedrock)
     - [Provider Support](#provider-support)
 - [Agents](#agents)
     - [Prompting](#prompting)
     - [Conversation Context](#conversation-context)
+        - [Conversation Partitions](#conversation-partitions)
+        - [Custom Conversation Stores](#custom-conversation-stores)
     - [Structured Output](#structured-output)
     - [Attachments](#attachments)
     - [Streaming](#streaming)
+        - [Capturing Application Context](#capturing-application-context)
     - [Broadcasting](#broadcasting)
     - [Queueing](#queueing)
     - [Tools](#tools)
@@ -37,6 +42,7 @@
     - [Multimodal Embeddings](#multimodal-embeddings)
     - [Querying Embeddings](#querying-embeddings)
     - [Caching Embeddings](#caching-embeddings)
+        - [Cache Scopes](#embedding-cache-scopes)
 - [Reranking](#reranking)
 - [Classification](#classification)
     - [Yes or No Decisions](#yes-or-no-decisions)
@@ -61,24 +67,24 @@
 <a name="introduction"></a>
 ## Introduction
 
-The [Laravel AI SDK](https://github.com/laravel/ai) provides a unified, expressive API for interacting with AI providers such as OpenAI, Anthropic, Gemini, and more. With the AI SDK, you can build intelligent agents with tools and structured output, generate images, synthesize and transcribe audio, create vector embeddings, and much more — all using a consistent, Laravel-friendly interface.
+The [Hypervel AI SDK](https://github.com/hypervel/ai) provides a unified, expressive API for interacting with AI providers such as OpenAI, Anthropic, Gemini, and more. With the AI SDK, you can build intelligent agents with tools and structured output, generate images, synthesize and transcribe audio, create vector embeddings, and much more — all using a consistent, Laravel-style interface.
 
 <a name="installation"></a>
 ## Installation
 
-You can install the Laravel AI SDK via Composer:
+You can install the Hypervel AI SDK via Composer:
 
 ```shell
-composer require laravel/ai
+composer require hypervel/ai
 ```
 
 Next, you should publish the AI SDK configuration and migration files using the `vendor:publish` Artisan command:
 
 ```shell
-php artisan vendor:publish --provider="Laravel\Ai\AiServiceProvider"
+php artisan vendor:publish --provider="Hypervel\Ai\AiServiceProvider"
 ```
 
-Finally, you should run your application's database migrations. This will create a `agent_conversations` and `agent_conversation_messages` table that the AI SDK uses to power its conversation storage:
+Finally, you should run your application's database migrations. This will create the `agent_conversations` and `agent_conversation_messages` tables that the AI SDK uses to power its conversation storage:
 
 ```shell
 php artisan migrate
@@ -129,10 +135,12 @@ public function boot(): void
 
 Connection names use the provider's configured name, such as `ai-providers.openai`. On-demand providers use the shared `ai-providers` connection. When Bedrock assumes an IAM role, its AWS STS requests also use the shared connection. Continue supplying API keys and provider-specific headers through the AI provider configuration; they remain separate for each request.
 
+Before sending a real provider request, the HTTP client releases idle database sessions so they remain available to other requests while the model responds. Transactions, cursors, and pinned sessions remain held. If a tool relies on session-specific database state, use the database's [session pinning API](/docs/{{version}}/database#releasing-and-pinning-connections). Avoid holding a transaction open while waiting for a provider.
+
 <a name="custom-base-urls"></a>
 ### Custom Base URLs
 
-By default, the Laravel AI SDK connects directly to each provider's public API endpoint. However, you may need to route requests through a different endpoint - for example, when using a proxy service to centralize API key management, implement rate limiting, or route traffic through a corporate gateway.
+By default, the Hypervel AI SDK connects directly to each provider's public API endpoint. However, you may need to route requests through a different endpoint - for example, when using a proxy service to centralize API key management, implement rate limiting, or route traffic through a corporate gateway.
 
 You may configure custom base URLs by adding a `url` parameter to your provider configuration:
 
@@ -174,7 +182,7 @@ If you are using an OpenAI-compatible API, such as LM Studio, vLLM, Together, Fi
 Once configured, you may use the named provider like any other provider:
 
 ```php
-agent()->prompt('What is Laravel?', provider: 'local', model: 'local-model');
+agent()->prompt('What is Hypervel?', provider: 'local', model: 'local-model');
 ```
 
 You may also configure a default text model for the provider so that you do not need to pass a model explicitly:
@@ -254,7 +262,7 @@ Sometimes you may need to use provider credentials that are not defined in your 
 
 ```php
 use App\Ai\Agents\SalesCoach;
-use Laravel\Ai\Ai;
+use Hypervel\Ai\Ai;
 
 $response = (new SalesCoach)->prompt('Analyze this sales transcript...', provider: [
     Ai::build([
@@ -280,8 +288,8 @@ $response = (new SalesCoach)->prompt('Analyze this sales transcript...', provide
 When an agent should always use an on-demand provider, you may return the provider from the agent's `provider` method. Since the provider is rebuilt when the agent is used, this approach also works well for [queued](#queueing) agents:
 
 ```php
-use Laravel\Ai\Ai;
-use Laravel\Ai\Providers\Provider;
+use Hypervel\Ai\Ai;
+use Hypervel\Ai\Providers\Provider;
 
 public function provider(): Provider
 {
@@ -294,6 +302,43 @@ public function provider(): Provider
 
 Bedrock reuses the AWS credentials it resolves for each configured provider. On-demand providers, and configured providers when `Ai::resolveProviderConfigUsing` is registered, resolve credentials again for each new provider. Assuming a role or fetching credentials from a remote source can therefore add a network request; loading static credentials from environment variables or a shared credentials file does not.
 
+<a name="resolving-provider-configuration"></a>
+### Resolving Provider Configuration
+
+If your application resolves credentials or model settings for the current account, you may register a provider configuration resolver in a service provider's `boot` method. The resolver receives the provider name and its configured values and returns the configuration for that operation:
+
+```php
+use App\Support\AccountContext;
+use Hypervel\Ai\Ai;
+
+public function boot(AccountContext $accounts): void
+{
+    Ai::resolveProviderConfigUsing(
+        fn (string $name, array $config): array => $accounts->providerConfig($name, $config),
+    );
+}
+```
+
+In this example, `AccountContext` is an application service that reads the current account without storing request-specific values on a shared instance. Return the complete provider configuration, including its `driver` and any model defaults you want to retain. Explicitly built on-demand providers retain their own configuration.
+
+When this resolver is registered, configured providers, including those with custom creators, are rebuilt on every lookup. Keep the resolver and any custom creators inexpensive and stateless. Avoid repeating database or remote credential lookups when your application already has the values for the current operation.
+
+Register the resolver once during application boot, not while handling a request. The same rule applies to the conversation partition, embedding cache scope, and context capture hooks described below; registering a hook twice throws a `LogicException`. Do not change global configuration to select credentials for a request.
+
+<a name="amazon-bedrock"></a>
+### Amazon Bedrock
+
+The Bedrock provider requires the AWS SDK for PHP:
+
+```shell
+composer require aws/aws-sdk-php:^3.369.1
+```
+
+Configure your region using `AWS_BEDROCK_REGION`. You may authenticate with `AWS_BEARER_TOKEN_BEDROCK`, explicit AWS access credentials, or the AWS SDK's default credential provider chain. The `bedrock` entry in `config/ai.php` also supports assuming a role through its `assume_role` settings. The AWS SDK handles credential discovery and retries; Bedrock requests and explicit role-assumption requests use Hypervel's HTTP client.
+
+> [!WARNING]
+> The AWS SDK's event decoder currently has issues with partial checksum reads and the final event at end of stream. Bedrock streaming can fail with a checksum error, omit final usage, or report an incomplete stream instead of a final provider error. See [AWS SDK #3371](https://github.com/aws/aws-sdk-php/issues/3371) and [#3374](https://github.com/aws/aws-sdk-php/issues/3374).
+
 <a name="provider-support"></a>
 ### Provider Support
 
@@ -303,21 +348,22 @@ The AI SDK supports a variety of providers across its features. The following ta
 
 | Feature | Providers |
 |---|---|
-| Text | OpenAI, OpenAI Compatible, Anthropic, Gemini, Azure, Bedrock, Groq, xAI, DeepSeek, Mistral, Ollama, OpenRouter |
+| Text | OpenAI, OpenAI Compatible, Anthropic, Gemini, Azure, Bedrock, Cohere, Groq, xAI, DeepSeek, Mistral, Ollama, OpenRouter |
 | Images | OpenAI, Gemini, xAI, Azure, Bedrock, OpenRouter |
 | TTS | OpenAI, ElevenLabs, Gemini, Mistral, OpenRouter |
 | STT | OpenAI, OpenAI Compatible, ElevenLabs, Groq, Mistral, Gemini, OpenRouter |
 | Embeddings | OpenAI, OpenAI Compatible, Gemini, Azure, Bedrock, Cohere, Mistral, Jina, VoyageAI, Ollama, OpenRouter |
 | Reranking | Cohere, Jina, VoyageAI, Bedrock, OpenRouter |
-| Classification | TypeSafe, OpenRouter |
+| Classification | TypeSafe, OpenAI, OpenRouter |
 | Files | OpenAI, Anthropic, Gemini, Azure, OpenRouter |
+| Vector Stores | OpenAI, Gemini, Azure |
 
 </div>
 
-The `Laravel\Ai\Enums\Lab` enum may be used to reference providers throughout your code instead of using plain strings:
+The `Hypervel\Ai\Enums\Lab` enum may be used to reference providers throughout your code instead of using plain strings:
 
 ```php
-use Laravel\Ai\Enums\Lab;
+use Hypervel\Ai\Enums\Lab;
 
 Lab::Anthropic;
 Lab::OpenAI;
@@ -329,7 +375,7 @@ Lab::Gemini;
 <a name="agents"></a>
 ## Agents
 
-Agents are the fundamental building block for interacting with AI providers in the Laravel AI SDK. Each agent is a dedicated PHP class that encapsulates the instructions, conversation context, tools, and output schema needed to interact with a large language model. Think of an agent as a specialized assistant — a sales coach, a document analyzer, a support bot — that you configure once and prompt as needed throughout your application.
+Agents are the fundamental building block for interacting with AI providers in the Hypervel AI SDK. Each agent is a dedicated PHP class that encapsulates the instructions, conversation context, tools, and output schema needed to interact with a large language model. Think of an agent as a specialized assistant — a sales coach, a document analyzer, a support bot — that you configure once and prompt as needed throughout your application.
 
 You can create an agent via the `make:agent` Artisan command:
 
@@ -349,13 +395,14 @@ namespace App\Ai\Agents;
 use App\Ai\Tools\RetrievePreviousTranscripts;
 use App\Models\History;
 use App\Models\User;
-use Illuminate\Contracts\JsonSchema\JsonSchema;
-use Laravel\Ai\Contracts\Agent;
-use Laravel\Ai\Contracts\Conversational;
-use Laravel\Ai\Contracts\HasStructuredOutput;
-use Laravel\Ai\Contracts\HasTools;
-use Laravel\Ai\Messages\Message;
-use Laravel\Ai\Promptable;
+use Hypervel\Ai\Contracts\Agent;
+use Hypervel\Ai\Contracts\Conversational;
+use Hypervel\Ai\Contracts\HasStructuredOutput;
+use Hypervel\Ai\Contracts\HasTools;
+use Hypervel\Ai\Contracts\Tool;
+use Hypervel\Ai\Messages\Message;
+use Hypervel\Ai\Promptable;
+use Hypervel\Contracts\JsonSchema\JsonSchema;
 use Stringable;
 
 class SalesCoach implements Agent, Conversational, HasTools, HasStructuredOutput
@@ -430,6 +477,8 @@ The `make` method resolves your agent from the container, allowing automatic dep
 $agent = SalesCoach::make(user: $user);
 ```
 
+Agent instances are fresh when resolved from the container. Keep each configured instance with the request or operation that owns it; do not bind an agent carrying user data as a singleton.
+
 By passing additional arguments to the `prompt` method, you may override the default provider, model, or HTTP timeout when prompting:
 
 ```php
@@ -449,7 +498,7 @@ Every response returned from a text-generating agent exposes the raw HTTP respon
 ```php
 $response = (new SalesCoach)->prompt('Analyze this sales transcript...');
 
-$response->raw; // Illuminate\Http\Client\Response|null
+$response->raw; // Hypervel\Http\Client\Response|null
 
 $response->raw->header('X-RateLimit-Remaining-Requests');
 $response->raw->json('id');
@@ -490,7 +539,7 @@ public function messages(): iterable
 If your agent does not implement the `Conversational` interface, you may use the `withMessages` method to provide the conversation history for a single run, such as a history posted by your application's frontend:
 
 ```php
-use Laravel\Ai\Messages\Message;
+use Hypervel\Ai\Messages\Message;
 
 $response = (new SalesCoach)
     ->withMessages([
@@ -507,17 +556,17 @@ Agents that implement the `Conversational` interface load their own history, so 
 
 > **Warning:** Before using the `RemembersConversations` trait, you should publish and run the AI SDK migrations using the `vendor:publish` Artisan command. These migrations will create the necessary database tables to store conversations.
 
-If you would like Laravel to automatically store and retrieve conversation history for your agent, you may use the `RemembersConversations` trait. This trait provides a simple way to persist conversation messages to the database without manually implementing the `Conversational` interface:
+If you would like Hypervel to automatically store and retrieve conversation history for your agent, you may use the `RemembersConversations` trait. This trait provides a simple way to persist conversation messages to the database without manually implementing the `Conversational` interface:
 
 ```php
 <?php
 
 namespace App\Ai\Agents;
 
-use Laravel\Ai\Concerns\RemembersConversations;
-use Laravel\Ai\Contracts\Agent;
-use Laravel\Ai\Contracts\Conversational;
-use Laravel\Ai\Promptable;
+use Hypervel\Ai\Concerns\RemembersConversations;
+use Hypervel\Ai\Contracts\Agent;
+use Hypervel\Ai\Contracts\Conversational;
+use Hypervel\Ai\Promptable;
 
 class SalesCoach implements Agent, Conversational
 {
@@ -550,8 +599,8 @@ The conversation ID is returned on the response and can be stored for future ref
 
 namespace App\Models;
 
-use Illuminate\Foundation\Auth\User as Authenticatable;
-use Laravel\Ai\Concerns\HasConversations;
+use Hypervel\Ai\Concerns\HasConversations;
+use Hypervel\Foundation\Auth\User as Authenticatable;
 
 class User extends Authenticatable
 {
@@ -593,6 +642,8 @@ $response->assistantMessageId;
 
 The database conversation store saves each turn in a short transaction, so a storage failure won't leave only half of the turn in your history. Provider requests and title generation finish before this transaction begins.
 
+The store uses your default database connection unless `ai.conversations.connection` names another connection. You may customize the table names through `ai.conversations.tables`; set these values before running the published migrations.
+
 <a name="conversation-titles"></a>
 #### Conversation Titles
 
@@ -608,6 +659,8 @@ By default, title generation runs after the agent responds. You may generate tit
 ```
 
 When starting a new conversation, concurrent title generation runs alongside the main response. For streamed responses, it starts when the stream is consumed. The SDK waits for the title before saving the turn and cancels unfinished title requests when the operation is abandoned. Enabling this option may incur a title request even if the agent fails, including a separate title request for each failover attempt.
+
+Concurrent titles run in a separate coroutine. If your provider configuration or other hooks depend on application context, register [context capture](#capturing-application-context) so that work sees the same values.
 
 Agent fakes retain their usual response order by generating titles serially. When using HTTP fakes with concurrent titles, match requests by their content instead of relying on the order of a response sequence. The title and main requests can use the same provider endpoint.
 
@@ -659,7 +712,7 @@ If your application uses multiple participant model types, you should consider d
 When displaying a conversation to your users, you often need details such as message IDs, timestamps, and tool calls. You may resolve the conversation store from the service container to read the stored messages without querying the AI SDK's tables directly:
 
 ```php
-use Laravel\Ai\Contracts\ConversationStore;
+use Hypervel\Ai\Contracts\ConversationStore;
 
 $store = app(ConversationStore::class);
 ```
@@ -691,7 +744,7 @@ $message->toolResults();
 
 A tool call contains a `result` once it has been executed. Tool calls that contain an `approval_reason` but no `result` are still awaiting a [tool approval](#human-tool-approval).
 
-The `status` property contains a `Laravel\Ai\Enums\MessageStatus` instance. A turn that failed partway through is stored as `Failed` along with the steps it had already completed, so tool calls that ran before the failure remain in the history. When the conversation continues, any tool call without a recorded result is sent to the model marked as interrupted, since Laravel cannot determine whether it ran.
+The `status` property contains a `Hypervel\Ai\Enums\MessageStatus` instance. A turn that failed partway through is stored as `Failed` along with the steps it had already completed, so tool calls that ran before the failure remain in the history. When the conversation continues, any tool call without a recorded result is sent to the model marked as interrupted, since Hypervel cannot determine whether it ran.
 
 Before continuing a conversation via an ID provided by your application's frontend, you should verify that the conversation was stored for the given participant:
 
@@ -741,20 +794,86 @@ class AuthorizedConversationStore extends DatabaseConversationStore
 
 Bind your store to `Hypervel\Ai\Contracts\ConversationStore` in an application service provider, passing the configured `ai.conversations.connection` to its constructor. This hook applies to writes through the store, including approval claims; direct model and query builder writes need their own authorization.
 
+<a name="conversation-partitions"></a>
+#### Conversation Partitions
+
+Applications that keep several accounts' conversations in the same tables may register a partition column and resolver during boot:
+
+```php
+use Hypervel\Ai\Ai;
+use Hypervel\Support\Facades\Context;
+
+public function boot(): void
+{
+    Ai::resolveConversationPartitionUsing(
+        'account_id',
+        fn (): int|string|null => Context::get('account_id'),
+    );
+}
+```
+
+Add the account ID to [Context](/docs/{{version}}/context) in your application's middleware before using conversations. Context carries it into queued jobs, including model restoration. The resolver may return an integer or string. Once partitioning is configured, a null or empty value throws instead of reading unpartitioned data. The database store and conversation models scope their reads and writes to that value. Partitioning does not replace authorization between users within the same account.
+
+The published migration is unpartitioned. Before running it, add your partition column to both tables, using the same type as your account key. Prepend it to each conversation and message lookup index. For UUID accounts, the relevant additions to the conversation table are:
+
+```php
+$table->uuid('account_id');
+$table->unique(['account_id', 'id']);
+$table->index(['account_id', 'participant_type', 'participant_id', 'updated_at'], 'participant_updated_at_index');
+```
+
+In the messages table, replace the single-column conversation foreign key with a composite foreign key so a message cannot reference another account's conversation:
+
+```php
+$table->uuid('account_id');
+$table->uuid('conversation_id');
+$table->foreign(['account_id', 'conversation_id'])
+    ->references(['account_id', 'id'])
+    ->on($conversationsTable)
+    ->cascadeOnDelete();
+
+$table->index(['account_id', 'conversation_id', 'id'], 'conversation_messages_index');
+$table->index(['account_id', 'participant_type', 'participant_id', 'agent', 'id'], 'participant_index');
+$table->index(['account_id', 'conversation_id', 'status', 'id'], 'conversation_status_index');
+$table->index(['account_id', 'conversation_id', 'has_replay_blocks', 'id'], 'conversation_replay_index');
+```
+
+Replace the original indexes with these partitioned versions. Keep the remaining columns from the published migration. For existing data, assign and verify ownership before making the partition columns required and adding the composite constraint.
+
+Model `save` and `saveOrIgnore` calls stamp the current partition. Raw or bulk inserts, including `fillAndInsert` methods, bypass these checks and must supply the correct partition values themselves. A loaded model cannot be moved to another partition through an ordinary save.
+
+<a name="custom-conversation-stores"></a>
+#### Custom Conversation Stores
+
+To use another storage backend, implement `Hypervel\Ai\Contracts\ConversationStore` and bind it in a service provider. Stores may also implement `StoresConversationTurns` to save a complete turn atomically. Its `storeTurn` method receives the conversation, participant, prompt, response, and optional failure, and returns a `StoredTurn` containing the conversation ID and nullable user and assistant message IDs. A non-null title requests a new conversation; approval resumption adds no new user message. The SDK applies the returned IDs only after storage succeeds.
+
+Without this capability, the SDK calls the store's conversation and message methods sequentially. The store owns any transaction guarantees; the SDK does not wrap custom backends in SQL transactions.
+
+Resuming stored approvals additionally requires `ClaimsPendingApprovals`. Its `claimPendingApprovals` method must atomically claim the paused turn matching the exact pending tool-call IDs, returning an `ApprovalClaim` or null if unavailable. Its `recordApprovalResult` method must verify that claim and durably merge each outcome before the next approved tool runs. During completion or failure, use `AgentPrompt::approvalClaim()` to settle the same owned turn without losing recorded results, then clear the claim. Never automatically reclaim work just because it is old. See [human tool approval](#human-tool-approval) for interruption and retry behavior.
+
+Stores without `ClaimsPendingApprovals` still support ordinary conversations, but stored approval resumption throws before executing tools. When resuming from caller-supplied history without a store, your application must prevent duplicate submissions itself.
+
+<a name="migrating-conversation-data"></a>
+#### Migrating Conversation Data
+
+Existing Laravel conversation tables need a schema migration before they can be used with Hypervel. Compare your schema with the published migration: conversation and message IDs use UUID column types, participant IDs follow the application's configured morph key type, and content and opaque JSON payloads use `longText`. Add the nullable UUID `approval_claim` and boolean `has_replay_blocks` columns, and update the lookup indexes. Backfill `has_replay_blocks` for messages whose stored steps contain replay blocks so cleanup can find existing data.
+
+Messages have a cascading foreign key to their conversation. Resolve orphaned messages before adding this constraint; deleting a conversation then deletes its messages as well. If you enable partitioning, migrate ownership and use the composite constraint described above. Back up existing data and validate the migration against your database before deploying it.
+
 <a name="structured-output"></a>
 ### Structured Output
 
-If you would like your agent to return structured output, implement the `HasStructuredOutput` interface, which requires that your agent define a `schema` method:
+If you would like your agent to return structured output, implement the `HasStructuredOutput` interface, which requires that your agent define a `schema` method using Hypervel's [JSON schema builder](/docs/{{version}}/json-schema):
 
 ```php
 <?php
 
 namespace App\Ai\Agents;
 
-use Illuminate\Contracts\JsonSchema\JsonSchema;
-use Laravel\Ai\Contracts\Agent;
-use Laravel\Ai\Contracts\HasStructuredOutput;
-use Laravel\Ai\Promptable;
+use Hypervel\Ai\Contracts\Agent;
+use Hypervel\Ai\Contracts\HasStructuredOutput;
+use Hypervel\Ai\Promptable;
+use Hypervel\Contracts\JsonSchema\JsonSchema;
 
 class SalesCoach implements Agent, HasStructuredOutput
 {
@@ -792,10 +911,10 @@ To define nested structured output, use the `object` method with a closure:
 
 namespace App\Ai\Agents;
 
-use Illuminate\Contracts\JsonSchema\JsonSchema;
-use Laravel\Ai\Contracts\Agent;
-use Laravel\Ai\Contracts\HasStructuredOutput;
-use Laravel\Ai\Promptable;
+use Hypervel\Ai\Contracts\Agent;
+use Hypervel\Ai\Contracts\HasStructuredOutput;
+use Hypervel\Ai\Promptable;
+use Hypervel\Contracts\JsonSchema\JsonSchema;
 
 class SalesCoach implements Agent, HasStructuredOutput
 {
@@ -867,29 +986,29 @@ When prompting, you may also pass attachments with the prompt to allow the model
 
 ```php
 use App\Ai\Agents\SalesCoach;
-use Laravel\Ai\Files;
+use Hypervel\Ai\Files;
 
 $response = (new SalesCoach)->prompt(
     'Analyze the attached sales transcript...',
     attachments: [
         Files\Document::fromStorage('transcript.pdf'), // Attach a document from a filesystem disk...
-        Files\Document::fromPath('/home/laravel/transcript.md'), // Attach a document from a local path...
+        Files\Document::fromPath('/home/hypervel/transcript.md'), // Attach a document from a local path...
         $request->file('transcript'), // Attach an uploaded file...
     ]
 );
 ```
 
-Likewise, the `Laravel\Ai\Files\Image` class may be used to attach images to a prompt:
+Likewise, the `Hypervel\Ai\Files\Image` class may be used to attach images to a prompt:
 
 ```php
 use App\Ai\Agents\ImageAnalyzer;
-use Laravel\Ai\Files;
+use Hypervel\Ai\Files;
 
 $response = (new ImageAnalyzer)->prompt(
     'What is in this image?',
     attachments: [
         Files\Image::fromStorage('photo.jpg'), // Attach an image from a filesystem disk...
-        Files\Image::fromPath('/home/laravel/photo.jpg'), // Attach an image from a local path...
+        Files\Image::fromPath('/home/hypervel/photo.jpg'), // Attach an image from a local path...
         $request->file('photo'), // Attach an uploaded file...
     ]
 );
@@ -950,7 +1069,7 @@ The `then` method may be used to provide a closure that will be invoked when the
 
 ```php
 use App\Ai\Agents\SalesCoach;
-use Laravel\Ai\Responses\StreamedAgentResponse;
+use Hypervel\Ai\Responses\StreamedAgentResponse;
 
 Route::get('/coach', function () {
     return (new SalesCoach)
@@ -974,7 +1093,7 @@ foreach ($stream as $event) {
 The response also contains the model's reasoning and any sources it cited. Both are stored with the assistant message when using the `RemembersConversations` trait:
 
 ```php
-use Laravel\Ai\Responses\StreamedAgentResponse;
+use Hypervel\Ai\Responses\StreamedAgentResponse;
 
 (new SalesCoach)
     ->stream('Analyze this sales transcript...')
@@ -985,6 +1104,31 @@ use Laravel\Ai\Responses\StreamedAgentResponse;
 ```
 
 Reasoning is also available on responses returned by the `prompt` method.
+
+Streams start their provider work when consumed. A completed stream retains its events for replay and aggregation, so memory use grows with the response. The native HTTP transport receives incremental data and bounds its own unread buffer; see [HTTP streaming](/docs/{{version}}/http-client#streaming-responses) for timeout and fallback behavior.
+
+When returned as an HTTP response, the SDK enables [disconnect cancellation](/docs/{{version}}/responses#streamed-responses) for its SSE and protocol responses. A supported whole-connection close cancels owned provider work. Individual HTTP/2 stream resets are not reported immediately by the current runtime; detection waits for a failed write, completion, or timeout.
+
+<a name="capturing-application-context"></a>
+#### Capturing Application Context
+
+A stream may be created under one account and consumed later in a different coroutine. If your application supplies account or other operation-specific context, register `Ai::captureContextUsing` during boot. The callback captures the current values and returns a closure that temporarily restores them around SDK work:
+
+```php
+use Closure;
+use Hypervel\Ai\Ai;
+use Hypervel\Support\Facades\Context;
+
+Ai::captureContextUsing(function (): Closure {
+    $accountId = Context::get('account_id');
+
+    return fn (Closure $callback): mixed => Context::scope($callback, ['account_id' => $accountId]);
+});
+```
+
+This example captures only an account ID. An application using other account-specific services must restore their state through its own context API too. The returned closure must support nested calls and inexpensive re-entry. Return a closure even when no account is active, so later consumption does not inherit another account.
+
+The SDK uses this closure while advancing and closing the stream and running its `each`, `then`, and `catch` callbacks, including callbacks added after completion. It restores the consumer's context before yielding each event, so your `foreach` body retains its own context. Opt-in concurrent tools and titles also use the captured context. Queued jobs use their normal queue context lifecycle; these live closures are not serialized into jobs or queued events.
 
 <a name="streaming-using-the-vercel-ai-sdk-protocol"></a>
 <a name="stream-protocols"></a>
@@ -1007,7 +1151,7 @@ Route::get('/coach', function () {
 You may pass a message ID if your application's frontend assigns its own:
 
 ```php
-->usingVercelDataProtocol($request->string('messageId'));
+->usingVercelDataProtocol((string) $request->string('messageId'));
 ```
 
 Alternatively, the `usingAgentUserInteractionProtocol` method may be used to stream using the [Agent User Interaction (AG-UI) protocol](https://docs.ag-ui.com):
@@ -1016,7 +1160,7 @@ Alternatively, the `usingAgentUserInteractionProtocol` method may be used to str
 Route::post('/coach', function (Request $request) {
     return (new SalesCoach)
         ->forUser($request->user())
-        ->stream($request->string('prompt'))
+        ->stream((string) $request->string('prompt'))
         ->usingAgentUserInteractionProtocol();
 });
 ```
@@ -1030,7 +1174,7 @@ The `threadId` and `runId` arguments are optional and default to the conversatio
 );
 ```
 
-To use a protocol that the AI SDK does not implement, you may pass your own `Laravel\Ai\Streaming\Protocols\StreamProtocol` implementation to the `usingProtocol` method:
+To use a protocol that the AI SDK does not implement, you may pass your own `Hypervel\Ai\Streaming\Protocols\StreamProtocol` implementation to the `usingProtocol` method:
 
 ```php
 use App\Ai\Protocols\CustomProtocol;
@@ -1049,7 +1193,7 @@ Chat interfaces built with libraries such as Vercel's `useChat` or CopilotKit al
 The `Vercel::chat` and `AgentUserInteraction::chat` methods convert such a request into an object that may be passed directly to an agent's `stream` method:
 
 ```php
-use Laravel\Ai\Vercel\Vercel;
+use Hypervel\Ai\Vercel\Vercel;
 
 Route::post('/chat', function (Request $request) {
     $chat = Vercel::chat($request);
@@ -1069,7 +1213,7 @@ If the request contains [approval decisions](#human-tool-approval), the agent wi
 The `AgentUserInteraction::chat` method provides the same API for AG-UI clients, in addition to the request's thread and run IDs:
 
 ```php
-use Laravel\Ai\AgentUserInteraction\AgentUserInteraction;
+use Hypervel\Ai\AgentUserInteraction\AgentUserInteraction;
 
 $chat = AgentUserInteraction::chat($request);
 
@@ -1098,7 +1242,7 @@ You may broadcast streamed events in a few different ways. First, you can simply
 
 ```php
 use App\Ai\Agents\SalesCoach;
-use Illuminate\Broadcasting\Channel;
+use Hypervel\Broadcasting\Channel;
 
 $stream = (new SalesCoach)->stream('Analyze this sales transcript...');
 
@@ -1134,12 +1278,12 @@ Some broadcasting platforms limit WebSocket messages to around 10KB. Data-heavy 
 
 namespace App\Ai\Agents;
 
-use Laravel\Ai\Attributes\WithoutBroadcasting;
-use Laravel\Ai\Contracts\Agent;
-use Laravel\Ai\Contracts\HasTools;
-use Laravel\Ai\Promptable;
-use Laravel\Ai\Streaming\Events\ToolCall;
-use Laravel\Ai\Streaming\Events\ToolResult;
+use Hypervel\Ai\Attributes\WithoutBroadcasting;
+use Hypervel\Ai\Contracts\Agent;
+use Hypervel\Ai\Contracts\HasTools;
+use Hypervel\Ai\Promptable;
+use Hypervel\Ai\Streaming\Events\ToolCall;
+use Hypervel\Ai\Streaming\Events\ToolResult;
 
 #[WithoutBroadcasting(ToolCall::class, ToolResult::class)]
 class SearchAgent implements Agent, HasTools
@@ -1158,8 +1302,8 @@ The excluded events are never broadcast, but they are still persisted to the `ag
 Using an agent's `queue` method, you may prompt the agent, but allow it to process the response in the background, keeping your application feeling fast and responsive. The `then` and `catch` methods may be used to register closures that will be invoked when a response is available or if an exception occurs:
 
 ```php
-use Illuminate\Http\Request;
-use Laravel\Ai\Responses\AgentResponse;
+use Hypervel\Ai\Responses\AgentResponse;
+use Hypervel\Http\Request;
 use Throwable;
 
 Route::post('/coach', function (Request $request) {
@@ -1168,13 +1312,15 @@ Route::post('/coach', function (Request $request) {
         ->then(function (AgentResponse $response) {
             // ...
         })
-        ->catch(function (Throwable $e) {
+        ->catch(function (?Throwable $exception) {
             // ...
         });
 
     return back();
 });
 ```
+
+Choose and run a [queue connection](/docs/{{version}}/queues) appropriate for the work. A durable queue keeps generation separate from the HTTP request and provides the queue's retry behavior; it does not make external tool side effects safe to repeat. Failure callbacks accept a nullable exception because a job may be failed manually without one.
 
 <a name="tools"></a>
 ### Tools
@@ -1192,9 +1338,9 @@ The generated tool will be placed in your application's `app/Ai/Tools` directory
 
 namespace App\Ai\Tools;
 
-use Illuminate\Contracts\JsonSchema\JsonSchema;
-use Laravel\Ai\Contracts\Tool;
-use Laravel\Ai\Tools\Request;
+use Hypervel\Ai\Contracts\Tool;
+use Hypervel\Ai\Tools\Request;
+use Hypervel\Contracts\JsonSchema\JsonSchema;
 use Stringable;
 
 class RandomNumberGenerator implements Tool
@@ -1289,6 +1435,8 @@ The limit applies to each group of tool calls within a generation step. Results 
 
 Concurrent tools use separate coroutines and database connections; they do not share the caller's database transaction. Each tool must be safe to run alongside the others. Resuming approved tool calls remains sequential so each outcome is stored before the next approved tool executes.
 
+The tool coroutines do not automatically inherit the request, authenticated user, or arbitrary application context. Pass needed values, such as the user, to your tools' constructors, and register [context capture](#capturing-application-context) when provider, partition, or cache-scope resolvers depend on application context.
+
 <a name="validating-tool-arguments"></a>
 #### Validating Tool Arguments
 
@@ -1311,13 +1459,13 @@ When validation fails, the validation messages are returned to the model as the 
 <a name="repairing-tool-calls"></a>
 #### Repairing Tool Calls
 
-Use the `RepairToolCalls` attribute to let an agent recover when a model calls an unknown local tool. Laravel returns the failed call to the model with the names of the available local tools, allowing it to correct the call:
+Use the `RepairToolCalls` attribute to let an agent recover when a model calls an unknown local tool. Hypervel returns the failed call to the model with the names of the available local tools, allowing it to correct the call:
 
 ```php
-use Laravel\Ai\Attributes\RepairToolCalls;
-use Laravel\Ai\Contracts\Agent;
-use Laravel\Ai\Contracts\HasTools;
-use Laravel\Ai\Promptable;
+use Hypervel\Ai\Attributes\RepairToolCalls;
+use Hypervel\Ai\Contracts\Agent;
+use Hypervel\Ai\Contracts\HasTools;
+use Hypervel\Ai\Promptable;
 
 #[RepairToolCalls]
 class SupportAgent implements Agent, HasTools
@@ -1328,7 +1476,7 @@ class SupportAgent implements Agent, HasTools
 }
 ```
 
-When Laravel derives the maximum number of steps automatically, this attribute adds one step for the repaired call. Explicit `MaxSteps` limits are unchanged.
+When Hypervel derives the maximum number of steps automatically, this attribute adds one step for the repaired call. Explicit `MaxSteps` limits are unchanged.
 
 <a name="similarity-search"></a>
 #### Similarity Search
@@ -1393,13 +1541,13 @@ SimilaritySearch::usingModel(Document::class, 'embedding')
 <a name="deferred-tool-loading"></a>
 ### Deferred Tool Loading
 
-By default, every tool an agent exposes is sent to the provider with each request. When an agent provides a large number of tools, this consumes tokens and may reduce the accuracy of the model's tool selection. Using the `ToolSearch` provider tool with OpenAI or Anthropic, you may defer tool definitions so that the provider only loads them when they are needed:
+By default, every tool an agent exposes is sent to the provider with each request. When an agent provides a large number of tools, this consumes tokens and may reduce the accuracy of the model's tool selection. Using the `ToolSearch` provider tool with OpenAI, Azure, or Anthropic, you may defer tool definitions so that the provider only loads them when they are needed:
 
 ```php
 use App\Ai\Tools\RefundOrder;
 use App\Ai\Tools\SearchInvoices;
 use App\Ai\Tools\Weather;
-use Laravel\Ai\Providers\Tools\ToolSearch;
+use Hypervel\Ai\Providers\Tools\ToolSearch;
 
 public function tools(): iterable
 {
@@ -1434,10 +1582,10 @@ When using Anthropic, additional provider-specific options may be passed to the 
 <a name="file-storage-tools"></a>
 ### File Storage Tools
 
-The `FileStorage` tool factory allows you to give agents access to a Laravel [filesystem disk](/docs/{{version}}/filesystem). The `all` method returns tools that allow the agent to list, read, inspect, generate URLs for, write, delete, and copy files on the given disk:
+The `FileStorage` tool factory allows you to give agents access to a Hypervel [filesystem disk](/docs/{{version}}/filesystem). The `all` method returns tools that allow the agent to list, read, inspect, generate URLs for, write, delete, and copy files on the given disk:
 
 ```php
-use Laravel\Ai\Tools\FileStorage;
+use Hypervel\Ai\Tools\FileStorage;
 
 public function tools(): iterable
 {
@@ -1451,10 +1599,10 @@ If your agent should only be able to inspect files, use the `readOnly` method:
 return FileStorage::readOnly('local');
 ```
 
-These methods return an `Illuminate\Support\Collection`, allowing you to further filter the tools that are provided to the agent:
+These methods return a `Hypervel\Support\Collection`, allowing you to further filter the tools that are provided to the agent:
 
 ```php
-use Laravel\Ai\Tools\Filesystem\DeleteFile;
+use Hypervel\Ai\Tools\Filesystem\DeleteFile;
 
 return FileStorage::all('s3')
     ->reject(fn ($tool) => $tool instanceof DeleteFile);
@@ -1463,16 +1611,16 @@ return FileStorage::all('s3')
 <a name="mcp-tools"></a>
 ### MCP Tools
 
-If your application uses [Laravel MCP](/docs/{{version}}/mcp), you may give your agents tools exposed by [Model Context Protocol](https://modelcontextprotocol.io) servers. Using the [Laravel MCP client](/docs/{{version}}/mcp#client), you may connect to a remote or local MCP server and pass its tools directly to your agent.
+The SDK includes adapters for tools exposed by [Model Context Protocol](https://modelcontextprotocol.io) servers. These adapters require the separate Hypervel MCP package; ordinary agents and local tools do not depend on it.
 
 > [!NOTE]
-> MCP tools require the [Laravel MCP](/docs/{{version}}/mcp) package to be installed in your application.
+> The Hypervel MCP package is not yet available. These examples show the integration once it is installed.
 
 Because an MCP client's `tools` method returns a collection, spread it into your agent's `tools` array using the `...` operator:
 
 ```php
 use App\Ai\Tools\RandomNumberGenerator;
-use Laravel\Mcp\Client;
+use Hypervel\Mcp\Client;
 
 /**
  * Get the tools available to the agent.
@@ -1491,10 +1639,10 @@ public function tools(): iterable
 }
 ```
 
-The AI SDK automatically wraps each MCP tool so the agent can call it like any other tool. You may also use a [named MCP client](/docs/{{version}}/mcp#named-clients):
+The AI SDK automatically wraps each MCP tool so the agent can call it like any other tool. You may also use a named MCP client:
 
 ```php
-use Laravel\Mcp\Facades\Mcp;
+use Hypervel\Mcp\Facades\Mcp;
 
 public function tools(): iterable
 {
@@ -1504,10 +1652,10 @@ public function tools(): iterable
 }
 ```
 
-Or connect to a [local MCP server](/docs/{{version}}/mcp#client-connecting):
+Or connect to a local MCP server:
 
 ```php
-use Laravel\Mcp\Client;
+use Hypervel\Mcp\Client;
 
 public function tools(): iterable
 {
@@ -1516,8 +1664,6 @@ public function tools(): iterable
     ];
 }
 ```
-
-For more information on creating and authenticating MCP clients, including bearer tokens and OAuth, consult the [MCP client documentation](/docs/{{version}}/mcp#client).
 
 <a name="skills"></a>
 ### Skills
@@ -1594,10 +1740,10 @@ Provider tools can be returned by your agent's `tools` method.
 
 The `WebSearch` provider tool allows agents to search the web for real-time information. This is useful for answering questions about current events, recent data, or topics that may have changed since the model's training cutoff.
 
-**Supported providers:** Anthropic, OpenAI, Azure, Gemini, xAI, OpenRouter
+**Supported providers:** Anthropic, OpenAI, Azure, Gemini, Groq, xAI, OpenRouter
 
 ```php
-use Laravel\Ai\Providers\Tools\WebSearch;
+use Hypervel\Ai\Providers\Tools\WebSearch;
 
 public function tools(): iterable
 {
@@ -1610,7 +1756,7 @@ public function tools(): iterable
 You may configure the web search tool to limit the number of searches or restrict results to specific domains:
 
 ```php
-(new WebSearch)->max(5)->allow(['laravel.com', 'php.net']),
+(new WebSearch)->max(5)->allow(['hypervel.org', 'php.net']),
 ```
 
 To refine search results based on user location, use the `location` method:
@@ -1631,7 +1777,7 @@ The `WebFetch` provider tool allows agents to fetch and read the contents of web
 **Supported providers:** Anthropic, Gemini, OpenRouter
 
 ```php
-use Laravel\Ai\Providers\Tools\WebFetch;
+use Hypervel\Ai\Providers\Tools\WebFetch;
 
 public function tools(): iterable
 {
@@ -1644,7 +1790,7 @@ public function tools(): iterable
 You may configure the web fetch tool to limit the number of fetches or restrict to specific domains:
 
 ```php
-(new WebFetch)->max(3)->allow(['docs.laravel.com']),
+(new WebFetch)->max(3)->allow(['hypervel.org']),
 ```
 
 <a name="file-search"></a>
@@ -1652,10 +1798,10 @@ You may configure the web fetch tool to limit the number of fetches or restrict 
 
 The `FileSearch` provider tool allows agents to search through [files](#files) stored in [vector stores](#vector-stores). This enables retrieval-augmented generation (RAG) by allowing the agent to search your uploaded documents for relevant information.
 
-**Supported providers:** OpenAI, Gemini, xAI
+**Supported providers:** OpenAI, Azure, Gemini, xAI
 
 ```php
-use Laravel\Ai\Providers\Tools\FileSearch;
+use Hypervel\Ai\Providers\Tools\FileSearch;
 
 public function tools(): iterable
 {
@@ -1680,10 +1826,12 @@ new FileSearch(stores: ['store_id'], where: [
 ]);
 ```
 
+Azure OpenAI does not support file search metadata filters.
+
 For more complex filters, you may pass a closure that receives a `FileSearchQuery` instance:
 
 ```php
-use Laravel\Ai\Providers\Tools\FileSearchQuery;
+use Hypervel\Ai\Providers\Tools\FileSearchQuery;
 
 new FileSearch(stores: ['store_id'], where: fn (FileSearchQuery $query) =>
     $query->where('author', 'Taylor Otwell')
@@ -1697,10 +1845,10 @@ new FileSearch(stores: ['store_id'], where: fn (FileSearchQuery $query) =>
 
 The `CodeExecution` provider tool allows agents to run code in a sandbox hosted by the AI provider. This is useful for performing calculations and analyzing data.
 
-**Supported providers:** Anthropic, OpenAI, Azure, Gemini, xAI
+**Supported providers:** Anthropic, OpenAI, Azure, Gemini, Groq, xAI
 
 ```php
-use Laravel\Ai\Providers\Tools\CodeExecution;
+use Hypervel\Ai\Providers\Tools\CodeExecution;
 
 public function tools(): iterable
 {
@@ -1728,9 +1876,9 @@ For example, a customer support agent could delegate refund eligibility question
 
 namespace App\Ai\Agents;
 
-use Laravel\Ai\Contracts\Agent;
-use Laravel\Ai\Contracts\HasTools;
-use Laravel\Ai\Promptable;
+use Hypervel\Ai\Contracts\Agent;
+use Hypervel\Ai\Contracts\HasTools;
+use Hypervel\Ai\Promptable;
 
 class CustomerSupportAgent implements Agent, HasTools
 {
@@ -1761,9 +1909,9 @@ class CustomerSupportAgent implements Agent, HasTools
 To customize how the sub-agent is exposed to the parent agent, implement the `CanActAsTool` interface on the sub-agent and define a tool-facing name and description:
 
 ```php
-use Laravel\Ai\Attributes\Provider;
-use Laravel\Ai\Contracts\CanActAsTool;
-use Laravel\Ai\Enums\Lab;
+use Hypervel\Ai\Attributes\Provider;
+use Hypervel\Ai\Contracts\CanActAsTool;
+use Hypervel\Ai\Enums\Lab;
 
 #[Provider(Lab::Anthropic)]
 class RefundsAgent implements Agent, CanActAsTool, HasTools
@@ -1788,12 +1936,12 @@ class RefundsAgent implements Agent, CanActAsTool, HasTools
 }
 ```
 
-If a sub-agent does not implement `CanActAsTool`, Laravel will use the agent's class basename as the tool name and a generic description that asks the parent agent to pass a clear, self-contained task description. Each sub-agent invocation runs in isolation and does not receive the parent agent's conversation history.
+If a sub-agent does not implement `CanActAsTool`, Hypervel will use the agent's class basename as the tool name and a generic description that asks the parent agent to pass a clear, self-contained task description. Each sub-agent invocation runs in isolation and does not receive the parent agent's conversation history.
 
 When the parent agent is [streaming](#streaming), its sub-agents stream as well. The parent agent emits `ToolResult` events containing the text the sub-agent has produced so far. These events are marked as preliminary and are followed by the tool call's final result, so you may skip them when iterating events manually:
 
 ```php
-use Laravel\Ai\Streaming\Events\ToolResult;
+use Hypervel\Ai\Streaming\Events\ToolResult;
 
 foreach ($stream as $event) {
     if ($event instanceof ToolResult && $event->preliminary) {
@@ -1958,21 +2106,21 @@ When queuing an agent or using queued AI event listeners, middleware objects and
 Sometimes you may want to quickly interact with a model without creating a dedicated agent class. You can create an ad-hoc, anonymous agent using the `agent` function:
 
 ```php
-use function Laravel\Ai\{agent};
+use function Hypervel\Ai\agent;
 
 $response = agent(
     instructions: 'You are an expert at software development.',
     messages: [],
     tools: [],
-)->prompt('Tell me about Laravel');
+)->prompt('Tell me about Hypervel');
 ```
 
 Anonymous agents may also produce structured output:
 
 ```php
-use Illuminate\Contracts\JsonSchema\JsonSchema;
+use Hypervel\Contracts\JsonSchema\JsonSchema;
 
-use function Laravel\Ai\{agent};
+use function Hypervel\Ai\agent;
 
 $response = agent(
     schema: fn (JsonSchema $schema) => [
@@ -2001,16 +2149,16 @@ You may configure text generation options for an agent using PHP attributes. The
 
 namespace App\Ai\Agents;
 
-use Laravel\Ai\Attributes\MaxSteps;
-use Laravel\Ai\Attributes\MaxTokens;
-use Laravel\Ai\Attributes\Model;
-use Laravel\Ai\Attributes\Provider;
-use Laravel\Ai\Attributes\Temperature;
-use Laravel\Ai\Attributes\Timeout;
-use Laravel\Ai\Attributes\TopP;
-use Laravel\Ai\Contracts\Agent;
-use Laravel\Ai\Enums\Lab;
-use Laravel\Ai\Promptable;
+use Hypervel\Ai\Attributes\MaxSteps;
+use Hypervel\Ai\Attributes\MaxTokens;
+use Hypervel\Ai\Attributes\Model;
+use Hypervel\Ai\Attributes\Provider;
+use Hypervel\Ai\Attributes\Temperature;
+use Hypervel\Ai\Attributes\Timeout;
+use Hypervel\Ai\Attributes\TopP;
+use Hypervel\Ai\Contracts\Agent;
+use Hypervel\Ai\Enums\Lab;
+use Hypervel\Ai\Promptable;
 
 #[Provider(Lab::Anthropic)]
 #[Model('claude-sonnet-5')]
@@ -2030,10 +2178,10 @@ class SalesCoach implements Agent
 The `UseCheapestModel` and `UseSmartestModel` attributes allow you to automatically select the most cost-effective or most capable model for a given provider without specifying a model name. This is useful when you want to optimize for cost or capability across different providers:
 
 ```php
-use Laravel\Ai\Attributes\UseCheapestModel;
-use Laravel\Ai\Attributes\UseSmartestModel;
-use Laravel\Ai\Contracts\Agent;
-use Laravel\Ai\Promptable;
+use Hypervel\Ai\Attributes\UseCheapestModel;
+use Hypervel\Ai\Attributes\UseSmartestModel;
+use Hypervel\Ai\Contracts\Agent;
+use Hypervel\Ai\Promptable;
 
 #[UseCheapestModel]
 class SimpleSummarizer implements Agent
@@ -2053,7 +2201,7 @@ class ComplexReasoner implements Agent
 ```
 
 > [!NOTE]
-> The underlying model selected by `UseCheapestModel` and `UseSmartestModel` may change between releases of the Laravel AI SDK as providers release new models. Switching models can introduce behavioral changes, deprecated parameters, and significant cost differences. If you need a stable, predictable model and pricing, specify the model explicitly using the `Model` attribute.
+> The underlying model selected by `UseCheapestModel` and `UseSmartestModel` may change between releases of the Hypervel AI SDK as providers release new models. Switching models can introduce behavioral changes, deprecated parameters, and significant cost differences. If you need a stable, predictable model and pricing, specify the model explicitly using the `Model` attribute.
 
 <a name="provider-options"></a>
 ### Provider Options
@@ -2065,10 +2213,10 @@ If your agent needs to pass provider-specific options (such as OpenAI reasoning 
 
 namespace App\Ai\Agents;
 
-use Laravel\Ai\Contracts\Agent;
-use Laravel\Ai\Contracts\HasProviderOptions;
-use Laravel\Ai\Enums\Lab;
-use Laravel\Ai\Promptable;
+use Hypervel\Ai\Contracts\Agent;
+use Hypervel\Ai\Contracts\HasProviderOptions;
+use Hypervel\Ai\Enums\Lab;
+use Hypervel\Ai\Promptable;
 
 class SalesCoach implements Agent, HasProviderOptions
 {
@@ -2104,9 +2252,9 @@ The Anthropic example above also enables [prompt caching](#prompt-caching) via `
 The [image](#images), [audio](#audio), [transcription](#transcription), [embedding](#embeddings), and [reranking](#reranking) builders accept provider options as well:
 
 ```php
-use Laravel\Ai\Audio;
+use Hypervel\Ai\Audio;
 
-$audio = Audio::of('I love coding with Laravel.')
+$audio = Audio::of('I love coding with Hypervel.')
     ->withProviderOptions(['speed' => 1.25])
     ->generate();
 ```
@@ -2119,7 +2267,7 @@ You may also pass a closure instead of an array, which will receive the provider
 Headers configured for a provider within your application's `config/ai.php` configuration file are sent with every request that provider makes. To send headers on a per-request basis, such as metadata used by an AI gateway, you may use the `withHeaders` method, which is available on the image, audio, transcription, embedding, and reranking builders, as well as on [file uploads](#files):
 
 ```php
-use Laravel\Ai\Embeddings;
+use Hypervel\Ai\Embeddings;
 
 $embeddings = Embeddings::for($chunks)
     ->withHeaders(['cf-aig-metadata' => json_encode(['team' => $team->id])])
@@ -2127,7 +2275,7 @@ $embeddings = Embeddings::for($chunks)
     ->generate();
 ```
 
-Headers may also be given as a closure, which receives the provider currently being used. Headers are not included in the request body and do not affect [embedding cache keys](#caching-embeddings).
+Headers may also be given as a closure, which receives the provider currently being used. Per-request headers are not included in the request body and do not affect [embedding cache keys](#caching-embeddings).
 
 <a name="prompt-caching"></a>
 ### Prompt Caching
@@ -2144,8 +2292,8 @@ Both of these counts are subsets of the input token total, which is discussed fu
 The `anthropic` and `bedrock` providers only cache when asked. The `CacheInstructions` and `CacheToolDefinitions` attributes place a cache breakpoint at the end of your agent's instructions and tool definitions, so every conversation reads that prefix from the cache instead of writing it again:
 
 ```php
-use Laravel\Ai\Attributes\CacheInstructions;
-use Laravel\Ai\Attributes\CacheToolDefinitions;
+use Hypervel\Ai\Attributes\CacheInstructions;
+use Hypervel\Ai\Attributes\CacheToolDefinitions;
 
 #[CacheInstructions]
 #[CacheToolDefinitions]
@@ -2186,12 +2334,12 @@ Tools that perform sensitive or irreversible actions may require human approval 
 
 namespace App\Ai\Tools;
 
-use Illuminate\Contracts\JsonSchema\JsonSchema;
-use Illuminate\Support\Facades\Storage;
-use Laravel\Ai\Concerns\InteractsWithApprovals;
-use Laravel\Ai\Contracts\Approvable;
-use Laravel\Ai\Contracts\Tool;
-use Laravel\Ai\Tools\Request;
+use Hypervel\Ai\Concerns\InteractsWithApprovals;
+use Hypervel\Ai\Contracts\Approvable;
+use Hypervel\Ai\Contracts\Tool;
+use Hypervel\Ai\Tools\Request;
+use Hypervel\Contracts\JsonSchema\JsonSchema;
+use Hypervel\Support\Facades\Storage;
 use Stringable;
 
 class DeleteFile implements Approvable, Tool
@@ -2231,7 +2379,7 @@ class DeleteFile implements Approvable, Tool
 To determine whether approval is needed based on the tool call's arguments, define a `needsApproval` method on the tool. This method may return a boolean or an `Approval` instance that includes a reason for the approval request:
 
 ```php
-use Laravel\Ai\Approvals\Approval;
+use Hypervel\Ai\Approvals\Approval;
 
 /**
  * Determine whether the tool needs approval for the given request.
@@ -2276,8 +2424,8 @@ if ($response->hasPendingApprovals()) {
 To resume the agent, continue the conversation and provide a `Decisions` instance containing a decision for each pending tool call. Decisions may approve the call, reject it, or edit its arguments before execution:
 
 ```php
-use Laravel\Ai\Approvals\Decision;
-use Laravel\Ai\Approvals\Decisions;
+use Hypervel\Ai\Approvals\Decision;
+use Hypervel\Ai\Approvals\Decisions;
 
 $response = (new FileAssistant)
     ->continue($conversationId, as: $user)
@@ -2336,9 +2484,9 @@ return (new FileAssistant)
 
 When a paused turn is resumed, the resumed steps are merged into that turn, so each turn is stored as a single assistant message. The response's `assistantMessageId` contains the ID of the paused message, and that message's usage includes both the pause and the resume.
 
-For queued agents, the resulting response is passed to the `then` callback, and Laravel also dispatches a `ToolApprovalRequested` event.
+For queued agents, the resulting response is passed to the `then` callback, and Hypervel also dispatches a `ToolApprovalRequested` event.
 
-Laravel stores the result of an approved tool before asking the model to continue. If generation then fails, the approval has already been resolved. Continue the conversation with a normal text prompt instead of submitting the same approval decisions again.
+Hypervel stores the result of an approved tool before asking the model to continue. If generation then fails, the approval has already been resolved. Continue the conversation with a normal text prompt instead of submitting the same approval decisions again.
 
 <a name="complete-approval-flow"></a>
 ### Complete Approval Flow
@@ -2347,13 +2495,13 @@ The following route demonstrates a complete approval flow, accepting either a ne
 
 ```php
 use App\Ai\Agents\FileAssistant;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\Route;
-use Illuminate\Validation\Rule;
-use Laravel\Ai\Approvals\Decision;
-use Laravel\Ai\Approvals\Decisions;
-use Laravel\Ai\Models\Conversation;
+use Hypervel\Ai\Approvals\Decision;
+use Hypervel\Ai\Approvals\Decisions;
+use Hypervel\Ai\Models\Conversation;
+use Hypervel\Http\Request;
+use Hypervel\Support\Facades\Gate;
+use Hypervel\Support\Facades\Route;
+use Hypervel\Validation\Rule;
 
 Route::post('/chat/{conversation}', function (Request $request, Conversation $conversation) {
     Gate::authorize('view', $conversation);
@@ -2406,10 +2554,10 @@ When the response status is `awaiting_approval`, the chat screen should render t
 <a name="images"></a>
 ## Images
 
-The `Laravel\Ai\Image` class may be used to generate images using the `openai`, `gemini`, or `xai` providers:
+The `Hypervel\Ai\Image` class may be used to generate images using the `openai`, `gemini`, `xai`, `azure`, `bedrock`, or `openrouter` providers:
 
 ```php
-use Laravel\Ai\Image;
+use Hypervel\Ai\Image;
 
 $image = Image::of('A donut sitting on the kitchen counter')->generate();
 
@@ -2419,7 +2567,7 @@ $rawContent = (string) $image;
 The `square`, `portrait`, and `landscape` methods may be used to control the aspect ratio of the image, while the `quality` method may be used to guide the model on final image quality (`high`, `medium`, `low`). The `timeout` method may be used to specify the HTTP timeout in seconds:
 
 ```php
-use Laravel\Ai\Image;
+use Hypervel\Ai\Image;
 
 $image = Image::of('A donut sitting on the kitchen counter')
     ->quality('high')
@@ -2431,13 +2579,13 @@ $image = Image::of('A donut sitting on the kitchen counter')
 You may attach reference images using the `attachments` method:
 
 ```php
-use Laravel\Ai\Files;
-use Laravel\Ai\Image;
+use Hypervel\Ai\Files;
+use Hypervel\Ai\Image;
 
 $image = Image::of('Update this photo of me to be in the style of an impressionist painting.')
     ->attachments([
         Files\Image::fromStorage('photo.jpg'),
-        // Files\Image::fromPath('/home/laravel/photo.jpg'),
+        // Files\Image::fromPath('/home/hypervel/photo.jpg'),
         // Files\Image::fromUrl('https://example.com/photo.jpg'),
         // $request->file('photo'),
     ])
@@ -2473,8 +2621,8 @@ $path = $image->storePubliclyAs('image.jpg');
 Image generation may also be queued:
 
 ```php
-use Laravel\Ai\Image;
-use Laravel\Ai\Responses\ImageResponse;
+use Hypervel\Ai\Image;
+use Hypervel\Ai\Responses\ImageResponse;
 
 Image::of('A donut sitting on the kitchen counter')
     ->portrait()
@@ -2489,32 +2637,32 @@ Image::of('A donut sitting on the kitchen counter')
 <a name="audio"></a>
 ## Audio
 
-The `Laravel\Ai\Audio` class may be used to generate audio from the given text:
+The `Hypervel\Ai\Audio` class may be used to generate audio from the given text:
 
 ```php
-use Laravel\Ai\Audio;
+use Hypervel\Ai\Audio;
 
-$audio = Audio::of('I love coding with Laravel.')->generate();
+$audio = Audio::of('I love coding with Hypervel.')->generate();
 
 $rawContent = (string) $audio;
 ```
 
-You may also generate audio from a string using the `toAudio` method available via Laravel's `Stringable` class:
+You may also generate audio from a string using the `toAudio` method available via Hypervel's `Stringable` class:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
-$audio = Str::of('I love coding with Laravel.')->toAudio();
+$audio = Str::of('I love coding with Hypervel.')->toAudio();
 ```
 
 The `male`, `female`, and `voice` methods may be used to determine the voice of the generated audio:
 
 ```php
-$audio = Audio::of('I love coding with Laravel.')
+$audio = Audio::of('I love coding with Hypervel.')
     ->female()
     ->generate();
 
-$audio = Audio::of('I love coding with Laravel.')
+$audio = Audio::of('I love coding with Hypervel.')
     ->voice('voice-id-or-name')
     ->generate();
 ```
@@ -2522,7 +2670,7 @@ $audio = Audio::of('I love coding with Laravel.')
 Similarly, the `instructions` method may be used to dynamically coach the model on how the generated audio should sound:
 
 ```php
-$audio = Audio::of('I love coding with Laravel.')
+$audio = Audio::of('I love coding with Hypervel.')
     ->female()
     ->instructions('Said like a pirate')
     ->generate();
@@ -2531,7 +2679,7 @@ $audio = Audio::of('I love coding with Laravel.')
 Generated audio may be easily stored on the default disk configured in your application's `config/filesystems.php` configuration file:
 
 ```php
-$audio = Audio::of('I love coding with Laravel.')->generate();
+$audio = Audio::of('I love coding with Hypervel.')->generate();
 
 $path = $audio->store();
 $path = $audio->storeAs('audio.mp3');
@@ -2542,10 +2690,10 @@ $path = $audio->storePubliclyAs('audio.mp3');
 Audio generation may also be queued:
 
 ```php
-use Laravel\Ai\Audio;
-use Laravel\Ai\Responses\AudioResponse;
+use Hypervel\Ai\Audio;
+use Hypervel\Ai\Responses\AudioResponse;
 
-Audio::of('I love coding with Laravel.')
+Audio::of('I love coding with Hypervel.')
     ->queue()
     ->then(function (AudioResponse $audio) {
         $path = $audio->store();
@@ -2557,12 +2705,12 @@ Audio::of('I love coding with Laravel.')
 <a name="transcription"></a>
 ## Transcriptions
 
-The `Laravel\Ai\Transcription` class may be used to generate a transcript of the given audio:
+The `Hypervel\Ai\Transcription` class may be used to generate a transcript of the given audio:
 
 ```php
-use Laravel\Ai\Transcription;
+use Hypervel\Ai\Transcription;
 
-$transcript = Transcription::fromPath('/home/laravel/audio.mp3')->generate();
+$transcript = Transcription::fromPath('/home/hypervel/audio.mp3')->generate();
 $transcript = Transcription::fromStorage('audio.mp3')->generate();
 $transcript = Transcription::fromUpload($request->file('audio'))->generate();
 
@@ -2580,8 +2728,8 @@ $transcript = Transcription::fromStorage('audio.mp3')
 Transcription generation may also be queued:
 
 ```php
-use Laravel\Ai\Transcription;
-use Laravel\Ai\Responses\TranscriptionResponse;
+use Hypervel\Ai\Transcription;
+use Hypervel\Ai\Responses\TranscriptionResponse;
 
 Transcription::fromStorage('audio.mp3')
     ->queue()
@@ -2593,10 +2741,10 @@ Transcription::fromStorage('audio.mp3')
 <a name="text-summarization"></a>
 ## Text Summarization
 
-You may summarize text using the `summarize` method available via Laravel's `Stringable` class. By default, the summary will contain no more than three sentences and will be generated using the configured provider's cheapest text model:
+You may summarize text using the `summarize` method available via Hypervel's `Stringable` class. By default, the summary will contain no more than three sentences and will be generated using the configured provider's cheapest text model:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $summary = Str::of($article)->summarize();
 ```
@@ -2604,7 +2752,7 @@ $summary = Str::of($article)->summarize();
 You may specify the maximum number of sentences, provider, model, and timeout used to generate the summary. The `Str` class also offers a static version of the method:
 
 ```php
-use Laravel\Ai\Enums\Lab;
+use Hypervel\Ai\Enums\Lab;
 
 $summary = Str::of($article)->summarize(
     sentences: 4,
@@ -2619,10 +2767,10 @@ $summary = Str::summarize($article, sentences: 4);
 <a name="embeddings"></a>
 ## Embeddings
 
-You may easily generate vector embeddings for any given string using the new `toEmbeddings` method available via Laravel's `Stringable` class:
+You may easily generate vector embeddings for any given string using the `toEmbeddings` method available via Hypervel's `Stringable` class:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $embeddings = Str::of('Napa Valley has great wine.')->toEmbeddings();
 ```
@@ -2630,11 +2778,11 @@ $embeddings = Str::of('Napa Valley has great wine.')->toEmbeddings();
 Alternatively, you may use the `Embeddings` class to generate embeddings for multiple inputs at once:
 
 ```php
-use Laravel\Ai\Embeddings;
+use Hypervel\Ai\Embeddings;
 
 $response = Embeddings::for([
     'Napa Valley has great wine.',
-    'Laravel is a PHP framework.',
+    'Hypervel is a PHP framework.',
 ])->generate();
 
 $response->embeddings; // [[0.123, 0.456, ...], [0.789, 0.012, ...]]
@@ -2654,40 +2802,40 @@ $response = Embeddings::for(['Napa Valley has great wine.'])
 In addition to strings, the `Embeddings::for` method accepts image, audio, document, and video inputs, allowing you to generate embeddings for non-text content. Gemini supports image, audio, document, and video embeddings, while VoyageAI supports image and video embeddings:
 
 ```php
-use Laravel\Ai\Embeddings;
-use Laravel\Ai\Enums\Lab;
-use Laravel\Ai\Files\Image;
-use Laravel\Ai\Files\Video;
+use Hypervel\Ai\Embeddings;
+use Hypervel\Ai\Enums\Lab;
+use Hypervel\Ai\Files\Image;
+use Hypervel\Ai\Files\Video;
 
 $response = Embeddings::for([
     'A vineyard at sunset.',
     Image::fromStorage('vineyard.jpg'),
-    Video::fromPath('/home/laravel/tour.mp4'),
+    Video::fromPath('/home/hypervel/tour.mp4'),
 ])->generate(Lab::Gemini);
 ```
 
 Multimodal inputs use the same [file classes used for attachments](#attachments). These files may be created from a local path, a filesystem disk, a remote URL, or Base64-encoded content. Images, audio, documents, and videos may also be created from uploaded files, while documents may be created from raw string content:
 
 ```php
-use Laravel\Ai\Files\Audio;
-use Laravel\Ai\Files\Document;
-use Laravel\Ai\Files\Image;
-use Laravel\Ai\Files\Video;
+use Hypervel\Ai\Files\Audio;
+use Hypervel\Ai\Files\Document;
+use Hypervel\Ai\Files\Image;
+use Hypervel\Ai\Files\Video;
 
-Image::fromPath('/home/laravel/photo.jpg');
+Image::fromPath('/home/hypervel/photo.jpg');
 Image::fromStorage('photo.jpg');
 Image::fromUpload($request->file('photo'));
 
-Audio::fromPath('/home/laravel/clip.mp3');
+Audio::fromPath('/home/hypervel/clip.mp3');
 Audio::fromStorage('clip.mp3');
 Audio::fromUpload($request->file('clip'));
 
-Video::fromPath('/home/laravel/video.mp4');
+Video::fromPath('/home/hypervel/video.mp4');
 Video::fromStorage('video.mp4');
 Video::fromUpload($request->file('video'));
 
 Document::fromUrl('https://example.com/report.pdf');
-Document::fromString('Laravel is a PHP framework.', 'text/plain');
+Document::fromString('Hypervel is a PHP framework.', 'text/plain');
 Document::fromUpload($request->file('report'));
 ```
 
@@ -2697,7 +2845,7 @@ Document::fromUpload($request->file('report'));
 <a name="querying-embeddings"></a>
 ### Querying Embeddings
 
-Once you have generated embeddings, you will typically store them in a `vector` column in your database for later querying. Laravel provides native support for vector columns on PostgreSQL via the `pgvector` extension and MariaDB. To get started, define a `vector` column in your migration, specifying the number of dimensions:
+Once you have generated embeddings, you will typically store them in a `vector` column in your database for later querying. Hypervel provides native support for vector columns on PostgreSQL via the `pgvector` extension and MariaDB. To get started, define a `vector` column in your migration, specifying the number of dimensions:
 
 ```php
 Schema::ensureVectorExtensionExists();
@@ -2711,7 +2859,7 @@ Schema::create('documents', function (Blueprint $table) {
 });
 ```
 
-You may also add a vector index to speed up similarity searches. When calling `index` on a vector column, Laravel will automatically create an HNSW index with cosine distance:
+You may also add a vector index to speed up similarity searches. When calling `index` on a vector column, Hypervel will automatically create an HNSW index with cosine distance:
 
 ```php
 $table->vector('embedding', dimensions: 1536)->index();
@@ -2720,7 +2868,7 @@ $table->vector('embedding', dimensions: 1536)->index();
 On your Eloquent model, you should cast the vector column using the `AsVector` cast:
 
 ```php
-use Illuminate\Database\Eloquent\Casts\AsVector;
+use Hypervel\Database\Eloquent\Casts\AsVector;
 
 protected function casts(): array
 {
@@ -2741,7 +2889,7 @@ $documents = Document::query()
     ->get();
 ```
 
-The `$queryEmbedding` may be an array of floats or a plain string. When a string is given, Laravel will automatically generate embeddings for it:
+The `$queryEmbedding` may be an array of floats or a plain string. When a string is given, Hypervel will automatically generate embeddings for it:
 
 ```php
 $documents = Document::query()
@@ -2762,7 +2910,7 @@ $documents = Document::query()
     ->get();
 ```
 
-If you would like to give an agent the ability to perform similarity searches as a tool, check out the [Similarity Search](#similarity-search) tool documentation.
+If you would like to give an agent the ability to perform similarity searches as a tool, check out the [Similarity Search](#similarity-search) tool documentation. For index and query behavior, see [vector similarity clauses](/docs/{{version}}/queries#vector-similarity-clauses). [Scout's database engine](/docs/{{version}}/scout#database-engine) also supports semantic and hybrid search through the SDK.
 
 > [!NOTE]
 > Vector queries are currently supported on PostgreSQL connections using the `pgvector` extension, or on MariaDB 11.7 or later using its native vector support.
@@ -2783,7 +2931,7 @@ Embedding generation can be cached to avoid redundant API calls for identical in
 ],
 ```
 
-When caching is enabled, embeddings are cached for 30 days. The cache key includes the provider's name, credentials, configuration, model, dimensions, provider options, and input content. Providers using different accounts or endpoints do not share cached embeddings.
+When caching is enabled, embeddings are cached for 30 days by default. Set `ai.caching.embeddings.seconds` to change the default duration. The cache key includes the provider's name, credentials, configuration, model, dimensions, provider options, and input content. Providers using different accounts or endpoints do not share cached embeddings.
 
 Headers in the provider's configuration are included in the cache key. Headers passed to `withHeaders` apply only to the request and do not change the key. If a header selects an account, include it in the provider's configuration, including when using on-demand providers or a provider configuration resolver. Alternatively, use an application cache scope that separates those accounts.
 
@@ -2815,24 +2963,44 @@ $embeddings = Str::of('Napa Valley has great wine.')->toEmbeddings(cache: true);
 $embeddings = Str::of('Napa Valley has great wine.')->toEmbeddings(cache: 3600);
 ```
 
+Cached embeddings are stored as JSON. If you want to reduce Redis storage or transfer sizes, configure compression on your [Redis connection](/docs/{{version}}/redis#phpredis-serialization).
+
+<a name="embedding-cache-scopes"></a>
+#### Cache Scopes
+
+To separate cached embeddings by account even when accounts share provider credentials, register a scope resolver once during boot:
+
+```php
+use Hypervel\Ai\Ai;
+use Hypervel\Support\Facades\Context;
+
+Ai::resolveEmbeddingsCacheScopeUsing(function (): ?string {
+    $accountId = Context::get('account_id');
+
+    return $accountId === null ? null : 'account:' . $accountId;
+});
+```
+
+The scope is resolved for each generation attempt that uses caching. Returning null allows accounts using the same provider configuration to share cached embeddings; an empty string is invalid. If your application requires an account for every operation, throw when it is missing instead of returning null. Scope values must remain stable across workers that share a cache. Credentials are hashed, not written into cache keys.
+
 <a name="reranking"></a>
 ## Reranking
 
 Reranking allows you to reorder a list of documents based on their relevance to a given query. This is useful for improving search results by using semantic understanding:
 
-The `Laravel\Ai\Reranking` class may be used to rerank documents:
+The `Hypervel\Ai\Reranking` class may be used to rerank documents:
 
 ```php
-use Laravel\Ai\Reranking;
+use Hypervel\Ai\Reranking;
 
 $response = Reranking::of([
     'Django is a Python web framework.',
-    'Laravel is a PHP web application framework.',
+    'Hypervel is a PHP web application framework.',
     'React is a JavaScript library for building user interfaces.',
 ])->rerank('PHP frameworks');
 
 // Access the top result...
-$response->first()->document; // "Laravel is a PHP web application framework."
+$response->first()->document; // "Hypervel is a PHP web application framework."
 $response->first()->score;    // 0.95
 $response->first()->index;    // 1 (original position)
 ```
@@ -2849,20 +3017,20 @@ $response = Reranking::of($documents)
 <a name="reranking-collections"></a>
 ### Reranking Collections
 
-For convenience, Laravel collections may be reranked using the `rerank` macro. The first argument specifies which field(s) to use for reranking, and the second argument is the query:
+For convenience, Hypervel collections may be reranked using the `rerank` macro. The first argument specifies which field(s) to use for reranking, and the second argument is the query:
 
 ```php
 // Rerank by a single field...
 $posts = Post::all()
-    ->rerank('body', 'Laravel tutorials');
+    ->rerank('body', 'Hypervel tutorials');
 
 // Rerank by multiple fields (sent as JSON)...
-$reranked = $posts->rerank(['title', 'body'], 'Laravel tutorials');
+$reranked = $posts->rerank(['title', 'body'], 'Hypervel tutorials');
 
 // Rerank using a closure to build the document...
 $reranked = $posts->rerank(
     fn ($post) => $post->title.': '.$post->body,
-    'Laravel tutorials'
+    'Hypervel tutorials'
 );
 ```
 
@@ -2871,7 +3039,7 @@ You may also limit the number of results and specify a provider:
 ```php
 $reranked = $posts->rerank(
     by: 'content',
-    query: 'Laravel tutorials',
+    query: 'Hypervel tutorials',
     limit: 10,
     provider: Lab::Cohere,
     timeout: 60,
@@ -2886,13 +3054,13 @@ $reranked = $posts->rerank(
 
 Classification allows you to ask a fixed set of questions about a given string or array of data and receive a typed answer, backed by a probability, for each question instead of free-form text. This is useful for routing, moderation, and scoring, where you need to compare an answer against a threshold or make assertions about it in your tests.
 
-The `Laravel\Ai\Classification` class may be used to classify content. Each question is given a key, and the corresponding answer may be retrieved from the response using that key:
+The `Hypervel\Ai\Classification` class may be used to classify content. Each question is given a key, and the corresponding answer may be retrieved from the response using that key:
 
 ```php
-use Laravel\Ai\Classification;
-use Laravel\Ai\Classification\Boolean;
-use Laravel\Ai\Classification\Choice;
-use Laravel\Ai\Classification\Score;
+use Hypervel\Ai\Classification;
+use Hypervel\Ai\Classification\Boolean;
+use Hypervel\Ai\Classification\Choice;
+use Hypervel\Ai\Classification\Score;
 
 $result = Classification::of($supportRequest)
     ->questions([
@@ -2955,10 +3123,10 @@ $result->meta->provider;
 <a name="yes-or-no-decisions"></a>
 ### Yes or No Decisions
 
-For a single yes or no decision, you may use the `decide` method available via Laravel's `Stringable` class, which returns a boolean instead of a full response. You may describe what a "yes" and a "no" mean, and specify the probability the answer must reach, which defaults to `0.5`:
+For a single yes or no decision, you may use the `decide` method available via Hypervel's `Stringable` class, which returns a boolean instead of a full response. You may describe what a "yes" and a "no" mean, and specify the probability the answer must reach, which defaults to `0.5`:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 if (Str::of($message)->decide('Is this spam?')) {
     // ...
@@ -2973,7 +3141,7 @@ $spam = Str::of($message)->decide('Is this spam?', criteria: [
 <a name="choosing-from-collections"></a>
 ### Choosing From Collections
 
-To quickly choose a single item from a list of options, you may use the `decide` method available on Laravel's `Collection` class. The method accepts a question and the text to classify, and returns the chosen item from the collection.
+To quickly choose a single item from a list of options, you may use the `decide` method available on Hypervel's `Collection` class. The method accepts a question and the text to classify, and returns the chosen item from the collection.
 
 Collections of strings and enums may be used directly, while other items should be named using the `by` argument. You may also provide a field, array of fields, or closure via the `describe` argument to give the model more detail about each option:
 
@@ -3014,15 +3182,15 @@ $department = collect([
 <a name="files"></a>
 ## Files
 
-The `Laravel\Ai\Files` class or the individual file classes may be used to store files with your AI provider for later use in conversations. This is useful for large documents or files you want to reference multiple times without re-uploading:
+The `Hypervel\Ai\Files` class or the individual file classes may be used to store files with your AI provider for later use in conversations. This is useful for large documents or files you want to reference multiple times without re-uploading:
 
 ```php
-use Laravel\Ai\Files\Document;
-use Laravel\Ai\Files\Image;
+use Hypervel\Ai\Files\Document;
+use Hypervel\Ai\Files\Image;
 
 // Store a file from a local path...
-$response = Document::fromPath('/home/laravel/document.pdf')->put();
-$response = Image::fromPath('/home/laravel/photo.jpg')->put();
+$response = Document::fromPath('/home/hypervel/document.pdf')->put();
+$response = Image::fromPath('/home/hypervel/photo.jpg')->put();
 
 // Store a file that is stored on a filesystem disk...
 $response = Document::fromStorage('document.pdf', disk: 'local')->put();
@@ -3038,8 +3206,8 @@ return $response->id;
 You may also store raw content or uploaded files:
 
 ```php
-use Laravel\Ai\Files;
-use Laravel\Ai\Files\Document;
+use Hypervel\Ai\Files;
+use Hypervel\Ai\Files\Document;
 
 // Store raw content...
 $stored = Document::fromString('Hello, World!', 'text/plain')->put();
@@ -3052,7 +3220,7 @@ Once a file has been stored, you may reference the file when generating text via
 
 ```php
 use App\Ai\Agents\SalesCoach;
-use Laravel\Ai\Files;
+use Hypervel\Ai\Files;
 
 $response = (new SalesCoach)->prompt(
     'Analyze the attached sales transcript...',
@@ -3065,7 +3233,7 @@ $response = (new SalesCoach)->prompt(
 To retrieve a previously stored file, use the `get` method on a file instance:
 
 ```php
-use Laravel\Ai\Files\Document;
+use Hypervel\Ai\Files\Document;
 
 $file = Document::fromId('file-id')->get();
 
@@ -3083,16 +3251,16 @@ By default, the `Files` class uses the default AI provider configured in your ap
 
 ```php
 $response = Document::fromPath(
-    '/home/laravel/document.pdf'
+    '/home/hypervel/document.pdf'
 )->put(provider: Lab::Anthropic);
 ```
 
 You may pass provider-specific upload options using the `withProviderOptions` method. For example, you may set OpenAI's file `purpose`:
 
 ```php
-use Laravel\Ai\Files\Document;
+use Hypervel\Ai\Files\Document;
 
-$response = Document::fromPath('/home/laravel/knowledge.txt')
+$response = Document::fromPath('/home/hypervel/knowledge.txt')
     ->withProviderOptions(['purpose' => 'assistants'])
     ->put();
 ```
@@ -3100,10 +3268,10 @@ $response = Document::fromPath('/home/laravel/knowledge.txt')
 To scope options per provider, pass a closure that receives the current provider:
 
 ```php
-use Laravel\Ai\Enums\Lab;
-use Laravel\Ai\Files\Document;
+use Hypervel\Ai\Enums\Lab;
+use Hypervel\Ai\Files\Document;
 
-$response = Document::fromPath('/home/laravel/training.jsonl')
+$response = Document::fromPath('/home/hypervel/training.jsonl')
     ->withProviderOptions(fn (Lab|string $provider) => match ($provider) {
         Lab::OpenAI => ['purpose' => 'fine-tune'],
         default => [],
@@ -3118,8 +3286,8 @@ Once a file has been stored with a provider, you may reference it in agent conve
 
 ```php
 use App\Ai\Agents\DocumentAnalyzer;
-use Laravel\Ai\Files;
-use Laravel\Ai\Files\Document;
+use Hypervel\Ai\Files;
+use Hypervel\Ai\Files\Document;
 
 $stored = Document::fromPath('/path/to/report.pdf')->put();
 
@@ -3134,8 +3302,8 @@ $response = (new DocumentAnalyzer)->prompt(
 Similarly, stored images may be referenced using the `Image` class:
 
 ```php
-use Laravel\Ai\Files;
-use Laravel\Ai\Files\Image;
+use Hypervel\Ai\Files;
+use Hypervel\Ai\Files\Image;
 
 $stored = Image::fromPath('/path/to/photo.jpg')->put();
 
@@ -3150,10 +3318,10 @@ $response = (new ImageAnalyzer)->prompt(
 <a name="vector-stores"></a>
 ## Vector Stores
 
-Vector stores allow you to create searchable collections of files that can be used for retrieval-augmented generation (RAG). The `Laravel\Ai\Stores` class provides methods for creating, retrieving, and deleting vector stores:
+Vector stores allow you to create searchable collections of files that can be used for retrieval-augmented generation (RAG). The `Hypervel\Ai\Stores` class provides methods for creating, retrieving, and deleting vector stores:
 
 ```php
-use Laravel\Ai\Stores;
+use Hypervel\Ai\Stores;
 
 // Create a new vector store...
 $store = Stores::create('Knowledge Base');
@@ -3171,7 +3339,7 @@ return $store->id;
 To retrieve an existing vector store by its ID, use the `get` method:
 
 ```php
-use Laravel\Ai\Stores;
+use Hypervel\Ai\Stores;
 
 $store = Stores::get('store_id');
 
@@ -3184,7 +3352,7 @@ $store->ready;
 To delete a vector store, use the `delete` method on the `Stores` class or the store instance:
 
 ```php
-use Laravel\Ai\Stores;
+use Hypervel\Ai\Stores;
 
 // Delete by ID...
 Stores::delete('store_id');
@@ -3201,8 +3369,8 @@ $store->delete();
 Once you have a vector store, you may add [files](#files) to it using the `add` method. Files added to a store are automatically indexed for semantic searching using the [file search provider tool](#file-search):
 
 ```php
-use Laravel\Ai\Files\Document;
-use Laravel\Ai\Stores;
+use Hypervel\Ai\Files\Document;
+use Hypervel\Ai\Stores;
 
 $store = Stores::get('store_id');
 
@@ -3221,7 +3389,7 @@ $document->fileId;
 
 > **Note:** Typically, when adding previously stored files to vector stores, the returned document ID will match the file's previously assigned ID; however, some vector storage providers may return a new, different "document ID". Therefore, it's recommended that you always store both IDs in your database for future reference.
 
-When adding a file to a Gemini store, Laravel waits for the import to finish so that the document is searchable once the call returns. A `Laravel\Ai\Exceptions\AiException` will be thrown if the import fails or exceeds five minutes, so you may wish to add Gemini files from a [queued job](/docs/{{version}}/queues).
+When adding a file to a Gemini store, Hypervel waits for the import to finish so that the document is searchable once the call returns. A `Hypervel\Ai\Exceptions\AiException` will be thrown if the import fails or exceeds five minutes, so you may wish to add Gemini files from a [queued job](/docs/{{version}}/queues).
 
 You may attach metadata to files when adding them to a store. This metadata can later be used to filter search results when using the [file search provider tool](#file-search):
 
@@ -3258,7 +3426,7 @@ $response->usage->outputTokens;
 $response->usage->totalTokens();
 ```
 
-Text generation returns a `Laravel\Ai\Responses\Data\TextUsage` instance, which breaks these totals down further. Each of these values will be `null`, rather than `0`, when the provider does not report it:
+Text generation returns a `Hypervel\Ai\Responses\Data\TextUsage` instance, which breaks these totals down further. Each of these values will be `null`, rather than `0`, when the provider does not report it:
 
 ```php
 $response->usage->cacheReadInputTokens; // Subset of the input tokens read from a prompt cache...
@@ -3287,12 +3455,12 @@ The remaining capabilities return a usage object containing the counts specific 
 Not every provider reports every count, and counts that a provider does not report will be `null`:
 
 ```php
-use Laravel\Ai\Image;
-use Laravel\Ai\Transcription;
+use Hypervel\Ai\Image;
+use Hypervel\Ai\Transcription;
 
 Image::of('A donut sitting on the kitchen counter')->generate()->usage->imageOutputTokens;
 
-Transcription::fromPath('/home/laravel/meeting.mp3')->generate()->usage->audioSeconds;
+Transcription::fromPath('/home/hypervel/meeting.mp3')->generate()->usage->audioSeconds;
 ```
 
 <a name="failover"></a>
@@ -3302,8 +3470,8 @@ When prompting or generating other media, you may provide an array of providers 
 
 ```php
 use App\Ai\Agents\SalesCoach;
-use Laravel\Ai\Enums\Lab;
-use Laravel\Ai\Image;
+use Hypervel\Ai\Enums\Lab;
+use Hypervel\Ai\Image;
 
 $response = (new SalesCoach)->prompt(
     'Analyze this sales transcript...',
@@ -3321,7 +3489,7 @@ Providers are tried in the order you supply them. Each entry is retained, includ
 When you pass a plain list of providers, such as `[Lab::OpenAI, Lab::Anthropic]`, each provider uses its default model. To specify a particular model for each provider in the failover chain, pass an associative array keyed by the provider, using the `Lab` enum's `value` as the key (enum cases cannot be used directly as PHP array keys):
 
 ```php
-use Laravel\Ai\Enums\Lab;
+use Hypervel\Ai\Enums\Lab;
 
 $response = (new SalesCoach)->prompt(
     'Analyze this sales transcript...',
@@ -3352,6 +3520,8 @@ Unlike Laravel's name-keyed map, these pairs retain each provider object and its
 <a name="testing"></a>
 ## Testing
 
+Configure AI fakes in your tests, not while serving requests. They replace worker-shared provider behavior. Hypervel's test cleanup resets them between tests.
+
 When faking queued image, audio, transcription, or embeddings generation, any `then` callback registered on the queued generation will be invoked with the faked response, allowing you to test the logic contained within the callback. If you would prefer that these callbacks are not invoked, you may fake the queue using `Queue::fake()` as well.
 
 <a name="testing-agents"></a>
@@ -3361,7 +3531,7 @@ To fake an agent's responses during tests, call the `fake` method on the agent c
 
 ```php
 use App\Ai\Agents\SalesCoach;
-use Laravel\Ai\Prompts\AgentPrompt;
+use Hypervel\Ai\Prompts\AgentPrompt;
 
 // Automatically generate a fixed response for every prompt...
 SalesCoach::fake();
@@ -3389,8 +3559,8 @@ SalesCoach::fake([
 You may also fake a response that is awaiting tool approval:
 
 ```php
-use Laravel\Ai\Approvals\PendingApproval;
-use Laravel\Ai\Responses\AgentResponse;
+use Hypervel\Ai\Approvals\PendingApproval;
+use Hypervel\Ai\Responses\AgentResponse;
 
 FileAssistant::fake([
     AgentResponse::fakeWithPendingApprovals([
@@ -3411,7 +3581,7 @@ $response->hasPendingApprovals(); // true
 In addition, you can fake a response that includes reasoning. The fake emits reasoning events, so the reasoning is reported on streamed runs as well:
 
 ```php
-use Laravel\Ai\Responses\AgentResponse;
+use Hypervel\Ai\Responses\AgentResponse;
 
 SalesCoach::fake([
     AgentResponse::fakeWithReasoning('They asked about pricing.', 'Plans start at $10.'),
@@ -3426,12 +3596,12 @@ foreach ($response as $event) {
 $response->reasoning; // 'They asked about pricing.'
 ```
 
-> **Note:** When `Agent::fake()` is invoked on an agent that returns structured output and fake output was not explicitly provided, Laravel will automatically generate fake data that matches your agent's defined output schema.
+> **Note:** When `Agent::fake()` is invoked on an agent that returns structured output and fake output was not explicitly provided, Hypervel will automatically generate fake data that matches your agent's defined output schema.
 
 After prompting the agent, you may make assertions about the prompts that were received:
 
 ```php
-use Laravel\Ai\Prompts\AgentPrompt;
+use Hypervel\Ai\Prompts\AgentPrompt;
 
 SalesCoach::assertPrompted('Analyze this...');
 
@@ -3449,8 +3619,8 @@ SalesCoach::assertNeverPrompted();
 When asserting an approval continuation, you may inspect the prompt's approval decisions:
 
 ```php
-use Laravel\Ai\Approvals\Decisions;
-use Laravel\Ai\Prompts\AgentPrompt;
+use Hypervel\Ai\Approvals\Decisions;
+use Hypervel\Ai\Prompts\AgentPrompt;
 
 FileAssistant::fake();
 
@@ -3467,7 +3637,7 @@ FileAssistant::assertPrompted(function (AgentPrompt $prompt) {
 For queued agent invocations, use the queued assertion methods:
 
 ```php
-use Laravel\Ai\QueuedAgentPrompt;
+use Hypervel\Ai\QueuedAgentPrompt;
 
 SalesCoach::assertQueued('Analyze this...');
 
@@ -3492,9 +3662,9 @@ SalesCoach::fake()->preventStrayPrompts();
 Image generations may be faked by invoking the `fake` method on the `Image` class. Once image has been faked, various assertions may be performed against the recorded image generation prompts:
 
 ```php
-use Laravel\Ai\Image;
-use Laravel\Ai\Prompts\ImagePrompt;
-use Laravel\Ai\Prompts\QueuedImagePrompt;
+use Hypervel\Ai\Image;
+use Hypervel\Ai\Prompts\ImagePrompt;
+use Hypervel\Ai\Prompts\QueuedImagePrompt;
 
 // Automatically generate a fixed response for every prompt...
 Image::fake();
@@ -3547,9 +3717,9 @@ Image::fake()->preventStrayImages();
 Audio generations may be faked by invoking the `fake` method on the `Audio` class. Once audio has been faked, various assertions may be performed against the recorded audio generation prompts:
 
 ```php
-use Laravel\Ai\Audio;
-use Laravel\Ai\Prompts\AudioPrompt;
-use Laravel\Ai\Prompts\QueuedAudioPrompt;
+use Hypervel\Ai\Audio;
+use Hypervel\Ai\Prompts\AudioPrompt;
+use Hypervel\Ai\Prompts\QueuedAudioPrompt;
 
 // Automatically generate a fixed response for every prompt...
 Audio::fake();
@@ -3602,9 +3772,9 @@ Audio::fake()->preventStrayAudio();
 Transcription generations may be faked by invoking the `fake` method on the `Transcription` class. Once transcription has been faked, various assertions may be performed against the recorded transcription generation prompts:
 
 ```php
-use Laravel\Ai\Transcription;
-use Laravel\Ai\Prompts\TranscriptionPrompt;
-use Laravel\Ai\Prompts\QueuedTranscriptionPrompt;
+use Hypervel\Ai\Transcription;
+use Hypervel\Ai\Prompts\TranscriptionPrompt;
+use Hypervel\Ai\Prompts\QueuedTranscriptionPrompt;
 
 // Automatically generate a fixed response for every prompt...
 Transcription::fake();
@@ -3661,9 +3831,9 @@ Transcription::fake()->preventStrayTranscriptions();
 Embeddings generations may be faked by invoking the `fake` method on the `Embeddings` class. Once embeddings has been faked, various assertions may be performed against the recorded embeddings generation prompts:
 
 ```php
-use Laravel\Ai\Embeddings;
-use Laravel\Ai\Prompts\EmbeddingsPrompt;
-use Laravel\Ai\Prompts\QueuedEmbeddingsPrompt;
+use Hypervel\Ai\Embeddings;
+use Hypervel\Ai\Prompts\EmbeddingsPrompt;
+use Hypervel\Ai\Prompts\QueuedEmbeddingsPrompt;
 
 // Automatically generate fake embeddings of the proper dimensions for every prompt...
 Embeddings::fake();
@@ -3687,7 +3857,7 @@ After generating embeddings, you may make assertions about the prompts that were
 
 ```php
 Embeddings::assertGenerated(function (EmbeddingsPrompt $prompt) {
-    return $prompt->contains('Laravel') && $prompt->dimensions === 1536;
+    return $prompt->contains('Hypervel') && $prompt->dimensions === 1536;
 });
 
 Embeddings::assertNotGenerated(
@@ -3701,7 +3871,7 @@ For queued embeddings generations, use the queued assertion methods:
 
 ```php
 Embeddings::assertQueued(
-    fn (QueuedEmbeddingsPrompt $prompt) => $prompt->contains('Laravel')
+    fn (QueuedEmbeddingsPrompt $prompt) => $prompt->contains('Hypervel')
 );
 
 Embeddings::assertNotQueued(
@@ -3723,9 +3893,9 @@ Embeddings::fake()->preventStrayEmbeddings();
 Reranking operations may be faked by invoking the `fake` method on the `Reranking` class:
 
 ```php
-use Laravel\Ai\Reranking;
-use Laravel\Ai\Prompts\RerankingPrompt;
-use Laravel\Ai\Responses\Data\RankedDocument;
+use Hypervel\Ai\Reranking;
+use Hypervel\Ai\Prompts\RerankingPrompt;
+use Hypervel\Ai\Responses\Data\RankedDocument;
 
 // Automatically generate a fake reranked responses...
 Reranking::fake();
@@ -3743,7 +3913,7 @@ After reranking, you may make assertions about the operations that were performe
 
 ```php
 Reranking::assertReranked(function (RerankingPrompt $prompt) {
-    return $prompt->contains('Laravel') && $prompt->limit === 5;
+    return $prompt->contains('Hypervel') && $prompt->limit === 5;
 });
 
 Reranking::assertNotReranked(
@@ -3756,13 +3926,13 @@ Reranking::assertNothingReranked();
 <a name="testing-classification"></a>
 ### Classification
 
-Classification may be faked by invoking the `fake` method on the `Classification` class. If no custom responses are provided, Laravel will automatically generate answers that match the shape of each question:
+Classification may be faked by invoking the `fake` method on the `Classification` class. If no custom responses are provided, Hypervel will automatically generate answers that match the shape of each question:
 
 ```php
-use Laravel\Ai\Classification;
-use Laravel\Ai\Prompts\ClassificationPrompt;
-use Laravel\Ai\Responses\Data\BooleanAnswer;
-use Laravel\Ai\Responses\Data\ChoiceAnswer;
+use Hypervel\Ai\Classification;
+use Hypervel\Ai\Prompts\ClassificationPrompt;
+use Hypervel\Ai\Responses\Data\BooleanAnswer;
+use Hypervel\Ai\Responses\Data\ChoiceAnswer;
 
 // Automatically generate fake answers...
 Classification::fake();
@@ -3807,7 +3977,7 @@ Classification::assertNothingClassified();
 File operations may be faked by invoking the `fake` method on the `Files` class:
 
 ```php
-use Laravel\Ai\Files;
+use Hypervel\Ai\Files;
 
 Files::fake();
 ```
@@ -3815,17 +3985,17 @@ Files::fake();
 Once file operations have been faked, you may make assertions about the uploads and deletions that occurred:
 
 ```php
-use Laravel\Ai\Contracts\Files\StorableFile;
-use Laravel\Ai\Files\Document;
+use Hypervel\Ai\Contracts\Files\StorableFile;
+use Hypervel\Ai\Files\Document;
 
 // Store files...
-Document::fromString('Hello, Laravel!', mimeType: 'text/plain')
+Document::fromString('Hello, Hypervel!', mimeType: 'text/plain')
     ->as('hello.txt')
     ->put();
 
 // Make assertions...
 Files::assertStored(fn (StorableFile $file) =>
-    (string) $file === 'Hello, Laravel!' &&
+    (string) $file === 'Hello, Hypervel!' &&
         $file->mimeType() === 'text/plain'
 );
 
@@ -3850,7 +4020,7 @@ Files::assertNothingDeleted();
 Vector store operations may be faked by invoking the `fake` method on the `Stores` class. Faking stores will also fake [file operations](#files) automatically:
 
 ```php
-use Laravel\Ai\Stores;
+use Hypervel\Ai\Stores;
 
 Stores::fake();
 ```
@@ -3858,7 +4028,7 @@ Stores::fake();
 Once store operations have been faked, you may make assertions about the stores that were created or deleted:
 
 ```php
-use Laravel\Ai\Stores;
+use Hypervel\Ai\Stores;
 
 // Create store...
 $store = Stores::create('Knowledge Base');
@@ -3905,8 +4075,8 @@ $store->assertNotRemoved('other_file_id');
 If a file is stored in the provider's [file storage](#files) and added to a vector store in the same request, you may not know the file's provider ID. In this case, you can pass a closure to the `assertAdded` method to assert against the content of the added file:
 
 ```php
-use Laravel\Ai\Contracts\Files\StorableFile;
-use Laravel\Ai\Files\Document;
+use Hypervel\Ai\Contracts\Files\StorableFile;
+use Hypervel\Ai\Files\Document;
 
 $store->add(Document::fromString('Hello, World!', 'text/plain')->as('hello.txt'));
 
@@ -3917,7 +4087,7 @@ $store->assertAdded(fn (StorableFile $file) => $file->content() === 'Hello, Worl
 <a name="events"></a>
 ## Events
 
-The Laravel AI SDK dispatches a variety of [events](/docs/{{version}}/events), including:
+The Hypervel AI SDK dispatches a variety of [events](/docs/{{version}}/events), including:
 
 - `AddingFileToStore`
 - `AgentFailed`
