@@ -33,13 +33,12 @@ class KeysCommand extends Command
     public function handle(): int
     {
         if (KeyStore::from(config()->string('passport.key_store')) === KeyStore::Database) {
-            if (Passport::signingKey()->newQuery()->exists()) {
+            if (app(SigningKeyRepository::class)->create((int) $this->option('length')) === null) {
                 $this->components->error('Signing keys already exist. Use passport:keys:rotate to rotate them.');
 
                 return Command::FAILURE;
             }
 
-            app(SigningKeyRepository::class)->create((int) $this->option('length'));
             $this->components->info('Encryption keys generated successfully.');
 
             return Command::SUCCESS;

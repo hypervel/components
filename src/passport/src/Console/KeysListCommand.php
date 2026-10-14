@@ -36,9 +36,9 @@ class KeysListCommand extends Command
         $this->table(['Key ID', 'Created (UTC)', 'Activates (UTC)', 'Retires (UTC)', 'Status'], $stored->map(
             static fn (SigningKey $key): array => [
                 ParsedKey::fromPublicKey($key->public_key)->getKeyId(),
-                $key->created_at?->toDateTimeString(),
-                $key->activates_at->toDateTimeString(),
-                $key->retires_at?->toDateTimeString(),
+                $key->created_at?->utc()->toDateTimeString(),
+                $key->activates_at->utc()->toDateTimeString(),
+                $key->retires_at?->utc()->toDateTimeString(),
                 match (true) {
                     $key->is($active) => 'Signing',
                     $key->getRawOriginal('private_key') !== null && $key->activates_at > $now => 'Waiting',
