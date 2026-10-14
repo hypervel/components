@@ -70,6 +70,7 @@ use Psr\Http\Message\StreamInterface;
 use RuntimeException;
 use stdClass;
 use Swoole\Coroutine\CanceledException;
+use Swoole\Coroutine\Socket;
 use Symfony\Component\VarDumper\VarDumper;
 use Throwable;
 use WeakReference;
@@ -610,6 +611,34 @@ class HttpClientTest extends TestCase
         // body() should only be called once
         $response->json();
         $this->assertSame(1, $response->bodyCallCount);
+    }
+
+    public function testConnectionFailureDoesNotExposeQueryCredentials(): void
+    {
+        // @TODO Remove this skip once supported Guzzle 7 releases include https://github.com/guzzle/guzzle/pull/3916.
+        if (ClientInterface::MAJOR_VERSION < 8) {
+            $this->markTestSkipped('Guzzle 7 includes query credentials in connection-error messages.');
+        }
+
+        $failure = null;
+
+        run(function () use (&$failure): void {
+            // Reserve a local port without listening so the connection is refused.
+            $socket = new Socket(AF_INET, SOCK_STREAM, 0);
+
+            try {
+                $this->assertTrue($socket->bind('127.0.0.1', 0));
+                $url = 'http://127.0.0.1:' . $socket->getsockname()['port'] . '/profile?access_token=private-token';
+                $this->factory->timeout(1)->get($url);
+            } catch (Throwable $exception) {
+                $failure = $exception;
+            } finally {
+                $socket->close();
+            }
+        });
+
+        $this->assertInstanceOf(ConnectionException::class, $failure);
+        $this->assertStringNotContainsString('private-token', $failure->getMessage());
     }
 
     public function testNetworkExceptionIsConvertedToConnectionException(): void
