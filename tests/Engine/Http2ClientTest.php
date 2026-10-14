@@ -23,9 +23,18 @@ class Http2ClientTest extends TestCase
 {
     public function testConstructionRejectsAFailedConnection(): void
     {
-        $this->expectException(HttpClientException::class);
+        // Reserve a port without listening so the connection is refused on every Swoole version.
+        $socket = stream_socket_server('tcp://127.0.0.1:0', flags: STREAM_SERVER_BIND);
+        $this->assertIsResource($socket);
+        $port = (int) substr(strrchr(stream_socket_get_name($socket, false), ':'), 1);
 
-        new Client('127.0.0.1', 0);
+        try {
+            $this->expectException(HttpClientException::class);
+
+            new Client('127.0.0.1', $port);
+        } finally {
+            fclose($socket);
+        }
     }
 
     public function testConstructionWrapsNativeHttp2Exceptions(): void
@@ -35,7 +44,8 @@ class Http2ClientTest extends TestCase
             $this->fail('Expected native construction to fail.');
         } catch (HttpClientException $exception) {
             $this->assertInstanceOf(NativeHttp2Exception::class, $exception->getPrevious());
-            $this->assertSame('host is empty', $exception->getMessage());
+            $this->assertSame($exception->getPrevious()->getMessage(), $exception->getMessage());
+            $this->assertSame($exception->getPrevious()->getCode(), $exception->getCode());
         }
     }
 
