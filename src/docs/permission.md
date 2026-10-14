@@ -981,7 +981,7 @@ use Hypervel\Passport\Passport;
 Passport::useClientModel(Client::class);
 ```
 
-Passport clients use UUID keys, so update the assignment tables' morph columns as described in [UUID and ULID Keys](#uuid-and-ulid-keys).
+Passport clients use UUID keys. To give them roles or permissions, every model that receives Permission roles or permissions, including your users, must use UUID keys. Change the assignment tables' morph columns to `uuid` as described in [UUID and ULID Keys](#uuid-and-ulid-keys). If your users receive roles or permissions and use integer keys, authorize machine clients with Passport token scopes through `EnsureClientIsResourceOwner::using(...)` instead of this integration.
 
 Protect machine-to-machine routes with Passport's `EnsureClientIsResourceOwner` middleware followed by the role, permission, or role-or-permission middleware:
 
@@ -1760,11 +1760,7 @@ $table->uuid($modelMorphKey);
 
 You may also rename the morph key column, for example to `model_uuid`, using the `column_names.model_morph_key` configuration value.
 
-If the same assignment tables contain models with different key types, such as integer user IDs and UUID Passport client IDs, use a string column for the morph key in both tables:
-
-```php
-$table->string($modelMorphKey);
-```
+All models receiving assignments must use the same key type as these morph columns. A string morph column does not support mixing integer user IDs and UUID client IDs: PostgreSQL rejects the resulting column comparisons, and MySQL and MariaDB may lose indexed lookups when comparing integers to strings.
 
 If your role or permission models use UUIDs, [extend the package's models](#custom-models) and add the `HasUuids` trait:
 
