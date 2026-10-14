@@ -55,8 +55,12 @@ class InstallCommand extends Command
                     '--name' => config()->string('app.name'),
                 ]);
             }
-        } elseif ($keyStore === KeyStore::Database) {
-            $this->components->info('Run passport:keys after migrating to create the signing keys.');
+        } else {
+            if ($keyStore === KeyStore::Database) {
+                $this->components->info('Run passport:keys after migrating to create the signing keys.');
+            }
+
+            $this->components->info('If you need personal access tokens, run passport:client --personal after migrating.');
         }
     }
 

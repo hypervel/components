@@ -54,6 +54,7 @@ class InstallCommandTest extends TestCase
 
         $this->assertSame(['vendor:publish', 'vendor:publish'], array_column($command->calls, 'command'));
         $this->assertStringContainsString('Run passport:keys after migrating', $tester->getDisplay());
+        $this->assertStringContainsString('If you need personal access tokens, run passport:client --personal after migrating.', $tester->getDisplay());
     }
 
     #[TestWith(['files'])]
@@ -73,6 +74,7 @@ class InstallCommandTest extends TestCase
             array_column($command->calls, 'command'),
         );
         $this->assertStringNotContainsString('Would you like', $tester->getDisplay());
+        $this->assertStringContainsString('If you need personal access tokens, run passport:client --personal after migrating.', $tester->getDisplay());
 
         if ($store === 'database') {
             $this->assertStringContainsString('Run passport:keys after migrating', $tester->getDisplay());
