@@ -28,19 +28,28 @@ class SigningKey extends Model
 
     use HasUuids;
 
+    /**
+     * The database table used by the model.
+     */
     protected ?string $table = 'oauth_signing_keys';
 
     /**
+     * The guarded attributes on the model.
+     *
      * @var array<string>
      */
     protected array $guarded = [];
 
     /**
+     * The attributes excluded from the model's JSON form.
+     *
      * @var array<int, string>
      */
     protected array $hidden = ['private_key'];
 
     /**
+     * The attributes that should be cast to native types.
+     *
      * @var array<string, string>
      */
     protected array $casts = [
