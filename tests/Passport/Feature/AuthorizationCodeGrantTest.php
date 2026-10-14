@@ -9,6 +9,7 @@ use Hypervel\Http\Request;
 use Hypervel\Passport\Client;
 use Hypervel\Passport\Database\Factories\ClientFactory;
 use Hypervel\Passport\Passport;
+use Hypervel\Support\Facades\Exceptions;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\Attributes\WithConfig;
@@ -23,6 +24,9 @@ class AuthorizationCodeGrantTest extends PassportTestCase
 {
     use WithHypervelMigrations;
 
+    /**
+     * Register the available scopes and authorization view.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -703,6 +707,7 @@ class AuthorizationCodeGrantTest extends PassportTestCase
             'revoked' => $client->revoke(),
             'redirect' => $client->forceFill(['redirect_uris' => ['https://other.example/callback']])->save(),
             'grant' => $client->forceFill(['grant_types' => []])->save(),
+            'provider' => $client->forceFill(['provider' => 'staff'])->save(),
             'scope' => Passport::tokensCan([]),
         };
 
@@ -722,6 +727,7 @@ class AuthorizationCodeGrantTest extends PassportTestCase
             yield $method . ' revoked' => [$method, 'revoked', 'unauthorized_client'];
             yield $method . ' redirect' => [$method, 'redirect', 'invalid_request'];
             yield $method . ' grant' => [$method, 'grant', 'unauthorized_client'];
+            yield $method . ' provider' => [$method, 'provider', 'unauthorized_client'];
             yield $method . ' scope' => [$method, 'scope', 'invalid_scope'];
         }
     }
@@ -737,6 +743,21 @@ class AuthorizationCodeGrantTest extends PassportTestCase
             'response_type' => 'code',
         ]))->assertUnauthorized()->assertJsonPath('error', 'invalid_client');
         $this->assertDatabaseCount('oauth_auth_codes', 0);
+    }
+
+    public function testArrayPromptIsRejectedWithoutReportingAnError(): void
+    {
+        Exceptions::fake();
+        $client = ClientFactory::new()->create();
+
+        $this->get('/oauth/authorize?' . http_build_query([
+            'client_id' => $client->getKey(),
+            'redirect_uri' => $client->redirect_uris[0],
+            'response_type' => 'code',
+            'prompt' => ['login'],
+        ]))->assertBadRequest()->assertJsonPath('error', 'invalid_request');
+
+        Exceptions::assertNothingReported();
     }
 
     #[TestWith(['login', 'login_required'])]

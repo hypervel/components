@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Passport\Http\Controllers;
 
-use Hypervel\Contracts\Auth\Factory as AuthFactory;
+use Hypervel\Auth\AuthManager;
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Http\Request;
 use Hypervel\Passport\Bridge\TokenIssuance;
@@ -25,7 +25,7 @@ class DenyAuthorizationController
      */
     public function __construct(
         protected ServerFactory $servers,
-        protected AuthFactory $auth,
+        protected AuthManager $auth,
         protected Repository $config,
         protected ClientRepository $clients,
     ) {

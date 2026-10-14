@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Passport\Http\Controllers;
 
-use Hypervel\Contracts\Auth\Factory as AuthFactory;
+use Hypervel\Auth\AuthManager;
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Http\RedirectResponse;
 use Hypervel\Http\Request;
@@ -26,7 +26,7 @@ class DeviceAuthorizationController
      * Create a new controller instance.
      */
     public function __construct(
-        protected AuthFactory $auth,
+        protected AuthManager $auth,
         protected DeviceCodeRepository $deviceCodes,
         protected ClientRepository $clients,
         protected Repository $config,

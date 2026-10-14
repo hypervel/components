@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Passport\Http\Controllers;
 
-use Hypervel\Auth\AuthManager;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\StatefulGuard;
 use Hypervel\Http\Request;
@@ -32,10 +31,7 @@ trait ResolvesApprovingGuard
      */
     protected function getApprovingProvider(): ?string
     {
-        /** @var AuthManager $auth */
-        $auth = $this->auth;
-
-        return $auth->getUserProviderName($this->config->get('passport.guard'));
+        return $this->auth->getUserProviderName($this->config->get('passport.guard'));
     }
 
     /**

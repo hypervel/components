@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Passport\Http\Controllers;
 
+use Hypervel\Auth\AuthManager;
 use Hypervel\Contracts\Auth\Authenticatable;
-use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Http\Request;
 use Hypervel\Passport\Bridge\TokenIssuance;
@@ -38,7 +38,7 @@ class AuthorizationController
      */
     public function __construct(
         protected ServerFactory $servers,
-        protected AuthFactory $auth,
+        protected AuthManager $auth,
         protected ClientRepository $clients,
         protected Repository $config,
     ) {
@@ -57,11 +57,17 @@ class AuthorizationController
             fn (): AuthorizationRequestInterface => $this->servers->authorizationServer()->validateAuthorizationRequest($psrRequest)
         );
 
+        $prompt = $request->input('prompt') ?? '';
+
+        if (! is_string($prompt)) {
+            throw new OAuthServerException(LeagueException::invalidRequest('prompt'));
+        }
+
         $additionalPrompts = Passport::$resolvePromptsCallback
             ? $this->withErrorHandling(fn () => (Passport::$resolvePromptsCallback)($request, $authRequest))
             : [];
         // Collection callbacks also receive the key, which trim would treat as its character mask.
-        $prompt = $request->string('prompt')->explode(' ')->map(static fn (string $prompt): string => trim($prompt))->filter()->values();
+        $prompt = Str::of($prompt)->explode(' ')->map(static fn (string $prompt): string => trim($prompt))->filter()->values();
 
         // If the prompt parameter includes "none", all other prompt values will be ignored
         // An error will be returned if the end-user is not already authenticated or the
