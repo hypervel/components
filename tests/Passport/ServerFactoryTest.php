@@ -6,7 +6,9 @@ namespace Hypervel\Tests\Passport;
 
 use DateInterval;
 use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Passport\Bridge\ParsedKey;
 use Hypervel\Passport\Bridge\TokenIssuance;
+use Hypervel\Passport\Client;
 use Hypervel\Passport\Contracts\ServerSettingsResolver;
 use Hypervel\Passport\Database\Factories\SigningKeyFactory;
 use Hypervel\Passport\KeyGenerator;
@@ -16,11 +18,20 @@ use Hypervel\Passport\ServerKey;
 use Hypervel\Passport\ServerSettings;
 use Hypervel\Passport\SigningKey;
 use Hypervel\Passport\SigningKeyRepository;
+use Hypervel\Passport\Token;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\TestCase;
+use Lcobucci\JWT\Encoding\ChainedFormatter;
+use Lcobucci\JWT\Encoding\JoseEncoder;
+use Lcobucci\JWT\Signer\Key\InMemory;
+use Lcobucci\JWT\Signer\Rsa\Sha256;
+use Lcobucci\JWT\Token\Builder;
+use Lcobucci\JWT\Token\Parser;
 use LogicException;
 use Mockery as m;
+use Nyholm\Psr7\Response;
+use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 
@@ -53,6 +64,78 @@ class ServerFactoryTest extends TestCase
         $this->assertSame($servers->resourceServer(), $servers->resourceServer());
         $this->assertSame($servers->signingKey(new DateInterval('PT1H')), $servers->signingKey(new DateInterval('P1Y')));
         $this->assertSame([], DB::getQueryLog());
+    }
+
+    public function testRetainedFileKeysVerifyTokensThroughDatabaseMigrationAndRotation(): void
+    {
+        foreach ([
+            '2016_06_01_000002_create_oauth_access_tokens_table.php',
+            '2016_06_01_000004_create_oauth_clients_table.php',
+            '2016_06_01_000007_create_oauth_signing_keys_table.php',
+        ] as $migration) {
+            (require __DIR__ . '/../../src/passport/database/migrations/' . $migration)->up();
+        }
+
+        $originalPrivate = config('passport.private_key');
+        $originalPublic = config('passport.public_key');
+        $current = (new KeyGenerator)->generate(2048);
+        config([
+            'passport.private_key' => $current['private'],
+            'passport.public_key' => $current['public'],
+            'passport.verification_keys' => [$originalPublic],
+            'passport.key_activation_delay' => 120,
+            'cache.default' => 'passport-file-migration',
+            'cache.stores.passport-file-migration' => [
+                'driver' => 'file', 'path' => $this->app->storagePath('framework/cache/data/passport-file-migration'),
+            ],
+        ]);
+        $this->beforeApplicationDestroyed(fn () => $this->app->make('cache')->store('passport-file-migration')->flush());
+        $now = CarbonImmutable::now();
+        $client = Client::forceCreate([
+            'name' => 'Client', 'secret' => 'client-secret', 'revoked' => false,
+            'redirect_uris' => [], 'grant_types' => ['client_credentials'],
+        ]);
+        $token = Token::forceCreate([
+            'id' => 'retained-token', 'client_id' => $client->id, 'revoked' => false,
+            'scopes' => [], 'expires_at' => $now->addYear(),
+        ]);
+        $originalId = ParsedKey::fromPublicKey($originalPublic)->getKeyId();
+        $currentId = ParsedKey::fromPublicKey($current['public'])->getKeyId();
+        $builder = (new Builder(new JoseEncoder, ChainedFormatter::default()))
+            ->identifiedBy($token->id)->permittedFor($client->id)->relatedTo($client->id)
+            ->issuedAt($now)->expiresAt($now->addYear())->withClaim('scopes', []);
+        $withoutKid = $builder->getToken(new Sha256, InMemory::plainText($originalPrivate))->toString();
+        $withKid = $builder->withHeader('kid', $originalId)->getToken(new Sha256, InMemory::plainText($originalPrivate))->toString();
+        $servers = $this->app->make(ServerFactory::class);
+
+        foreach ([$withoutKid, $withKid] as $jwt) {
+            $validated = $servers->resourceServer()->validateAuthenticatedRequest(
+                new ServerRequest('GET', '/api', ['Authorization' => 'Bearer ' . $jwt]),
+            );
+            $this->assertSame($token->id, $validated->getAttribute('oauth_access_token_id'));
+        }
+
+        $this->assertEqualsCanonicalizing([$originalId, $currentId], array_column($servers->jwks()['keys'], 'kid'));
+        $response = $servers->authorizationServer()->respondToAccessTokenRequest(
+            (new ServerRequest('POST', '/oauth/token'))->withParsedBody([
+                'grant_type' => 'client_credentials', 'client_id' => $client->id, 'client_secret' => 'client-secret',
+            ]),
+            new Response,
+        );
+        $body = json_decode((string) $response->getBody(), true, flags: JSON_THROW_ON_ERROR);
+        $this->assertSame($currentId, (new Parser(new JoseEncoder))->parse($body['access_token'])->headers()->get('kid'));
+
+        $repository = $this->app->make(SigningKeyRepository::class);
+        $repository->importFiles();
+        config(['passport.key_store' => 'database']);
+        $replacement = $repository->rotate(2048);
+        CarbonImmutable::setTestNow($replacement->activates_at->addSecond());
+        $repository->prune();
+        $validated = $servers->resourceServer()->validateAuthenticatedRequest(
+            new ServerRequest('GET', '/api', ['Authorization' => 'Bearer ' . $withoutKid]),
+        );
+        $this->assertSame($token->id, $validated->getAttribute('oauth_access_token_id'));
+        $this->assertSame(ParsedKey::fromPublicKey($replacement->public_key)->getKeyId(), $servers->signingKey(new DateInterval('PT1H'))->getKeyId());
     }
 
     #[TestWith(['files', null])]

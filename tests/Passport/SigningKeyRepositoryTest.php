@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Passport;
 
 use Carbon\CarbonImmutable as BaseCarbonImmutable;
+use DateInterval;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Passport\Bridge\ParsedKey;
 use Hypervel\Passport\KeyGenerator;
+use Hypervel\Passport\Passport;
 use Hypervel\Passport\ServerFactory;
 use Hypervel\Passport\ServerKey;
 use Hypervel\Passport\SigningKey;
@@ -179,7 +181,7 @@ class SigningKeyRepositoryTest extends TestCase
         $this->generator([0, 1]);
         $repository = $this->app->make(SigningKeyRepository::class);
         $first = $repository->create(2048);
-        $repository->revoke(ParsedKey::fromPublicKey($first->public_key)->getKeyId(), 2048);
+        $this->assertTrue($repository->revoke(ParsedKey::fromPublicKey($first->public_key)->getKeyId(), 2048));
         $replacement = SigningKey::sole();
 
         $this->assertNotSame($first->id, $replacement->id);
@@ -208,10 +210,29 @@ class SigningKeyRepositoryTest extends TestCase
         $this->assertSame(0, DB::transactionLevel());
     }
 
+    #[TestWith([-1])]
+    #[TestWith([1])]
+    public function testRevokingANonSigningKeyDoesNotGenerateAReplacement(int $activationDays): void
+    {
+        $this->generator([0]);
+        $repository = $this->app->make(SigningKeyRepository::class);
+        $signing = $repository->create(2048);
+        $other = SigningKey::forceCreate([
+            'public_key' => self::$keys[1]['public'], 'private_key' => self::$keys[1]['private'],
+            'activates_at' => $this->now->addDays($activationDays),
+        ]);
+
+        $this->assertTrue($repository->revoke(ParsedKey::fromPublicKey($other->public_key)->getKeyId(), 2048));
+        $this->assertFalse($repository->revoke('unknown', 2048));
+        $this->assertSame($signing->id, SigningKey::sole()->id);
+    }
+
     #[TestWith([1])]
     #[TestWith([3])]
     public function testFileImportDeduplicatesKeysAndRetainsAlreadyIssuedTokens(int $retentionDays): void
     {
+        Passport::tokensExpireIn(new DateInterval('PT15M'));
+        Passport::personalAccessTokensExpireIn(new DateInterval('PT15M'));
         $factory = m::mock(ServerFactory::class);
         $factory->shouldReceive('fileKeys')->once()->andReturn([
             new ServerKey(self::$keys[0]['public'], self::$keys[0]['private']),
@@ -240,6 +261,54 @@ class SigningKeyRepositoryTest extends TestCase
         CarbonImmutable::setTestNow($this->now->addDays(max(2, $retentionDays)));
         $repository->prune();
         $this->assertSame($replacement->id, SigningKey::sole()->id);
+    }
+
+    public function testFileImportRetainsTokensIssuedBeforeFileWorkersRestart(): void
+    {
+        Passport::tokensExpireIn(new DateInterval('PT15M'));
+        Passport::personalAccessTokensExpireIn(new DateInterval('P1Y'));
+        $factory = m::mock(ServerFactory::class);
+        $factory->shouldReceive('fileKeys')->once()->andReturn([
+            new ServerKey(self::$keys[0]['public'], self::$keys[0]['private']),
+        ]);
+        $this->app->instance(ServerFactory::class, $factory);
+        $this->generator([1]);
+        $repository = $this->app->make(SigningKeyRepository::class);
+        $imported = $repository->importFiles()->sole();
+
+        CarbonImmutable::setTestNow($this->now->addDay());
+        $token = Token::forceCreate([
+            'id' => 'issued-during-migration', 'client_id' => 'client', 'revoked' => false,
+            'expires_at' => CarbonImmutable::now()->addYear(),
+        ]);
+        $this->assertNull($imported->retain_until);
+
+        CarbonImmutable::setTestNow($this->now->addDays(90));
+        $replacement = $repository->rotate(2048);
+        CarbonImmutable::setTestNow($replacement->activates_at->addMinutes(16));
+        $repository->prune();
+
+        $this->assertNotNull($imported->fresh());
+        $this->assertGreaterThanOrEqual($token->expires_at->getTimestamp(), $imported->fresh()->retires_at->getTimestamp());
+        CarbonImmutable::setTestNow($replacement->activates_at->addDays(366));
+        $repository->prune();
+        $this->assertSame($replacement->id, SigningKey::sole()->id);
+    }
+
+    #[TestWith(['array'])]
+    #[TestWith(['null'])]
+    public function testManagementRequiresASharedLockStore(string $driver): void
+    {
+        config(['cache.default' => 'invalid-key-store', 'cache.stores.invalid-key-store' => ['driver' => $driver]]);
+        $this->generator([]);
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('Passport signing key management requires a shared cache store with atomic locks.');
+
+        try {
+            $this->app->make(SigningKeyRepository::class)->rotate(2048);
+        } finally {
+            $this->assertSame(0, SigningKey::count());
+        }
     }
 
     public function testManagementRejectsAnAmbientTransactionBeforeGeneratingOrChangingKeys(): void

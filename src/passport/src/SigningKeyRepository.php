@@ -6,8 +6,10 @@ namespace Hypervel\Passport;
 
 use Carbon\CarbonInterface;
 use Closure;
+use DateInterval;
 use DateTimeInterface;
 use Hypervel\Cache\ArrayStore;
+use Hypervel\Cache\NullStore;
 use Hypervel\Cache\WorkerArrayStore;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Cache\LockProvider;
@@ -205,7 +207,7 @@ class SigningKeyRepository
             }
 
             $latestExpiry = Passport::token()->newQuery()->useWritePdo()->max('expires_at');
-            $floor = $retainUntil === null ? null : CarbonImmutable::instance($retainUntil);
+            $floor = $retainUntil === null ? null : CarbonImmutable::instance($retainUntil)->setTimezone($this->config->string('app.timezone'));
 
             if ($latestExpiry !== null && ($floor === null || CarbonImmutable::parse($latestExpiry) > $floor)) {
                 $floor = CarbonImmutable::parse($latestExpiry);
@@ -213,9 +215,21 @@ class SigningKeyRepository
 
             $now = CarbonImmutable::now();
             $keys = new Collection;
+            // File workers can still issue tokens between this import and their restart.
+            $maxTokenLifetime = max(
+                self::lifetimeInSeconds(Passport::tokensExpireIn()),
+                self::lifetimeInSeconds(Passport::personalAccessTokensExpireIn()),
+                self::lifetimeInSeconds(Passport::clientCredentialsTokensExpireIn()),
+            );
 
             foreach ($materials as $material) {
-                $keys->push($this->storeKey($material, $material['private'] === null ? $now->subSecond() : $now, $floor));
+                // Verification-only imports belong behind the signing key for selection and pruning.
+                $keys->push($this->storeKey(
+                    $material,
+                    $material['private'] === null ? $now->subSecond() : $now,
+                    $floor,
+                    $material['private'] === null ? 0 : $maxTokenLifetime,
+                ));
             }
 
             $this->pruneKeys();
@@ -227,9 +241,9 @@ class SigningKeyRepository
     /**
      * Remove a compromised key, replacing it immediately if it is signing.
      */
-    public function revoke(string $keyId, int $length = KeyGenerator::DEFAULT_LENGTH): void
+    public function revoke(string $keyId, int $length = KeyGenerator::DEFAULT_LENGTH): bool
     {
-        $needsReplacement = $this->mutate(function () use ($keyId): bool {
+        $revoked = $this->mutate(function () use ($keyId): ?bool {
             $keys = $this->all();
             $target = $this->findByKeyId($keys, $keyId);
 
@@ -238,26 +252,26 @@ class SigningKeyRepository
             }
 
             if ($target->is($this->activeKey($keys))) {
-                return true;
+                return null;
             }
 
             $this->deleteKey($target);
 
-            return false;
+            return true;
         });
 
-        if (! $needsReplacement) {
-            return;
+        if ($revoked !== null) {
+            return $revoked;
         }
 
         $material = $this->generator->generate($length);
 
-        $this->mutate(function () use ($keyId, $material): void {
+        return $this->mutate(function () use ($keyId, $material): bool {
             $keys = $this->all();
             $target = $this->findByKeyId($keys, $keyId);
 
             if ($target === null) {
-                return;
+                return false;
             }
 
             if ($target->is($this->activeKey($keys))) {
@@ -265,7 +279,22 @@ class SigningKeyRepository
             }
 
             $this->deleteKey($target);
+
+            return true;
         });
+    }
+
+    /**
+     * Convert a lifetime to a conservative retention bound, including long months and leap years.
+     *
+     * @internal shared by key imports and signing-time retention
+     */
+    public static function lifetimeInSeconds(DateInterval $lifetime): int
+    {
+        return (int) ceil(
+            (($lifetime->y * 366 + $lifetime->m * 31 + $lifetime->d) * 86400)
+            + $lifetime->h * 3600 + $lifetime->i * 60 + $lifetime->s + $lifetime->f
+        );
     }
 
     /**
@@ -355,11 +384,11 @@ class SigningKeyRepository
      *
      * @param array{private: ?string, public: string} $material
      */
-    protected function storeKey(#[SensitiveParameter] array $material, CarbonInterface $activatesAt, ?CarbonInterface $retainUntil = null): SigningKey
+    protected function storeKey(#[SensitiveParameter] array $material, CarbonInterface $activatesAt, ?CarbonInterface $retainUntil = null, int $maxTokenLifetime = 0): SigningKey
     {
         $key = Passport::signingKey()->forceFill([
             'public_key' => $material['public'], 'private_key' => $material['private'],
-            'activates_at' => $activatesAt, 'max_token_lifetime' => 0, 'retain_until' => $retainUntil,
+            'activates_at' => $activatesAt, 'max_token_lifetime' => $maxTokenLifetime, 'retain_until' => $retainUntil,
         ]);
 
         if (! $key->save()) {
@@ -409,7 +438,7 @@ class SigningKeyRepository
         $this->ensureNoTransaction();
         $store = $this->cache->store()->getStore();
 
-        if (! $store instanceof LockProvider || $store instanceof ArrayStore || $store instanceof WorkerArrayStore) {
+        if (! $store instanceof LockProvider || $store instanceof ArrayStore || $store instanceof WorkerArrayStore || $store instanceof NullStore) {
             throw new LogicException('Passport signing key management requires a shared cache store with atomic locks.');
         }
 
