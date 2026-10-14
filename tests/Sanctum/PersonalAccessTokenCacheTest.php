@@ -1368,7 +1368,7 @@ class PersonalAccessTokenCacheTest extends TestCase
         $this->assertEquals($cached, $this->cacheRepository()->getRaw("sanctum:{$token->id}"));
     }
 
-    public function testTokenRelationDeletesOnlyTheIdsSelectedBeforeTheDelete(): void
+    public function testTokenRelationDeleteOnlyDeletesTheSelectedKeys(): void
     {
         $token = $this->createToken();
         $user = $token->tokenable;
