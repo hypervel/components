@@ -2684,7 +2684,7 @@ class Builder implements BuilderContract
     /**
      * Alias to set the "offset" value of the query.
      */
-    public function skip(int $value): static
+    public function skip(?int $value): static
     {
         return $this->offset($value);
     }
@@ -2704,7 +2704,7 @@ class Builder implements BuilderContract
     /**
      * Alias to set the "limit" value of the query.
      */
-    public function take(int $value): static
+    public function take(?int $value): static
     {
         return $this->limit($value);
     }

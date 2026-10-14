@@ -3043,6 +3043,10 @@ class DatabaseQueryBuilderTest extends TestCase
         $builder = $this->getBuilder();
         $builder->select('*')->from('users')->offset(5)->limit(null);
         $this->assertSame('select * from "users" offset 5', $builder->toSql());
+
+        $builder = $this->getBuilder();
+        $builder->select('*')->from('users')->take(10)->skip(5)->take(null)->skip(null);
+        $this->assertSame('select * from "users" offset 0', $builder->toSql());
     }
 
     public function testForPage(): void
