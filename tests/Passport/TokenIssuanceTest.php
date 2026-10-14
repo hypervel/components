@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Passport;
 
 use DateInterval;
 use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Database\Events\TransactionCommitting;
 use Hypervel\Passport\AuthCode;
 use Hypervel\Passport\Bridge\AccessToken;
 use Hypervel\Passport\Bridge\AccessTokenRepository;
@@ -30,6 +31,7 @@ use Hypervel\Passport\Token;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
+use Hypervel\Support\Facades\Exceptions;
 use Hypervel\Testbench\TestCase;
 use League\OAuth2\Server\Exception\OAuthServerException;
 use LogicException;
@@ -128,6 +130,44 @@ class TokenIssuanceTest extends TestCase
     {
         yield 'success' => [true];
         yield 'failure' => [false];
+    }
+
+    #[TestWith([false, false])]
+    #[TestWith([true, false])]
+    #[TestWith([true, true])]
+    public function testCommitFailuresAreReportedOnlyAfterIssuanceCommits(bool $afterCommit, bool $canceled): void
+    {
+        Exceptions::fake();
+        $failure = $canceled ? new CanceledException('Commit canceled.') : new RuntimeException('Commit callback failed.');
+        Event::listen(
+            $afterCommit ? AccessTokenCreated::class : TransactionCommitting::class,
+            static function () use ($failure): never {
+                throw $failure;
+            },
+        );
+
+        try {
+            $result = TokenIssuance::run($this->servers, function (): string {
+                $this->app->make(AccessTokenRepository::class)->persistNewAccessToken($this->accessToken('access'));
+
+                return 'issued';
+            });
+            $this->assertTrue($afterCommit && ! $canceled);
+            $this->assertSame('issued', $result);
+        } catch (Throwable $exception) {
+            $this->assertFalse($afterCommit && ! $canceled);
+            $this->assertSame($failure, $exception);
+        }
+
+        if ($afterCommit && ! $canceled) {
+            Exceptions::assertReported(fn (RuntimeException $exception): bool => $exception === $failure);
+        } else {
+            Exceptions::assertNothingReported();
+        }
+
+        $this->assertSame($afterCommit ? 1 : 0, Token::count());
+        $this->assertSame(0, DB::transactionLevel());
+        $this->assertNull(TokenIssuance::current());
     }
 
     public function testFailedDirectRefreshPersistenceRollsBackItsFamilyAndEvent(): void

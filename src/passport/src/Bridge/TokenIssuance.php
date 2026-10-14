@@ -247,7 +247,19 @@ class TokenIssuance implements NonCopyableContext, Transient
      */
     protected function commit(): void
     {
-        $this->connection?->commit();
+        try {
+            $this->connection?->commit();
+        } catch (CanceledException $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            if ($this->connection->transactionLevel() !== $this->transactionLevel) {
+                throw $exception;
+            }
+
+            // After-commit failures cannot undo issuance. Withholding the response would strand consumed grants.
+            report($exception);
+        }
+
         $this->connection = null;
     }
 

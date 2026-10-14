@@ -7,13 +7,18 @@ namespace Hypervel\Tests\Passport\Feature;
 use Defuse\Crypto\Crypto;
 use Defuse\Crypto\Encoding;
 use Defuse\Crypto\Key;
+use Hypervel\Cache\ModelCacheCoordinator;
+use Hypervel\Contracts\Cache\LockTimeoutException;
 use Hypervel\Http\Request;
 use Hypervel\Passport\Client;
 use Hypervel\Passport\Database\Factories\ClientFactory;
 use Hypervel\Passport\Passport;
+use Hypervel\Support\Facades\Exceptions;
 use Hypervel\Support\Facades\Route;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\Concerns\WithHypervelMigrations;
 use Hypervel\Tests\Passport\Fixtures\UserFactory;
+use Mockery as m;
 
 use function Hypervel\Testbench\artisan;
 
@@ -98,6 +103,45 @@ class RefreshTokenGrantTest extends PassportTestCase
 
         $this->assertSame(0, Passport::refreshToken()->newQuery()->where('revoked', false)->count());
         $this->assertSame(1, Passport::refreshTokenFamily()->newQuery()->whereNotNull('revoked_at')->count());
+    }
+
+    #[WithConfig('passport.cache', ['enabled' => true, 'store' => 'file', 'ttl' => 300, 'prefix' => 'passport'])]
+    public function testRefreshReturnsUsableTokensWhenInvalidationFailsAfterCommit(): void
+    {
+        $coordinator = m::mock(ModelCacheCoordinator::class, [$this->app])->makePartial();
+        $this->app->instance(ModelCacheCoordinator::class, $coordinator);
+        $client = ClientFactory::new()->create();
+        $oldToken = $this->getNewAccessToken($client);
+        $oldRefresh = Passport::refreshToken()->newQuery()->sole();
+        $failure = new LockTimeoutException;
+        $coordinator->shouldReceive('invalidate')->once()
+            ->with($this->app->make('cache')->store('file'), 'passport:tokens:' . $oldRefresh->access_token_id)
+            ->andThrow($failure);
+        $coordinator->shouldReceive('invalidate')->withAnyArgs()->passthru()->byDefault();
+        Exceptions::fake();
+
+        $newToken = $this->post('/oauth/token', [
+            'grant_type' => 'refresh_token',
+            'client_id' => $client->getKey(),
+            'client_secret' => $client->plainSecret,
+            'refresh_token' => $oldToken['refresh_token'],
+        ])->assertOk()->json();
+
+        Exceptions::assertReported(fn (LockTimeoutException $exception): bool => $exception === $failure);
+        Exceptions::assertReportedCount(1);
+        $this->assertTrue($oldRefresh->fresh()->revoked);
+        Route::get('/refresh-user', fn (Request $request) => $request->user()->getAuthIdentifier())
+            ->middleware('auth:passport');
+        $this->withToken($newToken['access_token'])->getJson('/refresh-user')->assertOk();
+
+        $this->post('/oauth/token', [
+            'grant_type' => 'refresh_token',
+            'client_id' => $client->getKey(),
+            'client_secret' => $client->plainSecret,
+            'refresh_token' => $newToken['refresh_token'],
+        ])->assertOk()->assertJsonStructure(['access_token', 'refresh_token']);
+        $this->assertNull(Passport::refreshTokenFamily()->newQuery()->sole()->revoked_at);
+        Exceptions::assertReportedCount(1);
     }
 
     public function testRefreshingTokenWithoutRevoking(): void
@@ -229,7 +273,7 @@ class RefreshTokenGrantTest extends PassportTestCase
             'scope' => 'create read delete',
         ]))->assertOk()->json('authToken');
 
-        $redirectUrl = $this->post('/oauth/authorize', ['auth_token' => $authToken])->headers->get('Location');
+        $redirectUrl = $this->post('/oauth/authorize', ['auth_token' => $authToken])->assertRedirect()->headers->get('Location');
         parse_str(parse_url($redirectUrl, PHP_URL_QUERY), $params);
 
         return $this->post('/oauth/token', [
