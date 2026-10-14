@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Ai\Feature;
 
 use Closure;
 use Generator;
+use GuzzleHttp\Promise\PromiseInterface;
 use Hypervel\Ai\Ai;
 use Hypervel\Ai\Approvals\Decisions;
 use Hypervel\Ai\Approvals\PendingApproval;
@@ -33,10 +34,13 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Http\Client\Request;
 use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Http;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Ai\Fixtures\Agents\RememberingAssistantAgent;
+use Hypervel\Tests\Ai\Fixtures\OpenAiHelpers;
 use Hypervel\Tests\Ai\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -47,6 +51,7 @@ use Throwable;
 #[WithConfig('ai.conversations.generate_title', false)]
 class RememberConversationTest extends TestCase
 {
+    use OpenAiHelpers;
     use RefreshDatabase;
 
     public function testACompleteTurnUpdatesConversationActivityOnce(): void
@@ -322,6 +327,45 @@ class RememberConversationTest extends TestCase
         } finally {
             $waiting->close();
         }
+    }
+
+    #[DataProvider('executionModes')]
+    public function testPublicAgentCallsGenerateOneConcurrentTitleThroughTheProvider(bool $streaming): void
+    {
+        config([
+            'ai.conversations.generate_title' => true,
+            'ai.conversations.concurrent_title' => true,
+            'ai.providers.openai.key' => 'test-key',
+            'ai.providers.openai.models.text.cheapest' => 'title-model',
+        ]);
+        Http::preventStrayRequests();
+        Http::fake(['https://api.openai.com/*' => function (Request $request): PromiseInterface {
+            $text = $request['model'] === 'title-model' ? 'Generated conversation title' : 'Hello back';
+            $completed = $this->responseCompleted(2, 2, output: [[
+                'type' => 'message',
+                'role' => 'assistant',
+                'content' => [['type' => 'output_text', 'text' => $text]],
+            ]]);
+
+            return Http::response(($request['stream'] ?? false)
+                ? $this->ssePayload([$this->responseCreated(), $this->outputTextDelta($text), $this->outputTextDone($text), $completed])
+                : $completed['response']);
+        }]);
+        $agent = (new RememberingAssistantAgent)->forUser((object) ['id' => 1]);
+
+        if ($streaming) {
+            $response = $agent->stream('Hello', provider: 'openai', model: 'main-model');
+            Http::assertNothingSent();
+            iterator_to_array($response);
+        } else {
+            $response = $agent->prompt('Hello', provider: 'openai', model: 'main-model');
+        }
+
+        $this->assertSame('Hello back', $response->text);
+        Http::assertSentCount(2);
+        $this->assertCount(1, Http::recorded(fn (Request $request): bool => $request['model'] === 'title-model'));
+        $this->assertDatabaseHas('agent_conversations', ['id' => $response->conversationId, 'title' => 'Generated conversation title']);
+        $this->assertDatabaseHas('agent_conversation_messages', ['id' => $response->assistantMessageId, 'content' => 'Hello back']);
     }
 
     #[DataProvider('executionModes')]
