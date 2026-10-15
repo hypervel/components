@@ -9,6 +9,7 @@ use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\RefreshableLock;
 use Hypervel\Contracts\Limiters\Lease;
 use Hypervel\Contracts\Limiters\LimiterTimeoutException;
+use Hypervel\Database\ConnectionResolver;
 use Hypervel\Support\Sleep;
 use Hypervel\Support\Str;
 use Swoole\Coroutine\CanceledException;
@@ -64,6 +65,7 @@ class ConcurrencyLimiter
                 throw new LimiterTimeoutException;
             }
 
+            ConnectionResolver::releaseIdleConnections();
             Sleep::usleep($sleep * 1000);
         }
 
