@@ -7,6 +7,7 @@ namespace Hypervel\Ai\Files;
 use Hypervel\Ai\Contracts\Files\StorableFile;
 use Hypervel\Ai\Contracts\Files\TranscribableAudio;
 use Hypervel\Ai\Files\Concerns\CanBeUploadedToProvider;
+use Hypervel\Ai\Files\Concerns\HasBase64Content;
 use Hypervel\Ai\PendingResponses\PendingTranscriptionGeneration;
 use Hypervel\Ai\Transcription;
 use Hypervel\Contracts\Support\Arrayable;
@@ -18,6 +19,7 @@ use Override;
 class Base64Audio extends Audio implements Arrayable, JsonSerializable, StorableFile, TranscribableAudio
 {
     use CanBeUploadedToProvider;
+    use HasBase64Content;
 
     /**
      * Create a new Base64 audio file.
@@ -37,18 +39,10 @@ class Base64Audio extends Audio implements Arrayable, JsonSerializable, Storable
     #[Override]
     public static function fromUpload(UploadedFile $file, ?string $mimeType = null): self
     {
-        return new self(
+        return (new self(
             base64_encode($file->getContent()),
             mimeType: $mimeType ?? $file->getClientMimeType(),
-        );
-    }
-
-    /**
-     * Get the raw representation of the file.
-     */
-    public function content(): string
-    {
-        return base64_decode($this->base64);
+        ))->as($file->getClientOriginalName());
     }
 
     /**

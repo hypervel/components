@@ -10,7 +10,7 @@ use Hypervel\Ai\Contracts\Gateway\StoreGateway;
 use Hypervel\Ai\Store;
 use Hypervel\Support\Collection;
 
-interface StoreProvider extends Provider
+interface StoreProvider extends FileProvider
 {
     /**
      * Get a vector store by its ID.

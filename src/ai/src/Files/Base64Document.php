@@ -6,6 +6,7 @@ namespace Hypervel\Ai\Files;
 
 use Hypervel\Ai\Contracts\Files\StorableFile;
 use Hypervel\Ai\Files\Concerns\CanBeUploadedToProvider;
+use Hypervel\Ai\Files\Concerns\HasBase64Content;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Http\UploadedFile;
 use InvalidArgumentException;
@@ -15,6 +16,7 @@ use Override;
 class Base64Document extends Document implements Arrayable, JsonSerializable, StorableFile
 {
     use CanBeUploadedToProvider;
+    use HasBase64Content;
 
     /**
      * Create a new Base64 document.
@@ -34,18 +36,10 @@ class Base64Document extends Document implements Arrayable, JsonSerializable, St
     #[Override]
     public static function fromUpload(UploadedFile $file, ?string $mimeType = null): self
     {
-        return new self(
+        return (new self(
             base64_encode($file->getContent()),
             mimeType: $mimeType ?? $file->getClientMimeType(),
-        );
-    }
-
-    /**
-     * Get the raw representation of the file.
-     */
-    public function content(): string
-    {
-        return base64_decode($this->base64);
+        ))->as($file->getClientOriginalName());
     }
 
     /**

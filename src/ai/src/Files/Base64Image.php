@@ -6,6 +6,7 @@ namespace Hypervel\Ai\Files;
 
 use Hypervel\Ai\Contracts\Files\StorableFile;
 use Hypervel\Ai\Files\Concerns\CanBeUploadedToProvider;
+use Hypervel\Ai\Files\Concerns\HasBase64Content;
 use Hypervel\Contracts\Support\Arrayable;
 use InvalidArgumentException;
 use JsonSerializable;
@@ -13,6 +14,7 @@ use JsonSerializable;
 class Base64Image extends Image implements Arrayable, JsonSerializable, StorableFile
 {
     use CanBeUploadedToProvider;
+    use HasBase64Content;
 
     /**
      * Create a new Base64 image.
@@ -24,14 +26,6 @@ class Base64Image extends Image implements Arrayable, JsonSerializable, Storable
         }
 
         $this->mime = $mimeType;
-    }
-
-    /**
-     * Get the raw representation of the file.
-     */
-    public function content(): string
-    {
-        return base64_decode($this->base64);
     }
 
     /**

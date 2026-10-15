@@ -174,6 +174,16 @@ class MessageMappingTest extends TestCase
         });
     }
 
+    public function testInvalidBase64TextDocumentFailsBeforeSending(): void
+    {
+        Http::preventStrayRequests();
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid base64 file content.');
+
+        agent()->prompt('Read this.', attachments: [new Base64Document('invalid!', 'text/plain')], provider: 'anthropic');
+    }
+
     public function testStoredTextDocumentMapsToTextSourceBlock(): void
     {
         Http::fake([

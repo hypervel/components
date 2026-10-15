@@ -81,7 +81,7 @@ trait MapsAttachments
                     'type' => 'document',
                     'source' => $this->documentSource(
                         $attachment->mime,
-                        fn (): string => base64_decode($attachment->base64),
+                        fn (): string => $attachment->content(),
                         fn (): string => $attachment->base64,
                     ),
                 ],
