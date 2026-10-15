@@ -4,12 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database;
 
+use Aws\Result;
 use Closure;
+use GuzzleHttp\Client;
+use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\Psr7\Response;
 use Hypervel\ConnectionPool\Events\ConnectionReleasing;
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Engine\Http\V2\ClientFactoryInterface;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Connectors\ConnectorInterface;
@@ -23,14 +27,33 @@ use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\SessionConfigurator;
 use Hypervel\Database\SQLiteConnection;
 use Hypervel\Engine\Channel;
+use Hypervel\Engine\Http\V2\Response as Http2Response;
+use Hypervel\Grpc\Client\RetryPolicy;
+use Hypervel\Grpc\Health\HealthClient;
+use Hypervel\Grpc\Health\V1\HealthCheckRequest;
+use Hypervel\Grpc\StatusCode;
 use Hypervel\Http\Client\Events\ResponseReceived;
 use Hypervel\Http\Client\Factory;
+use Hypervel\Http\Request;
+use Hypervel\Notifications\Channels\SlackWebhookChannel;
+use Hypervel\Notifications\Messages\SlackMessage;
+use Hypervel\Notifications\Notification;
+use Hypervel\Notifications\SlackChannelServiceProvider;
+use Hypervel\ObjectPool\PoolDefinition;
+use Hypervel\ObjectPool\PoolManager as ObjectPoolManager;
+use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\Process\Factory as ProcessFactory;
+use Hypervel\Queue\ClearableQueuePoolProxy;
+use Hypervel\Queue\Connectors\SqsConnector;
+use Hypervel\Queue\SqsQueue;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Support\Sleep;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Grpc\Fixtures\ClientCallClient;
+use Hypervel\Tests\Grpc\Fixtures\ClientCallClientFactory;
+use Hypervel\Tests\Socialite\Fixtures\GenericTestProviderStub;
 use LogicException;
 use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -222,6 +245,168 @@ class DatabaseConnectionLeaseTest extends TestCase
 
         $this->assertSame([3, 3, null], $results);
         $this->assertSame(1, $this->pool()->getIdleCount());
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testSocialiteReleasesForItsDefaultTransportWithoutChangingCustomHandlers(bool $custom): void
+    {
+        $handler = function () use ($custom): PromiseInterface {
+            $this->assertSame($custom ? 0 : 1, $this->pool()->getIdleCount());
+
+            return Create::promiseFor(new Response(200, [], 'OK'));
+        };
+        $provider = new GenericTestProviderStub(Request::create('/'), $custom ? [
+            'handler' => HandlerStack::create($handler),
+        ] : ['max_host_connections' => 1]);
+        $client = $provider->getProviderHttpClient();
+        if (! $custom) {
+            $client->getConfig('handler')->setHandler($handler);
+        }
+
+        DB::connection('leases')->selectOne('select 1');
+
+        $this->assertSame('OK', (string) $client->get('https://identity.example/user')->getBody());
+    }
+
+    public function testSlackWebhookReleasesAfterPreparingTheNotification(): void
+    {
+        $this->app->register(SlackChannelServiceProvider::class);
+        $channel = $this->app->make(SlackWebhookChannel::class);
+        $client = (fn (): Client => $this->http)->call($channel);
+        $client->getConfig('handler')->setHandler(function (): PromiseInterface {
+            $this->assertSame(1, $this->pool()->getIdleCount());
+
+            return Create::promiseFor(new Response(200, [], 'ok'));
+        });
+        $notifiable = new class {
+            /**
+             * Route the notification to the test webhook.
+             */
+            public function routeNotificationFor(string $driver, Notification $notification): string
+            {
+                return 'https://hooks.slack.example/services/test';
+            }
+        };
+        $notification = new class extends Notification {
+            /**
+             * Build the message after querying its application data.
+             */
+            public function toSlack(mixed $notifiable): SlackMessage
+            {
+                DB::connection('leases')->selectOne('select 1');
+
+                return (new SlackMessage)->content('Message');
+            }
+        };
+
+        $this->assertSame('ok', (string) $channel->send($notifiable, $notification)->getBody());
+    }
+
+    public function testSqsCommandsReleaseIdleDatabaseSessions(): void
+    {
+        $queue = (new SqsConnector)->connect([
+            'queue' => 'https://sqs.us-east-1.amazonaws.com/123456789012/test',
+            'region' => 'us-east-1',
+            'key' => 'test',
+            'secret' => 'test',
+            'handler' => function (): PromiseInterface {
+                $this->assertSame(1, $this->pool()->getIdleCount());
+
+                return Create::promiseFor(new Result(['MessageId' => 'message']));
+            },
+        ]);
+        DB::connection('leases')->selectOne('select 1');
+
+        $this->assertSame('message', $queue->pushRaw('payload'));
+    }
+
+    public function testQueueAdmissionReleasesBeforeBorrowingTheBackend(): void
+    {
+        $pools = new ObjectPoolManager;
+        $proxy = new ClearableQueuePoolProxy(
+            new PoolDefinition('queue:release-test', 'sqs', 'test', PoolOptions::fromArray([])),
+            function (): SqsQueue {
+                $this->assertSame(1, $this->pool()->getIdleCount());
+
+                return (new SqsConnector)->connect([
+                    'queue' => 'https://sqs.us-east-1.amazonaws.com/123456789012/test',
+                    'region' => 'us-east-1',
+                    'key' => 'test',
+                    'secret' => 'test',
+                    'handler' => static fn (): PromiseInterface => Create::promiseFor(new Result([
+                        'Attributes' => ['ApproximateNumberOfMessages' => '2'],
+                    ])),
+                ]);
+            },
+            $pools,
+        );
+        DB::connection('leases')->selectOne('select 1');
+
+        try {
+            $this->assertSame(2, $proxy->pendingSize());
+        } finally {
+            $pools->purgeAll();
+        }
+    }
+
+    public function testGrpcCallStartupReturnsIdleDatabaseSessions(): void
+    {
+        $engineClient = new ClientCallClient;
+        $this->app->instance(ClientFactoryInterface::class, new ClientCallClientFactory($engineClient));
+        $client = new HealthClient('health.example.test:50051');
+        DB::connection('leases')->selectOne('select 1');
+
+        try {
+            $client->check(new HealthCheckRequest);
+
+            $this->assertCount(1, $engineClient->sentRequests);
+            $this->assertSame(1, $this->pool()->getIdleCount());
+        } finally {
+            $client->close();
+        }
+    }
+
+    public function testAnotherCoroutineCanQueryDuringGrpcRetryBackoff(): void
+    {
+        $engineClient = new ClientCallClient;
+        $this->app->instance(ClientFactoryInterface::class, new ClientCallClientFactory($engineClient));
+        $client = new HealthClient('health.example.test:50051');
+        $ready = new Channel(1);
+
+        try {
+            $call = $client->check(new HealthCheckRequest, options: [
+                'retry' => new RetryPolicy(2, initialBackoff: 60, maxBackoff: 60),
+            ]);
+            $engineClient->respond(new Http2Response(1, 200, [
+                'content-type' => 'application/grpc+proto',
+                'grpc-status' => (string) StatusCode::Unavailable->value,
+                'grpc-retry-pushback-ms' => '60000',
+            ], '', false));
+
+            $results = parallel([
+                static function () use ($call, $ready): StatusCode {
+                    DB::connection('leases')->selectOne('select 1');
+                    $ready->push(true);
+
+                    return $call->status()->code();
+                },
+                function () use ($call, $ready): int {
+                    try {
+                        $this->assertTrue($ready->pop(3));
+
+                        return DB::connection('leases')->selectOne('select 2 as value')->value;
+                    } finally {
+                        $call->cancel();
+                    }
+                },
+            ]);
+
+            $this->assertSame([StatusCode::Cancelled, 2], $results);
+            $this->assertCount(1, $engineClient->sentRequests);
+        } finally {
+            $client->close();
+        }
     }
 
     public function testHttpRetriesAndRedirectsReleaseSessionsAcquiredByRequestCallbacks(): void
