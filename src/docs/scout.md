@@ -1044,6 +1044,8 @@ php artisan scout:flush "App\Models\Post"
 
 By default, `scout:import` processes chunks in parallel using up to 50 concurrent coroutines. You may tune this by setting `command_concurrency` in your `config/scout.php` file or via the `SCOUT_COMMAND_CONCURRENCY` environment variable.
 
+When the database engine stores embeddings, `scout:import` also limits concurrency to the imported models' connection pool, keeping one connection free for reading chunks. If that pool has only one connection, chunks are imported one at a time. This can mean fewer concurrent embedding requests than `command_concurrency` allows, but it keeps the import from exhausting its own pool. The limit doesn't cover other connections used by your hooks.
+
 <a name="modifying-the-import-query"></a>
 #### Modifying the Import Query
 
