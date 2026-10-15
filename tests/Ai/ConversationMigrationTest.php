@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Ai;
 use Hypervel\Ai\Enums\MessageStatus;
 use Hypervel\Ai\Models\Conversation;
 use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\Schema\Builder;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Support\Str;
@@ -94,5 +95,21 @@ class ConversationMigrationTest extends TestCase
             'uuid' => ['uuid', '00000000-0000-4000-8000-000000000001', 'varchar'],
             'ulid' => ['ulid', '01ARZ3NDEKTSV4RRFFQ69G5FAV', 'varchar'],
         ];
+    }
+
+    public function testMigrationDoesNotCollideWithAnotherTablesIndexes(): void
+    {
+        $schema = Schema::connection('conversations');
+        $schema->create('participants', function (Blueprint $table): void {
+            $table->id();
+            $table->string('name')->index('participant_index');
+        });
+
+        $this->artisan('migrate', [
+            '--path' => __DIR__ . '/../../src/ai/database/migrations',
+            '--realpath' => true,
+        ])->assertSuccessful();
+
+        $this->assertTrue($schema->hasTable('custom_messages'));
     }
 }

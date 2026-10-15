@@ -18,7 +18,7 @@ return new class extends AiMigration {
         $conversationsTable = config()->string('ai.conversations.tables.conversations', Conversation::DEFAULT_TABLE);
         $messagesTable = config()->string('ai.conversations.tables.messages', ConversationMessage::DEFAULT_TABLE);
 
-        Schema::create($conversationsTable, function (Blueprint $table): void {
+        Schema::create($conversationsTable, function (Blueprint $table) use ($conversationsTable): void {
             $table->uuid('id')->primary();
             $table->string('participant_type')->nullable();
             match (Builder::$defaultMorphKeyType) {
@@ -29,10 +29,10 @@ return new class extends AiMigration {
             $table->string('title');
             $table->timestamps();
 
-            $table->index(['participant_type', 'participant_id', 'updated_at'], 'participant_updated_at_index');
+            $table->index(['participant_type', 'participant_id', 'updated_at'], $conversationsTable . '_participant_updated_at_index');
         });
 
-        Schema::create($messagesTable, function (Blueprint $table) use ($conversationsTable): void {
+        Schema::create($messagesTable, function (Blueprint $table) use ($conversationsTable, $messagesTable): void {
             $table->uuid('id')->primary();
             $table->foreignUuid('conversation_id')->constrained($conversationsTable)->cascadeOnDelete();
             $table->string('participant_type')->nullable();
@@ -54,10 +54,10 @@ return new class extends AiMigration {
             $table->boolean('has_replay_blocks')->default(false);
             $table->timestamps();
 
-            $table->index(['conversation_id', 'id'], 'conversation_messages_index');
-            $table->index(['participant_type', 'participant_id', 'agent', 'id'], 'participant_index');
-            $table->index(['conversation_id', 'status', 'id'], 'conversation_status_index');
-            $table->index(['conversation_id', 'has_replay_blocks', 'id'], 'conversation_replay_index');
+            $table->index(['conversation_id', 'id'], $messagesTable . '_conversation_messages_index');
+            $table->index(['participant_type', 'participant_id', 'agent', 'id'], $messagesTable . '_participant_index');
+            $table->index(['conversation_id', 'status', 'id'], $messagesTable . '_conversation_status_index');
+            $table->index(['conversation_id', 'has_replay_blocks', 'id'], $messagesTable . '_conversation_replay_index');
         });
     }
 
