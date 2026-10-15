@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Prompts;
 
-use Hypervel\Prompts\Themes\Default\Concerns\InteractsWithStrings;
+use Hypervel\Prompts\Themes\Default\Concerns\InteractsWithAnsi;
 use Hypervel\Tests\TestCase;
 
 class ParseAnsiTextTest extends TestCase
@@ -251,9 +251,7 @@ class ParseAnsiTextTest extends TestCase
     private function getInstance(): object
     {
         return new class {
-            use InteractsWithStrings;
-
-            protected int $minWidth = 0;
+            use InteractsWithAnsi;
 
             public function parse(string $text): array
             {

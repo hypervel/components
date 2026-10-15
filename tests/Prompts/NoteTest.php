@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Prompts;
 
 use Hypervel\Prompts\Note;
+use Hypervel\Prompts\Output\BufferedConsoleOutput;
 use Hypervel\Prompts\Prompt;
 use Hypervel\Tests\TestCase;
+use Symfony\Component\Console\Formatter\OutputFormatter;
 
 use function Hypervel\Prompts\intro;
 use function Hypervel\Prompts\note;
@@ -20,6 +22,16 @@ class NoteTest extends TestCase
         note('Hello, World!');
 
         Prompt::assertOutputContains('Hello, World!');
+    }
+
+    public function testUndecoratedNotePreservesEscapedTagsAndDropsStyles(): void
+    {
+        Prompt::fake();
+        Prompt::setOutput(new BufferedConsoleOutput(decorated: false));
+
+        note(OutputFormatter::escape('<info>Literal</info>') . ' <info>Styled</info>');
+
+        $this->assertSame("\n <info>Literal</info> Styled\n\n", Prompt::content());
     }
 
     public function testCanFallBack(): void

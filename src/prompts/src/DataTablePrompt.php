@@ -182,10 +182,12 @@ class DataTablePrompt extends Prompt
 
         $headers = array_values($this->headers);
         $headerWidths = array_fill(0, $columns, 0);
+        $formatter = clone static::output()->getFormatter();
+        $formatter->setDecorated(false);
 
         foreach ($headers as $index => $header) {
             $text = is_array($header) ? implode(' ', $header) : $header;
-            $headerWidths[$index] = mb_strwidth(Utils::stripEscapeSequences($text));
+            $headerWidths[$index] = mb_strwidth(Utils::stripTerminalControls($formatter->format($text)));
         }
 
         $columnWidths = array_fill(0, $columns, []);
@@ -195,7 +197,7 @@ class DataTablePrompt extends Prompt
                 $cellWidth = 0;
 
                 foreach (preg_split('/\r\n|\n/', $cell) as $line) {
-                    $cellWidth = max($cellWidth, mb_strwidth(Utils::stripEscapeSequences($line)));
+                    $cellWidth = max($cellWidth, mb_strwidth(Utils::stripTerminalControls($formatter->format($line))));
                 }
 
                 if ($cellWidth > 0) {
