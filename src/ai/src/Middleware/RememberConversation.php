@@ -19,6 +19,7 @@ use Hypervel\Ai\Prompts\AgentPrompt;
 use Hypervel\Ai\Responses\AgentResponse;
 use Hypervel\Ai\Responses\StreamableAgentResponse;
 use Hypervel\Ai\Storage\StoredTurn;
+use Hypervel\Ai\Support\ConversationSelection;
 use Hypervel\Ai\Support\PendingConversationTitle;
 use Hypervel\Support\ClassMetadataCache;
 use Hypervel\Support\Facades\DB;
@@ -55,7 +56,12 @@ class RememberConversation
         /** @var Agent&RemembersConversations $agent */
         $agent = $prompt->agent;
 
-        $pendingConversationId = $agent->currentConversation() === null
+        $prompt->captureConversation();
+
+        /** @var ConversationSelection $selection */
+        $selection = $prompt->conversationSelection();
+
+        $pendingConversationId = $selection->conversationId === null
             ? (string) Str::uuid7()
             : null;
 
@@ -78,7 +84,7 @@ class RememberConversation
             if ($response instanceof StreamableAgentResponse) {
                 // Use a weak reference so the producer does not keep its own response alive.
                 $responseReference = WeakReference::create($response);
-                $response->wrapProducer(function (Closure $produce) use ($prompt, $agent, &$pendingConversationId, $responseReference): Generator {
+                $response->wrapProducer(function (Closure $produce) use ($prompt, $selection, &$pendingConversationId, $responseReference): Generator {
                     $title = null;
                     $completed = false;
 
@@ -92,7 +98,7 @@ class RememberConversation
 
                             if ($stored !== null) {
                                 $pendingConversationId = null;
-                                $responseReference->get()->withinConversation($stored->conversationId, $agent->conversationParticipant());
+                                $responseReference->get()->withinConversation($stored->conversationId, $selection->participant);
                             }
 
                             throw $exception;
@@ -113,10 +119,10 @@ class RememberConversation
 
             // Surface the ID to stream protocols without treating it as an existing conversation...
             if ($pendingConversationId !== null && $response instanceof StreamableAgentResponse) {
-                $response->withinConversation($pendingConversationId, $agent->conversationParticipant());
+                $response->withinConversation($pendingConversationId, $selection->participant);
             }
 
-            return $response->then(function (AgentResponse $completedResponse) use ($prompt, $agent, &$pendingConversationId): void {
+            return $response->then(function (AgentResponse $completedResponse) use ($prompt, $agent, $selection, &$pendingConversationId): void {
                 try {
                     if (! $this->shouldRemember($agent, $prompt, $completedResponse)) {
                         if ($pendingConversationId !== null) {
@@ -132,7 +138,7 @@ class RememberConversation
 
                     $completedResponse->withinConversation(
                         $stored->conversationId,
-                        $agent->conversationParticipant(),
+                        $selection->participant,
                     )->withStoredMessages($stored->userMessageId, $stored->assistantMessageId);
                 } finally {
                     $prompt->setPendingConversationTitle(null);
@@ -191,10 +197,12 @@ class RememberConversation
     {
         /** @var Agent&RemembersConversations $agent */
         $agent = $prompt->agent;
-        $participant = $agent->conversationParticipant();
+        /** @var ConversationSelection $selection */
+        $selection = $prompt->conversationSelection();
+        $participant = $selection->participant;
         [$participantType, $participantId] = $this->participantKeys($participant);
-        $newConversation = $this->startsConversation($agent, $pendingConversationId);
-        $conversationId = $newConversation ? ($pendingConversationId ?? (string) Str::uuid7()) : $agent->currentConversation();
+        $newConversation = $this->startsConversation($prompt, $pendingConversationId);
+        $conversationId = $newConversation ? ($pendingConversationId ?? (string) Str::uuid7()) : $selection->conversationId;
         $title = $newConversation ? ($prompt->pendingConversationTitle()?->value() ?? $this->generateTitle($prompt->prompt)) : null;
 
         if ($this->store instanceof StoresConversationTurns) {
@@ -231,7 +239,12 @@ class RememberConversation
         }
 
         if ($newConversation) {
-            $agent->continue($stored->conversationId, $participant);
+            // Completing a lazy operation must not replace a selection the caller changed meanwhile.
+            if ($agent->currentConversation() === $selection->conversationId && $agent->conversationParticipant() === $participant) {
+                $agent->continue($stored->conversationId, $participant);
+            }
+
+            $selection->conversationId = $stored->conversationId;
         }
 
         return $stored;
@@ -267,19 +280,23 @@ class RememberConversation
      */
     protected function shouldRememberTurn(Agent $agent, AgentPrompt $prompt): bool
     {
-        return $agent->hasConversationParticipant()
-            || $agent->currentConversation() !== null
+        /** @var ConversationSelection $selection */
+        $selection = $prompt->conversationSelection();
+
+        return $selection->participant !== null
+            || $selection->conversationId !== null
             || $prompt->hasApprovalDecisions();
     }
 
     /**
      * Determine whether this attempt needs to create a conversation.
-     *
-     * @param Agent&RemembersConversations $agent
      */
-    protected function startsConversation(Agent $agent, ?string $pendingConversationId): bool
+    protected function startsConversation(AgentPrompt $prompt, ?string $pendingConversationId): bool
     {
-        return $pendingConversationId !== null || ! $agent->currentConversation();
+        /** @var ConversationSelection $selection */
+        $selection = $prompt->conversationSelection();
+
+        return $pendingConversationId !== null || ! $selection->conversationId;
     }
 
     /**
@@ -294,7 +311,7 @@ class RememberConversation
         if (! config()->boolean('ai.conversations.concurrent_title', false)
             || ! config()->boolean('ai.conversations.generate_title', true)
             || $prompt->hasApprovalDecisions()
-            || ! $this->startsConversation($agent, $pendingConversationId)
+            || ! $this->startsConversation($prompt, $pendingConversationId)
             || ! $this->shouldRememberTurn($agent, $prompt)
             || Ai::hasFakeGatewayFor($agent::class)) {
             return null;

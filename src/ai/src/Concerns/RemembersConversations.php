@@ -33,7 +33,7 @@ trait RemembersConversations
     }
 
     /**
-     * Continue an existing conversation, optionally as the given user.
+     * Continue an existing conversation, optionally as the given participant.
      */
     public function continue(string $conversationId, ?object $as = null): static
     {
@@ -54,7 +54,7 @@ trait RemembersConversations
     }
 
     /**
-     * Continue the given user's last conversation with this agent.
+     * Continue the given participant's last conversation with this agent.
      */
     public function continueLastConversation(object $as): static
     {
@@ -107,7 +107,7 @@ trait RemembersConversations
     }
 
     /**
-     * Get the user having the current conversation.
+     * Get the participant having the current conversation.
      */
     public function conversationParticipant(): ?object
     {

@@ -37,6 +37,7 @@ use Hypervel\Ai\Responses\Data\Meta;
 use Hypervel\Ai\Responses\QueuedAgentResponse;
 use Hypervel\Ai\Responses\StreamableAgentResponse;
 use Hypervel\Ai\Responses\StreamedAgentResponse;
+use Hypervel\Ai\Support\ConversationSelection;
 use Hypervel\Ai\Tools\LoadSkill;
 use Hypervel\Ai\Vercel\Vercel;
 use Hypervel\Broadcasting\Channel;
@@ -101,6 +102,9 @@ trait Promptable
 
         $messages = $this->flushAdHocMessages();
 
+        $conversationSelection = ConversationSelection::forAgent($this);
+        $conversationMessages = $this instanceof Conversational ? [...$this->messages()] : [];
+
         $tools = $this->resolveAgentTools();
 
         $middleware = $this->runtimeMiddleware;
@@ -113,7 +117,7 @@ trait Promptable
 
         [$parentInvocationId, $parentToolInvocationId] = ParentInvocation::current();
 
-        $run = function (TextProvider $provider, string $model, bool $isFinalAttempt = true) use (
+        $createPrompt = function (TextProvider $provider, string $model, bool $isFinalAttempt = true) use (
             $text,
             $attachments,
             $timeout,
@@ -123,35 +127,37 @@ trait Promptable
             $parentToolInvocationId,
             $messages,
             $tools,
-            $middleware
-        ): AgentResponse {
-            return $provider->prompt(
-                new AgentPrompt(
-                    $this,
-                    $text,
-                    $attachments,
-                    $provider,
-                    $model,
-                    $this->getTimeout($timeout),
-                    invocationId: $invocationId,
-                    approvalDecisions: $approvalDecisions,
-                    parentInvocationId: $parentInvocationId,
-                    parentToolInvocationId: $parentToolInvocationId,
-                    isFinalAttempt: $isFinalAttempt,
-                    messages: $messages,
-                    tools: $tools,
-                    middleware: $middleware,
-                )
+            $middleware,
+            $conversationSelection,
+            $conversationMessages,
+        ): AgentPrompt {
+            return new AgentPrompt(
+                $this,
+                $text,
+                $attachments,
+                $provider,
+                $model,
+                $this->getTimeout($timeout),
+                invocationId: $invocationId,
+                approvalDecisions: $approvalDecisions,
+                parentInvocationId: $parentInvocationId,
+                parentToolInvocationId: $parentToolInvocationId,
+                isFinalAttempt: $isFinalAttempt,
+                messages: $messages,
+                tools: $tools,
+                middleware: $middleware,
+                conversationSelection: $conversationSelection,
+                conversationMessages: $conversationMessages,
             );
         };
 
         if ($approvalDecisions !== null) {
             [$provider, $model] = $this->iterateProvidersWithFailover($providers)->current();
 
-            return $run($provider, $model);
+            return $provider->prompt($createPrompt($provider, $model));
         }
 
-        return $this->withModelFailover($run, $providers, $invocationId);
+        return $this->withModelFailover($createPrompt, $providers, $invocationId);
     }
 
     /**
@@ -189,6 +195,9 @@ trait Promptable
 
         $messages = $this->flushAdHocMessages();
 
+        $conversationSelection = ConversationSelection::forAgent($this);
+        $conversationMessages = $this instanceof Conversational ? [...$this->messages()] : [];
+
         $tools = $this->resolveAgentTools();
 
         $middleware = $this->runtimeMiddleware;
@@ -216,6 +225,8 @@ trait Promptable
                     tools: $tools,
                     contextRunner: $contextRunner,
                     middleware: $middleware,
+                    conversationSelection: $conversationSelection,
+                    conversationMessages: $conversationMessages,
                 )
             )->usingContext($contextRunner);
         }
@@ -225,7 +236,7 @@ trait Promptable
 
         $outer = new StreamableAgentResponse(
             $invocationId,
-            function () use ($providers, $prompt, $approvalDecisions, $attachments, $resolvedTimeout, $invocationId, $parentInvocationId, $parentToolInvocationId, $messages, $tools, $middleware, $contextRunner, &$responseReference): Generator {
+            function () use ($providers, $prompt, $approvalDecisions, $attachments, $resolvedTimeout, $invocationId, $parentInvocationId, $parentToolInvocationId, $messages, $tools, $middleware, $contextRunner, $conversationSelection, $conversationMessages, &$responseReference): Generator {
                 /** @var WeakReference<StreamableAgentResponse> $responseReference Assigned before iteration. */
                 $lastException = null;
 
@@ -250,6 +261,8 @@ trait Promptable
                                 tools: $tools,
                                 contextRunner: $contextRunner,
                                 middleware: $middleware,
+                                conversationSelection: $conversationSelection,
+                                conversationMessages: $conversationMessages,
                             )
                         )->usingContext($contextRunner);
 
@@ -460,21 +473,26 @@ trait Promptable
     }
 
     /**
-     * Invoke the given Closure with provider / model failover.
+     * Invoke prompts created by the given Closure with provider / model failover.
      *
+     * @param Closure(TextProvider, string, bool): AgentPrompt $callback
      * @param list<array{Provider|string, ?string}> $providers
      */
-    private function withModelFailover(Closure $callback, array $providers, string $invocationId): mixed
+    private function withModelFailover(Closure $callback, array $providers, string $invocationId): AgentResponse
     {
         $lastException = null;
 
         foreach ($this->iterateProvidersWithFailover($providers) as [$provider, $model, $isFinalAttempt]) {
+            $prompt = $callback($provider, $model, $isFinalAttempt);
+
             try {
-                return $callback($provider, $model, $isFinalAttempt);
+                return $provider->prompt($prompt);
             } catch (FailoverableException $e) {
-                $lastException = $isFinalAttempt
-                    ? $e
-                    : $this->recordAgentFailover($invocationId, $provider, $model, $e);
+                if (! $prompt->willRetry($e)) {
+                    throw $e;
+                }
+
+                $lastException = $this->recordAgentFailover($invocationId, $provider, $model, $e);
             }
         }
 

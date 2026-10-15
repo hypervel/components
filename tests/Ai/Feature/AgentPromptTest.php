@@ -14,12 +14,14 @@ use Hypervel\Ai\Events\AgentPrompted;
 use Hypervel\Ai\Events\StartingStep;
 use Hypervel\Ai\Gateway\RunContext;
 use Hypervel\Ai\Gateway\StepResult;
+use Hypervel\Ai\Messages\UserMessage;
 use Hypervel\Ai\PendingStep;
 use Hypervel\Ai\Promptable;
 use Hypervel\Ai\Prompts\AgentPrompt;
 use Hypervel\Ai\Responses\AgentResponse;
 use Hypervel\Ai\Responses\Data\Meta;
 use Hypervel\Ai\Responses\Data\TextUsage;
+use Hypervel\Ai\Support\ConversationSelection;
 use Hypervel\Ai\Support\PendingConversationTitle;
 use Hypervel\Ai\Tools\SimilaritySearch;
 use Hypervel\Contracts\Queue\ShouldQueue;
@@ -39,7 +41,9 @@ class AgentPromptTest extends TestCase
         $agent = self::createStub(Agent::class);
         $provider = self::createConfiguredStub(TextProvider::class, ['name' => 'test-provider']);
         $runner = static fn (Closure $work): mixed => $work();
-        $prompt = new AgentPrompt($agent, 'Summarize this', [], $provider, 'test-model', contextRunner: $runner);
+        $selection = new ConversationSelection('conversation', null);
+        $history = [new UserMessage('Earlier prompt')];
+        $prompt = new AgentPrompt($agent, 'Summarize this', [], $provider, 'test-model', contextRunner: $runner, conversationSelection: $selection, conversationMessages: $history);
         $claim = new ApprovalClaim('message', 'token');
         $store = self::createConfiguredStub(ClaimsPendingApprovals::class, ['claimPendingApprovals' => $claim]);
         $context = new RunContext('invocation', $agent, $provider, 'test-model', $this->app->make('events'), $runner, $store, 'conversation');
@@ -58,6 +62,8 @@ class AgentPromptTest extends TestCase
             $this->assertNull($restored->approvalClaim());
             $this->assertNull($restored->contextRunner());
             $this->assertNull($restored->pendingConversationTitle());
+            $this->assertNull($restored->conversationSelection());
+            $this->assertSame([], $restored->conversationMessages());
             $this->assertSame('Summarize this', $restored->prompt);
             $this->assertSame('test-provider', $restored->provider()->name());
 
@@ -68,12 +74,16 @@ class AgentPromptTest extends TestCase
         $this->assertSame($context, $prompt->runContext());
         $this->assertSame($claim, $prompt->approvalClaim());
         $this->assertSame($title, $prompt->pendingConversationTitle());
+        $this->assertSame($selection, $prompt->conversationSelection());
+        $this->assertSame($history, $prompt->conversationMessages());
     }
 
     public function testPromptAndToolRevisionsPreserveTheCapturedContextAndMiddleware(): void
     {
         $runner = static fn (Closure $work): mixed => $work();
         $middleware = static fn (PendingStep $step, Closure $next): StepResult => $next($step);
+        $selection = new ConversationSelection('conversation', null);
+        $history = [new UserMessage('Earlier prompt')];
         $prompt = new AgentPrompt(
             self::createStub(Agent::class),
             'Hello',
@@ -82,6 +92,8 @@ class AgentPromptTest extends TestCase
             'test-model',
             contextRunner: $runner,
             middleware: [$middleware],
+            conversationSelection: $selection,
+            conversationMessages: $history,
         );
         $prompt->markAsStreaming();
 
@@ -91,6 +103,10 @@ class AgentPromptTest extends TestCase
         $this->assertTrue($prompt->withTools([])->isStreaming());
         $this->assertSame($prompt->middleware, $prompt->prepend('Instructions')->middleware);
         $this->assertSame($prompt->middleware, $prompt->withTools([])->middleware);
+        $this->assertSame($selection, $prompt->prepend('Instructions')->conversationSelection());
+        $this->assertSame($selection, $prompt->withTools([])->conversationSelection());
+        $this->assertSame($history, $prompt->prepend('Instructions')->conversationMessages());
+        $this->assertSame($history, $prompt->withTools([])->conversationMessages());
         $restored = unserialize(serialize($prompt->withTools([])));
         $this->assertInstanceOf(SerializableClosure::class, $restored->middleware[0]);
     }

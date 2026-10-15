@@ -10,12 +10,15 @@ use GuzzleHttp\Promise\PromiseInterface;
 use Hypervel\Ai\Ai;
 use Hypervel\Ai\Approvals\Decisions;
 use Hypervel\Ai\Approvals\PendingApproval;
+use Hypervel\Ai\Contracts\Agent;
 use Hypervel\Ai\Contracts\ConversationStore;
 use Hypervel\Ai\Contracts\Gateway\StepTextGateway;
 use Hypervel\Ai\Contracts\Providers\TextProvider;
+use Hypervel\Ai\Contracts\RemembersConversations;
 use Hypervel\Ai\Exceptions\ApprovalMismatchException;
 use Hypervel\Ai\Gateway\RunContext;
 use Hypervel\Ai\Gateway\TextGenerationLoop;
+use Hypervel\Ai\Messages\UserMessage;
 use Hypervel\Ai\Middleware\RememberConversation;
 use Hypervel\Ai\Prompts\AgentPrompt;
 use Hypervel\Ai\Responses\AgentResponse;
@@ -91,6 +94,46 @@ class RememberConversationTest extends TestCase
         $this->assertSame($conversationId, $response->conversationId);
         $this->assertDatabaseHas('agent_conversation_messages', ['id' => $response->userMessageId, 'role' => 'user']);
         $this->assertDatabaseHas('agent_conversation_messages', ['id' => $response->assistantMessageId, 'role' => 'assistant']);
+    }
+
+    public function testDirectProviderCapturesAContractOnlyAgentsSelectionAndHistory(): void
+    {
+        config(['ai.providers.openai.key' => 'test-key']);
+        $participant = $originalParticipant = (object) ['id' => 1];
+        $conversationId = null;
+        $agent = m::mock(Agent::class, RemembersConversations::class);
+        $agent->shouldReceive('currentConversation')->andReturnUsing(function () use (&$conversationId): ?string {
+            return $conversationId;
+        });
+        $agent->shouldReceive('conversationParticipant')->andReturnUsing(function () use (&$participant): object {
+            return $participant;
+        });
+        $history = [new UserMessage('Earlier message')];
+        $agent->shouldReceive('messages')->once()->andReturn($history);
+        $agent->shouldReceive('instructions')->andReturn('Be helpful.');
+        $agent->shouldNotReceive('continue');
+        $provider = Ai::textProvider('openai');
+        $prompt = new AgentPrompt($agent, 'Hello', [], $provider, 'model');
+
+        Http::fake(function (Request $request) use (&$conversationId, &$participant, $prompt, $history): PromiseInterface {
+            $this->assertSame($history, $prompt->conversationMessages());
+            $this->assertSame('Earlier message', collect($request['input'])->firstWhere('role', 'user')['content'][0]['text']);
+            $conversationId = 'newer-selection';
+            $participant = (object) ['id' => 2];
+
+            return Http::response($this->responseCompleted(2, 2, output: [[
+                'type' => 'message',
+                'role' => 'assistant',
+                'content' => [['type' => 'output_text', 'text' => 'Answer']],
+            ]])['response']);
+        });
+
+        $response = $provider->prompt($prompt);
+
+        $this->assertSame($originalParticipant, $response->conversationUser);
+        $this->assertNotSame('newer-selection', $response->conversationId);
+        $this->assertSame($response->conversationId, $prompt->conversationSelection()->conversationId);
+        $this->assertDatabaseHas('agent_conversations', ['id' => $response->conversationId, 'participant_id' => 1]);
     }
 
     public function testFailedAtomicPersistenceDoesNotLeaveHalfATurnOrChangeTheAgent(): void

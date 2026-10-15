@@ -17,7 +17,7 @@ interface RemembersConversations extends Conversational
     public function forUser(object $user): static;
 
     /**
-     * Continue an existing conversation, optionally as the given user.
+     * Continue an existing conversation, optionally as the given participant.
      */
     public function continue(string $conversationId, ?object $as = null): static;
 
@@ -27,7 +27,7 @@ interface RemembersConversations extends Conversational
     public function continueOrStart(?string $conversationId, object $as): static;
 
     /**
-     * Continue the given user's last conversation with this agent.
+     * Continue the given participant's last conversation with this agent.
      */
     public function continueLastConversation(object $as): static;
 
@@ -42,7 +42,7 @@ interface RemembersConversations extends Conversational
     public function hasConversationParticipant(): bool;
 
     /**
-     * Get the user having the current conversation.
+     * Get the participant having the current conversation.
      */
     public function conversationParticipant(): ?object;
 }

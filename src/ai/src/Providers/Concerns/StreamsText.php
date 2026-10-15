@@ -7,9 +7,7 @@ namespace Hypervel\Ai\Providers\Concerns;
 use Generator;
 use Hypervel\Ai\Ai;
 use Hypervel\Ai\Contracts\Agent;
-use Hypervel\Ai\Contracts\Conversational;
 use Hypervel\Ai\Contracts\HasStructuredOutput;
-use Hypervel\Ai\Contracts\RemembersConversations as RemembersConversationsContract;
 use Hypervel\Ai\Events\AgentStreamAbandoned;
 use Hypervel\Ai\Events\AgentStreamed;
 use Hypervel\Ai\Events\StreamingAgent;
@@ -17,7 +15,6 @@ use Hypervel\Ai\Events\ToolApprovalRequested;
 use Hypervel\Ai\Events\ToolApprovalResolved;
 use Hypervel\Ai\Gateway\TextGenerationOptions;
 use Hypervel\Ai\Messages\UserMessage;
-use Hypervel\Ai\Middleware\RememberConversation;
 use Hypervel\Ai\Prompts\AgentPrompt;
 use Hypervel\Ai\Responses\Data\Meta;
 use Hypervel\Ai\Responses\StreamableAgentResponse;
@@ -47,6 +44,8 @@ trait StreamsText
         $resolvedApprovalResults = null;
 
         try {
+            $prompt->captureConversation();
+
             $response = pipeline()
                 ->send($prompt)
                 ->through($this->gatherMiddlewareFor($prompt->agent))
@@ -61,7 +60,7 @@ trait StreamsText
 
                     $messages = $this->withoutForeignReplayBlocks([
                         ...($prompt->messages ?? []),
-                        ...($agent instanceof Conversational ? $agent->messages() : []),
+                        ...$prompt->conversationMessages(),
                     ]);
 
                     if (! $prompt->hasApprovalDecisions()) {
@@ -122,14 +121,11 @@ trait StreamsText
                     );
 
                     // Surfaced before iteration because the remembering middleware only records it once the stream has drained...
-                    if (RememberConversation::appliesTo($agent)) {
-                        /** @var Agent&RemembersConversationsContract $agent */
-                        if ($agent->currentConversation() !== null) {
-                            $streamable->withinConversation(
-                                $agent->currentConversation(),
-                                $agent->conversationParticipant(),
-                            );
-                        }
+                    if (($selection = $prompt->conversationSelection())?->conversationId !== null) {
+                        $streamable->withinConversation(
+                            $selection->conversationId,
+                            $selection->participant,
+                        );
                     }
 
                     return $streamable;

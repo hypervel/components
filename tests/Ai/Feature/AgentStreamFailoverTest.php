@@ -6,10 +6,12 @@ namespace Hypervel\Tests\Ai\Feature;
 
 use Generator;
 use Hypervel\Ai\AiManager;
+use Hypervel\Ai\Contracts\Conversational;
 use Hypervel\Ai\Contracts\ConversationStore;
 use Hypervel\Ai\Events\AgentFailedOver;
 use Hypervel\Ai\Events\AgentStreamed;
 use Hypervel\Ai\Exceptions\RateLimitedException;
+use Hypervel\Ai\Messages\UserMessage;
 use Hypervel\Ai\Prompts\AgentPrompt;
 use Hypervel\Ai\Responses\Data\Meta;
 use Hypervel\Ai\Responses\StreamableAgentResponse;
@@ -294,9 +296,22 @@ class AgentStreamFailoverTest extends TestCase
         $user = (object) ['id' => 'user-1'];
         $existingConversationId = 'existing-conv-1';
 
-        $response = (new RememberingAssistantAgent)
-            ->continue($existingConversationId, $user)
-            ->stream('Hello', provider: ['primary', 'backup']);
+        $agent = new class extends RememberingAssistantAgent implements Conversational {
+            public int $historyReads = 0;
+
+            /**
+             * Add application-owned context to the remembered history.
+             */
+            public function messages(): iterable
+            {
+                ++$this->historyReads;
+
+                return [new UserMessage('History ' . $this->currentConversation())];
+            }
+        };
+        $response = $agent->continue($existingConversationId, $user)->stream('Hello', provider: ['primary', 'backup']);
+        $otherUser = (object) ['id' => 'user-2'];
+        $agent->continue('other-conversation', $otherUser);
 
         $thenResponse = null;
 
@@ -308,6 +323,15 @@ class AgentStreamFailoverTest extends TestCase
 
         $this->assertSame($existingConversationId, $thenResponse->conversationId);
         $this->assertSame($user, $thenResponse->conversationUser);
+        $this->assertSame('other-conversation', $agent->currentConversation());
+        $this->assertSame($otherUser, $agent->conversationParticipant());
+        $this->assertSame(1, $agent->historyReads);
+        Http::assertSentCount(2);
+
+        foreach (Http::recorded() as [$request]) {
+            $this->assertContains('History existing-conv-1', array_column($request['messages'], 'content'));
+        }
+
         $this->assertNotNull($response->userMessageId);
         $this->assertNotNull($response->assistantMessageId);
         $this->assertSame('user', collect($store->messages)->firstWhere('id', $response->userMessageId)['role']);
@@ -330,15 +354,20 @@ class AgentStreamFailoverTest extends TestCase
             ->push(status: 429)
             ->push(fakeGroqStreamBodyForStreamFailover(), 200);
 
-        $agent = (new RememberingAssistantAgent)->forUser((object) ['id' => 'user-1']);
+        $user = (object) ['id' => 'user-1'];
+        $agent = (new RememberingAssistantAgent)->forUser($user);
         $response = $agent->stream('Hello', provider: ['primary', 'backup']);
+        $otherUser = (object) ['id' => 'user-2'];
+        $agent->forUser($otherUser);
 
         foreach ($response as $_);
 
         $this->assertCount(1, $store->conversations);
-        $this->assertArrayHasKey($agent->currentConversation(), $store->conversations);
-        $this->assertSame($agent->currentConversation(), $response->conversationId);
-        $this->assertSame([$agent->currentConversation()], collect($store->messages)->pluck('conversation_id')->unique()->all());
+        $this->assertArrayHasKey($response->conversationId, $store->conversations);
+        $this->assertSame($user, $response->conversationUser);
+        $this->assertNull($agent->currentConversation());
+        $this->assertSame($otherUser, $agent->conversationParticipant());
+        $this->assertSame([$response->conversationId], collect($store->messages)->pluck('conversation_id')->unique()->all());
     }
 }
 

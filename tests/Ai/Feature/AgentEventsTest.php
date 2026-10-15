@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Ai\Feature;
 use Closure;
 use Exception;
 use Hypervel\Ai\Approvals\Decisions;
+use Hypervel\Ai\Contracts\Conversational;
 use Hypervel\Ai\Contracts\ConversationStore;
 use Hypervel\Ai\Events\AgentFailed;
 use Hypervel\Ai\Events\AgentFailedOver;
@@ -40,6 +41,7 @@ use Hypervel\Ai\Tools\AgentTool;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Http\IterableStreamedResponse;
 use Hypervel\Support\Facades\Context;
+use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Ai\Fixtures\Agents\AssistantAgent;
@@ -55,8 +57,10 @@ use Hypervel\Tests\Ai\Fixtures\Agents\ResearchAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\ToolUsingAgent;
 use Hypervel\Tests\Ai\Fixtures\FakeConversationStore;
 use Hypervel\Tests\Ai\Fixtures\Tools\FixedNumberGenerator;
+use Hypervel\Tests\Ai\Fixtures\Tools\NamedTool;
 use Hypervel\Tests\Ai\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 
@@ -84,6 +88,50 @@ class AgentEventsTest extends TestCase
             && $event->prompt->invocationId === $response->invocationId);
 
         Event::assertDispatched(AgentPrompted::class, fn (AgentPrompted $event): bool => $event->invocationId === $response->invocationId);
+    }
+
+    #[DataProvider('publicInvocationMethods')]
+    public function testHistorySetupFailurePrecedesProviderLifecycleEvents(string $method): void
+    {
+        Event::fake();
+        Http::preventStrayRequests();
+        $exception = new RuntimeException('History unavailable.');
+        $agent = new class($exception) extends AssistantAgent implements Conversational {
+            /**
+             * Hold the history failure.
+             */
+            public function __construct(private RuntimeException $exception)
+            {
+            }
+
+            /**
+             * Read the unavailable history.
+             */
+            public function messages(): iterable
+            {
+                throw $this->exception;
+            }
+        };
+
+        try {
+            $agent->{$method}('Hello');
+            $this->fail('History setup must throw.');
+        } catch (RuntimeException $caught) {
+            $this->assertSame($exception, $caught);
+        }
+
+        Event::assertNotDispatched(PromptingAgent::class);
+        Event::assertNotDispatched(StreamingAgent::class);
+        Event::assertNotDispatched(AgentFailed::class);
+        Http::assertNothingSent();
+    }
+
+    /**
+     * Provide public invocation entry points.
+     */
+    public static function publicInvocationMethods(): array
+    {
+        return [['prompt'], ['stream']];
     }
 
     public function testStepMiddlewareReceivesTheInvocationIdTheRunReports(): void
@@ -558,6 +606,40 @@ class AgentEventsTest extends TestCase
         Event::assertNotDispatched(AgentFailed::class);
     }
 
+    public function testFailoverAfterAToolStartsIsTerminalAndPersistsItsResult(): void
+    {
+        Event::fake([AgentFailed::class, AgentFailedOver::class]);
+        $this->assertFalse(Event::hasListeners(InvokingTool::class));
+        config([
+            'ai.conversations.generate_title' => false,
+            'ai.providers.primary' => ['driver' => 'groq', 'key' => 'test-key'],
+            'ai.providers.backup' => ['driver' => 'groq', 'key' => 'test-key'],
+        ]);
+        $tool = m::mock(NamedTool::class, ['send_email'])->makePartial();
+        $tool->shouldReceive('handle')->once()->andReturn('Sent');
+        Http::preventStrayRequests();
+        Http::fakeSequence()
+            ->pushResponse(fakeGroqToolCallResponse('send_email'))
+            ->push(status: 429);
+        $agent = (new RememberingAssistantAgent)->forUser((object) ['id' => 1])->withTools([$tool]);
+        $failure = null;
+
+        try {
+            $agent->prompt('Send the email', provider: ['primary', 'backup']);
+        } catch (RateLimitedException $exception) {
+            $failure = $exception;
+        }
+
+        $this->assertInstanceOf(RateLimitedException::class, $failure);
+        Http::assertSentCount(2);
+        Event::assertNotDispatched(AgentFailedOver::class);
+        Event::assertDispatchedTimes(AgentFailed::class, 1);
+        $this->assertSame($failure, Event::dispatched(AgentFailed::class)->first()[0]->exception);
+        $row = DB::table('agent_conversation_messages')->where('role', 'assistant')->sole();
+        $this->assertSame('failed', $row->status);
+        $this->assertSame('Sent', json_decode($row->steps, true)[0]['tool_calls'][0]['result']);
+    }
+
     public function testARecoverableFailoverDoesNotReportTheStreamedRunAsFailed(): void
     {
         Event::fake();
@@ -781,7 +863,7 @@ class AgentEventsTest extends TestCase
     {
         Event::fake();
         DelegatingAgent::fake([new ToolCall('research', 'research_agent', ['task' => 'Research'])]);
-        ResearchAgent::fake(['Findings']);
+        ResearchAgent::fake([str_repeat('Findings ', 100)]);
 
         foreach ((new DelegatingAgent)->stream('Research') as $event) {
             if (Event::dispatched(StreamingAgent::class)->count() === 2) {

@@ -8,12 +8,14 @@ use Closure;
 use Hypervel\Ai\Approvals\ApprovalClaim;
 use Hypervel\Ai\Approvals\Decisions;
 use Hypervel\Ai\Contracts\Agent;
+use Hypervel\Ai\Contracts\Conversational;
 use Hypervel\Ai\Contracts\Providers\TextProvider;
 use Hypervel\Ai\Contracts\Tool;
 use Hypervel\Ai\Exceptions\FailoverableException;
 use Hypervel\Ai\Gateway\RunContext;
 use Hypervel\Ai\Messages\Message;
 use Hypervel\Ai\Providers\Tools\ProviderTool;
+use Hypervel\Ai\Support\ConversationSelection;
 use Hypervel\Ai\Support\PendingConversationTitle;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
@@ -59,6 +61,13 @@ class AgentPrompt extends Prompt
 
     protected ?RunContext $runContext = null;
 
+    protected bool $toolWasInvoked = false;
+
+    protected ?ConversationSelection $conversationSelection = null;
+
+    /** @var null|list<Message> */
+    protected ?array $conversationMessages = null;
+
     protected bool $streaming = false;
 
     protected ?PendingConversationTitle $pendingConversationTitle = null;
@@ -72,6 +81,7 @@ class AgentPrompt extends Prompt
      * @param bool $isFinalAttempt whether the caller has run out of providers to retry this prompt against
      * @param null|Closure(Closure): mixed $contextRunner
      * @param array<int, object|string> $middleware
+     * @param null|list<Message> $conversationMessages
      */
     public function __construct(
         Agent $agent,
@@ -89,6 +99,8 @@ class AgentPrompt extends Prompt
         ?array $tools = null,
         ?Closure $contextRunner = null,
         array $middleware = [],
+        ?ConversationSelection $conversationSelection = null,
+        ?array $conversationMessages = null,
     ) {
         parent::__construct($prompt, $provider, $model, $approvalDecisions);
 
@@ -110,6 +122,8 @@ class AgentPrompt extends Prompt
         $this->parentToolInvocationId = $parentToolInvocationId;
         $this->isFinalAttempt = $isFinalAttempt;
         $this->contextRunner = $contextRunner;
+        $this->conversationSelection = $conversationSelection;
+        $this->conversationMessages = $conversationMessages;
     }
 
     /**
@@ -165,6 +179,8 @@ class AgentPrompt extends Prompt
             $this->tools,
             $this->contextRunner,
             $this->middleware,
+            $this->conversationSelection,
+            $this->conversationMessages,
         );
 
         $revised->streaming = $this->streaming;
@@ -199,6 +215,8 @@ class AgentPrompt extends Prompt
             [...$tools],
             $this->contextRunner,
             $this->middleware,
+            $this->conversationSelection,
+            $this->conversationMessages,
         );
 
         $revised->streaming = $this->streaming;
@@ -273,12 +291,48 @@ class AgentPrompt extends Prompt
     }
 
     /**
+     * Capture the conversation selection and history for this invocation.
+     *
+     * @internal
+     */
+    public function captureConversation(): void
+    {
+        $this->conversationSelection ??= ConversationSelection::forAgent($this->agent);
+        $this->conversationMessages ??= $this->agent instanceof Conversational ? [...$this->agent->messages()] : [];
+    }
+
+    /**
+     * Get the conversation owned by this invocation.
+     *
+     * @internal
+     */
+    public function conversationSelection(): ?ConversationSelection
+    {
+        return $this->conversationSelection;
+    }
+
+    /**
+     * Get the conversational history captured for this invocation.
+     *
+     * @return list<Message>
+     *
+     * @internal
+     */
+    public function conversationMessages(): array
+    {
+        return $this->conversationMessages ?? [];
+    }
+
+    /**
      * Set the context the run dispatched for this prompt records its steps on.
      *
      * @internal
      */
     public function setRunContext(?RunContext $context): void
     {
+        $this->toolWasInvoked = $context === null
+            ? ($this->runContext?->hasInvokedTool() ?? $this->toolWasInvoked)
+            : false;
         $this->runContext = $context;
     }
 
@@ -331,7 +385,9 @@ class AgentPrompt extends Prompt
      */
     public function willRetry(Throwable $exception): bool
     {
-        return $exception instanceof FailoverableException && ! $this->isFinalAttempt;
+        return $exception instanceof FailoverableException
+            && ! $this->isFinalAttempt
+            && ! ($this->runContext?->hasInvokedTool() ?? $this->toolWasInvoked);
     }
 
     /**
@@ -341,7 +397,12 @@ class AgentPrompt extends Prompt
     {
         $properties = get_mangled_object_vars($this);
 
-        unset($properties["\0*\0runContext"], $properties["\0*\0pendingConversationTitle"]);
+        unset(
+            $properties["\0*\0runContext"],
+            $properties["\0*\0pendingConversationTitle"],
+            $properties["\0*\0conversationSelection"],
+            $properties["\0*\0conversationMessages"],
+        );
 
         // Queued listeners restore their own context rather than capturing this operation.
         $properties["\0*\0contextRunner"] = null;

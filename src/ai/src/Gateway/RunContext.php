@@ -34,6 +34,8 @@ class RunContext
 
     protected ?ApprovalClaim $approvalClaim = null;
 
+    protected bool $toolWasInvoked = false;
+
     /**
      * Create the context for a generation run.
      *
@@ -218,6 +220,9 @@ class RunContext
      */
     public function invokingTool(Tool $tool, array $arguments, string $toolInvocationId): void
     {
+        // Retrying the whole run after this point could repeat a tool's side effects.
+        $this->toolWasInvoked = true;
+
         if (! $this->events->hasListeners(InvokingTool::class)) {
             return;
         }
@@ -229,6 +234,14 @@ class RunContext
             $tool,
             $arguments,
         ));
+    }
+
+    /**
+     * Determine whether any tool has started executing in this run.
+     */
+    public function hasInvokedTool(): bool
+    {
+        return $this->toolWasInvoked;
     }
 
     /**

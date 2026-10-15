@@ -13,7 +13,6 @@ use Hypervel\Ai\Contracts\ConversationStore;
 use Hypervel\Ai\Contracts\HasSkills;
 use Hypervel\Ai\Contracts\HasStructuredOutput;
 use Hypervel\Ai\Contracts\HasTools;
-use Hypervel\Ai\Contracts\RemembersConversations;
 use Hypervel\Ai\Contracts\Tool;
 use Hypervel\Ai\Events\AgentFailed;
 use Hypervel\Ai\Events\AgentPrompted;
@@ -57,6 +56,8 @@ trait GeneratesText
         $resolvedApprovalResults = null;
 
         try {
+            $prompt->captureConversation();
+
             $response = pipeline()
                 ->send($prompt)
                 ->through($this->gatherMiddlewareFor($prompt->agent))
@@ -69,7 +70,7 @@ trait GeneratesText
 
                     $messages = $this->withoutForeignReplayBlocks([
                         ...($prompt->messages ?? []),
-                        ...($agent instanceof Conversational ? $agent->messages() : []),
+                        ...$prompt->conversationMessages(),
                     ]);
 
                     if (! $prompt->hasApprovalDecisions()) {
@@ -221,9 +222,7 @@ trait GeneratesText
         $conversationId = null;
 
         if ($this->resumesAgainstRealGateway($prompt) && RememberConversation::appliesTo($prompt->agent)) {
-            /** @var Agent&RemembersConversations $agent */
-            $agent = $prompt->agent;
-            $conversationId = $agent->currentConversation();
+            $conversationId = $prompt->conversationSelection()?->conversationId;
 
             if ($conversationId !== null) {
                 $store = resolve(ConversationStore::class);
@@ -245,7 +244,7 @@ trait GeneratesText
      */
     protected function recordAgentFailure(string $invocationId, AgentPrompt $prompt, Throwable $exception, bool $retryable = true): void
     {
-        // A failoverable exception is only terminal once the caller has run out of providers to try...
+        // Failure is terminal when another attempt is unavailable or would repeat tool execution.
         if ($retryable && $prompt->willRetry($exception)) {
             return;
         }
