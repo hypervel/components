@@ -46,6 +46,10 @@ class CurlStreamingBody implements StreamInterface
 
     protected int $position = 0;
 
+    protected string $pending = '';
+
+    protected int $pendingOffset = 0;
+
     protected ?ResponseInterface $completedResponse = null;
 
     protected ?TransferStats $completedStats = null;
@@ -197,7 +201,7 @@ class CurlStreamingBody implements StreamInterface
         }
 
         try {
-            if ($this->buffer->eof() && ! $this->completed) {
+            if ($this->pending === '' && $this->buffer->eof() && ! $this->completed) {
                 $deadline = $this->readTimeout > 0 ? hrtime(true) / 1e9 + $this->readTimeout : null;
 
                 if ($this->paused) {
@@ -218,7 +222,19 @@ class CurlStreamingBody implements StreamInterface
                 }
             }
 
-            $chunk = $this->buffer->read($length);
+            if ($this->pending === '') {
+                // Drain once so small reads do not copy the entire remaining receive buffer.
+                $this->pending = $this->buffer->getContents();
+            }
+
+            $chunk = substr($this->pending, $this->pendingOffset, $length);
+            $this->pendingOffset += strlen($chunk);
+
+            if ($this->pendingOffset === strlen($this->pending)) {
+                $this->pending = '';
+                $this->pendingOffset = 0;
+            }
+
             $this->position += strlen($chunk);
 
             return $chunk;
@@ -430,6 +446,8 @@ class CurlStreamingBody implements StreamInterface
             }
 
             $this->buffer->close();
+            $this->pending = '';
+            $this->pendingOffset = 0;
             $this->completedResponse = null;
             $this->completedStats = null;
             $this->pendingTrailerArguments = null;
@@ -468,7 +486,7 @@ class CurlStreamingBody implements StreamInterface
      */
     public function eof(): bool
     {
-        return $this->closed || ($this->completed && $this->buffer->eof());
+        return $this->closed || ($this->completed && $this->pending === '' && $this->buffer->eof());
     }
 
     /**

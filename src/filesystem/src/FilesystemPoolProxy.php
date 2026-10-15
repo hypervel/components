@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Contracts\Filesystem\Cloud;
 use Hypervel\Contracts\Filesystem\Filesystem as FilesystemContract;
 use Hypervel\Contracts\ObjectPool\Factory;
+use Hypervel\Database\ConnectionResolver;
 use Hypervel\Filesystem\Concerns\InteractsWithPooledFilesystem;
 use Hypervel\ObjectPool\PoolDefinition;
 use Hypervel\ObjectPool\PoolProxy;
@@ -29,6 +30,16 @@ class FilesystemPoolProxy extends PoolProxy implements Cloud
         ?Closure $releaseCallback = null,
     ) {
         parent::__construct($definition, $createCallback, $pools, $releaseCallback);
+    }
+
+    /**
+     * Invoke an operation after returning idle database sessions when needed.
+     */
+    protected function invoke(string $method, array $arguments): mixed
+    {
+        $this->releaseIdleConnectionsFor($method);
+
+        return parent::invoke($method, $arguments);
     }
 
     /**
@@ -69,6 +80,8 @@ class FilesystemPoolProxy extends PoolProxy implements Cloud
      */
     protected function leasedStream(Closure $operation): mixed
     {
+        ConnectionResolver::releaseIdleConnections();
+
         $lease = $this->lease();
 
         try {
@@ -86,6 +99,8 @@ class FilesystemPoolProxy extends PoolProxy implements Cloud
      */
     protected function withBorrowedAccessor(string $accessor, Closure $callback): mixed
     {
+        ConnectionResolver::releaseIdleConnections();
+
         $lease = $this->lease();
 
         try {

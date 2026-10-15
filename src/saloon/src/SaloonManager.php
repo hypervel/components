@@ -9,6 +9,7 @@ use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Database\ConnectionResolver;
 use Hypervel\Http\Client\ConnectionException;
 use Hypervel\Http\Client\Response as HttpResponse;
 use Hypervel\RateLimiter\AdmissionPolicy;
@@ -502,6 +503,7 @@ class SaloonManager
         }
 
         if ($milliseconds > 0) {
+            ConnectionResolver::releaseIdleConnections();
             Sleep::usleep($milliseconds * 1000);
         }
     }
@@ -653,6 +655,7 @@ class SaloonManager
             throw new RateLimitReachedException($this->limiterNameFor($resource), $policy, $result);
         }
 
+        ConnectionResolver::releaseIdleConnections();
         Sleep::sleep($result->retryAfter());
     }
 }

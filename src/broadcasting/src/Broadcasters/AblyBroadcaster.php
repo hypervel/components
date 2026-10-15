@@ -9,6 +9,7 @@ use Ably\Exceptions\AblyException;
 use Ably\Models\Message as AblyMessage;
 use Hypervel\Broadcasting\BroadcastException;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Database\ConnectionResolver;
 use Hypervel\Http\Request;
 use Hypervel\Support\Str;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
@@ -126,8 +127,11 @@ class AblyBroadcaster extends Broadcaster
                 $channel = $this->ably->channels->get($name);
 
                 try {
+                    $message = $this->buildAblyMessage($event, $payload);
+                    ConnectionResolver::releaseIdleConnections();
+
                     /* @phpstan-ignore arguments.count, argument.type (Ably declares two @method publish() overloads and PHPStan keeps only the last; publish(...$args) accepts a Message as its sole argument.) */
-                    $channel->publish($this->buildAblyMessage($event, $payload));
+                    $channel->publish($message);
                 } finally {
                     if ($channel->getCipherParams() === null) {
                         $this->ably->channels->release($name);

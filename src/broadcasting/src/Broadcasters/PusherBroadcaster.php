@@ -6,6 +6,7 @@ namespace Hypervel\Broadcasting\Broadcasters;
 
 use Hypervel\Broadcasting\BroadcastException;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Database\ConnectionResolver;
 use Hypervel\Http\Request;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
@@ -136,6 +137,7 @@ class PusherBroadcaster extends Broadcaster
 
         try {
             $channels->chunk(100)->each(function ($channels) use ($event, $payload, $parameters) {
+                ConnectionResolver::releaseIdleConnections();
                 $this->pusher->trigger($channels->toArray(), $event, $payload, $parameters);
             });
         } catch (ApiErrorException $e) {

@@ -8,9 +8,11 @@ use Aws\Configuration\ConfigurationResolver;
 use Aws\Credentials\CredentialProvider;
 use Aws\Credentials\EcsCredentialProvider;
 use Aws\Credentials\InstanceProfileProvider;
+use Aws\Middleware;
 use Aws\Sqs\SqsClient;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Queue\Queue;
+use Hypervel\Database\ConnectionResolver;
 use Hypervel\Queue\AwsCredentialCache;
 use Hypervel\Queue\SqsQueue;
 use Hypervel\Support\Arr;
@@ -28,8 +30,14 @@ class SqsConnector implements ConnectorInterface
             $this->getDefaultConfiguration($config)
         );
 
+        $client = new SqsClient($this->clientConfiguration($config));
+        $client->getHandlerList()->prependInit(
+            Middleware::tap(ConnectionResolver::releaseIdleConnections(...)),
+            'release_idle_database_connections',
+        );
+
         return new SqsQueue(
-            new SqsClient($this->clientConfiguration($config)),
+            $client,
             $config['queue'],
             $config['prefix'],
             $config['suffix'],

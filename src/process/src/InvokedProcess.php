@@ -6,11 +6,13 @@ namespace Hypervel\Process;
 
 use Hypervel\Contracts\Process\InvokedProcess as InvokedProcessContract;
 use Hypervel\Contracts\Process\ProcessResult as ProcessResultContract;
+use Hypervel\Database\ConnectionResolver;
 use Hypervel\Process\Concerns\GuardsProcessOutput;
 use Hypervel\Process\Exceptions\ProcessTimedOutException;
 use Hypervel\Support\Traits\Macroable;
 use Symfony\Component\Process\Exception\ProcessTimedOutException as SymfonyTimeoutException;
 use Symfony\Component\Process\Process;
+use Throwable;
 
 class InvokedProcess implements InvokedProcessContract
 {
@@ -57,6 +59,21 @@ class InvokedProcess implements InvokedProcessContract
      */
     public function stop(float $timeout = 10, ?int $signal = null): ?int
     {
+        if ($timeout > 0 && $this->process->isRunning()) {
+            try {
+                ConnectionResolver::releaseIdleConnections();
+            } catch (Throwable $exception) {
+                try {
+                    // A failed release must not prevent this terminal operation from stopping the child.
+                    $this->process->stop(0, $signal);
+                } catch (Throwable) {
+                    // Preserve the release failure.
+                }
+
+                throw $exception;
+            }
+        }
+
         return $this->process->stop($timeout, $signal);
     }
 
@@ -121,6 +138,8 @@ class InvokedProcess implements InvokedProcessContract
      */
     public function wait(?callable $output = null): ProcessResultContract
     {
+        ConnectionResolver::releaseIdleConnections();
+
         try {
             $this->process->wait($this->guardProcessOutput($this->process, $output));
 
@@ -140,6 +159,8 @@ class InvokedProcess implements InvokedProcessContract
         if ($output === null) {
             return $this->wait();
         }
+
+        ConnectionResolver::releaseIdleConnections();
 
         try {
             $this->process->waitUntil($this->guardProcessOutput($this->process, $output));

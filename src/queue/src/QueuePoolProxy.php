@@ -11,6 +11,8 @@ use Hypervel\Contracts\ObjectPool\Factory;
 use Hypervel\Contracts\Queue\IndexAwareQueue;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
+use Hypervel\Database\ConnectionResolver;
+use Hypervel\ObjectPool\Lease;
 use Hypervel\ObjectPool\PoolDefinition;
 use Hypervel\ObjectPool\PoolErrorReporter;
 use Hypervel\ObjectPool\PoolProxy;
@@ -315,6 +317,16 @@ class QueuePoolProxy extends PoolProxy implements QueueContract, IndexAwareQueue
         $this->connectionName = $name;
 
         return $this;
+    }
+
+    /**
+     * Return idle database sessions before waiting for a queue connection.
+     */
+    protected function lease(): Lease
+    {
+        ConnectionResolver::releaseIdleConnections();
+
+        return parent::lease();
     }
 
     /**

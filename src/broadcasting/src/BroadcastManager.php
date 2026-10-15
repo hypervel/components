@@ -36,6 +36,7 @@ use Hypervel\Contracts\ObjectPool\InvalidatesPool;
 use Hypervel\Contracts\Queue\Factory as Queue;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Foundation\Http\Middleware\PreventRequestForgery;
+use Hypervel\Http\Client\Guzzle\HandlerFactory;
 use Hypervel\Http\Request;
 use Hypervel\ObjectPool\Concerns\HasPoolProxy;
 use Hypervel\Queue\Attributes\Connection as ConnectionAttribute;
@@ -413,22 +414,14 @@ class BroadcastManager implements BroadcastingFactoryContract
         );
 
         if (! isset($clientOptions['handler'])) {
-            foreach (['max_host_connections', 'max_total_connections'] as $option) {
-                if (isset($clientOptions[$option])) {
-                    throw new InvalidArgumentException(
-                        "The [{$option}] broadcasting client option requires a shared multi-handler, which is unsafe across coroutines. Bound coroutine concurrency or use rate limiting instead."
-                    );
-                }
-            }
-
-            $handlerOptions = Arr::only($clientOptions, ['transport_sharing']);
+            $handlerOptions = Arr::only($clientOptions, ['transport_sharing', 'max_host_connections', 'max_total_connections']);
             unset($clientOptions['transport_sharing']);
 
             if (($clientOptions['multiplex'] ?? null) === Multiplexing::NONE) {
                 $handlerOptions['multiplex'] = Multiplexing::NONE;
             }
 
-            $sharedHandler = Utils::chooseHandler($handlerOptions)(...);
+            $sharedHandler = HandlerFactory::create($handlerOptions)(...);
 
             // Async transfers may share a multi-handler only within their owning coroutine.
             $clientOptions['handler'] = HandlerStack::create(

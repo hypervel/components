@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Process;
 
 use Carbon\CarbonInterval;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Process\InvokedProcess as InvokedProcessContract;
 use Hypervel\Contracts\Process\ProcessResult;
+use Hypervel\Database\Pool\ConnectionLease;
 use Hypervel\Process\Exceptions\ProcessFailedException;
 use Hypervel\Process\Exceptions\ProcessIdleTimedOutException;
 use Hypervel\Process\Exceptions\ProcessTimedOutException;
@@ -20,11 +22,13 @@ use Hypervel\Process\Pool;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
+use Mockery as m;
 use OutOfBoundsException;
 use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Process\Process as SymfonyProcess;
 use Throwable;
 
@@ -508,6 +512,28 @@ class ProcessTest extends TestCase
         } finally {
             $this->reapProcess($processId, $process);
         }
+    }
+
+    public function testStopStillTerminatesTheProcessWhenDatabaseReleaseIsCanceled(): void
+    {
+        $failure = new CanceledException('Database release canceled.');
+        $lease = m::mock(ConnectionLease::class);
+        $lease->shouldReceive('releaseIfIdle')->once()->andThrow($failure);
+        CoroutineContext::set('__process.test.lease', $lease);
+        $process = m::mock(SymfonyProcess::class);
+        $process->shouldReceive('isRunning')->once()->andReturnTrue();
+        $process->shouldReceive('stop')->once()->with(0, 15)->andThrow(new RuntimeException('Cleanup failed.'));
+        $caught = null;
+
+        try {
+            (new InvokedProcess($process))->stop(5, 15);
+        } catch (CanceledException $exception) {
+            $caught = $exception;
+        } finally {
+            CoroutineContext::forget('__process.test.lease');
+        }
+
+        $this->assertSame($failure, $caught);
     }
 
     public function testBasicProcessFake(): void

@@ -14,6 +14,8 @@ use GuzzleHttp\HandlerStack;
 use Hypervel\Contracts\Telescope\TelescopeTag;
 use Hypervel\Foundation\Application as HypervelApplication;
 use Hypervel\Http\Client\Factory as HttpFactory;
+use Hypervel\Http\Client\Guzzle\HandlerFactory;
+use Hypervel\Http\Client\Guzzle\ReleaseIdleDatabaseConnections;
 use Hypervel\Scout\Console\DeleteAllIndexesCommand;
 use Hypervel\Scout\Console\DeleteIndexCommand;
 use Hypervel\Scout\Console\FlushCommand;
@@ -74,6 +76,7 @@ class ScoutServiceProvider extends ServiceProvider
         // Explicit injection pins the HTTP client choice at our boundary.
         Algolia::setHttpClient(new GuzzleHttpClient(new GuzzleClient([
             'telescope_tags' => [TelescopeTag::Scout, TelescopeTag::Algolia],
+            'handler' => $this->createHttpHandler(),
         ])));
 
         AlgoliaAgent::addAlgoliaAgent('Hypervel Scout', 'Hypervel Scout', HypervelApplication::VERSION);
@@ -114,7 +117,9 @@ class ScoutServiceProvider extends ServiceProvider
         $this->app->singleton(MeilisearchClient::class, function () {
             $config = $this->app->make('config');
 
+            $stack = $this->createHttpHandler();
             $guzzleOptions = [
+                'handler' => $stack,
                 'telescope_tags' => [TelescopeTag::Scout, TelescopeTag::Meilisearch],
             ];
 
@@ -127,9 +132,7 @@ class ScoutServiceProvider extends ServiceProvider
             $baseDelayMs = $config->integer('scout.meilisearch.initial_retry_delay_ms', 100);
 
             if ($maxRetries > 0) {
-                $stack = HandlerStack::create();
-                $stack->push(MeilisearchRetryPolicy::middleware($maxRetries, $baseDelayMs));
-                $guzzleOptions['handler'] = $stack;
+                $stack->before('release_idle_database_connections', MeilisearchRetryPolicy::middleware($maxRetries, $baseDelayMs));
             }
 
             // Inject Guzzle explicitly so the Meilisearch client never falls
@@ -158,10 +161,22 @@ class ScoutServiceProvider extends ServiceProvider
             // Symfony's CurlHttpClient (unsafe with Swoole coroutines).
             $settings['client'] ??= new GuzzleClient([
                 'telescope_tags' => [TelescopeTag::Scout, TelescopeTag::Typesense],
+                'handler' => $this->createHttpHandler(),
             ]);
 
             return new TypesenseClient($settings);
         });
+    }
+
+    /**
+     * Create the reusable SDK transport and return idle database sessions before requests.
+     */
+    protected function createHttpHandler(): HandlerStack
+    {
+        $stack = HandlerStack::create(HandlerFactory::create());
+        $stack->push(new ReleaseIdleDatabaseConnections, 'release_idle_database_connections');
+
+        return $stack;
     }
 
     /**

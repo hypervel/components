@@ -8,6 +8,7 @@ use Carbon\CarbonInterval;
 use Closure;
 use Hypervel\Contracts\Process\InvokedProcess as InvokedProcessContract;
 use Hypervel\Contracts\Process\ProcessResult as ProcessResultContract;
+use Hypervel\Database\ConnectionResolver;
 use Hypervel\Process\Concerns\GuardsProcessOutput;
 use Hypervel\Process\Exceptions\ProcessTimedOutException;
 use Hypervel\Support\Collection;
@@ -225,6 +226,8 @@ class PendingProcess
             } elseif ($this->factory->isRecording() && $this->factory->preventingStrayProcesses()) {
                 throw new RuntimeException('Attempted process [' . $command . '] without a matching fake.');
             }
+
+            ConnectionResolver::releaseIdleConnections();
 
             return new ProcessResult(tap($process)->run($this->guardProcessOutput($process, $output))); // @phpstan-ignore method.notFound (tap proxy __call)
         } catch (SymfonyTimeoutException $e) {
