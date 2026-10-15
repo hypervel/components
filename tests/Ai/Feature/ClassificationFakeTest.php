@@ -10,11 +10,15 @@ use Hypervel\Ai\Classification\Choice;
 use Hypervel\Ai\Classification\Score;
 use Hypervel\Ai\Contracts\Question;
 use Hypervel\Ai\Enums\Lab;
+use Hypervel\Ai\Events\ClassificationFailed;
+use Hypervel\Ai\Events\Classified;
+use Hypervel\Ai\Events\Classifying;
 use Hypervel\Ai\Files\Image;
 use Hypervel\Ai\Prompts\ClassificationPrompt;
 use Hypervel\Ai\Responses\Data\BooleanAnswer;
 use Hypervel\Ai\Responses\Data\ChoiceAnswer;
 use Hypervel\Ai\Responses\Data\ScoreAnswer;
+use Hypervel\Support\Facades\Event;
 use Hypervel\Tests\Ai\TestCase;
 use InvalidArgumentException;
 use LogicException;
@@ -213,6 +217,8 @@ class ClassificationFakeTest extends TestCase
 
     public function testThrowingSequenceEntryIsConsumed(): void
     {
+        Event::fake();
+
         $exception = new RuntimeException('Classification failed.');
         Classification::fake([fn (): never => throw $exception, ['urgent' => new BooleanAnswer(1.0)]]);
 
@@ -223,6 +229,32 @@ class ClassificationFakeTest extends TestCase
             $this->assertSame($exception, $caught);
         }
 
+        $started = Event::dispatched(Classifying::class)->first()[0];
+        Event::assertDispatched(ClassificationFailed::class, fn (ClassificationFailed $event): bool => $event->exception === $exception
+            && $event->invocationId === $started->invocationId
+            && $event->provider === $started->provider
+            && $event->model === $started->model
+            && $event->prompt === $started->prompt);
+        Event::assertNotDispatched(Classified::class);
+
         $this->assertTrue(Classification::of('Second')->question('urgent', new Boolean('Urgent?'))->classify()->answer('urgent')->isTrue());
+        Event::assertDispatchedTimes(ClassificationFailed::class, 1);
+    }
+
+    public function testSuccessListenerFailureIsNotReportedAsAClassificationFailure(): void
+    {
+        Event::fake([ClassificationFailed::class]);
+        Classification::fake();
+        $exception = new RuntimeException('Listener failed.');
+        Event::listen(Classified::class, fn (): never => throw $exception);
+
+        try {
+            Classification::of('text')->question('urgent', new Boolean('Urgent?'))->classify();
+            $this->fail('The listener must throw.');
+        } catch (RuntimeException $caught) {
+            $this->assertSame($exception, $caught);
+        }
+
+        Event::assertNotDispatched(ClassificationFailed::class);
     }
 }

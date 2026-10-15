@@ -6,6 +6,7 @@ namespace Hypervel\Ai\Providers\Concerns;
 
 use Hypervel\Ai\Ai;
 use Hypervel\Ai\Contracts\Question;
+use Hypervel\Ai\Events\ClassificationFailed;
 use Hypervel\Ai\Events\Classified;
 use Hypervel\Ai\Events\Classifying;
 use Hypervel\Ai\Files\File;
@@ -14,6 +15,7 @@ use Hypervel\Ai\Responses\ClassificationResponse;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Str;
 use LogicException;
+use Throwable;
 
 trait Classifies
 {
@@ -50,15 +52,25 @@ trait Classifies
             ));
         }
 
-        return tap($this->classificationGateway()->classify(
-            $this,
-            $model,
-            $state,
-            $questions,
-            $timeout,
-            $providerOptions,
-            $attachments,
-        ), function (ClassificationResponse $response) use ($invocationId, $model, $prompt): void {
+        try {
+            $response = $this->classificationGateway()->classify(
+                $this,
+                $model,
+                $state,
+                $questions,
+                $timeout,
+                $providerOptions,
+                $attachments,
+            );
+        } catch (Throwable $exception) {
+            if ($this->events->hasListeners(ClassificationFailed::class)) {
+                $this->events->dispatch(new ClassificationFailed($invocationId, $this, $model, $prompt, $exception));
+            }
+
+            throw $exception;
+        }
+
+        return tap($response, function (ClassificationResponse $response) use ($invocationId, $model, $prompt): void {
             if ($this->events->hasListeners(Classified::class)) {
                 $this->events->dispatch(new Classified(
                     $invocationId,
