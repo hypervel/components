@@ -26,6 +26,7 @@ use Hypervel\Sentry\Aspects\GuzzleHttpClientAspect;
 use Hypervel\Sentry\Console\AboutCommandIntegration;
 use Hypervel\Sentry\Console\PublishCommand;
 use Hypervel\Sentry\Console\TestCommand;
+use Hypervel\Sentry\Features\Ai\AiTracingScope;
 use Hypervel\Sentry\Features\Feature;
 use Hypervel\Sentry\Http\FlushEventsMiddleware;
 use Hypervel\Sentry\Http\HypervelRequestFetcher;
@@ -672,6 +673,16 @@ class SentryServiceProvider extends ServiceProvider
                         clone $layer->getScope(),
                     ),
                     $stack,
+                );
+            }
+
+            /** @var ?AiTracingScope $parentAiScope */
+            $parentAiScope = $parentContext[AiTracingScope::CONTEXT_KEY] ?? null;
+
+            if ($parentAiScope !== null) {
+                $context[AiTracingScope::CONTEXT_KEY] = new AiTracingScope(
+                    $parentAiScope->state,
+                    $parentAiScope->conversation,
                 );
             }
 

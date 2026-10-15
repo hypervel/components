@@ -7,6 +7,7 @@ namespace Hypervel\Sentry;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Foundation\Configuration\Exceptions;
 use Hypervel\Routing\Route;
+use Hypervel\Sentry\Features\AiIntegration;
 use Hypervel\Sentry\Integration\ModelViolations as ModelViolationReports;
 use Sentry\Breadcrumb;
 use Sentry\Event;
@@ -113,6 +114,18 @@ class Integration implements IntegrationInterface
     public static function setTransaction(?string $transaction): void
     {
         CoroutineContext::set(self::CONTEXT_TRANSACTION_KEY, $transaction);
+    }
+
+    /**
+     * Set the conversation ID when an integration does not provide it automatically,
+     * such as the ClassificationIntegration.
+     *
+     * This can also be useful if AI calls are proxied so the conversation ID has to persist
+     * across multiple requests.
+     */
+    public static function setConversationId(?string $conversationId): void
+    {
+        app(AiIntegration::class)->setCurrentConversationId($conversationId);
     }
 
     /**
