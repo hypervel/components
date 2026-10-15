@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Dogfood\Ai\Tests;
 
 use Closure;
+use Generator;
+use Hypervel\Ai\Responses\StreamableAgentResponse;
+use Hypervel\Ai\Streaming\Events\TextDelta;
 use Hypervel\Console\OutputStyle;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Foundation\Testing\RefreshDatabase;
@@ -17,9 +20,11 @@ use Hypervel\Testbench\Concerns\WithWorkbench;
 use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
+use RuntimeException;
 use Symfony\Component\Console\Input\ArrayInput;
 use Workbench\App\Agents\Assistant;
 use Workbench\App\Console\Commands\AgentCommand;
+use Workbench\App\Support\StreamingMarkdown;
 
 use function Hypervel\Prompts\note;
 use function Hypervel\Prompts\table;
@@ -83,6 +88,58 @@ class DemoTest extends TestCase
             ->assertJsonPath('messages.1.content', 'Hello from AG-UI.');
     }
 
+    public function testMarkdownFormattingDoesNotDependOnChunkBoundaries(): void
+    {
+        $text = "# Heading\n**Hello `world`** and `code`\nplain # comment\n**unfinished\n`end";
+        $expected = "\e[1;36mHeading\e[22;39m\n\e[1mHello \e[36mworld\e[39m\e[22m and \e[36mcode\e[39m\nplain # comment\n**unfinished\n`end";
+
+        for ($boundary = 0; $boundary <= strlen($text); ++$boundary) {
+            $markdown = new StreamingMarkdown;
+            $actual = $markdown->push(substr($text, 0, $boundary));
+            $actual .= $markdown->push(substr($text, $boundary)) . $markdown->flush();
+
+            $this->assertSame($expected, $actual);
+        }
+
+        $markdown = new StreamingMarkdown;
+        $actual = '';
+        foreach (str_split($text) as $character) {
+            $actual .= $markdown->push($character);
+        }
+        $this->assertSame($expected, $actual . $markdown->flush());
+
+        $markdown = new StreamingMarkdown;
+        $this->assertSame('Plain text ', $markdown->push('Plain text **unfinished'));
+        $this->assertSame("**unfinished\nnext", $markdown->push("\nnext"));
+        $this->assertSame('', $markdown->flush());
+    }
+
+    public function testFailedStreamFlushesUnfinishedMarkdownAndRestoresTheCursor(): void
+    {
+        Prompt::fake();
+        Prompt::terminal()->shouldReceive('cols')->andReturn(120); // @phpstan-ignore-line
+        $output = new BufferedConsoleOutput(decorated: true);
+        Prompt::setOutput($output);
+        $command = new AgentCommand;
+        $command->setOutput(new OutputStyle(new ArrayInput([]), $output));
+        $exception = new RuntimeException('Stream failed');
+        $response = new StreamableAgentResponse('invocation', static function () use ($exception): Generator {
+            yield new TextDelta('event', 'message', '**unfinished', 0);
+
+            throw $exception;
+        });
+
+        try {
+            (new ReflectionMethod($command, 'renderResponse'))->invoke($command, $response, 'hidden', 'hidden', 'output-token-count', null);
+            $this->fail('The stream failure must propagate.');
+        } catch (RuntimeException $caught) {
+            $this->assertSame($exception, $caught);
+        }
+
+        $this->assertStringContainsString('**unfinished', Utils::stripTerminalControls($output->content()));
+        $this->assertStringContainsString("\e[?25h", $output->content());
+    }
+
     #[DataProvider('terminalOutput')]
     public function testTerminalRendererStripsModelControlsBeforeAddingStyles(string $method, mixed $input, bool $decorated, string $expected, Closure $render): void
     {
@@ -93,7 +150,14 @@ class DemoTest extends TestCase
         $command = new AgentCommand;
         $command->setOutput(new OutputStyle(new ArrayInput([]), $output));
 
-        $result = (new ReflectionMethod($command, $method))->invoke($command, $input);
+        $renderer = new ReflectionMethod($command, $method);
+
+        if ($method === 'renderMarkdownDelta') {
+            $markdown = new StreamingMarkdown;
+            $result = $renderer->invoke($command, $input, $markdown) . $markdown->flush();
+        } else {
+            $result = $renderer->invoke($command, $input);
+        }
 
         $render($result);
 

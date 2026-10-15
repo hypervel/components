@@ -27,12 +27,14 @@ use Hypervel\Ai\Streaming\Events\ToolCall;
 use Hypervel\Ai\Streaming\Events\ToolResult;
 use Hypervel\Console\Command;
 use Hypervel\Prompts\Prompt;
+use Hypervel\Prompts\Stream;
 use Hypervel\Prompts\Support\Utils;
 use Hypervel\Support\Collection;
 use InvalidArgumentException;
 use ReflectionMethod;
 use RuntimeException;
 use Symfony\Component\Console\Formatter\OutputFormatter;
+use Workbench\App\Support\StreamingMarkdown;
 
 use function Hypervel\Prompts\clear;
 use function Hypervel\Prompts\confirm;
@@ -296,43 +298,53 @@ class AgentCommand extends Command
         $pendingApprovals = collect();
         $reasoningParts = [];
         $textStream = null;
+        $markdown = null;
 
-        foreach ($response as $event) {
-            if ($event instanceof TextDelta || $event instanceof ReasoningDelta) {
-                $firstTokenAt ??= hrtime(true);
+        try {
+            foreach ($response as $event) {
+                if ($event instanceof TextDelta || $event instanceof ReasoningDelta) {
+                    $firstTokenAt ??= hrtime(true);
+                }
+
+                if ($event instanceof TextDelta) {
+                    if ($textStream === null) {
+                        $textStream = stream();
+                        $markdown = new StreamingMarkdown;
+                    }
+
+                    $text = $this->renderMarkdownDelta($event->delta, $markdown);
+
+                    if ($text !== '') {
+                        $textStream->append($text);
+                    }
+
+                    continue;
+                }
+
+                $this->closeTextStream($textStream, $markdown);
+
+                match (true) {
+                    $event instanceof ToolCall => $this->renderToolCall($event, $tools),
+                    $event instanceof ToolResult => $this->renderToolResult($event, $tools),
+                    $event instanceof ToolApprovalRequest => $pendingApprovals = $pendingApprovals
+                        ->merge($event->pendingApprovals)
+                        ->values(),
+                    $event instanceof ReasoningStart => $reasoningParts[$event->reasoningId] = '',
+                    $event instanceof ReasoningDelta => $reasoningParts[$event->reasoningId] = ($reasoningParts[$event->reasoningId] ?? '') . $event->delta,
+                    $event instanceof ReasoningEnd => $this->renderReasoning(
+                        $reasoningParts[$event->reasoningId] ?? '',
+                        $reasoning,
+                    ),
+                    $event instanceof Citation => $this->renderCitation($event),
+                    $event instanceof ProviderToolEvent => $this->renderProviderToolEvent($event, $tools),
+                    $event instanceof Error => error($this->escapeText($event->message)),
+                    $event instanceof StreamEnd => null,
+                    default => null,
+                };
             }
-
-            if ($event instanceof TextDelta) {
-                $textStream ??= stream();
-                $textStream->append($this->renderMarkdownDelta($event->delta));
-
-                continue;
-            }
-
-            $textStream?->close();
-            $textStream = null;
-
-            match (true) {
-                $event instanceof ToolCall => $this->renderToolCall($event, $tools),
-                $event instanceof ToolResult => $this->renderToolResult($event, $tools),
-                $event instanceof ToolApprovalRequest => $pendingApprovals = $pendingApprovals
-                    ->merge($event->pendingApprovals)
-                    ->values(),
-                $event instanceof ReasoningStart => $reasoningParts[$event->reasoningId] = '',
-                $event instanceof ReasoningDelta => $reasoningParts[$event->reasoningId] = ($reasoningParts[$event->reasoningId] ?? '') . $event->delta,
-                $event instanceof ReasoningEnd => $this->renderReasoning(
-                    $reasoningParts[$event->reasoningId] ?? '',
-                    $reasoning,
-                ),
-                $event instanceof Citation => $this->renderCitation($event),
-                $event instanceof ProviderToolEvent => $this->renderProviderToolEvent($event, $tools),
-                $event instanceof Error => error($this->escapeText($event->message)),
-                $event instanceof StreamEnd => null,
-                default => null,
-            };
+        } finally {
+            $this->closeTextStream($textStream, $markdown);
         }
-
-        $textStream?->close();
 
         $this->renderResponseStatistics(
             $response,
@@ -343,6 +355,30 @@ class AgentCommand extends Command
         );
 
         return $pendingApprovals;
+    }
+
+    /**
+     * Flush unfinished Markdown before restoring the terminal's cursor.
+     */
+    private function closeTextStream(?Stream &$stream, ?StreamingMarkdown &$markdown): void
+    {
+        $currentStream = $stream;
+        $currentMarkdown = $markdown;
+        $stream = $markdown = null;
+
+        if ($currentStream === null) {
+            return;
+        }
+
+        try {
+            $text = $currentMarkdown?->flush() ?? '';
+
+            if ($text !== '') {
+                $currentStream->append($text);
+            }
+        } finally {
+            $currentStream->close();
+        }
     }
 
     /**
@@ -601,7 +637,7 @@ class AgentCommand extends Command
     /**
      * Render supported inline Markdown with terminal styles.
      */
-    private function renderMarkdownDelta(string $text): string
+    private function renderMarkdownDelta(string $text, StreamingMarkdown $markdown): string
     {
         $text = Utils::stripTerminalControls(str_replace("\r", '', $text));
 
@@ -609,10 +645,7 @@ class AgentCommand extends Command
             return $text;
         }
 
-        $text = preg_replace_callback('/`([^`]+)`/', fn (array $matches): string => "\e[36m{$matches[1]}\e[39m", $text) ?? $text;
-        $text = preg_replace_callback('/\*\*([^*]+)\*\*/', fn (array $matches): string => "\e[1m{$matches[1]}\e[22m", $text) ?? $text;
-
-        return preg_replace('/(^|\n)(#{1,6}\s+)([^\n]+)/', "$1\e[1;36m$3\e[22;39m", $text) ?? $text;
+        return $markdown->push($text);
     }
 
     /**
@@ -620,7 +653,9 @@ class AgentCommand extends Command
      */
     private function renderMarkdownBlock(string $text): string
     {
-        return OutputFormatter::escape($this->renderMarkdownDelta($text));
+        $markdown = new StreamingMarkdown;
+
+        return OutputFormatter::escape($this->renderMarkdownDelta($text, $markdown) . $markdown->flush());
     }
 
     /**
