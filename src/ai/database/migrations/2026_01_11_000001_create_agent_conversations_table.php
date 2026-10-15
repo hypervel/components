@@ -8,6 +8,7 @@ use Hypervel\Ai\Models\ConversationMessage;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\Schema\Builder;
 use Hypervel\Support\Facades\Schema;
+use Hypervel\Support\Str;
 
 return new class extends AiMigration {
     /**
@@ -17,8 +18,19 @@ return new class extends AiMigration {
     {
         $conversationsTable = config()->string('ai.conversations.tables.conversations', Conversation::DEFAULT_TABLE);
         $messagesTable = config()->string('ai.conversations.tables.messages', ConversationMessage::DEFAULT_TABLE);
+        $connection = Schema::getConnection();
+        $prefix = $connection->getConfig('prefix_indexes') ? $connection->getTablePrefix() : '';
+        $indexName = static function (string $table, string $suffix) use ($prefix): string {
+            $stem = str_replace('-', '_', strtolower($prefix . Str::afterLast($table, '.')));
+            $name = $stem . $suffix;
 
-        Schema::create($conversationsTable, function (Blueprint $table) use ($conversationsTable): void {
+            // PostgreSQL limits identifiers to 63 bytes; retain readable names when they fit.
+            return strlen($name) <= 63
+                ? $name
+                : mb_strcut($stem, 0, 63 - strlen($suffix) - 33, 'UTF-8') . '_' . hash('xxh128', $name) . $suffix;
+        };
+
+        Schema::create($conversationsTable, function (Blueprint $table) use ($conversationsTable, $indexName): void {
             $table->uuid('id')->primary();
             $table->string('participant_type')->nullable();
             match (Builder::$defaultMorphKeyType) {
@@ -29,12 +41,14 @@ return new class extends AiMigration {
             $table->string('title');
             $table->timestamps();
 
-            $table->index(['participant_type', 'participant_id', 'updated_at'], $conversationsTable . '_participant_updated_at_index');
+            $table->index(['participant_type', 'participant_id', 'updated_at'], $indexName($conversationsTable, '_participant_index'));
         });
 
-        Schema::create($messagesTable, function (Blueprint $table) use ($conversationsTable, $messagesTable): void {
+        Schema::create($messagesTable, function (Blueprint $table) use ($conversationsTable, $messagesTable, $indexName): void {
             $table->uuid('id')->primary();
-            $table->foreignUuid('conversation_id')->constrained($conversationsTable)->cascadeOnDelete();
+            $table->foreignUuid('conversation_id')
+                ->constrained($conversationsTable, indexName: $indexName($messagesTable, '_conversation_id_foreign'))
+                ->cascadeOnDelete();
             $table->string('participant_type')->nullable();
             match (Builder::$defaultMorphKeyType) {
                 'uuid' => $table->uuid('participant_id')->nullable(),
@@ -54,10 +68,10 @@ return new class extends AiMigration {
             $table->boolean('has_replay_blocks')->default(false);
             $table->timestamps();
 
-            $table->index(['conversation_id', 'id'], $messagesTable . '_conversation_messages_index');
-            $table->index(['participant_type', 'participant_id', 'agent', 'id'], $messagesTable . '_participant_index');
-            $table->index(['conversation_id', 'status', 'id'], $messagesTable . '_conversation_status_index');
-            $table->index(['conversation_id', 'has_replay_blocks', 'id'], $messagesTable . '_conversation_replay_index');
+            $table->index(['conversation_id', 'id'], $indexName($messagesTable, '_conversation_index'));
+            $table->index(['participant_type', 'participant_id', 'agent', 'id'], $indexName($messagesTable, '_participant_index'));
+            $table->index(['conversation_id', 'status', 'id'], $indexName($messagesTable, '_status_index'));
+            $table->index(['conversation_id', 'has_replay_blocks', 'id'], $indexName($messagesTable, '_replay_index'));
         });
     }
 

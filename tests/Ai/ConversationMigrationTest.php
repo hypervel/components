@@ -31,7 +31,8 @@ class ConversationMigrationTest extends TestCase
             'database.connections.conversations' => [
                 'driver' => 'sqlite',
                 'database' => ':memory:',
-                'prefix' => '',
+                'prefix' => 'app_',
+                'prefix_indexes' => true,
                 'foreign_key_constraints' => true,
             ],
             'ai.conversations.connection' => 'conversations',
@@ -56,7 +57,14 @@ class ConversationMigrationTest extends TestCase
         $this->assertFalse(Schema::hasTable('custom_conversations'));
         $this->assertSame($columnType, $schema->getColumnType('custom_conversations', 'participant_id'));
         $this->assertSame($columnType, $schema->getColumnType('custom_messages', 'participant_id'));
-        $this->assertSame('custom_conversations', $schema->getForeignKeys('custom_messages')[0]['foreign_table']);
+        $this->assertSame('app_custom_conversations', $schema->getForeignKeys('custom_messages')[0]['foreign_table']);
+        $this->assertContains('app_custom_conversations_participant_index', array_column($schema->getIndexes('custom_conversations'), 'name'));
+        $this->assertEqualsCanonicalizing([
+            'app_custom_messages_conversation_index',
+            'app_custom_messages_participant_index',
+            'app_custom_messages_status_index',
+            'app_custom_messages_replay_index',
+        ], array_column(array_filter($schema->getIndexes('custom_messages'), fn (array $index): bool => ! $index['primary']), 'name'));
 
         $conversation = Conversation::create([
             'id' => (string) Str::uuid7(),

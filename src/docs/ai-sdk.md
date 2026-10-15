@@ -816,12 +816,12 @@ public function boot(): void
 
 Add the account ID to [Context](/docs/{{version}}/context) in your application's middleware before using conversations. Context carries it into queued jobs, including model restoration. The resolver may return an integer or string. Once partitioning is configured, a null or empty value throws instead of reading unpartitioned data. The database store and conversation models scope their reads and writes to that value. Partitioning does not replace authorization between users within the same account.
 
-The published migration is unpartitioned. Before running it, add your partition column to both tables, using the same type as your account key. Prepend it to each conversation and message lookup index. For UUID accounts, the relevant additions to the conversation table are:
+The published migration is unpartitioned. Before running it, add your partition column to both tables, using the same type as your account key. Prepend it to each conversation and message lookup index. Reuse the migration's `$indexName` closure when naming indexes and foreign keys so names remain distinct and fit database limits. For UUID accounts, the relevant additions to the conversation table are:
 
 ```php
 $table->uuid('account_id');
-$table->unique(['account_id', 'id']);
-$table->index(['account_id', 'participant_type', 'participant_id', 'updated_at'], 'participant_updated_at_index');
+$table->unique(['account_id', 'id'], $indexName($conversationsTable, '_account_id_unique'));
+$table->index(['account_id', 'participant_type', 'participant_id', 'updated_at'], $indexName($conversationsTable, '_participant_index'));
 ```
 
 In the messages table, replace the single-column conversation foreign key with a composite foreign key so a message cannot reference another account's conversation:
@@ -829,15 +829,15 @@ In the messages table, replace the single-column conversation foreign key with a
 ```php
 $table->uuid('account_id');
 $table->uuid('conversation_id');
-$table->foreign(['account_id', 'conversation_id'])
+$table->foreign(['account_id', 'conversation_id'], $indexName($messagesTable, '_conversation_id_foreign'))
     ->references(['account_id', 'id'])
     ->on($conversationsTable)
     ->cascadeOnDelete();
 
-$table->index(['account_id', 'conversation_id', 'id'], 'conversation_messages_index');
-$table->index(['account_id', 'participant_type', 'participant_id', 'agent', 'id'], 'participant_index');
-$table->index(['account_id', 'conversation_id', 'status', 'id'], 'conversation_status_index');
-$table->index(['account_id', 'conversation_id', 'has_replay_blocks', 'id'], 'conversation_replay_index');
+$table->index(['account_id', 'conversation_id', 'id'], $indexName($messagesTable, '_conversation_index'));
+$table->index(['account_id', 'participant_type', 'participant_id', 'agent', 'id'], $indexName($messagesTable, '_participant_index'));
+$table->index(['account_id', 'conversation_id', 'status', 'id'], $indexName($messagesTable, '_status_index'));
+$table->index(['account_id', 'conversation_id', 'has_replay_blocks', 'id'], $indexName($messagesTable, '_replay_index'));
 ```
 
 Replace the original indexes with these partitioned versions. Keep the remaining columns from the published migration. For existing data, assign and verify ownership before making the partition columns required and adding the composite constraint.
