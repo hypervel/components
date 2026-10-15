@@ -14,6 +14,7 @@
     - [Sampling](#sampling)
     - [Distributed Tracing](#distributed-tracing)
     - [Queued Jobs](#queued-jobs)
+    - [AI Monitoring](#ai-monitoring)
     - [Metrics](#metrics)
     - [Scheduled Tasks](#scheduled-tasks)
     - [OpenTelemetry](#opentelemetry)
@@ -292,6 +293,51 @@ public function middleware(): array
 ```
 
 This middleware can downsample a transaction that was already sampled by your global configuration. It does not force an unsampled transaction to be recorded. Since it acts on the job's own transaction, job transactions must remain enabled using `SENTRY_TRACE_QUEUE_ENABLED`. A job that runs within another transaction, such as one dispatched synchronously during a request or by another job, keeps that transaction's sampling decision.
+
+<a name="ai-monitoring"></a>
+### AI Monitoring
+
+When the [AI SDK](/docs/{{version}}/ai-sdk) is installed, Sentry records agent calls, model steps, tool execution, embeddings, and classifications within sampled transactions. Spans include provider and model names, token usage, and conversation IDs when available.
+
+Each model step gets a `gen_ai.chat` span. HTTP attempts appear beneath that step when HTTP tracing is enabled, so a retry does not create another model step. Streaming spans begin when the stream is consumed and remain open until it completes, fails, or is abandoned.
+
+The following options in the `tracing` section of `config/sentry.php` are enabled by default:
+
+| Option | Records |
+| --- | --- |
+| `gen_ai` | Enables AI monitoring. Set to `false` to disable all AI spans. |
+| `gen_ai_invoke_agent` | Agent invocations and their model steps. |
+| `gen_ai_chat` | Individual model steps within agent invocations. |
+| `gen_ai_execute_tool` | Tool execution. |
+| `gen_ai_embeddings` | Embedding generation. |
+| `gen_ai_evaluate` | Classifications. |
+
+Remembering agents supply their conversation IDs automatically. You may also associate subsequent AI operations in the current trace with a conversation of your own:
+
+```php
+use Hypervel\Sentry\Integration;
+
+Integration::setConversationId($conversationId);
+
+// Run AI operations associated with this conversation...
+
+Integration::setConversationId(null);
+```
+
+A top-level agent's conversation remains selected for later AI operations in that coroutine. Nested agents restore the caller's selection when they finish. Child coroutines inherit the selected conversation, but selecting another conversation in a child does not change the parent's selection.
+
+Prompts, responses, tool arguments and results, embedding inputs, and classification content follow the [sensitive data settings](#sensitive-data). With the default `data_collection: null`, they are omitted unless `send_default_pii` is enabled. If you configure `data_collection`, its `gen_ai.inputs` and `gen_ai.outputs` settings control them instead; both default to `true` when omitted:
+
+```php
+'data_collection' => [
+    'gen_ai' => [
+        'inputs' => false,
+        'outputs' => false,
+    ],
+],
+```
+
+Attachment telemetry contains declared metadata, remote URLs, or provider file IDs, never file contents or local storage paths. Remote URLs and filenames may still contain sensitive information. Long text is shortened, and message history leaves out the oldest messages first when it exceeds the size limit. Oversized structured fields are omitted rather than sent as incomplete JSON.
 
 <a name="metrics"></a>
 ### Metrics
