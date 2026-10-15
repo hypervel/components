@@ -46,6 +46,8 @@ Route::post('/chat/message', function (Request $request): JsonResponse {
 });
 
 Route::post('/ag-ui', function (Request $request): StreamableAgentResponse {
+    $request->validate(['threadId' => ['required', 'uuid']]);
+
     $chat = AgentUserInteraction::chat($request);
 
     $user = User::firstOrCreate(

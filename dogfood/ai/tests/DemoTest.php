@@ -90,8 +90,8 @@ class DemoTest extends TestCase
 
     public function testMarkdownFormattingDoesNotDependOnChunkBoundaries(): void
     {
-        $text = "# Heading\n**Hello `world`** and `code`\nplain # comment\n**unfinished\n`end";
-        $expected = "\e[1;36mHeading\e[22;39m\n\e[1mHello \e[36mworld\e[39m\e[22m and \e[36mcode\e[39m\nplain # comment\n**unfinished\n`end";
+        $text = "# Heading\n**Hello `world`** and `code`\nplain # comment\n```php\necho 1;\n```\nDone ``x``\n**unfinished\n`end";
+        $expected = "\e[1;36mHeading\e[22;39m\n\e[1mHello \e[36mworld\e[39m\e[22m and \e[36mcode\e[39m\nplain # comment\n```php\necho 1;\n```\nDone ``x``\n**unfinished\n`end";
 
         for ($boundary = 0; $boundary <= strlen($text); ++$boundary) {
             $markdown = new StreamingMarkdown;
@@ -112,6 +112,20 @@ class DemoTest extends TestCase
         $this->assertSame('Plain text ', $markdown->push('Plain text **unfinished'));
         $this->assertSame("**unfinished\nnext", $markdown->push("\nnext"));
         $this->assertSame('', $markdown->flush());
+    }
+
+    public function testAgUiRejectsInvalidThreadIdsBeforeCreatingRecords(): void
+    {
+        Assistant::fake(['Unexpected response']);
+
+        $this->postJson('/ag-ui', [
+            'threadId' => 'not-a-uuid',
+            'runId' => 'demo-run',
+            'messages' => [['id' => 'message', 'role' => 'user', 'content' => 'Hello']],
+        ])->assertUnprocessable()->assertJsonValidationErrors('threadId');
+
+        $this->assertDatabaseCount('users', 0);
+        $this->assertDatabaseCount('agent_conversations', 0);
     }
 
     public function testFailedStreamFlushesUnfinishedMarkdownAndRestoresTheCursor(): void

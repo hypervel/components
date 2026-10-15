@@ -37,6 +37,15 @@ class StreamingMarkdown
 
             if ($this->delimiter !== '') {
                 $this->pending .= $character;
+
+                // Preserve fences and longer backtick delimiters as literal text.
+                if ($this->pending === '``') {
+                    $output .= $this->pending;
+                    $this->pending = $this->delimiter = '';
+
+                    continue;
+                }
+
                 $delimiterLength = strlen($this->delimiter);
 
                 if (strlen($this->pending) > $delimiterLength * 2 && str_ends_with($this->pending, $this->delimiter)) {
