@@ -19,12 +19,12 @@ use function Hypervel\Coroutine\run;
 
 require dirname(__DIR__, 3) . '/vendor/autoload.php';
 
-$options = getopt('', ['endpoint:', 'ca:', 'requests:', 'concurrency:', 'samples:', 'chunks:', 'bytes:', 'pace-us:', 'burst-gap-us:', 'consumer-us:', 'accounts:', 'http-only', 'buffered', 'help']);
+$options = getopt('', ['endpoint:', 'ca:', 'requests:', 'concurrency:', 'samples:', 'chunks:', 'bytes:', 'pace-us:', 'burst-gap-us:', 'consumer-us:', 'accounts:', 'http-only', 'buffered', 'bulk-reads', 'help']);
 
 if (isset($options['help'])) {
     echo "Usage: php tests/Benchmarks/Ai/http.php --endpoint=https://127.0.0.1:PORT --ca=/path/to/certificate.pem [options]\n"
         . "  --requests=256 --concurrency=8 --samples=5 --chunks=32 --bytes=128\n"
-        . "  --pace-us=1000 --burst-gap-us=5000 --consumer-us=0 --accounts=0 --http-only --buffered\n"
+        . "  --pace-us=1000 --burst-gap-us=5000 --consumer-us=0 --accounts=0 --http-only --buffered --bulk-reads\n"
         . "Run only in an owner-confirmed idle window. Output is JSON.\n";
     exit(0);
 }
@@ -47,6 +47,14 @@ foreach ($settings as $name => $default) {
     }
 
     $settings[$name] = $value;
+}
+
+$buffered = isset($options['buffered']);
+$httpOnly = isset($options['http-only']);
+$bulkReads = isset($options['bulk-reads']);
+
+if ($bulkReads && (! $httpOnly || $buffered)) {
+    throw new InvalidArgumentException('--bulk-reads requires --http-only without --buffered.');
 }
 
 /**
@@ -120,8 +128,6 @@ if ($settings['accounts'] > 0) {
     ]));
 }
 
-$buffered = isset($options['buffered']);
-$httpOnly = isset($options['http-only']);
 $lastConnection = 0;
 $connections = [];
 $peakOriginActive = 0;
@@ -159,7 +165,7 @@ $cold = null;
 $failure = null;
 $before = resources();
 
-run(function () use ($factory, $endpoint, $settings, $buffered, $httpOnly, &$lastConnection, &$connections, &$peakOriginActive, &$ordinal, &$reports, &$cold, &$failure): void {
+run(function () use ($factory, $endpoint, $settings, $buffered, $httpOnly, $bulkReads, &$lastConnection, &$connections, &$peakOriginActive, &$ordinal, &$reports, &$cold, &$failure): void {
     try {
         for ($sample = -1; $sample < $settings['samples']; ++$sample) {
             gc_collect_cycles();
@@ -178,7 +184,7 @@ run(function () use ($factory, $endpoint, $settings, $buffered, $httpOnly, &$las
             $burstStarted = 0;
             $requests = $sample < 0 ? $settings['concurrency'] : $settings['requests'];
 
-            $request = function () use ($factory, $endpoint, $settings, $buffered, $httpOnly, &$ordinal, &$active, &$peakActive, &$firstEvents, &$firstText, &$latencies, &$burstStarted): void {
+            $request = function () use ($factory, $endpoint, $settings, $buffered, $httpOnly, $bulkReads, &$ordinal, &$active, &$peakActive, &$firstEvents, &$firstText, &$latencies, &$burstStarted): void {
                 // All requests in a burst arrive together; include coroutine admission in latency.
                 $started = $burstStarted;
                 ++$active;
@@ -204,7 +210,7 @@ run(function () use ($factory, $endpoint, $settings, $buffered, $httpOnly, &$las
                         if ($buffered) {
                             $text = $response->json('output.0.content.0.text');
                         } else {
-                            foreach (bytewiseLines($response) as $line) {
+                            foreach ($bulkReads ? $response->lines() : bytewiseLines($response) as $line) {
                                 if (! str_starts_with($line, 'data: ')) {
                                     continue;
                                 }
@@ -326,7 +332,7 @@ echo json_encode([
     'opcache_cli' => ini_get('opcache.enable_cli'),
     'jit' => ini_get('opcache.jit'),
     'gc_enabled' => gc_enabled(),
-    'settings' => $settings + ['http_only' => $httpOnly, 'buffered' => $buffered],
+    'settings' => $settings + ['http_only' => $httpOnly, 'buffered' => $buffered, 'bulk_reads' => $bulkReads],
     'cold' => $cold,
     'samples' => $reports,
     'resources_before' => $before,
