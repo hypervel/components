@@ -551,6 +551,8 @@ $response = (new SalesCoach)
 
 Agents that implement the `Conversational` interface load their own history, so combining the two approaches will throw a `LogicException`.
 
+Conversation history is read once when you call `prompt` or `stream`, and reused across provider attempts. A stream retains that history and its selected conversation even if you switch the agent to another conversation before consuming it. Completing that stream does not overwrite the agent's newer selection.
+
 <a name="remembering-conversations"></a>
 #### Remembering Conversations
 
@@ -1209,6 +1211,9 @@ If the request contains [approval decisions](#human-tool-approval), the agent wi
 
 > [!NOTE]
 > Agents that implement the `Conversational` interface load their own history, so the `withMessages` method may be omitted.
+
+> [!WARNING]
+> History supplied through `withMessages($chat->history())` comes from the client, including tool names and arguments. Approval is not authorization: each tool must authorize its action and arguments. If pending calls must come from trusted stored history, use a remembering agent and [resume its stored conversation](#human-tool-approval) instead of supplying client history.
 
 The `AgentUserInteraction::chat` method provides the same API for AG-UI clients, in addition to the request's thread and run IDs:
 
@@ -1961,7 +1966,7 @@ class RefundsAgent implements Agent, CanActAsTool, HasTools
 
 If a sub-agent does not implement `CanActAsTool`, Hypervel will use the agent's class basename as the tool name and a generic description that asks the parent agent to pass a clear, self-contained task description. Each sub-agent invocation runs in isolation and does not receive the parent agent's conversation history.
 
-When the parent agent is [streaming](#streaming), its sub-agents stream as well. The parent agent emits `ToolResult` events containing the text the sub-agent has produced so far. These events are marked as preliminary and are followed by the tool call's final result, so you may skip them when iterating events manually:
+When the parent agent is [streaming](#streaming), its sub-agents stream as well. As a sub-agent's text grows, the parent periodically emits `ToolResult` events containing the text produced so far. These events are marked as preliminary and are followed by the tool call's final result. Short responses may only produce the final result. You may skip preliminary events when iterating manually:
 
 ```php
 use Hypervel\Ai\Streaming\Events\ToolResult;
@@ -2494,18 +2499,22 @@ $claims = ConversationMessage::whereNotNull('approval_claim')
 
 During streaming and broadcasting, a pause is represented by a `tool_approval_request` event. When using the [Vercel AI SDK stream protocol](#stream-protocols), approval requests and results are emitted using the protocol's native tool approval parts, and the Agent User Interaction protocol reports them as interrupts.
 
-Clients that use either protocol post their decisions along with the rest of the conversation, so a [chat request](#frontend-integration) may be passed directly to the agent:
+Clients that use either protocol post their decisions along with the rest of the conversation, so a [chat request](#frontend-integration) may be passed directly to the agent. In this example, `FileAssistant` uses `RemembersConversations` and loads the pending calls from the server. Authorize access to the conversation before continuing it:
 
 ```php
 $chat = Vercel::chat($request);
 
+Gate::authorize('view', $conversation);
+
 return (new FileAssistant)
-    ->continue($conversationId, as: $request->user())
+    ->continue($conversation->id, as: $request->user())
     ->stream($chat)
     ->usingProtocol($chat->protocol());
 ```
 
 When a paused turn is resumed, the resumed steps are merged into that turn, so each turn is stored as a single assistant message. The response's `assistantMessageId` contains the ID of the paused message, and that message's usage includes both the pause and the resume.
+
+Stored history prevents the client from replacing pending tool calls, but tools must still authorize their actions and arguments. When using caller-supplied history instead, treat its tool calls and arguments as untrusted input.
 
 For queued agents, the resulting response is passed to the `then` callback, and Hypervel also dispatches a `ToolApprovalRequested` event.
 
@@ -3507,6 +3516,8 @@ $image = Image::of('A donut sitting on the kitchen counter')
 
 Failover only occurs when a `FailoverableException` is thrown — such as a rate limit (`RateLimitedException`), an overloaded or unavailable provider (`ProviderOverloadedException`), or insufficient credits (`InsufficientCreditsException`). Ordinary errors, like a validation or bad request error, will not trigger failover.
 
+An agent does not fail over after a tool starts, since restarting the run could repeat its side effects. Streams also stop failing over once an event has reached the consumer. The original exception is reported, and remembering agents retain the steps and tool results completed before the failure.
+
 Providers are tried in the order you supply them. Each entry is retained, including provider objects that share a name. Listing the same provider twice allows a second attempt if the first fails with a failoverable exception.
 
 When you pass a plain list of providers, such as `[Lab::OpenAI, Lab::Anthropic]`, each provider uses its default model. To specify a particular model for each provider in the failover chain, pass an associative array keyed by the provider, using the `Lab` enum's `value` as the key (enum cases cannot be used directly as PHP array keys):
@@ -4154,6 +4165,8 @@ The Hypervel AI SDK dispatches a variety of [events](/docs/{{version}}/events), 
 - `TranscriptionGenerated`
 
 You can listen to any of these events to log or store AI SDK usage information.
+
+Resolving providers and tools and capturing conversation history happen before provider execution. If this setup fails, the exception is thrown directly without provider lifecycle events such as `PromptingAgent` or `AgentFailed`.
 
 `StartingStep` includes the instructions, tools, messages, model, and options actually sent for that step, including changes made by middleware. Listeners may inspect these values without calling the agent's `instructions` or `tools` methods again. Queued listeners receive an empty `tools` list, since live tool instances may contain closures or anonymous classes that cannot be serialized.
 
