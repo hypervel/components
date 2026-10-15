@@ -68,7 +68,7 @@ abstract class Watcher
         foreach ($parts as $index => $part) {
             $name = explode('=', $part, 2)[0];
 
-            if (in_array(urldecode($name), Telescope::$hiddenRequestParameters, true)) {
+            if (in_array(explode('[', urldecode($name), 2)[0], Telescope::$hiddenRequestParameters, true)) {
                 $parts[$index] = $name . '=' . Telescope::REDACTED_VALUE;
             }
         }
