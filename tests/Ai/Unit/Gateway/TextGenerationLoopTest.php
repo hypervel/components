@@ -47,8 +47,10 @@ use Hypervel\Ai\Responses\Data\ToolCall;
 use Hypervel\Ai\Responses\Data\ToolResult as ToolResultData;
 use Hypervel\Ai\Responses\StreamableAgentResponse;
 use Hypervel\Ai\Streaming\Events\Error;
+use Hypervel\Ai\Streaming\Events\ReasoningDelta;
 use Hypervel\Ai\Streaming\Events\StreamEnd;
 use Hypervel\Ai\Streaming\Events\StreamEvent;
+use Hypervel\Ai\Streaming\Events\StreamStart;
 use Hypervel\Ai\Streaming\Events\TextDelta;
 use Hypervel\Ai\Streaming\Events\ToolApprovalRequest;
 use Hypervel\Ai\Streaming\Events\ToolCall as ToolCallEvent;
@@ -1280,7 +1282,8 @@ class TextGenerationLoopTest extends TestCase
 
     public function testASubAgentReportsItsOutputBeforeTheToolResultItSettlesOn(): void
     {
-        $tool = textGenerationLoopAgentTool();
+        $text = str_repeat('sub-agent result', 20);
+        $tool = textGenerationLoopAgentTool($text);
         $toolCall = new ToolCall('call-sub-agent', 'research_agent', ['task' => 'Research'], 'call-sub-agent');
 
         $events = collect(textGenerationLoopSubAgentStream([$tool], [$toolCall]));
@@ -1292,9 +1295,9 @@ class TextGenerationLoopTest extends TestCase
         $this->assertSame('invocation-1', $preliminary->first()->invocationId);
         $this->assertSame('call-sub-agent', $preliminary->first()->toolResult->id);
         $this->assertSame('research_agent', $preliminary->first()->toolResult->name);
-        $this->assertSame('sub-agent result', $preliminary->first()->toolResult->result);
+        $this->assertSame($text, $preliminary->first()->toolResult->result);
         $this->assertLessThan($events->search($settled->first()), $events->search($preliminary->first()));
-        $this->assertSame('sub-agent result', $settled->first()->toolResult->result);
+        $this->assertSame($text, $settled->first()->toolResult->result);
     }
 
     public function testASubAgentReportsItsOutputAgainOnceItHasWrittenEnoughOfIt(): void
@@ -1316,8 +1319,10 @@ class TextGenerationLoopTest extends TestCase
     public function testPreliminaryOutputJoinsTheTextOfSeparateSubAgentStepsTheWayTheFinalResultDoes(): void
     {
         $events = [
-            new TextDelta('sub-delta-1', 'sub-message-1', 'First step.', time()),
-            new TextDelta('sub-delta-2', 'sub-message-2', 'Second step.', time()),
+            new StreamStart('start-1', 'fake', 'model', time()),
+            new TextDelta('sub-delta-1', 'sub-message-1', str_repeat('First step.', 30), time()),
+            new StreamStart('start-2', 'fake', 'model', time()),
+            new TextDelta('sub-delta-2', 'sub-message-2', str_repeat('Second step.', 30), time()),
             new StreamEnd('sub-end', FinishReason::Stop->value, new TextUsage, time()),
         ];
 
@@ -1331,6 +1336,25 @@ class TextGenerationLoopTest extends TestCase
 
         $this->assertSame(TextDelta::combine($events), $preliminary->last()->toolResult->result);
         $this->assertSame($settled->first()->toolResult->result, $preliminary->last()->toolResult->result);
+    }
+
+    public function testPreliminarySnapshotsStayBoundedWhenTextAndReasoningAlternate(): void
+    {
+        $tool = textGenerationLoopAgentTool(function (): Generator {
+            for ($index = 0; $index < 1024; ++$index) {
+                yield new TextDelta('text-' . $index, 'message', str_repeat('x', 256), 1);
+                yield new ReasoningDelta('reason-' . $index, 'reasoning', 'Thinking', 1);
+            }
+        });
+        $call = new ToolCall('call', 'research_agent', ['task' => 'Research']);
+        [$preliminary, $settled] = collect(textGenerationLoopSubAgentStream([$tool], [$call]))
+            ->whereInstanceOf(ToolResultEvent::class)
+            ->partition(fn (ToolResultEvent $event): bool => $event->preliminary);
+
+        $this->assertNotEmpty($preliminary);
+        $this->assertLessThan(40, $preliminary->count());
+        $this->assertLessThan(6 * 1024 * 256, $preliminary->sum(fn (ToolResultEvent $event): int => strlen($event->toolResult->result)));
+        $this->assertSame(str_repeat('x', 1024 * 256), $settled->first()->toolResult->result);
     }
 
     public function testASubAgentRunsSynchronouslyThroughTheNonStreamingLoop(): void
@@ -1383,7 +1407,7 @@ class TextGenerationLoopTest extends TestCase
 
     public function testMultipleSubAgentCallsReportTheirOutputUnderTheirOwnToolCallIds(): void
     {
-        $tool = textGenerationLoopAgentTool();
+        $tool = textGenerationLoopAgentTool(str_repeat('x', 240));
         $firstCall = new ToolCall('call-first', 'research_agent', ['task' => 'First'], 'call-first');
         $secondCall = new ToolCall('call-second', 'research_agent', ['task' => 'Second'], 'call-second');
 
@@ -1414,7 +1438,7 @@ class TextGenerationLoopTest extends TestCase
 
         $provider = textGenerationLoopProvider();
 
-        textGenerationLoopSubAgentStream([$tool], [$toolCall], context: new RunContext(
+        $events = textGenerationLoopSubAgentStream([$tool], [$toolCall], context: new RunContext(
             'invocation-1',
             m::mock(Agent::class),
             $provider,
@@ -1424,6 +1448,10 @@ class TextGenerationLoopTest extends TestCase
 
         $this->assertSame([AgentTool::class], $invoking);
         $this->assertSame(['sub-agent result'], $invoked);
+        $results = collect($events)->whereInstanceOf(ToolResultEvent::class);
+        $this->assertCount(1, $results);
+        $this->assertFalse($results->first()->preliminary);
+        $this->assertSame('sub-agent result', $results->first()->toolResult->result);
     }
 
     public function testASubAgentNamesTheToolCallItWasDelegatedFromForTheWholeOfItsRun(): void
@@ -1461,7 +1489,7 @@ class TextGenerationLoopTest extends TestCase
         $subAgentCall = new ToolCall('call-sub-agent', 'research_agent', ['task' => 'Research'], 'call-sub-agent');
 
         $events = collect(textGenerationLoopSubAgentStream(
-            [$gated, textGenerationLoopAgentTool()],
+            [$gated, textGenerationLoopAgentTool(str_repeat('x', 240))],
             [$gatedCall, $subAgentCall],
         ));
 

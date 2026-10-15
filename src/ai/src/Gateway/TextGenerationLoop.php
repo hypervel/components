@@ -82,7 +82,7 @@ class TextGenerationLoop
     use JoinsReasoning;
 
     /**
-     * The characters a tool must add before its unfinished output is reported again.
+     * The minimum bytes a sub-agent must add before its unfinished output is reported again.
      */
     private const int PRELIMINARY_OUTPUT_BYTES = 240;
 
@@ -766,14 +766,22 @@ class TextGenerationLoop
         $reportedAt = 0;
 
         foreach ($events as $event) {
-            if ($event instanceof TextDelta) {
+            if ($event instanceof StreamStart) {
                 $deltas[] = $event;
-                $written += strlen($event->delta);
 
-                // Each report restates the whole output, so one per delta would grow the stream quadratically...
-                if ($written - $reportedAt < self::PRELIMINARY_OUTPUT_BYTES) {
-                    continue;
-                }
+                continue;
+            }
+
+            if (! $event instanceof TextDelta) {
+                continue;
+            }
+
+            $deltas[] = $event;
+            $written += strlen($event->delta);
+
+            // Full snapshots need a growing interval to keep retained and transmitted text linear.
+            if ($written - $reportedAt < max(self::PRELIMINARY_OUTPUT_BYTES, intdiv($reportedAt, 4))) {
+                continue;
             }
 
             $reportedAt = $written;
