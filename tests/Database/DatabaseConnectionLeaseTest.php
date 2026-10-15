@@ -23,9 +23,12 @@ use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\SessionConfigurator;
 use Hypervel\Database\SQLiteConnection;
 use Hypervel\Engine\Channel;
+use Hypervel\Http\Client\Events\ResponseReceived;
 use Hypervel\Http\Client\Factory;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
+use Hypervel\Support\Facades\Http;
+use Hypervel\Support\Sleep;
 use Hypervel\Testbench\TestCase;
 use LogicException;
 use PDO;
@@ -235,6 +238,39 @@ class DatabaseConnectionLeaseTest extends TestCase
 
         $this->assertSame(3, $calls);
         $this->assertSame('OK', $response->body());
+    }
+
+    public function testRetryWaitReleasesSessionsAfterResponseListenersAndDelayCallbacks(): void
+    {
+        $observed = [];
+        $connection = DB::connection('leases');
+        $pool = $this->pool();
+        Event::listen(ResponseReceived::class, static function () use ($connection): void {
+            $connection->selectOne('select 1');
+        });
+        Http::fake(['*' => Http::sequence()
+            ->pushStatus(500)->pushStatus(200)
+            ->pushStatus(500)->pushStatus(200)
+            ->pushStatus(500)->pushStatus(200)]);
+        Sleep::fake();
+        Sleep::whenFakingSleep(static function () use ($pool, &$observed): void {
+            $observed[] = $pool->getBorrowedCount();
+        });
+        $send = function () use ($connection): void {
+            $response = Http::retry(2, static function () use ($connection): int {
+                $connection->selectOne('select 2');
+
+                return 1;
+            })->get('https://example.com/retry');
+
+            $this->assertTrue($response->successful());
+        };
+
+        $send();
+        $connection->transaction($send);
+        $connection->withPinnedSession($send);
+
+        $this->assertSame([0, 1, 1], $observed);
     }
 
     #[DataProvider('pinnedScopes')]
