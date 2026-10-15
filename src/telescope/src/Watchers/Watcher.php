@@ -67,8 +67,25 @@ abstract class Watcher
         // Parsing into an array would collapse repeated keys and rewrite dotted names.
         foreach ($parts as $index => $part) {
             $name = explode('=', $part, 2)[0];
+            $segments = explode('[', urldecode($name));
+            $parameter = array_shift($segments);
 
-            if (in_array(explode('[', urldecode($name), 2)[0], Telescope::$hiddenRequestParameters, true)) {
+            // Hidden parents cover descendants, but an appended [] has no addressable key.
+            foreach ($segments as $segment) {
+                if (in_array($parameter, Telescope::$hiddenRequestParameters, true)) {
+                    break;
+                }
+
+                $key = strstr($segment, ']', true);
+
+                if ($key === false || $key === '') {
+                    break;
+                }
+
+                $parameter .= '.' . $key;
+            }
+
+            if (in_array($parameter, Telescope::$hiddenRequestParameters, true)) {
                 $parts[$index] = $name . '=' . Telescope::REDACTED_VALUE;
             }
         }

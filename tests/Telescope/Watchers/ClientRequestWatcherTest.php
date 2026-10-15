@@ -204,15 +204,15 @@ class ClientRequestWatcherTest extends FeatureTestCase
 
     public function testClientRequestWatcherHidesQueryCredentialsWithoutChangingOtherParameters(): void
     {
-        Telescope::hideRequestParameters(['custom_secret']);
-        $uri = 'https://graph.facebook.com/me?access%5Ftoken=secret&access_token[]=first&access_token%5B0%5D=second&custom_secret%5Bvalue%5D=third&fields=name,email&user.fields=id&tag=x&tag=y#fragment';
+        Telescope::hideRequestParameters(['custom_secret', 'secret.zero']);
+        $uri = 'https://graph.facebook.com/me?access%5Ftoken=secret&access_token[]=first&access_token%5B0%5D=second&custom_secret%5Bvalue%5D=third&secret[zero]=fourth&secret%5Bzero%5D%5Bchild%5D=fifth&secret[one]=public&fields=name,email&user.fields=id&tag=x&tag=y#fragment';
         $client = $this->makeClient([new Response(200, [], '{}')]);
         $this->executeTransfer($client, new Request('GET', $uri, ['Referer' => $uri]));
 
         $entry = $this->loadTelescopeEntries()->first();
 
-        $this->assertSame('https://graph.facebook.com/me?access%5Ftoken=********&access_token%5B%5D=********&access_token%5B0%5D=********&custom_secret%5Bvalue%5D=********&fields=name,email&user.fields=id&tag=x&tag=y#fragment', $entry->content['uri']);
-        $this->assertSame('https://graph.facebook.com/me?access%5Ftoken=********&access_token[]=********&access_token%5B0%5D=********&custom_secret%5Bvalue%5D=********&fields=name,email&user.fields=id&tag=x&tag=y#fragment', $entry->content['headers']['referer']);
+        $this->assertSame('https://graph.facebook.com/me?access%5Ftoken=********&access_token%5B%5D=********&access_token%5B0%5D=********&custom_secret%5Bvalue%5D=********&secret%5Bzero%5D=********&secret%5Bzero%5D%5Bchild%5D=********&secret%5Bone%5D=public&fields=name,email&user.fields=id&tag=x&tag=y#fragment', $entry->content['uri']);
+        $this->assertSame('https://graph.facebook.com/me?access%5Ftoken=********&access_token[]=********&access_token%5B0%5D=********&custom_secret%5Bvalue%5D=********&secret[zero]=********&secret%5Bzero%5D%5Bchild%5D=********&secret[one]=public&fields=name,email&user.fields=id&tag=x&tag=y#fragment', $entry->content['headers']['referer']);
     }
 
     public function testStructuredRequestAndResponseRetainAndMaskAtTheEntryContentChildLimit(): void
