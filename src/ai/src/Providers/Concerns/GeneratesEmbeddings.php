@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Ai\Providers\Concerns;
 
 use Hypervel\Ai\Ai;
+use Hypervel\Ai\Events\EmbeddingsFailed;
 use Hypervel\Ai\Events\EmbeddingsGenerated;
 use Hypervel\Ai\Events\GeneratingEmbeddings;
 use Hypervel\Ai\Files\Audio;
@@ -15,6 +16,7 @@ use Hypervel\Ai\Prompts\EmbeddingsPrompt;
 use Hypervel\Ai\Responses\EmbeddingsResponse;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
+use Throwable;
 
 trait GeneratesEmbeddings
 {
@@ -56,14 +58,24 @@ trait GeneratesEmbeddings
             ));
         }
 
-        return tap($this->embeddingGateway()->generateEmbeddings(
-            $this,
-            $model,
-            $inputs,
-            $dimensions,
-            $timeout,
-            $providerOptions,
-        ), function (EmbeddingsResponse $response) use ($invocationId, $model, $prompt): void {
+        try {
+            $response = $this->embeddingGateway()->generateEmbeddings(
+                $this,
+                $model,
+                $inputs,
+                $dimensions,
+                $timeout,
+                $providerOptions,
+            );
+        } catch (Throwable $exception) {
+            if ($this->events->hasListeners(EmbeddingsFailed::class)) {
+                $this->events->dispatch(new EmbeddingsFailed($invocationId, $this, $model, $prompt, $exception));
+            }
+
+            throw $exception;
+        }
+
+        return tap($response, function (EmbeddingsResponse $response) use ($invocationId, $model, $prompt): void {
             if ($this->events->hasListeners(EmbeddingsGenerated::class)) {
                 $this->events->dispatch(new EmbeddingsGenerated(
                     $invocationId,
