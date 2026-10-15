@@ -25,6 +25,7 @@ use Hypervel\Database\SQLiteConnection;
 use Hypervel\Engine\Channel;
 use Hypervel\Http\Client\Events\ResponseReceived;
 use Hypervel\Http\Client\Factory;
+use Hypervel\Process\Factory as ProcessFactory;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Http;
@@ -33,9 +34,12 @@ use Hypervel\Testbench\TestCase;
 use LogicException;
 use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Swoole\Coroutine\Socket;
+use Symfony\Component\Process\InputStream;
 use Throwable;
 use WeakReference;
 
@@ -271,6 +275,105 @@ class DatabaseConnectionLeaseTest extends TestCase
         $connection->withPinnedSession($send);
 
         $this->assertSame([0, 1, 1], $observed);
+    }
+
+    #[TestWith(['run'])]
+    #[TestWith(['wait'])]
+    #[TestWith(['waitUntil'])]
+    public function testAnotherCoroutineCanQueryWhileAProcessWaitsForInput(string $method): void
+    {
+        $ready = new Channel(1);
+        $input = new InputStream;
+        $command = [PHP_BINARY, '-r', 'fgets(STDIN); echo "READY\n"; fflush(STDOUT); fgets(STDIN); echo "DONE\n";'];
+        $output = static function (string $type, string $buffer) use ($ready): bool {
+            if (str_contains($buffer, 'READY')) {
+                $ready->push(true);
+            }
+
+            return str_contains($buffer, 'DONE');
+        };
+
+        $results = parallel([
+            static function () use ($method, $input, $command, $output): string {
+                DB::connection('leases')->selectOne('select 1');
+                $pending = (new ProcessFactory)->input($input)->timeout(3);
+                $process = null;
+
+                try {
+                    if ($method === 'run') {
+                        $input->write("start\n");
+                        $result = $pending->run($command, $output);
+                    } else {
+                        $process = $pending->start($command);
+                        $input->write("start\n");
+                        $result = $process->{$method}($output);
+                    }
+
+                    return $result->output();
+                } finally {
+                    $input->close();
+                    $process?->stop(0);
+                }
+            },
+            function () use ($ready, $input): int {
+                try {
+                    $this->assertTrue($ready->pop(3));
+
+                    return DB::connection('leases')->selectOne('select 2 as value')->value;
+                } finally {
+                    if (! $input->isClosed()) {
+                        $input->write("finish\n");
+                        $input->close();
+                    }
+                }
+            },
+        ]);
+
+        $this->assertSame(["READY\nDONE\n", 2], $results);
+        $this->assertSame(1, $this->pool()->getIdleCount());
+    }
+
+    #[RequiresOperatingSystem('Linux|Darwin')]
+    public function testAnotherCoroutineCanQueryDuringGracefulProcessShutdown(): void
+    {
+        $ready = new Channel(1);
+        $input = new InputStream;
+
+        $results = parallel([
+            function () use ($ready, $input): ?int {
+                $process = (new ProcessFactory)->input($input)->timeout(3)->start([
+                    'sh', '-c', 'trap "" TERM; read first; printf "READY\n"; read second;',
+                ]);
+
+                try {
+                    $input->write("start\n");
+                    $response = $process->waitUntil(static fn (string $type, string $buffer): bool => str_contains($buffer, 'READY'));
+                    $this->assertSame("READY\n", $response->output());
+                    DB::connection('leases')->selectOne('select 1');
+                    $ready->push(true);
+
+                    return $process->stop(3);
+                } finally {
+                    $input->close();
+                    $process->stop(0);
+                }
+            },
+            function () use ($ready, $input): int {
+                try {
+                    $this->assertTrue($ready->pop(3));
+
+                    return DB::connection('leases')->selectOne('select 2 as value')->value;
+                } finally {
+                    if (! $input->isClosed()) {
+                        $input->write("finish\n");
+                        $input->close();
+                    }
+                }
+            },
+        ]);
+
+        $this->assertSame([0, 2], $results);
+        $this->assertSame(1, $this->pool()->getIdleCount());
     }
 
     #[DataProvider('pinnedScopes')]

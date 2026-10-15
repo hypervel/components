@@ -6,6 +6,7 @@ namespace Hypervel\Process;
 
 use Hypervel\Contracts\Process\InvokedProcess as InvokedProcessContract;
 use Hypervel\Contracts\Process\ProcessResult as ProcessResultContract;
+use Hypervel\Database\ConnectionResolver;
 use Hypervel\Process\Concerns\GuardsProcessOutput;
 use Hypervel\Process\Exceptions\ProcessTimedOutException;
 use Hypervel\Support\Traits\Macroable;
@@ -57,6 +58,10 @@ class InvokedProcess implements InvokedProcessContract
      */
     public function stop(float $timeout = 10, ?int $signal = null): ?int
     {
+        if ($timeout > 0 && $this->process->isRunning()) {
+            ConnectionResolver::releaseIdleConnections();
+        }
+
         return $this->process->stop($timeout, $signal);
     }
 
@@ -121,6 +126,8 @@ class InvokedProcess implements InvokedProcessContract
      */
     public function wait(?callable $output = null): ProcessResultContract
     {
+        ConnectionResolver::releaseIdleConnections();
+
         try {
             $this->process->wait($this->guardProcessOutput($this->process, $output));
 
@@ -140,6 +147,8 @@ class InvokedProcess implements InvokedProcessContract
         if ($output === null) {
             return $this->wait();
         }
+
+        ConnectionResolver::releaseIdleConnections();
 
         try {
             $this->process->waitUntil($this->guardProcessOutput($this->process, $output));
