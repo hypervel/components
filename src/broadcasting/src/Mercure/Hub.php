@@ -7,6 +7,7 @@ namespace Hypervel\Broadcasting\Mercure;
 use Closure;
 use Hypervel\Contracts\ObjectPool\Factory;
 use Hypervel\Contracts\Routing\UrlGenerator;
+use Hypervel\Database\ConnectionResolver;
 use Hypervel\ObjectPool\PoolDefinition;
 use Hypervel\ObjectPool\PoolProxy;
 use Symfony\Component\Mercure\Hub as SymfonyHub;
@@ -101,6 +102,7 @@ class Hub extends PoolProxy implements RemoteHubInterface
     {
         $url = $this->getUrl();
         $publicUrl = $this->getPublicUrl();
+        ConnectionResolver::releaseIdleConnections();
         $lease = $this->lease();
 
         try {

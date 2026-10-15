@@ -14,6 +14,7 @@ use Hypervel\Contracts\Filesystem\Filesystem as FilesystemContract;
 use Hypervel\Contracts\ObjectPool\Factory;
 use Hypervel\Contracts\ObjectPool\InvalidatesPool;
 use Hypervel\Contracts\ObjectPool\ObjectPool as ObjectPoolContract;
+use Hypervel\Database\Pool\PoolManager as DatabasePoolManager;
 use Hypervel\Filesystem\ClientPooledFilesystem;
 use Hypervel\Filesystem\FilesystemAdapter;
 use Hypervel\Filesystem\FilesystemManager;
@@ -25,12 +26,16 @@ use Hypervel\ObjectPool\PoolDefinition;
 use Hypervel\ObjectPool\PoolManager;
 use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\Sentry\Features\Storage\SentryCloudFilesystem;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
 use League\Flysystem\Filesystem;
+use League\Flysystem\FilesystemOperator;
 use League\Flysystem\Local\LocalFilesystemAdapter;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use stdClass;
 use Swoole\Coroutine\CanceledException;
@@ -69,6 +74,40 @@ class ClientPooledFilesystemTest extends TestCase
         $filesystem->deleteDirectory(basename($this->tempDir));
 
         parent::tearDown();
+    }
+
+    #[WithConfig('database.connections.filesystem_release', [
+        'driver' => 'sqlite',
+        'database' => ':memory:',
+        'pool' => ['testing_enabled' => true, 'max_connections' => 1],
+    ])]
+    #[TestWith(['get'])]
+    #[TestWith(['readStream'])]
+    #[TestWith(['withDriver'])]
+    public function testRemoteOperationsReleaseIdleDatabaseSessionsButPathFormattingDoesNot(string $operation): void
+    {
+        $this->driver->write('file.txt', 'contents');
+        $clientCreations = 0;
+        $stackCreations = 0;
+        $disk = $this->disk($clientCreations, $stackCreations);
+        DB::connection('filesystem_release')->selectOne('select 1');
+        $pool = $this->app->make(DatabasePoolManager::class)->pool('filesystem_release');
+
+        $this->assertSame($this->tempDir . '/file.txt', $disk->path('file.txt'));
+        $this->assertSame(1, $pool->getBorrowedCount());
+
+        $result = $operation === 'withDriver'
+            ? $disk->withDriver(static fn (FilesystemOperator $driver): string => $driver->read('file.txt'))
+            : $disk->{$operation}('file.txt');
+
+        try {
+            $this->assertSame(0, $pool->getBorrowedCount());
+            $this->assertSame('contents', is_resource($result) ? stream_get_contents($result) : $result);
+        } finally {
+            if (is_resource($result)) {
+                fclose($result);
+            }
+        }
     }
 
     public function testCrossDiskTransfersReleaseSharedClientBeforeWriting(): void

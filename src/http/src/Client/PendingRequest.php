@@ -23,7 +23,6 @@ use GuzzleHttp\UriTemplate\UriTemplate;
 use GuzzleHttp\Utils;
 use Hypervel\Contracts\Container\Transient;
 use Hypervel\Contracts\Support\Arrayable;
-use Hypervel\Database\ConnectionResolver;
 use Hypervel\Http\Client\Destinations\CurlCapabilities;
 use Hypervel\Http\Client\Destinations\DestinationPolicy;
 use Hypervel\Http\Client\Destinations\DestinationPolicyException;
@@ -34,6 +33,7 @@ use Hypervel\Http\Client\Events\ConnectionFailed;
 use Hypervel\Http\Client\Events\RequestSending;
 use Hypervel\Http\Client\Events\ResponseReceived;
 use Hypervel\Http\Client\Guzzle\RejectedResponse;
+use Hypervel\Http\Client\Guzzle\ReleaseIdleDatabaseConnections;
 use Hypervel\Http\Client\RequestException as HttpRequestException;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
@@ -1999,13 +1999,7 @@ class PendingRequest implements Transient
      */
     protected function buildDatabaseReleaseHandler(): Closure
     {
-        return static function (callable $handler): Closure {
-            return static function (RequestInterface $request, array $options) use ($handler): PromiseInterface {
-                ConnectionResolver::releaseIdleConnections();
-
-                return $handler($request, $options);
-            };
-        };
+        return (new ReleaseIdleDatabaseConnections)(...);
     }
 
     /**

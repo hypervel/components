@@ -14,23 +14,124 @@ use GuzzleHttp\Psr7\Response;
 use Http\Client\Common\HttpMethodsClient;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Contracts\Telescope\TelescopeTag;
+use Hypervel\Database\Pool\PoolManager;
 use Hypervel\Scout\Engines\MeilisearchRetryPolicy;
 use Hypervel\Scout\ScoutServiceProvider;
 use Hypervel\Support\ClassInvoker;
+use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\TestCase;
 use Meilisearch\Client as MeilisearchClient;
 use Meilisearch\Exceptions\ApiException;
 use Meilisearch\Http\Client as MeilisearchHttpClient;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Http\Message\RequestInterface;
 use ReflectionProperty;
 use stdClass;
+use Swoole\Coroutine;
+use Swoole\Coroutine\Channel;
+use Swoole\Coroutine\Http\Server;
+use Swoole\Http\Request as ServerRequest;
+use Swoole\Http\Response as ServerResponse;
 use Typesense\Client as TypesenseClient;
+
+use function Hypervel\Coroutine\parallel;
 
 class ScoutServiceProviderTest extends TestCase
 {
     protected function getPackageProviders(Application $app): array
     {
         return [ScoutServiceProvider::class];
+    }
+
+    public function testSdkTransportRetainsConnectionsAcrossConcurrentBursts(): void
+    {
+        $ready = new Channel(4);
+        $arrived = 0;
+        $server = new Server('127.0.0.1', 0, false, false);
+        $server->handle('/', static function (ServerRequest $request, ServerResponse $response) use ($ready, &$arrived): void {
+            if (++$arrived % 4 === 0) {
+                for ($index = 0; $index < 4; ++$index) {
+                    $ready->push(true);
+                }
+            }
+
+            if ($ready->pop(2) !== true) {
+                $response->status(503);
+                $response->end('Not all requests reached the barrier.');
+                return;
+            }
+
+            $response->end((string) $request->server['remote_port']);
+        });
+        $serverId = Coroutine::create(fn (): bool => $server->start());
+        $provider = new ClassInvoker(new ScoutServiceProvider($this->app));
+        $client = new GuzzleClient([
+            'handler' => $provider->createHttpHandler(),
+            'proxy' => '',
+            'version' => '1.1',
+            'timeout' => 3,
+        ]);
+        $requests = array_fill(0, 4, static fn (): string => (string) $client->get('http://127.0.0.1:' . $server->port)->getBody());
+
+        try {
+            $first = parallel($requests);
+            $second = parallel($requests);
+            $this->assertCount(4, array_unique($first));
+            $this->assertEqualsCanonicalizing($first, $second);
+        } finally {
+            $server->shutdown();
+            Coroutine::join([$serverId], 1);
+        }
+    }
+
+    #[DataProvider('sdkClients')]
+    public function testSdkRequestsReleaseIdleDatabaseSessionsAndPreservePinnedScopes(string $sdk): void
+    {
+        config(['database.connections.sdk_leases' => [
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+            'pool' => ['testing_enabled' => true, 'max_connections' => 1],
+        ]]);
+        config(['scout.typesense.client-settings' => [
+            'api_key' => 'test-key',
+            'nodes' => [['host' => 'localhost', 'port' => '8108', 'protocol' => 'http']],
+        ]]);
+
+        $client = match ($sdk) {
+            'algolia' => (new ReflectionProperty(GuzzleHttpClient::class, 'client'))->getValue(Algolia::getHttpClient()),
+            'meilisearch' => (new ClassInvoker((new ClassInvoker($this->app->make(MeilisearchClient::class)))->http))->http,
+            'typesense' => (new ReflectionProperty(TypesenseClient::class, 'config'))->getValue($this->app->make(TypesenseClient::class))->getClient(),
+        };
+        if ($client instanceof HttpMethodsClient) {
+            $client = (new ReflectionProperty(HttpMethodsClient::class, 'httpClient'))->getValue($client);
+        }
+
+        $pool = $this->app->make(PoolManager::class)->pool('sdk_leases');
+        $observed = [];
+        $client->getConfig('handler')->setHandler(new MockHandler(array_fill(0, 3, function () use ($pool, &$observed): Response {
+            $observed[] = $pool->getBorrowedCount();
+
+            return new Response(200);
+        })));
+        $connection = DB::connection('sdk_leases');
+        $send = function () use ($connection, $client): void {
+            $connection->selectOne('select 1');
+            $client->get('http://example.test');
+        };
+
+        $send();
+        $connection->transaction($send);
+        $connection->withPinnedSession($send);
+
+        $this->assertSame([0, 1, 1], $observed);
+    }
+
+    /**
+     * Provide the SDK clients constructed with the shared HTTP transport.
+     */
+    public static function sdkClients(): array
+    {
+        return [['algolia'], ['meilisearch'], ['typesense']];
     }
 
     public function testTypesenseClientUsesGuzzle(): void
@@ -234,9 +335,24 @@ class ScoutServiceProviderTest extends TestCase
 
         $this->assertInstanceOf(HandlerStack::class, $stack);
 
+        config(['database.connections.retry_leases' => [
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+            'pool' => ['testing_enabled' => true, 'max_connections' => 1],
+        ]]);
+        $pool = $this->app->make(PoolManager::class)->pool('retry_leases');
         $mock = new MockHandler([
-            new Response(500, ['Content-Type' => 'application/json'], '{"message":"server error"}'),
-            new Response(200, ['Content-Type' => 'application/json'], '{}'),
+            static function (): Response {
+                // Response instrumentation can query the database before a retry.
+                DB::connection('retry_leases')->selectOne('select 1');
+
+                return new Response(500, ['Content-Type' => 'application/json'], '{"message":"server error"}');
+            },
+            function () use ($pool): Response {
+                $this->assertSame(0, $pool->getBorrowedCount());
+
+                return new Response(200, ['Content-Type' => 'application/json'], '{}');
+            },
         ]);
 
         $stack->setHandler($mock);

@@ -9,6 +9,7 @@ use Closure;
 use DateTimeInterface;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Filesystem\Filesystem as FilesystemContract;
+use Hypervel\Database\ConnectionResolver;
 use Hypervel\Filesystem\AwsS3V3Adapter;
 use Hypervel\Filesystem\FileResponseBuilder;
 use Hypervel\Filesystem\FilesystemAdapter;
@@ -625,6 +626,17 @@ trait InteractsWithPooledFilesystem
      * Invoke a synchronous method within one borrow.
      */
     abstract protected function invoke(string $method, array $parameters): mixed;
+
+    /**
+     * Return idle database sessions before operations that can contact a provider.
+     */
+    protected function releaseIdleConnectionsFor(string $method): void
+    {
+        // These methods only format paths or check capabilities; URL generation can sign requests or call the provider.
+        if (! in_array($method, ['path', 'providesTemporaryUrls', 'providesTemporaryUploadUrls'], true)) {
+            ConnectionResolver::releaseIdleConnections();
+        }
+    }
 
     /**
      * Open a stream that retains any required lease until closure.

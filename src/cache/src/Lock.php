@@ -6,6 +6,7 @@ namespace Hypervel\Cache;
 
 use Hypervel\Contracts\Cache\Lock as LockContract;
 use Hypervel\Contracts\Cache\LockTimeoutException;
+use Hypervel\Database\ConnectionResolver;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Sleep;
@@ -105,6 +106,7 @@ abstract class Lock implements LockContract
                 throw new LockTimeoutException;
             }
 
+            ConnectionResolver::releaseIdleConnections();
             Sleep::usleep($this->sleepMilliseconds * 1000);
         }
 

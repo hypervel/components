@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Saloon\Feature;
 
+use Generator;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Engine\Channel;
 use Hypervel\Http\Client\ConnectionException;
 use Hypervel\Saloon\Exceptions\PoolException;
 use Hypervel\Saloon\Exceptions\Request\FatalRequestException;
@@ -14,7 +16,9 @@ use Hypervel\Saloon\Http\Faking\MockResponse;
 use Hypervel\Saloon\Http\PendingRequest;
 use Hypervel\Saloon\Http\Response;
 use Hypervel\Saloon\SaloonServiceProvider;
+use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Http;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Saloon\Fixtures\Connectors\TestConnector;
 use Hypervel\Tests\Saloon\Fixtures\Exceptions\TestResponseException;
@@ -154,6 +158,70 @@ class PoolTest extends TestCase
         $this->assertInstanceOf(UserResponse::class, $responses[1]);
         $this->assertInstanceOf(UserData::class, $responses[1]->customCastMethod());
         $this->assertSame('bar', $responses[1]->foo());
+    }
+
+    #[WithConfig('database.connections.pool_requests', [
+        'driver' => 'sqlite',
+        'database' => ':memory:',
+        'pool' => ['testing_enabled' => true, 'max_connections' => 1, 'wait_timeout' => 0.1],
+    ])]
+    public function testQueryingGeneratorsReleaseTheirSessionBeforeAdmittingChildren(): void
+    {
+        Http::fake(['*' => Http::response()]);
+        $values = [];
+        $requests = static function () use (&$values): Generator {
+            for ($index = 0; $index < 2; ++$index) {
+                DB::connection('pool_requests')->selectOne('select 1');
+                $request = new UserRequest;
+                $request->middleware()->onRequest(static function () use (&$values): void {
+                    $values[] = DB::connection('pool_requests')->selectOne('select 2 as value')->value;
+                });
+
+                yield $request;
+            }
+        };
+
+        $responses = (new TestConnector)->pool($requests)->setConcurrency(1)->send();
+
+        $this->assertCount(2, $responses);
+        $this->assertSame([2, 2], $values);
+    }
+
+    #[WithConfig('database.connections.pool_requests', [
+        'driver' => 'sqlite',
+        'database' => ':memory:',
+        'pool' => ['testing_enabled' => true, 'max_connections' => 1, 'wait_timeout' => 0.1],
+    ])]
+    public function testAFailedGeneratorReleasesItsSessionBeforeJoiningChildren(): void
+    {
+        Http::fake(['*' => Http::response()]);
+        $resume = new Channel(1);
+        $failure = new RuntimeException('Request generation failed.');
+        $value = null;
+        $request = new UserRequest;
+        $request->middleware()->onRequest(function () use ($resume, &$value): void {
+            $this->assertTrue($resume->pop(3));
+            $value = DB::connection('pool_requests')->selectOne('select 2 as value')->value;
+        });
+        $requests = static function () use ($request, $resume, $failure): Generator {
+            yield $request;
+
+            DB::connection('pool_requests')->selectOne('select 1');
+            $resume->push(true);
+
+            throw $failure;
+        };
+
+        try {
+            (new TestConnector)->pool($requests)->setConcurrency(1)->send();
+            $this->fail('Expected request generation to fail.');
+        } catch (PoolException $exception) {
+            $this->assertSame($failure, $exception->orchestrationFailure());
+            $this->assertSame([], $exception->failures());
+            $this->assertCount(1, $exception->responses());
+        }
+
+        $this->assertSame(2, $value);
     }
 
     public function testHandledRequestFailuresAreOmittedAfterEveryChildSettles(): void

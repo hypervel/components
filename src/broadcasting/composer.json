@@ -33,6 +33,7 @@
         "hypervel/container": "^0.4",
         "hypervel/context": "^0.4",
         "hypervel/contracts": "^0.4",
+        "hypervel/database": "^0.4",
         "hypervel/foundation": "^0.4",
         "hypervel/http": "^0.4",
         "hypervel/object-pool": "^0.4",

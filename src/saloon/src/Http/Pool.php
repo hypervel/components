@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Exceptions\ChildCancellationException;
 use Hypervel\Coroutine\WaitConcurrent;
+use Hypervel\Database\ConnectionResolver;
 use Hypervel\Saloon\Exceptions\InvalidPoolItemException;
 use Hypervel\Saloon\Exceptions\PoolException;
 use InvalidArgumentException;
@@ -201,6 +202,9 @@ class Pool
 
                 $inputPosition = $position++;
 
+                // Admission can wait for children that need the parent's idle database slot.
+                ConnectionResolver::releaseIdleConnections();
+
                 $concurrent->fork(function () use (
                     $request,
                     $key,
@@ -262,6 +266,16 @@ class Pool
             throw $exception;
         } catch (Throwable $exception) {
             $orchestrationFailure = $exception;
+        }
+
+        try {
+            ConnectionResolver::releaseIdleConnections();
+        } catch (CanceledException $exception) {
+            $concurrent->cancel();
+
+            throw $exception;
+        } catch (Throwable $exception) {
+            $orchestrationFailure ??= $exception;
         }
 
         $concurrent->wait();

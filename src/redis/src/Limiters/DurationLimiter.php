@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Redis\Limiters;
 
 use Hypervel\Contracts\Limiters\LimiterTimeoutException;
+use Hypervel\Database\ConnectionResolver;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\Sleep;
@@ -57,6 +58,7 @@ class DurationLimiter
                 throw new LimiterTimeoutException;
             }
 
+            ConnectionResolver::releaseIdleConnections();
             Sleep::usleep($sleep * 1000);
         }
 

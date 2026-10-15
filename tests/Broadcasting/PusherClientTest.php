@@ -117,6 +117,39 @@ class PusherClientTest extends TestCase
         return ['Pusher' => ['pusher'], 'Reverb' => ['reverb']];
     }
 
+    public function testSynchronousBurstsRetainMoreThanThreeConnections(): void
+    {
+        $ready = new Channel(8);
+        $arrived = 0;
+        $this->startServer(static function (ServerRequest $request, ServerResponse $response) use ($ready, &$arrived): void {
+            if (++$arrived % 8 === 0) {
+                for ($index = 0; $index < 8; ++$index) {
+                    $ready->push(true);
+                }
+            }
+
+            if ($ready->pop(2) !== true) {
+                $response->status(503);
+                $response->end('Not all requests reached the barrier.');
+                return;
+            }
+
+            $response->header('Content-Type', 'application/json');
+            $response->end('{"result":"accepted"}');
+        });
+        $client = $this->client('pusher', ['transport_sharing' => TransportSharing::NONE]);
+        $requests = array_fill(0, 8, static fn (): object => $client->trigger('channel', 'burst', []));
+
+        parallel($requests);
+        $first = array_unique($this->connections);
+        $this->assertCount(8, $first);
+        $this->connections = [];
+
+        parallel($requests);
+        $this->assertCount(8, $this->connections);
+        $this->assertEqualsCanonicalizing($first, array_unique($this->connections));
+    }
+
     public function testAsyncRequestsInOneCoroutineMakeProgressTogether(): void
     {
         $arrivals = 0;
@@ -295,7 +328,7 @@ class PusherClientTest extends TestCase
     public function testConnectionCapsRequireBoundingBroadcastConcurrencyInstead(string $option): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Bound coroutine concurrency or use rate limiting');
+        $this->expectExceptionMessage('Use bounded coroutine fan-out or rate limiting instead.');
 
         $this->app->make(BroadcastManager::class)->pusher($this->configuration('pusher', [$option => 2]));
     }
