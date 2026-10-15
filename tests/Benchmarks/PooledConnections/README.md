@@ -2,6 +2,8 @@
 
 This developer harness measures how long database sessions remain borrowed while an operation waits for something else. It compares throughput, calling-process CPU, checkout time and session occupancy under pool pressure and with spare capacity. It uses a temporary SQLite database and local services; no provider accounts are needed. It is not a CI performance test or a prediction of production throughput.
 
+See [recorded measurements](results.md) for the framework wait and connection-reuse comparisons.
+
 Run from the repository root in an idle window:
 
 ```shell
