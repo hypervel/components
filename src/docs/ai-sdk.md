@@ -2121,7 +2121,7 @@ $response = SalesCoach::make()
 
 You may pass middleware class names, instances, or closures. Middleware added this way remains on the agent instance for subsequent calls. A stream captures the added middleware when it is created, so adding more middleware afterwards does not change that stream.
 
-When queuing an agent or using queued AI event listeners, middleware objects and values captured by closures must be serializable.
+Queued agents and queued AI event listeners require serializable middleware, captured values, and tool instances stored on the agent. Queued prompt listeners also serialize all tools resolved through `withTools`, including declared tools retained by its closure form. For tools that contain closures, such as `SimilaritySearch`, declare them in `tools` and omit `withTools` when using queued prompt listeners.
 
 <a name="anonymous-agents"></a>
 ### Anonymous Agents
@@ -4116,11 +4116,14 @@ The Hypervel AI SDK dispatches a variety of [events](/docs/{{version}}/events), 
 - `AgentFailed`
 - `AgentFailedOver`
 - `AgentPrompted`
+- `AgentStreamAbandoned`
 - `AgentStreamed`
 - `AudioGenerated`
+- `ClassificationFailed`
 - `Classified`
 - `Classifying`
 - `CreatingStore`
+- `EmbeddingsFailed`
 - `EmbeddingsGenerated`
 - `FileAddedToStore`
 - `FileDeleted`
@@ -4151,6 +4154,12 @@ The Hypervel AI SDK dispatches a variety of [events](/docs/{{version}}/events), 
 - `TranscriptionGenerated`
 
 You can listen to any of these events to log or store AI SDK usage information.
+
+`StartingStep` includes the instructions, tools, messages, model, and options actually sent for that step, including changes made by middleware. Listeners may inspect these values without calling the agent's `instructions` or `tools` methods again. Queued listeners receive an empty `tools` list, since live tool instances may contain closures or anonymous classes that cannot be serialized.
+
+`ClassificationFailed` and `EmbeddingsFailed` report each failed provider attempt, including attempts followed by failover. They contain the invocation ID, provider, model, prompt, and original exception. Errors thrown by success-event listeners do not produce failure events.
+
+`AgentStreamAbandoned` is dispatched when an unfinished stream is closed without an exception, such as when consumption stops early or an HTTP response write fails. A thrown exception instead follows the normal failure or failover path. Stream aggregation and conversation-persistence failures also report `AgentFailed`; errors after `AgentStreamed`, including errors in its listeners, do not report another terminal event. Replaying a completed response does not dispatch these lifecycle events again.
 
 Queued listeners require a serializable event. Raw uploaded files cannot be serialized. If you use queued listeners, attach uploads using the `fromUpload()` method of the matching `Hypervel\Ai\Files` class, such as `Document::fromUpload()`, `Image::fromUpload()` or `Audio::fromUpload()`, to include the file's contents. Alternatively, store the file on a disk the queue worker can access and attach it using `fromStorage()`.
 

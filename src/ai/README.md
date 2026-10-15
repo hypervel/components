@@ -17,6 +17,8 @@ Queued AI jobs' `failed()` hooks accept `?Throwable` so manual failures without 
 
 Pending requests' protected `resolveProviderOptionsAndHeaders()` helper accepts the provider contract so custom implementations work. `PendingEmbeddingsGeneration`'s protected caching helpers receive precomputed identities or keys, keeping cache reads and writes consistent without repeated identity calculation. Subclasses overriding these helpers must match the Hypervel signatures; public generation and caching methods are unchanged.
 
+`RunContext::startingStep()` accepts optional trailing `?string $instructions = null` and `array $tools = []` parameters so listeners receive the resolved step inputs. Overrides must accept these parameters too.
+
 Custom conversation stores must implement `ClaimsPendingApprovals` to resume stored tool approvals safely. Claim-owned per-result recording replaces the protected `ResumesToolApprovals::storeApprovalResultRecorderFor()` helper, which is removed. Stores read `AgentPrompt::approvalClaim()` when settling the turn. Ordinary conversations and stateless resumption remain available without that capability.
 
 `RememberConversation` replaces protected `openTurn()` with `rememberTurn(): StoredTurn` so the database store can persist a complete turn atomically. Its protected `rememberFailedTurn()` returns `?StoredTurn` instead of `void`, preserving stored IDs across stream retries. Update overrides to use these helpers; public agent calls and standalone store methods are unchanged.
