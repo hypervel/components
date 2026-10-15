@@ -27,7 +27,7 @@ return new class extends AiMigration {
             // PostgreSQL limits identifiers to 63 bytes; retain readable names when they fit.
             return strlen($name) <= 63
                 ? $name
-                : mb_strcut($stem, 0, 63 - strlen($suffix) - 33, 'UTF-8') . '_' . hash('xxh128', $name) . $suffix;
+                : mb_strcut($name, 0, 30, 'UTF-8') . '_' . hash('xxh128', $name);
         };
 
         Schema::create($conversationsTable, function (Blueprint $table) use ($conversationsTable, $indexName): void {
