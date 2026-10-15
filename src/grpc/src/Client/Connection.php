@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Contracts\Engine\Http\V2\ClientFactoryInterface;
 use Hypervel\Contracts\Engine\Http\V2\ClientInterface;
 use Hypervel\Contracts\Engine\Http\V2\ResponseInterface;
+use Hypervel\Database\ConnectionResolver;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine;
 use Hypervel\Engine\Exceptions\CoroutineCreateException;
@@ -77,6 +78,8 @@ final class Connection
      */
     public function start(Closure $requestFactory, StreamState $state, Deadline $deadline): void
     {
+        ConnectionResolver::releaseIdleConnections();
+
         if (! $this->acquireSendSemaphore($deadline)) {
             if ($deadline->expired()) {
                 $state->failWithStatus($this->deadlineStatus());
