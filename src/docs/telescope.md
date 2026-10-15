@@ -466,7 +466,7 @@ $client = new \GuzzleHttp\Client(['telescope_enabled' => false]);
 
 Telescope hides common credential headers, OAuth token fields, AWS credentials and URL signatures by default. Hidden request parameters are also masked in query strings in recorded URLs and redirects. Masking only affects recorded entries; the original requests, responses and sessions are unchanged.
 
-To hide additional fields, call the following methods from your `TelescopeServiceProvider`'s `boot` method. Header names should be lowercase, and nested body fields may use dot notation. Query parameter names are matched exactly:
+To hide additional fields, call the following methods from your `TelescopeServiceProvider`'s `boot` method. Header names should be lowercase, and nested body fields may use dot notation. Query parameters are matched the same way: a name such as `access_token` or a dot-notation path such as `credentials.secret` also hides its nested keys, such as `credentials[secret][id]`. Exact bracketed names such as `credentials[secret]` are matched as written:
 
 ```php
 Telescope::hideRequestHeaders(['x-service-secret']);
