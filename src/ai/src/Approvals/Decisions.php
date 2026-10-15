@@ -36,7 +36,7 @@ class Decisions
     }
 
     /**
-     * Get the decision for the given tool call ID.
+     * Get the explicit decision for the given tool call ID.
      */
     public function get(string $toolCallId): ?Decision
     {

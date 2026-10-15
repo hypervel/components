@@ -457,7 +457,7 @@ class TextGenerationLoop
     /**
      * Get the runtime and declared middleware wrapping each generation step.
      *
-     * @return array<int, mixed>
+     * @return array<int, object|string>
      */
     protected function middlewareFor(?TextGenerationOptions $options): array
     {

@@ -13,7 +13,7 @@ class StepFailed
     /**
      * Create an event for a failed generation step.
      *
-     * @param Throwable $exception a StreamErrorException carries the provider's own error event on ->error
+     * @param Throwable $exception a StreamErrorException carries the provider's error event on ->error when available, or null
      * @param float $time wall time spent in the provider call before it failed, in milliseconds
      */
     public function __construct(
