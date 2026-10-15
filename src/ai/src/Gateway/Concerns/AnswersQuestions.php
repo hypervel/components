@@ -97,7 +97,7 @@ trait AnswersQuestions
             $question instanceof Choice => [
                 'type' => 'choice',
                 'instructions' => $question->instructions,
-                'criteria' => $question->options,
+                'criteria' => (object) $question->options,
             ],
             $question instanceof Score => [
                 'type' => 'score',

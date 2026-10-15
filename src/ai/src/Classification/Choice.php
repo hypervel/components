@@ -13,9 +13,9 @@ final readonly class Choice implements Question
      * Create a new single-choice question whose answer is one of the given options.
      *
      * @param array<string, mixed>|string $instructions
-     * @param array<string, null|array<string, mixed>|string> $options option names mapped to an optional description
+     * @param array<array-key, null|array<string, mixed>|string> $options option names mapped to an optional description
      *
-     * @throws InvalidArgumentException if fewer than two options are given or any option name is not a string
+     * @throws InvalidArgumentException if fewer than two options are given
      */
     public function __construct(
         public string|array $instructions,
@@ -23,12 +23,6 @@ final readonly class Choice implements Question
     ) {
         if (count($options) < 2) {
             throw new InvalidArgumentException('A choice question requires at least two options.');
-        }
-
-        foreach (array_keys($options) as $option) {
-            if (! is_string($option)) {
-                throw new InvalidArgumentException('Choice options must be keyed by option name.');
-            }
         }
     }
 

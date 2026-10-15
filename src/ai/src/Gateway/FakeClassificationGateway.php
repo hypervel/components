@@ -138,14 +138,14 @@ class FakeClassificationGateway implements ClassificationGateway
     /**
      * Generate a fake choice answer.
      *
-     * @param list<string> $options
+     * @param list<array-key> $options
      */
     protected function fakeChoiceAnswer(array $options): ChoiceAnswer
     {
         $probabilities = $this->randomDistribution($options);
 
         return new ChoiceAnswer(
-            array_search(max($probabilities), $probabilities, true),
+            (string) array_search(max($probabilities), $probabilities, true),
             $probabilities,
             round(max($probabilities), 3),
         );

@@ -124,6 +124,21 @@ class ClassificationTest extends TestCase
         ]);
     }
 
+    public function testNumericChoiceNamesRemainJsonObjectMembers(): void
+    {
+        Http::fake(['*' => Http::response(fakeTypeSafeResponse())]);
+
+        Classification::of('Invoice question')
+            ->question('department', new Choice('Which department?', ['0' => 'Billing', '1' => 'Technical']))
+            ->classify(provider: 'typesafe');
+
+        Http::assertSent(function (Request $request): bool {
+            $criteria = json_decode($request->body())->questions->department->criteria;
+
+            return is_object($criteria) && (array) $criteria === ['0' => 'Billing', '1' => 'Technical'];
+        });
+    }
+
     public function testStructuredStateIsSentAsAnObject(): void
     {
         Http::fake(['*' => Http::response(fakeTypeSafeResponse())]);

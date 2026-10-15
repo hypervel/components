@@ -68,6 +68,23 @@ class CollectionDecideMacroTest extends TestCase
         ]);
     }
 
+    public function testNumericStringLabelsWorkWithGeneratedFakeAnswers(): void
+    {
+        Classification::fake();
+
+        $department = collect(['0', '1'])->decide(
+            'Which department?',
+            'Help with my invoice.',
+            describe: fn (string $item): string => $item === '0' ? 'Billing' : 'Technical',
+        );
+
+        $this->assertContains($department, ['0', '1']);
+        Classification::assertClassified(fn (ClassificationPrompt $prompt): bool => $prompt->questions['decision']->options === [
+            '0' => 'Billing',
+            '1' => 'Technical',
+        ]);
+    }
+
     public function testAStringKeyedCollectionIsTreatedAsItemsOnceAResolverIsGiven(): void
     {
         Classification::fake([collectionDecideAnswer('SALES', ['REFUNDS' => 0.1, 'SALES' => 0.9])]);

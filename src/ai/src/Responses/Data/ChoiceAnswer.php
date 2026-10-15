@@ -9,7 +9,7 @@ class ChoiceAnswer extends Answer
     /**
      * Create a new choice answer instance.
      *
-     * @param array<string, float> $probabilities
+     * @param array<array-key, float> $probabilities
      * @param null|float $confidence null when the provider cannot measure the distribution's certainty
      */
     public function __construct(

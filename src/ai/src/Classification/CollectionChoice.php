@@ -20,14 +20,14 @@ final class CollectionChoice
     /**
      * The option names mapped to their descriptions.
      *
-     * @var array<string, null|array<string, mixed>|string>
+     * @var array<array-key, null|array<string, mixed>|string>
      */
     private array $options = [];
 
     /**
      * The option names mapped to the items they represent.
      *
-     * @var array<string, mixed>
+     * @var array<array-key, mixed>
      */
     private array $items = [];
 
