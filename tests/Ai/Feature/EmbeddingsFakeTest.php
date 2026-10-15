@@ -24,6 +24,7 @@ use Hypervel\Support\Facades\ParallelTesting;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Tests\Ai\TestCase;
 use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 
 class EmbeddingsFakeTest extends TestCase
@@ -282,6 +283,26 @@ class EmbeddingsFakeTest extends TestCase
         // Check it's normalized (magnitude ~= 1)...
         $magnitude = sqrt(array_sum(array_map(fn (float $value): float => $value * $value, $embedding)));
         $this->assertEqualsWithDelta(1.0, $magnitude, 0.0001);
+    }
+
+    #[DataProvider('invalidFakeDimensions')]
+    public function testCustomFakeCannotGenerateNonPositiveDimensions(int $dimensions): void
+    {
+        config(['ai.providers.jina.models.embeddings.dimensions' => $dimensions]);
+        Embeddings::fake(fn (EmbeddingsPrompt $prompt): array => [Embeddings::fakeEmbedding($prompt->dimensions)]);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Unable to generate fake embeddings without positive dimensions.');
+
+        Embeddings::for(['Document'])->generate(provider: Lab::Jina);
+    }
+
+    /**
+     * Provide invalid fake dimensions.
+     */
+    public static function invalidFakeDimensions(): array
+    {
+        return [[0], [-1]];
     }
 
     public function testCanPreventStrayEmbeddingsGenerations(): void

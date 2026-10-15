@@ -16,7 +16,7 @@ trait Reranks
     /**
      * Rerank the given documents based on their relevance to the query.
      *
-     * @param array<int, string> $documents
+     * @param list<string> $documents
      * @param array<string, mixed> $providerOptions
      */
     public function rerank(array $documents, string $query, ?int $limit = null, ?string $model = null, int $timeout = 30, array $providerOptions = []): RerankingResponse

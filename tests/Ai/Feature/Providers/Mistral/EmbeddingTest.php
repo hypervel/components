@@ -13,6 +13,7 @@ use Hypervel\Http\Client\Request;
 use Hypervel\Http\Client\RequestException;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Ai\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class EmbeddingTest extends TestCase
 {
@@ -49,6 +50,28 @@ class EmbeddingTest extends TestCase
         $this->assertCount(3, $response->embeddings[0]);
         $this->assertSame(10, $response->usage->inputTokens);
         $this->assertSame('mistral', $response->meta->provider);
+    }
+
+    #[DataProvider('dimensionModels')]
+    public function testRequestedDimensionsAreSentOnlyForCapableModels(string $model, ?int $expected): void
+    {
+        config(['ai.providers.mistral.models.embeddings.dimensions' => 512]);
+        Http::fake(['*' => $this->fakeEmbeddingsResponse()]);
+
+        Embeddings::for(['Hello'])->dimensions(512)->generate(provider: 'mistral', model: $model);
+
+        Http::assertSent(fn (Request $request): bool => ($request['output_dimension'] ?? null) === $expected);
+    }
+
+    /**
+     * Provide capable and fixed-dimension models.
+     */
+    public static function dimensionModels(): array
+    {
+        return [
+            ['codestral-embed', 512],
+            ['mistral-embed', null],
+        ];
     }
 
     public function testEmbeddingsRequestSendsBearerToken(): void

@@ -136,6 +136,7 @@ class MistralGateway implements AudioGateway, EmbeddingGateway, StepTextGateway,
             fn () => $this->client($provider, $timeout)->post('embeddings', array_merge($providerOptions, [
                 'model' => $model,
                 'input' => $inputs,
+                ...(! str_starts_with($model, 'mistral-embed') ? ['output_dimension' => $dimensions] : []),
             ])),
         );
 

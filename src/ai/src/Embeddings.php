@@ -12,6 +12,7 @@ use Hypervel\Ai\Files\Video;
 use Hypervel\Ai\Gateway\FakeEmbeddingGateway;
 use Hypervel\Ai\PendingResponses\PendingEmbeddingsGeneration;
 use InvalidArgumentException;
+use RuntimeException;
 
 class Embeddings
 {
@@ -100,6 +101,10 @@ class Embeddings
      */
     public static function fakeEmbedding(int $dimensions): array
     {
+        if ($dimensions <= 0) {
+            throw new RuntimeException('Unable to generate fake embeddings without positive dimensions. Configure embedding dimensions or provide a fake response.');
+        }
+
         // Generate random values...
         $values = array_map(
             fn (): float => (mt_rand() / mt_getrandmax()) * 2 - 1,

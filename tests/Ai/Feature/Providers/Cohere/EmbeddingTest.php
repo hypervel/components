@@ -11,6 +11,7 @@ use Hypervel\Http\Client\Request;
 use Hypervel\Http\Client\RequestException;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Ai\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class EmbeddingTest extends TestCase
 {
@@ -50,6 +51,29 @@ class EmbeddingTest extends TestCase
         $this->assertSame(10, $response->usage->inputTokens);
         $this->assertSame('cohere', $response->meta->provider);
         $this->assertSame('embed-v4.0', $response->meta->model);
+    }
+
+    #[DataProvider('dimensionModels')]
+    public function testRequestedDimensionsAreSentOnlyForCapableModels(string $model, ?int $expected): void
+    {
+        config(['ai.providers.cohere.models.embeddings.dimensions' => 512]);
+        Http::fake(['*' => $this->fakeCohereEmbeddingsResponse()]);
+
+        Embeddings::for(['Hello'])->dimensions(512)->generate(provider: 'cohere', model: $model);
+
+        Http::assertSent(fn (Request $request): bool => ($request['output_dimension'] ?? null) === $expected);
+    }
+
+    /**
+     * Provide capable and fixed-dimension model families.
+     */
+    public static function dimensionModels(): array
+    {
+        return [
+            ['embed-v4.0', 512],
+            ['embed-english-v3.0', null],
+            ['embed-multilingual-v3.0', null],
+        ];
     }
 
     public function testEmbeddingsRequestSendsBearerToken(): void
@@ -106,13 +130,14 @@ class EmbeddingTest extends TestCase
         Http::fake(['*' => $this->fakeCohereEmbeddingsResponse()]);
 
         Embeddings::for(['Hello'])
-            ->withProviderOptions(['model' => 'hijacked', 'texts' => ['hijacked']])
+            ->dimensions(512)
+            ->withProviderOptions(['model' => 'hijacked', 'texts' => ['hijacked'], 'output_dimension' => 256])
             ->generate(provider: 'cohere', model: 'embed-v4.0');
 
         Http::assertSent(function (Request $request): bool {
             $body = json_decode($request->body(), true);
 
-            return $body['model'] === 'embed-v4.0' && $body['texts'] === ['Hello'];
+            return $body['model'] === 'embed-v4.0' && $body['texts'] === ['Hello'] && $body['output_dimension'] === 512;
         });
     }
 

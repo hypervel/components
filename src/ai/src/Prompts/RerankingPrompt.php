@@ -13,7 +13,7 @@ class RerankingPrompt implements Countable
     /**
      * Create a new reranking prompt instance.
      *
-     * @param array<int, string> $documents
+     * @param list<string> $documents
      * @param array<string, mixed> $providerOptions
      */
     public function __construct(

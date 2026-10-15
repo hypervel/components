@@ -129,6 +129,9 @@ class CohereGateway implements EmbeddingGateway, RerankingGateway, StepTextGatew
                 [
                     'model' => $model,
                     'texts' => $inputs,
+                    ...(! str_starts_with($model, 'embed-english-') && ! str_starts_with($model, 'embed-multilingual-')
+                        ? ['output_dimension' => $dimensions]
+                        : []),
                 ],
             )),
         );
@@ -145,7 +148,7 @@ class CohereGateway implements EmbeddingGateway, RerankingGateway, StepTextGatew
     /**
      * Rerank the given documents based on their relevance to the query.
      *
-     * @param array<int, string> $documents
+     * @param list<string> $documents
      * @param array<string, mixed> $providerOptions
      */
     public function rerank(

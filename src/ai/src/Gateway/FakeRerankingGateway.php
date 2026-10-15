@@ -32,7 +32,7 @@ class FakeRerankingGateway implements RerankingGateway
     /**
      * Rerank the given documents based on their relevance to the query.
      *
-     * @param array<int, string> $documents
+     * @param list<string> $documents
      * @param array<string, mixed> $providerOptions
      */
     public function rerank(
@@ -107,7 +107,7 @@ class FakeRerankingGateway implements RerankingGateway
     /**
      * Generate a fake ranking for the given documents.
      *
-     * @param array<int, string> $documents
+     * @param list<string> $documents
      * @return array<int, RankedDocument>
      */
     protected function generateFakeRanking(array $documents, ?int $limit = null): array

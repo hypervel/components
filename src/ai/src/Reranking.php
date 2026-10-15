@@ -15,9 +15,9 @@ class Reranking
     /**
      * Create a new pending reranking for the given documents.
      *
-     * @param array<int, string>|Collection<int, string> $documents
+     * @param Collection<array-key, string>|list<string> $documents
      *
-     * @throws InvalidArgumentException if the given documents are not a list, are empty, are not strings, or contain only blank strings
+     * @throws InvalidArgumentException if the given documents are not a list, are empty, or contain non-string or blank entries
      */
     public static function of(Collection|array $documents): PendingReranking
     {

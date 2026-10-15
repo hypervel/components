@@ -28,7 +28,7 @@ class PendingReranking
     /**
      * Create a new pending reranking instance.
      *
-     * @param array<int, string> $documents
+     * @param list<string> $documents
      *
      * @throws InvalidArgumentException if the documents are not a list, are empty, or contain non-string or blank entries
      */
