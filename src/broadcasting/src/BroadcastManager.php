@@ -414,15 +414,7 @@ class BroadcastManager implements BroadcastingFactoryContract
         );
 
         if (! isset($clientOptions['handler'])) {
-            foreach (['max_host_connections', 'max_total_connections'] as $option) {
-                if (isset($clientOptions[$option])) {
-                    throw new InvalidArgumentException(
-                        "The [{$option}] broadcasting client option requires a shared multi-handler, which is unsafe across coroutines. Bound coroutine concurrency or use rate limiting instead."
-                    );
-                }
-            }
-
-            $handlerOptions = Arr::only($clientOptions, ['transport_sharing']);
+            $handlerOptions = Arr::only($clientOptions, ['transport_sharing', 'max_host_connections', 'max_total_connections']);
             unset($clientOptions['transport_sharing']);
 
             if (($clientOptions['multiplex'] ?? null) === Multiplexing::NONE) {

@@ -328,7 +328,7 @@ class PusherClientTest extends TestCase
     public function testConnectionCapsRequireBoundingBroadcastConcurrencyInstead(string $option): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Bound coroutine concurrency or use rate limiting');
+        $this->expectExceptionMessage('Use bounded coroutine fan-out or rate limiting instead.');
 
         $this->app->make(BroadcastManager::class)->pusher($this->configuration('pusher', [$option => 2]));
     }

@@ -11,10 +11,12 @@ use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\Psr7\Response as Psr7Response;
 use GuzzleHttp\TransportSharing;
 use Hypervel\Http\Client\Factory;
+use Hypervel\Http\Client\Guzzle\HandlerFactory;
 use Hypervel\Http\Client\PendingRequest;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use Psr\Http\Message\RequestInterface;
 use ReflectionMethod;
 use Swoole\Coroutine;
@@ -252,6 +254,16 @@ class HttpConnectionTest extends TestCase
         $this->assertSame('yes', $receivedRequest->getHeaderLine('X-Fluent'));
         $this->assertSame('', $receivedRequest->getHeaderLine('X-Preset'));
         $this->assertCount(0, $factory->createdHandlerOptions);
+    }
+
+    #[TestWith(['max_host_connections'])]
+    #[TestWith(['max_total_connections'])]
+    public function testSharedHandlerRejectsConnectionCaps(string $option): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Use bounded coroutine fan-out or rate limiting instead.');
+
+        HandlerFactory::create([$option => 2]);
     }
 
     #[DataProvider('registeredReservedOptionsProvider')]

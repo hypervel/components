@@ -33,6 +33,14 @@ class HandlerFactory
      */
     public static function create(array $options = []): callable
     {
+        foreach (['max_host_connections', 'max_total_connections'] as $option) {
+            if (isset($options[$option])) {
+                throw new InvalidArgumentException(
+                    "The [{$option}] option is not supported. Guzzle applies connection caps through a shared multi-handler, which cannot be driven safely by concurrent coroutines. Use bounded coroutine fan-out or rate limiting instead."
+                );
+            }
+        }
+
         $maxIdleHandles = $options['max_idle_handles'] ?? self::DEFAULT_MAX_IDLE_HANDLES;
         unset($options['max_idle_handles']);
 
