@@ -13,7 +13,8 @@ use RuntimeException;
 use function Hypervel\Coroutine\parallel;
 
 /**
- * Benchmark-only batching candidate for the AI port plan, not a production API.
+ * Preserve the measured text-only candidate and its constituent-ID bookkeeping.
+ * Production Hypervel\Ai\Streaming\BroadcastBatcher also handles reasoning, operation context and caller-owned generation.
  */
 class BroadcastBatcher
 {
