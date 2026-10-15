@@ -26,7 +26,7 @@ class DataTablePromptTest extends TestCase
         $output->getFormatter()->setStyle('warning', new OutputFormatterStyle('yellow'));
         Prompt::setOutput($output);
 
-        $prompt = new DataTablePrompt(headers: ['Name'], rows: [['<warning>OK</warning>'], ['<warning>' . str_repeat('A', 40) . '</warning>']], scroll: 2);
+        $prompt = new DataTablePrompt(headers: ['Name'], rows: [['<warning>OK'], ['</info><warning>' . str_repeat('A', 40) . '</warning>']], scroll: 2);
         $this->assertSame(['columns' => 1, 'widths' => [40]], $prompt->naturalColumnMetrics());
         $prompt->prompt();
 
