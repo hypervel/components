@@ -18,6 +18,7 @@ use Hypervel\Ai\Events\ToolFailed;
 use Hypervel\Ai\Events\ToolInvoked;
 use Hypervel\Ai\Exceptions\ApprovalMismatchException;
 use Hypervel\Ai\Messages\Message;
+use Hypervel\Ai\Providers\Tools\ProviderTool;
 use Hypervel\Ai\Responses\AgentResponse;
 use Hypervel\Ai\Responses\Data\Meta;
 use Hypervel\Ai\Responses\Data\Step;
@@ -145,13 +146,15 @@ class RunContext
      * Report that a generation step is about to start.
      *
      * @param Message[] $messages
+     * @param array<ProviderTool|Tool> $tools
      */
-    public function startingStep(StepContext $step, array $messages, ?TextGenerationOptions $options, ?string $model = null): void
+    public function startingStep(StepContext $step, array $messages, ?TextGenerationOptions $options, ?string $model = null, ?string $instructions = null, array $tools = []): void
     {
         if (! $this->events->hasListeners(StartingStep::class)) {
             return;
         }
 
+        // Resolved inputs let listeners inspect the step without re-running application hooks.
         $this->events->dispatch(new StartingStep(
             $this->invocationId,
             $step->stepNumber,
@@ -161,6 +164,8 @@ class RunContext
             $step->isFinalStep,
             $messages,
             $options,
+            $instructions,
+            $tools,
         ));
     }
 

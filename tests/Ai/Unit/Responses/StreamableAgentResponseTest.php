@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Ai\Unit\Responses;
 
+use Closure;
 use Generator;
 use Hypervel\Ai\Responses\Data\Meta;
 use Hypervel\Ai\Responses\Data\TextUsage;
@@ -64,6 +65,11 @@ class StreamableAgentResponseTest extends TestCase
         }, new Meta('fake', 'model'));
 
         $failures = [];
+        $iterationFailures = [];
+
+        $response->onIterationFailure(function (?Throwable $exception) use (&$iterationFailures): void {
+            $iterationFailures[] = $exception?->getMessage();
+        });
 
         $response->catch(function (Throwable $exception) use (&$failures): void {
             $failures[] = $exception->getMessage();
@@ -79,6 +85,68 @@ class StreamableAgentResponseTest extends TestCase
         }
 
         $this->assertSame(['Boom.'], $failures);
+        $this->assertSame(['Boom.', 'Boom.'], $iterationFailures);
+    }
+
+    public function testCompletionFailureReachesTheIterationHandlerButNotPublicCatchCallbacks(): void
+    {
+        $response = new StreamableAgentResponse('invocation', fn (): array => []);
+        $exception = new RuntimeException('Persistence failed.');
+        $failure = null;
+        $caught = false;
+        $response->then(fn (): never => throw $exception);
+        $response->catch(function () use (&$caught): void {
+            $caught = true;
+        });
+        $response->onIterationFailure(function (?Throwable $exception) use (&$failure): void {
+            $failure = $exception;
+        });
+
+        try {
+            iterator_to_array($response);
+            $this->fail('The completion callback must fail.');
+        } catch (RuntimeException $caughtException) {
+            $this->assertSame($exception, $caughtException);
+        }
+
+        $this->assertSame($exception, $failure);
+        $this->assertFalse($caught);
+    }
+
+    public function testAbandonmentRunsTheIterationHandlerInTheCapturedContext(): void
+    {
+        $context = 'consumer';
+        $seen = [];
+        $response = new StreamableAgentResponse('invocation', function (): Generator {
+            yield new TextDelta('event', 'message', 'Hello', 1);
+        });
+        $response->usingContext(function (Closure $callback) use (&$context): mixed {
+            $previous = $context;
+            $context = 'producer';
+
+            try {
+                return $callback();
+            } finally {
+                $context = $previous;
+            }
+        })->onIterationFailure(function (?Throwable $exception) use (&$context, &$seen): void {
+            $seen[] = [$context, $exception];
+        });
+
+        foreach ($response as $event) {
+            $this->assertSame('consumer', $context);
+            break;
+        }
+
+        $this->assertSame([['producer', null]], $seen);
+        $this->assertSame('consumer', $context);
+
+        iterator_to_array($response);
+        foreach ($response as $event) {
+            break;
+        }
+
+        $this->assertCount(1, $seen);
     }
 
     public function testAResponseCanCompleteWithoutExplicitMetadata(): void

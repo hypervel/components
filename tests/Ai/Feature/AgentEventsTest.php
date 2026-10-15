@@ -11,12 +11,14 @@ use Hypervel\Ai\Contracts\ConversationStore;
 use Hypervel\Ai\Events\AgentFailed;
 use Hypervel\Ai\Events\AgentFailedOver;
 use Hypervel\Ai\Events\AgentPrompted;
+use Hypervel\Ai\Events\AgentStreamAbandoned;
 use Hypervel\Ai\Events\AgentStreamed;
 use Hypervel\Ai\Events\InvokingTool;
 use Hypervel\Ai\Events\PromptingAgent;
 use Hypervel\Ai\Events\StartingStep;
 use Hypervel\Ai\Events\StepCompleted;
 use Hypervel\Ai\Events\StepFailed;
+use Hypervel\Ai\Events\StreamingAgent;
 use Hypervel\Ai\Events\ToolFailed;
 use Hypervel\Ai\Events\ToolInvoked;
 use Hypervel\Ai\Exceptions\RateLimitedException;
@@ -36,6 +38,7 @@ use Hypervel\Ai\Responses\Data\ToolCall;
 use Hypervel\Ai\Streaming\Events\Error;
 use Hypervel\Ai\Tools\AgentTool;
 use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Http\IterableStreamedResponse;
 use Hypervel\Support\Facades\Context;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Http;
@@ -53,7 +56,9 @@ use Hypervel\Tests\Ai\Fixtures\Agents\ToolUsingAgent;
 use Hypervel\Tests\Ai\Fixtures\FakeConversationStore;
 use Hypervel\Tests\Ai\Fixtures\Tools\FixedNumberGenerator;
 use Hypervel\Tests\Ai\TestCase;
+use Mockery as m;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 
 use function Hypervel\Tests\Ai\Fixtures\fakeGroqResponse;
 use function Hypervel\Tests\Ai\Fixtures\fakeGroqStreamErrorResponse;
@@ -231,17 +236,27 @@ class AgentEventsTest extends TestCase
             'The number is 72019.',
         ]);
 
-        (new MultiStepToolAgent)->prompt('Generate a number');
+        $tool = new FixedNumberGenerator;
+
+        (new MultiStepToolAgent)->withMiddleware([
+            fn (PendingStep $step, Closure $next): StepResult => $next(
+                $step->withInstructions('Use the supplied tool.')->withTools([$tool]),
+            ),
+        ])->prompt('Generate a number');
 
         [$first, $second] = Event::dispatched(StartingStep::class)->map(fn (array $dispatched): StartingStep => $dispatched[0])->all();
 
         $this->assertCount(1, $first->messages);
         $this->assertInstanceOf(UserMessage::class, $first->messages[0]);
         $this->assertInstanceOf(TextGenerationOptions::class, $first->options);
+        $this->assertSame('Use the supplied tool.', $first->instructions);
+        $this->assertSame([$tool], $first->tools);
 
         // The second step is sent the assistant turn and the tool result the first step produced...
         $this->assertCount(3, $second->messages);
         $this->assertInstanceOf(ToolResultMessage::class, $second->messages[2]);
+        $this->assertSame('Use the supplied tool.', $second->instructions);
+        $this->assertSame([$tool], $second->tools);
     }
 
     public function testConversationTitleGenerationDoesNotReportStepsAgainstTheRunThatTriggeredIt(): void
@@ -684,13 +699,15 @@ class AgentEventsTest extends TestCase
     {
         Event::fake();
 
-        AssistantAgent::fake([fn (): never => throw new RuntimeException('Stream exploded.')]);
+        AssistantAgent::fake(fn (): never => throw new RuntimeException('Stream exploded.'));
 
         $response = (new AssistantAgent)->stream('Hi');
 
-        $this->assertThrows(function () use ($response): void {
-            foreach ($response as $event);
-        }, RuntimeException::class, 'Stream exploded.');
+        for ($iteration = 0; $iteration < 2; ++$iteration) {
+            $this->assertThrows(function () use ($response): void {
+                foreach ($response as $event);
+            }, RuntimeException::class, 'Stream exploded.');
+        }
 
         Event::assertDispatched(StepFailed::class);
 
@@ -698,6 +715,110 @@ class AgentEventsTest extends TestCase
             && $event->exception->getMessage() === 'Stream exploded.');
 
         Event::assertNotDispatched(AgentStreamed::class);
+        Event::assertDispatchedTimes(AgentFailed::class, 2);
+        Event::assertNotDispatched(AgentStreamAbandoned::class);
+    }
+
+    public function testAStreamPersistenceFailureReportsTheAgentFailure(): void
+    {
+        Event::fake();
+        config(['ai.conversations.generate_title' => false]);
+        RememberingAssistantAgent::fake(['Hello']);
+        $exception = new RuntimeException('Database unavailable.');
+        $store = m::mock(FakeConversationStore::class)->makePartial();
+        $store->shouldReceive('storeConversation')->once()->andThrow($exception);
+        app()->instance(ConversationStore::class, $store);
+        $response = (new RememberingAssistantAgent)->forUser((object) ['id' => 1])->stream('Hi');
+
+        try {
+            iterator_to_array($response);
+            $this->fail('Persistence must fail.');
+        } catch (RuntimeException $caught) {
+            $this->assertSame($exception, $caught);
+        }
+
+        Event::assertDispatchedTimes(AgentFailed::class, 1);
+        Event::assertDispatched(AgentFailed::class, fn (AgentFailed $event): bool => $event->exception === $exception
+            && $event->invocationId === $response->invocationId);
+        Event::assertNotDispatched(AgentStreamed::class);
+        Event::assertNotDispatched(AgentStreamAbandoned::class);
+    }
+
+    public function testASuccessListenerFailureDoesNotReportTheStreamAsFailed(): void
+    {
+        Event::fake([AgentFailed::class, AgentStreamAbandoned::class]);
+        AssistantAgent::fake(['Hello']);
+        $exception = new RuntimeException('Listener failed.');
+        Event::listen(AgentStreamed::class, fn (): never => throw $exception);
+
+        try {
+            iterator_to_array((new AssistantAgent)->stream('Hi'));
+            $this->fail('The listener must fail.');
+        } catch (RuntimeException $caught) {
+            $this->assertSame($exception, $caught);
+        }
+
+        Event::assertNotDispatched(AgentFailed::class);
+        Event::assertNotDispatched(AgentStreamAbandoned::class);
+    }
+
+    public function testAFailedSseWriteReportsAbandonment(): void
+    {
+        Event::fake();
+        AssistantAgent::fake(['Hello']);
+        $stream = (new AssistantAgent)->stream('Hi');
+        $response = $stream->toResponse(request());
+        $this->assertInstanceOf(IterableStreamedResponse::class, $response);
+        $response->streamTo(fn (string $chunk): bool => false);
+
+        Event::assertDispatchedTimes(AgentStreamAbandoned::class, 1);
+        Event::assertDispatched(AgentStreamAbandoned::class, fn (AgentStreamAbandoned $event): bool => $event->invocationId === $stream->invocationId);
+        Event::assertNotDispatched(AgentFailed::class);
+        Event::assertNotDispatched(AgentStreamed::class);
+    }
+
+    public function testAbandonmentReportsBothTheParentAndNestedAgent(): void
+    {
+        Event::fake();
+        DelegatingAgent::fake([new ToolCall('research', 'research_agent', ['task' => 'Research'])]);
+        ResearchAgent::fake(['Findings']);
+
+        foreach ((new DelegatingAgent)->stream('Research') as $event) {
+            if (Event::dispatched(StreamingAgent::class)->count() === 2) {
+                break;
+            }
+        }
+
+        $started = Event::dispatched(StreamingAgent::class)->map(fn (array $events): string => $events[0]->invocationId)->all();
+        $abandoned = Event::dispatched(AgentStreamAbandoned::class)->map(fn (array $events): string => $events[0]->invocationId)->all();
+        $this->assertCount(2, $started);
+        $this->assertEqualsCanonicalizing($started, $abandoned);
+        Event::assertNotDispatched(AgentStreamed::class);
+        Event::assertNotDispatched(AgentFailed::class);
+    }
+
+    public function testStreamingSubAgentCancellationReportsToolFailure(): void
+    {
+        Event::fake();
+        DelegatingAgent::fake([new ToolCall('research', 'research_agent', ['task' => 'Research'])]);
+        $exception = new CanceledException('Research canceled.');
+        ResearchAgent::fake([fn (): never => throw $exception]);
+
+        try {
+            iterator_to_array((new DelegatingAgent)->stream('Research'));
+            $this->fail('Cancellation must reach the caller.');
+        } catch (CanceledException $caught) {
+            $this->assertSame($exception, $caught);
+        }
+
+        $invoking = Event::dispatched(InvokingTool::class)->first()[0];
+        Event::assertDispatchedTimes(ToolFailed::class, 1);
+        Event::assertDispatched(ToolFailed::class, fn (ToolFailed $event): bool => $event->exception === $exception
+            && $event->toolInvocationId === $invoking->toolInvocationId
+            && $event->invocationId === $invoking->invocationId);
+        Event::assertNotDispatched(ToolInvoked::class);
+        Event::assertDispatchedTimes(AgentFailed::class, 2);
+        Event::assertNotDispatched(AgentStreamAbandoned::class);
     }
 
     public function testAProviderErrorInsideTheStreamClosesTheStepItOpened(): void

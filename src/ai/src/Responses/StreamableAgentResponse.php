@@ -67,6 +67,9 @@ class StreamableAgentResponse implements IteratorAggregate, Responsable
     /** @var null|Closure(Closure): mixed */
     protected ?Closure $contextRunner = null;
 
+    /** @var null|Closure(?Throwable): void */
+    protected ?Closure $iterationFailureHandler = null;
+
     /**
      * Create a new streamable agent response instance.
      *
@@ -256,6 +259,20 @@ class StreamableAgentResponse implements IteratorAggregate, Responsable
     }
 
     /**
+     * Handle failed or abandoned iterations, including completion callback failures.
+     *
+     * @param Closure(?Throwable): void $handler null indicates abandonment without an exception
+     *
+     * @internal
+     */
+    public function onIterationFailure(Closure $handler): static
+    {
+        $this->iterationFailureHandler = $handler;
+
+        return $this;
+    }
+
+    /**
      * Run work in the captured operation context, when one was supplied.
      */
     protected function runInContext(Closure $callback): mixed
@@ -337,71 +354,85 @@ class StreamableAgentResponse implements IteratorAggregate, Responsable
 
         $events = [];
         $start = null;
+        $completed = false;
+        $failure = null;
 
-        // Resolve the stream of the prompt and yield the events...
         try {
-            foreach ($this->contextRunner === null ? ($this->generator)() : $this->contextualEvents() as $event) {
-                $events[] = $event;
+            // Public catch callbacks retain their producer-only, once-per-response behavior.
+            // Resolve the stream of the prompt and yield the events...
+            try {
+                foreach ($this->contextRunner === null ? ($this->generator)() : $this->contextualEvents() as $event) {
+                    $events[] = $event;
 
-                if ($event instanceof StreamStart) {
-                    $start = $event;
+                    if ($event instanceof StreamStart) {
+                        $start = $event;
+                    }
+
+                    $this->hasYielded = true;
+
+                    yield $event;
                 }
+            } catch (Throwable $exception) {
+                // Taken before invoking so a re-iterated stream does not report the same failure twice...
+                $callbacks = $this->catchCallbacks;
 
-                $this->hasYielded = true;
+                $this->catchCallbacks = [];
 
-                yield $event;
+                $this->runInContext(function () use ($callbacks, $exception): void {
+                    foreach ($callbacks as $callback) {
+                        $callback($exception);
+                    }
+                });
+
+                throw $exception;
             }
-        } catch (Throwable $exception) {
-            // Taken before invoking so a re-iterated stream does not report the same failure twice...
-            $callbacks = $this->catchCallbacks;
 
-            $this->catchCallbacks = [];
+            $this->events = new Collection($events);
 
-            $this->runInContext(function () use ($callbacks, $exception): void {
-                foreach ($callbacks as $callback) {
-                    $callback($exception);
+            if ($start !== null) {
+                $this->meta->model = $start->model;
+            }
+
+            $this->streamedResponse = new StreamedAgentResponse(
+                $this->invocationId,
+                $this->events,
+                $this->meta,
+            );
+
+            $this->text = $this->streamedResponse->text;
+            $this->reasoning = $this->streamedResponse->reasoning;
+            $this->citations = $this->streamedResponse->meta->citations;
+            $this->usage = $this->streamedResponse->usage;
+
+            if ($this->conversationId !== null) {
+                $this->streamedResponse->withinConversation(
+                    $this->conversationId,
+                    $this->conversationUser
+                );
+            }
+
+            $this->streamedResponse->withStoredMessages(
+                $this->userMessageId,
+                $this->assistantMessageId,
+            );
+
+            $this->runInContext(function (): void {
+                foreach ($this->thenCallbacks as $callback) {
+                    $callback($this->streamedResponse);
                 }
             });
 
+            $this->syncConversationFromStreamedResponse();
+            $completed = true;
+        } catch (Throwable $exception) {
+            $failure = $exception;
+
             throw $exception;
-        }
-
-        $this->events = new Collection($events);
-
-        if ($start !== null) {
-            $this->meta->model = $start->model;
-        }
-
-        $this->streamedResponse = new StreamedAgentResponse(
-            $this->invocationId,
-            $this->events,
-            $this->meta,
-        );
-
-        $this->text = $this->streamedResponse->text;
-        $this->reasoning = $this->streamedResponse->reasoning;
-        $this->citations = $this->streamedResponse->meta->citations;
-        $this->usage = $this->streamedResponse->usage;
-
-        if ($this->conversationId !== null) {
-            $this->streamedResponse->withinConversation(
-                $this->conversationId,
-                $this->conversationUser
-            );
-        }
-
-        $this->streamedResponse->withStoredMessages(
-            $this->userMessageId,
-            $this->assistantMessageId,
-        );
-
-        $this->runInContext(function (): void {
-            foreach ($this->thenCallbacks as $callback) {
-                $callback($this->streamedResponse);
+        } finally {
+            if (! $completed && $this->iterationFailureHandler !== null) {
+                $this->runInContext(fn () => ($this->iterationFailureHandler)($failure));
             }
-        });
-
-        $this->syncConversationFromStreamedResponse();
+        }
     }
 
     /**

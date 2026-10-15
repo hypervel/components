@@ -515,7 +515,7 @@ class TextGenerationLoop
     {
         $stepContext = $this->stepContextFor($step, $previous, $history, $continuationToken);
 
-        $context?->startingStep($stepContext, $step->messages, $step->options, $step->model);
+        $context?->startingStep($stepContext, $step->messages, $step->options, $step->model, $step->instructions, $step->tools);
 
         $startedAt = hrtime(true);
 
@@ -805,18 +805,24 @@ class TextGenerationLoop
 
         $startedAt = hrtime(true);
 
-        $events = $tool->stream(new Request($arguments, $toolCallId, $toolInvocationId));
+        try {
+            $events = $tool->stream(new Request($arguments, $toolCallId, $toolInvocationId));
 
-        // Advanced by hand so every resumption of the child run, not only the first, sees this tool call as its parent...
-        while (ParentInvocation::within($parentInvocationId, $toolInvocationId, fn (): bool => $events->valid())) {
-            yield $events->current();
+            // Advanced by hand so every resumption of the child run, not only the first, sees this tool call as its parent...
+            while (ParentInvocation::within($parentInvocationId, $toolInvocationId, fn (): bool => $events->valid())) {
+                yield $events->current();
 
-            ParentInvocation::within($parentInvocationId, $toolInvocationId, function () use ($events): void {
-                $events->next();
-            });
+                ParentInvocation::within($parentInvocationId, $toolInvocationId, function () use ($events): void {
+                    $events->next();
+                });
+            }
+
+            $result = (string) $events->getReturn();
+        } catch (Throwable $exception) {
+            $context?->toolFailed($tool, $arguments, $exception, $toolInvocationId, $this->elapsedMilliseconds($startedAt));
+
+            throw $exception;
         }
-
-        $result = (string) $events->getReturn();
 
         $context?->toolInvoked($tool, $arguments, $result, $toolInvocationId, $this->elapsedMilliseconds($startedAt));
 

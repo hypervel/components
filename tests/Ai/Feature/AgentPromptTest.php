@@ -5,21 +5,23 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Ai\Feature;
 
 use Closure;
-use Hypervel\Ai\AnonymousAgent;
 use Hypervel\Ai\Approvals\ApprovalClaim;
 use Hypervel\Ai\Contracts\Agent;
 use Hypervel\Ai\Contracts\ClaimsPendingApprovals;
+use Hypervel\Ai\Contracts\HasTools;
 use Hypervel\Ai\Contracts\Providers\TextProvider;
 use Hypervel\Ai\Events\AgentPrompted;
 use Hypervel\Ai\Events\StartingStep;
 use Hypervel\Ai\Gateway\RunContext;
 use Hypervel\Ai\Gateway\StepResult;
 use Hypervel\Ai\PendingStep;
+use Hypervel\Ai\Promptable;
 use Hypervel\Ai\Prompts\AgentPrompt;
 use Hypervel\Ai\Responses\AgentResponse;
 use Hypervel\Ai\Responses\Data\Meta;
 use Hypervel\Ai\Responses\Data\TextUsage;
 use Hypervel\Ai\Support\PendingConversationTitle;
+use Hypervel\Ai\Tools\SimilaritySearch;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Events\CallQueuedListener;
 use Hypervel\Support\Facades\Event;
@@ -98,9 +100,13 @@ class AgentPromptTest extends TestCase
         Queue::fake()->serializeAndRestore();
         Event::listen(AgentPrompted::class, PromptUsageListener::class);
         Event::listen(StartingStep::class, StepUsageListener::class);
-        AnonymousAgent::fake(['Answer']);
+        $step = null;
+        Event::listen(StartingStep::class, function (StartingStep $event) use (&$step): void {
+            $step = $event;
+        });
+        StepUsageAgent::fake(['Answer']);
 
-        (new AnonymousAgent('Be helpful.', [], []))->withMiddleware([
+        (new StepUsageAgent)->withMiddleware([
             static fn (PendingStep $step, Closure $next): StepResult => $next($step->withModel('wrapped-model')),
         ])->prompt('Hello', provider: 'anthropic');
 
@@ -120,10 +126,37 @@ class AgentPromptTest extends TestCase
             }
 
             $this->assertSame('wrapped-model', $job->data[0]->model);
+            $this->assertSame('Be helpful.', $job->data[0]->instructions);
+            $this->assertSame([], $job->data[0]->tools);
             $this->assertCount(1, $job->data[0]->options->middleware);
 
             return true;
         });
+
+        $this->assertInstanceOf(SimilaritySearch::class, $step->tools[0]);
+    }
+}
+
+class StepUsageAgent implements Agent, HasTools
+{
+    use Promptable;
+
+    /**
+     * Get the agent's instructions.
+     */
+    public function instructions(): string
+    {
+        return 'Be helpful.';
+    }
+
+    /**
+     * Get the agent's tools.
+     *
+     * @return array<SimilaritySearch>
+     */
+    public function tools(): iterable
+    {
+        return [new SimilaritySearch(static fn (): array => [])];
     }
 }
 

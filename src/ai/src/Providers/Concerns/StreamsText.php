@@ -10,6 +10,7 @@ use Hypervel\Ai\Contracts\Agent;
 use Hypervel\Ai\Contracts\Conversational;
 use Hypervel\Ai\Contracts\HasStructuredOutput;
 use Hypervel\Ai\Contracts\RemembersConversations as RemembersConversationsContract;
+use Hypervel\Ai\Events\AgentStreamAbandoned;
 use Hypervel\Ai\Events\AgentStreamed;
 use Hypervel\Ai\Events\StreamingAgent;
 use Hypervel\Ai\Events\ToolApprovalRequested;
@@ -77,13 +78,10 @@ trait StreamsText
                         : null;
 
                     $context = $this->runContextFor($invocationId, $prompt);
-                    $responseReference = null;
 
-                    // The response owns the "has anything reached the consumer" flag so this failure check and the caller's failover decision can never drift apart...
                     $streamable = new StreamableAgentResponse(
                         $invocationId,
-                        function () use ($invocationId, $prompt, $agent, $messages, $tools, $approval, $recordApprovalResults, $validatedApproval, $context, &$responseReference): Generator {
-                            /** @var WeakReference<StreamableAgentResponse> $responseReference Assigned before iteration. */
+                        function () use ($invocationId, $prompt, $agent, $messages, $tools, $approval, $recordApprovalResults, $validatedApproval, $context): Generator {
                             // Re-iteration needs fresh run state with the dependencies captured by the factory.
                             $prompt->setRunContext($runContext = clone $context);
 
@@ -91,46 +89,37 @@ trait StreamsText
                                 $this->events->dispatch(new StreamingAgent($invocationId, $prompt));
                             }
 
-                            try {
-                                $instructions = (string) $agent->instructions();
-                                $options = TextGenerationOptions::forAgent($agent);
+                            $instructions = (string) $agent->instructions();
+                            $options = TextGenerationOptions::forAgent($agent);
 
-                                if ($prompt->middleware !== []) {
-                                    $options = $options->withMiddleware($prompt->middleware);
+                            if ($prompt->middleware !== []) {
+                                $options = $options->withMiddleware($prompt->middleware);
+                            }
+
+                            foreach ($this->textGenerationLoop()->stream(
+                                $invocationId,
+                                $this,
+                                $prompt->model,
+                                $instructions,
+                                $messages,
+                                $tools,
+                                null,
+                                $options,
+                                $prompt->timeout,
+                                $approval,
+                                $recordApprovalResults,
+                                $validatedApproval,
+                                $runContext,
+                            ) as $event) {
+                                if ($event instanceof ToolApprovalRequest) {
+                                    $this->throwIfNotResumable($prompt);
                                 }
 
-                                foreach ($this->textGenerationLoop()->stream(
-                                    $invocationId,
-                                    $this,
-                                    $prompt->model,
-                                    $instructions,
-                                    $messages,
-                                    $tools,
-                                    null,
-                                    $options,
-                                    $prompt->timeout,
-                                    $approval,
-                                    $recordApprovalResults,
-                                    $validatedApproval,
-                                    $runContext,
-                                ) as $event) {
-                                    if ($event instanceof ToolApprovalRequest) {
-                                        $this->throwIfNotResumable($prompt);
-                                    }
-
-                                    yield $event;
-                                }
-                            } catch (Throwable $exception) {
-                                $this->recordAgentFailure($invocationId, $prompt, $exception, retryable: ! $responseReference->get()->hasYielded());
-
-                                throw $exception;
+                                yield $event;
                             }
                         },
                         $meta,
                     );
-
-                    // Use a weak reference so the producer does not keep its own response alive.
-                    $responseReference = WeakReference::create($streamable);
 
                     // Surfaced before iteration because the remembering middleware only records it once the stream has drained...
                     if (RememberConversation::appliesTo($agent)) {
@@ -151,7 +140,25 @@ trait StreamsText
             throw $exception;
         }
 
-        return $response->usingContext($prompt->contextRunner())->then(function (StreamedAgentResponse $response) use ($invocationId, $prompt, &$resolvedApprovalResults): void {
+        // Avoid retaining the response through its own failure callback.
+        $responseReference = WeakReference::create($response);
+        $iterationCompleted = false;
+
+        return $response->usingContext($prompt->contextRunner())->onIterationFailure(function (?Throwable $exception) use ($invocationId, $prompt, $responseReference, &$iterationCompleted): void {
+            if ($iterationCompleted) { // @phpstan-ignore if.alwaysFalse (The completion callback updates this shared flag.)
+                return;
+            }
+
+            if ($exception !== null) {
+                // The response owns the "has anything reached the consumer" flag so this failure check and the caller's failover decision can never drift apart...
+                $this->recordAgentFailure($invocationId, $prompt, $exception, retryable: ! $responseReference->get()->hasYielded());
+            } elseif ($this->events->hasListeners(AgentStreamAbandoned::class)) {
+                $this->events->dispatch(new AgentStreamAbandoned($invocationId, $prompt));
+            }
+        })->then(function (StreamedAgentResponse $response) use ($invocationId, $prompt, &$resolvedApprovalResults, &$iterationCompleted): void {
+            // Success-listener failures must not also report a failed provider iteration.
+            $iterationCompleted = true;
+
             if ($this->events->hasListeners(AgentStreamed::class)) {
                 $this->events->dispatch(
                     new AgentStreamed($invocationId, $prompt, $response)
