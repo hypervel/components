@@ -27,10 +27,12 @@ use Hypervel\Ai\Streaming\Events\ToolCall;
 use Hypervel\Ai\Streaming\Events\ToolResult;
 use Hypervel\Console\Command;
 use Hypervel\Prompts\Prompt;
+use Hypervel\Prompts\Support\Utils;
 use Hypervel\Support\Collection;
 use InvalidArgumentException;
 use ReflectionMethod;
 use RuntimeException;
+use Symfony\Component\Console\Formatter\OutputFormatter;
 
 use function Hypervel\Prompts\clear;
 use function Hypervel\Prompts\confirm;
@@ -257,7 +259,7 @@ class AgentCommand extends Command
     private function requestBulkDecision(Collection $pendingApprovals): ?Decisions
     {
         $tools = $pendingApprovals
-            ->map(fn (PendingApproval $approval): string => $approval->tool)
+            ->map(fn (PendingApproval $approval): string => $this->escapeText($approval->tool))
             ->implode(', ');
 
         note("{$pendingApprovals->count()} tool approvals required · {$tools}");
@@ -324,7 +326,7 @@ class AgentCommand extends Command
                 ),
                 $event instanceof Citation => $this->renderCitation($event),
                 $event instanceof ProviderToolEvent => $this->renderProviderToolEvent($event, $tools),
-                $event instanceof Error => error($event->message),
+                $event instanceof Error => error($this->escapeText($event->message)),
                 $event instanceof StreamEnd => null,
                 default => null,
             };
@@ -353,16 +355,17 @@ class AgentCommand extends Command
         }
 
         $tool = $event->toolCall;
+        $name = $this->escapeText($tool->name);
         $input = $this->formatValue($tool->arguments);
 
         if ($this->effectiveMode($mode, $input) === 'collapsed') {
-            info("Tool · {$tool->name}");
+            info("Tool · {$name}");
 
             return;
         }
 
         table(['Tool', 'Input'], [[
-            $tool->name,
+            $name,
             $input,
         ]]);
     }
@@ -377,17 +380,18 @@ class AgentCommand extends Command
         }
 
         $result = $event->toolResult;
+        $name = $this->escapeText($result->name);
         $status = $event->successful ? 'completed' : 'failed';
-        $output = $event->successful ? $this->formatValue($result->result) : ($event->error ?? 'The tool call failed.');
+        $output = $this->formatValue($event->successful ? $result->result : ($event->error ?? 'The tool call failed.'));
 
         if ($this->effectiveMode($mode, $output) === 'collapsed') {
-            info("Tool {$status} · {$result->name}");
+            info("Tool {$status} · {$name}");
 
             return;
         }
 
         table(['Tool', 'Status', 'Output'], [[
-            $result->name,
+            $name,
             $status,
             $output,
         ]]);
@@ -403,16 +407,18 @@ class AgentCommand extends Command
         }
 
         $data = $this->formatValue($event->data);
+        $type = $this->escapeText($event->type);
+        $status = $this->escapeText($event->status);
 
         if ($this->effectiveMode($mode, $data) === 'collapsed') {
-            info("Provider tool · {$event->type} ({$event->status})");
+            info("Provider tool · {$type} ({$status})");
 
             return;
         }
 
         table(['Provider tool', 'Status', 'Data'], [[
-            $event->type,
-            $event->status,
+            $type,
+            $status,
             $data,
         ]]);
     }
@@ -458,7 +464,7 @@ class AgentCommand extends Command
 
         $label = $event->citation->title ?? $event->citation->url;
 
-        info("Source · {$label}\n{$event->citation->url}");
+        info($this->escapeText("Source · {$label}\n{$event->citation->url}"));
     }
 
     /**
@@ -466,14 +472,15 @@ class AgentCommand extends Command
      */
     private function requestApproval(PendingApproval $approval): Decision
     {
-        note("Tool approval required · {$approval->tool}\n" . $this->formatValue($approval->arguments));
+        $tool = $this->escapeText($approval->tool);
+        note("Tool approval required · {$tool}\n" . $this->formatValue($approval->arguments));
 
         $approved = confirm(
-            label: "Allow {$approval->tool}?",
+            label: "Allow {$tool}?",
             default: false,
             yes: 'Approve',
             no: 'Reject',
-            hint: $approval->reason ?? 'This tool requires your approval.',
+            hint: $this->escapeText($approval->reason ?? 'This tool requires your approval.'),
         );
 
         return $approved ? Decision::approve() : Decision::reject('Rejected in terminal UI.');
@@ -596,7 +603,11 @@ class AgentCommand extends Command
      */
     private function renderMarkdownDelta(string $text): string
     {
-        $text = str_replace("\r", '', $text);
+        $text = Utils::stripTerminalControls(str_replace("\r", '', $text));
+
+        if (! $this->output->isDecorated()) {
+            return $text;
+        }
 
         $text = preg_replace_callback('/`([^`]+)`/', fn (array $matches): string => "\e[36m{$matches[1]}\e[39m", $text) ?? $text;
         $text = preg_replace_callback('/\*\*([^*]+)\*\*/', fn (array $matches): string => "\e[1m{$matches[1]}\e[22m", $text) ?? $text;
@@ -609,7 +620,7 @@ class AgentCommand extends Command
      */
     private function renderMarkdownBlock(string $text): string
     {
-        return $this->renderMarkdownDelta($text);
+        return OutputFormatter::escape($this->renderMarkdownDelta($text));
     }
 
     /**
@@ -617,14 +628,20 @@ class AgentCommand extends Command
      */
     private function formatValue(mixed $value): string
     {
-        if (is_string($value)) {
-            return $value;
-        }
-
-        return json_encode(
+        $text = is_string($value) ? $value : (json_encode(
             $value,
             JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE,
-        ) ?: get_debug_type($value);
+        ) ?: get_debug_type($value));
+
+        return $this->escapeText($text);
+    }
+
+    /**
+     * Keep provider text literal when writing through the console formatter.
+     */
+    private function escapeText(string $text): string
+    {
+        return OutputFormatter::escape(Utils::stripTerminalControls($text));
     }
 
     /**

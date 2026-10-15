@@ -7,6 +7,7 @@ Run these commands from `dogfood/ai` with the framework's PHP extensions install
 ```sh
 composer install
 cp workbench/.env.example workbench/.env
+touch workbench/database/database.sqlite
 vendor/bin/testbench migrate
 ```
 

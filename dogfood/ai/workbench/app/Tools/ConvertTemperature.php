@@ -27,7 +27,7 @@ class ConvertTemperature implements Tool
 
         return match ($request->string('to')->toString()) {
             'fahrenheit' => round($temperature * 9 / 5 + 32, 1) . '°F',
-            default => round(($temperature - 32) * 5 / 9, 1) . '°C',
+            'celsius' => round(($temperature - 32) * 5 / 9, 1) . '°C',
         };
     }
 
