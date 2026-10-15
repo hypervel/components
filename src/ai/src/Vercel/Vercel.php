@@ -56,7 +56,11 @@ class Vercel
         foreach ($messages as $message) {
             if ($message instanceof ToolResultMessage) {
                 foreach ($message->toolResults as $toolResult) {
-                    static::applyUiToolOutput($result, $partRefs, $toolResult->id, $toolResult->result, $toolResult->denied);
+                    if ($toolResult->failed && ! $toolResult->denied) {
+                        static::applyUiToolError($result, $partRefs, $toolResult->id, $toolResult->result);
+                    } else {
+                        static::applyUiToolOutput($result, $partRefs, $toolResult->id, $toolResult->result, $toolResult->denied);
+                    }
                 }
 
                 continue;
@@ -84,7 +88,11 @@ class Vercel
 
             if ($message instanceof ConversationMessage) {
                 foreach ($message->tool_results ?? [] as $toolResult) {
-                    static::applyUiToolOutput($result, $partRefs, $toolResult['id'], $toolResult['result'] ?? null, $toolResult['denied'] ?? false);
+                    if (($toolResult['failed'] ?? false) && ! ($toolResult['denied'] ?? false)) {
+                        static::applyUiToolError($result, $partRefs, $toolResult['id'], $toolResult['result'] ?? null);
+                    } else {
+                        static::applyUiToolOutput($result, $partRefs, $toolResult['id'], $toolResult['result'] ?? null, $toolResult['denied'] ?? false);
+                    }
                 }
             }
         }
@@ -127,7 +135,8 @@ class Vercel
         }
 
         foreach (static::toolCallArraysFrom($message) as $toolCall) {
-            $isPending = PendingApproval::isPending($toolCall);
+            $isPending = PendingApproval::isPending($toolCall)
+                && (! $message instanceof ConversationMessage || $message->canResumeApprovals());
 
             $parts[] = [
                 'type' => 'tool-' . $toolCall['name'],
@@ -159,11 +168,30 @@ class Vercel
 
         $result[$message]['parts'][$part]['state'] = $denied ? 'output-denied' : 'output-available';
 
-        unset($result[$message]['parts'][$part]['approval']);
+        unset($result[$message]['parts'][$part]['approval'], $result[$message]['parts'][$part]['output'], $result[$message]['parts'][$part]['errorText']);
 
         if (! $denied) {
             $result[$message]['parts'][$part]['output'] = $output;
         }
+    }
+
+    /**
+     * Settle a hydrated tool part with its failure text.
+     *
+     * @param array<int, array<string, mixed>> $result
+     * @param array<string, array{int, int}> $partRefs
+     */
+    protected static function applyUiToolError(array &$result, array $partRefs, string $id, mixed $error): void
+    {
+        if (! isset($partRefs[$id])) {
+            return;
+        }
+
+        [$message, $part] = $partRefs[$id];
+        $result[$message]['parts'][$part]['state'] = 'output-error';
+        $result[$message]['parts'][$part]['errorText'] = is_string($error) ? $error : 'The tool call failed.';
+
+        unset($result[$message]['parts'][$part]['approval'], $result[$message]['parts'][$part]['output']);
     }
 
     /**
@@ -296,8 +324,9 @@ class Vercel
                 id: $part['toolCallId'],
                 name: static::toolName($part),
                 arguments: is_array($part['input'] ?? null) ? $part['input'] : [],
-                result: $part['output'] ?? $part['errorText'] ?? null,
+                result: ($part['state'] ?? null) === 'output-error' ? ($part['errorText'] ?? null) : ($part['output'] ?? null),
                 denied: ($part['state'] ?? null) === 'output-denied',
+                failed: ($part['state'] ?? null) === 'output-error',
             ))
             ->values();
     }

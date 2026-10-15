@@ -30,6 +30,7 @@ use Hypervel\Support\Facades\Storage;
 use Hypervel\Tests\Ai\Fixtures\Agents\AssistantAgent;
 use Hypervel\Tests\Ai\TestCase;
 use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class AgentUserInteractionMessageTest extends TestCase
 {
@@ -127,7 +128,7 @@ class AgentUserInteractionMessageTest extends TestCase
         $this->assertInstanceOf(ToolResultMessage::class, $message);
         $this->assertSame('call-1', $message->toolResults[0]->id);
         $this->assertSame('Sunny', $message->toolResults[0]->result);
-        $this->assertSame('m3', $message->toolResults[0]->resultId);
+        $this->assertNull($message->toolResults[0]->resultId);
     }
 
     public function testToolMessagesAreNamedFromTheToolCallTheySettle(): void
@@ -338,6 +339,7 @@ class AgentUserInteractionMessageTest extends TestCase
             yield new ConversationMessage([
                 'id' => 'msg-2',
                 'role' => 'assistant',
+                'status' => 'paused',
                 'steps' => [['tool_calls' => [['id' => 'call-1', 'name' => 'DeleteFile', 'arguments' => ['path' => 'a.txt'], 'approval_reason' => 'Deletes a file.']]]],
             ]);
         })());
@@ -438,20 +440,36 @@ class AgentUserInteractionMessageTest extends TestCase
         $this->assertSame('The tool call was denied.', $messages[1]['content']);
         $this->assertSame('The tool call was denied.', $messages[1]['error']);
         $this->assertSame(['denied' => true], $messages[1]['metadata']);
+        $restored = AgentUserInteraction::fromMessages($messages)[1]->toolResults[0];
+        $this->assertTrue($restored->denied);
+        $this->assertFalse($restored->failed);
     }
 
-    public function testAFailedToolCallHydratesAsAToolErrorWithoutTheDeniedFlag(): void
+    #[DataProvider('failureMessages')]
+    public function testAFailedToolCallHydratesAsAToolErrorWithoutTheDeniedFlag(string $error): void
     {
         $messages = AgentUserInteraction::toClientState([
             new ConversationMessage([
                 'id' => 'msg-2',
                 'role' => 'assistant',
-                'steps' => [['tool_calls' => [['id' => 'call-1', 'name' => 'ReadFile', 'arguments' => ['path' => 'a.txt'], 'result' => 'The tool call failed: boom.', 'failed' => true]]]],
+                'steps' => [['tool_calls' => [['id' => 'call-1', 'name' => 'ReadFile', 'arguments' => ['path' => 'a.txt'], 'result' => $error, 'failed' => true]]]],
             ]),
         ])['messages'];
 
-        $this->assertSame('The tool call failed: boom.', $messages[1]['error']);
+        $this->assertSame($error, $messages[1]['error']);
         $this->assertArrayNotHasKey('metadata', $messages[1]);
+        $restored = AgentUserInteraction::fromMessages($messages)[1]->toolResults[0];
+        $this->assertTrue($restored->failed);
+        $this->assertFalse($restored->denied);
+        $this->assertSame($error, $restored->result);
+    }
+
+    /**
+     * Preserve failures even when their error text is empty.
+     */
+    public static function failureMessages(): array
+    {
+        return [['The tool call failed: boom.'], ['']];
     }
 
     public function testAPausedTurnHydratesItsPendingApprovalsAsInterrupts(): void
@@ -460,6 +478,7 @@ class AgentUserInteractionMessageTest extends TestCase
             new ConversationMessage([
                 'id' => 'msg-2',
                 'role' => 'assistant',
+                'status' => 'paused',
                 'steps' => [['tool_calls' => [
                     ['id' => 'call-1', 'name' => 'DeleteFile', 'arguments' => ['path' => 'a.txt'], 'approval_reason' => 'Deletes a file.'],
                     ['id' => 'call-2', 'name' => 'DeleteFile', 'arguments' => ['path' => 'b.txt'], 'approval_reason' => null],
@@ -504,8 +523,23 @@ class AgentUserInteractionMessageTest extends TestCase
         $this->assertEquals(['kind' => 'approval', 'toolName' => '', 'input' => (object) []], AgentUserInteraction::toInterrupts([new ConversationMessage([
             'id' => 'msg-2',
             'role' => 'assistant',
+            'status' => 'paused',
             'steps' => [['tool_calls' => [['id' => 'call-1', 'approval_reason' => null]]]],
         ])])[0]['metadata']);
+    }
+
+    public function testSettledOrClaimedTurnsDoNotOfferApprovalInterrupts(): void
+    {
+        foreach ([['paused', 'claim'], ['failed', null], ['completed', null]] as [$status, $claim]) {
+            $message = new ConversationMessage([
+                'role' => 'assistant',
+                'status' => $status,
+                'approval_claim' => $claim,
+                'steps' => [['tool_calls' => [['id' => 'call-1', 'approval_reason' => 'Needs approval']]]],
+            ]);
+
+            $this->assertSame([], AgentUserInteraction::toInterrupts([$message]));
+        }
     }
 
     public function testMessageObjectsHydrateAlongsideConversationModels(): void

@@ -225,7 +225,7 @@ class AgentUserInteraction
         $interrupts = [];
 
         foreach ($messages as $message) {
-            if (! $message instanceof ConversationMessage) {
+            if (! $message instanceof ConversationMessage || ! $message->canResumeApprovals()) {
                 continue;
             }
 
@@ -430,13 +430,15 @@ class AgentUserInteraction
 
         $content = $message['content'] ?? null;
         $error = $message['error'] ?? null;
+        $denied = ($message['metadata']['denied'] ?? false) === true;
 
         return new ToolResult(
             id: $id,
             name: $call->name ?? '',
             arguments: $call->arguments ?? [],
-            result: filled($error) ? $error : $content,
-            resultId: is_string($message['id'] ?? null) ? $message['id'] : null,
+            result: is_string($error) ? $error : $content,
+            denied: $denied,
+            failed: ! $denied && is_string($error),
         );
     }
 

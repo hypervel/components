@@ -70,7 +70,7 @@ trait BuildsTextRequests
         return collect($lastMessage->toolResults)
             ->map(fn (ToolResult $toolResult): array => [
                 'type' => 'function_call_output',
-                'call_id' => $toolResult->resultId,
+                'call_id' => $toolResult->resultId ?? $toolResult->id,
                 'output' => $toolResult->text(),
             ])
             ->all();

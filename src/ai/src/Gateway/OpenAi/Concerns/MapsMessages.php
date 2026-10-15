@@ -141,7 +141,7 @@ trait MapsMessages
         // A replayed call whose reasoning was dropped cannot carry its item id, as the API rejects an fc_ item with no reasoning item before it...
         return Arr::whereNotNull([
             'id' => $toolCall->reasoningId !== null && str_starts_with($toolCall->id, 'fc_') ? $toolCall->id : null,
-            'call_id' => $toolCall->resultId,
+            'call_id' => $toolCall->resultId ?? $toolCall->id,
             'type' => 'function_call',
             'name' => $toolCall->name,
             'arguments' => json_encode((object) $toolCall->arguments),
@@ -160,7 +160,7 @@ trait MapsMessages
         foreach ($message->toolResults as $toolResult) {
             $input[] = [
                 'type' => 'function_call_output',
-                'call_id' => $toolResult->resultId,
+                'call_id' => $toolResult->resultId ?? $toolResult->id,
                 'output' => $toolResult->text(),
             ];
         }

@@ -93,6 +93,14 @@ class ConversationMessage extends Model
     }
 
     /**
+     * Determine whether this turn can still accept tool approval decisions.
+     */
+    public function canResumeApprovals(): bool
+    {
+        return $this->status === MessageStatus::Paused && $this->getAttribute('approval_claim') === null;
+    }
+
+    /**
      * Get the conversation that owns the message.
      *
      * @return BelongsTo<Conversation, $this>

@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Ai\Feature\Providers\Xai;
 
+use Hypervel\Ai\AgentUserInteraction\AgentUserInteraction;
+use Hypervel\Ai\Ai;
 use Hypervel\Ai\Files\Base64Document;
 use Hypervel\Ai\Files\Base64Image;
 use Hypervel\Ai\Files\LocalImage;
 use Hypervel\Ai\Files\RemoteDocument;
 use Hypervel\Ai\Files\RemoteImage;
+use Hypervel\Ai\Gateway\StepContext;
+use Hypervel\Ai\Gateway\Xai\XaiGateway;
 use Hypervel\Ai\Messages\AssistantMessage;
 use Hypervel\Ai\Messages\ToolResultMessage;
 use Hypervel\Ai\Messages\UserMessage;
@@ -78,6 +82,43 @@ class MessageMappingTest extends TestCase
         );
 
         $this->assertTrue($hasToolOutput, 'Follow-up should include function_call_output');
+    }
+
+    public function testFrontendToolHistoryKeepsPairedCallIds(): void
+    {
+        Http::fake(['*' => $this->fakeTextResponse()]);
+
+        $history = AgentUserInteraction::fromMessages([
+            ['id' => 'assistant-1', 'role' => 'assistant', 'toolCalls' => [
+                ['id' => 'weather-1', 'type' => 'function', 'function' => ['name' => 'getWeather', 'arguments' => '{"city":"Lisbon"}']],
+            ]],
+            ['id' => 'result-1', 'role' => 'tool', 'toolCallId' => 'weather-1', 'content' => 'Sunny'],
+        ]);
+
+        agent(messages: $history)->prompt('Summarize.', provider: 'xai');
+
+        Http::assertSent(function (Request $request): bool {
+            $input = collect(json_decode($request->body(), true)['input']);
+
+            return $input->firstWhere('type', 'function_call')['call_id'] === 'weather-1'
+                && $input->firstWhere('type', 'function_call_output')['call_id'] === 'weather-1';
+        });
+
+        $this->app->make(XaiGateway::class)->generateTextStep(
+            Ai::textProvider('xai'),
+            'grok-4',
+            null,
+            $history,
+            [],
+            null,
+            null,
+            null,
+            new StepContext(continuationToken: 'previous-response'),
+        );
+
+        $body = json_decode(Http::recorded()->last()[0]->body(), true);
+        $this->assertSame('previous-response', $body['previous_response_id']);
+        $this->assertSame('weather-1', $body['input'][0]['call_id']);
     }
 
     public function testRemoteImageAttachmentMapsToInputImage(): void

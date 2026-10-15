@@ -497,19 +497,66 @@ class UiMessageTest extends TestCase
         ]], $ui[0]['parts']);
     }
 
-    public function testAPausedTurnHydratesItsApprovalState(): void
+    #[DataProvider('approvalStates')]
+    public function testAPausedTurnHydratesItsApprovalState(string $status, ?string $claim, bool $available): void
     {
         $ui = Vercel::toUiMessages([
             new ConversationMessage([
                 'id' => 'msg-2',
                 'role' => 'assistant',
                 'content' => null,
+                'status' => $status,
+                'approval_claim' => $claim,
                 'steps' => [['tool_calls' => [['id' => 'call-1', 'name' => 'DeleteFile', 'arguments' => ['path' => 'a.txt'], 'approval_reason' => 'Deletes a file.']]]],
             ]),
         ]);
 
-        $this->assertSame('approval-requested', $ui[0]['parts'][0]['state']);
-        $this->assertSame(['id' => 'call-1', 'reason' => 'Deletes a file.'], $ui[0]['parts'][0]['approval']);
+        $this->assertSame($available ? 'approval-requested' : 'input-available', $ui[0]['parts'][0]['state']);
+        if ($available) {
+            $this->assertSame(['id' => 'call-1', 'reason' => 'Deletes a file.'], $ui[0]['parts'][0]['approval']);
+        } else {
+            $this->assertArrayNotHasKey('approval', $ui[0]['parts'][0]);
+        }
+    }
+
+    /**
+     * Provide stored turns whose approvals are available or already settled.
+     */
+    public static function approvalStates(): array
+    {
+        return [['paused', null, true], ['paused', 'claim', false], ['failed', null, false], ['completed', null, false]];
+    }
+
+    #[DataProvider('failedOutputs')]
+    public function testFailedToolResultsRoundTrip(bool $stored, ?string $output, string $expected): void
+    {
+        $call = new ToolCall('call-1', 'ReadFile', ['path' => 'a.txt']);
+        $result = new ToolResult('call-1', 'ReadFile', $call->arguments, $output, failed: true);
+        $messages = $stored ? [new ConversationMessage([
+            'id' => 'msg-1',
+            'role' => 'assistant',
+            'status' => 'failed',
+            'steps' => [['tool_calls' => [$result->toArray()]]],
+        ])] : [new AssistantMessage('', collect([$call])), new ToolResultMessage(collect([$result]))];
+
+        $ui = Vercel::toUiMessages($messages);
+        $part = $ui[0]['parts'][0];
+        $this->assertSame('output-error', $part['state']);
+        $this->assertSame($expected, $part['errorText']);
+        $this->assertArrayNotHasKey('output', $part);
+        $this->assertArrayNotHasKey('approval', $part);
+        $restored = Vercel::fromUiMessages($ui)[1]->toolResults[0];
+        $this->assertTrue($restored->failed);
+        $this->assertFalse($restored->denied);
+        $this->assertSame($expected, $restored->result);
+    }
+
+    /**
+     * Cover stored and message-object failures, including absent error text.
+     */
+    public static function failedOutputs(): array
+    {
+        return [[true, '', ''], [false, 'Failed to read', 'Failed to read'], [true, null, 'The tool call failed.']];
     }
 
     public function testADeniedToolCallHydratesAsOutputDenied(): void

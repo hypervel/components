@@ -82,7 +82,7 @@ trait MapsMessages
                 foreach ($message->toolCalls->where('reasoningId', $reasoningBlock['id']) as $toolCall) {
                     $input[] = [
                         'id' => $toolCall->id,
-                        'call_id' => $toolCall->resultId,
+                        'call_id' => $toolCall->resultId ?? $toolCall->id,
                         'type' => 'function_call',
                         'name' => $toolCall->name,
                         'arguments' => json_encode((object) $toolCall->arguments),
@@ -93,7 +93,7 @@ trait MapsMessages
             foreach ($message->toolCalls->whereNull('reasoningId') as $toolCall) {
                 $input[] = [
                     'id' => $toolCall->id,
-                    'call_id' => $toolCall->resultId,
+                    'call_id' => $toolCall->resultId ?? $toolCall->id,
                     'type' => 'function_call',
                     'name' => $toolCall->name,
                     'arguments' => json_encode((object) $toolCall->arguments),
@@ -126,7 +126,7 @@ trait MapsMessages
         foreach ($message->toolResults as $toolResult) {
             $input[] = [
                 'type' => 'function_call_output',
-                'call_id' => $toolResult->resultId,
+                'call_id' => $toolResult->resultId ?? $toolResult->id,
                 'output' => $toolResult->text(),
             ];
         }

@@ -143,7 +143,7 @@ trait BuildsTextRequests
             foreach ($lastMessage->toolResults as $toolResult) {
                 $input[] = [
                     'type' => 'function_call_output',
-                    'call_id' => $toolResult->resultId,
+                    'call_id' => $toolResult->resultId ?? $toolResult->id,
                     'output' => $toolResult->text(),
                 ];
             }
