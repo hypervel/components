@@ -11,7 +11,7 @@ interface HasTools
     /**
      * Get the tools available to the agent.
      *
-     * @return list<Agent|ProviderTool|Tool>
+     * @return iterable<Agent|ProviderTool|Tool>
      */
     public function tools(): iterable;
 }

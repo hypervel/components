@@ -91,6 +91,10 @@ class AiManager extends MultipleInstanceManager
     {
         $name = $config['name'] ?? 'ondemand_' . hash('sha256', json_encode($config, JSON_THROW_ON_ERROR));
 
+        if ($name === '') {
+            throw new InvalidArgumentException('The provider name cannot be empty.');
+        }
+
         if ($this->config->has("ai.providers.{$name}") || Lab::tryFrom($name) !== null) {
             throw new InvalidArgumentException("The provider name [{$name}] is already taken.");
         }

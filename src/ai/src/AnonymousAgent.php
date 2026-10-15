@@ -20,6 +20,8 @@ class AnonymousAgent implements Agent, Conversational, HasTools
      */
     public function __construct(public string $instructions, public iterable $messages, public iterable $tools)
     {
+        $this->messages = [...$messages];
+        $this->tools = [...$tools];
     }
 
     /**

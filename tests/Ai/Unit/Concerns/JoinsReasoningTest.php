@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Ai\Unit\Concerns;
 
+use Generator;
 use Hypervel\Ai\Concerns\JoinsReasoning;
 use Hypervel\Ai\Streaming\Events\ReasoningDelta;
 use Hypervel\Support\Collection;
@@ -26,6 +27,10 @@ class JoinsReasoningTest extends TestCase
     public function testItJoinsACollectionTheSameWayItJoinsAnArray(): void
     {
         $this->assertSame("First.\n\nSecond.", self::joinReasoning(new Collection(['First.', 'Second.'])));
+        $this->assertSame("First.\n\nSecond.", self::joinReasoning((function (): Generator {
+            yield 'First.';
+            yield 'Second.';
+        })()));
     }
 
     public function testCombiningReasoningDeltasAppliesTheSameRule(): void

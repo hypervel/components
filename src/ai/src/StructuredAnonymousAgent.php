@@ -22,6 +22,8 @@ class StructuredAnonymousAgent extends AnonymousAgent implements HasStructuredOu
         public iterable $tools,
         ?Closure $schema = null,
     ) {
+        $this->messages = [...$messages];
+        $this->tools = [...$tools];
         $this->schema = $schema instanceof Closure ? new SerializableClosure($schema) : null;
     }
 

@@ -15,7 +15,7 @@ trait JoinsReasoning
      */
     protected static function joinReasoning(iterable $blocks): string
     {
-        return Collection::wrap($blocks)
+        return (new Collection($blocks))
             ->filter(fn (string $block): bool => trim($block) !== '')
             ->implode("\n\n");
     }

@@ -11,7 +11,7 @@ interface Conversational
     /**
      * Get the list of messages comprising the conversation so far.
      *
-     * @return Message[]
+     * @return iterable<Message>
      */
     public function messages(): iterable;
 }

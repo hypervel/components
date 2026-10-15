@@ -84,6 +84,14 @@ class AiManagerTest extends TestCase
         Ai::build(['name' => 'openai', 'driver' => 'anthropic', 'key' => 'tenant-key']);
     }
 
+    public function testAnOnDemandProviderCannotUseAnEmptyName(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The provider name cannot be empty.');
+
+        Ai::build(['name' => '', 'driver' => 'anthropic', 'key' => 'tenant-key']);
+    }
+
     public function testRebuildingANamedOnDemandProviderUsesTheNewConfiguration(): void
     {
         Ai::build(['name' => 'tenant', 'driver' => 'anthropic', 'key' => 'old-key']);
