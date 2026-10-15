@@ -12,13 +12,13 @@ use Throwable;
 
 class ConcurrentImportRunner
 {
-    protected WaitConcurrent $concurrent;
+    protected ?WaitConcurrent $concurrent;
 
     protected ?Throwable $failure = null;
 
     public function __construct(int $limit)
     {
-        $this->concurrent = new WaitConcurrent($limit);
+        $this->concurrent = $limit === 0 ? null : new WaitConcurrent($limit);
     }
 
     /**
@@ -26,6 +26,12 @@ class ConcurrentImportRunner
      */
     public function create(callable $operation): void
     {
+        if ($this->concurrent === null) {
+            $operation();
+
+            return;
+        }
+
         $this->throwIfFailed();
 
         $this->concurrent->create(function () use ($operation): void {
@@ -58,6 +64,10 @@ class ConcurrentImportRunner
      */
     public function wait(): void
     {
+        if ($this->concurrent === null) {
+            return;
+        }
+
         try {
             // Keep the parent's session while producing chunks, but not while joining children.
             ConnectionResolver::releaseIdleConnections();

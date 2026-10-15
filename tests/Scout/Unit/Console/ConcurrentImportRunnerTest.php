@@ -15,6 +15,54 @@ use Swoole\Coroutine\CanceledException;
 
 class ConcurrentImportRunnerTest extends TestCase
 {
+    public function testZeroCapacityRunsInlineAndPreservesParentCancellation(): void
+    {
+        $runner = new ConcurrentImportRunner(0);
+        $parentId = Coroutine::id();
+        $operationId = null;
+        $runner->create(static function () use (&$operationId): void {
+            $operationId = Coroutine::id();
+        });
+        $runner->wait();
+
+        $this->assertSame($parentId, $operationId);
+
+        $started = new Channel(1);
+        $blocker = new Channel(1);
+        $finished = new Channel(1);
+        $nativeCancellation = null;
+        $caught = null;
+        $parent = EngineCoroutine::create(static function () use ($started, $blocker, $finished, &$nativeCancellation, &$caught): void {
+            try {
+                (new ConcurrentImportRunner(0))->create(static function () use ($started, $blocker, &$nativeCancellation): void {
+                    $started->push(true);
+
+                    try {
+                        $blocker->pop();
+                    } catch (CanceledException $exception) {
+                        $nativeCancellation = $exception;
+                        throw $exception;
+                    }
+                });
+            } catch (CanceledException $exception) {
+                $caught = $exception;
+            } finally {
+                $finished->push(true);
+            }
+        });
+
+        try {
+            $this->assertTrue($started->pop(1));
+            $this->assertTrue(EngineCoroutine::cancelById($parent->getId(), throwException: true));
+            $this->assertTrue($finished->pop(1));
+        } finally {
+            $blocker->push(true);
+        }
+
+        $this->assertInstanceOf(CanceledException::class, $nativeCancellation);
+        $this->assertSame($nativeCancellation, $caught);
+    }
+
     public function testWaitDrainsActiveChildrenBeforeRethrowingTheFirstFailure(): void
     {
         $runner = new ConcurrentImportRunner(2);
