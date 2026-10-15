@@ -34,6 +34,8 @@ use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
+use Hypervel\Support\Facades\Context;
+use Hypervel\Support\Facades\DB;
 use InvalidArgumentException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -46,6 +48,7 @@ class ConcurrentToolsTest extends TestCase
     public function testOptedInToolsAreBoundedOrderedAndUseTheCapturedContext(bool $streaming): void
     {
         CoroutineContext::set('tool-test.account', 'caller');
+        Context::add('request_id', 'tool-request');
         Ai::captureContextUsing(static function (): Closure {
             $account = CoroutineContext::get('tool-test.account');
 
@@ -69,12 +72,15 @@ class ConcurrentToolsTest extends TestCase
         $active = 0;
         $maximum = 0;
         $accounts = [];
+        $requestIds = [];
         $resolvedProviders = [];
         $tool = m::mock(Tool::class);
         $tool->shouldReceive('name')->andReturn('tool');
-        $tool->shouldReceive('handle')->times(3)->andReturnUsing(function (Request $request) use (&$active, &$maximum, &$accounts, &$resolvedProviders): string {
+        $tool->shouldReceive('handle')->times(3)->andReturnUsing(function (Request $request) use (&$active, &$maximum, &$accounts, &$requestIds, &$resolvedProviders): string {
+            $this->assertSame('tool-connection', DB::getDefaultConnection());
             $maximum = max($maximum, ++$active);
             $accounts[] = CoroutineContext::get('tool-test.account');
+            $requestIds[] = Context::get('request_id');
             $resolvedProviders[] = Ai::instance('tool-account');
 
             try {
@@ -93,15 +99,18 @@ class ConcurrentToolsTest extends TestCase
         $loop = new TextGenerationLoop($gateway);
         $options = new TextGenerationOptions(agent: new ConcurrentToolsTestAgent('', [], []));
 
-        if ($streaming) {
-            iterator_to_array($loop->stream('invocation', $provider, 'model', '', tools: [$tool], options: $options), false);
-        } else {
-            $loop->generate($provider, 'model', '', tools: [$tool], options: $options);
-        }
+        DB::usingConnection('tool-connection', static function () use ($streaming, $loop, $provider, $tool, $options): void {
+            if ($streaming) {
+                iterator_to_array($loop->stream('invocation', $provider, 'model', '', tools: [$tool], options: $options), false);
+            } else {
+                $loop->generate($provider, 'model', '', tools: [$tool], options: $options);
+            }
+        });
 
         $this->assertSame(2, $maximum);
         $this->assertSame(0, $active);
         $this->assertSame(['caller', 'caller', 'caller'], $accounts);
+        $this->assertSame(['tool-request', 'tool-request', 'tool-request'], $requestIds);
         $this->assertSame([$accountProvider, $accountProvider, $accountProvider], $resolvedProviders);
         $this->assertSame(['first', 'second', 'third'], $results);
         $this->assertSame('caller', CoroutineContext::get('tool-test.account'));

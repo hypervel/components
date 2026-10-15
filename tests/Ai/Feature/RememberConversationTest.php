@@ -35,6 +35,7 @@ use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Http\Client\Request;
+use Hypervel\Support\Facades\Context;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Support\Str;
@@ -269,6 +270,7 @@ class RememberConversationTest extends TestCase
     #[DataProvider('executionModes')]
     public function testConcurrentTitlesOverlapInCapturedContextAndAreGeneratedOnce(bool $streaming): void
     {
+        Context::add('request_id', 'title-request');
         config(['ai.conversations.generate_title' => true, 'ai.conversations.concurrent_title' => true]);
         $prompt = $this->prompt();
         $waiting = new Channel(1);
@@ -288,6 +290,7 @@ class RememberConversationTest extends TestCase
         $middleware = m::mock(RememberConversation::class, [new DatabaseConversationStore, $prompt->provider()])
             ->makePartial()->shouldAllowMockingProtectedMethods();
         $middleware->shouldReceive('generateTitle')->once()->andReturnUsing(function () use ($waiting, &$active, &$titleAccount): string {
+            $this->assertSame('title-request', Context::get('request_id'));
             $titleAccount = CoroutineContext::get('title-test.account');
             $active = true;
 

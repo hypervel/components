@@ -63,7 +63,9 @@ use Hypervel\Ai\Tools\Request;
 use Hypervel\Ai\Tools\ToolNameResolver;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\WaitConcurrent;
+use Hypervel\Database\ConnectionResolver;
 use Hypervel\Engine\Channel;
+use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Support\ClassMetadataCache;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\DB;
@@ -911,7 +913,7 @@ class TextGenerationLoop
                         $failure ??= $exception;
                         $events->close();
                     }
-                }, [self::REPAIR_TOOL_CALLS_CONTEXT_KEY, ParentInvocation::PARENT_INVOCATION_CONTEXT_KEY, AiManager::ON_DEMAND_PROVIDERS_CONTEXT_KEY]);
+                }, [self::REPAIR_TOOL_CALLS_CONTEXT_KEY, ParentInvocation::PARENT_INVOCATION_CONTEXT_KEY, AiManager::ON_DEMAND_PROVIDERS_CONTEXT_KEY, ContextRepository::CONTEXT_KEY, ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY]);
             }
 
             while ($failure === null) {

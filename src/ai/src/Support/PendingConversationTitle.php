@@ -8,6 +8,8 @@ use Closure;
 use Hypervel\Ai\AiManager;
 use Hypervel\Ai\Gateway\ParentInvocation;
 use Hypervel\Coroutine\WaitConcurrent;
+use Hypervel\Database\ConnectionResolver;
+use Hypervel\Log\Context\Repository as ContextRepository;
 use Throwable;
 
 class PendingConversationTitle
@@ -34,7 +36,7 @@ class PendingConversationTitle
             } catch (Throwable $exception) {
                 $this->failure = $exception;
             }
-        }, [ParentInvocation::PARENT_INVOCATION_CONTEXT_KEY, AiManager::ON_DEMAND_PROVIDERS_CONTEXT_KEY]);
+        }, [ParentInvocation::PARENT_INVOCATION_CONTEXT_KEY, AiManager::ON_DEMAND_PROVIDERS_CONTEXT_KEY, ContextRepository::CONTEXT_KEY, ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY]);
     }
 
     /**
