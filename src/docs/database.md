@@ -300,6 +300,10 @@ Hypervel automatically returns the current execution's idle database sessions to
 - Before the `retry` helper sleeps between attempts, including HTTP client retry delays.
 - Before the [Concurrency](/docs/{{version}}/concurrency) coroutine driver starts its tasks, and before a [Saloon pool](/docs/{{version}}/saloon#concurrent-requests) admits or waits for requests.
 - Before running or waiting for a [process](/docs/{{version}}/processes), and before stopping one with a positive grace period.
+- Before [filesystem](/docs/{{version}}/filesystem) operations on built-in S3, GCS, FTP and SFTP disks, and custom disks registered with `poolable: true`, except path formatting and temporary-URL capability checks.
+- Before requests from [Socialite's](/docs/{{version}}/socialite) default HTTP client and the default [Slack webhook](/docs/{{version}}/notifications#slack-notifications) client.
+- Before borrowing a pooled SQS or Beanstalkd queue connection, and before commands from the framework-created SQS client.
+- Before starting a [gRPC](/docs/{{version}}/grpc) call or retry attempt, and before waiting for a retry delay.
 
 The next database operation borrows a session automatically. Existing connection objects, builders, query logs and sticky reads remain valid. No database connection is opened merely to release it.
 
@@ -326,6 +330,10 @@ $responses = parallel([
 HTTP client release occurs before sending a request, not on every read of a streamed response. If your stream consumer performs database work between chunks, you may call `releaseIdleConnections()` before waiting for more data. Faked HTTP requests do not release connections. If you provide your own Guzzle client using `setClient`, call `DB::releaseIdleConnections()` yourself before sending requests.
 
 Process waits release idle sessions when the wait begins. If an output callback performs database work, it may call `DB::releaseIdleConnections()` before returning to wait for more output.
+
+The same applies to filesystem and gRPC streams: opening a stream releases idle sessions, but reading each chunk or message does not. Consumers and raw-access callbacks that query the database may release their sessions before further external work.
+
+Socialite clients configured with a custom Guzzle `handler` or supplied through `setHttpClient()`, injected SQS clients, and unpooled custom filesystem drivers control their own transports. Call `DB::releaseIdleConnections()` before their external waits when needed.
 
 Active queries, transactions, open cursors and `Schema::withoutForeignKeyConstraints` callbacks retain their sessions automatically. This includes transactions started directly through PDO or SQL, on either the read or write connection. In particular, an HTTP call inside `DB::transaction()` keeps the transaction's connection. Completed `chunk` or `lazy` query batches may release between batches.
 
