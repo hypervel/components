@@ -8,13 +8,18 @@ use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\ObjectPool\Factory as PoolFactory;
 use Hypervel\Contracts\View\Factory as ViewFactory;
+use Hypervel\Database\Pool\PoolManager;
 use Hypervel\Log\LogManager;
+use Hypervel\Mail\Events\MessageSending;
 use Hypervel\Mail\Mailable;
 use Hypervel\Mail\MailManager;
 use Hypervel\Mail\Message;
 use Hypervel\Mail\Transport\LogTransport;
 use Hypervel\Mail\TransportPoolProxy;
 use Hypervel\Support\ClassInvoker;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Event;
+use Hypervel\Support\Facades\Mail;
 use Hypervel\Support\Testing\Fakes\MailFake;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
@@ -767,6 +772,41 @@ class MailManagerTest extends TestCase
         $this->assertNull($transport->send(new RawMessage('body')));
         $this->assertSame(1, MailManagerTestTransport::$sent);
         $this->assertSame('mail-manager-test', (string) $transport);
+    }
+
+    #[WithConfig('database.connections.mail', [
+        'driver' => 'sqlite',
+        'database' => ':memory:',
+        'pool' => ['testing_enabled' => true, 'max_connections' => 1],
+    ])]
+    #[WithConfig('mail.mailers.custom', ['transport' => 'custom'])]
+    public function testSendingReleasesIdleSessionsAndPreservesTransactionsAndPins(): void
+    {
+        $observed = [];
+        $pool = $this->app->make(PoolManager::class)->pool('mail');
+        $transport = m::mock(TransportInterface::class);
+        $transport->shouldReceive('send')->times(3)->andReturnUsing(function () use ($pool, &$observed): null {
+            $observed[] = $pool->getBorrowedCount();
+
+            return null;
+        });
+        Mail::extend('custom', function () use ($pool, $transport): TransportInterface {
+            $this->assertSame(0, $pool->getBorrowedCount());
+
+            return $transport;
+        }, poolable: true);
+        Event::listen(MessageSending::class, static function (): void {
+            DB::connection('mail')->selectOne('select 1');
+        });
+        $send = static fn () => Mail::mailer('custom')->raw('Hello', static function (Message $message): void {
+            $message->from('sender@example.com')->to('recipient@example.com');
+        });
+
+        $send();
+        DB::connection('mail')->transaction($send);
+        DB::connection('mail')->withPinnedSession($send);
+
+        $this->assertSame([0, 1, 1], $observed);
     }
 
     public function testCustomOnDemandTransportRequiresPerBuildOptIn(): void

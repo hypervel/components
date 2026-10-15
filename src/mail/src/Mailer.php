@@ -15,6 +15,7 @@ use Hypervel\Contracts\Queue\Factory as QueueFactory;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Contracts\View\Factory as FactoryContract;
+use Hypervel\Database\ConnectionResolver;
 use Hypervel\Mail\Events\MessageSending;
 use Hypervel\Mail\Events\MessageSent;
 use Hypervel\Mail\Mailables\Address;
@@ -468,7 +469,12 @@ class Mailer implements MailerContract, MailQueueContract
      */
     protected function sendSymfonyMessage(Email $message): ?SymfonySentMessage
     {
-        return $this->transport->send($message, Envelope::create($message));
+        $envelope = Envelope::create($message);
+
+        // Return idle database sessions before waiting for transport capacity and delivery.
+        ConnectionResolver::releaseIdleConnections();
+
+        return $this->transport->send($message, $envelope);
     }
 
     /**
