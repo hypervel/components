@@ -337,7 +337,7 @@ Prompts, responses, tool arguments and results, embedding inputs, and classifica
 ],
 ```
 
-Attachment telemetry contains declared metadata, remote URLs, or provider file IDs, never file contents or local storage paths. Remote URLs and filenames may still contain sensitive information. Long text is shortened, and message history leaves out the oldest messages first when it exceeds the size limit. Oversized structured fields are omitted rather than sent as incomplete JSON.
+Attachment telemetry contains declared metadata, remote URLs, or provider file IDs, never file contents or local storage paths. User credentials, query parameters and fragments are removed from URLs, but URL paths and filenames may still contain sensitive information. Long text is shortened, and message history leaves out the oldest messages first when it exceeds the size limit. Oversized structured fields are omitted rather than sent as incomplete JSON.
 
 <a name="metrics"></a>
 ### Metrics

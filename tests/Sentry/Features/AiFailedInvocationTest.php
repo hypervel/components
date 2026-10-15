@@ -125,10 +125,9 @@ class AiFailedInvocationTest extends TestCase
     {
         config(['ai.conversations.generate_title' => false]);
         $this->app->instance(ConversationStore::class, new FakeConversationStore);
-        $outer = new SentryOuterRememberingAgent;
-        SentryOuterRememberingAgent::fake([new ToolCall('middle-call', 'SentryMiddleRememberingAgent', ['task' => 'middle'])]);
+        $agent = new SentryMiddleRememberingAgent;
         SentryMiddleRememberingAgent::fake([new ToolCall('inner-call', 'SentryInnerRememberingAgent', ['task' => 'inner'])]);
-        SentryInnerRememberingAgent::fake(['Inner answer']);
+        SentryInnerRememberingAgent::fake([str_repeat('Inner answer ', 100)]);
         $started = [];
         $abandoned = [];
         $events = $this->app->make('events');
@@ -140,16 +139,16 @@ class AiFailedInvocationTest extends TestCase
         });
         $transaction = $this->startTransaction();
 
-        foreach ($outer->continue('outer')->stream('Start', provider: 'fixture', model: 'test-model') as $event) {
-            if (count($started) === 3) {
+        foreach ($agent->continue('middle')->stream('Start', provider: 'fixture', model: 'test-model') as $event) {
+            if (count($started) === 2) {
                 break;
             }
         }
 
-        $this->assertCount(3, $started);
+        $this->assertCount(2, $started);
         $this->assertSame(array_reverse($started), $abandoned);
         $this->assertSame($transaction, SentrySdk::getCurrentHub()->getSpan());
-        $this->assertSame('outer', AiTracingScope::current()->conversation->conversationId);
+        $this->assertSame('middle', AiTracingScope::current()->conversation->conversationId);
         foreach ($this->spans($transaction, 'gen_ai.invoke_agent') as $span) {
             $this->assertNotNull($span->getEndTimestamp());
         }
@@ -231,6 +230,30 @@ class AiFailedInvocationTest extends TestCase
         $this->assertNotNull($agentSpan->getEndTimestamp());
         $this->assertEquals(SpanStatus::internalError(), $agentSpan->getStatus());
         $this->assertSame($transaction, SentrySdk::getCurrentHub()->getSpan());
+    }
+
+    public function testAbandoningAnEarlierStreamPreservesTheLaterSpanAndItsRestoreTarget(): void
+    {
+        $agent = $this->agent();
+        $agent::fake(['First answer', 'Second answer']);
+        $transaction = $this->startTransaction();
+        $hub = SentrySdk::getCurrentHub();
+        $first = $agent->stream('First', provider: 'fixture')->getIterator();
+        $first->rewind();
+        $second = $agent->stream('Second', provider: 'fixture')->getIterator();
+        $second->rewind();
+        $active = $hub->getSpan();
+
+        unset($first);
+
+        $this->assertSame($active, $hub->getSpan());
+        iterator_to_array($second);
+        $this->assertSame($transaction, $hub->getSpan());
+        $invocations = $this->spans($transaction, 'gen_ai.invoke_agent');
+        $this->assertCount(2, $invocations);
+        foreach ($invocations as $span) {
+            $this->assertNotNull($span->getEndTimestamp());
+        }
     }
 
     public function testPersistenceFailureClosesTheInvocationAfterItsModelStep(): void
@@ -388,16 +411,5 @@ class SentryMiddleRememberingAgent extends SentryInnerRememberingAgent implement
     public function tools(): iterable
     {
         return [(new SentryInnerRememberingAgent)->continue('inner')];
-    }
-}
-
-class SentryOuterRememberingAgent extends SentryMiddleRememberingAgent
-{
-    /**
-     * Delegate to a remembering middle agent.
-     */
-    public function tools(): iterable
-    {
-        return [(new SentryMiddleRememberingAgent)->continue('middle')];
     }
 }

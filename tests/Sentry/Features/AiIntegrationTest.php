@@ -106,7 +106,10 @@ use GuzzleHttp\Psr7\Response;
 use Hypervel\Ai\AiServiceProvider;
 use Hypervel\Ai\Concerns\RemembersConversations;
 use Hypervel\Ai\Contracts\Gateway\Gateway;
+use Hypervel\Ai\Events\AgentFailed;
+use Hypervel\Ai\Events\AgentFailedOver;
 use Hypervel\Ai\Events\AgentPrompted;
+use Hypervel\Ai\Events\AgentStreamAbandoned;
 use Hypervel\Ai\Events\AgentStreamed;
 use Hypervel\Ai\Events\EmbeddingsGenerated;
 use Hypervel\Ai\Events\GeneratingEmbeddings;
@@ -117,6 +120,7 @@ use Hypervel\Ai\Events\StepCompleted;
 use Hypervel\Ai\Events\StepFailed;
 use Hypervel\Ai\Events\StreamingAgent;
 use Hypervel\Ai\Events\ToolInvoked;
+use Hypervel\Ai\Exceptions\RateLimitedException;
 use Hypervel\Ai\Files\Base64Image;
 use Hypervel\Ai\Files\LocalImage;
 use Hypervel\Ai\Files\RemoteImage;
@@ -138,6 +142,7 @@ use Hypervel\Ai\Responses\Data\ToolCall;
 use Hypervel\Ai\Responses\Data\ToolResult;
 use Hypervel\Ai\Responses\Data\Usage;
 use Hypervel\Ai\Responses\EmbeddingsResponse;
+use Hypervel\Ai\Support\ConversationSelection;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Http\Client\ConnectionException;
 use Hypervel\Sentry\Features\Ai\AiTracingScope;
@@ -149,6 +154,8 @@ use Hypervel\Tests\Sentry\Features\AiStubs\WeatherLookup;
 use Hypervel\Tests\Sentry\TestCase;
 use JsonSerializable;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
+use RuntimeException;
 use Sentry\Tracing\Span;
 use Sentry\Tracing\SpanContext;
 use Sentry\Tracing\SpanStatus;
@@ -426,11 +433,15 @@ class AiIntegrationTest extends TestCase
         $transaction = $this->startTransaction();
         $agent = new TestAgent;
         $provider = $this->makeProvider();
-        $prompt = new AgentPrompt($agent, 'Compare images.', [new LocalImage('/not-present/photo.png'), new RemoteImage('https://example.com/photo.jpg')], $provider, 'gpt-4o');
+        $prompt = new AgentPrompt($agent, 'Compare images.', [
+            new LocalImage('/not-present/photo.png'),
+            new RemoteImage('https://user:password@example.com/photo.jpg?X-Amz-Signature=secret#private'),
+            (new RemoteImage('http://[bad', 'image/png'))->as('broken.png'),
+        ], $provider, 'gpt-4o');
         [, $response] = $this->makePromptAndResponse(100, 20);
         $this->dispatchAgentFlow('inv-a', $prompt, $response);
         $parts = json_decode($this->findSpanByOp($transaction, 'gen_ai.invoke_agent')->getData()['gen_ai.input.messages'], true)[0]['parts'];
-        $this->assertCount(3, $parts); // text + local blob + remote uri
+        $this->assertCount(4, $parts);
         $this->assertEquals('text', $parts[0]['type']);
         $this->assertEquals('blob', $parts[1]['type']);
         $this->assertEquals('[Blob substitute]', $parts[1]['content']);
@@ -439,6 +450,11 @@ class AiIntegrationTest extends TestCase
         $this->assertEquals('https://example.com/photo.jpg', $parts[2]['content']);
         $this->assertArrayNotHasKey('mime_type', $parts[1]);
         $this->assertArrayNotHasKey('mime_type', $parts[2]);
+        $this->assertSame('uri', $parts[3]['type']);
+        $this->assertSame('image', $parts[3]['modality']);
+        $this->assertSame('broken.png', $parts[3]['name']);
+        $this->assertSame('image/png', $parts[3]['mime_type']);
+        $this->assertArrayNotHasKey('content', $parts[3]);
         Http::assertNothingSent();
     }
 
@@ -740,6 +756,48 @@ class AiIntegrationTest extends TestCase
         $this->assertSame('outer', $extra->getData()['gen_ai.conversation.id']);
         $this->assertSame('outer', $laterExtra->getData()['gen_ai.conversation.id']);
         $this->assertSame($transaction, $this->getSentryHubFromContainer()->getSpan());
+    }
+
+    #[DataProvider('conversationTerminalEvents')]
+    public function testTerminalEventsKeepTheOperationsConversation(string $terminal, ?string $initialId, string $expectedId): void
+    {
+        $transaction = $this->startTransaction();
+        [$original] = $this->makePromptAndResponse();
+        $agent = (new class extends TestAgent {
+            use RemembersConversations;
+        })->forParticipant(new stdClass);
+        $selection = new ConversationSelection($initialId, $agent->conversationParticipant());
+        $prompt = new AgentPrompt($agent, 'Hello', [], $original->provider, $original->model, conversationSelection: $selection);
+        $agent->continue('other-conversation', new stdClass);
+        $this->dispatchHypervelEvent(new StreamingAgent('captured', $prompt));
+        $span = $this->findSpanByOp($transaction, 'gen_ai.invoke_agent');
+        $this->assertSame($initialId, $span->getData()['gen_ai.conversation.id'] ?? null);
+
+        if ($terminal === 'failure') {
+            $selection->conversationId = $expectedId;
+        }
+
+        $this->dispatchHypervelEvent(match ($terminal) {
+            'failure' => new AgentFailed('captured', $prompt, new RuntimeException('Failed')),
+            'abandonment' => new AgentStreamAbandoned('captured', $prompt),
+            'failover' => new AgentFailedOver('captured', $agent, $original->provider, $original->model, RateLimitedException::forProvider('openai')),
+        });
+
+        $this->assertSame($expectedId, $span->getData()['gen_ai.conversation.id']);
+        $this->assertNotNull($span->getEndTimestamp());
+        $this->assertSame('other-conversation', $agent->currentConversation());
+    }
+
+    /**
+     * Cover late persistence and both terminal paths without a response.
+     */
+    public static function conversationTerminalEvents(): array
+    {
+        return [
+            ['failure', null, 'created-conversation'],
+            ['abandonment', 'original-conversation', 'original-conversation'],
+            ['failover', 'original-conversation', 'original-conversation'],
+        ];
     }
 
     public function testAChangedResponseConversationDoesNotRenameTheCapturedAssociation(): void

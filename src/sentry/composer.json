@@ -33,6 +33,7 @@
         "ext-filter": "*",
         "guzzlehttp/guzzle": "^7.15.2 || ^8.2",
         "guzzlehttp/promises": "^2.5.2 || ^3.0.2",
+        "guzzlehttp/psr7": "^2.13 || ^3.1",
         "hypervel/auth": "^0.4",
         "hypervel/cache": "^0.4",
         "hypervel/collections": "^0.4",

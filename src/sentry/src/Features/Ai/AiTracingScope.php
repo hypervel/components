@@ -101,7 +101,7 @@ class AiTracingScope implements NonCopyableContext
         $isLast = array_key_last($this->entries) === $key;
         unset($this->entries[$key]);
 
-        // An outer generator may be destroyed before an inner generator finishes.
+        // An earlier stream may be abandoned while a later stream's spans are still open.
         if (! $isLast) {
             foreach ($this->entries as &$remaining) {
                 if ($remaining['previous'] === $span) {

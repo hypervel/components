@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Sentry\Features;
 
 use Generator;
+use GuzzleHttp\Psr7\Uri;
 use Hypervel\Ai\Contracts\Agent;
 use Hypervel\Ai\Contracts\Tool;
 use Hypervel\Ai\Events\AgentFailed;
@@ -58,6 +59,7 @@ use Hypervel\Sentry\Features\Ai\AiMessagePart;
 use Hypervel\Sentry\Features\Ai\AiSpanDataBag;
 use Hypervel\Sentry\Features\Ai\AiTracingScope;
 use Hypervel\Sentry\Features\Ai\AiTracingState;
+use InvalidArgumentException;
 use Sentry\DataCollection\DataCollectionPolicy;
 use Sentry\SentrySdk;
 use Sentry\Tracing\Span;
@@ -195,7 +197,7 @@ class AiIntegration extends Feature
         $previousAttempt = $scope->state->invocations->get($event->invocationId);
         $previousConversation = $scope->conversation;
         $ownsConversation = $this->startConversation(
-            $event->prompt->agent,
+            $event->prompt,
             $agentSpan,
             $scope,
             $previousAttempt?->ownsConversation ? $previousAttempt->conversation : null,
@@ -253,7 +255,7 @@ class AiIntegration extends Feature
      */
     public function handleAgentFailedForTracing(AgentFailed $event): void
     {
-        $this->finishFailedInvocation($event->invocationId, $event->prompt->agent, AiTracingState::failureStatus($event->exception));
+        $this->finishFailedInvocation($event->invocationId, $event->prompt, AiTracingState::failureStatus($event->exception));
     }
 
     /**
@@ -261,7 +263,7 @@ class AiIntegration extends Feature
      */
     public function handleAgentFailedOverForTracing(AgentFailedOver $event): void
     {
-        $this->finishFailedInvocation($event->invocationId, $event->agent, AiTracingState::failureStatus($event->exception), willRetry: true);
+        $this->finishFailedInvocation($event->invocationId, null, AiTracingState::failureStatus($event->exception), willRetry: true);
     }
 
     /**
@@ -269,13 +271,13 @@ class AiIntegration extends Feature
      */
     public function handleAgentStreamAbandonedForTracing(AgentStreamAbandoned $event): void
     {
-        $this->finishFailedInvocation($event->invocationId, $event->prompt->agent, SpanStatus::internalError());
+        $this->finishFailedInvocation($event->invocationId, $event->prompt, SpanStatus::internalError());
     }
 
     /**
      * Close the invocation and any tool generator abandoned with it.
      */
-    private function finishFailedInvocation(string $invocationId, Agent $agent, SpanStatus $status, bool $willRetry = false): void
+    private function finishFailedInvocation(string $invocationId, ?AgentPrompt $prompt, SpanStatus $status, bool $willRetry = false): void
     {
         $state = AiTracingScope::current()?->state;
 
@@ -295,8 +297,11 @@ class AiIntegration extends Feature
             : $state->invocations->pull($invocationId);
 
         if ($invocation !== null && $invocation->span->getEndTimestamp() === null) {
-            // Failed-turn persistence may have assigned the new conversation's ID.
-            $this->setConversationId($invocation, $this->resolveConversationId($agent));
+            if ($prompt !== null) {
+                // Failed-turn persistence may assign an ID without changing a subsequently selected agent.
+                $selection = $prompt->conversationSelection();
+                $this->setConversationId($invocation, $selection !== null ? $selection->conversationId : $this->resolveConversationId($prompt->agent));
+            }
 
             $invocation->finish($status);
         }
@@ -607,19 +612,23 @@ class AiIntegration extends Feature
     /**
      * Start the conversation of an agent that remembers it, replacing the current one. A new conversation gets its ID once the first turn ends.
      */
-    private function startConversation(Agent $agent, Span $agentSpan, AiTracingScope $scope, ?AiConversation $failedOverConversation): bool
+    private function startConversation(AgentPrompt $prompt, Span $agentSpan, AiTracingScope $scope, ?AiConversation $failedOverConversation): bool
     {
         if ($scope->conversation !== null && $scope->conversation->traceId !== (string) $agentSpan->getTraceId()) {
             $scope->conversation = null;
         }
 
-        if (! method_exists($agent, 'hasConversationParticipant')) {
+        $agent = $prompt->agent;
+        $selection = $prompt->conversationSelection();
+
+        if ($selection === null && ! method_exists($agent, 'hasConversationParticipant')) {
             return false;
         }
 
-        $conversationId = $this->resolveConversationId($agent);
+        $conversationId = $selection !== null ? $selection->conversationId : $this->resolveConversationId($agent);
+        $hasParticipant = $selection !== null ? $selection->participant !== null : $agent->hasConversationParticipant();
 
-        if ($conversationId !== null || $agent->hasConversationParticipant()) {
+        if ($conversationId !== null || $hasParticipant) {
             // Failed-over attempts of a new conversation receive its eventual stored ID too.
             $scope->conversation = $conversationId === null && $failedOverConversation !== null && $failedOverConversation->conversationId === null
                 ? $failedOverConversation
@@ -708,7 +717,15 @@ class AiIntegration extends Feature
         if ($attachment instanceof RemoteImage || $attachment instanceof RemoteDocument
             || $attachment instanceof RemoteAudio || $attachment instanceof RemoteVideo || $attachment instanceof S3Document) {
             $type = 'uri';
-            $content = $attachment->url;
+            try {
+                $content = (string) (new Uri($attachment->url))
+                    ->withUserInfo('')
+                    ->withQuery('')
+                    ->withFragment('');
+            } catch (InvalidArgumentException) {
+                // Invalid attachment metadata must not make tracing fail the invocation.
+                $content = null;
+            }
         } elseif ($attachment instanceof ProviderImage || $attachment instanceof ProviderDocument) {
             $type = 'file_id';
             $content = $attachment->id;
