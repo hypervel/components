@@ -660,7 +660,7 @@ By default, title generation runs after the agent responds. You may generate tit
 
 When starting a new conversation, concurrent title generation runs alongside the main response. For streamed responses, it starts when the stream is consumed. The SDK waits for the title before saving the turn and cancels unfinished title requests when the operation is abandoned. Enabling this option may incur a title request even if the agent fails, including a separate title request for each failover attempt.
 
-Concurrent titles run in a separate coroutine. If your provider configuration or other hooks depend on application context, register [context capture](#capturing-application-context) so that work sees the same values.
+Concurrent titles run in a separate coroutine with a copy of the caller's `Context` values. They use the caller's current default database connection, such as one selected with `DB::usingConnection()`. If your provider configuration or other hooks depend on additional application context, register [context capture](#capturing-application-context) so that work sees the same values.
 
 Agent fakes retain their usual response order by generating titles serially. When using HTTP fakes with concurrent titles, match requests by their content instead of relying on the order of a response sequence. The title and main requests can use the same provider endpoint.
 
@@ -1266,7 +1266,30 @@ To generate and broadcast the response in the current request, call the agent's 
 (new SalesCoach)->broadcast('Analyze this sales transcript...', new Channel('channel-name'));
 ```
 
-Agent and stream-event `broadcast` methods send events immediately by default. This avoids a queue job for each event, but the stream waits for each broadcast to finish. Pass `now: false` to either method to queue individual events when delivery would otherwise slow the stream. `broadcastOnQueue` queues the entire agent operation.
+Agent and stream-event `broadcast` methods send events immediately by default. Pass `now: false` to queue delivery instead. `broadcastOnQueue` queues the entire agent operation.
+
+<a name="broadcast-batching"></a>
+#### Broadcast Batching
+
+Agent broadcasts combine adjacent text and reasoning deltas by default, reducing broadcast requests and queued jobs. Generation continues while one sender delivers the batches, and the agent's `broadcast` call waits for that sender before returning. Direct HTTP/SSE streams and calls to an individual stream event's `broadcast` method are unchanged.
+
+The `broadcasting` section of `config/ai.php` controls batching:
+
+```php
+'broadcasting' => [
+    'batching' => [
+        'enabled' => true,
+        'milliseconds' => 50,
+        'max_bytes' => 4096,
+    ],
+],
+```
+
+The window starts when the first delta arrives and flushes even while the provider is quiet. A delta may wait up to the window before it is sent; lower values reduce latency, while higher values can send fewer events. A zero-millisecond window combines only deltas already waiting; setting `enabled` to `false` restores individual-event delivery. Transport and queue backlogs can add delivery time beyond the configured window. The byte limit counts JSON-encoded delta content, leaving room for the event envelope; a single oversized event still passes through unchanged.
+
+Batches keep the first delta's ID and timestamp. Structural events, such as tool calls and completion, remain ordered with the preceding batches. The original events remain available on the response for replay. Events you broadcast yourself during generation, including from completion callbacks, may arrive before pending deltas; disable batching if your client depends on that order.
+
+Batching is skipped outside coroutines, inside database transactions and inside `Event::defer()` so delivery retains the caller's transaction and event-deferral behavior.
 
 <a name="skipping-oversized-events"></a>
 #### Skipping Oversized Events
@@ -1435,7 +1458,7 @@ The limit applies to each group of tool calls within a generation step. Results 
 
 Concurrent tools use separate coroutines and database connections; they do not share the caller's database transaction. Each tool must be safe to run alongside the others. Resuming approved tool calls remains sequential so each outcome is stored before the next approved tool executes.
 
-The tool coroutines do not automatically inherit the request, authenticated user, or arbitrary application context. Pass needed values, such as the user, to your tools' constructors, and register [context capture](#capturing-application-context) when provider, partition, or cache-scope resolvers depend on application context.
+Tool coroutines receive a copy of the caller's `Context` values and use the caller's current default database connection, such as one selected with `DB::usingConnection()`. They do not inherit the request or authenticated user. Pass needed values, such as the user, to your tools' constructors, and register [context capture](#capturing-application-context) when provider, partition, or cache-scope resolvers depend on additional application context.
 
 <a name="validating-tool-arguments"></a>
 #### Validating Tool Arguments

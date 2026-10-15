@@ -7,7 +7,9 @@ Documentation: https://hypervel.org/docs/ai-sdk
 
 ## Differences From Laravel
 
-Agent and stream-event `broadcast()` methods deliver events immediately by default. Pass `now: false` to queue individual events; queued generation remains available. See [broadcasting](https://hypervel.org/docs/ai-sdk#broadcasting).
+Agent and stream-event `broadcast()` methods deliver events immediately by default. Pass `now: false` to queue events; queued generation remains available. See [broadcasting](https://hypervel.org/docs/ai-sdk#broadcasting).
+
+Agent broadcasts batch adjacent text/reasoning deltas by default within a 50 ms window, retaining original events for replay. Set `ai.broadcasting.batching.enabled` to `false` for individual-event delivery. See [broadcast batching](https://hypervel.org/docs/ai-sdk#broadcast-batching).
 
 Queued AI jobs' `failed()` hooks accept `?Throwable` so manual failures without an exception reach their callbacks. Overrides must accept null as well.
 
