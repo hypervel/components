@@ -60,17 +60,31 @@ class CalloutTest extends TestCase
         return [[true], [false]];
     }
 
-    public function testTruncatesStyledLabelsWithoutCuttingTags(): void
+    #[DataProvider('styledLabels')]
+    public function testTruncatesStyledLabelsWithoutCuttingTags(string $label, string $expected): void
     {
         Prompt::fake();
         Prompt::terminal()->shouldReceive('cols')->andReturn(30); // @phpstan-ignore-line
 
-        callout('<info>' . str_repeat('A', 40) . '</info>', 'Body');
+        callout("\e[2J\e]52;c;c2VjcmV0\x07<info>" . $label . '</info>', 'Body');
 
         $content = Prompt::content();
-        $this->assertStringContainsString(str_repeat('A', 23) . '…', Utils::stripTerminalControls($content));
+        $this->assertStringContainsString($expected, Utils::stripTerminalControls($content));
+        $this->assertStringNotContainsString("\e[2J", $content);
+        $this->assertStringNotContainsString("\e]52;", $content);
         $this->assertStringNotContainsString('<info', $content);
         $this->assertStringContainsString('Body', $content);
+    }
+
+    /**
+     * Provide labels that fit and labels requiring truncation.
+     */
+    public static function styledLabels(): array
+    {
+        return [
+            ['Hello', 'Hello'],
+            [str_repeat('A', 40), str_repeat('A', 23) . '…'],
+        ];
     }
 
     public function testRendersACalloutWithALabelAndStringContent(): void

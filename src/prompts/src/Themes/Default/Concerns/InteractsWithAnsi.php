@@ -137,7 +137,7 @@ trait InteractsWithAnsi
         $plainText = implode('', array_column($segments, 'text'));
 
         if (mb_strwidth($plainText) <= $width) {
-            return $text;
+            return Utils::sanitizeTerminalFormatting($text);
         }
 
         $characterIndex = 0;
