@@ -6,6 +6,7 @@ namespace Hypervel\Scout\Console;
 
 use Hypervel\Coroutine\Exceptions\ChildCancellationException;
 use Hypervel\Coroutine\WaitConcurrent;
+use Hypervel\Database\ConnectionResolver;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
 
@@ -33,7 +34,12 @@ class ConcurrentImportRunner
             }
 
             try {
-                $operation();
+                try {
+                    $operation();
+                } finally {
+                    // Return idle sessions before another child can take this concurrency slot.
+                    ConnectionResolver::releaseIdleConnections();
+                }
             } catch (CanceledException $exception) {
                 $this->failure ??= new ChildCancellationException(
                     'A child coroutine running a Scout import was canceled while its owner remained active.',
@@ -52,6 +58,19 @@ class ConcurrentImportRunner
      */
     public function wait(): void
     {
+        try {
+            // Keep the parent's session while producing chunks, but not while joining children.
+            ConnectionResolver::releaseIdleConnections();
+        } catch (CanceledException $exception) {
+            $this->concurrent->cancel();
+
+            throw $exception;
+        } catch (Throwable $exception) {
+            $this->concurrent->wait();
+
+            throw $exception;
+        }
+
         $this->concurrent->wait();
 
         $this->throwIfFailed();
