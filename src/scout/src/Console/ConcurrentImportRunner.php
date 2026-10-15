@@ -34,7 +34,7 @@ class ConcurrentImportRunner
 
         $this->throwIfFailed();
 
-        $this->concurrent->create(function () use ($operation): void {
+        $this->concurrent->fork(function () use ($operation): void {
             if ($this->failure !== null) {
                 return;
             }
@@ -54,7 +54,7 @@ class ConcurrentImportRunner
             } catch (Throwable $exception) {
                 $this->failure ??= $exception;
             }
-        });
+        }, [ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY]);
 
         $this->throwIfFailed();
     }
