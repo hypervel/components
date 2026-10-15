@@ -25,6 +25,7 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Str;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
+use WeakReference;
 
 class RememberConversation
 {
@@ -75,7 +76,9 @@ class RememberConversation
 
             // Record each failed producer attempt; public catch callbacks run only once per response.
             if ($response instanceof StreamableAgentResponse) {
-                $response->wrapProducer(function (Closure $produce) use ($prompt, $agent, &$pendingConversationId, $response): Generator {
+                // Use a weak reference so the producer does not keep its own response alive.
+                $responseReference = WeakReference::create($response);
+                $response->wrapProducer(function (Closure $produce) use ($prompt, $agent, &$pendingConversationId, $responseReference): Generator {
                     $title = null;
                     $completed = false;
 
@@ -85,11 +88,11 @@ class RememberConversation
                         try {
                             yield from $produce();
                         } catch (Throwable $exception) {
-                            $stored = $this->rememberFailedTurn($prompt, $exception, $pendingConversationId, retryable: ! $response->hasYielded());
+                            $stored = $this->rememberFailedTurn($prompt, $exception, $pendingConversationId, retryable: ! $responseReference->get()->hasYielded());
 
                             if ($stored !== null) {
                                 $pendingConversationId = null;
-                                $response->withinConversation($stored->conversationId, $agent->conversationParticipant());
+                                $responseReference->get()->withinConversation($stored->conversationId, $agent->conversationParticipant());
                             }
 
                             throw $exception;

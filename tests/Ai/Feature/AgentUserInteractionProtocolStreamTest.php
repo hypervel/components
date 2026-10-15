@@ -44,6 +44,7 @@ use Hypervel\Tests\Ai\Fixtures\Agents\RememberingApprovableAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\RememberingAssistantAgent;
 use Hypervel\Tests\Ai\Fixtures\FakeConversationStore;
 use Hypervel\Tests\Ai\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -870,5 +871,39 @@ class AgentUserInteractionProtocolStreamTest extends TestCase
         ], $events);
 
         Exceptions::assertReported(RuntimeException::class);
+    }
+
+    #[DataProvider('preStartFailureConversations')]
+    public function testAPreStartFailureResolvesItsThreadId(?string $conversationId): void
+    {
+        Exceptions::fake();
+        $response = new StreamableAgentResponse('invocation-1', static function (): array {
+            throw new RuntimeException('Broken pipe');
+        });
+        if ($conversationId !== null) {
+            $response->catch(static fn (): StreamableAgentResponse => $response->withinConversation($conversationId));
+        }
+
+        $events = agUiEvents($response->usingAgentUserInteractionProtocol()->toResponse(request()));
+        $threadId = $events[0]['threadId'];
+
+        $this->assertIsString($threadId);
+        $this->assertNotSame('', $threadId);
+        $this->assertSame([
+            ['type' => 'RUN_STARTED', 'threadId' => $conversationId ?? $threadId, 'runId' => 'invocation-1'],
+            ['type' => 'STEP_STARTED', 'stepName' => '1'],
+            ['type' => 'RUN_ERROR', 'message' => 'An error occurred.'],
+        ], $events);
+    }
+
+    /**
+     * Supply conversation identities available before error rendering.
+     */
+    public static function preStartFailureConversations(): array
+    {
+        return [
+            'surfaced by failure callback' => ['stored-conversation'],
+            'no conversation' => [null],
+        ];
     }
 }

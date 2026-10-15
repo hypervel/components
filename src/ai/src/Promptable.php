@@ -51,6 +51,7 @@ use InvalidArgumentException;
 use Laravel\SerializableClosure\SerializableClosure;
 use LogicException;
 use RuntimeException;
+use WeakReference;
 
 trait Promptable
 {
@@ -221,11 +222,12 @@ trait Promptable
         }
 
         $meta = new Meta;
-        $outer = null;
+        $responseReference = null;
 
         $outer = new StreamableAgentResponse(
             $invocationId,
-            function () use ($providers, $prompt, $approvalDecisions, $attachments, $resolvedTimeout, $invocationId, $parentInvocationId, $parentToolInvocationId, $messages, $tools, $middleware, $contextRunner, &$outer): Generator {
+            function () use ($providers, $prompt, $approvalDecisions, $attachments, $resolvedTimeout, $invocationId, $parentInvocationId, $parentToolInvocationId, $messages, $tools, $middleware, $contextRunner, &$responseReference): Generator {
+                /** @var WeakReference<StreamableAgentResponse> $responseReference Assigned before iteration. */
                 $lastException = null;
 
                 foreach ($this->iterateProvidersWithFailover($providers) as [$provider, $model, $isFinalAttempt]) {
@@ -252,10 +254,10 @@ trait Promptable
                             )
                         )->usingContext($contextRunner);
 
-                        $innerResponse->then(fn (StreamedAgentResponse $response): StreamableAgentResponse => $outer->adoptStateFrom($response));
+                        $innerResponse->then(static fn (StreamedAgentResponse $response): StreamableAgentResponse => $responseReference->get()->adoptStateFrom($response));
 
                         if ($innerResponse->conversationId !== null) {
-                            $outer->withinConversation($innerResponse->conversationId, $innerResponse->conversationUser);
+                            $responseReference->get()->withinConversation($innerResponse->conversationId, $innerResponse->conversationUser);
                         }
 
                         foreach ($innerResponse as $event) {
@@ -278,6 +280,9 @@ trait Promptable
             },
             $meta,
         );
+
+        // Use a weak reference so the producer does not keep its own response alive.
+        $responseReference = WeakReference::create($outer);
 
         return $outer->usingContext($contextRunner);
     }

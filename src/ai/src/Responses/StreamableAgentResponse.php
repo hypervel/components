@@ -173,7 +173,7 @@ class StreamableAgentResponse implements IteratorAggregate, Responsable
     {
         $producer = $this->generator;
 
-        $this->generator = fn (): Generator => $wrapper($producer);
+        $this->generator = static fn (): Generator => $wrapper($producer);
 
         return $this;
     }

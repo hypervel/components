@@ -25,6 +25,7 @@ use Hypervel\Ai\Streaming\Events\ToolApprovalRequest;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
 use Throwable;
+use WeakReference;
 
 use function Hypervel\Ai\pipeline;
 
@@ -76,12 +77,13 @@ trait StreamsText
                         : null;
 
                     $context = $this->runContextFor($invocationId, $prompt);
-                    $streamable = null;
+                    $responseReference = null;
 
                     // The response owns the "has anything reached the consumer" flag so this failure check and the caller's failover decision can never drift apart...
                     $streamable = new StreamableAgentResponse(
                         $invocationId,
-                        function () use ($invocationId, $prompt, $agent, $messages, $tools, $approval, $recordApprovalResults, $validatedApproval, $context, &$streamable): Generator {
+                        function () use ($invocationId, $prompt, $agent, $messages, $tools, $approval, $recordApprovalResults, $validatedApproval, $context, &$responseReference): Generator {
+                            /** @var WeakReference<StreamableAgentResponse> $responseReference Assigned before iteration. */
                             // Re-iteration needs fresh run state with the dependencies captured by the factory.
                             $prompt->setRunContext($runContext = clone $context);
 
@@ -119,13 +121,16 @@ trait StreamsText
                                     yield $event;
                                 }
                             } catch (Throwable $exception) {
-                                $this->recordAgentFailure($invocationId, $prompt, $exception, retryable: ! $streamable->hasYielded());
+                                $this->recordAgentFailure($invocationId, $prompt, $exception, retryable: ! $responseReference->get()->hasYielded());
 
                                 throw $exception;
                             }
                         },
                         $meta,
                     );
+
+                    // Use a weak reference so the producer does not keep its own response alive.
+                    $responseReference = WeakReference::create($streamable);
 
                     // Surfaced before iteration because the remembering middleware only records it once the stream has drained...
                     if (RememberConversation::appliesTo($agent)) {

@@ -28,6 +28,8 @@ use Hypervel\Ai\Streaming\Events\ToolApprovalRequest;
 use Hypervel\Ai\Streaming\Events\ToolCall;
 use Hypervel\Ai\Streaming\Events\ToolResult;
 use Hypervel\Support\Arr;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 use function Hypervel\Ai\ulid;
 
@@ -71,64 +73,75 @@ class AgentUserInteractionProtocol extends StreamProtocol
         $provider = null;
         $model = null;
 
-        foreach ($response as $event) {
-            if ($this->finished) {
-                continue;
-            }
+        try {
+            foreach ($response as $event) {
+                if ($this->finished) {
+                    continue;
+                }
 
-            if ($event instanceof StreamStart) {
-                $provider = $event->provider;
-                $model = $event->model;
+                if ($event instanceof StreamStart) {
+                    $provider = $event->provider;
+                    $model = $event->model;
 
-                if ($this->started) {
+                    if ($this->started) {
+                        yield $this->stepFinishedPart();
+                        yield $this->startNextStepPart();
+                    } else {
+                        yield from $this->beginRunParts();
+                    }
+
+                    continue;
+                }
+
+                // The terminal error event ends the run, so anything the provider streams afterwards is dropped...
+                if ($event instanceof Error) {
+                    $this->errored = true;
+                    $this->finished = true;
+                }
+
+                // The run pauses on approvals, so finish it immediately with the outcome the client resumes from...
+                if ($event instanceof ToolApprovalRequest) {
+                    if (! $this->started) {
+                        yield from $this->beginRunParts();
+                    }
+
                     yield $this->stepFinishedPart();
-                    yield $this->startNextStepPart();
-                } else {
-                    yield from $this->beginRunParts();
+
+                    yield $this->runFinishedPart([
+                        'outcome' => ['type' => 'interrupt', 'interrupts' => $this->interrupts($event)],
+                    ]);
+
+                    $this->finished = true;
+
+                    continue;
                 }
 
-                continue;
-            }
+                // Hold each step's usage and reason for the terminal run finished event...
+                if ($event instanceof StreamEnd) {
+                    $usage = ($usage ?? new TextUsage)->add($event->usage);
+                    $reason = $event->reason;
 
-            // The terminal error event ends the run, so anything the provider streams afterwards is dropped...
-            if ($event instanceof Error) {
-                $this->errored = true;
-                $this->finished = true;
-            }
-
-            // The run pauses on approvals, so finish it immediately with the outcome the client resumes from...
-            if ($event instanceof ToolApprovalRequest) {
-                if (! $this->started) {
-                    yield from $this->beginRunParts();
+                    continue;
                 }
 
+                foreach ($this->mapEvent($event) as $part) {
+                    yield from $this->yieldPart($part);
+                }
+            }
+
+            if ($this->started && ! $this->errored && ! $this->finished) {
                 yield $this->stepFinishedPart();
-
-                yield $this->runFinishedPart([
-                    'outcome' => ['type' => 'interrupt', 'interrupts' => $this->interrupts($event)],
-                ]);
-
-                $this->finished = true;
-
-                continue;
+                yield $this->runFinishedPart($this->completionAttributes($usage, $reason, $provider, $model));
+            }
+        } catch (Throwable $exception) {
+            // Masked error parts are rendered after finally releases the response.
+            if (! $this->started && ! $exception instanceof CanceledException) {
+                $this->threadId ??= $response->conversationId;
             }
 
-            // Hold each step's usage and reason for the terminal run finished event...
-            if ($event instanceof StreamEnd) {
-                $usage = ($usage ?? new TextUsage)->add($event->usage);
-                $reason = $event->reason;
-
-                continue;
-            }
-
-            foreach ($this->mapEvent($event) as $part) {
-                yield from $this->yieldPart($part);
-            }
-        }
-
-        if ($this->started && ! $this->errored && ! $this->finished) {
-            yield $this->stepFinishedPart();
-            yield $this->runFinishedPart($this->completionAttributes($usage, $reason, $provider, $model));
+            throw $exception;
+        } finally {
+            $this->response = null;
         }
     }
 
