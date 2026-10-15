@@ -12,6 +12,7 @@ use Hypervel\Process\Exceptions\ProcessTimedOutException;
 use Hypervel\Support\Traits\Macroable;
 use Symfony\Component\Process\Exception\ProcessTimedOutException as SymfonyTimeoutException;
 use Symfony\Component\Process\Process;
+use Throwable;
 
 class InvokedProcess implements InvokedProcessContract
 {
@@ -59,7 +60,18 @@ class InvokedProcess implements InvokedProcessContract
     public function stop(float $timeout = 10, ?int $signal = null): ?int
     {
         if ($timeout > 0 && $this->process->isRunning()) {
-            ConnectionResolver::releaseIdleConnections();
+            try {
+                ConnectionResolver::releaseIdleConnections();
+            } catch (Throwable $exception) {
+                try {
+                    // A failed release must not prevent this terminal operation from stopping the child.
+                    $this->process->stop(0, $signal);
+                } catch (Throwable) {
+                    // Preserve the release failure.
+                }
+
+                throw $exception;
+            }
         }
 
         return $this->process->stop($timeout, $signal);
