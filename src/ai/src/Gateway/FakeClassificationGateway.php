@@ -177,7 +177,7 @@ class FakeClassificationGateway implements ClassificationGateway
 
         $total = array_sum($weights);
 
-        return array_combine($keys, array_map(fn (int $weight): float => round($weight / $total, 3), $weights));
+        return array_combine($keys, array_map(fn (int $weight): float => $weight / $total, $weights));
     }
 
     /**

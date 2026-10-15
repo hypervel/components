@@ -98,6 +98,26 @@ class ClassificationFakeTest extends TestCase
         $this->assertSame('typesafe', $response->meta->provider);
     }
 
+    public function testGeneratedChoiceAndScoreProbabilitiesRemainNormalized(): void
+    {
+        Classification::fake();
+
+        $classification = Classification::of('text')->questions([
+            'department' => new Choice('Team?', ['billing' => null, 'technical' => null, 'sales' => null]),
+            'frustration' => new Score('How mad?', ['Calm', 'Annoyed', 'Angry']),
+        ]);
+
+        for ($iteration = 0; $iteration < 100; ++$iteration) {
+            $response = $classification->classify();
+            $choice = $response['department'];
+            $score = $response['frustration'];
+
+            $this->assertEqualsWithDelta(1.0, array_sum($choice->probabilities), 1e-9);
+            $this->assertEqualsWithDelta(1.0, array_sum($score->probabilities), 1e-9);
+            $this->assertSame(max($choice->probabilities), $choice->probabilityOf($choice->choice));
+        }
+    }
+
     public function testFakeAnswersMayBeOverriddenPerQuestion(): void
     {
         Classification::fake([
