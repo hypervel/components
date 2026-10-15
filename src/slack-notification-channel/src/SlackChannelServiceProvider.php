@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Notifications;
 
 use GuzzleHttp\Client as HttpClient;
+use GuzzleHttp\HandlerStack;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Http\Client\Factory;
+use Hypervel\Http\Client\Guzzle\HandlerFactory;
+use Hypervel\Http\Client\Guzzle\ReleaseIdleDatabaseConnections;
 use Hypervel\Notifications\Channels\SlackWebhookChannel;
 use Hypervel\Notifications\Slack\SlackChannel;
 use Hypervel\Support\Facades\Notification;
@@ -28,7 +31,12 @@ class SlackChannelServiceProvider extends ServiceProvider
         // Guzzle has no request timeout by default, so a stalled webhook host would hold the send indefinitely.
         $this->app->when(SlackWebhookChannel::class)
             ->needs(HttpClient::class)
-            ->give(fn (): HttpClient => new HttpClient(['connect_timeout' => 10, 'timeout' => 30]));
+            ->give(function (): HttpClient {
+                $handler = HandlerStack::create(HandlerFactory::create());
+                $handler->push(new ReleaseIdleDatabaseConnections, 'release_idle_database_connections');
+
+                return new HttpClient(['handler' => $handler, 'connect_timeout' => 10, 'timeout' => 30]);
+            });
     }
 
     /**
