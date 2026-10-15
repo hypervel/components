@@ -6,19 +6,26 @@ namespace Hypervel\Ai\Responses;
 
 use Closure;
 use Generator;
+use Hypervel\Ai\Attributes\WithoutBroadcasting;
 use Hypervel\Ai\Responses\Data\Citation as CitationData;
 use Hypervel\Ai\Responses\Data\Meta;
 use Hypervel\Ai\Responses\Data\TextUsage;
+use Hypervel\Ai\Streaming\BroadcastBatcher;
 use Hypervel\Ai\Streaming\Events\StreamEvent;
 use Hypervel\Ai\Streaming\Events\StreamStart;
 use Hypervel\Ai\Streaming\Protocols\AgentUserInteractionProtocol;
 use Hypervel\Ai\Streaming\Protocols\StreamProtocol;
 use Hypervel\Ai\Streaming\Protocols\VercelDataProtocol;
+use Hypervel\Broadcasting\Channel;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Support\Responsable;
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Events\Dispatcher;
 use Hypervel\Http\IterableStreamedResponse;
 use Hypervel\Http\Request;
 use Hypervel\Support\Collection;
 use IteratorAggregate;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 use Traversable;
@@ -85,6 +92,76 @@ class StreamableAgentResponse implements IteratorAggregate, Responsable
                 break;
             }
         }
+
+        return $this;
+    }
+
+    /**
+     * Consume the stream and broadcast its events, batching deltas when enabled.
+     *
+     * @param array<int, class-string<StreamEvent>> $except
+     *
+     * @internal
+     */
+    public function broadcast(Channel|array $channels, bool $now = true, array $except = [], ?string $invocationId = null): static
+    {
+        $send = static function (StreamEvent $event) use ($channels, $now): void {
+            if ($now) {
+                $event->broadcastNow($channels);
+            } else {
+                $event->broadcast($channels, now: false);
+            }
+        };
+        $batcher = null;
+
+        // Dispatch must stay with its caller when listeners or queue writes depend on that scope.
+        if (config()->boolean('ai.broadcasting.batching.enabled')
+            && Coroutine::inCoroutine()
+            && ! CoroutineContext::get(Dispatcher::DEFERRING_CONTEXT_KEY, false)
+            && (! app()->bound('db.transactions') || ! app('db.transactions')->hasApplicableTransaction())) {
+            $batcher = new BroadcastBatcher(
+                $send,
+                $this->contextRunner,
+                config()->integer('ai.broadcasting.batching.milliseconds'),
+                config()->integer('ai.broadcasting.batching.max_bytes'),
+            );
+        }
+
+        try {
+            $this->each(function (StreamEvent $event) use ($send, $except, $invocationId, $batcher): void {
+                if (WithoutBroadcasting::excludes($except, $event)) {
+                    return;
+                }
+
+                if ($invocationId !== null) {
+                    $event->withInvocationId($invocationId);
+                }
+
+                if ($batcher !== null) {
+                    $batcher->push($event);
+                } else {
+                    $send($event);
+                }
+            });
+        } catch (CanceledException $exception) {
+            $batcher?->cancel();
+
+            throw $exception;
+        } catch (Throwable $exception) {
+            try {
+                $batcher?->finish();
+            } catch (CanceledException $cancellation) {
+                throw $cancellation;
+            } catch (Throwable $senderFailure) {
+                if ($senderFailure !== $exception) {
+                    report($senderFailure);
+                }
+            }
+
+            throw $exception;
+        }
+
+        $batcher?->finish();
 
         return $this;
     }

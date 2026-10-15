@@ -37,7 +37,6 @@ use Hypervel\Ai\Responses\Data\Meta;
 use Hypervel\Ai\Responses\QueuedAgentResponse;
 use Hypervel\Ai\Responses\StreamableAgentResponse;
 use Hypervel\Ai\Responses\StreamedAgentResponse;
-use Hypervel\Ai\Streaming\Events\StreamEvent;
 use Hypervel\Ai\Tools\LoadSkill;
 use Hypervel\Ai\Vercel\Vercel;
 use Hypervel\Broadcasting\Channel;
@@ -345,17 +344,7 @@ trait Promptable
         $without = WithoutBroadcasting::eventsFor($this);
 
         return $this->stream($prompt, $attachments, $provider, $model)
-            ->each(function (StreamEvent $event) use ($channels, $now, $without): void {
-                if (WithoutBroadcasting::excludes($without, $event)) {
-                    return;
-                }
-
-                if ($now) {
-                    $event->broadcastNow($channels);
-                } else {
-                    $event->broadcast($channels, now: false);
-                }
-            });
+            ->broadcast($channels, $now, $without);
     }
 
     /**

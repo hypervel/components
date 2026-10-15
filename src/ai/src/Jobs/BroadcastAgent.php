@@ -12,7 +12,6 @@ use Hypervel\Ai\Jobs\Concerns\InvokesQueuedResponseCallbacks;
 use Hypervel\Ai\Providers\Provider;
 use Hypervel\Ai\Responses\StreamedAgentResponse;
 use Hypervel\Ai\Streaming\Events\Error;
-use Hypervel\Ai\Streaming\Events\StreamEvent;
 use Hypervel\Broadcasting\Channel;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Foundation\Queue\Queueable;
@@ -56,13 +55,7 @@ class BroadcastAgent implements ShouldQueue
         $without = WithoutBroadcasting::eventsFor($this->agent);
 
         $this->agent->stream($this->prompt, $this->attachments, $this->provider, $this->model)
-            ->each(function (StreamEvent $event) use ($without): void {
-                if (WithoutBroadcasting::excludes($without, $event)) {
-                    return;
-                }
-
-                $event->withInvocationId($this->invocationId)->broadcastNow($this->channels);
-            })
+            ->broadcast($this->channels, except: $without, invocationId: $this->invocationId)
             ->then(function (StreamedAgentResponse $response) use (&$streamedResponse): void {
                 $streamedResponse = $response;
             });

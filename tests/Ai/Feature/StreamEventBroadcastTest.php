@@ -10,7 +10,7 @@ use Hypervel\Ai\Streaming\Events\TextDelta;
 use Hypervel\Broadcasting\AnonymousEvent;
 use Hypervel\Broadcasting\Channel;
 use Hypervel\Support\Facades\Event;
-use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Ai\TestCase;
 use Mockery as m;
 
 class StreamEventBroadcastTest extends TestCase

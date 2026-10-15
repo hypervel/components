@@ -65,6 +65,25 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Broadcast Batching
+    |--------------------------------------------------------------------------
+    |
+    | Combine adjacent text and reasoning deltas to reduce broadcast requests.
+    | The window is measured from the first delta, and the byte limit counts
+    | JSON-encoded delta content. Disable batching for individual delivery.
+    |
+    */
+
+    'broadcasting' => [
+        'batching' => [
+            'enabled' => true,
+            'milliseconds' => 50,
+            'max_bytes' => 4096,
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Remote Files
     |--------------------------------------------------------------------------
     |
