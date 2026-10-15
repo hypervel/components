@@ -36,6 +36,7 @@ use Hypervel\Contracts\ObjectPool\InvalidatesPool;
 use Hypervel\Contracts\Queue\Factory as Queue;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Foundation\Http\Middleware\PreventRequestForgery;
+use Hypervel\Http\Client\Guzzle\HandlerFactory;
 use Hypervel\Http\Request;
 use Hypervel\ObjectPool\Concerns\HasPoolProxy;
 use Hypervel\Queue\Attributes\Connection as ConnectionAttribute;
@@ -428,7 +429,7 @@ class BroadcastManager implements BroadcastingFactoryContract
                 $handlerOptions['multiplex'] = Multiplexing::NONE;
             }
 
-            $sharedHandler = Utils::chooseHandler($handlerOptions)(...);
+            $sharedHandler = HandlerFactory::create($handlerOptions)(...);
 
             // Async transfers may share a multi-handler only within their owning coroutine.
             $clientOptions['handler'] = HandlerStack::create(
