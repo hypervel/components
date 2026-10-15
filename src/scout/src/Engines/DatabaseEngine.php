@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Scout\Engines;
 
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Pagination\LengthAwarePaginator as LengthAwarePaginatorContract;
 use Hypervel\Contracts\Pagination\Paginator as PaginatorContract;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Database\Pool\PoolManager;
 use Hypervel\Scout\Attributes\SearchUsingFullText;
 use Hypervel\Scout\Attributes\SearchUsingPrefix;
 use Hypervel\Scout\Builder;
@@ -558,6 +560,22 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
     public function update(EloquentCollection $models): void
     {
         $this->updateSearchableEmbeddings($models);
+    }
+
+    /**
+     * Limit vector import concurrency to the imported models' connection pool.
+     */
+    public function importConcurrency(Model $model, int $configured): int
+    {
+        if (! method_exists($model, 'toSearchableEmbedding') || ! $this->supportsVectorSearch($model)) {
+            return $configured;
+        }
+
+        $name = $model->getConnection()->getName();
+        $pool = $name === null ? null : Container::getInstance()->make(PoolManager::class)->existing($name);
+
+        // The chunk reader retains one slot while admitting child imports.
+        return $pool === null ? $configured : min($configured, $pool->getOptions()->maxConnections - 1);
     }
 
     /**

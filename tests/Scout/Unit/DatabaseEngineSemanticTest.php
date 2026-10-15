@@ -45,6 +45,11 @@ class DatabaseEngineSemanticTest extends TestCase
         Paginator::currentPathResolver(fn (): string => '/');
     }
 
+    public function testUnnamedConnectionsKeepTheConfiguredImportConcurrency(): void
+    {
+        $this->assertSame(50, (new DatabaseEngine)->importConcurrency($this->model(), 50));
+    }
+
     public function testItBuildsAFilteredPostgresVectorSimilarityQuery(): void
     {
         $model = $this->model();

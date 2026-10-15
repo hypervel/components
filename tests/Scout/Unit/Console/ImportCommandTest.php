@@ -112,6 +112,7 @@ class ImportCommandTest extends ScoutTestCase
 
         $failure = new RuntimeException('Search transport failed.');
         $failingEngine = m::mock(Engine::class);
+        $failingEngine->shouldReceive('importConcurrency')->once()->passthru();
         $failingEngine->shouldReceive('runUpdate')->once()->andThrow($failure);
 
         $manager = m::mock(EngineManager::class);
@@ -135,6 +136,7 @@ class ImportCommandTest extends ScoutTestCase
         $this->assertFalse(CoroutineContext::has(SearchableModel::SCOUT_RUNNER_CONTEXT_KEY));
 
         $successfulEngine = m::mock(Engine::class);
+        $successfulEngine->shouldReceive('importConcurrency')->once()->passthru();
         $successfulEngine->shouldReceive('runUpdate')->times(3);
 
         $manager = m::mock(EngineManager::class);
