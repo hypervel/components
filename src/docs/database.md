@@ -298,6 +298,8 @@ Hypervel automatically returns the current execution's idle database sessions to
 - Before sleeping while waiting for a cache lock, a cache or Redis funnel, or a Redis throttle.
 - Before Saloon waits for a rate limit, a request delay or a retry delay.
 - Before the `retry` helper sleeps between attempts, including HTTP client retry delays.
+- Before the [Concurrency](/docs/{{version}}/concurrency) coroutine driver starts its tasks, and before a [Saloon pool](/docs/{{version}}/saloon#concurrent-requests) admits or waits for requests.
+- Before running or waiting for a [process](/docs/{{version}}/processes), and before stopping one with a positive grace period.
 
 The next database operation borrows a session automatically. Existing connection objects, builders, query logs and sticky reads remain valid. No database connection is opened merely to release it.
 
@@ -322,6 +324,8 @@ $responses = parallel([
 ```
 
 HTTP client release occurs before sending a request, not on every read of a streamed response. If your stream consumer performs database work between chunks, you may call `releaseIdleConnections()` before waiting for more data. Faked HTTP requests do not release connections. If you provide your own Guzzle client using `setClient`, call `DB::releaseIdleConnections()` yourself before sending requests.
+
+Process waits release idle sessions when the wait begins. If an output callback performs database work, it may call `DB::releaseIdleConnections()` before returning to wait for more output.
 
 Active queries, transactions, open cursors and `Schema::withoutForeignKeyConstraints` callbacks retain their sessions automatically. This includes transactions started directly through PDO or SQL, on either the read or write connection. In particular, an HTTP call inside `DB::transaction()` keeps the transaction's connection. Completed `chunk` or `lazy` query batches may release between batches.
 
