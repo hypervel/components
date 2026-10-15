@@ -64,9 +64,12 @@ class Chat implements AgentInput
      */
     public function protocol(): AgentUserInteractionProtocol
     {
+        $threadId = $this->threadId();
+        $runId = $this->runId();
+
         return new AgentUserInteractionProtocol(
-            $this->threadId() ?: null,
-            $this->runId() ?: null,
+            $threadId === '' ? null : $threadId,
+            $runId === '' ? null : $runId,
         );
     }
 

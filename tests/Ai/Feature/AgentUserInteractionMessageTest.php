@@ -31,6 +31,7 @@ use Hypervel\Tests\Ai\Fixtures\Agents\AssistantAgent;
 use Hypervel\Tests\Ai\TestCase;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class AgentUserInteractionMessageTest extends TestCase
 {
@@ -221,17 +222,19 @@ class AgentUserInteractionMessageTest extends TestCase
         $this->assertSame('', $chat->threadId());
     }
 
-    public function testTheChatProvidesTheProtocolCarryingTheRequestIdentity(): void
+    #[TestWith(['thread-1', 'run-1'])]
+    #[TestWith(['0', '0'])]
+    public function testTheChatProvidesTheProtocolCarryingTheRequestIdentity(string $threadId, string $runId): void
     {
         AssistantAgent::fake(['Hello world']);
 
-        $chat = AgentUserInteraction::chat($this->runAgentInput());
+        $chat = AgentUserInteraction::chat($this->runAgentInput(['threadId' => $threadId, 'runId' => $runId]));
 
         $events = $this->agUiChatEvents((new AssistantAgent)->stream($chat)->usingProtocol($chat->protocol()));
 
-        $this->assertSame(['type' => 'RUN_STARTED', 'threadId' => 'thread-1', 'runId' => 'run-1'], $events[0]);
-        $this->assertSame('thread-1', end($events)['threadId']);
-        $this->assertSame('run-1', end($events)['runId']);
+        $this->assertSame(['type' => 'RUN_STARTED', 'threadId' => $threadId, 'runId' => $runId], $events[0]);
+        $this->assertSame($threadId, end($events)['threadId']);
+        $this->assertSame($runId, end($events)['runId']);
     }
 
     public function testMalformedProtocolIdentitiesAreIgnored(): void
