@@ -232,7 +232,7 @@ function percentiles(array $values): array
 /**
  * Build only the selected workload and its optional cleanup.
  *
- * @return array{Closure(Connection): mixed, null|Closure(): void}
+ * @return array{Closure(?Connection): mixed, null|Closure(): void}
  */
 function createOperation(string $case, ApplicationContract $app, array $settings, array $options, ObjectPools $objects, int &$deliveries): array
 {
@@ -372,10 +372,12 @@ function createOperation(string $case, ApplicationContract $app, array $settings
         case 'grpc-retry':
             $app->instance(ClientFactoryInterface::class, new ClientFactory);
             $client = new TestServiceClient($options['grpc'], ['timeout' => 3]);
+            $database = $app->make(DatabaseManager::class);
 
-            return [static function (Connection $connection) use ($client, $case): void {
+            return [static function (?Connection $connection) use ($client, $case, $database): void {
                 if ($case === 'grpc-retry') {
                     $call = $client->unary((new TestRequest)->setValue('retry:pre'), options: ['retry' => new RetryPolicy(2, initialBackoff: 0.02, maxBackoff: 0.02)]);
+                    $connection ??= $database->connection('benchmark');
                     $connection->selectOne('select 1');
                     $expected = 'retried:1';
                 } else {
@@ -428,7 +430,9 @@ function createOperation(string $case, ApplicationContract $app, array $settings
         case 'process-run':
         case 'process-wait':
         case 'process-stop':
-            return [static function (Connection $connection) use ($case): void {
+            $database = $app->make(DatabaseManager::class);
+
+            return [static function (?Connection $connection) use ($case, $database): void {
                 $pending = (new ProcessFactory)->timeout(5);
                 $command = [PHP_BINARY, '-r', 'usleep(20000); echo "OK";'];
                 $process = null;
@@ -444,6 +448,7 @@ function createOperation(string $case, ApplicationContract $app, array $settings
                         $process = $pending->input($input)->start(['sh', '-c', 'read start; trap "sleep 0.02; exit 0" TERM; printf "READY\n"; while :; do sleep 0.01; done']);
                         $input->write("start\n");
                         $process->waitUntil(static fn (string $type, string $buffer): bool => str_contains($buffer, 'READY'));
+                        $connection ??= $database->connection('benchmark');
                         $connection->selectOne('select 1');
                         if ($process->stop(3) !== 0) {
                             throw new RuntimeException('Graceful stop failed.');
@@ -697,11 +702,14 @@ try {
                     Coroutine::defer(static function () use ($started, &$latencies): void {
                         $latencies[] = (hrtime(true) - $started) / 1e6;
                     });
-                    $connection = $database->connection('benchmark');
+                    $deferConnection = in_array($case, ['grpc-retry', 'process-stop'], true);
+                    $connection = $deferConnection && ! isset($options['transaction'])
+                        ? null
+                        : $database->connection('benchmark');
                     if (isset($options['transaction'])) {
                         $connection->beginTransaction();
                     }
-                    if (! in_array($case, ['grpc-retry', 'process-stop'], true)) {
+                    if (! $deferConnection) {
                         $connection->selectOne('select 1');
                     }
                     $response = $operation($connection);
@@ -716,6 +724,7 @@ try {
                         $seenConnections[$identity] = true;
                     }
                     if (isset($options['after-query'])) {
+                        $connection ??= $database->connection('benchmark');
                         $connection->selectOne('select 2');
                     }
                     if (isset($options['transaction'])) {
