@@ -295,6 +295,9 @@ Hypervel automatically returns the current execution's idle database sessions to
 - Before Pusher, Ably and Mercure [broadcasts](/docs/{{version}}/broadcasting).
 - Before requests from [Scout's](/docs/{{version}}/scout) default Algolia, Meilisearch and Typesense HTTP clients. This automatic release is not added to a custom Typesense `client` supplied in `client-settings`.
 - During `scout:import`, after each chunk finishes and before the command waits for the remaining chunks.
+- Before sleeping while waiting for a cache lock, a cache or Redis funnel, or a Redis throttle.
+- Before Saloon waits for a rate limit, a request delay or a retry delay.
+- Before the `retry` helper sleeps between attempts, including HTTP client retry delays.
 
 The next database operation borrows a session automatically. Existing connection objects, builders, query logs and sticky reads remain valid. No database connection is opened merely to release it.
 
