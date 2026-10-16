@@ -32,6 +32,7 @@
         "hypervel/container": "^0.4",
         "hypervel/contracts": "^0.4",
         "hypervel/guzzle": "^8.2",
+        "hypervel/guzzle-promises": "^3.0.2",
         "hypervel/http": "^0.4",
         "hypervel/pipeline": "^0.4",
         "hypervel/support": "^0.4"
