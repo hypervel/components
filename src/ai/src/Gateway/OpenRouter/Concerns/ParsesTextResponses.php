@@ -74,10 +74,17 @@ trait ParsesTextResponses
             $toolCall['id'] ?? null,
         ), $message['tool_calls'] ?? []);
 
+        $finishReason = $this->extractFinishReason($choice);
+
+        // Gemini responses with encrypted reasoning can report stop alongside complete tool calls.
+        if ($finishReason === FinishReason::Stop && $toolCalls !== []) {
+            $finishReason = FinishReason::ToolCalls;
+        }
+
         return new StepResponse(
             text: $text,
             toolCalls: $toolCalls,
-            finishReason: $this->extractFinishReason($choice),
+            finishReason: $finishReason,
             usage: $this->extractUsage($data),
             meta: new Meta($provider->name(), $model, $citations),
             structured: $structured ? $this->decodeStructuredOutput($text) : null,

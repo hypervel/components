@@ -160,7 +160,8 @@ class ReasoningTest extends TestCase
         return collect($messages)->first(fn (array $message): bool => $message['role'] === 'assistant' && isset($message['tool_calls']));
     }
 
-    public function testPromptReplaysTheReasoningDetailsWithTheToolCallsTheyProduced(): void
+    #[DataProvider('toolFinishReasons')]
+    public function testPromptReplaysTheReasoningDetailsWithTheToolCallsTheyProduced(string $finishReason): void
     {
         $details = [
             ['type' => 'reasoning.summary', 'summary' => 'I need a number.', 'format' => 'openai-responses-v1', 'index' => 0],
@@ -184,7 +185,7 @@ class ReasoningTest extends TestCase
                             'function' => ['name' => 'FixedNumberGenerator', 'arguments' => '{}'],
                         ]],
                     ],
-                    'finish_reason' => 'tool_calls',
+                    'finish_reason' => $finishReason,
                 ]],
                 'usage' => ['prompt_tokens' => 10, 'completion_tokens' => 5],
             ]),
@@ -196,8 +197,16 @@ class ReasoningTest extends TestCase
         $this->assertSame($details, $this->openRouterFollowUpAssistantMessage()['reasoning_details']);
     }
 
+    /**
+     * Provide the terminal reasons returned with complete tool calls.
+     */
+    public static function toolFinishReasons(): array
+    {
+        return [['tool_calls'], ['stop']];
+    }
+
     #[DataProvider('reasoningIndices')]
-    public function testStreamingReplaysTheMergedReasoningDetailsWithTheToolCallsTheyProduced(int $firstIndex, int $secondIndex): void
+    public function testStreamingReplaysTheMergedReasoningDetailsWithTheToolCallsTheyProduced(int $firstIndex, int $secondIndex, string $finishReason): void
     {
         Http::fake(['*' => Http::sequence([
             Http::response(
@@ -208,7 +217,7 @@ class ReasoningTest extends TestCase
                     $this->chatChunk(['reasoning_details' => [['type' => 'reasoning.encrypted', 'data' => 'second', 'id' => 'rs_456', 'format' => 'openai-responses-v1', 'index' => $secondIndex]]]),
                     $this->chatChunkToolCallStart(0, 'call_1', 'FixedNumberGenerator'),
                     $this->chatChunkToolCallDelta(0, '{}'),
-                    $this->chatChunkFinish('tool_calls', ['prompt_tokens' => 10, 'completion_tokens' => 5]),
+                    $this->chatChunkFinish($finishReason, ['prompt_tokens' => 10, 'completion_tokens' => 5]),
                 ]),
                 status: 200,
                 headers: ['Content-Type' => 'text/event-stream'],
@@ -237,7 +246,7 @@ class ReasoningTest extends TestCase
      */
     public static function reasoningIndices(): array
     {
-        return [[1, 2], [0, 0]];
+        return [[1, 2, 'tool_calls'], [0, 0, 'tool_calls'], [1, 2, 'stop']];
     }
 
     public function testStreamingKeepsASignatureThatArrivesAfterTheReasoningText(): void

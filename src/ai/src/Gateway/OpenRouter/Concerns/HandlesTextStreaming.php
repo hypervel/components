@@ -7,6 +7,7 @@ namespace Hypervel\Ai\Gateway\OpenRouter\Concerns;
 use Generator;
 use Hypervel\Ai\Gateway\StepResponse;
 use Hypervel\Ai\Providers\Provider;
+use Hypervel\Ai\Responses\Data\FinishReason;
 use Hypervel\Ai\Responses\Data\Meta;
 use Hypervel\Ai\Responses\Data\TextUsage;
 use Hypervel\Ai\Responses\Data\ToolCall;
@@ -236,7 +237,7 @@ trait HandlesTextStreaming
             ))->withInvocationId($invocationId);
         }
 
-        if (filled($pendingToolCalls) && $finishReason === 'tool_calls') {
+        if (filled($pendingToolCalls) && in_array($finishReason, ['tool_calls', 'stop'], true)) {
             foreach (array_values($pendingToolCalls) as $pending) {
                 $toolCall = new ToolCall(
                     $pending['id'] ?? '',
@@ -258,7 +259,7 @@ trait HandlesTextStreaming
         return new StepResponse(
             text: $currentText,
             toolCalls: $toolCalls,
-            finishReason: $this->extractFinishReason(['finish_reason' => $finishReason]),
+            finishReason: filled($toolCalls) ? FinishReason::ToolCalls : $this->extractFinishReason(['finish_reason' => $finishReason]),
             usage: $usage ?? new TextUsage(0, 0),
             meta: new Meta($provider->name(), $streamModel),
             replayBlocks: array_values($reasoningDetails),
