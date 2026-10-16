@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Bootstrap;
 
-use GuzzleHttp\Promise\Promise;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Di\Aop\AbstractAspect;
 use Hypervel\Di\Aop\AspectCollector;
@@ -13,6 +12,7 @@ use Hypervel\Di\ClassMap\ClassMapManager;
 use Hypervel\Di\Exceptions\InvalidDefinitionException;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Foundation\Fixtures\AspectRegistrationTarget;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 
@@ -32,13 +32,13 @@ class AspectRegistrationTest extends TestCase
     public function testApplicationRestartsReopenAndResealRegistration(string $restart): void
     {
         $firstApplication = $this->app;
-        $this->assertSame('outer(inner(value))', $this->waitForValue());
+        $this->assertSame('outer(inner(value))', (new AspectRegistrationTarget)->value());
 
         $this->providers = array_reverse($this->providers);
         $this->{$restart}();
 
         $this->assertNotSame($firstApplication, $this->app);
-        $this->assertSame('outer(inner(value))', $this->waitForValue());
+        $this->assertSame('outer(inner(value))', (new AspectRegistrationTarget)->value());
         $this->assertSame([
             RegistrationReplacement::class => __FILE__,
         ], ClassMapManager::getEntries());
@@ -61,17 +61,6 @@ class AspectRegistrationTest extends TestCase
     public static function applicationRestarts(): array
     {
         return [['reloadApplication'], ['refreshApplication']];
-    }
-
-    /**
-     * Exercise the real generated promise proxy.
-     */
-    private function waitForValue(): string
-    {
-        $promise = new Promise;
-        $promise->resolve('value');
-
-        return $promise->wait();
     }
 }
 
@@ -100,12 +89,12 @@ class InnerRegistrationProvider extends ServiceProvider
 
 class OuterRegistrationAspect extends AbstractAspect
 {
-    public array $classes = [Promise::class . '::wait'];
+    public array $classes = [AspectRegistrationTarget::class . '::value'];
 
     public ?int $priority = 20;
 
     /**
-     * Wrap the promise result with the outer marker.
+     * Wrap the target result with the outer marker.
      */
     public function process(ProceedingJoinPoint $proceedingJoinPoint): mixed
     {
@@ -115,12 +104,12 @@ class OuterRegistrationAspect extends AbstractAspect
 
 class InnerRegistrationAspect extends AbstractAspect
 {
-    public array $classes = [Promise::class . '::wait'];
+    public array $classes = [AspectRegistrationTarget::class . '::value'];
 
     public ?int $priority = 10;
 
     /**
-     * Wrap the promise result with the inner marker.
+     * Wrap the target result with the inner marker.
      */
     public function process(ProceedingJoinPoint $proceedingJoinPoint): mixed
     {
