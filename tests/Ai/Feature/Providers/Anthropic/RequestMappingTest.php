@@ -324,16 +324,18 @@ class RequestMappingTest extends TestCase
     }
 
     #[DataProvider('nativeToolChoices')]
-    public function testNativeStructuredOutputHonorsToolChoice(?ToolChoice $choice, array $expected): void
+    public function testNativeStructuredOutputHonorsToolChoice(?ToolChoice $choice, array $expected, ?string $thinking = null): void
     {
         Http::fake(['api.anthropic.com/*' => $this->fakeStructuredResponse(['name' => 'Taylor', 'age' => 30])]);
 
         (new StructuredAgent)->withTools([new NamedTool('lookup')])->withMiddleware([
-            fn (PendingStep $step, Closure $next): StepResult => $next($step->withToolChoice($choice)),
+            fn (PendingStep $step, Closure $next): StepResult => $next($step->withToolChoice($choice)
+                ->withProviderOptions($thinking === null ? [] : ['thinking' => ['type' => $thinking]])),
         ])->prompt('Tell me about Taylor', provider: 'anthropic');
 
         Http::assertSent(fn ($request): bool => $request['tool_choice'] === $expected
-            && $request['output_config']['format']['type'] === 'json_schema');
+            && $request['output_config']['format']['type'] === 'json_schema'
+            && ($request['thinking']['type'] ?? null) === $thinking);
     }
 
     /**
@@ -346,6 +348,8 @@ class RequestMappingTest extends TestCase
             [new ToolChoice(ToolChoice::none), ['type' => 'none']],
             [new ToolChoice(ToolChoice::required), ['type' => 'any']],
             [ToolChoice::tool('lookup'), ['type' => 'tool', 'name' => 'lookup']],
+            [new ToolChoice(ToolChoice::required), ['type' => 'any'], 'disabled'],
+            [ToolChoice::tool('lookup'), ['type' => 'tool', 'name' => 'lookup'], 'adaptive'],
         ];
     }
 
@@ -379,7 +383,8 @@ class RequestMappingTest extends TestCase
         });
     }
 
-    public function testStructuredOutputFallsBackToTheSyntheticToolWhenNativeStructuredOutputIsDisabled(): void
+    #[DataProvider('syntheticThinkingModes')]
+    public function testStructuredOutputFallsBackToTheSyntheticToolWhenNativeStructuredOutputIsDisabled(?string $thinking): void
     {
         config(['ai.providers.anthropic' => [
             ...config('ai.providers.anthropic'),
@@ -390,7 +395,11 @@ class RequestMappingTest extends TestCase
             'api.anthropic.com/*' => $this->fakeTextResponse(),
         ]);
 
-        (new StructuredAgent)->prompt(
+        (new StructuredAgent)->withMiddleware([
+            fn (PendingStep $step, Closure $next): StepResult => $next($step->withProviderOptions(
+                $thinking === null ? [] : ['thinking' => ['type' => $thinking]],
+            )),
+        ])->prompt(
             'Tell me about Taylor',
             provider: 'anthropic',
         );
@@ -410,6 +419,14 @@ class RequestMappingTest extends TestCase
                 && $body['tool_choice']['type'] === 'tool'
                 && $body['tool_choice']['name'] === 'output_structured_data';
         });
+    }
+
+    /**
+     * Cover omitted and explicitly disabled thinking for synthetic output.
+     */
+    public static function syntheticThinkingModes(): array
+    {
+        return [[null], ['disabled']];
     }
 
     public function testStructuredOutputWithThinkingUsesAutoToolChoiceWhenNativeStructuredOutputIsDisabled(): void

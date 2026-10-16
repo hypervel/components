@@ -117,15 +117,18 @@ trait BuildsTextRequests
      */
     protected function ensureValidPromptCacheOrder(array $body, ?TextGenerationOptions $options): void
     {
-        if ($options?->cacheInstructions?->ttl === '1h'
-            && $options->cacheToolDefinitions instanceof CacheToolDefinitions
+        $cachesInstructions = isset($body['system']) && $options?->cacheInstructions instanceof CacheInstructions;
+        $cachesTools = isset($body['tools']) && $options?->cacheToolDefinitions instanceof CacheToolDefinitions;
+
+        if ($cachesInstructions && $cachesTools
+            && $options->cacheInstructions->ttl === '1h'
             && $options->cacheToolDefinitions->ttl !== '1h') {
             throw new InvalidArgumentException('A one-hour instructions cache requires the tool definitions cache to also use a one-hour TTL.');
         }
 
         if (($body['cache_control']['ttl'] ?? null) === '1h'
-            && (($options?->cacheInstructions instanceof CacheInstructions && $options->cacheInstructions->ttl !== '1h')
-                || ($options?->cacheToolDefinitions instanceof CacheToolDefinitions && $options->cacheToolDefinitions->ttl !== '1h'))) {
+            && (($cachesInstructions && $options->cacheInstructions->ttl !== '1h')
+                || ($cachesTools && $options->cacheToolDefinitions->ttl !== '1h'))) {
             throw new InvalidArgumentException('A one-hour automatic cache requires all explicit cache breakpoints to also use a one-hour TTL.');
         }
     }
@@ -153,10 +156,10 @@ trait BuildsTextRequests
      */
     protected function resolveToolChoice(?array $schema, array $tools, array $providerOptions, ?ToolChoice $toolChoice = null): array
     {
-        $thinking = isset($providerOptions['thinking']);
+        $manualThinking = ($providerOptions['thinking']['type'] ?? null) === 'enabled';
 
         if (filled($schema)) {
-            if ($thinking) {
+            if ($manualThinking) {
                 return ['type' => 'auto'];
             }
 
@@ -169,7 +172,7 @@ trait BuildsTextRequests
             return ['type' => 'auto'];
         }
 
-        if ($thinking && in_array($toolChoice->mode, [ToolChoice::required, ToolChoice::tool], true)) {
+        if ($manualThinking && in_array($toolChoice->mode, [ToolChoice::required, ToolChoice::tool], true)) {
             throw new InvalidArgumentException(
                 'Anthropic cannot force tool use while extended thinking is enabled. Use ToolChoice::auto or ToolChoice::none, or disable thinking.'
             );

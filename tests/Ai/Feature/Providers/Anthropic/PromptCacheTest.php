@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Ai\Feature\Providers\Anthropic;
 
+use Closure;
 use Hypervel\Ai\Attributes\CacheInstructions;
 use Hypervel\Ai\Attributes\CacheToolDefinitions;
+use Hypervel\Ai\Gateway\StepResult;
+use Hypervel\Ai\PendingStep;
 use Hypervel\Ai\Providers\Tools\ToolSearch;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Http;
@@ -172,6 +175,63 @@ class PromptCacheTest extends TestCase
 
         $this->expectException(InvalidArgumentException::class);
         (new #[CacheInstructions] class(options: ['cache_control' => ['type' => 'ephemeral', 'ttl' => '1h']]) extends PromptCacheAgent {})->prompt('Hi', provider: 'anthropic');
+    }
+
+    #[DataProvider('absentCacheTargets')]
+    public function testCacheOrderIgnoresTargetsAbsentFromTheRequest(bool $withInstructions, bool $withTools, bool $automatic): void
+    {
+        Http::fake(['api.anthropic.com/*' => $this->fakeTextResponse()]);
+
+        (new #[CacheInstructions('1h')] #[CacheToolDefinitions] class extends PromptCacheAgent {})
+            ->withMiddleware([function (PendingStep $step, Closure $next) use ($withInstructions, $withTools, $automatic): StepResult {
+                if (! $withInstructions) {
+                    $step = $step->withInstructions(null);
+                }
+
+                if (! $withTools) {
+                    $step = $step->withTools([]);
+                }
+
+                if ($automatic) {
+                    $step = $step->withProviderOptions(['cache_control' => ['type' => 'ephemeral', 'ttl' => '1h']]);
+                }
+
+                return $next($step);
+            }])->prompt('Hi', provider: 'anthropic');
+
+        Http::assertSent(function ($request) use ($withInstructions, $withTools, $automatic): bool {
+            $body = $request->data();
+
+            if ($withInstructions) {
+                $this->assertSame(['type' => 'ephemeral', 'ttl' => '1h'], $body['system'][0]['cache_control']);
+            } else {
+                $this->assertArrayNotHasKey('system', $body);
+            }
+
+            if ($withTools) {
+                $this->assertSame(['type' => 'ephemeral'], Arr::last($body['tools'])['cache_control']);
+            } else {
+                $this->assertArrayNotHasKey('tools', $body);
+            }
+
+            if ($automatic) {
+                $this->assertSame(['type' => 'ephemeral', 'ttl' => '1h'], $body['cache_control']);
+            }
+
+            return true;
+        });
+    }
+
+    /**
+     * Cover cache attributes whose targets are removed by step middleware.
+     */
+    public static function absentCacheTargets(): array
+    {
+        return [
+            'instructions only' => [true, false, false],
+            'tools only' => [false, true, false],
+            'automatic only' => [false, false, true],
+        ];
     }
 
     public function testBreakpointsSurviveProviderOptionsThatOverrideTheSameKeys(): void
