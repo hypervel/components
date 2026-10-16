@@ -72,6 +72,10 @@ class DatabaseConversationStore implements ClaimsPendingApprovals, ConversationS
      */
     public function conversationBelongsTo(string $conversationId, ?string $participantType, string|int|null $participantId): bool
     {
+        if (! Str::isUuid($conversationId)) {
+            return false;
+        }
+
         $conversation = $this->table($this->conversationsTable())
             ->where('id', $conversationId)
             ->first(['participant_type', 'participant_id']);

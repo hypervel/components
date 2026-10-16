@@ -165,7 +165,12 @@ class DatabaseConversationStoreTest extends TestCase
 
     public function testItRefusesAConversationThatDoesNotExist(): void
     {
+        $this->assertFalse((new DatabaseConversationStore)->conversationBelongsTo((string) Str::uuid7(), 'user', 1));
+
+        DB::enableQueryLog();
+        DB::flushQueryLog();
         $this->assertFalse((new DatabaseConversationStore)->conversationBelongsTo('missing-conversation', 'user', 1));
+        $this->assertSame([], DB::getQueryLog());
     }
 
     public function testItMatchesAnOwnerlessConversationOnlyToANullParticipant(): void

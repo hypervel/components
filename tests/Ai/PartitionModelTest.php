@@ -9,6 +9,7 @@ use Hypervel\Ai\Enums\MessageStatus;
 use Hypervel\Ai\Models\Conversation;
 use Hypervel\Ai\Models\ConversationMessage;
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Database\QueryException;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Support\Facades\DB;
@@ -111,6 +112,29 @@ class PartitionModelTest extends TestCase
 
         $this->assertNull((new Conversation)->newQueryForRestoration($conversation->id)->first());
         $this->assertNull((new ConversationMessage)->newQueryForRestoration([$message->id])->first());
+    }
+
+    #[DataProvider('conversationModels')]
+    public function testRouteBindingValidatesUuidsAndKeepsThePartition(string $modelClass): void
+    {
+        $conversation = $this->conversation();
+        $model = $modelClass === Conversation::class ? $conversation : $this->message($conversation);
+
+        $this->assertTrue((new $modelClass)->resolveRouteBinding($model->id)->is($model));
+
+        CoroutineContext::set('ai-test.account', self::ACCOUNT_B);
+        $this->assertNull((new $modelClass)->resolveRouteBinding($model->id));
+
+        $this->expectException(ModelNotFoundException::class);
+        (new $modelClass)->resolveRouteBinding('not-a-uuid');
+    }
+
+    /**
+     * Provide the route-bindable conversation models.
+     */
+    public static function conversationModels(): array
+    {
+        return [[Conversation::class], [ConversationMessage::class]];
     }
 
     public function testBothInsertPathsStampBeforeCreatingListeners(): void

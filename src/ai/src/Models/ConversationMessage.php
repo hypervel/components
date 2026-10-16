@@ -7,8 +7,8 @@ namespace Hypervel\Ai\Models;
 use Hypervel\Ai\Approvals\PendingApproval;
 use Hypervel\Ai\Concerns\HasConversationPartition;
 use Hypervel\Ai\Enums\MessageStatus;
-use Hypervel\Database\Eloquent\Attributes\WithoutIncrementing;
 use Hypervel\Database\Eloquent\Casts\Attribute;
+use Hypervel\Database\Eloquent\Concerns\HasUuids;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsTo;
 use Hypervel\Support\Arr;
@@ -25,17 +25,12 @@ use Override;
  * @property-read array $tool_results
  * @property MessageStatus $status
  */
-#[WithoutIncrementing]
 class ConversationMessage extends Model
 {
     use HasConversationPartition;
+    use HasUuids;
 
     public const string DEFAULT_TABLE = 'agent_conversation_messages';
-
-    /**
-     * The data type of the primary key ID.
-     */
-    protected string $keyType = 'string';
 
     /**
      * The attributes that aren't mass assignable.

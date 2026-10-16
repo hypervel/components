@@ -5,24 +5,19 @@ declare(strict_types=1);
 namespace Hypervel\Ai\Models;
 
 use Hypervel\Ai\Concerns\HasConversationPartition;
-use Hypervel\Database\Eloquent\Attributes\WithoutIncrementing;
+use Hypervel\Database\Eloquent\Concerns\HasUuids;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\HasMany;
 use Hypervel\Database\Eloquent\Relations\MorphTo;
 use InvalidArgumentException;
 use Override;
 
-#[WithoutIncrementing]
 class Conversation extends Model
 {
     use HasConversationPartition;
+    use HasUuids;
 
     public const string DEFAULT_TABLE = 'agent_conversations';
-
-    /**
-     * The data type of the primary key ID.
-     */
-    protected string $keyType = 'string';
 
     /**
      * The attributes that aren't mass assignable.
