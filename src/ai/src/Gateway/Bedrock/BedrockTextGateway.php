@@ -176,7 +176,9 @@ class BedrockTextGateway implements EmbeddingGateway, StepTextGateway
         StepContext $stepContext,
     ): array {
         $conversationMessages = $this->formatMessages($messages);
-        $jsonSchema = $schema && $this->rejectsForcedToolChoice($model) ? $schema : null;
+        $jsonSchema = $schema && ($this->rejectsForcedToolChoice($model) || $this->usesManualThinking($options?->providerOptions(Lab::Bedrock) ?? []))
+            ? $schema
+            : null;
         $schemaTools = $schema && $jsonSchema === null ? $this->buildSchemaTools($schema, $tools) : null;
         $formattedTools = $schemaTools === null && $tools !== [] ? $this->formatTools($tools) : null;
 
@@ -248,7 +250,7 @@ class BedrockTextGateway implements EmbeddingGateway, StepTextGateway
             );
         }
 
-        if ($structured && $toolCalls === [] && $this->rejectsForcedToolChoice($model)) {
+        if ($structured && $toolCalls === [] && $structuredOutput === null) {
             $structuredOutput = $output;
         }
 
@@ -552,7 +554,7 @@ class BedrockTextGateway implements EmbeddingGateway, StepTextGateway
             ))->withInvocationId($invocationId);
         }
 
-        if ($structured && $toolCalls === [] && $this->rejectsForcedToolChoice($model)) {
+        if ($structured && $toolCalls === [] && $structuredOutput === null) {
             $structuredOutput = $assistantText;
         }
 
@@ -751,11 +753,11 @@ class BedrockTextGateway implements EmbeddingGateway, StepTextGateway
 
         $toolConfig = $this->buildToolConfig($schemaTools, $formattedTools, $toolsEmpty, $isFinalStep);
 
-        if ($schemaTools !== null && $toolConfig !== null
-            && ($providerOptions['additionalModelRequestFields']['thinking']['type'] ?? null) === 'enabled') {
-            // Manual thinking cannot force the synthetic output tool.
-            $toolConfig['toolChoice'] = ['auto' => []];
-        } elseif ($schemaTools === null && $toolConfig !== null && $options?->toolChoice !== null) {
+        if ($schemaTools === null && $toolConfig !== null && $options?->toolChoice !== null) {
+            if ($this->usesManualThinking($providerOptions) && in_array($options->toolChoice->mode, [ToolChoice::required, ToolChoice::tool], true)) {
+                throw new InvalidArgumentException('Amazon Bedrock cannot force tool use while extended thinking is enabled. Use ToolChoice::auto or disable thinking.');
+            }
+
             $toolConfig['toolChoice'] = match ($options->toolChoice->mode) {
                 ToolChoice::auto => ['auto' => []],
                 ToolChoice::required => ['any' => []],
@@ -887,6 +889,14 @@ class BedrockTextGateway implements EmbeddingGateway, StepTextGateway
     protected function rejectsForcedToolChoice(string $model): bool
     {
         return Str::contains($model, self::MODELS_REJECTING_FORCED_TOOL_CHOICE);
+    }
+
+    /**
+     * Determine whether the request enables manual extended thinking.
+     */
+    protected function usesManualThinking(array $providerOptions): bool
+    {
+        return ($providerOptions['additionalModelRequestFields']['thinking']['type'] ?? null) === 'enabled';
     }
 
     /**

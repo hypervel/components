@@ -471,6 +471,11 @@ class StreamingTest extends TestCase
                 ['contentBlockStop' => ['contentBlockIndex' => 0]],
                 ['messageStop' => ['stopReason' => 'end_turn']],
             ]],
+            'JSON text without a model restriction' => ['anthropic.claude-sonnet-4-5-20250929-v1:0', [
+                ['contentBlockDelta' => ['contentBlockIndex' => 0, 'delta' => ['text' => '{"answer":42}']]],
+                ['contentBlockStop' => ['contentBlockIndex' => 0]],
+                ['messageStop' => ['stopReason' => 'end_turn']],
+            ]],
             'synthetic tool' => ['anthropic.claude-opus-4-7-v1:0', [
                 ['contentBlockStart' => ['contentBlockIndex' => 0, 'start' => ['toolUse' => [
                     'toolUseId' => 'structured-1', 'name' => 'structured_output',

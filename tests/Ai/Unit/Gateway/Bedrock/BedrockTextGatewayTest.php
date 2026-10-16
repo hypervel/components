@@ -764,10 +764,11 @@ class BedrockTextGatewayTest extends TestCase
         ];
     }
 
-    public function testBuildConverseParametersRejectsTheUnsupportedNoneToolChoice(): void
+    #[DataProvider('unsupportedToolChoices')]
+    public function testBuildConverseParametersRejectsUnsupportedToolChoices(ToolChoice $choice, array $providerOptions, string $message): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('does not support the none tool choice');
+        $this->expectExceptionMessage($message);
 
         textGateway()->callBuildConverseParameters(
             'claude-sonnet',
@@ -776,29 +777,23 @@ class BedrockTextGatewayTest extends TestCase
             null,
             [['toolSpec' => ['name' => 'X']]],
             false,
-            new TextGenerationOptions(toolChoice: new ToolChoice(ToolChoice::none)),
+            new TextGenerationOptions(providerOptions: $providerOptions, toolChoice: $choice),
             false,
         );
     }
 
-    public function testBuildConverseParametersDoesNotForceSchemaToolWithManualThinking(): void
+    /**
+     * Provide choices rejected by Converse or manual extended thinking.
+     */
+    public static function unsupportedToolChoices(): array
     {
-        $gateway = textGateway();
-        $thinking = ['type' => 'enabled', 'budget_tokens' => 1024];
-        $parameters = $gateway->callBuildConverseParameters(
-            'anthropic.claude-sonnet-4-5-20250929-v1:0',
-            null,
-            [],
-            $gateway->callBuildSchemaTools([], []),
-            null,
-            true,
-            new TextGenerationOptions(providerOptions: ['additionalModelRequestFields' => ['thinking' => $thinking]]),
-            true,
-        );
+        $manualThinking = ['additionalModelRequestFields' => ['thinking' => ['type' => 'enabled', 'budget_tokens' => 1024]]];
 
-        $this->assertSame(['auto' => []], $parameters['toolConfig']['toolChoice']);
-        $this->assertSame('structured_output', $parameters['toolConfig']['tools'][0]['toolSpec']['name']);
-        $this->assertSame($thinking, $parameters['additionalModelRequestFields']['thinking']);
+        return [
+            'none' => [new ToolChoice(ToolChoice::none), [], 'does not support the none tool choice'],
+            'required while thinking' => [new ToolChoice(ToolChoice::required), $manualThinking, 'cannot force tool use while extended thinking is enabled'],
+            'named while thinking' => [ToolChoice::tool('X'), $manualThinking, 'cannot force tool use while extended thinking is enabled'],
+        ];
     }
 
     public function testBuildConverseParametersFlatMergesAgentProviderOptionsForBedrock(): void

@@ -16,6 +16,7 @@ use Hypervel\JsonSchema\JsonSchemaTypeFactory;
 use Hypervel\Tests\Ai\Fixtures\BedrockHelpers;
 use Hypervel\Tests\Ai\Fixtures\Tools\FixedNumberGenerator;
 use Hypervel\Tests\Ai\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 function bedrockToolCallResponse(string $toolUseId): array
 {
@@ -171,7 +172,8 @@ class ToolCallLoopTest extends TestCase
         $this->assertSame(['number' => 72019], $response->structured);
     }
 
-    public function testStructuredOutputIsParsedFromJsonAnswerOfModelsRejectingForcedToolChoice(): void
+    #[DataProvider('jsonAnswerModes')]
+    public function testStructuredOutputIsParsedFromJsonWhenForcedToolChoiceIsUnavailable(string $model, array $providerOptions): void
     {
         $requests = [];
 
@@ -181,9 +183,10 @@ class ToolCallLoopTest extends TestCase
 
         $response = (new TextGenerationLoop($this->gatewayWithClient($client)))->generate(
             $this->bedrockProvider(),
-            'us.anthropic.claude-sonnet-5-5',
+            $model,
             'You are a helpful assistant.',
             schema: ['symbol' => (new JsonSchemaTypeFactory)->string()],
+            options: new TextGenerationOptions(providerOptions: $providerOptions),
         );
 
         $this->assertInstanceOf(StructuredTextResponse::class, $response);
@@ -192,9 +195,11 @@ class ToolCallLoopTest extends TestCase
         $this->assertCount(2, $requests[0]['system']);
         $this->assertSame(['text' => 'You are a helpful assistant.'], $requests[0]['system'][0]);
         $this->assertStringContainsString('"symbol"', $requests[0]['system'][1]['text']);
+        $this->assertSame($providerOptions['additionalModelRequestFields'] ?? null, $requests[0]['additionalModelRequestFields'] ?? null);
     }
 
-    public function testModelsRejectingForcedToolChoiceKeepRealToolsOnAutoSelectionBeforeJsonAnswer(): void
+    #[DataProvider('jsonAnswerModes')]
+    public function testRealToolsRemainAvailableBeforeJsonAnswerWhenForcedToolChoiceIsUnavailable(string $model, array $providerOptions): void
     {
         $requests = [];
 
@@ -205,12 +210,12 @@ class ToolCallLoopTest extends TestCase
 
         $response = (new TextGenerationLoop($this->gatewayWithClient($client)))->generate(
             $this->bedrockProvider(),
-            'us.anthropic.claude-opus-5-5',
+            $model,
             null,
             messages: [new UserMessage('Generate a number')],
             tools: [new FixedNumberGenerator],
             schema: ['number' => (new JsonSchemaTypeFactory)->integer()],
-            options: new TextGenerationOptions(maxSteps: 2),
+            options: new TextGenerationOptions(maxSteps: 2, providerOptions: $providerOptions),
         );
 
         $this->assertSame(['number' => 42], $response->structured);
@@ -220,7 +225,22 @@ class ToolCallLoopTest extends TestCase
         foreach ($requests as $request) {
             $this->assertArrayNotHasKey('toolChoice', $request['toolConfig']);
             $this->assertSame(['FixedNumberGenerator'], array_column(array_column($request['toolConfig']['tools'], 'toolSpec'), 'name'));
+            $this->assertSame($providerOptions['additionalModelRequestFields'] ?? null, $request['additionalModelRequestFields'] ?? null);
+            $this->assertStringContainsString('"number"', $request['system'][0]['text']);
         }
+    }
+
+    /**
+     * Cover models and request modes that cannot force the structured-output tool.
+     */
+    public static function jsonAnswerModes(): array
+    {
+        return [
+            'model restriction' => ['us.anthropic.claude-sonnet-5-5', []],
+            'manual thinking' => ['anthropic.claude-sonnet-4-5-20250929-v1:0', [
+                'additionalModelRequestFields' => ['thinking' => ['type' => 'enabled', 'budget_tokens' => 1024]],
+            ]],
+        ];
     }
 
     public function testStreamingToolLoopEmitsSingleStreamEndWithAccumulatedUsage(): void
