@@ -34,8 +34,13 @@ use Hypervel\Ai\Responses\Data\FinishReason;
 use Hypervel\Ai\Responses\Data\Meta;
 use Hypervel\Ai\Responses\Data\TextUsage;
 use Hypervel\Ai\Responses\Data\ToolCall;
+use Hypervel\Ai\Responses\Data\UrlCitation;
 use Hypervel\Ai\Responses\StreamedAgentResponse;
 use Hypervel\Ai\Storage\DatabaseConversationStore;
+use Hypervel\Ai\Streaming\Events\Citation;
+use Hypervel\Ai\Streaming\Events\ReasoningDelta;
+use Hypervel\Ai\Streaming\Events\ReasoningEnd;
+use Hypervel\Ai\Streaming\Events\ReasoningStart;
 use Hypervel\Ai\Streaming\Events\StreamEnd;
 use Hypervel\Ai\Streaming\Events\StreamStart;
 use Hypervel\Ai\Streaming\Events\TextDelta;
@@ -267,11 +272,24 @@ class AgentMiddlewareTest extends TestCase
     public function testAgentMiddlewareMayShortCircuitAStreamedStep(): void
     {
         AssistantAgent::fake(['Fake response']);
-        $response = (new AssistantAgent)->withMiddleware([$this->shortCircuitingMiddleware()])->stream('Test prompt');
+        $citation = new UrlCitation('https://example.com', 'Example');
+        $response = (new AssistantAgent)->withMiddleware([
+            fn (): StepResponse => new StepResponse(
+                'Short-circuited response',
+                [],
+                FinishReason::Stop,
+                new TextUsage,
+                new Meta(citations: collect([$citation])),
+                reasoning: 'Cached reasoning',
+            ),
+        ])->stream('Test prompt');
         $events = iterator_to_array($response, false);
 
-        $this->assertSame([StreamStart::class, TextStart::class, TextDelta::class, TextEnd::class, StreamEnd::class], array_map(fn (object $event): string => $event::class, $events));
+        $this->assertSame([StreamStart::class, ReasoningStart::class, ReasoningDelta::class, ReasoningEnd::class, TextStart::class, TextDelta::class, TextEnd::class, Citation::class, StreamEnd::class], array_map(fn (object $event): string => $event::class, $events));
         $this->assertSame('Short-circuited response', $response->text);
+        $this->assertSame('Cached reasoning', $response->reasoning);
+        $this->assertEquals([$citation], $response->citations->all());
+        $this->assertSame($events[4]->messageId, $events[7]->messageId);
     }
 
     public function testAgentMiddlewareMayChangeTheModelAndOptionsForAStep(): void

@@ -47,8 +47,11 @@ use Hypervel\Ai\Responses\Data\ToolCall;
 use Hypervel\Ai\Responses\Data\ToolResult;
 use Hypervel\Ai\Responses\StructuredTextResponse;
 use Hypervel\Ai\Responses\TextResponse;
+use Hypervel\Ai\Streaming\Events\Citation;
 use Hypervel\Ai\Streaming\Events\Error;
 use Hypervel\Ai\Streaming\Events\ReasoningDelta;
+use Hypervel\Ai\Streaming\Events\ReasoningEnd;
+use Hypervel\Ai\Streaming\Events\ReasoningStart;
 use Hypervel\Ai\Streaming\Events\StreamEnd;
 use Hypervel\Ai\Streaming\Events\StreamEvent;
 use Hypervel\Ai\Streaming\Events\StreamStart;
@@ -575,12 +578,24 @@ class TextGenerationLoop
     {
         yield (new StreamStart($this->generateEventId(), $provider->name(), $model, time()))->withInvocationId($invocationId);
 
-        if (filled($response->text)) {
-            $messageId = $this->generateEventId();
+        if (filled($response->reasoning)) {
+            $reasoningId = $this->generateEventId();
 
+            yield (new ReasoningStart($this->generateEventId(), $reasoningId, time()))->withInvocationId($invocationId);
+            yield (new ReasoningDelta($this->generateEventId(), $reasoningId, $response->reasoning, time()))->withInvocationId($invocationId);
+            yield (new ReasoningEnd($this->generateEventId(), $reasoningId, time()))->withInvocationId($invocationId);
+        }
+
+        $messageId = $this->generateEventId();
+
+        if (filled($response->text)) {
             yield (new TextStart($this->generateEventId(), $messageId, time()))->withInvocationId($invocationId);
             yield (new TextDelta($this->generateEventId(), $messageId, $response->text, time()))->withInvocationId($invocationId);
             yield (new TextEnd($this->generateEventId(), $messageId, time()))->withInvocationId($invocationId);
+        }
+
+        foreach ($response->meta->citations as $citation) {
+            yield (new Citation($this->generateEventId(), $messageId, $citation, time()))->withInvocationId($invocationId);
         }
 
         foreach ($response->toolCalls as $toolCall) {
