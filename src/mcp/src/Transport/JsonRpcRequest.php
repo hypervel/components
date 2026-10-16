@@ -86,6 +86,20 @@ class JsonRpcRequest
     }
 
     /**
+     * Get the requested positive page size.
+     */
+    public function perPage(): ?int
+    {
+        $perPage = $this->get('per_page');
+
+        if ($perPage !== null && (! is_int($perPage) || $perPage < 1)) {
+            throw new JsonRpcException('Invalid params: The [per_page] member must be a positive integer.', -32602, $this->id);
+        }
+
+        return $perPage;
+    }
+
+    /**
      * Get a request parameter.
      */
     public function get(string $key, mixed $default = null): mixed

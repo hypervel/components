@@ -136,15 +136,17 @@ class JsonRpcRequestTest extends TestCase
         $this->assertSame([], $request->params);
         $this->assertSame('default', $request->get('missing', 'default'));
         $this->assertNull($request->cursor());
+        $this->assertNull($request->perPage());
 
         $requestWithCursor = JsonRpcRequest::from([
             'jsonrpc' => '2.0',
             'id' => 2,
             'method' => 'other',
-            'params' => ['cursor' => 'CUR123', 'foo' => 'bar'],
+            'params' => ['cursor' => 'CUR123', 'per_page' => 5, 'foo' => 'bar'],
         ]);
 
         $this->assertSame('CUR123', $requestWithCursor->cursor());
+        $this->assertSame(5, $requestWithCursor->perPage());
         $this->assertSame('bar', $requestWithCursor->get('foo'));
     }
 
@@ -334,6 +336,23 @@ class JsonRpcRequestTest extends TestCase
         $this->expectExceptionCode(-32602);
 
         (new JsonRpcRequest(1, 'tools/list', ['cursor' => ['invalid']]))->cursor();
+    }
+
+    #[DataProvider('invalidPageSizes')]
+    public function testRejectsInvalidPageSizesAsInvalidParams(mixed $perPage): void
+    {
+        $this->expectException(JsonRpcException::class);
+        $this->expectExceptionCode(-32602);
+
+        (new JsonRpcRequest(1, 'tools/list', ['per_page' => $perPage]))->perPage();
+    }
+
+    /**
+     * Supply invalid page sizes.
+     */
+    public static function invalidPageSizes(): array
+    {
+        return [[0], [-1], ['5'], [1.5], [[]]];
     }
 
     public function testRejectsInvalidArgumentBytesInsteadOfChangingThem(): void
