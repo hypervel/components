@@ -7,6 +7,7 @@ use Hypervel\Sentry\Features\CacheIntegration;
 use Hypervel\Sentry\Features\ClassificationIntegration;
 use Hypervel\Sentry\Features\ConsoleIntegration;
 use Hypervel\Sentry\Features\ConsoleSchedulingIntegration;
+use Hypervel\Sentry\Features\HttpClientIntegration;
 use Hypervel\Sentry\Features\LogIntegration;
 use Hypervel\Sentry\Features\NotificationsIntegration;
 use Hypervel\Sentry\Features\QueueIntegration;
@@ -215,6 +216,7 @@ return [
         QueueIntegration::class,
         ConsoleIntegration::class,
         StorageIntegration::class,
+        HttpClientIntegration::class,
         NotificationsIntegration::class,
         ConsoleSchedulingIntegration::class,
         AiIntegration::class,

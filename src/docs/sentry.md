@@ -200,15 +200,15 @@ The default configuration traces requests, database queries, HTTP client request
 
 Cache spans and breadcrumbs follow cache repository events. Configured stores honor their `events` option, but the `failover` store defaults this option to `false`; enable it explicitly when failover operations should produce telemetry. `Cache::memo()` does not emit a second event for its memoization layer, while operations that reach the wrapped repository follow that store's setting.
 
-HTTP client spans and breadcrumbs cover every Guzzle client, including the HTTP client and SDKs built on Guzzle, such as the AWS SDK. When a request takes longer than `SENTRY_TRACE_HTTP_CLIENT_REQUESTS_ORIGIN_THRESHOLD_MS` (250 milliseconds by default), its span also records the application code that sent it. You may disable this with `SENTRY_TRACE_HTTP_CLIENT_REQUESTS_ORIGIN_ENABLED=false`. To leave a client or a single request out entirely, pass the `no_sentry_aspect` option:
+HTTP client spans and breadcrumbs cover every Guzzle client, including the HTTP client and SDKs built on Guzzle, such as the AWS SDK. When a request takes longer than `SENTRY_TRACE_HTTP_CLIENT_REQUESTS_ORIGIN_THRESHOLD_MS` (250 milliseconds by default), its span also records the application code that sent it. You may disable this with `SENTRY_TRACE_HTTP_CLIENT_REQUESTS_ORIGIN_ENABLED=false`. To leave a client or a single request out entirely, set the `sentry_enabled` option to `false`:
 
 ```php
 use GuzzleHttp\Client;
 use Hypervel\Support\Facades\Http;
 
-$client = new Client(['no_sentry_aspect' => true]);
+$client = new Client(['sentry_enabled' => false]);
 
-Http::withOptions(['no_sentry_aspect' => true])->get('https://example.com/health');
+Http::withOptions(['sentry_enabled' => false])->get('https://example.com/health');
 ```
 
 By default, request transactions include work performed after the response is sent. You may finish transactions during the HTTP terminate phase instead:

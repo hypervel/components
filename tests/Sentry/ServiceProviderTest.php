@@ -5,16 +5,15 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sentry;
 
 use GuzzleHttp\Client;
-use GuzzleHttp\Promise\Promise;
+use GuzzleHttp\Handler\MockHandler;
+use GuzzleHttp\Psr7\Response as PsrResponse;
 use Hypervel\Config\Repository;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Http\Kernel;
-use Hypervel\Di\Aop\AspectCollector;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Configuration\ConfigMutationTracker;
 use Hypervel\Http\Request;
-use Hypervel\Sentry\Aspects\GuzzleHttpClientAspect;
 use Hypervel\Sentry\Facade;
 use Hypervel\Sentry\Features\Feature;
 use Hypervel\Sentry\Http\FlushEventsMiddleware;
@@ -26,6 +25,7 @@ use Hypervel\Sentry\Tracing\BacktraceHelper;
 use Hypervel\Sentry\Tracing\Middleware as TracingMiddleware;
 use Hypervel\Support\Facades\Artisan;
 use Hypervel\Testing\ParallelTesting;
+use Hypervel\Tests\Di\Fixtures\ProxySources;
 use LogicException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -46,9 +46,25 @@ use Symfony\Component\HttpFoundation\Response;
 
 class ServiceProviderTest extends TestCase
 {
+    private ?string $proxyFile = null;
+
     protected array $setupConfig = [
         'sentry.error_types' => E_ALL ^ E_DEPRECATED ^ E_USER_DEPRECATED,
     ];
+
+    /**
+     * Remove the temporary proxy file from the Testbench application.
+     */
+    protected function tearDown(): void
+    {
+        try {
+            if ($this->proxyFile !== null) {
+                (new Filesystem)->delete($this->proxyFile);
+            }
+        } finally {
+            parent::tearDown();
+        }
+    }
 
     public function testIsBound(): void
     {
@@ -302,7 +318,7 @@ class ServiceProviderTest extends TestCase
         $this->assertTrue($config['tracing']['custom']);
     }
 
-    public function testSpotlightUrlRegistersTheGuzzleAspect(): void
+    public function testSpotlightUrlInstrumentsGuzzleRequests(): void
     {
         $this->resetApplicationWithConfig([
             'sentry.dsn' => null,
@@ -310,17 +326,25 @@ class ServiceProviderTest extends TestCase
             'sentry_test.override_dsn' => true,
         ]);
 
-        $this->assertNotEmpty(AspectCollector::getRule(GuzzleHttpClientAspect::class));
+        $handler = new MockHandler([new PsrResponse]);
+        (new Client(['handler' => $handler]))->get('https://example.com');
+
+        $this->assertTrue($handler->getLastRequest()->hasHeader('sentry-trace'));
     }
 
     public function testGeneratedProxiesOfExcludedSourcesAreNotInApp(): void
     {
         $repositoryPath = dirname(__DIR__, 2);
-        $this->resetApplicationWithConfig([
-            'sentry.in_app_exclude' => [$repositoryPath . '/src', $repositoryPath . '/vendor'],
-        ]);
+        $proxyFile = $this->createProxyFile();
+        $sourceFile = (new ReflectionClass(SentryServiceProvider::class))->getFileName();
 
-        $this->assertSame(__FILE__, $this->firstInAppFrameFileAfterGuzzleProxyFrame());
+        ProxySources::with([$proxyFile => $sourceFile], function () use ($repositoryPath, $proxyFile): void {
+            $this->resetApplicationWithConfig([
+                'sentry.in_app_exclude' => [$repositoryPath . '/src', $repositoryPath . '/vendor'],
+            ]);
+
+            $this->assertSame(__FILE__, $this->firstInAppFrameFileAfterProxyFrame($proxyFile));
+        });
     }
 
     public function testGeneratedProxiesAreClassifiedAgainstSymlinkedExclusions(): void
@@ -331,13 +355,17 @@ class ServiceProviderTest extends TestCase
         $filesystem->ensureDirectoryExists($directory);
         $repositoryLink = $directory . '/repository';
         symlink(dirname(__DIR__, 2), $repositoryLink);
+        $proxyFile = $this->createProxyFile();
+        $sourceFile = (new ReflectionClass(SentryServiceProvider::class))->getFileName();
 
         try {
-            $this->resetApplicationWithConfig([
-                'sentry.in_app_exclude' => [$repositoryLink . '/src', $repositoryLink . '/vendor'],
-            ]);
+            ProxySources::with([$proxyFile => $sourceFile], function () use ($repositoryLink, $proxyFile): void {
+                $this->resetApplicationWithConfig([
+                    'sentry.in_app_exclude' => [$repositoryLink . '/src', $repositoryLink . '/vendor'],
+                ]);
 
-            $this->assertSame(__FILE__, $this->firstInAppFrameFileAfterGuzzleProxyFrame());
+                $this->assertSame(__FILE__, $this->firstInAppFrameFileAfterProxyFrame($proxyFile));
+            });
         } finally {
             unlink($repositoryLink);
             $filesystem->deleteDirectory($directory);
@@ -347,22 +375,32 @@ class ServiceProviderTest extends TestCase
     public function testInAppIncludeCoveringGeneratedProxiesKeepsThemInApp(): void
     {
         $repositoryPath = dirname(__DIR__, 2);
-        $this->resetApplicationWithConfig([
-            'sentry.in_app_exclude' => [$repositoryPath . '/src', $repositoryPath . '/vendor'],
-            'sentry.in_app_include' => [dirname($this->guzzleClientProxyFile())],
-        ]);
+        $proxyFile = $this->createProxyFile();
+        $sourceFile = (new ReflectionClass(SentryServiceProvider::class))->getFileName();
 
-        $this->assertSame($this->guzzleClientProxyFile(), $this->firstInAppFrameFileAfterGuzzleProxyFrame());
+        ProxySources::with([$proxyFile => $sourceFile], function () use ($repositoryPath, $proxyFile): void {
+            $this->resetApplicationWithConfig([
+                'sentry.in_app_exclude' => [$repositoryPath . '/src', $repositoryPath . '/vendor'],
+                'sentry.in_app_include' => [dirname($proxyFile)],
+            ]);
+
+            $this->assertSame($proxyFile, $this->firstInAppFrameFileAfterProxyFrame($proxyFile));
+        });
     }
 
     public function testGeneratedProxiesOfIncludedSourcesStayInAppUnderABroadExclusion(): void
     {
-        $this->resetApplicationWithConfig([
-            'sentry.in_app_exclude' => [base_path()],
-            'sentry.in_app_include' => [dirname(__DIR__, 2) . '/vendor/guzzlehttp'],
-        ]);
+        $proxyFile = $this->createProxyFile();
+        $sourceFile = (new ReflectionClass(SentryServiceProvider::class))->getFileName();
 
-        $this->assertSame($this->guzzleClientProxyFile(), $this->firstInAppFrameFileAfterGuzzleProxyFrame());
+        ProxySources::with([$proxyFile => $sourceFile], function () use ($proxyFile, $sourceFile): void {
+            $this->resetApplicationWithConfig([
+                'sentry.in_app_exclude' => [base_path()],
+                'sentry.in_app_include' => [dirname($sourceFile)],
+            ]);
+
+            $this->assertSame($proxyFile, $this->firstInAppFrameFileAfterProxyFrame($proxyFile));
+        });
     }
 
     public function testFeatureFailureIsLoggedWithoutOverwritingItsInstanceOrSkippingBoot(): void
@@ -445,25 +483,24 @@ class ServiceProviderTest extends TestCase
     }
 
     /**
-     * Get the generated AOP proxy file of the Guzzle client.
+     * Create a temporary proxy file inside the application.
      */
-    private function guzzleClientProxyFile(): string
+    private function createProxyFile(): string
     {
-        $proxyFile = (new ReflectionClass(Client::class))->getFileName();
+        $this->proxyFile = base_path('bootstrap/cache/sentry-source.proxy.php');
+        (new Filesystem)->put($this->proxyFile, '<?php');
 
-        $this->assertStringEndsWith('.proxy.php', $proxyFile);
-
-        return $proxyFile;
+        return realpath($this->proxyFile);
     }
 
     /**
-     * Get the first in-app file of a backtrace whose innermost application call runs in the Guzzle client proxy.
+     * Get the first in-app file of a backtrace that starts inside the proxy.
      */
-    private function firstInAppFrameFileAfterGuzzleProxyFrame(): ?string
+    private function firstInAppFrameFileAfterProxyFrame(string $proxyFile): ?string
     {
         $frame = $this->app->make(BacktraceHelper::class)->findFirstInAppFrameForBacktrace([
-            ['file' => $this->guzzleClientProxyFile(), 'line' => 1, 'class' => Promise::class, 'function' => 'wait'],
-            ['file' => __FILE__, 'line' => __LINE__, 'class' => Client::class, 'function' => 'request'],
+            ['file' => $proxyFile, 'line' => 1, 'class' => SentryServiceProvider::class, 'function' => 'boot'],
+            ['file' => __FILE__, 'line' => __LINE__, 'class' => SentryServiceProvider::class, 'function' => 'register'],
             ['class' => self::class, 'function' => __FUNCTION__],
         ]);
 
