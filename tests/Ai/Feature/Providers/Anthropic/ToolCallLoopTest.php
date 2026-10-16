@@ -4,15 +4,47 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Ai\Feature\Providers\Anthropic;
 
+use Hypervel\JsonSchema\JsonSchemaTypeFactory;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Ai\Fixtures\Agents\ToolUsingAgent;
 use Hypervel\Tests\Ai\Fixtures\AnthropicHelpers;
+use Hypervel\Tests\Ai\Fixtures\Tools\FixedNumberGenerator;
 use Hypervel\Tests\Ai\TestCase;
 use stdClass;
+
+use function Hypervel\Ai\agent;
 
 class ToolCallLoopTest extends TestCase
 {
     use AnthropicHelpers;
+
+    public function testSyntheticStructuredToolCallsAreNotReplayedAlongsideRealTools(): void
+    {
+        config(['ai.providers.anthropic.use_native_structured_output' => false]);
+        Http::fake(['api.anthropic.com/*' => Http::sequence([
+            Http::response([
+                'model' => 'claude-sonnet-4-6',
+                'content' => [
+                    ['type' => 'thinking', 'thinking' => 'Choose a number.', 'signature' => 'signed'],
+                    ['type' => 'tool_use', 'id' => 'synthetic', 'name' => 'output_structured_data', 'input' => ['number' => 0]],
+                    ['type' => 'tool_use', 'id' => 'real', 'name' => 'FixedNumberGenerator', 'input' => (object) []],
+                ],
+                'stop_reason' => 'tool_use',
+            ]),
+            $this->fakeSyntheticStructuredResponse(['number' => 72019]),
+        ])]);
+
+        $response = agent(tools: [new FixedNumberGenerator], schema: fn (): array => ['number' => (new JsonSchemaTypeFactory)->integer()])
+            ->prompt('Generate a number', provider: 'anthropic');
+
+        $messages = Http::recorded()[1][0]->data()['messages'];
+        $assistant = collect($messages)->firstWhere('role', 'assistant');
+        $this->assertSame(['thinking', 'tool_use'], array_column($assistant['content'], 'type'));
+        $this->assertSame('signed', $assistant['content'][0]['signature']);
+        $this->assertSame('real', $assistant['content'][1]['id']);
+        $this->assertSame('real', $messages[array_key_last($messages)]['content'][0]['tool_use_id']);
+        $this->assertSame(72019, $response['number']);
+    }
 
     public function testToolCallsTriggerFollowUpRequest(): void
     {

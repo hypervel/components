@@ -6,13 +6,16 @@ namespace Hypervel\Tests\Ai\Feature\Providers\Anthropic;
 
 use Hypervel\Ai\Attributes\CacheInstructions;
 use Hypervel\Ai\Attributes\CacheToolDefinitions;
+use Hypervel\Ai\Providers\Tools\ToolSearch;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Ai\Fixtures\Agents\PromptCacheAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\PromptCacheStructuredAgent;
 use Hypervel\Tests\Ai\Fixtures\AnthropicHelpers;
+use Hypervel\Tests\Ai\Fixtures\Tools\FixedNumberGenerator;
 use Hypervel\Tests\Ai\TestCase;
 use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class PromptCacheTest extends TestCase
 {
@@ -35,18 +38,37 @@ class PromptCacheTest extends TestCase
         });
     }
 
-    public function testCacheToolDefinitionsAttributeStampsTheLastTool(): void
+    #[DataProvider('toolSearchModes')]
+    public function testCacheToolDefinitionsAttributeStampsTheLastTool(bool $deferred): void
     {
         Http::fake(['api.anthropic.com/*' => $this->fakeTextResponse()]);
 
-        (new #[CacheToolDefinitions] class extends PromptCacheAgent {})->prompt('Hi', provider: 'anthropic');
+        $agent = new #[CacheToolDefinitions] class extends PromptCacheAgent {};
+
+        if ($deferred) {
+            $agent->withTools([new ToolSearch([new FixedNumberGenerator])]);
+        }
+
+        $agent->prompt('Hi', provider: 'anthropic');
 
         Http::assertSent(function ($request): bool {
             $body = $request->data();
 
+            $eligible = array_filter($body['tools'], fn (array $tool): bool => ! ($tool['defer_loading'] ?? false));
+            $deferredTools = array_filter($body['tools'], fn (array $tool): bool => $tool['defer_loading'] ?? false);
+
             return $body['system'] === 'You are a helpful assistant that generates numbers.'
-                && Arr::last($body['tools'])['cache_control'] === ['type' => 'ephemeral'];
+                && Arr::last($eligible)['cache_control'] === ['type' => 'ephemeral']
+                && array_all($deferredTools, fn (array $tool): bool => ! isset($tool['cache_control']));
         });
+    }
+
+    /**
+     * Cover ordinary tools and a trailing deferred search catalog.
+     */
+    public static function toolSearchModes(): array
+    {
+        return [[false], [true]];
     }
 
     public function testBothTargetsMayBeCachedTogether(): void

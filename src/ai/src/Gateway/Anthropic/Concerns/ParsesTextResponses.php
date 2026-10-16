@@ -96,7 +96,8 @@ trait ParsesTextResponses
             usage: $usage,
             meta: new Meta($provider->name(), $model, $citations),
             structured: $structuredData,
-            replayBlocks: $content,
+            // The synthetic output has no tool result, so replaying its call would leave an unmatched tool-use ID.
+            replayBlocks: array_values(array_filter($content, fn (array $block): bool => ($block['type'] ?? '') !== 'tool_use' || ($block['name'] ?? '') !== 'output_structured_data')),
             reasoning: $this->extractReasoning($content),
             providerToolCalls: $this->extractProviderToolCalls($content),
         );

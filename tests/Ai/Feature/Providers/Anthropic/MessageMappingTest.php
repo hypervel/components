@@ -20,6 +20,7 @@ use Hypervel\Tests\Ai\Fixtures\Agents\ToolUsingAgent;
 use Hypervel\Tests\Ai\Fixtures\AnthropicHelpers;
 use Hypervel\Tests\Ai\TestCase;
 use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
 use stdClass;
 
@@ -103,26 +104,36 @@ class MessageMappingTest extends TestCase
         $this->assertNotEmpty($toolResultBlock['content']);
     }
 
-    public function testLocalImageAttachmentWithoutExplicitMimeTypeDetectsMimeFromFile(): void
+    #[DataProvider('imagePrompts')]
+    public function testLocalImageAttachmentWithoutExplicitMimeTypeDetectsMimeFromFile(string $prompt): void
     {
         Http::fake([
             'api.anthropic.com/*' => $this->fakeTextResponse('I see an image'),
         ]);
 
         agent('You are helpful.')->prompt(
-            'What is in this image?',
+            $prompt,
             attachments: [new LocalImage(__DIR__ . '/../../../Fixtures/Images/red.png')],
             provider: 'anthropic',
         );
 
-        Http::assertSent(function ($request): bool {
+        Http::assertSent(function ($request) use ($prompt): bool {
             $content = $request->data()['messages'][0]['content'];
             $imageBlock = collect($content)->firstWhere('type', 'image');
 
             return $imageBlock !== null
                 && $imageBlock['source']['type'] === 'base64'
-                && $imageBlock['source']['media_type'] === 'image/png';
+                && $imageBlock['source']['media_type'] === 'image/png'
+                && collect($content)->where('type', 'text')->pluck('text')->all() === ($prompt === '' ? [] : [$prompt]);
         });
+    }
+
+    /**
+     * Provide an ordinary prompt, an attachment-only prompt and meaningful zero text.
+     */
+    public static function imagePrompts(): array
+    {
+        return [['What is in this image?'], [''], ['0']];
     }
 
     public function testBase64PdfDocumentMapsToDocumentContentBlock(): void

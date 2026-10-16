@@ -99,7 +99,14 @@ trait BuildsTextRequests
         }
 
         if (isset($body['tools']) && $options?->cacheToolDefinitions instanceof CacheToolDefinitions) {
-            $body['tools'][array_key_last($body['tools'])]['cache_control'] = $this->cacheControl($options->cacheToolDefinitions->ttl);
+            // Deferred tools are excluded from the cached prefix and cannot carry a breakpoint.
+            foreach (array_reverse(array_keys($body['tools'])) as $index) {
+                if (! ($body['tools'][$index]['defer_loading'] ?? false)) {
+                    $body['tools'][$index]['cache_control'] = $this->cacheControl($options->cacheToolDefinitions->ttl);
+
+                    break;
+                }
+            }
         }
 
         return $body;
