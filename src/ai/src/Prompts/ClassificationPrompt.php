@@ -37,7 +37,7 @@ class ClassificationPrompt implements Countable
      */
     public function contains(string $string): bool
     {
-        return Str::contains(is_string($this->state) ? $this->state : (string) json_encode($this->state), $string);
+        return Str::contains(is_string($this->state) ? $this->state : (string) json_encode($this->state, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), $string);
     }
 
     /**

@@ -150,9 +150,11 @@ class ClassificationFakeTest extends TestCase
     {
         Classification::fake();
 
-        Classification::of(['body' => 'Hypervel is great'])->question('is_urgent', new Boolean('Urgent?'))->timeout(45)->classify(provider: Lab::TypeSafe);
+        Classification::of(['body' => 'Hypervel café', 'url' => 'https://example.com'])->question('is_urgent', new Boolean('Urgent?'))->timeout(45)->classify(provider: Lab::TypeSafe);
 
         Classification::assertClassified(fn (ClassificationPrompt $prompt): bool => $prompt->contains('Hypervel')
+            && $prompt->contains('café')
+            && $prompt->contains('https://example.com')
             && $prompt->asks('is_urgent')
             && $prompt->count() === 1
             && $prompt->timeout === 45);
