@@ -18,6 +18,12 @@ class StreamingMarkdown
 
     private bool $heading = false;
 
+    private int $backticks = 0;
+
+    private bool $fenced = false;
+
+    private bool $closingFence = false;
+
     /**
      * Format text incrementally without treating chunk boundaries as line boundaries.
      */
@@ -29,22 +35,39 @@ class StreamingMarkdown
         for ($index = 0; $index < $length; ++$index) {
             $character = $delta[$index];
 
+            if ($character !== '`') {
+                $output .= $this->flushBackticks();
+            }
+
             if ($character === "\n") {
                 $output .= $this->flush() . "\n";
 
                 continue;
             }
 
+            if ($this->lineStart && ($character === ' ' || $character === "\t")) {
+                $output .= $character;
+
+                continue;
+            }
+
+            if ($this->fenced) {
+                if ($this->lineStart && $character === '`') {
+                    ++$this->backticks;
+                } else {
+                    if ($character !== ' ' && $character !== "\t" && $character !== "\r") {
+                        $this->closingFence = false;
+                    }
+
+                    $output .= $character;
+                    $this->lineStart = false;
+                }
+
+                continue;
+            }
+
             if ($this->delimiter !== '') {
                 $this->pending .= $character;
-
-                // Preserve fences and longer backtick delimiters as literal text.
-                if ($this->pending === '``') {
-                    $output .= $this->pending;
-                    $this->pending = $this->delimiter = '';
-
-                    continue;
-                }
 
                 $delimiterLength = strlen($this->delimiter);
 
@@ -100,7 +123,9 @@ class StreamingMarkdown
             } elseif ($character === '*') {
                 $this->asterisk = true;
             } elseif ($character === '`') {
-                $this->pending = $this->delimiter = '`';
+                ++$this->backticks;
+
+                continue;
             } else {
                 $output .= $character;
             }
@@ -112,11 +137,42 @@ class StreamingMarkdown
     }
 
     /**
+     * Preserve complete backtick runs even when they arrive in separate chunks.
+     */
+    private function flushBackticks(): string
+    {
+        if ($this->backticks === 0) {
+            return '';
+        }
+
+        $output = str_repeat('`', $this->backticks);
+
+        if ($this->lineStart && $this->backticks >= 3) {
+            $this->closingFence = $this->fenced;
+            $this->fenced = true;
+        } elseif ($this->backticks === 1 && ! $this->fenced) {
+            $this->pending = $this->delimiter = '`';
+            $output = '';
+        }
+
+        $this->backticks = 0;
+        $this->lineStart = false;
+
+        return $output;
+    }
+
+    /**
      * Emit unfinished markup literally and close the current line's styles.
      */
     public function flush(): string
     {
-        $output = $this->pending . $this->headingPrefix . ($this->asterisk ? '*' : '') . ($this->heading ? "\e[22;39m" : '');
+        $output = $this->flushBackticks() . $this->pending . $this->headingPrefix . ($this->asterisk ? '*' : '') . ($this->heading ? "\e[22;39m" : '');
+
+        if ($this->closingFence) {
+            $this->fenced = false;
+        }
+
+        $this->closingFence = false;
         $this->pending = $this->delimiter = $this->headingPrefix = '';
         $this->asterisk = $this->heading = false;
         $this->lineStart = true;

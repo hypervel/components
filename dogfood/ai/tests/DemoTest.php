@@ -90,8 +90,8 @@ class DemoTest extends TestCase
 
     public function testMarkdownFormattingDoesNotDependOnChunkBoundaries(): void
     {
-        $text = "# Heading\n**Hello `world`** and `code`\nplain # comment\n```php\necho 1;\n```\nDone ``x``\n**unfinished\n`end";
-        $expected = "\e[1;36mHeading\e[22;39m\n\e[1mHello \e[36mworld\e[39m\e[22m and \e[36mcode\e[39m\nplain # comment\n```php\necho 1;\n```\nDone ``x``\n**unfinished\n`end";
+        $text = "# Heading\n**Hello `world`** and `code`\nplain # comment\n```python\n# compute\na**2 + b**2\n`x`\n```not a closing fence\n# still code\n```\nDone ``x`` and ```npm install``` now\n1. Install:\n   ```python\n   y = a**2 + b**2\n   print(`x`)\n   ```\n2. Done\n**unfinished\n`end";
+        $expected = "\e[1;36mHeading\e[22;39m\n\e[1mHello \e[36mworld\e[39m\e[22m and \e[36mcode\e[39m\nplain # comment\n```python\n# compute\na**2 + b**2\n`x`\n```not a closing fence\n# still code\n```\nDone ``x`` and ```npm install``` now\n1. Install:\n   ```python\n   y = a**2 + b**2\n   print(`x`)\n   ```\n2. Done\n**unfinished\n`end";
 
         for ($boundary = 0; $boundary <= strlen($text); ++$boundary) {
             $markdown = new StreamingMarkdown;
