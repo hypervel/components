@@ -653,6 +653,8 @@ The store uses your default database connection unless `ai.conversations.connect
 
 The SDK generates a title when it creates a conversation. To use the opening message as the title instead, set `conversations.generate_title` to `false` in your `config/ai.php` configuration file.
 
+If the first turn fails or is abandoned, the SDK keeps a title that has already finished or uses the start of the opening message, without starting title generation.
+
 By default, title generation runs after the agent responds. You may generate titles alongside the agent's response by enabling `conversations.concurrent_title`:
 
 ```php
@@ -662,7 +664,7 @@ By default, title generation runs after the agent responds. You may generate tit
 ],
 ```
 
-When starting a new conversation, concurrent title generation runs alongside the main response. For streamed responses, it starts when the stream is consumed. The SDK waits for the title before saving the turn and cancels unfinished title requests when the operation is abandoned. Enabling this option may incur a title request even if the agent fails, including a separate title request for each failover attempt.
+When starting a new conversation, concurrent title generation runs alongside the main response. For streamed responses, it starts when the stream is consumed. The SDK waits for the title before saving a successful turn and cancels unfinished title requests when the turn fails or is abandoned. Enabling this option may incur a title request even if the agent fails, including a separate title request for each failover attempt.
 
 Concurrent titles run in a separate coroutine with a copy of the caller's `Context` values. They use the caller's current default database connection, such as one selected with `DB::usingConnection()`. If your provider configuration or other hooks depend on additional application context, register [context capture](#capturing-application-context) so that work sees the same values.
 
@@ -2063,7 +2065,9 @@ $step->isFirstStep();
 $step->isFinalStep;
 ```
 
-The `withModel`, `withInstructions`, `withMessages`, `withTools`, `onlyTools`, `withoutTools`, `withToolChoice`, `withMaxTokens`, and `withProviderOptions` methods each return a copy of the step. For example, you may remove an expensive tool once the agent has used it:
+The `withModel`, `withInstructions`, `withMessages`, `withTools`, `onlyTools`, `withoutTools`, `withToolChoice`, `withMaxTokens`, and `withProviderOptions` methods each return a copy of the step. Amazon Bedrock has no `none` tool choice, and support for forcing a tool depends on the model. Ollama supports only automatic tool choice.
+
+For example, you may remove an expensive tool once the agent has used it:
 
 ```php
 public function handle(PendingStep $step, Closure $next)
@@ -4178,7 +4182,7 @@ Resolving providers and tools and capturing conversation history happen before p
 
 `AgentStreamAbandoned` is dispatched when an unfinished stream is closed without an exception, such as when consumption stops early or an HTTP response write fails. A thrown exception instead follows the normal failure or failover path. Stream aggregation and conversation-persistence failures also report `AgentFailed`; errors after `AgentStreamed`, including errors in its listeners, do not report another terminal event. Replaying a completed response does not dispatch these lifecycle events again.
 
-For remembered conversations, abandoning a stream preserves completed tool steps and settles any claimed approval turn as failed, retaining the results of tools that already ran.
+For remembered conversations, abandoning a stream preserves completed tool steps and settles any claimed approval turn as failed, retaining the results of tools that already ran. This cleanup does not start or wait for [title generation](#conversation-titles).
 
 Queued listeners require a serializable event. Raw uploaded files cannot be serialized. If you use queued listeners, attach uploads using the `fromUpload()` method of the matching `Hypervel\Ai\Files` class, such as `Document::fromUpload()`, `Image::fromUpload()` or `Audio::fromUpload()`, to include the file's contents. Alternatively, store the file on a disk the queue worker can access and attach it using `fromStorage()`.
 
