@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
+use GuzzleHttp\Client;
+use GuzzleHttp\Exception\ResponseException;
 use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\TransferStats;
 use Hypervel\Contracts\Foundation\Application;
-use Hypervel\Di\Aop\ProceedingJoinPoint;
-use Hypervel\Http\Client\Guzzle\RejectedResponse;
 use Hypervel\Http\Client\PendingRequest;
 use Hypervel\Support\Json;
 use Hypervel\Support\Str;
@@ -25,74 +25,63 @@ use function Hypervel\Support\enum_value;
 
 class ClientRequestWatcher extends Watcher
 {
+    private const string MIDDLEWARE_NAME = 'telescope';
+
     protected const int DEFAULT_REQUEST_SIZE_LIMIT = 64;
 
     /**
      * Register the watcher.
      *
-     * Interception is handled by GuzzleHttpClientAspect via AOP.
+     * Boot-only. The middleware persists for the worker lifetime and affects every Guzzle client.
      */
     public function register(Application $app): void
     {
+        Client::pushGlobalMiddleware($this->recordRequests(...), self::MIDDLEWARE_NAME);
     }
 
     /**
-     * Record a Guzzle request intercepted via AOP.
+     * Record each completed Guzzle request.
      */
-    public function recordRequest(ProceedingJoinPoint $proceedingJoinPoint): mixed
+    protected function recordRequests(callable $handler): callable
     {
-        if (! Telescope::$started
-            || ! Telescope::hasWatcher(self::class)
-            || ! Telescope::isRecording()) {
-            return $proceedingJoinPoint->process();
-        }
-
-        $options = $proceedingJoinPoint->arguments['keys']['options'];
-        $guzzleConfig = (fn () => $this->config ?? [])->call($proceedingJoinPoint->getInstance());
-
-        if (($options['telescope_enabled'] ?? null) === false
-            || ($guzzleConfig['telescope_enabled'] ?? null) === false
-        ) {
-            return $proceedingJoinPoint->process();
-        }
-
-        /** @var RequestInterface $request */
-        $request = $proceedingJoinPoint->arguments['keys']['request'];
-        $host = $request->getUri()->getHost();
-
-        if ($this->shouldIgnoreHost($host)) {
-            return $proceedingJoinPoint->process();
-        }
-
-        $customTags = array_map(
-            fn ($tag) => $tag instanceof UnitEnum ? (string) enum_value($tag) : $tag,
-            $options['telescope_tags'] ?? [],
-        );
-
-        // Guzzle applies the request options and middleware after this point and calls on_stats once
-        // per redirect, so keep the last prepared request and record once when the transfer settles.
-        $stats = null;
-        $callerOnStats = $options['on_stats'] ?? null;
-        $proceedingJoinPoint->arguments['keys']['options']['on_stats'] = static function (TransferStats $transferStats) use (&$stats, $callerOnStats): void {
-            $stats = $transferStats;
-
-            if ($callerOnStats !== null) {
-                $callerOnStats($transferStats);
+        return function (RequestInterface $request, array $options) use ($handler): PromiseInterface {
+            if (! Telescope::isRecording()
+                || ($options['telescope_enabled'] ?? null) === false
+                || $this->shouldIgnoreHost($request->getUri()->getHost())
+            ) {
+                return $handler($request, $options);
             }
+
+            $customTags = array_map(
+                fn ($tag) => $tag instanceof UnitEnum ? (string) enum_value($tag) : $tag,
+                $options['telescope_tags'] ?? [],
+            );
+
+            // Guzzle applies the request options and middleware after this point and calls on_stats once
+            // per redirect, so keep the last prepared request and record once when the transfer settles.
+            $stats = null;
+            $callerOnStats = $options['on_stats'] ?? null;
+            $options['on_stats'] = static function (TransferStats $transferStats) use (&$stats, $callerOnStats): void {
+                $stats = $transferStats;
+
+                if ($callerOnStats !== null) {
+                    $callerOnStats($transferStats);
+                }
+            };
+
+            return $handler($request, $options)->then(
+                function (ResponseInterface $response) use ($request, $options, $customTags, &$stats): ResponseInterface {
+                    $this->recordTransfer($request, $stats, $response, $options, $customTags);
+
+                    return $response;
+                },
+                function (mixed $reason) use ($request, $options, $customTags, &$stats): PromiseInterface {
+                    $this->recordTransfer($request, $stats, $reason instanceof ResponseException ? $reason->getResponse() : null, $options, $customTags);
+
+                    return Create::rejectionFor($reason);
+                }
+            );
         };
-
-        return $proceedingJoinPoint->process()->then(
-            function (ResponseInterface $response) use ($request, $options, $customTags, &$stats): ResponseInterface {
-                $this->recordTransfer($request, $stats, $response, $options, $customTags);
-
-                return $response;
-            },
-            function (mixed $reason) use ($request, $options, $customTags, &$stats): PromiseInterface {
-                $this->recordTransfer($request, $stats, RejectedResponse::from($reason), $options, $customTags);
-
-                return Create::rejectionFor($reason);
-            }
-        );
     }
 
     /**
@@ -415,5 +404,13 @@ class ClientRequestWatcher extends Watcher
             $headers,
             Telescope::$hiddenRequestHeaders
         );
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        Client::removeGlobalMiddleware(self::MIDDLEWARE_NAME);
     }
 }
