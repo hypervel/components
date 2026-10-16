@@ -20,7 +20,7 @@ class StreamingMarkdown
 
     private int $backticks = 0;
 
-    private bool $fenced = false;
+    private int $fenceLength = 0;
 
     private bool $closingFence = false;
 
@@ -51,7 +51,7 @@ class StreamingMarkdown
                 continue;
             }
 
-            if ($this->fenced) {
+            if ($this->fenceLength > 0) {
                 if ($this->lineStart && $character === '`') {
                     ++$this->backticks;
                 } else {
@@ -148,9 +148,12 @@ class StreamingMarkdown
         $output = str_repeat('`', $this->backticks);
 
         if ($this->lineStart && $this->backticks >= 3) {
-            $this->closingFence = $this->fenced;
-            $this->fenced = true;
-        } elseif ($this->backticks === 1 && ! $this->fenced) {
+            if ($this->fenceLength === 0) {
+                $this->fenceLength = $this->backticks;
+            } else {
+                $this->closingFence = $this->backticks >= $this->fenceLength;
+            }
+        } elseif ($this->backticks === 1 && $this->fenceLength === 0) {
             $this->pending = $this->delimiter = '`';
             $output = '';
         }
@@ -169,7 +172,7 @@ class StreamingMarkdown
         $output = $this->flushBackticks() . $this->pending . $this->headingPrefix . ($this->asterisk ? '*' : '') . ($this->heading ? "\e[22;39m" : '');
 
         if ($this->closingFence) {
-            $this->fenced = false;
+            $this->fenceLength = 0;
         }
 
         $this->closingFence = false;
