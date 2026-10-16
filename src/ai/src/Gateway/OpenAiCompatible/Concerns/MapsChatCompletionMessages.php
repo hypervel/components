@@ -95,7 +95,7 @@ trait MapsChatCompletionMessages
         foreach ($message->toolResults as $toolResult) {
             $chatMessages[] = [
                 'role' => 'tool',
-                'tool_call_id' => $toolResult->resultId ?? $toolResult->id,
+                'tool_call_id' => $this->mapToolCallId($toolResult->resultId ?? $toolResult->id),
                 'content' => $toolResult->text(),
             ];
         }
@@ -107,12 +107,20 @@ trait MapsChatCompletionMessages
     protected function serializeToolCallToChat(ToolCall $toolCall): array
     {
         return [
-            'id' => $toolCall->resultId ?? $toolCall->id,
+            'id' => $this->mapToolCallId($toolCall->resultId ?? $toolCall->id),
             'type' => 'function',
             'function' => [
                 'name' => $toolCall->name,
                 'arguments' => json_encode((object) $toolCall->arguments),
             ],
         ];
+    }
+
+    /**
+     * Map a tool call or result ID to the provider's wire format.
+     */
+    protected function mapToolCallId(string $id): string
+    {
+        return $id;
     }
 }

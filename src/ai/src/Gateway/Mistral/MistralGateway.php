@@ -72,6 +72,14 @@ class MistralGateway implements AudioGateway, EmbeddingGateway, StepTextGateway,
     }
 
     /**
+     * Normalize foreign IDs for Mistral models that require nine alphanumeric characters.
+     */
+    protected function mapToolCallId(string $id): string
+    {
+        return preg_match('/^[A-Za-z0-9]{9}$/D', $id) === 1 ? $id : substr(hash('xxh128', $id), 0, 9);
+    }
+
+    /**
      * Generate audio from the given text.
      *
      * @param AudioProvider&Provider $provider

@@ -13,6 +13,10 @@ use Hypervel\Ai\Files\LocalImage;
 use Hypervel\Ai\Files\RemoteDocument;
 use Hypervel\Ai\Files\RemoteImage;
 use Hypervel\Ai\Files\StoredDocument;
+use Hypervel\Ai\Messages\AssistantMessage;
+use Hypervel\Ai\Messages\ToolResultMessage;
+use Hypervel\Ai\Responses\Data\ToolCall;
+use Hypervel\Ai\Responses\Data\ToolResult;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Http\Client\Request;
 use Hypervel\Http\UploadedFile;
@@ -23,6 +27,7 @@ use Hypervel\Tests\Ai\Fixtures\Agents\ToolUsingAgent;
 use Hypervel\Tests\Ai\Fixtures\MistralHelpers;
 use Hypervel\Tests\Ai\TestCase;
 use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 use function Hypervel\Ai\agent;
 
@@ -77,6 +82,37 @@ class MessageMappingTest extends TestCase
         $this->assertNotEmpty($assistantMsg['tool_calls']);
         $this->assertSame('FixedNumberGenerator', $assistantMsg['tool_calls'][0]['function']['name']);
         $this->assertSame($assistantMsg['tool_calls'][0]['id'], $toolMsg['tool_call_id']);
+    }
+
+    #[DataProvider('historyToolIds')]
+    public function testHistoryToolIdsMatchMistralsFormatWithoutChangingStoredIds(string $id, ?string $resultId): void
+    {
+        Http::fake(['*' => $this->fakeTextResponse()]);
+        $call = new ToolCall($id, 'lookup', [], $resultId);
+        $result = new ToolResult($id, 'lookup', [], 'Found', $resultId);
+
+        agent(messages: [new AssistantMessage('', collect([$call])), new ToolResultMessage(collect([$result]))])
+            ->prompt('Continue', provider: 'mistral');
+
+        $messages = Http::recorded()[0][0]->data()['messages'];
+        $wireId = $messages[0]['tool_calls'][0]['id'];
+        $this->assertMatchesRegularExpression('/^[A-Za-z0-9]{9}$/D', $wireId);
+        $this->assertSame($wireId, $messages[1]['tool_call_id']);
+        $this->assertSame($id, $call->id);
+        $this->assertSame($id, $result->id);
+        $this->assertSame($resultId, $call->resultId);
+        $this->assertSame($resultId, $result->resultId);
+        if (strlen($resultId ?? $id) === 9) {
+            $this->assertSame($resultId ?? $id, $wireId);
+        }
+    }
+
+    /**
+     * Provide foreign IDs, native IDs and a provider-specific result ID.
+     */
+    public static function historyToolIds(): array
+    {
+        return [['toolu_foreign', null], ['Abc123xyz', null], ['call_foreign', 'Native123']];
     }
 
     public function testImageAttachmentMapsToImageUrl(): void
