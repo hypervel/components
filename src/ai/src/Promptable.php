@@ -285,6 +285,16 @@ trait Promptable
                         $lastException = $isFinalAttempt
                             ? $e
                             : $this->recordAgentFailover($invocationId, $provider, $model, $e);
+                    } finally {
+                        // The foreach iterator settles the inner turn before this outer cleanup runs.
+                        if ($innerResponse !== null && ($outerResponse = $responseReference->get()) !== null) {
+                            $outerResponse->withinConversation($innerResponse->conversationId, $innerResponse->conversationUser);
+                            $outerResponse->userMessageId = $innerResponse->userMessageId;
+                            $outerResponse->assistantMessageId = $innerResponse->assistantMessageId;
+
+                            // The next failover attempt may suspend this generator again.
+                            unset($outerResponse);
+                        }
                     }
                 }
 
