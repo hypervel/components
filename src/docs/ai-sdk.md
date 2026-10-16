@@ -155,14 +155,14 @@ You may configure custom base URLs by adding a `url` parameter to your provider 
     'anthropic' => [
         'driver' => 'anthropic',
         'key' => env('ANTHROPIC_API_KEY'),
-        'url' => env('ANTHROPIC_BASE_URL'),
+        'url' => env('ANTHROPIC_URL'),
     ],
 ],
 ```
 
 This is useful when routing requests through a proxy service (such as LiteLLM or Azure OpenAI Gateway) or using alternative endpoints.
 
-Custom base URLs are supported for the following providers: OpenAI, Anthropic, Gemini, Groq, Cohere, DeepSeek, xAI, and OpenRouter.
+All providers except Amazon Bedrock support the `url` configuration option.
 
 <a name="openai-compatible-providers"></a>
 ### OpenAI-Compatible Providers
@@ -215,6 +215,8 @@ You may add custom HTTP headers to every outgoing request for the provider by de
 
 OpenAI-compatible providers support text generation, streaming, tools, structured output, image attachments, embeddings, and transcription. If your endpoint requires additional request body fields, provide them using [provider options](#provider-options).
 
+For endpoints that require usage to be requested explicitly when streaming, add `'stream_options' => ['include_usage' => true]` to the provider's configuration.
+
 <a name="openai-compatible-embeddings"></a>
 #### OpenAI-Compatible Embeddings
 
@@ -253,7 +255,7 @@ Likewise, you must configure a default transcription model to use `Transcription
 ```
 
 > [!NOTE]
-> OpenAI-compatible and Groq providers do not support diarization. Invoking the `diarize` method when using these providers will throw an exception.
+> Groq and OpenRouter do not support diarization. Invoking `diarize` with either provider throws an exception. OpenAI-compatible providers send the `diarized_json` response format, which your endpoint must support.
 
 <a name="on-demand-providers"></a>
 ### On-Demand Providers
@@ -367,7 +369,7 @@ use Hypervel\Ai\Enums\Lab;
 
 Lab::Anthropic;
 Lab::OpenAI;
-Lab::OpenAiCompatible;
+Lab::OpenAICompatible;
 Lab::Gemini;
 // ...
 ```
@@ -1016,6 +1018,8 @@ $response = (new ImageAnalyzer)->prompt(
 );
 ```
 
+When using Amazon Bedrock, document attachments require accompanying text in the prompt. Image-only prompts are supported.
+
 <a name="remote-attachments"></a>
 #### Remote Attachments
 
@@ -1153,7 +1157,7 @@ Route::get('/coach', function () {
 You may pass a message ID if your application's frontend assigns its own:
 
 ```php
-->usingVercelDataProtocol((string) $request->string('messageId'));
+->usingVercelDataProtocol($request->filled('messageId') ? (string) $request->string('messageId') : null);
 ```
 
 Alternatively, the `usingAgentUserInteractionProtocol` method may be used to stream using the [Agent User Interaction (AG-UI) protocol](https://docs.ag-ui.com):
@@ -1229,7 +1233,7 @@ $chat->runId();
 You may also convert stored messages back into the format a client expects, allowing the client to display a previous conversation, such as after a page reload:
 
 ```php
-$messages = $conversation->messages()->oldest()->get();
+$messages = $conversation->messages()->orderBy('id')->get();
 
 return ['messages' => Vercel::toUiMessages($messages)];
 ```
@@ -1604,8 +1608,8 @@ When using Anthropic, additional provider-specific options may be passed to the 
     ->withProviderOptions(['cache_control' => ['type' => 'ephemeral']]),
 ```
 
-> [!WARNING]
-> Providers that do not support tool search will throw an exception rather than silently discarding the deferred tools. In addition, Anthropic requires that at least one tool is provided outside of the `ToolSearch` wrapper.
+> [!NOTE]
+> Providers without tool search support receive the wrapped tools as ordinary tools. When using Anthropic, the SDK includes the search tool as a non-deferred tool, so you do not need to add another tool outside the wrapper.
 
 <a name="file-storage-tools"></a>
 ### File Storage Tools
@@ -1980,7 +1984,7 @@ foreach ($stream as $event) {
 }
 ```
 
-Response values such as `text`, `usage`, and `toolResults` ignore preliminary events. The [Vercel protocol](#stream-protocols) renders them as native streaming tool output, so `useChat` displays the progress without any custom code, while the AG-UI protocol reports them as activity snapshots. The completed response's text, reasoning, citations, and usage include those of the sub-agent.
+Response values such as `text`, `usage`, and `toolResults` ignore preliminary events. The [Vercel protocol](#stream-protocols) renders them as native streaming tool output, so `useChat` displays the progress without any custom code, while the AG-UI protocol reports them as activity snapshots. The sub-agent's final text becomes a tool result for the parent agent. The parent's response usage counts only its own generation steps.
 
 <a name="middleware"></a>
 ### Middleware
@@ -3722,7 +3726,7 @@ Image::assertGenerated(function (ImagePrompt $prompt) {
     return $prompt->contains('sunset') && $prompt->isLandscape();
 });
 
-Image::assertNotGenerated('Missing prompt');
+Image::assertNotGenerated(fn (ImagePrompt $prompt) => $prompt->contains('Missing prompt'));
 
 Image::assertNothingGenerated();
 ```
@@ -3734,7 +3738,7 @@ Image::assertQueued(
     fn (QueuedImagePrompt $prompt) => $prompt->contains('sunset')
 );
 
-Image::assertNotQueued('Missing prompt');
+Image::assertNotQueued(fn (QueuedImagePrompt $prompt) => $prompt->contains('Missing prompt'));
 
 Image::assertNothingQueued();
 ```
@@ -3777,7 +3781,7 @@ Audio::assertGenerated(function (AudioPrompt $prompt) {
     return $prompt->contains('Hello') && $prompt->isFemale();
 });
 
-Audio::assertNotGenerated('Missing prompt');
+Audio::assertNotGenerated(fn (AudioPrompt $prompt) => $prompt->contains('Missing prompt'));
 
 Audio::assertNothingGenerated();
 ```
@@ -3789,7 +3793,7 @@ Audio::assertQueued(
     fn (QueuedAudioPrompt $prompt) => $prompt->contains('Hello')
 );
 
-Audio::assertNotQueued('Missing prompt');
+Audio::assertNotQueued(fn (QueuedAudioPrompt $prompt) => $prompt->contains('Missing prompt'));
 
 Audio::assertNothingQueued();
 ```
@@ -4173,6 +4177,8 @@ Resolving providers and tools and capturing conversation history happen before p
 `ClassificationFailed` and `EmbeddingsFailed` report each failed provider attempt, including attempts followed by failover. They contain the invocation ID, provider, model, prompt, and original exception. Errors thrown by success-event listeners do not produce failure events.
 
 `AgentStreamAbandoned` is dispatched when an unfinished stream is closed without an exception, such as when consumption stops early or an HTTP response write fails. A thrown exception instead follows the normal failure or failover path. Stream aggregation and conversation-persistence failures also report `AgentFailed`; errors after `AgentStreamed`, including errors in its listeners, do not report another terminal event. Replaying a completed response does not dispatch these lifecycle events again.
+
+For remembered conversations, abandoning a stream preserves completed tool steps and settles any claimed approval turn as failed, retaining the results of tools that already ran.
 
 Queued listeners require a serializable event. Raw uploaded files cannot be serialized. If you use queued listeners, attach uploads using the `fromUpload()` method of the matching `Hypervel\Ai\Files` class, such as `Document::fromUpload()`, `Image::fromUpload()` or `Audio::fromUpload()`, to include the file's contents. Alternatively, store the file on a disk the queue worker can access and attach it using `fromStorage()`.
 
