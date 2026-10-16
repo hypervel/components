@@ -6,20 +6,20 @@ declare(strict_types=1);
 use Aws\Credentials\Credentials;
 use Composer\InstalledVersions;
 use GuzzleHttp\Client;
+use GuzzleHttp\Handler\CurlMultiHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Promise\Promise;
 use GuzzleHttp\Promise\PromiseInterface;
-use GuzzleHttp\Promise\TaskQueue;
 use GuzzleHttp\Promise\Utils;
+use GuzzleHttp\Psr7\Request;
+use GuzzleHttp\TransferStats;
 use Hypervel\Broadcasting\BroadcastManager;
-use Hypervel\Di\Aop\AspectCollector;
 use Hypervel\Di\Bootstrap\GenerateProxies;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Foundation\Application;
 use Hypervel\Http\Client\Factory;
 use Hypervel\Http\HttpServiceProvider;
 use Hypervel\Support\Aws\SerializedCredentialProvider;
-use Hypervel\Tests\Benchmarks\GuzzleOwnership\Fixtures\NoopAspect;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 use Symfony\Component\Process\Process;
@@ -27,22 +27,29 @@ use Symfony\Component\Process\Process;
 use function Hypervel\Coroutine\parallel;
 use function Hypervel\Coroutine\run;
 
-$options = getopt('', ['root:', 'endpoint:', 'scenario:', 'variant:', 'operations:', 'concurrency:', 'samples:', 'storage:', 'help']);
+$options = getopt('', ['root:', 'endpoint:', 'scenario:', 'operations:', 'concurrency:', 'samples:', 'storage:', 'outside', 'smoke', 'idle-confirmed', 'help']);
 if (isset($options['help'])) {
     echo "Run measurements on an idle machine. Output is JSON.\n"
-        . "--root=/checkout --endpoint=http://127.0.0.1:PORT --scenario=promise --variant=production\n"
+        . "--root=/checkout --endpoint=http://127.0.0.1:PORT --scenario=promise --smoke|--idle-confirmed\n"
         . "--operations=1000 --concurrency=8 --samples=5 --storage=/tmp/guzzle-benchmark-current\n"
-        . "Scenarios: idle, promise, sync, async, parallel, middleware, credentials, pusher, cancel.\n";
+        . "Scenarios: idle, promise, sync, direct-sync, async, parallel, direct-parallel, middleware, global-middleware, credentials, pusher, cancel, cancel-retention.\n"
+        . "Add --outside for workloads that do not create child coroutines.\n";
     exit(0);
 }
 
 $root = realpath($options['root'] ?? getcwd());
 $scenario = $options['scenario'] ?? 'promise';
-$variant = $options['variant'] ?? 'production';
+$outside = isset($options['outside']);
+$smoke = isset($options['smoke']);
 $endpoint = $options['endpoint'] ?? '';
-if (! in_array($scenario, ['idle', 'promise', 'sync', 'async', 'parallel', 'middleware', 'credentials', 'pusher', 'cancel'], true)
-    || ! in_array($variant, ['production', 'noop'], true)) {
-    throw new InvalidArgumentException('Unknown scenario or variant. See --help.');
+if (! in_array($scenario, ['idle', 'promise', 'sync', 'direct-sync', 'async', 'parallel', 'direct-parallel', 'middleware', 'global-middleware', 'credentials', 'pusher', 'cancel', 'cancel-retention'], true)) {
+    throw new InvalidArgumentException('Unknown scenario. See --help.');
+}
+if (! $smoke && ! isset($options['idle-confirmed'])) {
+    throw new InvalidArgumentException('Confirm the machine is idle with --idle-confirmed, or use --smoke.');
+}
+if ($outside && in_array($scenario, ['parallel', 'direct-parallel', 'credentials'], true)) {
+    throw new InvalidArgumentException('This workload creates child coroutines and cannot run outside a coroutine.');
 }
 if (! in_array($scenario, ['idle', 'promise'], true) && ! str_starts_with($endpoint, 'http://127.0.0.1:')) {
     throw new InvalidArgumentException('Supply the separate loopback origin URL.');
@@ -54,6 +61,10 @@ foreach (['operations' => 1000, 'concurrency' => 8, 'samples' => 5] as $key => $
         throw new InvalidArgumentException("--{$key} must be a positive integer.");
     }
     $settings[$key] = $value;
+}
+if ($smoke) {
+    $settings['operations'] = min(32, $settings['operations']);
+    $settings['samples'] = 1;
 }
 
 /**
@@ -105,21 +116,9 @@ $app = new Application($root);
 $storage = $options['storage'] ?? sys_get_temp_dir() . '/hypervel-guzzle-benchmark-' . getmypid();
 $app->useStoragePath($storage);
 $app->useBootstrapPath($storage . '/bootstrap');
-// The unchanged baseline stores generated proxies beneath storage instead.
-$cachedProxies = is_dir($app->bootstrapPath('cache/aop')) || is_dir($storage . '/framework/aop');
+$cachedProxies = is_dir($app->bootstrapPath('cache/aop'));
 (new HttpServiceProvider($app))->register();
 
-if ($variant === 'noop') {
-    // Diagnostic only: use the current branch's exact targets without its queue or ownership work.
-    $rules = AspectCollector::getClassRules();
-    if ($rules === []) {
-        throw new LogicException('Use the noop variant only on the ownership branch.');
-    }
-    require __DIR__ . '/Fixtures/NoopAspect.php';
-    AspectCollector::flushState();
-    AspectCollector::setAround(NoopAspect::class, array_merge(...array_values($rules)));
-    Utils::queue(new TaskQueue(false));
-}
 (new GenerateProxies)->bootstrap($app);
 $startup = [
     'proxy_cache_preexisting' => $cachedProxies,
@@ -138,8 +137,8 @@ $metadata = [
     'php' => PHP_VERSION,
     'swoole' => phpversion('swoole'),
     'curl' => curl_version(),
-    'guzzle' => InstalledVersions::getPrettyVersion('guzzlehttp/guzzle'),
-    'promises' => InstalledVersions::getPrettyVersion('guzzlehttp/promises'),
+    'guzzle' => InstalledVersions::getPrettyVersion(InstalledVersions::isInstalled('hypervel/guzzle') ? 'hypervel/guzzle' : 'guzzlehttp/guzzle'),
+    'promises' => InstalledVersions::getPrettyVersion(InstalledVersions::isInstalled('hypervel/guzzle-promises') ? 'hypervel/guzzle-promises' : 'guzzlehttp/promises'),
     'psr7' => InstalledVersions::getPrettyVersion('guzzlehttp/psr7'),
     'system' => php_uname(),
     'cpu' => [
@@ -154,18 +153,33 @@ $metadata = [
     'gc_enabled' => gc_enabled(),
     'command' => $argv,
     'scenario' => $scenario,
-    'variant' => $variant,
+    'outside_coroutines' => $outside,
+    'smoke' => $smoke,
     'settings' => $settings,
     'storage' => $storage,
 ];
 unset($cpuInfo, $cpuModel);
 $reports = [];
 $failure = null;
-run(static function () use ($app, $scenario, $endpoint, $settings, &$reports, &$failure): void {
+$workload = static function () use ($app, $scenario, $endpoint, $settings, &$reports, &$failure): void {
     try {
-        $client = in_array($scenario, ['async', 'credentials', 'cancel'], true)
+        if ($scenario === 'global-middleware') {
+            if (! method_exists(Client::class, 'pushGlobalMiddleware')) {
+                throw new LogicException('Global middleware requires the Hypervel Guzzle fork.');
+            }
+            $middleware = static fn (callable $handler): Closure => static fn (RequestInterface $request, array $options): PromiseInterface => $handler($request, $options);
+            Client::pushGlobalMiddleware($middleware, 'benchmark.first');
+            Client::pushGlobalMiddleware($middleware, 'benchmark.second');
+        }
+
+        $client = in_array($scenario, ['async', 'credentials', 'cancel', 'direct-sync', 'direct-parallel', 'global-middleware'], true)
             ? new Client(['timeout' => 5, 'connect_timeout' => 2, 'proxy' => ''])
             : null;
+        $multiHandler = $scenario === 'cancel-retention' ? new CurlMultiHandler : null;
+        $ports = [];
+        $onStats = static function (TransferStats $stats) use (&$ports): void {
+            $ports[$stats->getHandlerStat('local_port')] = true;
+        };
         $factory = in_array($scenario, ['sync', 'parallel'], true) ? $app->make(Factory::class) : null;
         $factory?->registerConnection('benchmark', ['timeout' => 5, 'proxy' => '']);
         $eventCount = 0;
@@ -203,7 +217,7 @@ run(static function () use ($app, $scenario, $endpoint, $settings, &$reports, &$
             ]);
         }
 
-        $operation = static function () use ($scenario, $client, $factory, $middlewareClient, $credentials, $endpoint): mixed {
+        $operation = static function () use ($scenario, $client, $factory, $middlewareClient, $credentials, $endpoint, $multiHandler, $onStats): mixed {
             if ($scenario === 'idle') {
                 return 3;
             }
@@ -225,6 +239,18 @@ run(static function () use ($app, $scenario, $endpoint, $settings, &$reports, &$
 
                 return $promise->getState();
             }
+            if ($scenario === 'cancel-retention') {
+                $promise = $multiHandler(new Request('GET', $endpoint), ['timeout' => 5, 'proxy' => '']);
+                $promise->cancel();
+
+                return $promise->getState();
+            }
+            if (in_array($scenario, ['direct-sync', 'global-middleware'], true)) {
+                return (string) $client->get($endpoint)->getBody();
+            }
+            if ($scenario === 'direct-parallel') {
+                return (string) $client->get($endpoint, ['on_stats' => $onStats])->getBody();
+            }
             if ($scenario === 'middleware') {
                 return (string) $middlewareClient->get($endpoint)->getBody();
             }
@@ -237,13 +263,14 @@ run(static function () use ($app, $scenario, $endpoint, $settings, &$reports, &$
             $expected = match ($scenario) {
                 'idle', 'promise' => 3,
                 'credentials' => 'benchmark',
-                'cancel' => PromiseInterface::REJECTED,
+                'cancel', 'cancel-retention' => PromiseInterface::REJECTED,
                 'pusher' => 'accepted',
                 default => '{"result":"accepted"}',
             };
             $latencies = [];
             $values = [];
             $eventCount = 0;
+            $ports = [];
             gc_collect_cycles();
             memory_reset_peak_usage();
             $before = resources();
@@ -274,7 +301,7 @@ run(static function () use ($app, $scenario, $endpoint, $settings, &$reports, &$
 
                         return $value;
                     };
-                    if (in_array($scenario, ['parallel', 'credentials'], true)) {
+                    if (in_array($scenario, ['parallel', 'direct-parallel', 'credentials'], true)) {
                         array_push($values, ...parallel(array_fill(0, $size, $measured)));
                     } else {
                         for ($index = 0; $index < $size; ++$index) {
@@ -286,6 +313,11 @@ run(static function () use ($app, $scenario, $endpoint, $settings, &$reports, &$
             $elapsed = (hrtime(true) - $started) / 1e9;
             $cpuElapsed = cpuSeconds() - $cpu;
             $after = resources();
+            $afterDrain = null;
+            if ($scenario === 'cancel-retention') {
+                Utils::queue()->run();
+                $afterDrain = resources();
+            }
             if (count($values) !== $count || array_filter($values, static fn (mixed $value): bool => $value !== $expected) !== []) {
                 throw new RuntimeException('The workload did not produce the expected completed results.');
             }
@@ -300,13 +332,22 @@ run(static function () use ($app, $scenario, $endpoint, $settings, &$reports, &$
                 'wall_ms' => $elapsed * 1000, 'cpu_ms' => $cpuElapsed * 1000,
                 'operations_per_second' => $count / $elapsed,
                 'latency' => $latency, 'before' => $before, 'after' => $after, 'after_gc' => resources(),
+                'after_drain' => $afterDrain,
+                'connections' => $scenario === 'direct-parallel' ? count($ports) : null,
             ];
         }
         $factory?->forgetConnectionHandlers();
     } catch (Throwable $exception) {
         $failure = $exception;
+    } finally {
+        if ($scenario === 'global-middleware' && method_exists(Client::class, 'removeGlobalMiddleware')) {
+            Client::removeGlobalMiddleware('benchmark.first');
+            Client::removeGlobalMiddleware('benchmark.second');
+        }
     }
-});
+};
+$outside ? $workload() : run($workload);
+unset($workload);
 if ($failure !== null) {
     throw $failure;
 }
