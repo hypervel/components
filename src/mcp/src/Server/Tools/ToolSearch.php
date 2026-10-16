@@ -1,0 +1,305 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Mcp\Server\Tools;
+
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Config\Repository;
+use Hypervel\Mcp\Request;
+use Hypervel\Mcp\Response;
+use Hypervel\Mcp\Server\RequestContext;
+use Hypervel\Mcp\Server\Tool;
+use Hypervel\Mcp\Server\ToolInvoker;
+use Hypervel\Mcp\Transport\JsonRpcRequest;
+use Hypervel\Mcp\Transport\JsonRpcResponse;
+use Hypervel\Support\Collection;
+use InvalidArgumentException;
+use JsonException;
+
+class ToolSearch
+{
+    protected int $maxToolCalls;
+
+    protected int $maxOutputBytes;
+
+    /**
+     * @var array<int, string|Tool>
+     */
+    protected array $tools = [];
+
+    /**
+     * Create a searchable tool catalog.
+     *
+     * @param iterable<string|Tool> $tools
+     */
+    public function __construct(iterable $tools)
+    {
+        $config = Container::getInstance()->make(Repository::class);
+
+        $this->maxToolCalls = max(1, $config->integer('mcp.tool_search.max_tool_calls'));
+        $this->maxOutputBytes = max(256, $config->integer('mcp.tool_search.max_output_bytes'));
+
+        foreach ($tools as $tool) {
+            if (! $tool instanceof Tool && (! is_string($tool) || ! is_subclass_of($tool, Tool::class))) {
+                throw new InvalidArgumentException('ToolSearch entries must be tool instances or tool class names.');
+            }
+
+            $this->tools[] = $tool;
+        }
+    }
+
+    /**
+     * Return the search and execution tools.
+     *
+     * @return array{SearchTools, ExecuteTools}
+     */
+    public function tools(): array
+    {
+        return [new SearchTools($this), new ExecuteTools($this, $this->maxToolCalls)];
+    }
+
+    /**
+     * Search eligible tools within the output limit.
+     *
+     * @return array<string, mixed>
+     */
+    public function search(string $query, int $limit): array
+    {
+        $terms = $this->terms($query);
+
+        $candidates = $this->resolvedTools()
+            ->filter(fn (Tool $tool): bool => $tool->eligibleForRegistration())
+            ->values()
+            ->map(function (Tool $tool, int $index) use ($terms): array {
+                $definition = $tool->toArray();
+                $schema = $definition['inputSchema'] ?? ['type' => 'object', 'properties' => (object) []];
+                $name = mb_strtolower($tool->name());
+                $description = mb_strtolower($tool->description());
+                $schemaText = mb_strtolower(json_encode($schema, JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE | JSON_UNESCAPED_UNICODE));
+                $score = $terms !== [] && $terms === $this->terms($name) ? 8 : 0;
+
+                foreach ($terms as $term) {
+                    $score += str_contains($name, $term) ? 4 : 0;
+                    $score += str_contains($description, $term) ? 2 : 0;
+                    $score += str_contains($schemaText, $term) ? 1 : 0;
+                }
+
+                $annotations = $tool->annotations();
+
+                return [
+                    'index' => $index,
+                    'score' => $score,
+                    'tool' => [
+                        'name' => $tool->name(),
+                        'description' => $tool->description(),
+                        'inputSchema' => $schema,
+                        ...$annotations !== [] ? ['annotations' => $annotations] : [],
+                    ],
+                ];
+            })
+            ->filter(fn (array $candidate): bool => $terms === [] || $candidate['score'] > 0)
+            ->sort(fn (array $left, array $right): int => $right['score'] <=> $left['score'] ?: $left['index'] <=> $right['index'])
+            ->values();
+
+        $tools = [];
+        $hasMore = $candidates->count() > $limit;
+        $size = $this->outputSize(['ok' => true, 'tools' => [], 'hasMore' => false]);
+
+        foreach ($candidates->take($limit) as $candidate) {
+            $size += $this->outputSize($candidate['tool']) + 1;
+
+            if ($size > $this->maxOutputBytes) {
+                if ($tools === []) {
+                    return $this->outputLimitExceeded();
+                }
+
+                $hasMore = true;
+
+                break;
+            }
+
+            $tools[] = $candidate['tool'];
+        }
+
+        return ['ok' => true, 'tools' => $tools, 'hasMore' => $hasMore];
+    }
+
+    /**
+     * Execute requested tools and collect their results.
+     *
+     * @param array<int, array{name: string, arguments?: array<string, mixed>}> $calls
+     * @return array<int, Response>
+     */
+    public function execute(array $calls, Request $parentRequest): array
+    {
+        $results = [];
+        $responses = [];
+        $tools = $this->resolvedTools();
+        $size = $this->outputSize(['ok' => true, 'results' => []]);
+
+        foreach ($calls as $index => $call) {
+            $invocation = $this->invokeTool($tools, $call['name'], $call['arguments'] ?? [], $parentRequest, $index);
+            $result = $invocation['result'];
+            array_push($responses, ...$invocation['notifications']);
+            $results[] = $entry = ['name' => $call['name'], ...$result];
+            $size += $this->outputSize($entry) + 1;
+
+            if ($size > $this->maxOutputBytes) {
+                return [...$responses, $this->response($this->outputLimitExceeded(count($results), $index + 1), true)];
+            }
+
+            if ($result['isError']) {
+                return [...$responses, $this->response(['ok' => false, 'results' => $results], true)];
+            }
+        }
+
+        return [...$responses, $this->response(['ok' => true, 'results' => $results])];
+    }
+
+    /**
+     * Encode a tool-search result as response content.
+     *
+     * @param array<string, mixed> $content
+     */
+    public function response(array $content, bool $isError = false): Response
+    {
+        $json = json_encode($content, JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+        return $isError ? Response::error($json) : Response::text($json);
+    }
+
+    /**
+     * Invoke a catalog tool under its own request context.
+     *
+     * @param Collection<int, Tool> $tools
+     * @param array<string, mixed> $arguments
+     * @return array{notifications: array<int, Response>, result: array<string, mixed>}
+     */
+    protected function invokeTool(Collection $tools, string $name, array $arguments, Request $parentRequest, int $index): array
+    {
+        $params = ['name' => $name, 'arguments' => (object) $arguments];
+
+        if ($parentRequest->meta() !== null) {
+            $params['_meta'] = $parentRequest->meta();
+        }
+
+        $request = new JsonRpcRequest(
+            id: "execute-tools:{$index}",
+            method: 'tools/call',
+            params: $params,
+        );
+
+        return RequestContext::run($request->toRequest(), function () use ($tools, $name, $request): array {
+            $tool = $tools->first(fn (Tool $tool): bool => $tool->name() === $name);
+
+            if (! $tool instanceof Tool) {
+                return ['notifications' => [], 'result' => $this->failedResult("Tool [{$name}] was not found in the catalog.")];
+            }
+
+            if (! $tool->eligibleForRegistration()) {
+                return ['notifications' => [], 'result' => $this->failedResult("Tool [{$name}] is not available.")];
+            }
+
+            $toolResponses = (new ToolInvoker(mirrorStructuredContent: false))->invoke($tool, $request);
+            $toolResponses = $toolResponses instanceof JsonRpcResponse ? [$toolResponses] : $toolResponses;
+            $notifications = [];
+            $result = null;
+
+            foreach ($toolResponses as $toolResponse) {
+                $payload = $toolResponse->toArray();
+
+                if (isset($payload['method'])) {
+                    $notifications[] = Response::notification($payload['method'], is_array($payload['params']) ? $payload['params'] : []);
+
+                    continue;
+                }
+
+                $result = $payload['result'];
+            }
+
+            return [
+                'notifications' => $notifications,
+                'result' => $result ?? $this->failedResult("Tool [{$name}] returned no result."),
+            ];
+        });
+    }
+
+    /**
+     * Resolve the catalog and reject duplicate names.
+     *
+     * @return Collection<int, Tool>
+     */
+    protected function resolvedTools(): Collection
+    {
+        $tools = collect($this->tools)->map(fn (Tool|string $tool): Tool => is_string($tool)
+            ? Container::getInstance()->make($tool)
+            : $tool);
+
+        $duplicate = $tools->map(fn (Tool $tool): string => $tool->name())->duplicates()->first();
+
+        if (is_string($duplicate)) {
+            throw new InvalidArgumentException("Duplicate tool name [{$duplicate}] in ToolSearch catalog.");
+        }
+
+        return $tools->values();
+    }
+
+    /**
+     * Split search text into normalized terms.
+     *
+     * @return array<int, string>
+     */
+    protected function terms(string $text): array
+    {
+        return array_values(array_filter(
+            preg_split('/[^\pL\pN]+/u', mb_strtolower($text)) ?: [],
+            fn (string $term): bool => $term !== '',
+        ));
+    }
+
+    /**
+     * Build a failed tool result.
+     *
+     * @return array<string, mixed>
+     */
+    protected function failedResult(string $message): array
+    {
+        return [
+            'content' => [['type' => 'text', 'text' => $message]],
+            'isError' => true,
+        ];
+    }
+
+    /**
+     * Describe an output-limit failure.
+     *
+     * @return array<string, mixed>
+     */
+    protected function outputLimitExceeded(int $completedToolCalls = 0, int $attemptedToolCalls = 0): array
+    {
+        return [
+            'ok' => false,
+            'error' => [
+                'kind' => 'OutputLimitExceeded',
+                'message' => "The tool output exceeded {$this->maxOutputBytes} bytes.",
+            ],
+            'completedToolCalls' => $completedToolCalls,
+            'attemptedToolCalls' => $attemptedToolCalls,
+        ];
+    }
+
+    /**
+     * Measure the encoded output size.
+     *
+     * @param array<string, mixed> $output
+     */
+    protected function outputSize(array $output): int
+    {
+        try {
+            return strlen(json_encode($output, JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+        } catch (JsonException $jsonException) {
+            throw new InvalidArgumentException("Unable to encode the tool output: {$jsonException->getMessage()}", 0, $jsonException);
+        }
+    }
+}
