@@ -447,20 +447,29 @@ class BedrockTextGatewayTest extends TestCase
         $this->assertNull($gateway->callGetDocumentFormat(new Base64Document(base64_encode('doc-bytes'))));
     }
 
-    public function testUserMessageWithBase64ImageAttachmentProducesImageBlock(): void
+    #[DataProvider('imagePrompts')]
+    public function testUserMessageWithBase64ImageAttachmentProducesImageBlock(string $prompt): void
     {
-        $user = new UserMessage('see this', [new Base64Image(base64_encode('image-bytes'), 'image/png')]);
+        $user = new UserMessage($prompt, [new Base64Image(base64_encode('image-bytes'), 'image/png')]);
 
         $formatted = textGateway()->callFormatUserMessage($user);
 
         $this->assertSame('user', $formatted['role']);
-        $this->assertSame(['text' => 'see this'], $formatted['content'][0]);
+        $this->assertSame($prompt === '' ? [] : [$prompt], array_column($formatted['content'], 'text'));
         $this->assertSame([
             'image' => [
                 'format' => 'png',
                 'source' => ['bytes' => 'image-bytes'],
             ],
-        ], $formatted['content'][1]);
+        ], $formatted['content'][$prompt === '' ? 0 : 1]);
+    }
+
+    /**
+     * Provide ordinary, empty and zero-valued image prompts.
+     */
+    public static function imagePrompts(): array
+    {
+        return [['see this'], [''], ['0']];
     }
 
     public function testLocalImageAttachmentIsReadFromDiskIntoBytes(): void

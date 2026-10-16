@@ -222,6 +222,12 @@ class BedrockTextGateway implements EmbeddingGateway, StepTextGateway
         $structuredOutput = null;
 
         foreach ($result['output']['message']['content'] ?? [] as $block) {
+            if ($structured && ($block['toolUse']['name'] ?? null) === self::STRUCTURED_OUTPUT_TOOL) {
+                $structuredOutput = json_encode($block['toolUse']['input'] ?? []);
+
+                continue;
+            }
+
             $replayBlocks[] = $block;
 
             if (isset($block['text'])) {
@@ -231,12 +237,6 @@ class BedrockTextGateway implements EmbeddingGateway, StepTextGateway
             }
 
             if (! isset($block['toolUse'])) {
-                continue;
-            }
-
-            if ($structured && $block['toolUse']['name'] === self::STRUCTURED_OUTPUT_TOOL) {
-                $structuredOutput = json_encode($block['toolUse']['input'] ?? []);
-
                 continue;
             }
 
@@ -596,6 +596,10 @@ class BedrockTextGateway implements EmbeddingGateway, StepTextGateway
         $client = $this->createBedrockClient($provider, $timeout);
 
         if ($this->isCohereEmbeddingModel($model)) {
+            if (! str_contains($model, 'cohere.embed-english-') && ! str_contains($model, 'cohere.embed-multilingual-')) {
+                $providerOptions['output_dimension'] = $dimensions;
+            }
+
             return $this->generateCohereEmbeddings($provider, $model, $client, $inputs, $providerOptions);
         }
 
@@ -993,7 +997,7 @@ class BedrockTextGateway implements EmbeddingGateway, StepTextGateway
      */
     protected function formatUserMessage(UserMessage $message): array
     {
-        $content = [['text' => $message->content]];
+        $content = filled($message->content) ? [['text' => $message->content]] : [];
 
         if ($message->attachments->isNotEmpty()) {
             $content = array_merge($content, $this->mapAttachments($message->attachments));

@@ -96,21 +96,36 @@ class EmbeddingTest extends TestCase
         $this->assertSame(7, $response->usage->inputTokens);
     }
 
-    public function testSendsCohereRequestShape(): void
+    #[DataProvider('cohereModels')]
+    public function testSendsCohereRequestShape(string $model, bool $configurableDimensions): void
     {
         $mock = $this->bedrockInvokeMock(['embeddings' => ['float' => [[0.1, 0.2, 0.3]]]]);
 
         $this->gatewayWithClient($this->bedrockClient($mock))->generateEmbeddings(
             $this->bedrockProvider(),
-            'cohere.embed-v4:0',
+            $model,
             ['The quick brown fox.'],
             1024,
+            providerOptions: $configurableDimensions ? ['output_dimension' => 256] : [],
         );
 
         $this->assertSame([
             'input_type' => 'search_document',
+            ...($configurableDimensions ? ['output_dimension' => 1024] : []),
             'texts' => ['The quick brown fox.'],
         ], json_decode($mock->getLastCommand()['body'], true));
+    }
+
+    /**
+     * Provide configurable embeddings and fixed-dimension v3 models.
+     */
+    public static function cohereModels(): array
+    {
+        return [
+            ['cohere.embed-v4:0', true],
+            ['cohere.embed-english-v3', false],
+            ['us.cohere.embed-multilingual-v3', false],
+        ];
     }
 
     public function testRoutesRegionPrefixedCohereModelsToCohereRequestShape(): void

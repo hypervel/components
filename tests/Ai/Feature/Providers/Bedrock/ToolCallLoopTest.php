@@ -143,6 +143,34 @@ class ToolCallLoopTest extends TestCase
         $this->assertArrayNotHasKey('system', $requests[0]);
     }
 
+    public function testSyntheticStructuredToolCallsAreNotReplayedAlongsideRealTools(): void
+    {
+        $requests = [];
+        $first = bedrockToolCallResponse('real');
+        $first['output']['message']['content'][] = ['toolUse' => [
+            'toolUseId' => 'synthetic', 'name' => 'structured_output', 'input' => ['number' => 0],
+        ]];
+        $final = bedrockToolCallResponse('final');
+        $final['output']['message']['content'] = [['toolUse' => [
+            'toolUseId' => 'final', 'name' => 'structured_output', 'input' => ['number' => 72019],
+        ]]];
+        $client = $this->fakeBedrockConverseSequence([$first, $final], $requests);
+
+        $response = (new TextGenerationLoop($this->gatewayWithClient($client)))->generate(
+            $this->bedrockProvider(),
+            'anthropic.claude-opus-4-7-v1:0',
+            null,
+            messages: [new UserMessage('Generate a number')],
+            tools: [new FixedNumberGenerator],
+            schema: ['number' => (new JsonSchemaTypeFactory)->integer()],
+        );
+
+        $assistant = collect($requests[1]['messages'])->firstWhere('role', 'assistant');
+        $this->assertSame(['real'], array_column(array_column($assistant['content'], 'toolUse'), 'toolUseId'));
+        $this->assertSame('real', $requests[1]['messages'][2]['content'][0]['toolResult']['toolUseId']);
+        $this->assertSame(['number' => 72019], $response->structured);
+    }
+
     public function testStructuredOutputIsParsedFromJsonAnswerOfModelsRejectingForcedToolChoice(): void
     {
         $requests = [];
