@@ -196,6 +196,8 @@ class RememberConversation
                 return null;
             }
 
+            $prompt->pendingConversationTitle()?->cancel();
+
             return $this->rememberTurn($prompt, $response, $pendingConversationId, $exception);
         } finally {
             // The store needs the claim held by this context until settlement finishes.
@@ -218,7 +220,14 @@ class RememberConversation
         [$participantType, $participantId] = $this->participantKeys($participant);
         $newConversation = $this->startsConversation($prompt, $pendingConversationId);
         $conversationId = $newConversation ? ($pendingConversationId ?? (string) Str::uuid7()) : $selection->conversationId;
-        $title = $newConversation ? ($prompt->pendingConversationTitle()?->value() ?? $this->generateTitle($prompt->prompt)) : null;
+        $title = null;
+
+        if ($newConversation) {
+            // Saving executed tools must not start or wait for title generation after the run stops.
+            $title = $exception === null
+                ? ($prompt->pendingConversationTitle()?->value() ?? $this->generateTitle($prompt->prompt))
+                : ($prompt->pendingConversationTitle()?->valueIfReady() ?? Str::limit($prompt->prompt, 50, preserveWords: true));
+        }
 
         if ($this->store instanceof StoresConversationTurns) {
             $stored = $this->store->storeTurn($conversationId, $title, $participantType, $participantId, $prompt, $response, $exception);

@@ -55,6 +55,14 @@ class PendingConversationTitle
     }
 
     /**
+     * Return the title if generation has already completed, without waiting.
+     */
+    public function valueIfReady(): ?string
+    {
+        return $this->title ?? null;
+    }
+
+    /**
      * Cancel and join any title request that is still running.
      */
     public function cancel(): void

@@ -559,6 +559,78 @@ class RememberConversationTest extends TestCase
         return ['prompt' => [false], 'stream' => [true]];
     }
 
+    #[DataProvider('stoppedTitleModes')]
+    public function testRecordableStoppedStreamsDoNotWaitForOrStartTitleRequests(bool $concurrent, bool $abandoned): void
+    {
+        config(['ai.conversations.generate_title' => true, 'ai.conversations.concurrent_title' => $concurrent]);
+        $prompt = $this->prompt();
+        $prompt->markAsStreaming();
+        $waiting = new Channel(1);
+        $active = false;
+        $finished = false;
+        $failure = new RuntimeException('Provider failed after a tool');
+        $middleware = m::mock(RememberConversation::class, [new DatabaseConversationStore, $prompt->provider()])
+            ->makePartial()->shouldAllowMockingProtectedMethods();
+
+        if ($concurrent) {
+            $middleware->shouldReceive('generateTitle')->once()->andReturnUsing(function () use ($waiting, &$active, &$finished): string {
+                $active = true;
+
+                try {
+                    $waiting->pop(1);
+                    $finished = true;
+
+                    return 'Unfinished title';
+                } finally {
+                    $active = false;
+                }
+            });
+        } else {
+            $middleware->shouldNotReceive('generateTitle');
+        }
+
+        $stream = new StreamableAgentResponse('invocation', function () use ($prompt, $failure, $abandoned, $concurrent, &$active): Generator {
+            $this->assertSame($concurrent, $active);
+            $prompt->setRunContext($context = $this->context($prompt));
+            $context->recordStep($this->step());
+
+            if (! $abandoned) {
+                throw $failure;
+            }
+
+            yield new TextDelta('event', 'message', 'First token', 1);
+        });
+        $response = $middleware->handle($prompt, fn (): StreamableAgentResponse => $stream);
+
+        try {
+            if ($abandoned) {
+                foreach ($response as $event) {
+                    break;
+                }
+            } else {
+                $this->assertThrowsSame($failure, fn (): array => iterator_to_array($response));
+            }
+
+            $this->assertFalse($active);
+            $this->assertFalse($finished);
+            $this->assertNull($prompt->pendingConversationTitle());
+            $this->assertDatabaseHas('agent_conversations', ['title' => 'Hello']);
+            $row = DB::table('agent_conversation_messages')->where('role', 'assistant')->first();
+            $this->assertSame('failed', $row->status);
+            $this->assertSame('Sent', json_decode($row->steps, true)[0]['tool_calls'][0]['result']);
+        } finally {
+            $waiting->close();
+        }
+    }
+
+    /**
+     * Cover failed and abandoned streams with serial or concurrent titles.
+     */
+    public static function stoppedTitleModes(): array
+    {
+        return [[false, false], [false, true], [true, false], [true, true]];
+    }
+
     public function testUnconsumedStreamsDoNotStartTitlesAndAbandonmentJoinsThem(): void
     {
         config(['ai.conversations.generate_title' => true, 'ai.conversations.concurrent_title' => true]);
