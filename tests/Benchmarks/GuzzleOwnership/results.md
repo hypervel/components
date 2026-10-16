@@ -12,13 +12,13 @@ Measured October 16, 2026, on an idle Linux x86-64 machine with six logical proc
 
 Each workload used three process pairs, reversing order in the second pair. Each process ran a 32-operation warmup and three measured samples. Tables show the median of nine samples; ranges are their minimum and maximum, not confidence intervals. Runtime excludes startup. The origin ran in a separate process whose CPU is excluded. Baseline proxies were already generated and older than the OPcache protection interval.
 
-| Workload | Operations per sample | Concurrency |
-| --- | ---: | ---: |
-| Promise chain | 20,000 | 1 |
-| Framework synchronous HTTP | 1,000 | 1 |
-| Guzzle asynchronous HTTP | 128 | 8 |
-| Direct Guzzle synchronous HTTP | 512 | 32 |
-| Cancel without per-operation queue drains | 1,000 | 1 |
+| Workload | Scenario | Operations per sample | Concurrency |
+| --- | --- | ---: | ---: |
+| Promise chain | `promise` | 20,000 | 1 |
+| Framework synchronous HTTP | `sync` | 1,000 | 1 |
+| Guzzle asynchronous HTTP | `async` | 128 | 8 |
+| Direct Guzzle synchronous HTTP | `direct-parallel` | 512 | 32 |
+| Cancel without per-operation queue drains | `cancel-retention` | 1,000 | 1 |
 
 ## Performance
 

@@ -76,7 +76,7 @@ Both checkouts use Guzzle 8.2.0, promises 3.0.2, PSR-7 3.1.0 and AWS SDK 3.399.1
 
 † Refreshed `loader-g8-*` runs after the bootstrap corrections. Unmarked rows are from `complete-g8-*`, using the same dispatch and ownership implementation. Do not treat rows from different runs as a controlled concurrency-scaling comparison.
 
-The high async/Pusher wall times at concurrency 8 and 32 include the known hooked-select readiness stall addressed by [Swoole #6290](https://github.com/swoole/swoole-src/pull/6290). They must not be used to claim negligible AOP overhead. CPU measurements expose the added work separately. A patched older Swoole build confirmed the reproduction, but it is below Hypervel's supported minimum and was not used for these performance tables. The default AWS Guzzle transport also uses `sendAsync`, including for synchronous SDK calls, so the native issue is not limited to explicitly async application code.
+The high async/Pusher wall times at concurrency 8 and 32 include the known hooked-select readiness stall addressed by [Swoole #6290](https://github.com/swoole/swoole-src/pull/6290). They must not be used to claim negligible AOP overhead. CPU measurements expose the added work separately. A patched older Swoole build confirmed the reproduction, but it is below the measured revisions' `ext-swoole ^6.2.2` minimum and was not used for these performance tables. The default AWS Guzzle transport also uses `sendAsync`, including for synchronous SDK calls, so the native issue is not limited to explicitly async application code.
 
 | Individual operation latency | Baseline p50 / p95, ms | Candidate p50 / p95, ms |
 | --- | ---: | ---: |
