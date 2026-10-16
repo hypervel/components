@@ -36,7 +36,7 @@ class PackageMetadataTest extends TestCase
         $this->assertSame($rootComposer['require']['nesbot/carbon'], $composer['require']['nesbot/carbon']);
 
         foreach ([
-            'guzzlehttp/guzzle',
+            'hypervel/guzzle',
             'guzzlehttp/psr7',
             'hypervel/http',
             'laravel/serializable-closure',

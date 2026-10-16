@@ -21,6 +21,8 @@ Laravel's `Http::pool()` and `Http::batch()` APIs are intentionally not ported. 
 
 Pending Guzzle promises and active cURL multi-handlers belong to the coroutine that created their work. Create and finish each operation in that coroutine, then share completed results. See [Guzzle promises](https://hypervel.org/docs/http-client#guzzle-promises).
 
+The HTTP client requires `hypervel/guzzle`, a Guzzle 8 fork that replaces `guzzlehttp/guzzle`. Laravel supports Guzzle 7 and 8; Hypervel does not support Guzzle 7 or SDKs limited to it. See the [porting guide](https://hypervel.org/docs/porting-from-laravel#http-client-and-concurrency).
+
 `TrustHosts` fails closed when no trusted host patterns resolve. If the middleware is enabled and no resolver, `at()` list, or valid `app.url` host provides a trusted pattern, Hypervel rejects all hosts using a never-matching sentinel. Laravel and Symfony leave the trusted host list empty in this case, which accepts every host. Configure a valid `app.url`, `TrustHosts::at()`, or `TrustHosts::resolveHostsUsing()` when enabling the middleware.
 
 Configure trusted proxies through `$middleware->trustProxies(...)` in `bootstrap/app.php`. Hypervel does not read the legacy `trustedproxy.proxies` configuration key or include Laravel's Cloud, Forge, and Vapor host-specific proxy behavior.

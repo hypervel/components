@@ -615,11 +615,6 @@ class HttpClientTest extends TestCase
 
     public function testConnectionFailureDoesNotExposeQueryCredentials(): void
     {
-        // @TODO Remove this skip once supported Guzzle 7 releases include https://github.com/guzzle/guzzle/pull/3916.
-        if (ClientInterface::MAJOR_VERSION < 8) {
-            $this->markTestSkipped('Guzzle 7 includes query credentials in connection-error messages.');
-        }
-
         $failure = null;
 
         run(function () use (&$failure): void {
@@ -643,10 +638,6 @@ class HttpClientTest extends TestCase
 
     public function testNetworkExceptionIsConvertedToConnectionException(): void
     {
-        if (! class_exists(NetworkException::class)) {
-            $this->markTestSkipped('NetworkException requires guzzlehttp/guzzle ^8.0.');
-        }
-
         $this->expectExceptionObject(new ConnectionException('Network error'));
 
         $pendingRequest = new PendingRequest;
@@ -666,10 +657,6 @@ class HttpClientTest extends TestCase
 
     public function testAsyncNetworkExceptionIsConvertedAndRecordedOnce(): void
     {
-        if (! class_exists(NetworkException::class)) {
-            $this->markTestSkipped('NetworkException requires guzzlehttp/guzzle ^8.0.');
-        }
-
         $exception = new NetworkException('Network error', new GuzzleRequest('GET', 'https://network-error.hypervel.example'));
         $this->factory->fake(['*' => Create::rejectionFor($exception)]);
 
@@ -686,9 +673,7 @@ class HttpClientTest extends TestCase
     {
         $request = new GuzzleRequest('GET', 'https://response-error.hypervel.example');
         $response = new Psr7Response(500, [], 'Incomplete response');
-        $exception = class_exists(ResponseException::class)
-            ? new ResponseException('Response failed', $request, $response)
-            : new GuzzleRequestException('Response failed', $request, $response);
+        $exception = new ResponseException('Response failed', $request, $response);
         $this->factory->fake(['*' => Create::rejectionFor($exception)]);
 
         if ($async) {
@@ -3551,13 +3536,12 @@ class HttpClientTest extends TestCase
         $seen = null;
 
         $this->factory->sink($stream)->withOptions([
-            // Guzzle 8 also passes the request, as its transports do.
-            'on_headers' => function (ResponseInterface $response, ?RequestInterface $request = null) use ($stream, &$seen): void {
-                $seen = [$response->getStatusCode(), $response->getHeaderLine('X-Fake'), $request === null ? null : (string) $request->getUri(), $stream->getSize()];
+            'on_headers' => function (ResponseInterface $response, RequestInterface $request) use ($stream, &$seen): void {
+                $seen = [$response->getStatusCode(), $response->getHeaderLine('X-Fake'), (string) $request->getUri(), $stream->getSize()];
             },
         ])->get('https://example.com');
 
-        $this->assertSame([201, 'yes', class_exists(ResponseException::class) ? 'https://example.com' : null, 0], $seen);
+        $this->assertSame([201, 'yes', 'https://example.com', 0], $seen);
         $this->assertSame('abc123', (string) $stream);
     }
 
@@ -5630,9 +5614,7 @@ class HttpClientTest extends TestCase
             $request = new GuzzleRequest('GET', 'https://timeout.hypervel.example');
             $response = new Psr7Response(301);
 
-            throw class_exists(ResponseException::class)
-                ? new ResponseException($message, $request, $response)
-                : new GuzzleRequestException($message, $request, $response);
+            throw new ResponseException($message, $request, $response);
         });
 
         $pendingRequest->get('https://timeout.hypervel.example');

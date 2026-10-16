@@ -27,7 +27,7 @@ class PackageMetadataTest extends TestCase
             'ext-filter',
             'ext-mbstring',
             'ext-simplexml',
-            'guzzlehttp/guzzle',
+            'hypervel/guzzle',
             'guzzlehttp/psr7',
             'guzzlehttp/uri-template',
             'hypervel/cache',

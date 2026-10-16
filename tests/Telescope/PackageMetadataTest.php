@@ -58,8 +58,8 @@ class PackageMetadataTest extends TestCase
         $externalDependencies = [
             'ext-mbstring',
             'ext-pdo',
-            'guzzlehttp/guzzle',
-            'guzzlehttp/promises',
+            'hypervel/guzzle',
+            'hypervel/guzzle-promises',
             'nesbot/carbon',
             'psr/http-message',
             'psr/log',

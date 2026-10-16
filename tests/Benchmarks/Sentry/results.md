@@ -1,5 +1,7 @@
 # Sentry performance measurements
 
+The outgoing HTTP comparison below was refreshed for the Guzzle fork integration on October 16, 2026. Other measurements retain the revisions and dates stated here; they were not repeated for that change.
+
 Measured on October 13, 2026, using the [benchmark harness](README.md). The baseline is merged `0.4` at `8a8b9fd99`. The reconciled package before this optimization pass is `03d28a00b`; the measured source and corrected harness are `c7b9b2a1b`. The branch comparison includes Sentry's supporting framework corrections, such as proxy-source mapping and fork-time logging cleanup; startup-memory differences therefore describe the branch, not just Sentry classes. The separate optimization comparison isolates this pass's Sentry changes.
 
 These timings use the fixture at `c7b9b2a1b`. Subsequent harness review replaced its controller's service facades/helpers with injected contracts and added a delivery check after saturation. Those corrections were smoke-tested, not rebenchmarked; they do not change the production optimizations or retroactively change these measurements. Later correctness fixes, which keep nested bulk cache spans open until their last result and skip request bodies that the collection policy excludes, were tested but not re-measured.
@@ -58,6 +60,31 @@ Copying a populated scope into a child coroutine measured 5.49 → 2.96 µs per 
 
 ## Outgoing HTTP instrumentation
 
+This focused comparison measures components `f2ebe434d` with AOP against `1419afbc5` with native Guzzle ownership and global middleware. See the [fork report](../GuzzleOwnership/results.md) for runtime, dependency and resource details. The MockHandler cases exclude network I/O but include the underlying Guzzle operation and promise handling; these are not isolated middleware costs.
+
+Each of three alternating process pairs ran three samples of 500 requests per case, with 100 warmup requests before each sample. The table shows the median and minimum–maximum of all nine samples, in microseconds per request. Processes were not CPU-pinned. Assertions verified the expected finished spans, origins and breadcrumbs.
+
+| Case | AOP median (range) | Fork median (range) | Reduction |
+| --- | ---: | ---: | ---: |
+| Explicit opt-out | 77.68 (75.57–80.09) | 49.82 (48.40–51.18) | 35.9% |
+| Recording off, trace-header propagation enabled | 101.78 (98.99–114.98) | 68.56 (65.70–76.11) | 32.6% |
+| Sampled synchronous request | 154.51 (147.32–187.09) | 102.17 (100.49–106.00) | 33.9% |
+
+The opt-out case supplies both revisions' options: `no_sentry_aspect => true` for the baseline and `sentry_enabled => false` for the fork. Each ignores the other option. Raw reports retain the individual samples and parameters.
+
+Run from each checkout, using the current fixture on both sides:
+
+```sh
+BENCH_IDLE_CONFIRMED=1 BENCH_OUT=/tmp/unique-result.jsonl \
+  php -d opcache.enable_cli=1 -d opcache.jit=disable vendor/bin/phpunit \
+  --no-progress --filter '/::testGuzzle(Sampled|RecordingOff|OptedOut)$/' \
+  /path/to/current/tests/Benchmarks/Sentry/Fixtures/SentryComponentBenchmark.php
+```
+
+### Earlier HTTP instrumentation measurements
+
+The following figures are from the October 13 comparison described at the top of this report, before the fork integration. They do not describe the fork's performance or memory use.
+
 The MockHandler cases isolate instrumentation and promise handling from network I/O. Times include the underlying Guzzle operation. Ranges are the minimum and maximum process medians, in microseconds per request.
 
 | Case | Original median (range) | Final median (range) |
@@ -82,13 +109,11 @@ Pending asynchronous request memory, bytes per request:
 
 These are live pending callbacks, not memory retained per completed request. The default increase is about 7.34 KiB per outstanding sampled request in this fixture, or 7.17 MiB for 1,000 such requests. About 3.67 KiB of the final per-request allocation is the captured origin stack here. Capture is limited to 64 frames and excludes arguments; actual memory depends on stack depth and names. Disabling origin capture retains completion correctness while avoiding that allocation.
 
-The approximately 12 µs measured sampled-call increase corresponds to 0.012, 0.12 and 0.60 CPU-seconds per second at 1,000, 10,000 and 50,000 instrumented calls per second, respectively. This is arithmetic from the isolated measurement, not a throughput benchmark at those rates; it excludes error capture, transaction serialization and delivery.
-
 ## Disabled instrumentation and retained memory
 
-The registration inventory confirms that inactive Sentry installs no event listeners, middleware, Guzzle aspect, child-coroutine propagation hook or Blade decorator. Turning off individual features removes their recording work; shared listeners remain where another enabled feature needs them. Turning off all optional tracing and breadcrumb toggles still leaves request transactions, trace-header propagation and lifecycle handling. It is not equivalent to disabling Sentry.
+The behavioral inventory was checked again for the fork integration: all 36 records match between `f2ebe434d` and `1419afbc5`. Inactive Sentry installs no event listeners, HTTP middleware, child-coroutine propagation hook or Blade decorator, and outgoing Guzzle requests carry no trace header. The inventory checks Guzzle's observable behavior, not its middleware registry. Turning off individual features removes their recording work; shared listeners remain where another enabled feature needs them. Turning off all optional tracing and breadcrumb toggles still leaves request transactions, trace-header propagation and lifecycle handling. It is not equivalent to disabling Sentry.
 
-Median PHP heap at idle startup and after the complete normal workload followed by garbage collection, in MiB:
+The following October 13 measurements were not repeated for the fork integration. Median PHP heap at idle startup and after the complete normal workload followed by garbage collection, in MiB:
 
 | Configuration | Startup original | Final | Post-workload original | Final |
 | --- | ---: | ---: | ---: | ---: |

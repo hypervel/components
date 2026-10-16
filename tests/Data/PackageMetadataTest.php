@@ -43,14 +43,6 @@ class PackageMetadataTest extends TestCase
             $this->assertSame($rootComposer['require'][$dependency], $composer['require'][$dependency]);
         }
 
-        foreach (array_keys($composer['require']) as $dependency) {
-            if (! str_starts_with($dependency, 'hypervel/')) {
-                continue;
-            }
-
-            $this->assertSame('self.version', $rootComposer['replace'][$dependency] ?? null);
-        }
-
         $this->assertSame(
             [DataServiceProvider::class],
             $composer['extra']['hypervel']['providers'],

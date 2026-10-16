@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Http;
 
 use Closure;
-use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Exception\TransferException;
 use GuzzleHttp\Handler\StreamHandler;
 use GuzzleHttp\Psr7\Exception\TimeoutException;
@@ -126,11 +125,6 @@ class HttpClientStreamingTest extends TestCase
 
     public function testConcurrentFallbackRequestsKeepIndependentDeadlines(): void
     {
-        // @TODO: Update this version gate once https://github.com/guzzle/guzzle/pull/3934 ships.
-        if (ClientInterface::MAJOR_VERSION >= 8) {
-            $this->markTestSkipped('Guzzle 8 stores concurrent StreamHandler request deadlines on the shared handler.');
-        }
-
         $process = new Process([PHP_BINARY, __DIR__ . '/Fixtures/concurrent-stream-deadlines.php']);
         $process->setTimeout(10);
         $process->run();
@@ -141,9 +135,6 @@ class HttpClientStreamingTest extends TestCase
 
     public function testFallbackJsonLinesArriveBeforeTheNextChunk(): void
     {
-        // @TODO: Enable this test for versions containing https://github.com/guzzle/guzzle/pull/3936.
-        $this->markTestSkipped('Guzzle holds later chunked response data until the read buffer fills or times out.');
-
         // Without native cURL hooks, the default handler uses PHP streams.
         $this->withStreamingServer('chunked', function (string $address): void {
             $response = (new Factory)->withOptions(['stream' => true, 'read_timeout' => 3])
@@ -584,14 +575,11 @@ class HttpClientStreamingTest extends TestCase
 
                 $this->assertInstanceOf(RuntimeException::class, $results['reader']);
 
-                // @TODO: Remove the class_exists() check and the PSR-7 2.x branch when Guzzle 7 support is dropped.
                 if ($native) {
                     $this->assertSame('The streaming response read timed out.', $results['reader']->getMessage());
-                } elseif (class_exists(TimeoutException::class)) {
+                } else {
                     $this->assertInstanceOf(TimeoutException::class, $results['reader']);
                     $this->assertSame('Unable to read from stream: timed out', $results['reader']->getMessage());
-                } else {
-                    $this->assertSame('Unable to read from stream', $results['reader']->getMessage());
                 }
             } finally {
                 $finished->close();

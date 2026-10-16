@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Http\Client\Guzzle;
 
-use GuzzleHttp\Promise\Promise;
+use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\Promise\TaskQueue;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\NonCopyableContext;
@@ -19,7 +19,7 @@ class CoroutineState implements NonCopyableContext
 
     public readonly TaskQueue $queue;
 
-    /** @var array<int, Promise> */
+    /** @var array<int, PromiseInterface> */
     protected array $transfers = [];
 
     /**
@@ -57,19 +57,17 @@ class CoroutineState implements NonCopyableContext
     }
 
     /**
-     * Retain a pending transfer in its owner's context.
+     * Retain a pending transfer in its owner's context until it settles.
      */
-    public function add(Promise $transfer): void
+    public function track(PromiseInterface $transfer): void
     {
-        $this->transfers[spl_object_id($transfer)] = $transfer;
-    }
+        $identifier = spl_object_id($transfer);
+        $this->transfers[$identifier] = $transfer;
+        $release = function () use ($identifier): void {
+            unset($this->transfers[$identifier]);
+        };
 
-    /**
-     * Release a settled transfer.
-     */
-    public function forget(Promise $transfer): void
-    {
-        unset($this->transfers[spl_object_id($transfer)]);
+        $transfer->then($release, $release);
     }
 
     /**

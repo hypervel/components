@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
+use GuzzleHttp\Client;
+use GuzzleHttp\Handler\MockHandler;
+use GuzzleHttp\Psr7\Response;
 use Hypervel\Contracts\Cache\Repository;
-use Hypervel\Di\Aop\AspectCollector;
 use Hypervel\Redis\RedisConfig;
-use Hypervel\Telescope\Aspects\GuzzleHttpClientAspect;
 use Hypervel\Telescope\Contracts\EntriesRepository;
+use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Storage\DatabaseEntriesRepository;
 use Hypervel\Telescope\Watchers\CacheWatcher;
 use Hypervel\Telescope\Watchers\ClientRequestWatcher;
@@ -76,7 +78,9 @@ class DisabledWatcherTest extends FeatureTestCase
             $this->app->make(RedisConfig::class)
                 ->connectionConfig('foo')['events'],
         );
-        $this->assertSame([], AspectCollector::getRule(GuzzleHttpClientAspect::class));
+        (new Client(['handler' => new MockHandler([new Response])]))->get('https://example.com');
+
+        $this->assertCount(0, $this->loadTelescopeEntries());
     }
 
     #[WithConfig('telescope.watchers', [
@@ -84,7 +88,9 @@ class DisabledWatcherTest extends FeatureTestCase
     ])]
     public function testEnabledClientRequestWatcherRegistersGuzzleInstrumentation(): void
     {
-        $this->assertNotEmpty(AspectCollector::getRule(GuzzleHttpClientAspect::class));
+        (new Client(['handler' => new MockHandler([new Response])]))->get('https://example.com');
+
+        $this->assertSame(EntryType::CLIENT_REQUEST, $this->loadTelescopeEntries()->sole()->type);
     }
 
     #[WithConfig('telescope.watchers', [
@@ -92,6 +98,8 @@ class DisabledWatcherTest extends FeatureTestCase
     ])]
     public function testDisabledClientRequestWatcherDoesNotRegisterGuzzleInstrumentation(): void
     {
-        $this->assertSame([], AspectCollector::getRule(GuzzleHttpClientAspect::class));
+        (new Client(['handler' => new MockHandler([new Response])]))->get('https://example.com');
+
+        $this->assertCount(0, $this->loadTelescopeEntries());
     }
 }

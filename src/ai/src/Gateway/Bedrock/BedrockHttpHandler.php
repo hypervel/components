@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Ai\Gateway\Bedrock;
 
-use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Exception\NetworkException;
 use GuzzleHttp\Exception\RequestException;
+use GuzzleHttp\Exception\ResponseException;
 use GuzzleHttp\Exception\ResponseTransferException;
 use GuzzleHttp\Promise\FulfilledPromise;
 use GuzzleHttp\Promise\PromiseInterface;
@@ -15,7 +15,6 @@ use GuzzleHttp\TransferStats;
 use Hypervel\Ai\AiManager;
 use Hypervel\Http\Client\ConnectionException;
 use Hypervel\Http\Client\Factory;
-use Hypervel\Http\Client\Guzzle\RejectedResponse;
 use Hypervel\Http\Client\RequestException as HttpRequestException;
 use Psr\Http\Message\RequestInterface;
 use Swoole\Coroutine\CanceledException;
@@ -88,17 +87,13 @@ class BedrockHttpHandler
                 $exception = $exception->getPrevious();
             }
 
-            $response = RejectedResponse::from($exception) ?? $response;
+            $response = $exception instanceof ResponseException ? $exception->getResponse() : $response;
 
             return new RejectedPromise([
                 'exception' => $exception,
                 'response' => $response,
-                'connection_error' => $exception instanceof ConnectException
-                    || $exception instanceof NetworkException
-                    || $exception instanceof ResponseTransferException
-                    || ($exception instanceof RequestException
-                        && is_callable([$exception, 'getHandlerContext'])
-                        && ($exception->getHandlerContext()['errno'] ?? null) === 56),
+                'connection_error' => $exception instanceof NetworkException
+                    || $exception instanceof ResponseTransferException,
             ]);
         }
     }

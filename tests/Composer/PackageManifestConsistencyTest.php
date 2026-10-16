@@ -21,11 +21,9 @@ class PackageManifestConsistencyTest extends TestCase
     public function testSplitPackageRequirementsAreDeclaredConsistentlyInRootManifest(): void
     {
         $rootComposer = $this->decodeManifest(__DIR__ . '/../../composer.json');
+        $splitPackages = array_column(array_map($this->decodeManifest(...), $this->splitManifests()), null, 'name');
 
-        foreach ($this->splitManifests() as $manifest) {
-            $composer = $this->decodeManifest($manifest);
-            $package = $composer['name'];
-
+        foreach ($splitPackages as $package => $composer) {
             foreach (['require', 'require-dev'] as $section) {
                 foreach ($composer[$section] ?? [] as $dependency => $constraint) {
                     if ($dependency === 'php') {
@@ -34,7 +32,7 @@ class PackageManifestConsistencyTest extends TestCase
 
                     $message = "Split package [{$package}] declares [{$dependency}] in [{$section}]";
 
-                    if (str_starts_with($dependency, 'hypervel/')) {
+                    if (isset($splitPackages[$dependency])) {
                         $this->assertArrayHasKey($dependency, $rootComposer['replace'], $message);
                         $this->assertSame('self.version', $rootComposer['replace'][$dependency], $message);
 

@@ -115,10 +115,6 @@ class MeilisearchRetryMiddlewareTest extends TestCase
     #[DataProvider('timeoutExceptions')]
     public function testTimeoutRetriesStopAtConfiguredLimit(string $exceptionClass, int $maxRetries): void
     {
-        if (! class_exists($exceptionClass)) {
-            $this->markTestSkipped('Timeout exception types require guzzlehttp/guzzle ^8.0.');
-        }
-
         $request = new Psr7Request('POST', 'https://meilisearch.test/x');
         $exception = $exceptionClass === ResponseTimeoutException::class
             ? new ResponseTimeoutException('Transfer timed out', $request, new Response(200))
@@ -155,9 +151,7 @@ class MeilisearchRetryMiddlewareTest extends TestCase
     public function testResponseExceptionIsNotRetried(): void
     {
         $request = new Psr7Request('POST', 'https://meilisearch.test/x');
-        $exception = class_exists(ResponseException::class)
-            ? new ResponseException('Response failed', $request, new Response(200))
-            : new RequestException('Response failed', $request, new Response(200));
+        $exception = new ResponseException('Response failed', $request, new Response(200));
         $mock = new MockHandler([$exception, new Response(200)]);
         $client = $this->buildClient($mock, maxRetries: 3);
 
