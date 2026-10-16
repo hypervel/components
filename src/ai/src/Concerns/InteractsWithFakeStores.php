@@ -235,7 +235,7 @@ trait InteractsWithFakeStores
         $callback = $this->fileMatchingCallback($storeId, $fileId);
 
         PHPUnit::assertTrue(
-            (new Collection($this->recordedFileAdditions))->contains(fn (array $addition): mixed => $callback($addition['storeId'], $addition['file'])),
+            (new Collection($this->recordedFileAdditions))->contains(fn (array $addition): mixed => $callback($addition['storeId'], $addition['file'], $addition['fileId'])),
             'An expected file addition was not recorded.'
         );
 
@@ -250,7 +250,7 @@ trait InteractsWithFakeStores
         $callback = $this->fileMatchingCallback($storeId, $fileId);
 
         PHPUnit::assertTrue(
-            (new Collection($this->recordedFileAdditions))->doesntContain(fn (array $addition): mixed => $callback($addition['storeId'], $addition['file'])),
+            (new Collection($this->recordedFileAdditions))->doesntContain(fn (array $addition): mixed => $callback($addition['storeId'], $addition['file'], $addition['fileId'])),
             'An unexpected file addition was recorded.'
         );
 
@@ -296,11 +296,8 @@ trait InteractsWithFakeStores
             return $storeId;
         }
 
-        $expectedStoreId = str_starts_with($storeId, 'fake_store_') ? $storeId : Stores::fakeId($storeId);
-        $expectedFileId = $fileId !== null ? (str_starts_with($fileId, 'fake_file_') ? $fileId : Files::fakeId($fileId))
-            : null;
-
-        return fn (string $actualStoreId, StorableFile|UploadedFile|HasProviderId|string $file): bool => $actualStoreId === $expectedStoreId && $this->fileIdMatches($file, $expectedFileId);
+        return fn (string $actualStoreId, StorableFile|UploadedFile|HasProviderId|string $file, ?string $recordedFileId = null): bool => ($actualStoreId === $storeId || $actualStoreId === Stores::fakeId($storeId))
+            && $this->fileIdMatches($recordedFileId ?? $file, $fileId);
     }
 
     /**
@@ -312,11 +309,9 @@ trait InteractsWithFakeStores
             return true;
         }
 
-        return match (true) {
-            $file instanceof HasProviderId => $file->id() === $expectedFileId,
-            is_string($file) => $file === $expectedFileId,
-            default => false,
-        };
+        $actualFileId = $file instanceof HasProviderId ? $file->id() : $file;
+
+        return is_string($actualFileId) && ($actualFileId === $expectedFileId || $actualFileId === Files::fakeId($expectedFileId));
     }
 
     /**

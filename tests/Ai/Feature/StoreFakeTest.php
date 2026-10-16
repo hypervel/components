@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Ai\Feature;
 
 use DateInterval;
+use Hypervel\Ai\Ai;
 use Hypervel\Ai\Contracts\Files\StorableFile;
 use Hypervel\Ai\Contracts\Providers\FileProvider;
 use Hypervel\Ai\Contracts\Providers\StoreProvider;
+use Hypervel\Ai\Enums\Lab;
 use Hypervel\Ai\Files;
 use Hypervel\Ai\Files\Document;
 use Hypervel\Ai\Files\LocalDocument;
@@ -22,12 +24,23 @@ use Hypervel\Support\Collection;
 use Hypervel\Tests\Ai\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
+use PHPUnit\Framework\AssertionFailedError;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 
 use function Hypervel\Support\days;
 
 class StoreFakeTest extends TestCase
 {
+    public function testStoreOperationsAcceptProviderEnums(): void
+    {
+        Stores::fake();
+        $store = Stores::create('Documents', provider: Lab::OpenAI);
+        $this->assertSame($store->id, Stores::get($store->id, provider: Lab::OpenAI)->id);
+        $this->assertTrue(Stores::delete($store->id, provider: Lab::OpenAI));
+        Stores::assertDeleted($store->id);
+    }
+
     public function testStoresCanBeFaked(): void
     {
         Stores::fake([
@@ -243,6 +256,38 @@ class StoreFakeTest extends TestCase
         // Using closure receives the original StorableFile...
         $store->assertAdded(fn (StorableFile $file): bool => $file->name() === 'hello.txt');
         $store->assertAdded(fn (StorableFile $file): bool => $file->content() === 'Hello, world!');
+        $store->assertAdded('hello.txt');
+        Ai::assertFileAddedToStore('My Store', 'hello.txt');
+    }
+
+    #[DataProvider('literalFileAssertions')]
+    public function testLiteralFileIdsAreMatchedByPositiveAndNegativeAssertions(bool $removed, bool $throughStore): void
+    {
+        Stores::fake();
+        $store = Stores::get('vs_123');
+        $removed ? $store->remove('file_abc') : $store->add('file_abc');
+
+        if ($throughStore) {
+            $removed ? $store->assertRemoved('file_abc') : $store->assertAdded('file_abc');
+        } else {
+            $removed ? Ai::assertFileRemovedFromStore('vs_123', 'file_abc') : Ai::assertFileAddedToStore('vs_123', 'file_abc');
+        }
+
+        $this->expectException(AssertionFailedError::class);
+
+        if ($throughStore) {
+            $removed ? $store->assertNotRemoved('file_abc') : $store->assertNotAdded('file_abc');
+        } else {
+            $removed ? Ai::assertFileNotRemovedFromStore('vs_123', 'file_abc') : Ai::assertFileNotAddedToStore('vs_123', 'file_abc');
+        }
+    }
+
+    /**
+     * Cover additions and removals through store and facade assertions.
+     */
+    public static function literalFileAssertions(): array
+    {
+        return [[false, false], [false, true], [true, false], [true, true]];
     }
 
     public function testCanAssertFileNotAddedToStore(): void

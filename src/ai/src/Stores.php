@@ -6,6 +6,7 @@ namespace Hypervel\Ai;
 
 use Closure;
 use DateInterval;
+use Hypervel\Ai\Enums\Lab;
 use Hypervel\Ai\Gateway\FakeStoreGateway;
 use Hypervel\Ai\Providers\Provider;
 use Hypervel\Support\Collection;
@@ -15,9 +16,9 @@ class Stores
     /**
      * Get a vector store by its ID.
      */
-    public static function get(string $storeId, Provider|string|null $provider = null): Store
+    public static function get(string $storeId, Provider|Lab|string|null $provider = null): Store
     {
-        return Ai::fakeableStoreProvider($provider)->getStore($storeId);
+        return Ai::fakeableStoreProvider($provider instanceof Lab ? $provider->value : $provider)->getStore($storeId);
     }
 
     /**
@@ -28,9 +29,9 @@ class Stores
         ?string $description = null,
         Collection|array $fileIds = [],
         ?DateInterval $expiresWhenIdleFor = null,
-        Provider|string|null $provider = null
+        Provider|Lab|string|null $provider = null
     ): Store {
-        return Ai::fakeableStoreProvider($provider)->createStore(
+        return Ai::fakeableStoreProvider($provider instanceof Lab ? $provider->value : $provider)->createStore(
             $name,
             $description,
             Collection::make($fileIds),
@@ -41,9 +42,9 @@ class Stores
     /**
      * Delete a vector store.
      */
-    public static function delete(string $storeId, Provider|string|null $provider = null): bool
+    public static function delete(string $storeId, Provider|Lab|string|null $provider = null): bool
     {
-        return Ai::fakeableStoreProvider($provider)->deleteStore($storeId);
+        return Ai::fakeableStoreProvider($provider instanceof Lab ? $provider->value : $provider)->deleteStore($storeId);
     }
 
     /**

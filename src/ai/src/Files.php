@@ -6,6 +6,7 @@ namespace Hypervel\Ai;
 
 use Closure;
 use Hypervel\Ai\Contracts\Files\StorableFile;
+use Hypervel\Ai\Enums\Lab;
 use Hypervel\Ai\Files\Base64Document;
 use Hypervel\Ai\Files\Document;
 use Hypervel\Ai\Files\LocalDocument;
@@ -20,9 +21,9 @@ class Files
     /**
      * Get a file by its ID.
      */
-    public static function get(string $fileId, Provider|string|null $provider = null): FileResponse
+    public static function get(string $fileId, Provider|Lab|string|null $provider = null): FileResponse
     {
-        return Ai::fakeableFileProvider($provider)->getFile($fileId);
+        return Ai::fakeableFileProvider($provider instanceof Lab ? $provider->value : $provider)->getFile($fileId);
     }
 
     /**
@@ -32,7 +33,7 @@ class Files
         StorableFile|UploadedFile|string $file,
         ?string $mimeType = null,
         ?string $name = null,
-        Provider|string|null $provider = null
+        Provider|Lab|string|null $provider = null
     ): StoredFileResponse {
         $file = match (true) {
             is_string($file) => new Base64Document(base64_encode($file), $mimeType),
@@ -48,13 +49,13 @@ class Files
             $file = $file->withMimeType($mimeType);
         }
 
-        return Ai::fakeableFileProvider($provider)->putFile($file);
+        return Ai::fakeableFileProvider($provider instanceof Lab ? $provider->value : $provider)->putFile($file);
     }
 
     /**
      * Store the file at the given local path.
      */
-    public static function putFromPath(string $path, ?string $mimeType = null, ?string $name = null, Provider|string|null $provider = null): StoredFileResponse
+    public static function putFromPath(string $path, ?string $mimeType = null, ?string $name = null, Provider|Lab|string|null $provider = null): StoredFileResponse
     {
         return static::put(Document::fromPath($path), $mimeType, $name, provider: $provider);
     }
@@ -62,7 +63,7 @@ class Files
     /**
      * Store the file at the given path on the given disk.
      */
-    public static function putFromStorage(string $path, ?string $disk = null, ?string $name = null, Provider|string|null $provider = null): StoredFileResponse
+    public static function putFromStorage(string $path, ?string $disk = null, ?string $name = null, Provider|Lab|string|null $provider = null): StoredFileResponse
     {
         return static::put(Document::fromStorage($path, $disk), name: $name, provider: $provider);
     }
@@ -70,9 +71,9 @@ class Files
     /**
      * Delete a file by its ID.
      */
-    public static function delete(string $fileId, Provider|string|null $provider = null): void
+    public static function delete(string $fileId, Provider|Lab|string|null $provider = null): void
     {
-        Ai::fakeableFileProvider($provider)->deleteFile($fileId);
+        Ai::fakeableFileProvider($provider instanceof Lab ? $provider->value : $provider)->deleteFile($fileId);
     }
 
     /**

@@ -169,9 +169,7 @@ class Store
             return fn (string $storeId, StorableFile|HasProviderId|string $file): bool => $storeId === $this->id && $fileId($file);
         }
 
-        $expectedFileId = str_starts_with($fileId, 'fake_file_') ? $fileId : Files::fakeId($fileId);
-
-        return fn (string $storeId, StorableFile|HasProviderId|string $file): bool => $storeId === $this->id && $this->fileIdMatches($file, $expectedFileId);
+        return fn (string $storeId, StorableFile|HasProviderId|string $file, ?string $recordedFileId = null): bool => $storeId === $this->id && $this->fileIdMatches($recordedFileId ?? $file, $fileId);
     }
 
     /**
@@ -181,10 +179,8 @@ class Store
         StorableFile|HasProviderId|string $file,
         string $expectedFileId,
     ): bool {
-        return match (true) {
-            $file instanceof HasProviderId => $file->id() === $expectedFileId,
-            is_string($file) => $file === $expectedFileId,
-            default => false,
-        };
+        $actualFileId = $file instanceof HasProviderId ? $file->id() : $file;
+
+        return is_string($actualFileId) && ($actualFileId === $expectedFileId || $actualFileId === Files::fakeId($expectedFileId));
     }
 }

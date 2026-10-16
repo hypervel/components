@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Ai\Feature;
 
 use Hypervel\Ai\Contracts\Files\StorableFile;
+use Hypervel\Ai\Enums\Lab;
 use Hypervel\Ai\Files;
 use Hypervel\Ai\Files\Document;
 use Hypervel\Ai\Files\LocalDocument;
+use Hypervel\Ai\Files\ProviderDocument;
 use Hypervel\Ai\Responses\FileResponse;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Facades\Storage;
@@ -17,6 +19,22 @@ use RuntimeException;
 
 class FileFakeTest extends TestCase
 {
+    public function testFileOperationsAcceptProviderEnums(): void
+    {
+        Files::fake(['retrieved']);
+        $stored = Document::fromString('Hello', 'text/plain')->as('hello.txt')->put(provider: Lab::Anthropic);
+        $this->assertSame(Files::fakeId('hello.txt'), $stored->id);
+        $this->assertSame('retrieved', (new ProviderDocument($stored->id))->get(Lab::Anthropic)->content);
+        (new ProviderDocument($stored->id))->delete(Lab::Anthropic);
+        Files::assertDeleted($stored->id);
+
+        Files::putFromPath(__DIR__ . '/../Fixtures/document.txt', provider: Lab::Anthropic);
+        Storage::fake('documents');
+        Storage::disk('documents')->put('notes.txt', 'Notes');
+        Files::putFromStorage('notes.txt', disk: 'documents', provider: Lab::Anthropic);
+        Files::assertStored(fn (StorableFile $file): bool => $file->content() === 'Notes');
+    }
+
     public function testFilesCanBeFaked(): void
     {
         Files::fake([
