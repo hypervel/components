@@ -339,6 +339,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         $this->flushImageState();
         $this->flushInertiaState();
         $this->flushJwtState();
+        $this->flushMcpState();
         $this->flushNestedSetState();
         $this->flushPasskeysState();
         $this->flushPassportState();
@@ -422,6 +423,15 @@ class AfterEachTestSubscriber implements FinishedSubscriber
     {
         $this->callIfExists(\Hypervel\Jwt\ClaimFactory::class, 'flushState');
         $this->callIfExists(\Hypervel\Jwt\JwtGuard::class, 'flushState');
+    }
+
+    /**
+     * Flush MCP state.
+     */
+    protected function flushMcpState(): void
+    {
+        $this->callIfExists(\Hypervel\Mcp\Server\Primitive::class, 'flushState');
+        $this->callIfExists(\Hypervel\Mcp\Request::class, 'flushMacros');
     }
 
     /**
