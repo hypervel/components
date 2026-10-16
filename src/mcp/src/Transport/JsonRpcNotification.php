@@ -1,0 +1,72 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Mcp\Transport;
+
+use Hypervel\Mcp\Exceptions\JsonRpcException;
+
+class JsonRpcNotification
+{
+    /**
+     * Create a JSON-RPC notification.
+     *
+     * @param array<string, mixed> $params
+     */
+    public function __construct(
+        public string $method,
+        public array $params,
+    ) {
+    }
+
+    /**
+     * Parse a JSON-RPC notification.
+     *
+     * @param array{jsonrpc?: mixed, method?: mixed, params?: mixed} $jsonRequest
+     *
+     * @throws JsonRpcException
+     */
+    public static function from(array $jsonRequest): static
+    {
+        if (! isset($jsonRequest['jsonrpc']) || $jsonRequest['jsonrpc'] !== '2.0') {
+            throw new JsonRpcException('Invalid Request: Invalid JSON-RPC version. Must be "2.0".', -32600);
+        }
+
+        if (! isset($jsonRequest['method']) || ! is_string($jsonRequest['method'])) {
+            throw new JsonRpcException('Invalid Request: Invalid or missing "method". Must be a string.', -32600);
+        }
+
+        $params = array_key_exists('params', $jsonRequest) ? $jsonRequest['params'] : [];
+
+        if (! is_array($params) || ($params !== [] && array_is_list($params))) {
+            throw new JsonRpcException('Invalid params: The [params] member must be an object.', -32602);
+        }
+
+        return new static(
+            method: $jsonRequest['method'],
+            params: $params
+        );
+    }
+
+    /**
+     * Convert the notification to an array.
+     *
+     * @return array<string, mixed>
+     */
+    public function toArray(): array
+    {
+        return [
+            'jsonrpc' => '2.0',
+            'method' => $this->method,
+            ...$this->params === [] ? [] : ['params' => $this->params],
+        ];
+    }
+
+    /**
+     * Encode the notification as JSON.
+     */
+    public function toJson(int $options = 0): string
+    {
+        return json_encode($this->toArray(), $options | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+    }
+}
