@@ -31,7 +31,7 @@ if (! class_exists(TestCase::class)) {
 }
 
 /**
- * Component costs of the Guzzle aspect and child-coroutine propagation, for baseline/current comparisons.
+ * Component costs of Guzzle instrumentation and child-coroutine propagation, for baseline/current comparisons.
  *
  * BENCH_OUT receives one JSON line per case; BENCH_SMOKE=1 runs a few iterations to check the harness only.
  * Cases that need options the baseline lacks are skipped there.
@@ -48,7 +48,7 @@ class SentryComponentBenchmark extends TestCase
         'guzzle.unsampled' => ['spans' => false, 'breadcrumbs' => true, 'origin' => false],
         'guzzle.no_transaction' => ['spans' => false, 'breadcrumbs' => true, 'origin' => false],
         'guzzle.recording_off' => ['spans' => false, 'breadcrumbs' => false, 'origin' => false],
-        'guzzle.no_sentry_aspect' => ['spans' => false, 'breadcrumbs' => false, 'origin' => false],
+        'guzzle.opted_out' => ['spans' => false, 'breadcrumbs' => false, 'origin' => false],
         'guzzle.inactive' => ['spans' => false, 'breadcrumbs' => false, 'origin' => false],
         'guzzle.sampled.origin_off' => ['spans' => true, 'breadcrumbs' => true, 'origin' => false],
         'guzzle.sampled.origin_threshold_0' => ['spans' => true, 'breadcrumbs' => true, 'origin' => true],
@@ -117,7 +117,11 @@ class SentryComponentBenchmark extends TestCase
 
     public function testGuzzleOptedOut(): void
     {
-        $this->measureGuzzle('guzzle.no_sentry_aspect', fn (): Transaction => $this->startTransaction(), ['no_sentry_aspect' => true]);
+        // Each revision honors its own opt-out option and ignores the other.
+        $this->measureGuzzle('guzzle.opted_out', fn (): Transaction => $this->startTransaction(), [
+            'sentry_enabled' => false,
+            'no_sentry_aspect' => true,
+        ]);
     }
 
     public function testGuzzleInactive(): void

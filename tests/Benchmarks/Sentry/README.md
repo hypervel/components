@@ -4,11 +4,11 @@ This developer harness measures Sentry's HTTP overhead, telemetry delivery, Guzz
 
 See [recorded measurements](results.md) for the Sentry reconciliation and optimization results.
 
-Run measurements only on an owner-confirmed idle machine. Smoke mode uses small workloads to check correctness; its timings are not performance evidence. The harness requires Linux `/proc`, PHP with Swoole, SQLite, cURL, PCNTL, POSIX and OPcache, Composer, Git and Bash. CPU pinning additionally requires `taskset`.
+Run measurements on an idle machine. Smoke mode uses small workloads to check correctness; its timings are not performance evidence. The harness requires Linux `/proc`, PHP with Swoole, SQLite, cURL, PCNTL, POSIX and OPcache, Composer, Git and Bash. CPU pinning additionally requires `taskset`.
 
 ## Prepare two applications
 
-Use a clean baseline worktree containing the same non-Sentry framework changes as the modified checkout. Install each checkout's development dependencies independently for the component benchmarks. Use the same third-party dependency versions on both sides, including the Sentry SDK, Guzzle and Symfony. Optimize both autoloaders with `composer dump-autoload -o`.
+Use a baseline worktree containing the same framework changes except those being measured. Install each checkout's development dependencies independently for the component benchmarks. Keep unchanged dependencies at the same versions on both sides, including the Sentry SDK and Symfony; record any dependency replacements being measured. Optimize both autoloaders with `composer dump-autoload -o`.
 
 The HTTP workloads use disposable copies of the application skeleton with only production dependencies. This avoids measuring unrelated providers discovered in a full components checkout. Use the same skeleton revision and framework metapackage checkout for both applications:
 
@@ -43,7 +43,7 @@ bash tests/Benchmarks/Sentry/components.sh \
   /tmp/sentry-benchmark/inventory inventory
 ```
 
-HTTP smoke checks validate response bodies, delivered telemetry, runtime settings and cleanup. The component cases assert finished spans, breadcrumbs, origin behavior and scope propagation. The separate inventory records listeners, middleware, aspects, decorators and coroutine hooks for each configuration and individual toggle; compare those records when assessing disabled instrumentation. It also asserts that disabled Sentry installs no listeners, middleware, Guzzle aspect, propagation hook or Blade decorator.
+HTTP smoke checks validate response bodies, delivered telemetry, runtime settings and cleanup. The component cases assert finished spans, breadcrumbs, origin behavior and scope propagation. The separate inventory records listeners, middleware, Guzzle trace-header propagation, decorators and coroutine hooks for each configuration and individual toggle; compare those records when assessing disabled instrumentation. It also asserts that disabled Sentry installs no listeners, middleware, Guzzle instrumentation, propagation hook or Blade decorator.
 
 The explicit PHPUnit fixtures intentionally do not end in `Test.php`, so ordinary test discovery does not run measurements. The component runner selects the target checkout's PHPUnit, autoloader and configuration. Its small test-base alias supports comparisons with the pre-reconciliation Sentry package; it does not change production classes.
 
