@@ -186,9 +186,11 @@ class StreamableAgentResponse implements IteratorAggregate, Responsable
     {
         // If the response has already been iterated / streamed, invoke now...
         if ($this->streamedResponse instanceof StreamedAgentResponse) {
-            $this->runInContext(fn (): mixed => $callback($this->streamedResponse));
-
-            $this->syncConversationFromStreamedResponse();
+            try {
+                $this->runInContext(fn (): mixed => $callback($this->streamedResponse));
+            } finally {
+                $this->syncConversationFromStreamedResponse();
+            }
 
             return $this;
         }
@@ -416,13 +418,15 @@ class StreamableAgentResponse implements IteratorAggregate, Responsable
                 $this->assistantMessageId,
             );
 
-            $this->runInContext(function (): void {
-                foreach ($this->thenCallbacks as $callback) {
-                    $callback($this->streamedResponse);
-                }
-            });
-
-            $this->syncConversationFromStreamedResponse();
+            try {
+                $this->runInContext(function (): void {
+                    foreach ($this->thenCallbacks as $callback) {
+                        $callback($this->streamedResponse);
+                    }
+                });
+            } finally {
+                $this->syncConversationFromStreamedResponse();
+            }
             $completed = true;
         } catch (Throwable $exception) {
             $failure = $exception;

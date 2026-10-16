@@ -17,6 +17,7 @@ use Hypervel\Ai\Streaming\Events\TextDelta;
 use Hypervel\Ai\Streaming\Events\ToolCall as ToolCallEvent;
 use Hypervel\Ai\Streaming\Events\ToolResult as ToolResultEvent;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Throwable;
 
@@ -88,13 +89,25 @@ class StreamableAgentResponseTest extends TestCase
         $this->assertSame(['Boom.', 'Boom.'], $iterationFailures);
     }
 
-    public function testCompletionFailureReachesTheIterationHandlerButNotPublicCatchCallbacks(): void
+    #[DataProvider('completionCallbackModes')]
+    public function testCompletionFailurePreservesConversationStateWithoutInvokingPublicCatchCallbacks(bool $immediate): void
     {
         $response = new StreamableAgentResponse('invocation', fn (): array => []);
         $exception = new RuntimeException('Persistence failed.');
         $failure = null;
         $caught = false;
-        $response->then(fn (): never => throw $exception);
+        $participant = (object) ['id' => 1];
+        $callback = static function (StreamedAgentResponse $completed) use ($exception, $participant): never {
+            $completed->withinConversation('saved-conversation', $participant)->withStoredMessages('user-message', 'assistant-message');
+
+            throw $exception;
+        };
+
+        if ($immediate) {
+            iterator_to_array($response);
+        } else {
+            $response->then($callback);
+        }
         $response->catch(function () use (&$caught): void {
             $caught = true;
         });
@@ -103,14 +116,26 @@ class StreamableAgentResponseTest extends TestCase
         });
 
         try {
-            iterator_to_array($response);
+            $immediate ? $response->then($callback) : iterator_to_array($response);
             $this->fail('The completion callback must fail.');
         } catch (RuntimeException $caughtException) {
             $this->assertSame($exception, $caughtException);
         }
 
-        $this->assertSame($exception, $failure);
+        $this->assertSame($immediate ? null : $exception, $failure);
         $this->assertFalse($caught);
+        $this->assertSame('saved-conversation', $response->conversationId);
+        $this->assertSame($participant, $response->conversationUser);
+        $this->assertSame('user-message', $response->userMessageId);
+        $this->assertSame('assistant-message', $response->assistantMessageId);
+    }
+
+    /**
+     * Cover callbacks registered before and after stream consumption.
+     */
+    public static function completionCallbackModes(): array
+    {
+        return ['during iteration' => [false], 'already completed' => [true]];
     }
 
     public function testAbandonmentRunsTheIterationHandlerInTheCapturedContext(): void
