@@ -42,8 +42,6 @@
 
 Hypervel provides an expressive, minimal API around the [Guzzle HTTP client](http://docs.guzzlephp.org/en/stable/), allowing you to quickly make outgoing HTTP requests to communicate with other web applications. Hypervel's wrapper around Guzzle is focused on its most common use cases and a wonderful developer experience.
 
-The HTTP client supports Guzzle 7 and 8.
-
 Before sending a real request, Hypervel returns the current execution's idle database sessions to their pools. Transactions and explicitly pinned sessions remain held. Code that needs the same database session across an HTTP call may use `DB::withPinnedSession()`. See [releasing and pinning database connections](/docs/{{version}}/database#releasing-and-pinning-connections).
 
 <a name="making-requests"></a>
@@ -188,11 +186,11 @@ Inside a Swoole coroutine with native cURL hooks enabled, the HTTP client receiv
 
 For streaming requests, `timeout` bounds the wait for response headers. After headers arrive, a long-running stream may continue beyond that timeout. The `read_timeout` option limits idle gaps during headers and body reads, defaults to 60 seconds, and accepts `0` to wait without an idle limit. `connect_timeout` continues to limit connection establishment. Closing a response or canceling its consuming coroutine releases its active transfer.
 
-If cURL negotiates authentication for a streamed request, such as digest authentication with Guzzle 7 or the `CURLOPT_HTTPAUTH` and `CURLOPT_PROXYAUTH` cURL options, the response is returned when its first body bytes arrive or the transfer completes. The `timeout` option also covers that wait.
+If cURL negotiates authentication for a streamed request through the `CURLOPT_HTTPAUTH` or `CURLOPT_PROXYAUTH` cURL options, the response is returned when its first body bytes arrive or the transfer completes. The `timeout` option also covers that wait.
 
 For streamed responses, `on_stats` runs when the response is returned. The `on_trailers` callback runs once the transfer has completed, after `on_headers`. Small responses may already be complete when returned; for longer responses, trailers arrive as the body is consumed.
 
-Outside a hooked coroutine, or when you provide `stream_context` or a custom `stream_factory`, the client uses Guzzle's PHP-stream handler. This fallback requires `allow_url_fopen`, cannot use cURL destination pins or required transport sharing, and retains Guzzle's timeout behavior. In Guzzle 7, an omitted `read_timeout` uses the stream context or PHP socket timeout. Custom handlers and clients remain responsible for their own streaming support; faked responses do not need a transport.
+Outside a hooked coroutine, or when you provide `stream_context` or a custom `stream_factory`, the client uses Guzzle's PHP-stream handler. This fallback requires `allow_url_fopen`, cannot use cURL destination pins or required transport sharing, and retains Guzzle's timeout behavior. Custom handlers and clients remain responsible for their own streaming support; faked responses do not need a transport.
 
 <a name="request-data"></a>
 ### Request Data
@@ -996,9 +994,9 @@ $responses = parallel([
 ]);
 ```
 
-Hypervel throws a `Hypervel\Http\Exceptions\CoroutineOwnershipException` if another coroutine tries to use a pending Guzzle promise or drive a cURL multi-handler with active work. Completed results may be shared. When a coroutine exits, Hypervel cancels its unfinished native transfers and runs its queued callbacks in that same coroutine, allowing cancellation to reach dependent promises. Finish any work you need before returning from the coroutine.
+Guzzle throws a `LogicException` if another coroutine tries to use a pending promise or drive a cURL multi-handler with active work. Completed results may be shared. When a coroutine exits, Hypervel cancels its unfinished native transfers and runs its queued callbacks in that same coroutine, allowing cancellation to reach dependent promises. Finish any work you need before returning from the coroutine.
 
-These checks apply to Guzzle's mutable promises and cURL multi-handlers, including those used by third-party SDKs. Custom transports and other promise implementations remain responsible for their own coroutine safety. When supplying a custom handler, keep each active multi-handler within one coroutine. Once all its transfers finish, it may be reused by another coroutine.
+Hypervel installs `hypervel/guzzle` in place of `guzzlehttp/guzzle` and `hypervel/guzzle-promises` in place of `guzzlehttp/promises`, so these checks also cover third-party SDKs using Guzzle. Custom transports and other promise implementations remain responsible for their own coroutine safety. When supplying a custom handler, keep each active multi-handler within one coroutine. Once all its transfers finish, it may be reused by another coroutine.
 
 <a name="connections"></a>
 ## Connections
@@ -1034,7 +1032,7 @@ The second argument is a request-option preset. It accepts normal Guzzle request
 - `pool` is rejected. HTTP clients are not object-pooled.
 - `max_host_connections` and `max_total_connections` are rejected. Use bounded coroutine fan-out or the rate limiter instead.
 - `transport_sharing` configures the connection's shared and isolated handlers. It accepts Guzzle's `TransportSharing` modes and is never passed into request options.
-- `max_idle_handles` sets how many idle cURL handles the connection's synchronous buffered transport keeps for its next requests (256 by default; 0 keeps none). Each handle holds its own keep-alive connections, allowing requests from concurrent coroutines to reuse them. It does not limit concurrent requests or open sockets: handles in use are additional, and Guzzle's persistent transport sharing keeps connections in its share instead. Streamed responses use the separate retention limit described above.
+- `max_idle_handles` sets how many idle cURL handles each of the connection's buffered transports keeps for its next requests (256 for synchronous requests and 50 for asynchronous requests by default; 0 keeps none). Each handle holds its own keep-alive connections, allowing requests from concurrent coroutines to reuse them. It does not limit concurrent requests or open sockets: handles in use are additional, and Guzzle's persistent transport sharing keeps connections in its share instead. Streamed responses use the separate retention limit described above.
 - `multiplex` remains a request option. The `Multiplexing::NONE` mode also configures the connection handler so its guarantee applies to every request using that handler.
 
 The dedicated connection-cap options are rejected at every option layer. `pool`, `handler`, `cookies`, `transport_sharing`, and `max_idle_handles` are also rejected from global options, per-call connection overrides, fluent `withOptions()` calls, and raw `send()` options. This keeps cookie and handler ownership consistent regardless of which option layer supplied a value.
