@@ -81,11 +81,23 @@ BENCH_IDLE_CONFIRMED=1 BENCH_OUT=/tmp/unique-result.jsonl \
   /path/to/current/tests/Benchmarks/Sentry/Fixtures/SentryComponentBenchmark.php
 ```
 
-### Earlier origin and pending-memory measurements
+### Earlier HTTP instrumentation measurements
 
-The following figures are from the October 13 comparison described at the top of this report, before the fork integration. They do not describe its memory use or the current cost of origin capture.
+The following figures are from the October 13 comparison described at the top of this report, before the fork integration. They do not describe the fork's performance or memory use.
 
-Forcing the synchronous origin threshold to zero measured 177.9 µs, versus 153.6 µs at the default. Async origin capture happens at entry because the caller's stack no longer exists at completion; disabling it measured 151.8 µs in that fixture.
+The MockHandler cases isolate instrumentation and promise handling from network I/O. Times include the underlying Guzzle operation. Ranges are the minimum and maximum process medians, in microseconds per request.
+
+| Case | Original median (range) | Final median (range) |
+| --- | ---: | ---: |
+| Explicit `no_sentry_aspect` opt-out | 77.4 (76.6–82.4) | 77.4 (75.2–78.3) |
+| Sentry inactive | 76.9 (74.4–77.1) | 76.0 (73.9–77.7) |
+| Recording off, trace-header propagation enabled | 103.2 (101.3–103.3) | 102.1 (96.5–102.9) |
+| Breadcrumbs, no transaction | 125.4 (122.0–125.5) | 129.2 (128.5–133.5) |
+| Unsampled transaction | 121.8 (118.8–124.0) | 131.9 (131.5–132.5) |
+| Sampled synchronous request | 141.4 (141.4–148.3) | 153.6 (149.4–155.6) |
+| Sampled asynchronous request | 143.5 (139.0–146.0) | 155.8 (152.5–157.0) |
+
+Enabled instrumentation has an added cost: it observes promise completion, including failures and redirects, and collects the final prepared request and response under the SDK's data-collection policy. Returning to entry-only observation would lose that behavior. The synchronous origin lookup remains threshold-gated; forcing its threshold to zero measured 177.9 µs, versus 153.6 µs at the default. Async origin capture happens at entry because the caller's stack no longer exists at completion; disabling it measured 151.8 µs in this fixture.
 
 Pending asynchronous request memory, bytes per request:
 
@@ -99,7 +111,7 @@ These are live pending callbacks, not memory retained per completed request. The
 
 ## Disabled instrumentation and retained memory
 
-The behavioral inventory was checked again for the fork integration: all 36 records match between `f2ebe434d` and `1419afbc5`. Inactive Sentry installs no event listeners, middleware, Guzzle trace-header propagation, child-coroutine propagation hook or Blade decorator. Turning off individual features removes their recording work; shared listeners remain where another enabled feature needs them. Turning off all optional tracing and breadcrumb toggles still leaves request transactions, trace-header propagation and lifecycle handling. It is not equivalent to disabling Sentry.
+The behavioral inventory was checked again for the fork integration: all 36 records match between `f2ebe434d` and `1419afbc5`. Inactive Sentry installs no event listeners, HTTP middleware, child-coroutine propagation hook or Blade decorator, and outgoing Guzzle requests carry no trace header. The inventory checks Guzzle's observable behavior, not its middleware registry. Turning off individual features removes their recording work; shared listeners remain where another enabled feature needs them. Turning off all optional tracing and breadcrumb toggles still leaves request transactions, trace-header propagation and lifecycle handling. It is not equivalent to disabling Sentry.
 
 The following October 13 measurements were not repeated for the fork integration. Median PHP heap at idle startup and after the complete normal workload followed by garbage collection, in MiB:
 

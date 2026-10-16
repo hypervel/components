@@ -4,7 +4,7 @@ This developer harness measures Sentry's HTTP overhead, telemetry delivery, Guzz
 
 See [recorded measurements](results.md) for the Sentry reconciliation and optimization results.
 
-Run measurements on an idle machine. Smoke mode uses small workloads to check correctness; its timings are not performance evidence. The harness requires Linux `/proc`, PHP with Swoole, SQLite, cURL, PCNTL, POSIX and OPcache, Composer, Git and Bash. CPU pinning additionally requires `taskset`.
+Confirm the machine is idle before running measurements. Smoke mode uses small workloads to check correctness; its timings are not performance evidence. The harness requires Linux `/proc`, PHP with Swoole, SQLite, cURL, PCNTL, POSIX and OPcache, Composer, Git and Bash. CPU pinning additionally requires `taskset`.
 
 ## Prepare two applications
 
@@ -43,7 +43,7 @@ bash tests/Benchmarks/Sentry/components.sh \
   /tmp/sentry-benchmark/inventory inventory
 ```
 
-HTTP smoke checks validate response bodies, delivered telemetry, runtime settings and cleanup. The component cases assert finished spans, breadcrumbs, origin behavior and scope propagation. The separate inventory records listeners, middleware, Guzzle trace-header propagation, decorators and coroutine hooks for each configuration and individual toggle; compare those records when assessing disabled instrumentation. It also asserts that disabled Sentry installs no listeners, middleware, Guzzle instrumentation, propagation hook or Blade decorator.
+HTTP smoke checks validate response bodies, delivered telemetry, runtime settings and cleanup. The component cases assert finished spans, breadcrumbs, origin behavior and scope propagation. The separate inventory records listeners, HTTP middleware, Guzzle trace-header propagation, decorators and coroutine hooks for each configuration and individual toggle; compare those records when assessing disabled instrumentation. It also asserts that disabled Sentry installs no listeners, HTTP middleware, propagation hook or Blade decorator, and that outgoing Guzzle requests carry no trace header.
 
 The explicit PHPUnit fixtures intentionally do not end in `Test.php`, so ordinary test discovery does not run measurements. The component runner selects the target checkout's PHPUnit, autoloader and configuration. Its small test-base alias supports comparisons with the pre-reconciliation Sentry package; it does not change production classes.
 
