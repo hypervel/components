@@ -8,7 +8,7 @@ contact_links:
     about: Propose the feature in a discussion and obtain explicit maintainer approval before opening a pull request.
   - name: Support or unclear upstream sync status
     url: https://github.com/hypervel/components/discussions/categories/q-a
-    about: Ask for help here, including when an upstream package has no recorded checked_through commit.
+    about: Ask for help here, including whether upstream functionality belongs in Hypervel or is awaiting synchronization.
   - name: Documentation correction
     url: https://github.com/hypervel/components/blob/0.4/src/docs/contributions.md#pull-request-requirements
     about: Submit a pull request to this repository for incorrect or missing guidance in src/docs.

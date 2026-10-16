@@ -92,7 +92,7 @@
 
 ## Pennant
 
-- Port `laravel/pennant` as a first-party package and add it to the upstream sync queue. As part of the port, add Sentry's `PennantPackageIntegration` and its upstream test, register the integration in Sentry's shipped `features` config, and remove Pennant from the Sentry entry's unported-integrations note in `docs/upstream-sync/sync.yaml`. The integration records each retrieved feature flag on the current Sentry scope, so error events show which flags were active.
+- Port `laravel/pennant` as a first-party package. As part of the port, add Sentry's `PennantPackageIntegration` and its upstream test and register the integration in Sentry's shipped `features` config. The integration records each retrieved feature flag on the current Sentry scope, so error events show which flags were active.
 
 ## Sentry
 

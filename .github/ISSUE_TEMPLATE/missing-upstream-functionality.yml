@@ -8,7 +8,7 @@ body:
 
         The Hypervel team handles ports and upstream synchronization. Do not submit a porting pull request. This form covers Laravel and third-party packages Hypervel tracks, including Saloon, Data, and Permission.
 
-        Check the affected package's README and documentation, the [sync tracker](https://github.com/hypervel/components/blob/0.4/docs/upstream-sync/sync.yaml), and [deferred work](https://github.com/hypervel/components/blob/0.4/docs/todo.md). Use the upstream branch and checked_through commit, not the last_reviewed_pr number. If the entry is absent or checked_through is null, ask in [Q&A](https://github.com/hypervel/components/discussions/categories/q-a) first. Changes newer than the recorded commit await the next sync.
+        Check the affected package's README and documentation for its upstream reference and intentional differences, and check [deferred work](https://github.com/hypervel/components/blob/0.4/docs/todo.md). Recent upstream changes may be awaiting the next sync. If you are unsure whether the functionality belongs in Hypervel, ask in [Q&A](https://github.com/hypervel/components/discussions/categories/q-a) first.
   - type: checkboxes
     id: requirements
     attributes:
@@ -18,7 +18,7 @@ body:
           required: true
         - label: I have checked existing issues, documented differences, and deferred work; this is not already tracked or intentionally omitted.
           required: true
-        - label: I have verified that the functionality exists at the recorded checked_through commit on the tracked upstream branch.
+        - label: I have verified that the functionality exists in the upstream version or commit linked below.
           required: true
         - label: I have run the example below and verified that the behavior is missing from the stated Hypervel version.
           required: true
@@ -37,10 +37,10 @@ body:
     validations:
       required: true
   - type: textarea
-    id: sync-record
+    id: upstream-comparison
     attributes:
-      label: Sync record and comparison
-      description: Give the tracker entry, upstream branch, and full checked_through SHA. Link the implementation at that commit or a comparison showing it already contained the functionality.
+      label: Upstream comparison
+      description: Give the upstream branch and full commit SHA you compared against. Link the implementation at that commit showing the functionality.
     validations:
       required: true
   - type: textarea

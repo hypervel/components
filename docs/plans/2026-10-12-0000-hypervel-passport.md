@@ -1,6 +1,6 @@
 # Passport port design — `hypervel/passport`
 
-This record describes the Laravel Passport port into `src/passport`, namespace `Hypervel\Passport`, for Hypervel 0.4. It explains the package's architecture, intentional upstream differences, framework integrations and regression coverage. Application guidance lives in `src/docs/passport.md`; upstream synchronization starts from `docs/upstream-sync/sync.yaml` and `src/passport/README.md`.
+This record describes the Laravel Passport port into `src/passport`, namespace `Hypervel\Passport`, for Hypervel 0.4. It explains the package's architecture, intentional upstream differences, framework integrations and regression coverage. Application guidance lives in `src/docs/passport.md`; the upstream reference and intentional differences are in `src/passport/README.md`.
 
 This is the initial Hypervel Passport package, so no earlier Hypervel Passport data format needs compatibility shims. Laravel applications migrating to Hypervel follow the porting guide. The package supplies generic extension points for application-specific authorization and OpenID Connect implementations; it does not implement OpenID Connect itself.
 
