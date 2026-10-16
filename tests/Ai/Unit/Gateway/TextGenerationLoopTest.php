@@ -34,6 +34,7 @@ use Hypervel\Ai\Gateway\TextGenerationOptions;
 use Hypervel\Ai\Messages\AssistantMessage;
 use Hypervel\Ai\Messages\Message;
 use Hypervel\Ai\Messages\ToolResultMessage;
+use Hypervel\Ai\PendingStep;
 use Hypervel\Ai\Promptable;
 use Hypervel\Ai\Providers\Tools\CodeExecution;
 use Hypervel\Ai\Providers\Tools\ToolSearch;
@@ -52,6 +53,8 @@ use Hypervel\Ai\Streaming\Events\StreamEnd;
 use Hypervel\Ai\Streaming\Events\StreamEvent;
 use Hypervel\Ai\Streaming\Events\StreamStart;
 use Hypervel\Ai\Streaming\Events\TextDelta;
+use Hypervel\Ai\Streaming\Events\TextEnd;
+use Hypervel\Ai\Streaming\Events\TextStart;
 use Hypervel\Ai\Streaming\Events\ToolApprovalRequest;
 use Hypervel\Ai\Streaming\Events\ToolCall as ToolCallEvent;
 use Hypervel\Ai\Streaming\Events\ToolResult as ToolResultEvent;
@@ -194,6 +197,33 @@ class TextGenerationLoopTest extends TestCase
             null,
             ['*' => Decision::approve()],
         );
+    }
+
+    public function testBufferedMiddlewareStepsKeepEveryEventWhenCollectedByKey(): void
+    {
+        $loop = new TextGenerationLoop(new TextGenerationLoopFakeGateway);
+        $events = iterator_to_array($loop->stream(
+            'invocation-1',
+            textGenerationLoopProvider(),
+            'model',
+            null,
+            options: new TextGenerationOptions(maxSteps: 2, middleware: [
+                fn (PendingStep $step): StepResponse => new StepResponse(
+                    'Step ' . $step->number,
+                    [],
+                    $step->isFinalStep ? FinishReason::Stop : FinishReason::Continue,
+                    new TextUsage,
+                    new Meta('fake', 'model'),
+                ),
+            ]),
+        ));
+
+        $this->assertSame([
+            StreamStart::class, TextStart::class, TextDelta::class, TextEnd::class,
+            StreamStart::class, TextStart::class, TextDelta::class, TextEnd::class,
+            StreamEnd::class,
+        ], array_map(fn (StreamEvent $event): string => $event::class, $events));
+        $this->assertSame(['Step 0', 'Step 1'], collect($events)->whereInstanceOf(TextDelta::class)->pluck('delta')->all());
     }
 
     public function testItEmitsStreamedApprovalRequestsWithoutExecutingGatedTools(): void

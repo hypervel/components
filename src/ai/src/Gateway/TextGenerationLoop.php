@@ -363,7 +363,10 @@ class TextGenerationLoop
                 $result = $stepResult->response();
 
                 if (! $stepResult->streamed() && $result instanceof StepResponse) {
-                    yield from $this->eventsFor($invocationId, $provider, $prepared->model, $result);
+                    // Re-yield with distinct keys so iterator_to_array() retains events from every step.
+                    foreach ($this->eventsFor($invocationId, $provider, $prepared->model, $result) as $event) {
+                        yield $event;
+                    }
                 }
 
                 if ($result instanceof StepResponse && $result->reasoning === '') {
