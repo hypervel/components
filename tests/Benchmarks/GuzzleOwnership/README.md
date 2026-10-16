@@ -1,12 +1,12 @@
 # Guzzle ownership benchmark
 
-This developer harness compares the branch base with the Guzzle forks integration. It reports startup separately from warm operations using the production HTTP provider. Proxy bootstrap remains in the harness so it can also measure the AOP implementation on older revisions. It is not a CI test or a prediction of remote service throughput.
+This developer harness measures Guzzle promise, HTTP and cancellation costs and resource use in independent checkouts. It reports startup separately from warm operations using the production HTTP provider. Proxy bootstrap remains in the harness so it can also measure the AOP implementation on older revisions. It is not a CI test or a prediction of remote service throughput.
 
-See [the measured results](results.md) for operation costs and resource comparisons.
+See [the fork integration results](results.md) for current operation costs and resource comparisons. The [earlier AOP measurements](aop-results.md) describe the revisions named in that report.
 
 Run measurements on an idle machine, without concurrent tests, builds, or other benchmarks. Use `--smoke` for a small correctness check; its timings are not performance evidence. Measured runs require `--idle-confirmed`.
 
-Use independent baseline and modified worktrees. Keep unchanged dependencies at identical versions; compare upstream Guzzle 8.2.0 / promises 3.0.2 with their Hypervel forks. The runner's `--root` selects that checkout and its autoloader, so the same harness can test both without changing baseline source. Record the Git revisions and any uncommitted changes.
+Use independent baseline and modified worktrees with matching checkout-path lengths, since Composer's generated paths affect allocator usage. Keep unchanged dependencies at identical versions; compare upstream Guzzle 8.2.0 / promises 3.0.2 with their Hypervel forks. The runner's `--root` selects that checkout and its autoloader, so the same harness can test both without changing baseline source. Record the Git revisions and any uncommitted changes.
 
 Run `composer dump-autoload -o` in both checkouts before measuring. Installing an optimized baseline while using a previously unoptimized main checkout gives misleading startup and memory differences. Reports include class-map size and mode; exact entry counts may differ with the source changes. Pre-generate the proxies before warm comparisons and allow PHP's `opcache.file_update_protection` interval to pass, so newly written proxy files receive the same OPcache treatment as existing files. Measure cold startup separately.
 
