@@ -568,7 +568,7 @@ class RememberConversationTest extends TestCase
         $waiting = new Channel(1);
         $active = false;
         $finished = false;
-        $failure = new RuntimeException('Provider failed after a tool');
+        $failure = new CanceledException('Stream consumer canceled');
         $middleware = m::mock(RememberConversation::class, [new DatabaseConversationStore, $prompt->provider()])
             ->makePartial()->shouldAllowMockingProtectedMethods();
 
@@ -624,11 +624,15 @@ class RememberConversationTest extends TestCase
     }
 
     /**
-     * Cover failed and abandoned streams with serial or concurrent titles.
+     * Cover abandonment with either title mode and recordable cancellation.
      */
     public static function stoppedTitleModes(): array
     {
-        return [[false, false], [false, true], [true, false], [true, true]];
+        return [
+            'serial abandonment' => [false, true],
+            'concurrent abandonment' => [true, true],
+            'serial cancellation' => [false, false],
+        ];
     }
 
     public function testUnconsumedStreamsDoNotStartTitlesAndAbandonmentJoinsThem(): void

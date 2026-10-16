@@ -13,6 +13,7 @@ use Hypervel\Ai\Contracts\ConversationStore;
 use Hypervel\Ai\Contracts\Providers\TextProvider;
 use Hypervel\Ai\Contracts\RemembersConversations;
 use Hypervel\Ai\Contracts\StoresConversationTurns;
+use Hypervel\Ai\Exceptions\StreamAbandonedException;
 use Hypervel\Ai\Messages\UserMessage;
 use Hypervel\Ai\Models\Conversation;
 use Hypervel\Ai\Prompts\AgentPrompt;
@@ -24,7 +25,6 @@ use Hypervel\Ai\Support\PendingConversationTitle;
 use Hypervel\Support\ClassMetadataCache;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Str;
-use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
 use WeakReference;
@@ -113,7 +113,7 @@ class RememberConversation
                         try {
                             // Disposing a suspended producer skips catch, but executed tools and claims still need settlement.
                             if (! $completed && ! $threw) {
-                                $stored = $this->rememberFailedTurn($prompt, new RuntimeException('The stream was abandoned before it completed.'), $pendingConversationId, retryable: false);
+                                $stored = $this->rememberFailedTurn($prompt, new StreamAbandonedException('The stream was abandoned before it completed.'), $pendingConversationId, retryable: false);
 
                                 if ($stored !== null) {
                                     $pendingConversationId = null;
@@ -196,8 +196,6 @@ class RememberConversation
                 return null;
             }
 
-            $prompt->pendingConversationTitle()?->cancel();
-
             return $this->rememberTurn($prompt, $response, $pendingConversationId, $exception);
         } finally {
             // The store needs the claim held by this context until settlement finishes.
@@ -223,10 +221,13 @@ class RememberConversation
         $title = null;
 
         if ($newConversation) {
-            // Saving executed tools must not start or wait for title generation after the run stops.
-            $title = $exception === null
-                ? ($prompt->pendingConversationTitle()?->value() ?? $this->generateTitle($prompt->prompt))
-                : ($prompt->pendingConversationTitle()?->valueIfReady() ?? Str::limit($prompt->prompt, 50, preserveWords: true));
+            if ($exception instanceof CanceledException || $exception instanceof StreamAbandonedException) {
+                // The consumer stopped, so don't start or wait for title work.
+                $prompt->pendingConversationTitle()?->cancel();
+                $title = $prompt->pendingConversationTitle()?->valueIfReady() ?? Str::limit($prompt->prompt, 50, preserveWords: true);
+            } else {
+                $title = $prompt->pendingConversationTitle()?->value() ?? $this->generateTitle($prompt->prompt);
+            }
         }
 
         if ($this->store instanceof StoresConversationTurns) {
