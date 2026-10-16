@@ -653,7 +653,7 @@ The store uses your default database connection unless `ai.conversations.connect
 
 The SDK generates a title when it creates a conversation. To use the opening message as the title instead, set `conversations.generate_title` to `false` in your `config/ai.php` configuration file.
 
-If the opening turn is canceled or abandoned, such as when the client disconnects, the SDK doesn't start title generation. Instead, it keeps a title that has already finished or uses the start of the opening message, and the title isn't generated later. Enabling concurrent titles makes a generated title more likely in this case. A turn that fails with an error is titled as usual.
+If the opening turn is canceled or abandoned, such as when the client disconnects, the SDK saves the work already done without starting or waiting for a title. It keeps a title that has already finished or uses the start of the opening message, and the title isn't generated later. Enabling concurrent titles makes a generated title more likely in this case. A turn that fails with an error is titled as usual.
 
 By default, title generation runs after the agent responds. You may generate titles alongside the agent's response by enabling `conversations.concurrent_title`:
 
@@ -2065,7 +2065,7 @@ $step->isFirstStep();
 $step->isFinalStep;
 ```
 
-The `withModel`, `withInstructions`, `withMessages`, `withTools`, `onlyTools`, `withoutTools`, `withToolChoice`, `withMaxTokens`, and `withProviderOptions` methods each return a copy of the step. Amazon Bedrock has no `none` tool choice, and support for forcing a tool depends on the model. Ollama supports only automatic tool choice.
+The `withModel`, `withInstructions`, `withMessages`, `withTools`, `onlyTools`, `withoutTools`, `withToolChoice`, `withMaxTokens`, and `withProviderOptions` methods each return a copy of the step. Amazon Bedrock has no `none` tool choice, and support for forcing a tool depends on the model. Anthropic and Amazon Bedrock can't force a tool while manual extended thinking is enabled. Ollama supports only automatic tool choice.
 
 For example, you may remove an expensive tool once the agent has used it:
 
