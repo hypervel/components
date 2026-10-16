@@ -515,7 +515,7 @@ Maintenance views prepared with `down --render` are served by running Hypervel w
 
 For concurrent HTTP requests, replace Laravel's `Http::pool` and `Http::batch` patterns with Hypervel's coroutine helpers, typically `parallel` from `Hypervel\Coroutine`. See the [HTTP client documentation](/docs/{{version}}/http-client#concurrent-requests) for examples.
 
-Hypervel installs `hypervel/guzzle`, a Guzzle 8 fork that replaces `guzzlehttp/guzzle`, and `hypervel/guzzle-promises`, which replaces `guzzlehttp/promises`. Widen or remove a direct `guzzlehttp/guzzle ^7` requirement; SDKs that only support Guzzle 7 cannot be installed until they support Guzzle 8. Create and finish pending Guzzle operations within one coroutine, then share completed results. See [Guzzle promises](/docs/{{version}}/http-client#guzzle-promises).
+Hypervel installs `hypervel/guzzle`, a Guzzle 8 fork that replaces `guzzlehttp/guzzle`, and `hypervel/guzzle-promises`, which replaces `guzzlehttp/promises`. Widen or remove direct `guzzlehttp/guzzle ^7`, `guzzlehttp/promises ^2` and `guzzlehttp/psr7 ^2` requirements; SDKs must support Guzzle 8, promises 3 and PSR-7 3. Create and finish pending Guzzle operations within one coroutine, then share completed results. See [Guzzle promises](/docs/{{version}}/http-client#guzzle-promises).
 
 `withNtlmAuth()` and Saloon's NTLM authenticator are not provided. Integrations requiring NTLM must supply their own authentication implementation.
 
