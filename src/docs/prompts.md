@@ -1610,6 +1610,8 @@ $stream->close();
 
 The `append` method adds text to the stream, rendering it with a gradual fade-in effect. When all content has been streamed, call the `close` method to finalize the output and restore the cursor.
 
+Console style tags such as `<info>` in streamed text are displayed as written rather than interpreted.
+
 <a name="terminal-title"></a>
 ## Terminal Title
 

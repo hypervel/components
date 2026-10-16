@@ -63,7 +63,7 @@ $server->init(new ServerConfig([
                         return;
                     }
 
-                    if ($request->server['request_uri'] === '/identity') {
+                    if (parse_url($request->server['request_uri'], PHP_URL_PATH) === '/identity') {
                         $native->cookie('session', 'previous-request');
                         $native->end(json_encode([
                             'connection' => $request->fd,

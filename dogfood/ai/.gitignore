@@ -1,0 +1,6 @@
+/.env
+/.phpunit.cache/
+/vendor/
+/workbench/node_modules/
+/workbench/public/
+/workbench/database/*.sqlite*

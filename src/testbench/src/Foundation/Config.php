@@ -243,12 +243,21 @@ class Config extends Fluent implements ConfigContract
             }
         }
 
+        // YAML sections containing only comments are null rather than empty collections.
+        foreach (['env', 'providers', 'dont-discover', 'migrations', 'bootstrappers'] as $key) {
+            $config[$key] ??= [];
+        }
+
         foreach (['purge', 'workbench'] as $key) {
             $config[$key] ??= [];
 
             if (! is_array($config[$key])) {
                 throw new InvalidArgumentException("The Testbench [{$key}] configuration must be a mapping.");
             }
+        }
+
+        if (array_key_exists('discovers', $config['workbench'])) {
+            $config['workbench']['discovers'] ??= [];
         }
 
         return new static($config);

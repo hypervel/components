@@ -305,7 +305,10 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Support\Testing\Fakes\NotificationFake::flushState();
         \Hypervel\Support\Uri::flushState();
         \Hypervel\Testing\Fluent\AssertableJson::flushState();
-        \Hypervel\Testing\ParallelRunner::flushState();
+        // Serial test suites may not have the optional ParaTest dependency installed.
+        if (class_exists(\Hypervel\Testing\ParallelRunner::class, false)) {
+            \Hypervel\Testing\ParallelRunner::flushState();
+        }
         \Hypervel\Testing\PendingCommand::flushState();
         \Hypervel\Testing\TestComponent::flushState();
         \Hypervel\Testing\TestResponse::flushState();
@@ -329,6 +332,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\WebSocketServer\Collector\FdCollector::flushState();
         \Hypervel\WebSocketServer\Context::flushState();
 
+        $this->flushAiState();
         $this->flushDataState();
         $this->flushFortifyState();
         $this->flushHorizonState();
@@ -347,6 +351,16 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         $this->flushTelescopeState();
         $this->flushTestbenchState();
         $this->flushWayfinderState();
+    }
+
+    /**
+     * Flush AI state.
+     */
+    protected function flushAiState(): void
+    {
+        $this->callIfExists(\Hypervel\Ai\Files\UntrustedUrl::class, 'flushState');
+        $this->callIfExists(\Hypervel\Ai\Tools\LoadSkill::class, 'flushState');
+        $this->callIfExists(\Hypervel\Ai\Tools\Request::class, 'flushMacros');
     }
 
     /**

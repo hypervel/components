@@ -43,6 +43,7 @@ class SentryInstrumentationInventory extends TestCase
         'queue_job_transactions', 'queue_jobs', 'sql_queries', 'sql_bindings', 'sql_origin', 'views',
         'http_client_requests', 'http_client_requests_origin', 'cache', 'storage', 'redis_origin',
         'notifications', 'missing_routes', 'continue_after_response',
+        'gen_ai', 'gen_ai_invoke_agent', 'gen_ai_chat', 'gen_ai_execute_tool', 'gen_ai_embeddings', 'gen_ai_evaluate',
     ];
 
     /**

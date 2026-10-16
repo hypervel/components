@@ -123,6 +123,13 @@ class AfterEachTestExtensionTest extends TestCase
         $this->assertStringNotContainsString('abandoned-callback-ran', $process->getOutput());
     }
 
+    public function testSerialCleanupDoesNotLoadTheParallelRunner(): void
+    {
+        $process = $this->runFixture('SerialCleanupFixture.php', []);
+
+        $this->assertTrue($process->isSuccessful(), $process->getOutput() . $process->getErrorOutput());
+    }
+
     /**
      * Run a PHPUnit fixture in a separate process with the real extension.
      *

@@ -108,6 +108,7 @@
         "symfony/serializer": "^8.1",
         "symfony/uid": "^8.1",
         "symfony/var-dumper": "^8.1",
+        "symfony/yaml": "^8.1",
         "tijsverkoyen/css-to-inline-styles": "^2.2.5",
         "vlucas/phpdotenv": "^5.6.1",
         "voku/portable-ascii": "^2.0.2",
@@ -139,11 +140,11 @@
         "symfony/mailgun-mailer": "^8.1",
         "symfony/mercure": "^0.8",
         "symfony/postmark-mailer": "^8.1",
-        "symfony/yaml": "^8.1",
         "typesense/typesense-php": "^5.2",
         "web-token/jwt-library": "^4.2.3"
     },
     "replace": {
+        "hypervel/ai": "self.version",
         "hypervel/api-client": "self.version",
         "hypervel/auth": "self.version",
         "hypervel/broadcasting": "self.version",
@@ -226,12 +227,14 @@
         "hypervel/workbench": "self.version"
     },
     "conflict": {
+        "aws/aws-sdk-php": "<3.369.1",
         "intervention/image": "<4.0 || >=5.0"
     },
     "minimum-stability": "dev",
     "prefer-stable": true,
     "autoload": {
         "psr-4": {
+            "Hypervel\\Ai\\": "src/ai/src/",
             "Hypervel\\ApiClient\\": "src/api-client/src/",
             "Hypervel\\Auth\\": "src/auth/src/",
             "Hypervel\\Broadcasting\\": "src/broadcasting/src/",
@@ -319,6 +322,7 @@
             "Hypervel\\Workbench\\": "src/workbench/src/"
         },
         "files": [
+            "src/ai/src/functions.php",
             "src/coordinator/src/functions.php",
             "src/coroutine/src/functions.php",
             "src/engine/src/functions.php",
@@ -371,6 +375,7 @@
                 "Socialite": "Hypervel\\Socialite\\Socialite"
             },
             "providers": [
+                "Hypervel\\Ai\\AiServiceProvider",
                 "Hypervel\\Auth\\AuthServiceProvider",
                 "Hypervel\\Auth\\Passwords\\PasswordResetServiceProvider",
                 "Hypervel\\Broadcasting\\BroadcastServiceProvider",
@@ -464,7 +469,9 @@
         "test:dogfood": [
             "Composer\\Config::disableProcessTimeout",
             "composer --working-dir=dogfood/testbench-package install --prefer-dist -n -o",
-            "composer --working-dir=dogfood/testbench-package test"
+            "composer --working-dir=dogfood/testbench-package test",
+            "composer --working-dir=dogfood/ai install --prefer-dist -n -o",
+            "composer --working-dir=dogfood/ai test"
         ],
         "test:parallel": [
             "Composer\\Config::disableProcessTimeout",

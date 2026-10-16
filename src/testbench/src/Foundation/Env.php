@@ -57,7 +57,8 @@ class Env extends \Hypervel\Support\Env
         }
 
         if (\is_bool($value)) {
-            return $value === true ? '(true)' : '(false)';
+            // Raw environment consumers do not recognize Laravel's parenthesized booleans.
+            return $value === true ? 'true' : 'false';
         }
 
         if ($value === '') {

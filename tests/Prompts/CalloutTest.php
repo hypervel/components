@@ -10,16 +10,83 @@ use Hypervel\Prompts\Elements\Element;
 use Hypervel\Prompts\Elements\ElementContract;
 use Hypervel\Prompts\Elements\KeyValueList;
 use Hypervel\Prompts\Elements\NumberedList;
+use Hypervel\Prompts\Output\BufferedConsoleOutput;
 use Hypervel\Prompts\Prompt;
 use Hypervel\Prompts\Support\Utils;
 use Hypervel\Prompts\Themes\Default\CalloutRenderer;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\DataProvider;
+use Symfony\Component\Console\Formatter\OutputFormatter;
+use Symfony\Component\Console\Formatter\OutputFormatterStyle;
 
 use function Hypervel\Prompts\callout;
 
 class CalloutTest extends TestCase
 {
+    #[DataProvider('decorationModes')]
+    public function testCustomStylesAndEscapedMarkupHaveMatchingVisibleWidths(bool $decorated): void
+    {
+        Prompt::fake();
+        $output = new BufferedConsoleOutput(decorated: $decorated);
+        $output->getFormatter()->setStyle('warning', new OutputFormatterStyle('yellow'));
+        Prompt::setOutput($output);
+
+        callout('<warning>Title</warning>', [
+            '<warning>Careful</warning> ' . OutputFormatter::escape('<info>Literal</info>'),
+            "\e]8;;https://example.com\e\\" . OutputFormatter::escape('<fg=black;bg=black>Link') . "\e]8;;\e\\",
+        ], info: '<warning>Info</warning>');
+
+        $content = Prompt::content();
+        if ($decorated) {
+            $this->assertStringContainsString("\e[33mCareful", $content);
+        } else {
+            $this->assertStringNotContainsString("\e", $content);
+        }
+
+        $this->assertStringContainsString('<info>Literal</info>', $content);
+        $this->assertStringContainsString('<fg=black;bg=black>Link', $content);
+        $this->assertStringNotContainsString('<warning>', $content);
+        $this->assertStringNotContainsString('Link\\', Utils::stripTerminalControls($content));
+        $widths = array_map(mb_strwidth(...), array_filter(explode(PHP_EOL, Utils::stripTerminalControls($content))));
+        $this->assertCount(1, array_unique($widths));
+    }
+
+    /**
+     * Provide decorated and plain output modes.
+     */
+    public static function decorationModes(): array
+    {
+        return [[true], [false]];
+    }
+
+    #[DataProvider('styledLabels')]
+    public function testTruncatesStyledLabelsWithoutCuttingTags(string $label, string $expected): void
+    {
+        Prompt::fake();
+        Prompt::terminal()->shouldReceive('cols')->andReturn(30); // @phpstan-ignore-line
+
+        callout("\e[2J\e]52;c;c2VjcmV0\x07<info>" . $label . '</info>', 'Body');
+
+        $content = Prompt::content();
+        $this->assertStringContainsString($expected, Utils::stripTerminalControls($content));
+        $this->assertStringNotContainsString("\e[2J", $content);
+        $this->assertStringNotContainsString("\e]52;", $content);
+        $this->assertStringNotContainsString('<info', $content);
+        $this->assertStringContainsString('Body', $content);
+    }
+
+    /**
+     * Provide labels that fit and labels requiring truncation.
+     */
+    public static function styledLabels(): array
+    {
+        return [
+            ['Hello', 'Hello'],
+            [str_repeat('A', 40), str_repeat('A', 23) . '…'],
+        ];
+    }
+
     public function testRendersACalloutWithALabelAndStringContent(): void
     {
         Prompt::fake();

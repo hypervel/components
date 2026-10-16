@@ -896,6 +896,8 @@ class TaskTest extends TestCase
             "a\n\e[31mb\e[0m",
             "a\n\e]8;;https://example.com\e\\b\e]8;;\e\\",
             "aaa\n\e[31mbb bb bb\e[0m",
+            '<info>literal</info>',
+            "\e[31m<fg=black;bg=black>literal\e[0m",
         ];
 
         foreach ($cases as $output) {
@@ -916,6 +918,23 @@ class TaskTest extends TestCase
                 );
             }
         }
+    }
+
+    public function testLogMarkupStaysLiteralInRenderedOutput(): void
+    {
+        Prompt::fake();
+        $task = new Task(label: 'Logs', limit: 2);
+        $logger = new InProcessLogger($task);
+        $logger->line('<fg=black;bg=black>Hidden');
+        $logger->partial('<info>Literal');
+        $logger->partial('</info>');
+        $logger->commitPartial();
+
+        (new ReflectionMethod($task, 'render'))->invoke($task);
+
+        $this->assertStringContainsString('<fg=black;bg=black>Hidden', Prompt::content());
+        $this->assertStringContainsString('<info>Literal</info>', Prompt::content());
+        $this->assertStringNotContainsString("\e[30;40m", Prompt::content());
     }
 
     public function testCompleteAndIncrementalGraphemeWrappingMatchesAcrossEveryChunkBoundary(): void

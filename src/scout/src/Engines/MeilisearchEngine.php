@@ -6,6 +6,7 @@ namespace Hypervel\Scout\Engines;
 
 use BackedEnum;
 use DateTimeInterface;
+use Hypervel\Ai\Embeddings;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
@@ -770,7 +771,7 @@ class MeilisearchEngine extends Engine implements DeletesByFilter, SupportsSeman
     }
 
     /**
-     * Generate embeddings for the given inputs.
+     * Generate and validate embeddings using the optional Hypervel AI SDK.
      *
      * @param array<int, string> $inputs
      * @param array<string, mixed> $settings
@@ -778,7 +779,22 @@ class MeilisearchEngine extends Engine implements DeletesByFilter, SupportsSeman
      */
     protected function generateEmbeddings(array $inputs, array $settings): array
     {
-        throw new ScoutException('AI-generated embeddings are not available in Hypervel. Use native or precomputed embeddings instead.');
+        if (! class_exists(Embeddings::class)) {
+            throw new ScoutException('Semantic search requires the Hypervel AI SDK. Please install the [hypervel/ai] package.');
+        }
+
+        $response = Embeddings::for(array_values($inputs))
+            ->dimensions($settings['dimensions'])
+            ->cache()
+            ->generate($settings['provider'] ?? null, $settings['model'] ?? null);
+
+        $embeddings = $response->embeddings;
+
+        if (count($embeddings) !== count($inputs)) {
+            throw new ScoutException('Hypervel AI returned an unexpected number of embeddings.');
+        }
+
+        return $embeddings;
     }
 
     /**

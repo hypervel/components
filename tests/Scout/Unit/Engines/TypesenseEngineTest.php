@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Scout\Unit\Engines;
 
+use Hypervel\Ai\AiServiceProvider;
+use Hypervel\Ai\Embeddings;
+use Hypervel\Ai\Prompts\EmbeddingsPrompt;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Scout\Builder;
@@ -18,9 +22,10 @@ use Hypervel\Scout\Exceptions\NotSupportedException;
 use Hypervel\Scout\Exceptions\ScoutException;
 use Hypervel\Scout\Jobs\RemoveableScoutCollection;
 use Hypervel\Scout\Scout;
+use Hypervel\Testbench\Attributes\WithConfig;
+use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Scout\Fixtures\Models\SearchableModelWithNativeEmbedding;
 use Hypervel\Tests\Scout\Fixtures\Models\SearchableModelWithPrecomputedEmbedding;
-use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
 use Mockery\MockInterface;
@@ -39,8 +44,17 @@ use Typesense\Exceptions\RequestMalformed;
 use Typesense\Exceptions\TypesenseClientError;
 use Typesense\MultiSearch;
 
+#[WithConfig('ai.caching.embeddings.store', 'array')]
 class TypesenseEngineTest extends TestCase
 {
+    /**
+     * Register the embedding provider used by semantic searches.
+     */
+    protected function getPackageProviders(ApplicationContract $app): array
+    {
+        return [AiServiceProvider::class];
+    }
+
     protected function createEngine(?MockInterface $client = null): TypesenseEngine
     {
         $client = $client ?? m::mock(TypesenseClient::class);
@@ -306,6 +320,8 @@ class TypesenseEngineTest extends TestCase
 
     public function testUpdateAddsPrecomputedEmbeddingsToDocumentsBeforePreparingThem(): void
     {
+        Embeddings::fake()->preventStrayEmbeddings();
+
         $client = m::mock(TypesenseClient::class);
         $collections = m::mock(Collections::class);
         $collection = m::mock(TypesenseCollection::class);
@@ -343,8 +359,46 @@ class TypesenseEngineTest extends TestCase
         $this->assertSame([[0.1, 0.2], [0.3, 0.4]], $preparedVectors);
     }
 
+    public function testUpdateAddsPrecomputedAndGeneratedEmbeddingsToDocuments(): void
+    {
+        Embeddings::fake([[[0.3, 0.4]]])->preventStrayEmbeddings();
+
+        $client = m::mock(TypesenseClient::class);
+        $collections = m::mock(Collections::class);
+        $collection = m::mock(TypesenseCollection::class);
+        $documents = m::mock(Documents::class);
+        $client->shouldReceive('getCollections')->once()->andReturn($collections);
+        $collections->shouldReceive('offsetGet')->with('table')->once()->andReturn($collection);
+        $collections->shouldReceive('offsetUnset')->with('table')->once();
+        $collection->shouldReceive('getDocuments')->once()->andReturn($documents);
+        $documents->shouldReceive('import')->once()->with([
+            ['id' => 10, 'name' => 'Precomputed', 'embedding' => [0.1, 0.2]],
+            ['id' => 20, 'name' => 'Generate this', 'embedding' => [0.3, 0.4]],
+        ], ['action' => 'upsert'])->andReturn([['success' => true], ['success' => true]]);
+
+        $engine = $this->createSemanticEngine([
+            'attribute' => 'embedding',
+            'dimensions' => 2,
+            'provider' => 'openai',
+            'model' => 'text-embedding-test',
+        ], client: $client);
+
+        $precomputed = new SearchableModelWithPrecomputedEmbedding(['id' => 10, 'name' => 'Precomputed']);
+        $precomputed->setAttribute('embedding', [0.1, 0.2]);
+        $generated = new SearchableModelWithPrecomputedEmbedding(['id' => 20, 'name' => 'Generate this']);
+
+        $engine->update($precomputed->newCollection([$precomputed, $generated]));
+
+        Embeddings::assertGenerated(fn (EmbeddingsPrompt $prompt): bool => $prompt->inputs === ['Generate this']
+            && $prompt->dimensions === 2
+            && $prompt->provider->name() === 'openai'
+            && $prompt->model === 'text-embedding-test');
+    }
+
     public function testUpdateDoesNotGenerateEmbeddingsWhenUsingNativeEmbeddings(): void
     {
+        Embeddings::fake()->preventStrayEmbeddings();
+
         $client = m::mock(TypesenseClient::class);
         $collections = m::mock(Collections::class);
         $collection = m::mock(TypesenseCollection::class);
@@ -1397,6 +1451,8 @@ class TypesenseEngineTest extends TestCase
 
     public function testSemanticSearchUsesAPrecomputedQueryVector(): void
     {
+        Embeddings::fake()->preventStrayEmbeddings();
+
         $engine = $this->createSemanticEngine(['attribute' => 'embedding', 'dimensions' => 2]);
 
         $builder = (new Builder(new SearchableModelWithPrecomputedEmbedding, 'conceptual query'))
@@ -1412,22 +1468,28 @@ class TypesenseEngineTest extends TestCase
         $this->assertArrayNotHasKey('vector', $parameters);
     }
 
-    public function testSemanticSearchWithoutAQueryVectorReportsThatGeneratedEmbeddingsAreUnavailable(): void
+    public function testSemanticSearchGeneratesAQueryVector(): void
     {
         $engine = $this->createSemanticEngine(['attribute' => 'embedding', 'dimensions' => 2]);
+        Embeddings::fake([[[0.25, 0.75]]])->preventStrayEmbeddings();
 
-        $this->expectException(ScoutException::class);
-        $this->expectExceptionMessageIsOrContains('AI-generated embeddings are not available in Hypervel.');
+        $builder = (new Builder(new SearchableModelWithPrecomputedEmbedding, 'conceptual query'))->semantic(minSimilarity: 0.7);
+        $parameters = $engine->buildSearchParameters($builder, 1, 10);
 
-        $engine->buildSearchParameters(
-            (new Builder(new SearchableModelWithPrecomputedEmbedding, 'conceptual query'))->semantic(),
-            1,
-            10,
-        );
+        $this->assertSame($parameters, $engine->buildSearchParameters($builder, 1, 10));
+
+        $this->assertSame('*', $parameters['q']);
+        $this->assertSame('name', $parameters['query_by']);
+        $this->assertSame('embedding:([0.25, 0.75], distance_threshold: 0.3)', $parameters['vector_query']);
+        $this->assertSame('embedding', $parameters['exclude_fields']);
+        $this->assertArrayNotHasKey('vector', $parameters);
+        Embeddings::assertGenerated(fn (EmbeddingsPrompt $prompt): bool => $prompt->inputs === ['conceptual query']);
     }
 
     public function testHybridSearchAcceptsAPrecomputedQueryVectorAndNormalizesWeights(): void
     {
+        Embeddings::fake()->preventStrayEmbeddings();
+
         $engine = $this->createSemanticEngine(['attribute' => 'embedding', 'dimensions' => 2]);
 
         $builder = (new Builder(new SearchableModelWithPrecomputedEmbedding, 'combined query'))
@@ -1445,6 +1507,8 @@ class TypesenseEngineTest extends TestCase
 
     public function testSemanticSearchWithNativeEmbeddingsQueriesTheEmbeddingField(): void
     {
+        Embeddings::fake()->preventStrayEmbeddings();
+
         $engine = $this->createSemanticEngine(['attribute' => 'embedding', 'driver' => 'typesense']);
 
         $builder = (new Builder(new SearchableModelWithPrecomputedEmbedding, 'conceptual query'))->semantic();

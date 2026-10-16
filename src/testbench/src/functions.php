@@ -358,7 +358,8 @@ function parse_environment_variables(iterable $variables): array
     return (new Collection($variables))
         ->transform(static function (mixed $value, string $key): string {
             if (is_bool($value) || in_array($value, ['true', 'false'], true)) {
-                $value = in_array($value, [true, 'true'], true) ? '(true)' : '(false)';
+                // Unlike Orchestra's parenthesized values, these also work for raw environment consumers.
+                $value = in_array($value, [true, 'true'], true) ? 'true' : 'false';
             } elseif ($value === null || $value === 'null') {
                 $value = '(null)';
             } else {

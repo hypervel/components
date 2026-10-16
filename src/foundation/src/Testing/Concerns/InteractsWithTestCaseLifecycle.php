@@ -195,6 +195,10 @@ trait InteractsWithTestCaseLifecycle
         }
 
         foreach ($uses as $trait) {
+            if ($this->setUpTheTestEnvironmentTraitToBeIgnored($trait)) {
+                continue;
+            }
+
             if (method_exists($this, $method = 'setUp' . class_basename($trait))) {
                 $this->{$method}();
             }
@@ -215,6 +219,16 @@ trait InteractsWithTestCaseLifecycle
         }
 
         return $uses;
+    }
+
+    /**
+     * Determine if the trait should be skipped when setting up the test environment.
+     *
+     * @param class-string $use
+     */
+    protected function setUpTheTestEnvironmentTraitToBeIgnored(string $use): bool
+    {
+        return false;
     }
 
     /**

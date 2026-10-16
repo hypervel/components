@@ -26,6 +26,7 @@
     - [Scheduling](#scheduling)
     - [Maintenance Mode](#maintenance-mode)
     - [HTTP Client and Concurrency](#http-client-and-concurrency)
+    - [AI SDK](#ai-sdk)
     - [Saloon](#saloon)
     - [Broadcasting](#broadcasting)
     - [JSON:API Resources](#jsonapi-resources)
@@ -520,6 +521,23 @@ Create and finish pending Guzzle operations within one coroutine; share complete
 
 Hypervel's `Concurrency` facade provides `coroutine`, `process`, and `sync` drivers. Laravel's `fork` driver is not available because coroutines are Hypervel's native lightweight execution model. Use the default `coroutine` driver for normal concurrent application work and reserve `process` for work that requires operating system process isolation. See the [concurrency documentation](/docs/{{version}}/concurrency#choosing-a-driver).
 
+<a name="ai-sdk"></a>
+### AI SDK
+
+Agent and stream-event `broadcast` calls send immediately by default; pass `now: false` where you relied on queued delivery. See [broadcasting](/docs/{{version}}/ai-sdk#broadcasting).
+
+Agent broadcasts also batch adjacent text/reasoning deltas by default. Each batch retains the first delta's ID and timestamp; the response's original events remain unchanged. Clients that depend on individual provider chunks, match broadcasts one-for-one against response events, or order their own broadcasts against those deltas should set `ai.broadcasting.batching.enabled` to `false` or adapt to [batched delivery](/docs/{{version}}/ai-sdk#broadcast-batching).
+
+Agent overrides of `Promptable::getProvidersAndModels()` must return an ordered list of provider/model pairs, such as `[['openai', 'gpt-4o']]`, instead of `['openai' => 'gpt-4o']`. The provider may also be a `Provider` object, preserving its credentials. Failover lists retain repeated entries as separate attempts. See [failover](/docs/{{version}}/ai-sdk#failover).
+
+Remote attachments share the HTTP client's destination checks instead of `UntrustedUrl`'s protected `validate`, `resolve`, and `isBlocked` helpers and hostname-blocklist constants. Adapt subclasses that override them. URLs with embedded credentials are rejected; fetch authenticated files explicitly before attaching them. Configure `ai.remote_files.max_size` if your downloads exceed the default 32 MiB limit. See [remote attachments](/docs/{{version}}/ai-sdk#remote-attachments).
+
+Skill definitions in `resources/skills` are cached across requests. If your application changes them at runtime, use a closure or an uncached directory, or set `ai.skills.cached_paths` to `[]`. See [skills](/docs/{{version}}/ai-sdk#skills).
+
+Existing conversation data needs a schema migration. Compare column types and indexes with Hypervel's migration, add the approval claim and replay columns, and resolve messages whose conversations no longer exist before adding the foreign key. See [migrating conversation data](/docs/{{version}}/ai-sdk#migrating-conversation-data).
+
+Custom conversation stores must implement `ClaimsPendingApprovals` to resume stored approvals. Move overrides of the removed `ResumesToolApprovals::storeApprovalResultRecorderFor()` into your store's `ClaimsPendingApprovals::recordApprovalResult()` method. In `RememberConversation` subclasses, replace `openTurn()` overrides with `rememberTurn(): StoredTurn`. See [custom conversation stores](/docs/{{version}}/ai-sdk#custom-conversation-stores).
+
 <a name="saloon"></a>
 ### Saloon
 
@@ -579,8 +597,6 @@ Rotate `JWT_SECRET` or your key pair when you switch, so clients sign in again. 
 ### Scout
 
 Hypervel compiles integer and float values passed to Scout's Algolia `where`, `whereIn`, and `whereNotIn` methods as numeric comparisons. Numeric-looking strings remain facet values. When porting an Algolia index, ensure the indexed attribute type matches the PHP value type used by these filters.
-
-Scout cannot generate embeddings with the Laravel AI SDK, and its database engine does not support semantic or hybrid search. Models whose `toSearchableEmbedding` method returns text must return precomputed embedding arrays or switch to the engine's native embeddings. See [semantic search](/docs/{{version}}/scout#semantic-search).
 
 <a name="sentry"></a>
 ### Sentry

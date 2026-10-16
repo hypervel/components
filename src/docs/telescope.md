@@ -454,9 +454,25 @@ The gate watcher records the data and result of [gate and policy](/docs/{{versio
 <a name="http-client-watcher"></a>
 ### HTTP Client Watcher
 
-The HTTP client watcher records outgoing [HTTP client requests](/docs/{{version}}/http-client) made by your application.
+The HTTP client watcher records outgoing [HTTP client requests](/docs/{{version}}/http-client) made by your application, including requests from third-party SDKs that use Guzzle.
 
 You may exclude individual outgoing requests from being recorded or attach custom Telescope tags using the HTTP client's [Telescope recording methods](/docs/{{version}}/http-client#telescope-recording).
+
+For a Guzzle client used directly, set the `telescope_enabled` option to `false` on the client or an individual request to disable recording:
+
+```php
+$client = new \GuzzleHttp\Client(['telescope_enabled' => false]);
+```
+
+Telescope hides common credential headers, OAuth token fields, AWS credentials and URL signatures by default. Hidden request parameters are also masked in query strings in recorded URLs and redirects. Masking only affects recorded entries; the original requests, responses and sessions are unchanged.
+
+To hide additional fields, call the following methods from your `TelescopeServiceProvider`'s `boot` method. Header names should be lowercase, and nested body fields may use dot notation. Query parameters are matched the same way: a name such as `access_token` or a dot-notation path such as `credentials.secret` also hides its nested keys, such as `credentials[secret][id]`. Exact bracketed names such as `credentials[secret]` are matched as written:
+
+```php
+Telescope::hideRequestHeaders(['x-service-secret']);
+Telescope::hideRequestParameters(['credentials.secret', 'service_token']);
+Telescope::hideResponseParameters(['credentials.secret']);
+```
 
 You may ignore specific hosts or limit the recorded request and response payload sizes using the watcher's configuration options:
 
@@ -474,7 +490,7 @@ You may ignore specific hosts or limit the recorded request and response payload
 ],
 ```
 
-By default, oversized payloads are replaced with `Purged By Telescope` without reading or processing the body. If `truncate_oversized` is enabled, Telescope will read, mask, and truncate the payload to the configured size limit.
+By default, oversized payloads are replaced with `Purged By Telescope`. Telescope reads response bodies and masks structured payloads before checking their recorded size. If `truncate_oversized` is enabled, Telescope records the payload up to the configured size limit after masking known fields.
 
 <a name="job-watcher"></a>
 ### Job Watcher
@@ -601,6 +617,8 @@ The request watcher records the request, headers, session, and response data ass
 ```
 
 You may also use the `ignore_http_methods` and `ignore_status_codes` options to skip recording requests by HTTP method or response status code.
+
+The [credential masking settings](#http-client-watcher) also apply to incoming request entries, including signed URLs in redirects, referrer headers and the session's previous or intended URL.
 
 <a name="schedule-watcher"></a>
 ### Schedule Watcher

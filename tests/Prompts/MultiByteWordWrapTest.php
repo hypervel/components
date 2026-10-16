@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Prompts;
 
 use Hypervel\Prompts\Support\Utils;
-use Hypervel\Prompts\Themes\Default\Concerns\InteractsWithStrings;
+use Hypervel\Prompts\Themes\Default\Concerns\InteractsWithAnsi;
 use Hypervel\Tests\TestCase;
 
 class MultiByteWordWrapTest extends TestCase
@@ -288,7 +288,7 @@ class MultiByteWordWrapTest extends TestCase
     protected function getInstance()
     {
         return new class {
-            use InteractsWithStrings;
+            use InteractsWithAnsi;
 
             public function wordwrap(...$args)
             {

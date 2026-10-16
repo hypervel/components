@@ -43,6 +43,12 @@ class SentryConfig
         'notifications' => true,
         'missing_routes' => false,
         'continue_after_response' => true,
+        'gen_ai' => true,
+        'gen_ai_invoke_agent' => true,
+        'gen_ai_chat' => true,
+        'gen_ai_execute_tool' => true,
+        'gen_ai_embeddings' => true,
+        'gen_ai_evaluate' => true,
     ];
 
     /**

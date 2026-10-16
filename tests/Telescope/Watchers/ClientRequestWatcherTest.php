@@ -9,6 +9,8 @@ use GuzzleHttp\Exception\ClientException;
 use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Promise\Create;
+use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Psr7\Response;
 use GuzzleHttp\TransferStats;
@@ -92,6 +94,125 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $this->assertSame('********', $entry->content['headers']['x-zero']);
         $this->assertSame($masked, $entry->content['payload']['secret']);
         $this->assertSame($masked, $entry->content['response']['secret']);
+    }
+
+    #[DataProvider('credentialHeaders')]
+    public function testClientRequestWatcherHidesCredentialHeaders(string $header): void
+    {
+        $client = $this->makeClient([new Response(204)]);
+        $this->executeTransfer($client, new Request('POST', 'https://api.example.com', [
+            $header => 'secret-key',
+            'Content-Type' => 'application/json',
+        ]));
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame(Telescope::REDACTED_VALUE, $entry->content['headers'][strtolower($header)]);
+        $this->assertSame('application/json', $entry->content['headers']['content-type']);
+    }
+
+    /**
+     * Provide credential headers used by the framework's service clients.
+     */
+    public static function credentialHeaders(): array
+    {
+        return [
+            'Anthropic' => ['x-api-key'],
+            'Gemini' => ['x-goog-api-key'],
+            'Azure' => ['api-key'],
+            'ElevenLabs' => ['xi-api-key'],
+            'Algolia' => ['x-algolia-api-key'],
+            'Typesense' => ['X-TYPESENSE-API-KEY'],
+            'AWS signing' => ['X-Amz-Security-Token'],
+            'AWS SSO' => ['x-amz-sso_bearer_token'],
+        ];
+    }
+
+    #[DataProvider('credentialRequests')]
+    public function testClientRequestWatcherHidesCredentialRequestFields(string $contentType, array $payload, array $masked): void
+    {
+        $client = $this->makeClient([new Response(204)]);
+        $body = $contentType === 'application/json' ? json_encode($payload) : http_build_query($payload);
+        $this->executeTransfer($client, new Request('POST', 'https://auth.example.com/token', ['Content-Type' => $contentType], $body));
+
+        $this->assertSame($masked, $this->loadTelescopeEntries()->first()->content['payload']);
+    }
+
+    /**
+     * Provide token exchange requests with their expected recorded payloads.
+     */
+    public static function credentialRequests(): array
+    {
+        return [
+            'web identity' => [
+                'application/x-www-form-urlencoded',
+                ['Action' => 'AssumeRoleWithWebIdentity', 'WebIdentityToken' => 'jwt'],
+                ['Action' => 'AssumeRoleWithWebIdentity', 'WebIdentityToken' => Telescope::REDACTED_VALUE],
+            ],
+            'OAuth refresh' => [
+                'application/x-www-form-urlencoded',
+                ['grant_type' => 'refresh_token', 'client_secret' => 'secret', 'refresh_token' => 'refresh'],
+                ['grant_type' => 'refresh_token', 'client_secret' => Telescope::REDACTED_VALUE, 'refresh_token' => Telescope::REDACTED_VALUE],
+            ],
+            'SSO refresh' => [
+                'application/json',
+                ['clientId' => 'client', 'clientSecret' => 'secret', 'refreshToken' => 'refresh'],
+                ['clientId' => 'client', 'clientSecret' => Telescope::REDACTED_VALUE, 'refreshToken' => Telescope::REDACTED_VALUE],
+            ],
+        ];
+    }
+
+    #[DataProvider('credentialResponses')]
+    public function testClientRequestWatcherHidesCredentialResponseFields(string $contentType, array $payload, array $masked): void
+    {
+        $body = json_encode($payload);
+        $client = $this->makeClient([new Response(200, ['Content-Type' => $contentType], $body)]);
+        $response = $client->get('https://auth.example.com/credentials');
+
+        $this->assertSame($body, (string) $response->getBody());
+        $this->assertSame($masked, $this->loadTelescopeEntries()->first()->content['response']);
+    }
+
+    /**
+     * Provide credential responses with their expected recorded payloads.
+     */
+    public static function credentialResponses(): array
+    {
+        return [
+            'instance metadata' => [
+                'text/plain',
+                ['AccessKeyId' => 'key', 'SecretAccessKey' => 'secret', 'Token' => 'session', 'Expiration' => '2026-10-15T00:00:00Z'],
+                ['AccessKeyId' => 'key', 'SecretAccessKey' => Telescope::REDACTED_VALUE, 'Token' => Telescope::REDACTED_VALUE, 'Expiration' => '2026-10-15T00:00:00Z'],
+            ],
+            'SSO credentials' => [
+                'application/json',
+                ['roleCredentials' => ['accessKeyId' => 'key', 'secretAccessKey' => 'secret', 'sessionToken' => 'session', 'expiration' => 1792022400000]],
+                ['roleCredentials' => ['accessKeyId' => 'key', 'secretAccessKey' => Telescope::REDACTED_VALUE, 'sessionToken' => Telescope::REDACTED_VALUE, 'expiration' => 1792022400000]],
+            ],
+            'SSO refresh' => [
+                'application/json',
+                ['accessToken' => 'access', 'refreshToken' => 'refresh', 'tokenType' => 'Bearer'],
+                ['accessToken' => Telescope::REDACTED_VALUE, 'refreshToken' => Telescope::REDACTED_VALUE, 'tokenType' => 'Bearer'],
+            ],
+            'OAuth token' => [
+                'application/json',
+                ['access_token' => 'access', 'refresh_token' => 'refresh', 'id_token' => 'identity', 'token_type' => 'Bearer'],
+                ['access_token' => Telescope::REDACTED_VALUE, 'refresh_token' => Telescope::REDACTED_VALUE, 'id_token' => Telescope::REDACTED_VALUE, 'token_type' => 'Bearer'],
+            ],
+        ];
+    }
+
+    public function testClientRequestWatcherHidesQueryCredentialsWithoutChangingOtherParameters(): void
+    {
+        Telescope::hideRequestParameters(['custom_secret', 'secret.zero', 'credentials[token]']);
+        $uri = 'https://graph.facebook.com/me?access%5Ftoken=secret&access_token[]=first&access_token%5B0%5D=second&custom_secret%5Bvalue%5D=third&secret[zero]=fourth&secret%5Bzero%5D%5Bchild%5D=fifth&credentials%5Btoken%5D=sixth&secret[one]=public&fields=name,email&user.fields=id&tag=x&tag=y#fragment';
+        $client = $this->makeClient([new Response(200, [], '{}')]);
+        $this->executeTransfer($client, new Request('GET', $uri, ['Referer' => $uri]));
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame('https://graph.facebook.com/me?access%5Ftoken=********&access_token%5B%5D=********&access_token%5B0%5D=********&custom_secret%5Bvalue%5D=********&secret%5Bzero%5D=********&secret%5Bzero%5D%5Bchild%5D=********&credentials%5Btoken%5D=********&secret%5Bone%5D=public&fields=name,email&user.fields=id&tag=x&tag=y#fragment', $entry->content['uri']);
+        $this->assertSame('https://graph.facebook.com/me?access%5Ftoken=********&access_token[]=********&access_token%5B0%5D=********&custom_secret%5Bvalue%5D=********&secret[zero]=********&secret%5Bzero%5D%5Bchild%5D=********&credentials%5Btoken%5D=********&secret[one]=public&fields=name,email&user.fields=id&tag=x&tag=y#fragment', $entry->content['headers']['referer']);
     }
 
     public function testStructuredRequestAndResponseRetainAndMaskAtTheEntryContentChildLimit(): void
@@ -338,10 +459,11 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $this->assertSame('Purged By Telescope', $entry->content['payload']);
     }
 
-    public function testClientRequestWatcherRegistersRedirectResponse(): void
+    #[DataProvider('redirectLocations')]
+    public function testClientRequestWatcherRegistersRedirectResponse(string $location, string $recorded): void
     {
         Http::fake([
-            '*' => Http::response(null, 301, ['Location' => 'https://foo.bar']),
+            '*' => Http::response(null, 301, ['Location' => $location]),
         ]);
 
         Http::withoutRedirecting()->get('https://hypervel.org');
@@ -350,8 +472,20 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $tags = $this->entryTags($entry->uuid);
 
         $this->assertNotNull($entry);
-        $this->assertEquals('Redirected to https://foo.bar', $entry->content['response']);
+        $this->assertSame('Redirected to ' . $recorded, $entry->content['response']);
+        $this->assertSame($recorded, $entry->content['response_headers']['location']);
         $this->assertContains('hypervel.org', $tags);
+    }
+
+    /**
+     * Provide redirect URLs with query parameters and client-side fragments.
+     */
+    public static function redirectLocations(): array
+    {
+        return [
+            'signed query' => ['https://foo.bar?expires=123&signature=secret', 'https://foo.bar?expires=123&signature=********'],
+            'fragment-only question mark' => ['https://foo.bar/#/reset?access_token=client-state', 'https://foo.bar/#/reset?access_token=client-state'],
+        ];
     }
 
     public function testFollowedRedirectIsRecordedOnceWithTheFinalResponse(): void
@@ -695,14 +829,14 @@ class ClientRequestWatcherTest extends FeatureTestCase
             new ConnectException('Connection refused', new Request('GET', 'https://unreachable.example.com/api')),
         ]);
 
-        $this->executeTransfer($client, new Request('GET', 'https://unreachable.example.com/api'));
+        $this->executeTransfer($client, new Request('GET', 'https://unreachable.example.com/api?access_token=secret&fields=id'));
 
         $entry = $this->loadTelescopeEntries()->first();
 
         $this->assertNotNull($entry);
         $this->assertSame(EntryType::CLIENT_REQUEST, $entry->type);
         $this->assertSame('GET', $entry->content['method']);
-        $this->assertSame('https://unreachable.example.com/api', $entry->content['uri']);
+        $this->assertSame('https://unreachable.example.com/api?access_token=********&fields=id', $entry->content['uri']);
         $this->assertArrayNotHasKey('response_status', $entry->content);
     }
 
@@ -1120,6 +1254,24 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $this->assertNotNull($entry);
         $tags = $this->entryTags($entry->uuid);
         $this->assertContains('0', $tags);
+    }
+
+    public function testDirectGuzzleFailedConnectionIsCaptured(): void
+    {
+        // A custom handler can reject without invoking the transfer-statistics callback.
+        $client = new Client(['handler' => static fn (RequestInterface $request): PromiseInterface => Create::rejectionFor(
+            new ConnectException('Connection refused', $request),
+        )]);
+
+        $this->executeTransfer($client, new Request('GET', 'https://unreachable.example.com/api?access_token=secret&fields=id'));
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertNotNull($entry);
+        $this->assertSame(EntryType::CLIENT_REQUEST, $entry->type);
+        $this->assertSame('GET', $entry->content['method']);
+        $this->assertSame('https://unreachable.example.com/api?access_token=********&fields=id', $entry->content['uri']);
+        $this->assertArrayNotHasKey('response_status', $entry->content);
     }
 
     /**

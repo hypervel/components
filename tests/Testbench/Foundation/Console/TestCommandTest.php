@@ -138,7 +138,7 @@ class TestCommandTest extends TestCase
 
             $this->assertSame('configured', $variables['HYPERVEL_TEST_PACKAGE_ENV']);
             $this->assertSame('(empty)', $variables['HYPERVEL_TEST_EMPTY_ENV']);
-            $this->assertSame('(false)', $variables['HYPERVEL_TEST_FALSE_ENV']);
+            $this->assertSame('false', $variables['HYPERVEL_TEST_FALSE_ENV']);
         });
     }
 

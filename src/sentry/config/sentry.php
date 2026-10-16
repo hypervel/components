@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
+use Hypervel\Sentry\Features\AiIntegration;
 use Hypervel\Sentry\Features\CacheIntegration;
+use Hypervel\Sentry\Features\ClassificationIntegration;
 use Hypervel\Sentry\Features\ConsoleIntegration;
 use Hypervel\Sentry\Features\ConsoleSchedulingIntegration;
 use Hypervel\Sentry\Features\LogIntegration;
@@ -171,6 +173,24 @@ return [
 
         // Continue tracing through after-response work, such as jobs dispatched with `dispatch(...)->afterResponse()`
         'continue_after_response' => (bool) env('SENTRY_TRACE_CONTINUE_AFTER_RESPONSE', true),
+
+        // Capture AI agent interactions as spans (requires hypervel/ai)
+        'gen_ai' => (bool) env('SENTRY_TRACE_GEN_AI_ENABLED', true),
+
+        // Capture AI invoke_agent spans
+        'gen_ai_invoke_agent' => (bool) env('SENTRY_TRACE_GEN_AI_INVOKE_AGENT_ENABLED', true),
+
+        // Capture AI chat spans
+        'gen_ai_chat' => (bool) env('SENTRY_TRACE_GEN_AI_CHAT_ENABLED', true),
+
+        // Capture AI execute_tool spans
+        'gen_ai_execute_tool' => (bool) env('SENTRY_TRACE_GEN_AI_EXECUTE_TOOL_ENABLED', true),
+
+        // Capture AI embeddings spans
+        'gen_ai_embeddings' => (bool) env('SENTRY_TRACE_GEN_AI_EMBEDDINGS_ENABLED', true),
+
+        // Capture AI evaluate spans for classifications (requires hypervel/ai)
+        'gen_ai_evaluate' => (bool) env('SENTRY_TRACE_GEN_AI_EVALUATE_ENABLED', true),
     ],
 
     /*
@@ -197,6 +217,8 @@ return [
         StorageIntegration::class,
         NotificationsIntegration::class,
         ConsoleSchedulingIntegration::class,
+        AiIntegration::class,
+        ClassificationIntegration::class,
     ],
 
     // HTTP timeout for the Sentry SDK transport (seconds)

@@ -58,7 +58,7 @@ class Table extends Prompt
 
         $this->state = 'submit';
 
-        static::output()->write($this->renderTheme());
+        $this->writeFrame($this->renderTheme());
 
         return true;
     }

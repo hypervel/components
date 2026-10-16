@@ -124,12 +124,20 @@ laravel/reverb:
   last_reviewed_pr: 410
   sync_date: '2026-10-03'
 
+laravel/ai:
+  branch: 1.x
+  checked_through: 767e37a1ba57a0b007b9908fc32583e47b06e13c
+  last_reviewed_pr: 1108
+  sync_date: '2026-10-10'
+  notes: >-
+    Upstream workbench/ maps to dogfood/ai/workbench/; its demo Composer and Testbench setup lives in dogfood/ai/, separate from the shared Testbench skeleton.
+    tests/Feature/Providers/*/*Helpers.php maps to tests/Ai/Fixtures/, and tests/Datasets/Providers.php to the PHPUnit data-provider class tests/Integration/Ai/Fixtures/Providers.php.
+
 laravel/scout:
   branch: 11.x
   checked_through: ce2542f5a7297d21975ddcd7115dbf798fd8ba00
   last_reviewed_pr: 1012
   sync_date: '2026-10-03'
-  notes: "The Laravel AI SDK integrations from #1007, #1008, #1009 and #1012 are not ported yet and are not covered by checked_through; port them with Hypervel's AI SDK. They are the database engine's semantic and hybrid search and generated embeddings for Meilisearch, Typesense and Turbopuffer."
 
 laravel/slack-notification-channel:
   branch: 3.x
@@ -302,4 +310,4 @@ getsentry/sentry-laravel:
   checked_through: 0537a1d5bfd583beb89001887af9cadd3116bccb
   last_reviewed_pr: null
   sync_date: '2026-10-13'
-  notes: Upstream's ServiceProvider, BaseServiceProvider and Tracing\ServiceProvider map to SentryServiceProvider, and its FEATURES constant maps to the shipped features config list. Feature::onBoot() and onBootInactive() take no parameters; features resolve their dependencies from $this->container instead of method injection. Hub is a coroutine-aware copy of sentry/sentry's Sentry\State\Hub; compare the two on every SDK update. The Folio, Livewire and Pennant integrations and their config keys are not ported because Hypervel has no such packages. AI agent monitoring (AiIntegration, ClassificationIntegration, Features/Ai, Features/Classification, Util/BoundedOrderedMap, the tracing gen_ai options and Integration::setConversationId()) is not ported yet and is not covered by checked_through; port it with Hypervel's AI SDK. For major features or behavior changes, check the relevant Laravel pages in getsentry/sentry-docs and update Hypervel's integration docs as needed; do not queue the docs repository.
+  notes: Upstream's ServiceProvider, BaseServiceProvider and Tracing\ServiceProvider map to SentryServiceProvider, and its FEATURES constant maps to the shipped features config list. AI step events replace HttpRequestIntegration and AiProviderUrlResolver; their model-call coverage belongs in AiIntegrationTest. Feature::onBoot() and onBootInactive() take no parameters; features resolve their dependencies from $this->container instead of method injection. Hub is a coroutine-aware copy of sentry/sentry's Sentry\State\Hub; compare the two on every SDK update. The Folio, Livewire and Pennant integrations and their config keys are not ported because Hypervel has no such packages. For major features or behavior changes, check the relevant Laravel pages in getsentry/sentry-docs and update Hypervel's integration docs as needed; do not queue the docs repository.

@@ -1514,6 +1514,31 @@ class DeserializerTest extends TestCase
         ];
     }
 
+    public function testItRoundTripsANestedNullableAnyOf(): void
+    {
+        $schema = JsonSchema::anyOf([
+            JsonSchema::anyOf([
+                JsonSchema::object(['city' => JsonSchema::string()]),
+                JsonSchema::object(['country' => JsonSchema::string()]),
+            ])->description('A location.'),
+        ])->nullable()->description('An optional location.')->toArray();
+
+        $this->assertSame($schema, JsonSchema::fromArray($schema)->toArray());
+    }
+
+    public function testItRejectsTypeConstraintsBesideANestedAnyOf(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessageIs('Structural keywords [type] are not supported alongside a general JSON Schema anyOf.');
+
+        JsonSchema::fromArray([
+            'anyOf' => [
+                ['type' => 'string', 'anyOf' => [['type' => 'integer']]],
+                ['type' => 'null'],
+            ],
+        ]);
+    }
+
     #[DataProvider('survivingCompositionProvider')]
     public function testItRejectsACompositionThatSurvivesNullableCollapse(array $schema, string $keyword, string $composition): void
     {
@@ -1561,12 +1586,6 @@ class DeserializerTest extends TestCase
                     'value' => ['type' => 'string', 'oneOf' => [['type' => 'integer']]],
                 ],
             ], 'oneOf', 'anyOf'],
-            'anyOf inside anyOf branch' => [[
-                'anyOf' => [
-                    ['type' => 'string', 'anyOf' => [['type' => 'integer']]],
-                    ['type' => 'null'],
-                ],
-            ], 'anyOf', 'anyOf'],
         ];
     }
 

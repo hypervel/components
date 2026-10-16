@@ -5,12 +5,35 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Prompts;
 
 use Hypervel\Prompts\Grid;
+use Hypervel\Prompts\Output\BufferedConsoleOutput;
 use Hypervel\Prompts\Prompt;
+use Hypervel\Prompts\Support\Utils;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Symfony\Component\Console\Formatter\OutputFormatter;
+use Symfony\Component\Console\Formatter\OutputFormatterStyle;
 
 class GridTest extends TestCase
 {
+    public function testPreservesLiteralTagsAndMeasuresCustomStyles(): void
+    {
+        Prompt::fake();
+        $output = new BufferedConsoleOutput(decorated: true);
+        $output->getFormatter()->setStyle('warning', new OutputFormatterStyle('yellow'));
+        Prompt::setOutput($output);
+
+        (new Grid([OutputFormatter::escape('<info>Literal</info>'), '<warning>Careful</warning>'], maxWidth: 60))->display();
+
+        $content = Prompt::content();
+        $this->assertStringContainsString('<info>Literal</info>', $content);
+        $this->assertStringContainsString("\e[33m", $content);
+        $this->assertStringNotContainsString('<warning>', $content);
+        $lines = array_values(array_filter(explode(PHP_EOL, Utils::stripTerminalControls($content))));
+        $this->assertStringContainsString('Careful', $lines[1]);
+        $this->assertStringContainsString('<info>Literal</info>', $lines[1]);
+        $this->assertCount(1, array_unique(array_map(mb_strwidth(...), $lines)));
+    }
+
     #[DataProvider('multipleItemsProvider')]
     public function testRendersGridWithMultipleItems($items): void
     {

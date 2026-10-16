@@ -128,12 +128,15 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
     /**
      * Set up database-related testing traits.
      *
-     * Wraps migration traits in setUpDatabaseRequirements() so that
-     * testbench attributes (RequiresDatabase, WithMigration)
-     * are processed before migrations run.
+     * Start Workbench before processing database attributes, so its migrations
+     * and seeders are registered before the database is migrated, refreshed or truncated.
      */
     protected function setUpDatabaseTraits(array $uses): void
     {
+        if (isset($uses[Concerns\WithWorkbench::class])) {
+            $this->setUpWithWorkbench(); // @phpstan-ignore method.notFound
+        }
+
         // Reset before database attributes register paths against retained schema state.
         $this->prepareDatabaseTruncationForMethod($uses);
 
@@ -162,6 +165,16 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
         if (isset($uses[DatabaseTransactions::class])) {
             $this->beginDatabaseTransaction();
         }
+    }
+
+    /**
+     * Skip Workbench's convention hook because it runs before database setup.
+     *
+     * @param class-string $use
+     */
+    protected function setUpTheTestEnvironmentTraitToBeIgnored(string $use): bool
+    {
+        return $use === Concerns\WithWorkbench::class;
     }
 
     /**

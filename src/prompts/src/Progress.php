@@ -237,7 +237,7 @@ class Progress extends Prompt
 
         $frame = $this->renderTheme();
 
-        static::output()->write($frame);
+        $this->writeFrame($frame);
         $this->prevFrame = $frame;
     }
 

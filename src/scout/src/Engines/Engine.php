@@ -92,6 +92,14 @@ abstract class Engine
     abstract public function deleteIndex(string $name): mixed;
 
     /**
+     * Get the import concurrency allowed for the given model.
+     */
+    public function importConcurrency(Model $model, int $configured): int
+    {
+        return $configured;
+    }
+
+    /**
      * Assign the operation runner to this engine.
      *
      * Boot-only. The runner persists on this engine for the worker lifetime.

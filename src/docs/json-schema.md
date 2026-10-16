@@ -255,6 +255,8 @@ A `oneOf` schema may only be reconstructed as nullable when it contains exactly 
 
 When a nullable `anyOf` keeps an enum only on its non-null branch, the composition is preserved instead of moving the enum outside the branch. The same form cannot be reconstructed as nullable for `oneOf`; include `null` in the enum or use an equivalent `anyOf` composition instead.
 
+A nullable `anyOf` may also contain another `anyOf` as its non-null branch. Both compositions and their annotations are preserved.
+
 Annotations and vendor extensions that are not represented by the builder are ignored.
 
 > [!WARNING]
@@ -266,4 +268,4 @@ An `InvalidArgumentException` will also be thrown when a supported keyword conta
 
 Some valid JSON Schema forms cannot be represented by the fluent builder. These include an `additionalProperties` value that contains another schema, tuple or `false` values for `items`, boolean schemas used as object properties or composition branches, type-specific constraints on a multi-type union, and `anyOf` or `oneOf` schemas that carry incompatible type or composition rules. Attempting to reconstruct these forms will throw an `InvalidArgumentException`.
 
-For a nullable `anyOf` or `oneOf`, title, description, and default annotations beside the composition override the same annotations on its non-null branch. Supported validation rules may appear on either side or be repeated with the same value. If both sides give different values for the same validation rule, an `InvalidArgumentException` will be thrown. Array values must match exactly, including their order.
+When a nullable `anyOf` or `oneOf` is converted to a single nullable type, title, description, and default annotations beside the composition override the same annotations on its non-null branch. Supported validation rules may appear on either side or be repeated with the same value. If both sides give different values for the same validation rule, an `InvalidArgumentException` will be thrown. Array values must match exactly, including their order.

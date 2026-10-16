@@ -7,6 +7,7 @@ namespace Hypervel\Prompts;
 use Closure;
 use Hypervel\Prompts\Support\Utils;
 use Hypervel\Support\Collection;
+use Symfony\Component\Console\Formatter\OutputFormatter;
 
 class DataTablePrompt extends Prompt
 {
@@ -182,10 +183,24 @@ class DataTablePrompt extends Prompt
 
         $headers = array_values($this->headers);
         $headerWidths = array_fill(0, $columns, 0);
+        $formatter = clone static::output()->getFormatter();
+        $formatter->setDecorated(false);
+        $visibleWidth = static function (string $text) use ($formatter): int {
+            if (str_contains($text, '<') || str_contains($text, '\\') || str_contains($text, "\0")) {
+                // Cells and headers are independent values, including unfinished styles.
+                if ($formatter instanceof OutputFormatter) {
+                    $formatter->getStyleStack()->reset();
+                }
+
+                $text = $formatter->format($text);
+            }
+
+            return mb_strwidth(Utils::stripTerminalControls($text));
+        };
 
         foreach ($headers as $index => $header) {
             $text = is_array($header) ? implode(' ', $header) : $header;
-            $headerWidths[$index] = mb_strwidth(Utils::stripEscapeSequences($text));
+            $headerWidths[$index] = $visibleWidth($text);
         }
 
         $columnWidths = array_fill(0, $columns, []);
@@ -195,7 +210,7 @@ class DataTablePrompt extends Prompt
                 $cellWidth = 0;
 
                 foreach (preg_split('/\r\n|\n/', $cell) as $line) {
-                    $cellWidth = max($cellWidth, mb_strwidth(Utils::stripEscapeSequences($line)));
+                    $cellWidth = max($cellWidth, $visibleWidth($line));
                 }
 
                 if ($cellWidth > 0) {
