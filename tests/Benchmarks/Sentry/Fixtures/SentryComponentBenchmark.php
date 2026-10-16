@@ -61,7 +61,6 @@ class SentryComponentBenchmark extends TestCase
      */
     protected function setUp(): void
     {
-        // Full-size runs are benchmarks, which need the owner's confirmation that the machine is idle.
         if (getenv('BENCH_SMOKE') !== '1' && getenv('BENCH_IDLE_CONFIRMED') !== '1') {
             $this->fail('Full-size runs need BENCH_IDLE_CONFIRMED=1; use BENCH_SMOKE=1 otherwise.');
         }
