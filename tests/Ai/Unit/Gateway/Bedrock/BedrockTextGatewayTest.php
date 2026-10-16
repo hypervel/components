@@ -21,6 +21,7 @@ use Hypervel\Ai\Messages\ToolResultMessage;
 use Hypervel\Ai\Messages\UserMessage;
 use Hypervel\Ai\Responses\Data\ToolCall;
 use Hypervel\Ai\Responses\Data\ToolResult;
+use Hypervel\Ai\ToolChoice;
 use Hypervel\Ai\Tools\Request;
 use Hypervel\Contracts\JsonSchema\JsonSchema;
 use Hypervel\Filesystem\Filesystem;
@@ -728,10 +729,11 @@ class BedrockTextGatewayTest extends TestCase
         $this->assertArrayNotHasKey('inferenceConfig', $params);
     }
 
-    public function testBuildConverseParametersIncludesToolConfigAndInferenceConfigWhenPresent(): void
+    #[DataProvider('toolChoices')]
+    public function testBuildConverseParametersIncludesToolConfigAndInferenceConfigWhenPresent(?ToolChoice $choice, array $expected): void
     {
         $formattedTools = [['toolSpec' => ['name' => 'X']]];
-        $options = new TextGenerationOptions(maxTokens: 100);
+        $options = new TextGenerationOptions(maxTokens: 100, toolChoice: $choice);
 
         $params = textGateway()->callBuildConverseParameters(
             'claude-sonnet',
@@ -745,8 +747,38 @@ class BedrockTextGatewayTest extends TestCase
         );
 
         $this->assertArrayNotHasKey('system', $params);
-        $this->assertSame(['tools' => $formattedTools], $params['toolConfig']);
+        $this->assertSame(['tools' => $formattedTools, ...$expected], $params['toolConfig']);
         $this->assertSame(['maxTokens' => 100], $params['inferenceConfig']);
+    }
+
+    /**
+     * Provide Bedrock's supported tool choices and the omitted default.
+     */
+    public static function toolChoices(): array
+    {
+        return [
+            [null, []],
+            [new ToolChoice(ToolChoice::auto), ['toolChoice' => ['auto' => []]]],
+            [new ToolChoice(ToolChoice::required), ['toolChoice' => ['any' => []]]],
+            [ToolChoice::tool('X'), ['toolChoice' => ['tool' => ['name' => 'X']]]],
+        ];
+    }
+
+    public function testBuildConverseParametersRejectsTheUnsupportedNoneToolChoice(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('does not support the none tool choice');
+
+        textGateway()->callBuildConverseParameters(
+            'claude-sonnet',
+            null,
+            [],
+            null,
+            [['toolSpec' => ['name' => 'X']]],
+            false,
+            new TextGenerationOptions(toolChoice: new ToolChoice(ToolChoice::none)),
+            false,
+        );
     }
 
     public function testBuildConverseParametersFlatMergesAgentProviderOptionsForBedrock(): void

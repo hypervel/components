@@ -50,6 +50,7 @@ use Hypervel\Ai\Streaming\Events\TextDelta;
 use Hypervel\Ai\Streaming\Events\TextEnd;
 use Hypervel\Ai\Streaming\Events\TextStart;
 use Hypervel\Ai\Streaming\Events\ToolCall as ToolCallEvent;
+use Hypervel\Ai\ToolChoice;
 use Hypervel\Ai\Tools\ToolNameResolver;
 use Hypervel\JsonSchema\JsonSchemaTypeFactory;
 use Hypervel\Support\Arr;
@@ -749,6 +750,15 @@ class BedrockTextGateway implements EmbeddingGateway, StepTextGateway
         }
 
         $toolConfig = $this->buildToolConfig($schemaTools, $formattedTools, $toolsEmpty, $isFinalStep);
+
+        if ($schemaTools === null && $toolConfig !== null && $options?->toolChoice !== null) {
+            $toolConfig['toolChoice'] = match ($options->toolChoice->mode) {
+                ToolChoice::auto => ['auto' => []],
+                ToolChoice::required => ['any' => []],
+                ToolChoice::tool => ['tool' => ['name' => $options->toolChoice->toolName]],
+                ToolChoice::none => throw new InvalidArgumentException('Amazon Bedrock Converse does not support the none tool choice.'),
+            };
+        }
 
         if ($toolConfig !== null) {
             $parameters['toolConfig'] = $toolConfig;
