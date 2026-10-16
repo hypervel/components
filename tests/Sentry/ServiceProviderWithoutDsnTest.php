@@ -5,13 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sentry;
 
 use Closure;
+use GuzzleHttp\Client;
+use GuzzleHttp\Handler\MockHandler;
+use GuzzleHttp\Psr7\Response;
 use Hypervel\Console\Events\ScheduledTaskStarting;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Coroutine\Coroutine;
-use Hypervel\Di\Aop\AspectCollector;
 use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Routing\Events\RouteMatched;
-use Hypervel\Sentry\Aspects\GuzzleHttpClientAspect;
 use Hypervel\Sentry\SentryServiceProvider;
 use Hypervel\Support\Facades\Artisan;
 use Hypervel\Testbench\TestCase;
@@ -79,11 +80,14 @@ class ServiceProviderWithoutDsnTest extends TestCase
         }
     }
 
-    public function testDidNotRegisterAopOrCoroutinePropagation(): void
+    public function testDidNotInstrumentGuzzleOrRegisterCoroutinePropagation(): void
     {
         $callbacks = (new ReflectionProperty(Coroutine::class, 'afterCreatedCallbacks'))->getValue();
 
-        $this->assertSame([], AspectCollector::getRule(GuzzleHttpClientAspect::class));
+        $handler = new MockHandler([new Response]);
+        (new Client(['handler' => $handler]))->get('https://example.com');
+
+        $this->assertFalse($handler->getLastRequest()->hasHeader('sentry-trace'));
         $this->assertSame([], $callbacks);
     }
 

@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Ai\Unit\Gateway\Bedrock;
 
 use Aws\BedrockRuntime\BedrockRuntimeClient;
 use Aws\BedrockRuntime\Exception\BedrockRuntimeException;
-use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\Exception\ResponseTransferException;
 use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\Psr7\FnStream;
@@ -163,9 +162,7 @@ class BedrockHttpHandlerTest extends TestCase
         $http = (new Factory)->registerConnection(AiManager::HTTP_CONNECTION);
         $response = $hasResponse ? new Response(200, [], 'partial') : null;
         $http->fake($hasResponse ? static function (HttpRequest $request) use ($response): never {
-            throw class_exists(ResponseTransferException::class)
-                ? new ResponseTransferException('Transfer interrupted', $request->toPsrRequest(), $response)
-                : new RequestException('Transfer interrupted', $request->toPsrRequest(), $response, null, ['errno' => 56]);
+            throw new ResponseTransferException('Transfer interrupted', $request->toPsrRequest(), $response);
         } : Factory::failedConnection('Connection refused'));
         $caught = null;
 

@@ -219,7 +219,7 @@ HttpServerInstrumentation::class => [
 ],
 ```
 
-`OTEL_INSTRUMENTATION_HTTP_KNOWN_METHODS` replaces the standard known-method list. Values are case-sensitive. Server instrumentation describes the wire method even when `_method` or `X-HTTP-METHOD-OVERRIDE` changes application routing. Outgoing instrumentation describes the exact PSR-7 method seen at the physical send boundary. Guzzle 7 currently uppercases methods sent through Hypervel's convenient `Http::get()` style API, while a request passed through `Http::buildClient()->send()` retains the PSR-7 request's casing.
+`OTEL_INSTRUMENTATION_HTTP_KNOWN_METHODS` replaces the standard known-method list. Values are case-sensitive. Server instrumentation describes the wire method even when `_method` or `X-HTTP-METHOD-OVERRIDE` changes application routing. Outgoing instrumentation describes the exact PSR-7 method seen at the physical send boundary.
 
 Outgoing requests are traced automatically by default. You may disable tracing for one request:
 

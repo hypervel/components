@@ -33,7 +33,7 @@ class PackageMetadataTest extends TestCase
         $this->assertSame('*', $composer['require']['ext-mbstring']);
 
         foreach ([
-            'guzzlehttp/guzzle',
+            'hypervel/guzzle',
             'hypervel/collections',
             'hypervel/conditionable',
             'hypervel/contracts',

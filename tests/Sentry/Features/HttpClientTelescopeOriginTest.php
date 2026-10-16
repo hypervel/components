@@ -98,7 +98,7 @@ class HttpClientTelescopeOriginTest extends TestCase
     }
 
     /**
-     * Assert that Telescope's aspect recorded the request.
+     * Assert that Telescope recorded the request.
      */
     private function assertTelescopeRecordedTheRequest(): void
     {

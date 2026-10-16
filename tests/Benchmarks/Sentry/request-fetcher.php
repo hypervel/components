@@ -11,7 +11,6 @@ $options = getopt('', ['root:', 'smoke', 'idle-confirmed']);
 $smoke = isset($options['smoke']);
 $repetitions = $smoke ? 1 : 3;
 
-// Full-size runs are benchmarks, which need the owner's confirmation that the machine is idle.
 if (! $smoke && ! isset($options['idle-confirmed'])) {
     fwrite(STDERR, "Full-size runs need --idle-confirmed; use --smoke otherwise.\n");
     exit(1);

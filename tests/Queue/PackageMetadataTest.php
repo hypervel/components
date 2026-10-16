@@ -47,6 +47,7 @@ class PackageMetadataTest extends TestCase
             'hypervel/events',
             'hypervel/filesystem',
             'hypervel/foundation',
+            'hypervel/guzzle-promises',
             'hypervel/log',
             'hypervel/object-pool',
             'hypervel/pipeline',

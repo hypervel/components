@@ -31,7 +31,7 @@ class PackageMetadataTest extends TestCase
 
         foreach ([
             'ext-filter',
-            'guzzlehttp/guzzle',
+            'hypervel/guzzle',
             'hypervel/collections',
             'hypervel/conditionable',
             'hypervel/config',
@@ -55,7 +55,7 @@ class PackageMetadataTest extends TestCase
             $this->assertNotSame('', trim($composer['require'][$dependency]));
         }
 
-        foreach (['guzzlehttp/guzzle', 'psr/http-client', 'psr/http-message'] as $dependency) {
+        foreach (['hypervel/guzzle', 'psr/http-client', 'psr/http-message'] as $dependency) {
             $this->assertArrayHasKey($dependency, $rootComposer['require']);
             $this->assertSame($rootComposer['require'][$dependency], $composer['require'][$dependency]);
         }

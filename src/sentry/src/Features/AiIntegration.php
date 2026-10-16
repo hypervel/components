@@ -140,7 +140,7 @@ class AiIntegration extends Feature
         }
 
         // Step events replace upstream's HttpRequestIntegration and URL matching;
-        // the existing Guzzle aspect supplies HTTP children without global AI HTTP listeners.
+        // Guzzle instrumentation supplies HTTP children without global AI HTTP listeners.
         $events = $this->container->make('events');
 
         foreach ($listeners as $event => $method) {

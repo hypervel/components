@@ -1163,6 +1163,18 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $this->assertCount(0, $entries);
     }
 
+    public function testRequestOptInOverridesTheClientOptOut(): void
+    {
+        $client = $this->makeClient([new Response(200, [], 'OK')], ['telescope_enabled' => false]);
+
+        $this->executeTransfer($client, new Request('GET', 'https://example.com'), ['telescope_enabled' => true]);
+
+        $entry = $this->loadTelescopeEntries()->sole();
+
+        $this->assertSame(EntryType::CLIENT_REQUEST, $entry->type);
+        $this->assertSame('https://example.com', $entry->content['uri']);
+    }
+
     public function testTelescopeTagsViaGuzzleOption(): void
     {
         $client = $this->makeClient([new Response(200, [], 'OK')]);
@@ -1199,10 +1211,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
 
     public function testTelescopeTagsViaGuzzleConstructorConfig(): void
     {
-        // Regression guard: the framework relies on Guzzle's prepareDefaults()
-        // merging client constructor config into per-request options before
-        // transfer() runs, so tags set at construction time reach the aspect.
-        // If Guzzle ever changes that merge, this test catches it.
+        // Guzzle merges client defaults into the options passed to global middleware.
         $client = $this->makeClient(
             [new Response(200, [], 'OK')],
             ['telescope_tags' => ['scout', 'algolia']],
@@ -1312,7 +1321,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
     }
 
     /**
-     * Send the request through the generated proxy, including failed connections.
+     * Send the request, including failed connections.
      */
     private function executeTransfer(
         Client $client,

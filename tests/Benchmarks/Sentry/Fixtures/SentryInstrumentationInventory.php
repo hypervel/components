@@ -5,15 +5,16 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Benchmarks\Sentry\Fixtures;
 
 use Closure;
+use GuzzleHttp\Client;
+use GuzzleHttp\Handler\MockHandler;
+use GuzzleHttp\Psr7\Response;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Http\Kernel as HttpKernel;
 use Hypervel\Coroutine\Coroutine;
-use Hypervel\Di\Aop\AspectCollector;
 use Hypervel\Redis\RedisConfig;
 use Hypervel\Redis\RedisManager;
 use Hypervel\Routing\Contracts\CallableDispatcher;
 use Hypervel\Routing\Contracts\ControllerDispatcher;
-use Hypervel\Sentry\Aspects\GuzzleHttpClientAspect;
 use Hypervel\Sentry\SentryServiceProvider;
 use Hypervel\Sentry\Tracing\ViewEngineDecorator;
 use Hypervel\Tests\Sentry\TestCase;
@@ -93,6 +94,8 @@ class SentryInstrumentationInventory extends TestCase
         ksort($listeners);
 
         $redisConfig = (new ReflectionProperty(RedisManager::class, 'config'))->getValue($this->app->make(RedisManager::class));
+        $handler = new MockHandler([new Response]);
+        (new Client(['handler' => $handler]))->get('https://example.com');
 
         $inventory = [
             'name' => $this->dataName(),
@@ -101,7 +104,7 @@ class SentryInstrumentationInventory extends TestCase
                 $this->app->make(HttpKernel::class)->getGlobalMiddleware(),
                 static fn (mixed $middleware): bool => is_string($middleware) && str_starts_with($middleware, 'Hypervel\Sentry\\'),
             )),
-            'guzzle_aspect' => AspectCollector::getRule(GuzzleHttpClientAspect::class) !== [],
+            'guzzle_instrumentation' => $handler->getLastRequest()->hasHeader('sentry-trace'),
             'after_created_callbacks' => count((new ReflectionProperty(Coroutine::class, 'afterCreatedCallbacks'))->getValue()),
             'callable_dispatcher' => $this->app->make(CallableDispatcher::class)::class,
             'controller_dispatcher' => $this->app->make(ControllerDispatcher::class)::class,
@@ -114,7 +117,7 @@ class SentryInstrumentationInventory extends TestCase
         if (array_key_exists('sentry.dsn', $config) && $config['sentry.dsn'] === null) {
             $this->assertSame([], $inventory['listeners']);
             $this->assertSame([], $inventory['middleware']);
-            $this->assertFalse($inventory['guzzle_aspect']);
+            $this->assertFalse($inventory['guzzle_instrumentation']);
             $this->assertSame(0, $inventory['after_created_callbacks']);
             $this->assertFalse($inventory['blade_engine_decorated']);
         }

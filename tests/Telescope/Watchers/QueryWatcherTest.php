@@ -7,14 +7,17 @@ namespace Hypervel\Tests\Telescope\Watchers;
 use Hypervel\Database\BinaryParameter;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Events\QueryExecuted;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Storage\EntryModel;
 use Hypervel\Telescope\Watchers\QueryWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
+use Hypervel\Testing\ParallelTesting;
+use Hypervel\Tests\Di\Fixtures\ProxySources;
 use Hypervel\Tests\Telescope\FeatureTestCase;
-use Hypervel\Tests\Telescope\Fixtures\PromiseHandlerQueryWatcher;
+use Hypervel\Tests\Telescope\Fixtures\ProxyFrameQueryWatcher;
 use Mockery as m;
 use ReflectionClass;
 use TypeError;
@@ -27,6 +30,33 @@ use TypeError;
 ])]
 class QueryWatcherTest extends FeatureTestCase
 {
+    protected string $directory;
+
+    /**
+     * Prepare an isolated proxy directory.
+     */
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->directory = ParallelTesting::tempDir('QueryWatcherTest');
+        $files = new Filesystem;
+        $files->deleteDirectory($this->directory);
+        $files->ensureDirectoryExists($this->directory);
+    }
+
+    /**
+     * Remove temporary proxy files.
+     */
+    protected function tearDown(): void
+    {
+        try {
+            (new Filesystem)->deleteDirectory($this->directory);
+        } finally {
+            parent::tearDown();
+        }
+    }
+
     public function testQueryWatcherRegistersDatabaseQueries(): void
     {
         EntryModel::count();
@@ -307,17 +337,24 @@ TEXT;
     {
         // This repository keeps framework sources in src/, where applications have vendor/.
         $repositoryPath = dirname(__DIR__, 3);
-        $watcher = new PromiseHandlerQueryWatcher([
+        $sourceFile = (new ReflectionClass(ProxyFrameQueryWatcher::class))->getFileName();
+        $watcher = new ProxyFrameQueryWatcher([
             'ignore_paths' => [
                 $repositoryPath . '/src',
                 $repositoryPath . '/vendor',
-                (new ReflectionClass(PromiseHandlerQueryWatcher::class))->getFileName(),
+                $sourceFile,
             ],
         ]);
 
-        $caller = $watcher->callerFromPromiseHandler();
+        $proxyFile = $this->directory . '/QueryWatcher.proxy.php';
+        (new Filesystem)->put($proxyFile, '<?php return static fn (callable $callback) => $callback();');
+        $proxy = require $proxyFile;
 
-        $this->assertSame(__FILE__, $caller['file']);
+        ProxySources::with([$proxyFile => $sourceFile], function () use ($watcher, $proxy): void {
+            $caller = $watcher->callerFromProxy($proxy);
+
+            $this->assertSame(__FILE__, $caller['file']);
+        });
     }
 
     /**
