@@ -319,6 +319,7 @@ class UntrustedUrlTest extends TestCase
 
     public function testANullSizeLimitAllowsDownloadsLargerThanTheDefault(): void
     {
+        $this->assertSame(UntrustedUrl::DEFAULT_MAX_SIZE, config('ai.remote_files.max_size'));
         config(['ai.remote_files.allowed_hosts' => ['127.0.0.1'], 'ai.remote_files.max_size' => null]);
         $size = UntrustedUrl::DEFAULT_MAX_SIZE + 1;
         $server = LoopbackHttpServer::start([[

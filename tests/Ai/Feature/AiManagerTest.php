@@ -18,6 +18,7 @@ use Hypervel\Tests\Ai\TestCase;
 use InvalidArgumentException;
 use LogicException;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class AiManagerTest extends TestCase
 {
@@ -146,12 +147,35 @@ class AiManagerTest extends TestCase
         $this->assertSame($provider, $this->manager->audioProvider());
     }
 
-    public function testConversationPartitionRegistrationCannotBeReplaced(): void
+    #[DataProvider('bootHooks')]
+    public function testBootHookRegistrationCannotBeReplaced(string $method, array $arguments): void
     {
-        $this->manager->resolveConversationPartitionUsing('account_id', static fn (): string => 'first');
+        $this->manager->{$method}(...[...$arguments, static fn (): string => 'first']);
 
         $this->expectException(LogicException::class);
-        $this->manager->resolveConversationPartitionUsing('other_id', static fn (): string => 'second');
+        $this->expectExceptionMessage('already registered');
+        $this->manager->{$method}(...[...$arguments, static fn (): string => 'second']);
+    }
+
+    /**
+     * Provide the once-only boot hooks and their leading arguments.
+     */
+    public static function bootHooks(): array
+    {
+        return [
+            ['resolveProviderConfigUsing', []],
+            ['resolveConversationPartitionUsing', ['account_id']],
+            ['resolveEmbeddingsCacheScopeUsing', []],
+            ['captureContextUsing', []],
+        ];
+    }
+
+    public function testConversationPartitionColumnMustBeASimpleIdentifier(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('simple SQL identifier');
+
+        $this->manager->resolveConversationPartitionUsing('accounts.id', static fn (): string => 'first');
     }
 
     public function testConfiguredConversationPartitionFailsClosedWhenItsContextIsMissing(): void
