@@ -54,7 +54,7 @@ trait BuildsTextRequests
 
             if (filled($mappedTools)) {
                 $body['tools'] = $mappedTools;
-                $body['tool_choice'] = ['type' => 'auto'];
+                $body['tool_choice'] = $this->resolveToolChoice(null, $tools, $providerOptions, $options?->toolChoice);
             }
         } else {
             if (filled($schema)) {

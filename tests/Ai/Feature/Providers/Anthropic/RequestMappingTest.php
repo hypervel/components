@@ -4,9 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Ai\Feature\Providers\Anthropic;
 
+use Closure;
 use Hypervel\Ai\Attributes\TopP;
 use Hypervel\Ai\Contracts\Agent;
+use Hypervel\Ai\Gateway\StepResult;
+use Hypervel\Ai\PendingStep;
 use Hypervel\Ai\Promptable;
+use Hypervel\Ai\ToolChoice;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Ai\Fixtures\Agents\AssistantAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\AttributeAgent;
@@ -18,6 +22,7 @@ use Hypervel\Tests\Ai\Fixtures\Agents\ThinkingToolChoiceAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\ToolChoiceAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\ToolUsingAgent;
 use Hypervel\Tests\Ai\Fixtures\AnthropicHelpers;
+use Hypervel\Tests\Ai\Fixtures\Tools\NamedTool;
 use Hypervel\Tests\Ai\TestCase;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -318,6 +323,32 @@ class RequestMappingTest extends TestCase
         });
     }
 
+    #[DataProvider('nativeToolChoices')]
+    public function testNativeStructuredOutputHonorsToolChoice(?ToolChoice $choice, array $expected): void
+    {
+        Http::fake(['api.anthropic.com/*' => $this->fakeStructuredResponse(['name' => 'Taylor', 'age' => 30])]);
+
+        (new StructuredAgent)->withTools([new NamedTool('lookup')])->withMiddleware([
+            fn (PendingStep $step, Closure $next): StepResult => $next($step->withToolChoice($choice)),
+        ])->prompt('Tell me about Taylor', provider: 'anthropic');
+
+        Http::assertSent(fn ($request): bool => $request['tool_choice'] === $expected
+            && $request['output_config']['format']['type'] === 'json_schema');
+    }
+
+    /**
+     * Provide explicit choices and the default for native structured output.
+     */
+    public static function nativeToolChoices(): array
+    {
+        return [
+            [null, ['type' => 'auto']],
+            [new ToolChoice(ToolChoice::none), ['type' => 'none']],
+            [new ToolChoice(ToolChoice::required), ['type' => 'any']],
+            [ToolChoice::tool('lookup'), ['type' => 'tool', 'name' => 'lookup']],
+        ];
+    }
+
     public function testNativeStructuredOutputStripsUnsupportedConstraintsAndFoldsThemIntoDescriptions(): void
     {
         Http::fake([
@@ -562,7 +593,8 @@ class RequestMappingTest extends TestCase
         Http::assertSent(fn ($request): bool => $request->data()['tool_choice'] === ['type' => 'none']);
     }
 
-    public function testForcingAToolWhileThinkingIsEnabledThrows(): void
+    #[DataProvider('structuredModes')]
+    public function testForcingAToolWhileThinkingIsEnabledThrows(bool $structured): void
     {
         Http::fake([
             'api.anthropic.com/*' => $this->fakeTextResponse('The number is 42'),
@@ -571,6 +603,20 @@ class RequestMappingTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Anthropic cannot force tool use while extended thinking is enabled.');
 
-        (new ThinkingToolChoiceAgent)->prompt('Generate a number', provider: 'anthropic');
+        $agent = $structured
+            ? (new StructuredWithThinkingAgent)->withTools([new NamedTool('lookup')])->withMiddleware([
+                fn (PendingStep $step, Closure $next): StepResult => $next($step->withToolChoice(ToolChoice::required)),
+            ])
+            : new ThinkingToolChoiceAgent;
+
+        $agent->prompt('Generate a number', provider: 'anthropic');
+    }
+
+    /**
+     * Provide plain and native structured output requests.
+     */
+    public static function structuredModes(): array
+    {
+        return [[false], [true]];
     }
 }
