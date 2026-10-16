@@ -259,6 +259,65 @@ class RememberConversationTest extends TestCase
         $this->assertSame('Sent', json_decode($row->steps, true)[0]['tool_calls'][0]['result']);
     }
 
+    public function testAbandoningAResumedStreamSettlesItsClaimAndKeepsExecutedResults(): void
+    {
+        $store = new DatabaseConversationStore;
+        $prompt = $this->prompt();
+        $conversationId = $store->storeConversation(null, null, 'Approval');
+        $paused = $this->response()->withSteps(collect([$this->step(answered: false)]))
+            ->withPendingApprovals(collect([new PendingApproval('call', 'send_email', [], 'Sends email')]));
+        $messageId = $store->storeAssistantMessage($conversationId, null, null, $prompt, $paused);
+        $prompt = $this->prompt(Decisions::from(['call' => true]));
+        $prompt->agent->continue($conversationId);
+        $stream = new StreamableAgentResponse('invocation', function () use ($prompt, $store, $conversationId): Generator {
+            $prompt->setRunContext($context = $this->context($prompt, $store, $conversationId));
+            $context->claimPendingApprovals(['call']);
+            $context->recordApprovalResult(new ToolResult('call', 'send_email', [], 'Sent'));
+
+            yield new TextDelta('event', 'message', 'First token', 1);
+        });
+        $stream = (new RememberConversation($store, $prompt->provider()))->handle($prompt, fn (): StreamableAgentResponse => $stream);
+
+        foreach ($stream as $event) {
+            break;
+        }
+
+        $row = DB::table('agent_conversation_messages')->find($messageId);
+        $this->assertSame('failed', $row->status);
+        $this->assertNull($row->approval_claim);
+        $this->assertSame('Sent', json_decode($row->steps, true)[0]['tool_calls'][0]['result']);
+        $this->assertNull($prompt->runContext());
+    }
+
+    public function testAbandonedToolStepsAreRememberedAndReiterationReusesTheConversation(): void
+    {
+        $prompt = $this->prompt();
+        $stream = new StreamableAgentResponse('invocation', function () use ($prompt): Generator {
+            $prompt->setRunContext($context = $this->context($prompt));
+            $context->recordStep($this->step());
+
+            yield new TextDelta('event', 'message', 'Done', 1);
+        });
+        $stream = (new RememberConversation(new DatabaseConversationStore, $prompt->provider()))
+            ->handle($prompt, fn (): StreamableAgentResponse => $stream);
+
+        foreach ($stream as $event) {
+            break;
+        }
+
+        $conversationId = $stream->conversationId;
+        $row = DB::table('agent_conversation_messages')->where('role', 'assistant')->first();
+        $this->assertSame('failed', $row->status);
+        $this->assertSame('Sent', json_decode($row->steps, true)[0]['tool_calls'][0]['result']);
+
+        iterator_to_array($stream);
+
+        $this->assertSame($conversationId, $stream->conversationId);
+        $this->assertDatabaseCount('agent_conversations', 1);
+        $this->assertDatabaseCount('agent_conversation_messages', 4);
+        $this->assertDatabaseHas('agent_conversation_messages', ['id' => $stream->assistantMessageId, 'status' => 'completed']);
+    }
+
     #[DataProvider('titleModes')]
     public function testInvalidApprovalDecisionsWithoutAConversationWriteNothing(bool $concurrent): void
     {

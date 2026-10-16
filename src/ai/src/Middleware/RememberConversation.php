@@ -24,6 +24,7 @@ use Hypervel\Ai\Support\PendingConversationTitle;
 use Hypervel\Support\ClassMetadataCache;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Str;
+use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
 use WeakReference;
@@ -87,13 +88,16 @@ class RememberConversation
                 $response->wrapProducer(function (Closure $produce) use ($prompt, $selection, &$pendingConversationId, $responseReference): Generator {
                     $title = null;
                     $completed = false;
+                    $threw = false;
 
                     try {
                         $prompt->setPendingConversationTitle($title = $this->startConcurrentTitle($prompt, $pendingConversationId));
 
                         try {
                             yield from $produce();
+                            $title?->value();
                         } catch (Throwable $exception) {
+                            $threw = true;
                             $stored = $this->rememberFailedTurn($prompt, $exception, $pendingConversationId, retryable: ! $responseReference->get()->hasYielded());
 
                             if ($stored !== null) {
@@ -104,14 +108,25 @@ class RememberConversation
                             throw $exception;
                         }
 
-                        $title?->value();
                         $completed = true;
                     } finally {
-                        $title?->cancel();
+                        try {
+                            // Disposing a suspended producer skips catch, but executed tools and claims still need settlement.
+                            if (! $completed && ! $threw) {
+                                $stored = $this->rememberFailedTurn($prompt, new RuntimeException('The stream was abandoned before it completed.'), $pendingConversationId, retryable: false);
 
-                        // Completion callbacks run after the producer ends and still need its title.
-                        if (! $completed) {
-                            $prompt->setPendingConversationTitle(null);
+                                if ($stored !== null) {
+                                    $pendingConversationId = null;
+                                    $responseReference->get()?->withinConversation($stored->conversationId, $selection->participant);
+                                }
+                            }
+                        } finally {
+                            $title?->cancel();
+
+                            // Completion callbacks run after the producer ends and still need its title.
+                            if (! $completed) {
+                                $prompt->setPendingConversationTitle(null);
+                            }
                         }
                     }
                 });
