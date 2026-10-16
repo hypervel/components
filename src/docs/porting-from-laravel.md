@@ -26,7 +26,9 @@
     - [Scheduling](#scheduling)
     - [Maintenance Mode](#maintenance-mode)
     - [HTTP Client and Concurrency](#http-client-and-concurrency)
+    - [Streamed Responses](#streamed-responses)
     - [AI SDK](#ai-sdk)
+    - [MCP](#mcp)
     - [Saloon](#saloon)
     - [Broadcasting](#broadcasting)
     - [JSON:API Resources](#jsonapi-resources)
@@ -521,6 +523,11 @@ Create and finish pending Guzzle operations within one coroutine; share complete
 
 Hypervel's `Concurrency` facade provides `coroutine`, `process`, and `sync` drivers. Laravel's `fork` driver is not available because coroutines are Hypervel's native lightweight execution model. Use the default `coroutine` driver for normal concurrent application work and reserve `process` for work that requires operating system process isolation. See the [concurrency documentation](/docs/{{version}}/concurrency#choosing-a-driver).
 
+<a name="streamed-responses"></a>
+### Streamed Responses
+
+`connection_aborted()` does not report Swoole client disconnects. Replace loops that rely on it with a generator callback passed to `response()->stream()`, or an `IterableStreamedResponse`. See [Canceling Disconnected Streams](/docs/{{version}}/responses#canceling-disconnected-streams) to also cancel production during a wait.
+
 <a name="ai-sdk"></a>
 ### AI SDK
 
@@ -537,6 +544,15 @@ Skill definitions in `resources/skills` are cached across requests. If your appl
 Existing conversation data needs a schema migration. Compare column types and indexes with Hypervel's migration, add the approval claim and replay columns, and resolve messages whose conversations no longer exist before adding the foreign key. See [migrating conversation data](/docs/{{version}}/ai-sdk#migrating-conversation-data).
 
 Custom conversation stores must implement `ClaimsPendingApprovals` to resume stored approvals. Move overrides of the removed `ResumesToolApprovals::storeApprovalResultRecorderFor()` into your store's `ClaimsPendingApprovals::recordApprovalResult()` method. In `RememberConversation` subclasses, replace `openTurn()` overrides with `rememberTurn(): StoredTurn`. See [custom conversation stores](/docs/{{version}}/ai-sdk#custom-conversation-stores).
+
+<a name="mcp"></a>
+### MCP
+
+For direct browser clients from another origin, add their origins to `mcp.allowed_origins`; `app.url` is allowed automatically. See [allowed origins](/docs/{{version}}/mcp#allowed-origins).
+
+Modern HTTP streams cancel on client disconnect. Review handlers that perform side effects while streaming and ensure their cleanup runs on cancellation; legacy streams still finish. See [streaming responses](/docs/{{version}}/mcp#streaming-responses).
+
+Reformat `LastModified` attribute values as complete date-times with seconds and a timezone, such as `2025-01-12T15:00:58Z`. Other ISO 8601 representations accepted by Laravel are rejected to keep responses compatible with TypeScript-SDK clients. See [resource annotations](/docs/{{version}}/mcp#resource-annotations).
 
 <a name="saloon"></a>
 ### Saloon
