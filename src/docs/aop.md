@@ -163,8 +163,6 @@ public function process(ProceedingJoinPoint $proceedingJoinPoint): mixed
 }
 ```
 
-This pattern is used by Hypervel's Sentry and Telescope integrations to instrument Guzzle requests.
-
 <a name="aspect-priority"></a>
 ### Aspect Priority
 
@@ -247,7 +245,7 @@ php artisan about
 
 In full application or Testbench tests, target classes may already be proxied during application bootstrap. In that case, call the target method normally and the proxy will intercept the call automatically.
 
-The shared PHPUnit extension prepares the framework's Guzzle proxies before test discovery, without enabling optional Sentry or Telescope instrumentation. Application providers still determine which aspects run. For application-defined aspects, register them before first loading their targets, usually through a Testbench application provider.
+Application providers determine which aspects run. Register application-defined aspects before first loading their targets, usually through a Testbench application provider.
 
 For focused tests where the target object is not already proxied, use the `Hypervel\Foundation\Testing\Concerns\InteractsWithAop` trait. This trait can run a method through the registered aspect pipeline without relying on generated proxy files:
 
