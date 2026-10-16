@@ -4,15 +4,18 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Ai\Feature\Providers\Ollama;
 
+use Hypervel\Ai\ToolChoice;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Http\Client\Request;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Ai\Fixtures\Agents\AssistantAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\AttributeAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\StructuredAgent;
+use Hypervel\Tests\Ai\Fixtures\Agents\ToolChoiceAgent;
 use Hypervel\Tests\Ai\Fixtures\OllamaHelpers;
 use Hypervel\Tests\Ai\Fixtures\Tools\RandomNumberGenerator;
 use Hypervel\Tests\Ai\TestCase;
+use InvalidArgumentException;
 
 use function Hypervel\Ai\agent;
 
@@ -99,6 +102,16 @@ class RequestMappingTest extends TestCase
             return is_array($body['tools'])
                 && $body['tools'] !== [];
         });
+    }
+
+    public function testUnsupportedToolChoiceIsRejected(): void
+    {
+        Http::fake(['*' => $this->fakeTextResponse('42')]);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Ollama does not support tool choice other than auto.');
+
+        (new ToolChoiceAgent(ToolChoice::required))->prompt('Give me a number', provider: 'ollama');
     }
 
     public function testRequestWithoutToolsExcludesToolsField(): void

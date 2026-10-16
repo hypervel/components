@@ -10,7 +10,9 @@ use Hypervel\Ai\Gateway\StepContext;
 use Hypervel\Ai\Gateway\TextGenerationOptions;
 use Hypervel\Ai\ObjectSchema;
 use Hypervel\Ai\Providers\Provider;
+use Hypervel\Ai\ToolChoice;
 use Hypervel\Support\Arr;
+use InvalidArgumentException;
 
 trait BuildsTextRequests
 {
@@ -78,6 +80,10 @@ trait BuildsTextRequests
             $mappedTools = $this->mapTools($tools);
 
             if (filled($mappedTools)) {
+                if ($options?->toolChoice !== null && $options->toolChoice->mode !== ToolChoice::auto) {
+                    throw new InvalidArgumentException('Ollama does not support tool choice other than auto.');
+                }
+
                 $body['tools'] = $mappedTools;
             }
         }
