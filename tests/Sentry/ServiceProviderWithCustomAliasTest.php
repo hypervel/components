@@ -46,6 +46,10 @@ class ServiceProviderWithCustomAliasTest extends TestCase
         $this->assertTrue(app()->bound('custom-sentry'));
         $this->assertInstanceOf(HubInterface::class, app('custom-sentry'));
         $this->assertSame(app('custom-sentry'), CustomSentryFacade::getFacadeRoot());
+    }
+
+    public function testGuzzleClientsAreInstrumented(): void
+    {
         $handler = new MockHandler([new Response]);
         (new Client(['handler' => $handler]))->get('https://example.com');
 
