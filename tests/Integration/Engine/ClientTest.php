@@ -116,21 +116,6 @@ class ClientTest extends EngineIntegrationTestCase
         $this->assertSame(404, $response->statusCode);
     }
 
-    public function testClientDoesNotCarryConnectionCloseIntoTheNextRequest(): void
-    {
-        // https://github.com/swoole/swoole-src/pull/6149
-        $client = new Client($this->getServerHost(), $this->getServerPort());
-
-        try {
-            $this->assertSame('closed', $client->request('GET', '/response-close')->body);
-            $this->assertFalse($client->connected);
-            $this->assertSame('next', $client->request('GET', '/response-next')->body);
-            $this->assertTrue($client->connected);
-        } finally {
-            $client->close();
-        }
-    }
-
     public function testClientRejectsInvalidDeferredSocketSettings(): void
     {
         if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {

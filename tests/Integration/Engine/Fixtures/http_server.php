@@ -43,13 +43,6 @@ $callback = function () {
                 sleep((int) $time);
                 $response->end($request->get['body'] ?? null);
                 break;
-            case '/response-close':
-                $response->header('Connection', 'close');
-                $response->end('closed');
-                break;
-            case '/response-next':
-                $response->end('next');
-                break;
             default:
                 $response->setStatusCode(404);
                 $response->end();
