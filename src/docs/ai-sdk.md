@@ -653,7 +653,7 @@ The store uses your default database connection unless `ai.conversations.connect
 
 The SDK generates a title when it creates a conversation. To use the opening message as the title instead, set `conversations.generate_title` to `false` in your `config/ai.php` configuration file.
 
-If the first turn fails or is abandoned, the SDK keeps a title that has already finished or uses the start of the opening message, without starting title generation.
+If the opening turn is canceled or abandoned, such as when the client disconnects, the SDK doesn't start title generation. Instead, it keeps a title that has already finished or uses the start of the opening message, and the title isn't generated later. Enabling concurrent titles makes a generated title more likely in this case. A turn that fails with an error is titled as usual.
 
 By default, title generation runs after the agent responds. You may generate titles alongside the agent's response by enabling `conversations.concurrent_title`:
 
@@ -664,7 +664,7 @@ By default, title generation runs after the agent responds. You may generate tit
 ],
 ```
 
-When starting a new conversation, concurrent title generation runs alongside the main response. For streamed responses, it starts when the stream is consumed. The SDK waits for the title before saving a successful turn and cancels unfinished title requests when the turn fails or is abandoned. Enabling this option may incur a title request even if the agent fails, including a separate title request for each failover attempt.
+When starting a new conversation, concurrent title generation runs alongside the main response. For streamed responses, it starts when the stream is consumed. The SDK waits for the title before saving the turn and cancels unfinished title requests when the turn is canceled or abandoned or no turn is saved. Enabling this option may incur a title request even if the agent fails, including a separate title request for each failover attempt.
 
 Concurrent titles run in a separate coroutine with a copy of the caller's `Context` values. They use the caller's current default database connection, such as one selected with `DB::usingConnection()`. If your provider configuration or other hooks depend on additional application context, register [context capture](#capturing-application-context) so that work sees the same values.
 
@@ -2272,7 +2272,7 @@ class SalesCoach implements Agent, HasProviderOptions
                 'presence_penalty' => 0.3,
             ],
             Lab::Anthropic => [
-                'thinking' => ['budget_tokens' => 1024],
+                'output_config' => ['effort' => 'low'],
                 'cache_control' => ['type' => 'ephemeral'],
             ],
             default => [],
@@ -2345,7 +2345,7 @@ If your instructions change on every request, such as when they embed the curren
 
 Providers that do not support these attributes ignore them, so an agent may safely declare them while using [failover](#failover).
 
-Cached prefixes are retained for five minutes by default. Anthropic may retain them for an hour if you pass a TTL to the attribute:
+Cached prefixes are retained for five minutes by default. Anthropic, and supported Claude models on Amazon Bedrock, may retain them for an hour if you pass a TTL to the attribute:
 
 ```php
 #[CacheInstructions('1h')]
@@ -2355,7 +2355,7 @@ Cached prefixes are retained for five minutes by default. Anthropic may retain t
 Alternatively, Anthropic's automatic caching may be enabled via a top-level `cache_control` [provider option](#provider-options). This places a single breakpoint after the last block of the request, so the breakpoint advances as the conversation grows and each turn reads the previous turns from the cache. Both mechanisms may be combined.
 
 > [!WARNING]
-> Because providers build prompts in the order tools, instructions, and messages, caching instructions for an hour also requires caching tool definitions for an hour. Mixing the two throws an `InvalidArgumentException`.
+> Providers build prompts in the order tools, instructions, and messages. A one-hour cache cannot follow a five-minute cache. When a request caches both tool definitions and instructions, caching instructions for an hour requires caching tool definitions for an hour too. Likewise, a one-hour automatic cache requires any cached instructions or tool definitions in the request to use a one-hour TTL. Otherwise, an `InvalidArgumentException` is thrown.
 
 <a name="human-tool-approval"></a>
 ## Human Tool Approval
