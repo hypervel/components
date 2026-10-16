@@ -70,7 +70,7 @@ class RememberConversation
 
         try {
             if (! $prompt->isStreaming()) {
-                $prompt->setPendingConversationTitle($title = $this->startConcurrentTitle($prompt, $pendingConversationId));
+                $prompt->setPendingConversationTitle($title = $this->startConcurrentTitle($prompt));
             }
 
             try {
@@ -85,25 +85,19 @@ class RememberConversation
             if ($response instanceof StreamableAgentResponse) {
                 // Use a weak reference so the producer does not keep its own response alive.
                 $responseReference = WeakReference::create($response);
-                $response->wrapProducer(function (Closure $produce) use ($prompt, $selection, &$pendingConversationId, $responseReference): Generator {
+                $response->wrapProducer(function (Closure $produce) use ($prompt, $selection, $pendingConversationId, $responseReference): Generator {
                     $title = null;
                     $completed = false;
                     $threw = false;
 
                     try {
-                        $prompt->setPendingConversationTitle($title = $this->startConcurrentTitle($prompt, $pendingConversationId));
+                        $prompt->setPendingConversationTitle($title = $this->startConcurrentTitle($prompt));
 
                         try {
                             yield from $produce();
-                            $title?->value();
                         } catch (Throwable $exception) {
                             $threw = true;
-                            $stored = $this->rememberFailedTurn($prompt, $exception, $pendingConversationId, retryable: ! $responseReference->get()->hasYielded());
-
-                            if ($stored !== null) {
-                                $pendingConversationId = null;
-                                $responseReference->get()->withinConversation($stored->conversationId, $selection->participant);
-                            }
+                            $this->rememberFailedTurn($prompt, $exception, $pendingConversationId, retryable: ! $responseReference->get()->hasYielded());
 
                             throw $exception;
                         }
@@ -113,18 +107,16 @@ class RememberConversation
                         try {
                             // Disposing a suspended producer skips catch, but executed tools and claims still need settlement.
                             if (! $completed && ! $threw) {
-                                $stored = $this->rememberFailedTurn($prompt, new StreamAbandonedException('The stream was abandoned before it completed.'), $pendingConversationId, retryable: false);
-
-                                if ($stored !== null) {
-                                    $pendingConversationId = null;
-                                    $responseReference->get()?->withinConversation($stored->conversationId, $selection->participant);
-                                }
+                                $this->rememberFailedTurn($prompt, new StreamAbandonedException('The stream was abandoned before it completed.'), $pendingConversationId, retryable: false);
                             }
                         } finally {
-                            $title?->cancel();
+                            if ($selection->conversationId) {
+                                $responseReference->get()?->withinConversation($selection->conversationId, $selection->participant);
+                            }
 
                             // Completion callbacks run after the producer ends and still need its title.
                             if (! $completed) {
+                                $title?->cancel();
                                 $prompt->setPendingConversationTitle(null);
                             }
                         }
@@ -137,7 +129,7 @@ class RememberConversation
                 $response->withinConversation($pendingConversationId, $selection->participant);
             }
 
-            return $response->then(function (AgentResponse $completedResponse) use ($prompt, $agent, $selection, &$pendingConversationId): void {
+            return $response->then(function (AgentResponse $completedResponse) use ($prompt, $agent, $pendingConversationId): void {
                 try {
                     if (! $this->shouldRemember($agent, $prompt, $completedResponse)) {
                         if ($pendingConversationId !== null) {
@@ -148,14 +140,9 @@ class RememberConversation
                         return;
                     }
 
-                    $stored = $this->rememberTurn($prompt, $completedResponse, $pendingConversationId);
-                    $pendingConversationId = null;
-
-                    $completedResponse->withinConversation(
-                        $stored->conversationId,
-                        $selection->participant,
-                    )->withStoredMessages($stored->userMessageId, $stored->assistantMessageId);
+                    $this->rememberTurn($prompt, $completedResponse, $pendingConversationId);
                 } finally {
+                    $prompt->pendingConversationTitle()?->cancel();
                     $prompt->setPendingConversationTitle(null);
                 }
             });
@@ -169,34 +156,32 @@ class RememberConversation
 
     /**
      * Record the steps a run completed before it died, so the tools it already ran are not lost with it.
-     *
-     * Return the stored IDs so a re-iterated stream does not recreate its pending conversation.
      */
-    protected function rememberFailedTurn(AgentPrompt $prompt, Throwable $exception, ?string $pendingConversationId, bool $retryable = true): ?StoredTurn
+    protected function rememberFailedTurn(AgentPrompt $prompt, Throwable $exception, ?string $pendingConversationId, bool $retryable = true): void
     {
         /** @var Agent&RemembersConversations $agent */
         $agent = $prompt->agent;
 
         // A failover retry writes the turn itself, so only the attempt the caller gives up on is recorded...
         if ($retryable && $prompt->willRetry($exception)) {
-            return null;
+            return;
         }
 
         $context = $prompt->runContext();
 
         try {
             if ($context === null || $context->hasUnclaimedApprovals() || ! $this->shouldRememberTurn($agent, $prompt)) {
-                return null;
+                return;
             }
 
             $response = $context->recordedResponse();
 
             // A resume that died before its first step still has to fail the row its approvals were written to...
             if ($response->steps->isEmpty() && $context->approvalClaim() === null) {
-                return null;
+                return;
             }
 
-            return $this->rememberTurn($prompt, $response, $pendingConversationId, $exception);
+            $this->rememberTurn($prompt, $response, $pendingConversationId, $exception);
         } finally {
             // The store needs the claim held by this context until settlement finishes.
             $prompt->setRunContext(null);
@@ -216,17 +201,24 @@ class RememberConversation
         $selection = $prompt->conversationSelection();
         $participant = $selection->participant;
         [$participantType, $participantId] = $this->participantKeys($participant);
-        $newConversation = $this->startsConversation($prompt, $pendingConversationId);
+        $newConversation = $this->startsConversation($prompt);
         $conversationId = $newConversation ? ($pendingConversationId ?? (string) Str::uuid7()) : $selection->conversationId;
         $title = null;
+        $cancellation = null;
 
         if ($newConversation) {
-            if ($exception instanceof CanceledException || $exception instanceof StreamAbandonedException) {
-                // The consumer stopped, so don't start or wait for title work.
+            if (! $exception instanceof CanceledException && ! $exception instanceof StreamAbandonedException) {
+                try {
+                    $title = $prompt->pendingConversationTitle()?->value() ?? $this->generateTitle($prompt->prompt);
+                } catch (CanceledException $caught) {
+                    $cancellation = $caught;
+                }
+            }
+
+            if ($title === null) {
+                // Canceling title work must not discard the turn that already finished.
                 $prompt->pendingConversationTitle()?->cancel();
                 $title = $prompt->pendingConversationTitle()?->valueIfReady() ?? Str::limit($prompt->prompt, 50, preserveWords: true);
-            } else {
-                $title = $prompt->pendingConversationTitle()?->value() ?? $this->generateTitle($prompt->prompt);
             }
         }
 
@@ -270,6 +262,13 @@ class RememberConversation
             }
 
             $selection->conversationId = $stored->conversationId;
+        }
+
+        $response->withinConversation($stored->conversationId, $participant)
+            ->withStoredMessages($stored->userMessageId, $stored->assistantMessageId);
+
+        if ($cancellation !== null) {
+            throw $cancellation;
         }
 
         return $stored;
@@ -316,18 +315,18 @@ class RememberConversation
     /**
      * Determine whether this attempt needs to create a conversation.
      */
-    protected function startsConversation(AgentPrompt $prompt, ?string $pendingConversationId): bool
+    protected function startsConversation(AgentPrompt $prompt): bool
     {
         /** @var ConversationSelection $selection */
         $selection = $prompt->conversationSelection();
 
-        return $pendingConversationId !== null || ! $selection->conversationId;
+        return ! $selection->conversationId;
     }
 
     /**
      * Start an eligible title request alongside the main generation.
      */
-    protected function startConcurrentTitle(AgentPrompt $prompt, ?string $pendingConversationId): ?PendingConversationTitle
+    protected function startConcurrentTitle(AgentPrompt $prompt): ?PendingConversationTitle
     {
         /** @var Agent&RemembersConversations $agent */
         $agent = $prompt->agent;
@@ -336,7 +335,7 @@ class RememberConversation
         if (! config()->boolean('ai.conversations.concurrent_title', false)
             || ! config()->boolean('ai.conversations.generate_title', true)
             || $prompt->hasApprovalDecisions()
-            || ! $this->startsConversation($prompt, $pendingConversationId)
+            || ! $this->startsConversation($prompt)
             || ! $this->shouldRememberTurn($agent, $prompt)
             || Ai::hasFakeGatewayFor($agent::class)) {
             return null;

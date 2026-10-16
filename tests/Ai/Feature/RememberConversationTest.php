@@ -31,6 +31,7 @@ use Hypervel\Ai\Responses\Data\ToolResult;
 use Hypervel\Ai\Responses\StreamableAgentResponse;
 use Hypervel\Ai\Storage\DatabaseConversationStore;
 use Hypervel\Ai\Streaming\Events\TextDelta;
+use Hypervel\Ai\Streaming\Events\ToolApprovalRequest;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Coroutine\Coroutine;
@@ -755,7 +756,118 @@ class RememberConversationTest extends TestCase
         }
     }
 
-    public function testTitleCancellationIsNotConvertedIntoAFallbackTitle(): void
+    #[DataProvider('lateTitleOutcomes')]
+    public function testCancelingTheTitleWaitPreservesTheTurnAndItsConversation(bool $failed): void
+    {
+        config(['ai.conversations.generate_title' => true, 'ai.conversations.concurrent_title' => true]);
+        $store = new class extends DatabaseConversationStore {
+            /**
+             * Assign the store's own conversation ID.
+             */
+            public function storeConversation(?string $participantType, string|int|null $participantId, string $title, ?string $id = null): string
+            {
+                return parent::storeConversation($participantType, $participantId, $title, (string) Str::uuid7());
+            }
+        };
+        $prompt = $this->prompt();
+        $prompt->markAsStreaming();
+        $waiting = new Channel(1);
+        $active = false;
+        $generated = false;
+        $caught = null;
+        $reported = null;
+        $failure = new RuntimeException('Provider failed after a tool');
+        $middleware = m::mock(RememberConversation::class, [$store, $prompt->provider()])
+            ->makePartial()->shouldAllowMockingProtectedMethods();
+        $middleware->shouldReceive('generateTitle')->once()->andReturnUsing(function () use ($waiting, &$active): string {
+            $active = true;
+
+            try {
+                $waiting->pop(5);
+
+                return 'Unfinished title';
+            } finally {
+                $active = false;
+            }
+        });
+        $stream = new StreamableAgentResponse('invocation', function () use ($prompt, $failed, $failure, &$generated): Generator {
+            $prompt->setRunContext($context = $this->context($prompt));
+            $context->recordStep($step = $this->step(answered: $failed));
+            $generated = true;
+
+            if ($failed) {
+                throw $failure;
+            }
+
+            yield new ToolApprovalRequest('approval', collect([new PendingApproval('call', 'send_email', [], 'Sends email')]), 1, collect([$step]));
+        });
+        $stream->onIterationFailure(function (?Throwable $exception) use (&$reported): void {
+            $reported = $exception;
+        });
+        $response = $middleware->handle($prompt, fn (): StreamableAgentResponse => $stream);
+        $suggestedId = $response->conversationId;
+        $consumer = EngineCoroutine::create(function () use ($response, &$caught): void {
+            try {
+                iterator_to_array($response);
+            } catch (Throwable $exception) {
+                $caught = $exception;
+            }
+        });
+
+        try {
+            $this->assertTrue($generated);
+            $this->assertTrue($active);
+            EngineCoroutine::cancelById($consumer->getId(), throwException: true);
+            Coroutine::join([$consumer->getId()], 1);
+
+            $this->assertInstanceOf(CanceledException::class, $caught);
+            $this->assertSame($caught, $reported);
+            $this->assertFalse($active);
+            $this->assertNull($prompt->pendingConversationTitle());
+            $storedId = $prompt->agent->currentConversation();
+            $this->assertNotSame($suggestedId, $storedId);
+            $this->assertSame($storedId, $response->conversationId);
+            $this->assertDatabaseHas('agent_conversations', ['id' => $storedId, 'title' => 'Hello']);
+            $this->assertDatabaseCount('agent_conversation_messages', 2);
+            $row = DB::table('agent_conversation_messages')->where('role', 'assistant')->first();
+
+            if ($failed) {
+                $this->assertNull($prompt->runContext());
+                $this->assertSame('failed', $row->status);
+                $this->assertSame($failure->getMessage(), json_decode($row->meta, true)['error']);
+                $this->assertSame('Sent', json_decode($row->steps, true)[0]['tool_calls'][0]['result']);
+                $this->assertThrowsSame($failure, fn (): array => iterator_to_array($response));
+                $this->assertDatabaseCount('agent_conversation_messages', 4);
+            } else {
+                $this->assertSame('paused', $row->status);
+                $this->assertSame($row->id, $response->assistantMessageId);
+                $this->assertNotNull($response->userMessageId);
+                $this->assertSame('call', $store->pendingApprovalsFor($storedId)[0]->id);
+                iterator_to_array($response);
+                $this->assertDatabaseCount('agent_conversation_messages', 2);
+            }
+
+            $this->assertSame($storedId, $response->conversationId);
+            $this->assertDatabaseCount('agent_conversations', 1);
+        } finally {
+            $waiting->close();
+
+            if (Coroutine::exists($consumer->getId())) {
+                EngineCoroutine::cancelById($consumer->getId(), throwException: true);
+                Coroutine::join([$consumer->getId()], 1);
+            }
+        }
+    }
+
+    /**
+     * Cover failed generation and completed generation awaiting tool approval.
+     */
+    public static function lateTitleOutcomes(): array
+    {
+        return ['failed turn' => [true], 'completed turn' => [false]];
+    }
+
+    public function testTitleCancellationSavesTheCompletedTurnBeforeRethrowing(): void
     {
         config(['ai.conversations.generate_title' => true]);
         $prompt = $this->prompt();
@@ -765,11 +877,13 @@ class RememberConversationTest extends TestCase
         $prompt->provider()->shouldReceive('textGenerationLoop')->once()->andReturn($loop);
         $prompt->provider()->shouldReceive('cheapestTextModel')->once()->andReturn('title-model');
 
+        $response = $this->response();
         $this->assertThrowsSame($failure, fn () => (new RememberConversation(new DatabaseConversationStore, $prompt->provider()))
-            ->handle($prompt, fn (): AgentResponse => $this->response()));
+            ->handle($prompt, fn (): AgentResponse => $response));
 
-        $this->assertDatabaseCount('agent_conversations', 0);
-        $this->assertNull($prompt->agent->currentConversation());
+        $this->assertDatabaseHas('agent_conversations', ['id' => $response->conversationId, 'title' => 'Hello']);
+        $this->assertDatabaseHas('agent_conversation_messages', ['id' => $response->assistantMessageId, 'content' => 'Hello back', 'status' => 'completed']);
+        $this->assertSame($response->conversationId, $prompt->agent->currentConversation());
     }
 
     /**
