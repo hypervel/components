@@ -12,6 +12,7 @@ use Hypervel\Tests\Ai\Fixtures\BedrockHelpers;
 use Hypervel\Tests\Ai\Fixtures\Tools\FixedNumberGenerator;
 use Hypervel\Tests\Ai\TestCase;
 use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class PromptCacheTest extends TestCase
 {
@@ -72,6 +73,36 @@ class PromptCacheTest extends TestCase
             TextGenerationOptions::forAgent(new #[CacheInstructions('1h')] #[CacheToolDefinitions('5m')] class extends PromptCacheAgent {}),
             [new FixedNumberGenerator],
         );
+    }
+
+    #[DataProvider('absentCacheTargets')]
+    public function testCacheOrderIgnoresTargetsAbsentFromTheRequest(bool $withInstructions, bool $withTools): void
+    {
+        $parameters = $this->capturedConverseParameters(
+            TextGenerationOptions::forAgent(new #[CacheInstructions('1h')] #[CacheToolDefinitions] class extends PromptCacheAgent {}),
+            $withTools ? [new FixedNumberGenerator] : [],
+            $withInstructions ? 'Instructions' : null,
+        );
+
+        if ($withInstructions) {
+            $this->assertSame(['cachePoint' => ['type' => 'default', 'ttl' => '1h']], end($parameters['system']));
+        } else {
+            $this->assertArrayNotHasKey('system', $parameters);
+        }
+
+        if ($withTools) {
+            $this->assertSame(['cachePoint' => ['type' => 'default']], end($parameters['toolConfig']['tools']));
+        } else {
+            $this->assertArrayNotHasKey('toolConfig', $parameters);
+        }
+    }
+
+    /**
+     * Cover instruction and tool cache attributes without both request targets.
+     */
+    public static function absentCacheTargets(): array
+    {
+        return ['instructions only' => [true, false], 'tools only' => [false, true]];
     }
 
     public function testCachePointsSurviveProviderOptionsThatOverrideSameKeys(): void

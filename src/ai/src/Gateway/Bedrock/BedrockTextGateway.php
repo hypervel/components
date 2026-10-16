@@ -751,7 +751,11 @@ class BedrockTextGateway implements EmbeddingGateway, StepTextGateway
 
         $toolConfig = $this->buildToolConfig($schemaTools, $formattedTools, $toolsEmpty, $isFinalStep);
 
-        if ($schemaTools === null && $toolConfig !== null && $options?->toolChoice !== null) {
+        if ($schemaTools !== null && $toolConfig !== null
+            && ($providerOptions['additionalModelRequestFields']['thinking']['type'] ?? null) === 'enabled') {
+            // Manual thinking cannot force the synthetic output tool.
+            $toolConfig['toolChoice'] = ['auto' => []];
+        } elseif ($schemaTools === null && $toolConfig !== null && $options?->toolChoice !== null) {
             $toolConfig['toolChoice'] = match ($options->toolChoice->mode) {
                 ToolChoice::auto => ['auto' => []],
                 ToolChoice::required => ['any' => []],
@@ -776,7 +780,9 @@ class BedrockTextGateway implements EmbeddingGateway, StepTextGateway
             $parameters['system'][] = ['text' => $this->jsonInstruction($jsonSchema)];
         }
 
-        $this->ensureValidPromptCacheOrder($options);
+        if (isset($parameters['system'], $parameters['toolConfig']['tools'])) {
+            $this->ensureValidPromptCacheOrder($options);
+        }
 
         if (isset($parameters['system']) && $options?->cacheInstructions instanceof CacheInstructions) {
             $parameters['system'][] = $this->cachePoint($options->cacheInstructions->ttl);

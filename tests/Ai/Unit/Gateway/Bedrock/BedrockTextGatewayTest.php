@@ -781,6 +781,26 @@ class BedrockTextGatewayTest extends TestCase
         );
     }
 
+    public function testBuildConverseParametersDoesNotForceSchemaToolWithManualThinking(): void
+    {
+        $gateway = textGateway();
+        $thinking = ['type' => 'enabled', 'budget_tokens' => 1024];
+        $parameters = $gateway->callBuildConverseParameters(
+            'anthropic.claude-sonnet-4-5-20250929-v1:0',
+            null,
+            [],
+            $gateway->callBuildSchemaTools([], []),
+            null,
+            true,
+            new TextGenerationOptions(providerOptions: ['additionalModelRequestFields' => ['thinking' => $thinking]]),
+            true,
+        );
+
+        $this->assertSame(['auto' => []], $parameters['toolConfig']['toolChoice']);
+        $this->assertSame('structured_output', $parameters['toolConfig']['tools'][0]['toolSpec']['name']);
+        $this->assertSame($thinking, $parameters['additionalModelRequestFields']['thinking']);
+    }
+
     public function testBuildConverseParametersFlatMergesAgentProviderOptionsForBedrock(): void
     {
         $options = TextGenerationOptions::forAgent(new ProviderOptionsAgent);
