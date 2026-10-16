@@ -256,7 +256,7 @@ class AgentUserInteraction
     {
         return [
             'id' => $id,
-            'reason' => 'approval_required',
+            'reason' => 'tool_call',
             ...(filled($reason) ? ['message' => $reason] : []),
             'toolCallId' => $id,
             'metadata' => [

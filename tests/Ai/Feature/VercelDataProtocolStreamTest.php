@@ -34,6 +34,7 @@ use Hypervel\Ai\Vercel\Vercel;
 use Hypervel\Http\IterableStreamedResponse;
 use Hypervel\Support\Facades\Exceptions;
 use Hypervel\Tests\Ai\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 
 /**
@@ -208,13 +209,14 @@ class VercelDataProtocolStreamTest extends TestCase
         ], $parts);
     }
 
-    public function testAPausedStreamEmitsAnApprovalRequestPartForEachPendingApproval(): void
+    #[DataProvider('approvalReasons')]
+    public function testAPausedStreamEmitsAnApprovalRequestPartForEachPendingApproval(?string $reason, array $reasonFields): void
     {
         $parts = vercelProtocolParts([
             new StreamStart('msg-1', 'anthropic', 'claude-sonnet-4-6', time()),
             new ToolCall('event-1', new ToolCallData('call-1', 'DeleteFile', ['path' => 'a.txt']), time()),
             new ToolApprovalRequest('event-2', collect([
-                new PendingApproval('call-1', 'DeleteFile', ['path' => 'a.txt'], 'Destructive operation.'),
+                new PendingApproval('call-1', 'DeleteFile', ['path' => 'a.txt'], $reason),
             ]), time()),
             new StreamEnd('event-3', 'tool_calls', new TextUsage, time()),
         ]);
@@ -223,11 +225,19 @@ class VercelDataProtocolStreamTest extends TestCase
             ['type' => 'start', 'messageId' => 'msg-1'],
             ['type' => 'start-step'],
             ['type' => 'tool-input-available', 'toolCallId' => 'call-1', 'toolName' => 'DeleteFile', 'input' => ['path' => 'a.txt']],
-            ['type' => 'tool-approval-request', 'toolCallId' => 'call-1', 'approvalId' => 'call-1', 'reason' => 'Destructive operation.'],
+            ['type' => 'tool-approval-request', 'toolCallId' => 'call-1', 'approvalId' => 'call-1', ...$reasonFields],
             ['type' => 'finish-step'],
             vercelFinishPart('tool-calls'),
             ['type' => 'done'],
         ], $parts);
+    }
+
+    /**
+     * Provide an explanation and the default approval without one.
+     */
+    public static function approvalReasons(): array
+    {
+        return [['Destructive operation.', ['reason' => 'Destructive operation.']], [null, []]];
     }
 
     public function testEmptyAndNumericToolInputsEncodeAsObjects(): void

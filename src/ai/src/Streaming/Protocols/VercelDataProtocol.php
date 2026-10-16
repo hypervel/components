@@ -84,7 +84,7 @@ class VercelDataProtocol extends StreamProtocol
                         'type' => 'tool-approval-request',
                         'toolCallId' => $pendingApproval->id,
                         'approvalId' => $pendingApproval->id,
-                        'reason' => $pendingApproval->reason,
+                        ...($pendingApproval->reason !== null ? ['reason' => $pendingApproval->reason] : []),
                     ]);
                 }
 

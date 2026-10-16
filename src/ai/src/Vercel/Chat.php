@@ -60,7 +60,9 @@ class Chat implements AgentInput
      */
     public function messageId(): ?string
     {
-        return static::latestOfRole($this->messages, 'assistant')['id'] ?? null;
+        $id = static::latestOfRole($this->messages, 'assistant')['id'] ?? null;
+
+        return is_string($id) ? $id : null;
     }
 
     /**

@@ -492,7 +492,7 @@ class AgentUserInteractionMessageTest extends TestCase
         $this->assertEquals([
             [
                 'id' => 'call-1',
-                'reason' => 'approval_required',
+                'reason' => 'tool_call',
                 'message' => 'Deletes a file.',
                 'toolCallId' => 'call-1',
                 'metadata' => [
@@ -508,7 +508,7 @@ class AgentUserInteractionMessageTest extends TestCase
             ],
             [
                 'id' => 'call-2',
-                'reason' => 'approval_required',
+                'reason' => 'tool_call',
                 'toolCallId' => 'call-2',
                 'metadata' => [
                     'kind' => 'approval',

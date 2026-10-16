@@ -144,7 +144,7 @@ class Vercel
                 'state' => $isPending ? 'approval-requested' : 'input-available',
                 'input' => array_is_list($toolCall['arguments']) ? (object) $toolCall['arguments'] : $toolCall['arguments'],
                 ...($isPending
-                    ? ['approval' => ['id' => $toolCall['id'], 'reason' => $toolCall['approval_reason']]]
+                    ? ['approval' => ['id' => $toolCall['id'], ...($toolCall['approval_reason'] !== null ? ['requestReason' => $toolCall['approval_reason']] : [])]]
                     : []),
             ];
         }
@@ -170,7 +170,9 @@ class Vercel
 
         unset($result[$message]['parts'][$part]['approval'], $result[$message]['parts'][$part]['output'], $result[$message]['parts'][$part]['errorText']);
 
-        if (! $denied) {
+        if ($denied) {
+            $result[$message]['parts'][$part]['approval'] = ['id' => $id, 'approved' => false];
+        } else {
             $result[$message]['parts'][$part]['output'] = $output;
         }
     }
@@ -356,8 +358,9 @@ class Vercel
     protected static function toolParts(iterable $parts): Collection
     {
         return (new Collection($parts))->filter(fn (mixed $part): bool => is_array($part)
-            && str_starts_with($part['type'] ?? '', 'tool-')
-            && isset($part['toolCallId']));
+            && is_string($part['type'] ?? null)
+            && str_starts_with($part['type'], 'tool-')
+            && is_string($part['toolCallId'] ?? null));
     }
 
     /**

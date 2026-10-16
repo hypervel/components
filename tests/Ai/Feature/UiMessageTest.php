@@ -374,6 +374,23 @@ class UiMessageTest extends TestCase
         $this->assertSame('m2', $chat->messageId());
     }
 
+    public function testMalformedClientToolPartsAndMessageIdsAreIgnored(): void
+    {
+        $chat = Vercel::chat([['id' => 123, 'role' => 'assistant', 'parts' => [
+            ['type' => 42, 'toolCallId' => 'call-1'],
+            ['type' => ['tool-lookup'], 'toolCallId' => 'call-2'],
+            ['type' => 'tool-lookup', 'toolCallId' => 123, 'state' => 'output-available', 'output' => 'Invalid'],
+            ['type' => 'tool-lookup', 'toolCallId' => 'call-3', 'input' => [], 'state' => 'output-available', 'output' => 'Found'],
+        ]]]);
+
+        $messages = $chat->history();
+        $this->assertNull($chat->messageId());
+        $this->assertCount(1, $messages[0]->toolCalls);
+        $this->assertSame('call-3', $messages[0]->toolCalls[0]->id);
+        $this->assertCount(1, $messages[1]->toolResults);
+        $this->assertSame('Found', $messages[1]->toolResults[0]->result);
+    }
+
     public function testATrailingUserMessageContinuesNoMessage(): void
     {
         $chat = Vercel::chat($this->useChatMessages());
@@ -498,7 +515,7 @@ class UiMessageTest extends TestCase
     }
 
     #[DataProvider('approvalStates')]
-    public function testAPausedTurnHydratesItsApprovalState(string $status, ?string $claim, bool $available): void
+    public function testAPausedTurnHydratesItsApprovalState(string $status, ?string $claim, bool $available, ?string $reason = 'Deletes a file.'): void
     {
         $ui = Vercel::toUiMessages([
             new ConversationMessage([
@@ -507,13 +524,13 @@ class UiMessageTest extends TestCase
                 'content' => null,
                 'status' => $status,
                 'approval_claim' => $claim,
-                'steps' => [['tool_calls' => [['id' => 'call-1', 'name' => 'DeleteFile', 'arguments' => ['path' => 'a.txt'], 'approval_reason' => 'Deletes a file.']]]],
+                'steps' => [['tool_calls' => [['id' => 'call-1', 'name' => 'DeleteFile', 'arguments' => ['path' => 'a.txt'], 'approval_reason' => $reason]]]],
             ]),
         ]);
 
         $this->assertSame($available ? 'approval-requested' : 'input-available', $ui[0]['parts'][0]['state']);
         if ($available) {
-            $this->assertSame(['id' => 'call-1', 'reason' => 'Deletes a file.'], $ui[0]['parts'][0]['approval']);
+            $this->assertSame($reason === null ? ['id' => 'call-1'] : ['id' => 'call-1', 'requestReason' => $reason], $ui[0]['parts'][0]['approval']);
         } else {
             $this->assertArrayNotHasKey('approval', $ui[0]['parts'][0]);
         }
@@ -524,7 +541,7 @@ class UiMessageTest extends TestCase
      */
     public static function approvalStates(): array
     {
-        return [['paused', null, true], ['paused', 'claim', false], ['failed', null, false], ['completed', null, false]];
+        return [['paused', null, true], ['paused', null, true, null], ['paused', 'claim', false], ['failed', null, false], ['completed', null, false]];
     }
 
     #[DataProvider('failedOutputs')]
@@ -572,7 +589,7 @@ class UiMessageTest extends TestCase
 
         $this->assertSame('output-denied', $ui[0]['parts'][0]['state']);
         $this->assertArrayNotHasKey('output', $ui[0]['parts'][0]);
-        $this->assertArrayNotHasKey('approval', $ui[0]['parts'][0]);
+        $this->assertSame(['id' => 'call-1', 'approved' => false], $ui[0]['parts'][0]['approval']);
     }
 
     public function testAssistantAndToolResultMessageObjectsPairIntoSettledToolParts(): void
