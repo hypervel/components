@@ -66,7 +66,7 @@ class RefreshTokenRepository implements RefreshTokenRepositoryInterface
                 $familyId = $issuance->grant->family_id;
             } else {
                 $family = Passport::refreshTokenFamily()->forceFill(
-                    array_intersect_key($attributes, array_flip(Passport::$inheritedGrantAttributes))
+                    array_intersect_key($attributes, array_flip(['consent_id', ...Passport::$inheritedGrantAttributes]))
                 );
                 $this->saveToken($family);
                 $familyId = $family->getKey();
