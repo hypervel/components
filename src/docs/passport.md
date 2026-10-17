@@ -48,6 +48,8 @@
     - [Default Scope](#default-scope)
     - [Assigning Scopes to Tokens](#assigning-scopes-to-tokens)
     - [Checking Scopes](#checking-scopes)
+- [Resource Indicators](#resource-indicators)
+    - [Checking the Audience](#checking-the-audience)
 - [SPA Authentication](#spa-authentication)
 - [Events](#events)
 - [Multiple Authorization Servers](#multiple-authorization-servers)
@@ -723,6 +725,8 @@ $consent->revoke();
 
 Deleting a consent model also revokes its credentials. Mass-query deletes and raw database writes bypass this model behavior; use the model methods when revoking access. To customize remembered permission coverage, extend `Hypervel\Passport\Consent`, override `covers()`, and register the model with `Passport::useConsentModel()`.
 
+The consent's `scopes` attribute records approval for requests without a [resource](#resource-indicators). A null value means there is no remembered approval for that access; an empty array means it was approved without scopes. Resource-specific approvals are recorded separately in `permissions['resources']`.
+
 <a name="managing-clients"></a>
 ### Managing Clients
 
@@ -930,6 +934,8 @@ return $response->json();
 ```
 
 This `/oauth/token` route will return a JSON response containing `access_token`, `refresh_token`, and `expires_in` attributes. The `expires_in` attribute contains the number of seconds until the access token expires.
+
+You may request fewer scopes for an access token by including `scope` in the refresh request. The replacement refresh token retains its original scopes, so a later refresh can request other originally approved permissions. Each access token remains subject to the client's current scope restrictions.
 
 Refresh tokens are single-use by default. Each successful refresh replaces the refresh token; store the replacement before making another refresh request. If a used refresh token is presented again, Passport revokes the refresh-token family and its access tokens. Do not send concurrent refresh requests with the same token.
 
@@ -1587,6 +1593,69 @@ You may determine if a given scope has been defined using the `hasScope` method:
 Passport::hasScope('orders:create');
 ```
 
+<a name="resource-indicators"></a>
+## Resource Indicators
+
+Scopes describe what a token may do. Resource indicators describe where it may be used. If your authorization server issues tokens for several APIs, define their identifiers and descriptions in your service provider's `boot` method:
+
+```php
+use Hypervel\Passport\Passport;
+
+Passport::tokensCanAccess([
+    'https://api.example.com/calendar' => 'Calendar API',
+    'https://api.example.com/contacts' => 'Contacts API',
+]);
+```
+
+Each identifier must be an absolute URI without a fragment. Passport compares identifiers exactly; it does not fetch them or match URL prefixes. Independently configured authorization servers may provide a `resources` catalog through `ServerSettings`. These entries extend or replace matching entries in the global catalog. Leave the global catalog empty when each server needs its own set of resources.
+
+Clients include `resource` in authorization requests, pushed authorization requests, or initial device requests. Repeat the parameter to request more than one API, using `resource=...&resource=...` rather than PHP's bracket notation. Unknown resources return `invalid_target`.
+
+The consent view receives `resources`, a list of `ProtectedResource` objects with `id` and `description` properties, alongside `scopes` and `permissions`. Resource permissions are paired with their scopes:
+
+```php
+[
+    'resources' => [
+        'https://api.example.com/calendar' => ['read', 'write'],
+        'https://api.example.com/contacts' => ['read'],
+    ],
+]
+```
+
+Custom consent forms may submit a subset through `permissions[resources]`, using each resource URI as a key and its selected scopes as the value. Selections must also be within the submitted `scopes` selection. Omitting `permissions` approves the presented permissions. An explicitly empty resource selection denies authorization; a resource with an explicitly empty scope list grants access to that resource without scope permissions. Remembered consent retains the resource and scope pairs, so permission to write to one API never grants permission to write to another.
+
+At code exchange or refresh, clients may select one or more originally approved resources using `resource`. If omitted, Passport selects all approved resources. A token intended for several resources contains only scopes approved for every selected resource. Prefer a separate access token for each API when the APIs do not trust one another. The refresh token retains the original authorization, allowing later refresh requests to select another approved API. An authorization made without resources cannot acquire a resource during exchange or refresh.
+
+Client-credentials requests may also supply `resource`. Their tokens use the requested audiences and the client's permitted scopes, without user consent.
+
+<a name="checking-the-audience"></a>
+### Checking the Audience
+
+Resource-restricted access tokens contain their resource identifiers in `aud`. The `client_id` claim always identifies the client, independently of the audience. Tokens issued without resources retain the client ID as their audience. Both claims are protected from custom claim callbacks.
+
+Use `CheckTokenAudience` on routes that require a resource-specific token, together with your normal authentication and scope middleware:
+
+```php
+use Hypervel\Passport\Http\Middleware\CheckToken;
+use Hypervel\Passport\Http\Middleware\CheckTokenAudience;
+
+Route::get('/calendar', [CalendarController::class, 'index'])->middleware([
+    'auth:passport',
+    CheckTokenAudience::using('https://api.example.com/calendar'),
+    CheckToken::using('read'),
+]);
+```
+
+You may pass several identifiers to `using` when an API accepts more than one audience. The token must match at least one. To require several audiences, add a separate middleware entry for each identifier.
+
+The `using` method preserves commas and percent signs in resource identifiers. If you write a middleware string manually, escape each identifier's `%` as `%25` and `,` as `%2C` so it remains one argument.
+
+The audience check uses the validated token and performs no additional database lookup. Browser cookie credentials cannot satisfy it. External resource servers must likewise validate the token's signature, lifetime and expected audience. [Introspection](#token-introspection) reports `aud` and `client_id` separately.
+
+For resource-restricted dynamic client registration, register the canonical registration endpoint URL with `tokensCanAccess` and include it in the provisioning token's audience, alongside the explicit `passport:register` scope.
+
+Routes without an audience check accept otherwise valid tokens issued for other resources. To restrict your own API to tokens intended for it, register it as a resource and apply `CheckTokenAudience` alongside your authentication and scope checks.
+
 <a name="spa-authentication"></a>
 ## SPA Authentication
 
@@ -1675,7 +1744,7 @@ public function register(): void
 
 The resolver has two methods:
 
-- `current(): ?string` returns the current settings identifier, or null to use the default server. It runs on every OAuth endpoint request and every bearer-token authentication, and should read already-resolved request context without querying the database. Include both the authorization server's identity and its settings version in the identifier, and change it whenever its keys, issuer, scopes or lifetimes change.
+- `current(): ?string` returns the current settings identifier, or null to use the default server. It runs on every OAuth endpoint request and every bearer-token authentication, and should read already-resolved request context without querying the database. Include both the authorization server's identity and its settings version in the identifier, and change it whenever its keys, issuer, scopes, resources or lifetimes change.
 - `resolve(string $identifier): ServerSettings` loads the settings for that identifier. Passport caches the resulting servers and parsed keys for reuse by the worker.
 
 For example, your resolver may return the following settings:
@@ -1696,7 +1765,7 @@ return new ServerSettings(
 
 `ServerKey` accepts PEM contents or file paths. Omit its private key for verification-only use. An optional `activatesAt` selects when a private key may start signing; publish future public keys before that date. The newest active private key signs tokens, and every supplied public key may verify them.
 
-`ServerSettings` also accepts `personalAccessTokensExpireIn` and `clientCredentialsTokensExpireIn`. A null lifetime uses the corresponding global Passport lifetime. Its scope definitions extend the global catalog configured by `Passport::tokensCan`. A null issuer omits `iss` and disables discovery; it does not fall back to `passport.issuer`. A configured issuer follows the [server metadata](#server-metadata-and-public-keys) URL requirements, and `metadataCacheLifetime` controls discovery and JWKS HTTP caching.
+`ServerSettings` also accepts `personalAccessTokensExpireIn` and `clientCredentialsTokensExpireIn`. A null lifetime uses the corresponding global Passport lifetime. Its scope definitions extend the global catalog configured by `Passport::tokensCan`, and its `resources` definitions extend [`Passport::tokensCanAccess`](#resource-indicators). A null issuer omits `iss` and disables discovery; it does not fall back to `passport.issuer`. A configured issuer follows the [server metadata](#server-metadata-and-public-keys) URL requirements, and `metadataCacheLifetime` controls discovery and JWKS HTTP caching.
 
 When using database-managed keys, return the keys from `SigningKeyRepository::serverKeys()` instead of rebuilding plain `ServerKey` objects from database rows. This preserves the information Passport needs to retain each signing key for its tokens' lifetimes. Your configured signing-key model and repository select the appropriate key set; Passport does not supply an organization schema or resolve organizations itself.
 
@@ -1795,7 +1864,7 @@ Passport::accessTokenClaimsUsing(fn (Token $token): array => [
 ]);
 ```
 
-The claims `iss`, `sub`, `aud`, `exp`, `iat`, `nbf`, `jti` and `scopes` are reserved. Attempting to replace one throws an `InvalidArgumentException`. JWT claims are readable by their recipient, so include only information appropriate for that client.
+The claims `iss`, `sub`, `aud`, `exp`, `iat`, `nbf`, `jti`, `scopes`, `client_id` and `cnf` are reserved. Attempting to replace one throws an `InvalidArgumentException`. JWT claims are readable by their recipient, so include only information appropriate for that client.
 
 <a name="authorization-interaction-and-refresh-policy"></a>
 ### Authorization Interaction and Refresh Policy
@@ -1844,6 +1913,8 @@ These extension points support an OpenID Connect layer without replacing Passpor
 ## Testing
 
 `actingAs` and `actingAsClient` default to the `passport` guard. Pass another guard name as their third argument when testing an additional Passport guard.
+
+Pass `resources: ['https://api.example.com/calendar']` to either helper when testing routes protected by `CheckTokenAudience`. Without resources, the audience is the supplied client's ID, or an empty list when `actingAs` has no client.
 
 Tests that issue real tokens need signing keys. With the database store, create a key using `Hypervel\Passport\SigningKey::factory()->create()`. The factory reuses a 2048-bit test key pair within the test process. With the file store, provide a test key pair through `Passport::loadKeysFrom` or the key configuration values.
 
