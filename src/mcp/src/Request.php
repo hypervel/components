@@ -148,6 +148,22 @@ class Request implements Arrayable, Transient
     }
 
     /**
+     * Preserve the wire shapes when forwarding nested tool arguments.
+     *
+     * @internal
+     */
+    public function sourceForArguments(string $key): ?string
+    {
+        if ($this->source === null) {
+            return null;
+        }
+
+        $this->decodedSource ??= json_decode($this->source, flags: JSON_THROW_ON_ERROR);
+
+        return json_encode(['params' => ['arguments' => data_get($this->decodedSource, "params.arguments.{$key}")]], JSON_THROW_ON_ERROR);
+    }
+
+    /**
      * Determine whether the arguments or a nested value represent an object.
      */
     public function isObject(?string $key = null): bool

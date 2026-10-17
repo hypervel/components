@@ -419,7 +419,7 @@ class ToolSearchTest extends TestCase
     }
 
     #[DataProvider('wireArguments')]
-    public function testNestedExecutionPreservesNumericObjectKeysAndRejectsLists(string $arguments, bool $isError): void
+    public function testNestedExecutionPreservesNumericObjectKeysAndRejectsLists(string $arguments, bool $isError, string $expected = 'value'): void
     {
         $tool = new class extends Tool {
             protected string $name = 'numeric_arguments';
@@ -439,7 +439,9 @@ class ToolSearchTest extends TestCase
             {
                 $request->validate(['0' => 'required|string']);
 
-                return Response::text($request->get('0'));
+                return Response::text($request->get('nested') === null
+                    ? $request->get('0')
+                    : ($request->isObject('nested') ? 'object' : 'list'));
             }
         };
 
@@ -464,7 +466,7 @@ class ToolSearchTest extends TestCase
             $this->assertStringContainsString('The arguments field must be an object.', $result['content'][0]['text']);
         } else {
             $payload = json_decode($result['content'][0]['text'], true, flags: JSON_THROW_ON_ERROR);
-            $this->assertSame('value', $payload['results'][0]['content'][0]['text']);
+            $this->assertSame($expected, $payload['results'][0]['content'][0]['text']);
         }
     }
 
@@ -473,7 +475,12 @@ class ToolSearchTest extends TestCase
      */
     public static function wireArguments(): array
     {
-        return [['{"0":"value"}', false], ['["value"]', true]];
+        return [
+            ['{"0":"value"}', false],
+            ['["value"]', true],
+            ['{"0":"value","nested":{"0":"child"}}', false, 'object'],
+            ['{"0":"value","nested":["child"]}', false, 'list'],
+        ];
     }
 }
 

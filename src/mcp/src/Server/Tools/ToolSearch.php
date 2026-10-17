@@ -189,6 +189,7 @@ class ToolSearch
             method: 'tools/call',
             params: $params,
         );
+        $request->source = $parentRequest->sourceForArguments("calls.{$index}.arguments");
 
         return RequestContext::run($request->toRequest(), function () use ($tools, $name, $request): array {
             $tool = $tools->first(fn (Tool $tool): bool => $tool->name() === $name);
