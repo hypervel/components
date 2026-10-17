@@ -32,7 +32,7 @@ class Audience extends Annotation
             }
         }
 
-        $this->value = array_map(fn (Role $role) => $role->value, $roles);
+        $this->value = array_values(array_map(fn (Role $role) => $role->value, $roles));
     }
 
     /**

@@ -23,12 +23,15 @@ abstract class CompletionResponse implements Arrayable
     public function __construct(
         protected array $values,
         protected bool $hasMore = false,
+        protected ?int $total = null,
     ) {
         if (count($values) > self::MAX_VALUES) {
             throw new InvalidArgumentException(
                 sprintf('Completion values cannot exceed %d items (received %d)', self::MAX_VALUES, count($values))
             );
         }
+
+        $this->values = array_values($values);
     }
 
     /**
@@ -61,10 +64,11 @@ abstract class CompletionResponse implements Arrayable
     public static function result(array|string $items): CompletionResponse
     {
         if (is_array($items)) {
-            $hasMore = count($items) > self::MAX_VALUES;
+            $total = count($items);
+            $hasMore = $total > self::MAX_VALUES;
             $truncated = array_slice($items, 0, self::MAX_VALUES);
 
-            return new DirectCompletionResponse($truncated, $hasMore);
+            return new DirectCompletionResponse($truncated, $hasMore, $total);
         }
 
         return new DirectCompletionResponse([$items], false);
@@ -96,13 +100,15 @@ abstract class CompletionResponse implements Arrayable
     /**
      * Convert the completion response to an array.
      *
-     * @return array{values: array<int, string>, total: int, hasMore: bool}
+     * @return array{values: list<string>, total?: int, hasMore: bool}
      */
     public function toArray(): array
     {
+        $total = $this->total ?? ($this->hasMore ? null : count($this->values));
+
         return [
             'values' => $this->values,
-            'total' => count($this->values),
+            ...$total === null ? [] : ['total' => $total],
             'hasMore' => $this->hasMore,
         ];
     }

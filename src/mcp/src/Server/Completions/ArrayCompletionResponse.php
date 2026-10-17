@@ -23,10 +23,11 @@ class ArrayCompletionResponse extends CompletionResponse
     {
         $filtered = CompletionHelper::filterByPrefix($this->items, $value);
 
-        $hasMore = count($filtered) > self::MAX_VALUES;
+        $total = count($filtered);
+        $hasMore = $total > self::MAX_VALUES;
 
         $truncated = array_slice($filtered, 0, self::MAX_VALUES);
 
-        return new DirectCompletionResponse($truncated, $hasMore);
+        return new DirectCompletionResponse($truncated, $hasMore, $total);
     }
 }

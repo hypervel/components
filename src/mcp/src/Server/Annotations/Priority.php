@@ -17,7 +17,7 @@ class Priority extends Annotation
     {
         if (! ($value >= 0.0 && $value <= 1.0)) {
             throw new InvalidArgumentException(
-                "Priority must be between 0.0 and 1.0, got {$value}"
+                'Priority must be between 0.0 and 1.0, got ' . var_export($value, true)
             );
         }
     }

@@ -37,7 +37,7 @@ class ResourceAnnotationsTest extends TestCase
 
     public function testIncludesAudienceAnnotationInResource(): void
     {
-        $resource = new #[Audience([Role::User, Role::Assistant])] class extends Resource {
+        $resource = new #[Audience([2 => Role::User, 5 => Role::Assistant])] class extends Resource {
             public function description(): string
             {
                 return 'A test resource.';

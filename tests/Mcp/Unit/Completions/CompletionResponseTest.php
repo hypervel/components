@@ -32,6 +32,7 @@ class CompletionResponseTest extends TestCase
 
         $this->assertCount(100, $result->values());
         $this->assertTrue($result->hasMore());
+        $this->assertSame(150, $result->toArray()['total']);
     }
 
     public function testReturnsRawArrayDataWithoutFilteringUsingAResult(): void
@@ -68,5 +69,6 @@ class CompletionResponseTest extends TestCase
 
         $this->assertCount(100, $result->values());
         $this->assertTrue($result->hasMore());
+        $this->assertSame(150, $result->toArray()['total']);
     }
 }

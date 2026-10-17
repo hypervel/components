@@ -42,7 +42,7 @@ abstract class Prompt extends Primitive
             'description' => $this->description(),
             'arguments' => array_map(
                 fn (Argument $argument): array => $argument->toArray(),
-                $this->arguments(),
+                array_values($this->arguments()),
             ),
         ]));
     }

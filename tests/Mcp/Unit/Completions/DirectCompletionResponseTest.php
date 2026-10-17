@@ -12,11 +12,19 @@ class DirectCompletionResponseTest extends TestCase
 {
     public function testReturnsSelfWhenResolved(): void
     {
-        $result = new DirectCompletionResponse(['php', 'python']);
+        $result = new DirectCompletionResponse([4 => 'php', 8 => 'python']);
 
         $resolved = $result->resolve('py');
 
         $this->assertSame($result, $resolved);
+        $this->assertSame(['values' => ['php', 'python'], 'total' => 2, 'hasMore' => false], $resolved->toArray());
+    }
+
+    public function testOmitsAnUnknownTotalWhenMoreCompletionsExist(): void
+    {
+        $result = new DirectCompletionResponse(['php'], hasMore: true);
+
+        $this->assertSame(['values' => ['php'], 'hasMore' => true], $result->toArray());
     }
 
     public function testThrowsExceptionWhenTheConstructorReceivesMoreThan100Items(): void

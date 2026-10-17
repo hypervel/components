@@ -150,7 +150,7 @@ class PromptTest extends TestCase
             public function arguments(): array
             {
                 return [
-                    new Argument('name', 'User name', true),
+                    3 => new Argument('name', 'User name', true),
                 ];
             }
         };
@@ -162,5 +162,6 @@ class PromptTest extends TestCase
         $this->assertSame('A friendly greeting', $array['description']);
         $this->assertSame(['version' => '1.0'], $array['_meta']);
         $this->assertCount(1, $array['arguments']);
+        $this->assertSame('name', $array['arguments'][0]['name']);
     }
 }
