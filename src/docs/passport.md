@@ -50,6 +50,7 @@
     - [Checking Scopes](#checking-scopes)
 - [Resource Indicators](#resource-indicators)
     - [Checking the Audience](#checking-the-audience)
+- [Proof-Bound Tokens (DPoP)](#proof-bound-tokens)
 - [SPA Authentication](#spa-authentication)
 - [Events](#events)
 - [Multiple Authorization Servers](#multiple-authorization-servers)
@@ -488,9 +489,9 @@ A client's nullable `scopes` attribute limits its allowed scopes. Null leaves th
 <a name="jwt-client-assertions"></a>
 ### JWT Client Assertions
 
-To use `private_key_jwt`, register a public `jwks` document or an HTTPS `jwks_uri`, and set the server's canonical `issuer`. Supported signing algorithms are `RS256` and `ES256`; the default is `RS256`. RSA keys must be at least 2048 bits, and ES256 keys use the P-256 curve. Do not supply private key material. A key set may also contain public keys for other purposes; Passport selects only keys suitable for the registered assertion algorithm. Registration accepts key declarations only for `private_key_jwt` clients. Inline and remote documents are limited to 64 KiB.
+To use `private_key_jwt`, register a public `jwks` document or an HTTPS `jwks_uri`, and set the server's canonical `issuer`. Supported signing algorithms are `RS256` and `ES256`; the default is `RS256`. RSA keys must be between 2048 and 4096 bits, with public exponents no larger than 32 bits; the usual exponent of 65537 is supported. ES256 keys use the P-256 curve. Do not supply private key material. A key set may also contain public keys for other purposes; Passport selects only keys suitable for the registered assertion algorithm. Registration accepts key declarations only for `private_key_jwt` clients. Inline and remote documents are limited to 64 KiB.
 
-The assertion's `iss` and `sub` must equal the client ID. Its sole `aud` must be the exact server issuer, as a string or a single-element array; endpoint URLs and multiple audiences are rejected. Include `exp` and a unique `jti`; `iat` is optional. Passport allows at most five minutes between `iat` and `exp`, or five minutes of remaining validity when `iat` is absent, allowing for clock leeway. The optional `nbf` must permit immediate use. Sign a new assertion for each request:
+The assertion's `iss` and `sub` must equal the client ID. Its sole `aud` must be the exact server issuer, as a string or a single-element array; endpoint URLs and multiple audiences are rejected. Include `exp` and a unique `jti`; `iat` is optional. Passport allows at most five minutes between `iat` and `exp`, or five minutes of remaining validity when `iat` is absent, allowing 60 seconds for clock differences. The optional `nbf` must permit immediate use within that allowance. Sign a new assertion for each request:
 
 ```php
 $response = Http::asForm()->post($tokenUrl, [
@@ -503,6 +504,16 @@ $response = Http::asForm()->post($tokenUrl, [
 Configure `passport.replay.store` to use a shared Redis or database cache store. A null or empty value uses the default store. Local stores, stack stores and failover stores cannot preserve a shared replay history and are rejected. Redis must use `noeviction`; a separate logical Redis database alone does not change that policy. Do not flush replay entries while assertions remain valid. Authentication fails if replay storage is unavailable.
 
 A database replay store cannot share an active application transaction, since rolling back that transaction would restore a used assertion. Use a separate cache connection when wrapping requests in transactions. Redis is recommended for high-volume assertion authentication, avoiding a database write per assertion.
+
+Database cache stores retain expired replay entries until they are pruned. Schedule the existing cache cleanup command, supplying your replay store's name:
+
+```php
+use Hypervel\Support\Facades\Schedule;
+
+Schedule::command('cache:prune-db-expired replay')->everyFiveMinutes();
+```
+
+Omit `replay` when using the default cache store. Choose a pruning interval appropriate to your request volume; storage includes entries waiting for the next cleanup as well as entries that are still valid.
 
 Remote keys use `passport.cache.store`, independently of whether token caching is enabled. The store must support atomic locks. `passport.client_keys.ttl` defaults to one hour; a new key identifier may trigger an earlier refresh, limited by `passport.client_keys.refresh_interval`, which defaults to 60 seconds. Publish replacement keys before clients begin signing with them. Remote requests use public HTTPS destinations, bounded response sizes and timeouts.
 
@@ -939,7 +950,7 @@ You may request fewer scopes for an access token by including `scope` in the ref
 
 Refresh tokens are single-use by default. Each successful refresh replaces the refresh token; store the replacement before making another refresh request. If a used refresh token is presented again, Passport revokes the refresh-token family and its access tokens. Do not send concurrent refresh requests with the same token.
 
-You may set `Passport::$revokeRefreshTokenAfterUse = false` during provider boot for confidential clients. Public clients do not receive refresh tokens with rotation disabled, and their existing refresh tokens cannot be exchanged.
+You may set `Passport::$revokeRefreshTokenAfterUse = false` during provider boot for confidential clients or public clients using [DPoP](#proof-bound-tokens). With rotation disabled, public clients receive refresh tokens only when supplying a valid proof, and may exchange only refresh tokens already bound to their proof key. An existing unbound refresh token cannot be upgraded while rotation is disabled.
 
 <a name="revoking-tokens"></a>
 ### Revoking Tokens
@@ -1656,6 +1667,57 @@ For resource-restricted dynamic client registration, register the canonical regi
 
 Routes without an audience check accept otherwise valid tokens issued for other resources. To restrict your own API to tokens intended for it, register it as a resource and apply `CheckTokenAudience` alongside your authentication and scope checks.
 
+<a name="proof-bound-tokens"></a>
+## Proof-Bound Tokens (DPoP)
+
+Demonstrating Proof of Possession (DPoP) binds a token to a client's key. Possessing the token alone is then insufficient to use it: the client must also sign a proof for each request. Enable DPoP in `config/passport.php` or your environment:
+
+```ini
+PASSPORT_DPOP_ENABLED=true
+PASSPORT_REPLAY_STORE=redis
+```
+
+Passport supports `RS256` and `ES256` proofs and publishes these algorithms in its server metadata. RSA keys must be between 2048 and 4096 bits, with public exponents no larger than 32 bits; the usual exponent of 65537 is supported. ES256 uses P-256. Use a client library that implements DPoP to create these proofs. The proof's public key is included in its JWT header; Passport does not fetch proof keys from a URL.
+
+At the token endpoint, send the signed proof in the `DPoP` header alongside the normal grant and client authentication parameters. The response contains `token_type: DPoP`, and the access token's protected `cnf.jkt` claim identifies the proof key. Set a client's `dpop_bound_access_tokens` attribute to true to require proofs for its token requests. This attribute is also accepted during dynamic registration.
+
+For API requests, send both headers:
+
+```http
+Authorization: DPoP <access-token>
+DPoP: <signed-proof>
+```
+
+Each proof includes a unique `jti`, its issue time in `iat`, the HTTP method in `htm`, and the external request URL in `htu`, without its query or fragment. Resource-request proofs also include `ath`, the base64url-encoded SHA-256 hash of the access token. Passport checks the proof signature, key binding, method, URL, time and replay history. Trailing slashes remain significant. Generate a fresh proof for every request, including retries.
+
+Proofs have a one-minute lifetime with a 60-second clock allowance. A proof must be less than two minutes old and cannot be more than 60 seconds ahead of the server. Replay entries remain until the full acceptance deadline; a proof initially accepted from a fast client clock can remain valid for up to three minutes. This profile does not issue server nonces.
+
+Proof-bound access tokens expire after at most five minutes by default, or sooner when the grant's normal lifetime is shorter. Configure the cap during service-provider boot:
+
+```php
+use DateInterval;
+use Hypervel\Passport\Passport;
+
+Passport::dpopTokensExpireIn(new DateInterval('PT2M'));
+```
+
+An individual `ServerSettings` may supply `dpopTokensExpireIn`; null uses the global cap. Ordinary bearer-token lifetimes are unchanged. Short access-token lifetimes also limit the usefulness of proofs generated in advance.
+
+Authorization requests may include `dpop_jkt` to bind the resulting code to a key. Pushed authorization requests may supply this parameter, a proof header, or both; when both are present, they must identify the same key. Code exchange must then prove possession of that key. Initial device authorization does not bind the device code or check a proof; the proof supplied while exchanging the approved device code binds the issued tokens.
+
+Public-client refresh tokens issued with a proof retain that key binding through later refreshes. Confidential-client refresh tokens rely on client authentication unless the presented refresh token already has a proof binding. Adding a proof to a replacement does not change an older unbound token or disable refresh-token reuse detection.
+
+DPoP uses the same token and client caches as bearer authentication, with additional signature verification and, by default, one shared replay-store operation per proof. Repeated authentication checks within one request reuse the verified proof. Ordinary bearer requests perform neither operation. Follow the [replay-store requirements](#jwt-client-assertions), including database pruning and Redis's `noeviction` policy. For high-volume APIs, use Redis rather than a database replay store.
+
+Replay protection defaults to enabled. You may disable only DPoP proof replay tracking with `passport.dpop.replay_protection` or `PASSPORT_DPOP_REPLAY_PROTECTION=false`. Pass `dpopReplayProtection` to `ServerSettings` to override that setting for an individual server; null inherits the configuration. Disabling it removes the replay-store operation and storage cost, but still verifies the signature and all other proof checks. Client-assertion replay protection and refresh-token reuse detection remain enabled.
+
+> [!WARNING]
+> Without proof replay tracking, anyone holding a captured proof and its matching credential may repeat requests to the same method and URL until the proof or credential expires. The request body and query may differ because the proof does not cover them. Keep replay tracking enabled unless your application accepts this tradeoff. Independently deployed resource servers choose their own replay policy; tokens and discovery metadata do not transmit it.
+
+Bearer and DPoP schemes must match their tokens. Failed Bearer or DPoP credentials never fall back to an API cookie. Other authorization schemes, such as Basic authentication supplied by a reverse proxy, do not prevent cookie authentication. When DPoP support is disabled, proof-bound tokens and grants cannot be used without their proof: token and PAR proofs are rejected, `dpop_jkt` is rejected, and API requests using the DPoP scheme fail authentication. Introspection still reports the token's binding. Bearer-scheme API requests, initial device authorization, revocation and introspection ignore an unrelated `DPoP` header.
+
+Configure [trusted hosts](/docs/{{version}}/requests#configuring-trusted-hosts) and [trusted proxies](/docs/{{version}}/requests#configuring-trusted-proxies) so Passport sees the same external URL the client signs. Browser clients need `DPoP` in their allowed CORS request headers and `WWW-Authenticate` in their exposed response headers. Passport's authentication challenges advertise Bearer and, when enabled, DPoP; application error bodies and login redirects are preserved.
+
 <a name="spa-authentication"></a>
 ## SPA Authentication
 
@@ -1744,7 +1806,7 @@ public function register(): void
 
 The resolver has two methods:
 
-- `current(): ?string` returns the current settings identifier, or null to use the default server. It runs on every OAuth endpoint request and every bearer-token authentication, and should read already-resolved request context without querying the database. Include both the authorization server's identity and its settings version in the identifier, and change it whenever its keys, issuer, scopes, resources or lifetimes change.
+- `current(): ?string` returns the current settings identifier, or null to use the default server. It runs on every OAuth endpoint request and every bearer-token authentication, and should read already-resolved request context without querying the database. Include both the authorization server's identity and its settings version in the identifier, and change it whenever its keys, issuer, scopes, resources, lifetimes or DPoP replay policy change.
 - `resolve(string $identifier): ServerSettings` loads the settings for that identifier. Passport caches the resulting servers and parsed keys for reuse by the worker.
 
 For example, your resolver may return the following settings:
@@ -1765,7 +1827,7 @@ return new ServerSettings(
 
 `ServerKey` accepts PEM contents or file paths. Omit its private key for verification-only use. An optional `activatesAt` selects when a private key may start signing; publish future public keys before that date. The newest active private key signs tokens, and every supplied public key may verify them.
 
-`ServerSettings` also accepts `personalAccessTokensExpireIn` and `clientCredentialsTokensExpireIn`. A null lifetime uses the corresponding global Passport lifetime. Its scope definitions extend the global catalog configured by `Passport::tokensCan`, and its `resources` definitions extend [`Passport::tokensCanAccess`](#resource-indicators). A null issuer omits `iss` and disables discovery; it does not fall back to `passport.issuer`. A configured issuer follows the [server metadata](#server-metadata-and-public-keys) URL requirements, and `metadataCacheLifetime` controls discovery and JWKS HTTP caching.
+`ServerSettings` also accepts `personalAccessTokensExpireIn` and `clientCredentialsTokensExpireIn`. A null lifetime uses the corresponding global Passport lifetime. The `dpopTokensExpireIn` and `dpopReplayProtection` options configure [proof-bound tokens](#proof-bound-tokens), inheriting the global settings when null. Its scope definitions extend the global catalog configured by `Passport::tokensCan`, and its `resources` definitions extend [`Passport::tokensCanAccess`](#resource-indicators). A null issuer omits `iss` and disables discovery; it does not fall back to `passport.issuer`. A configured issuer follows the [server metadata](#server-metadata-and-public-keys) URL requirements, and `metadataCacheLifetime` controls discovery and JWKS HTTP caching.
 
 When using database-managed keys, return the keys from `SigningKeyRepository::serverKeys()` instead of rebuilding plain `ServerKey` objects from database rows. This preserves the information Passport needs to retain each signing key for its tokens' lifetimes. Your configured signing-key model and repository select the appropriate key set; Passport does not supply an organization schema or resolve organizations itself.
 
