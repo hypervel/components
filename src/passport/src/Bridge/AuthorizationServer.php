@@ -8,6 +8,7 @@ use Defuse\Crypto\Key;
 use Hypervel\Passport\ServerFactory;
 use League\OAuth2\Server\AuthorizationServer as LeagueAuthorizationServer;
 use League\OAuth2\Server\CryptKeyInterface;
+use League\OAuth2\Server\Exception\OAuthServerException;
 use League\OAuth2\Server\Repositories\AccessTokenRepositoryInterface;
 use League\OAuth2\Server\Repositories\ClientRepositoryInterface;
 use League\OAuth2\Server\Repositories\ScopeRepositoryInterface;
@@ -50,7 +51,25 @@ class AuthorizationServer extends LeagueAuthorizationServer
      */
     protected function validateAuthorization(ServerRequestInterface $request): AuthorizationRequestInterface
     {
-        return parent::validateAuthorizationRequest($request);
+        try {
+            return parent::validateAuthorizationRequest($request);
+        } catch (OAuthServerException $exception) {
+            if ($exception->getErrorType() !== 'unsupported_grant_type') {
+                throw $exception;
+            }
+
+            // @TODO Remove when League fixes authorization dispatch: https://github.com/thephpleague/oauth2-server/issues/1216
+            if (! isset($request->getQueryParams()['client_id'])) {
+                throw OAuthServerException::invalidRequest('client_id');
+            }
+
+            throw new OAuthServerException(
+                'The authorization server does not support the requested response type.',
+                2,
+                'unsupported_response_type',
+                400,
+            );
+        }
     }
 
     /**
