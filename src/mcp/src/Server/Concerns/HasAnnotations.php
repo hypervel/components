@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Mcp\Server\Concerns;
 
 use Hypervel\Mcp\Server\Contracts\Annotation as AnnotationContract;
-use Hypervel\Support\Collection;
 use InvalidArgumentException;
 use ReflectionAttribute;
 use ReflectionClass;
@@ -21,21 +20,17 @@ trait HasAnnotations
     {
         $reflection = new ReflectionClass($this);
 
-        /** @var Collection<int, AnnotationContract> $annotations */
-        $annotations = collect($reflection->getAttributes())
-            ->map(fn (ReflectionAttribute $attributeReflection): object => $attributeReflection->newInstance())
-            ->filter(fn (object $attribute): bool => $attribute instanceof AnnotationContract)
-            ->values();
+        $annotations = [];
 
-        // @phpstan-ignore argument.templateType
-        return $annotations
-            ->each(function (AnnotationContract $attribute): void {
-                $this->validateAnnotationUsage($attribute);
-            })
-            ->mapWithKeys(fn (AnnotationContract $attribute): array => [ // @phpstan-ignore argument.templateType
-                $attribute->key() => $attribute->value, // @phpstan-ignore property.notFound
-            ])
-            ->all();
+        foreach ($reflection->getAttributes(AnnotationContract::class, ReflectionAttribute::IS_INSTANCEOF) as $attributeReflection) {
+            $attribute = $attributeReflection->newInstance();
+
+            $this->validateAnnotationUsage($attribute);
+
+            $annotations[$attribute->key()] = $attribute->value; // @phpstan-ignore property.notFound
+        }
+
+        return $annotations;
     }
 
     /**

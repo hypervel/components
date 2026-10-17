@@ -89,4 +89,12 @@ class ToolAnnotationsTest extends TestCase
         $this->assertTrue($annotations['readOnlyHint']);
         $this->assertTrue($annotations['idempotentHint']);
     }
+
+    public function testIgnoresUnavailableUnrelatedAttributes(): void
+    {
+        // Development-only attributes need not be installed in the running application.
+        $tool = new #[UnavailableDevelopmentAttribute] #[IsReadOnly] class extends Tool {};
+
+        $this->assertSame(['readOnlyHint' => true], $tool->annotations());
+    }
 }
