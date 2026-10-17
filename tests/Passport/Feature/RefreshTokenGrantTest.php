@@ -105,6 +105,40 @@ class RefreshTokenGrantTest extends PassportTestCase
         $this->assertSame(1, Passport::refreshTokenFamily()->newQuery()->whereNotNull('revoked_at')->count());
     }
 
+    public function testReplacementRefreshTokenRetainsItsOriginalScopes(): void
+    {
+        $client = ClientFactory::new()->create();
+        $original = $this->getNewAccessToken($client);
+        $parameters = [
+            'grant_type' => 'refresh_token',
+            'client_id' => $client->getKey(),
+            'client_secret' => $client->plainSecret,
+        ];
+
+        $narrowed = $this->post('/oauth/token', [
+            ...$parameters,
+            'refresh_token' => $original['refresh_token'],
+            'scope' => 'read',
+        ])->assertOk()->assertJsonPath('scope', 'read')->json();
+
+        $restored = $this->post('/oauth/token', [
+            ...$parameters,
+            'refresh_token' => $narrowed['refresh_token'],
+        ])->assertOk()->assertJsonPath('scope', 'create read delete')->json();
+
+        $client->forceFill(['scopes' => ['read']])->save();
+        $restricted = $this->post('/oauth/token', [
+            ...$parameters,
+            'refresh_token' => $restored['refresh_token'],
+        ])->assertOk()->assertJsonPath('scope', 'read')->json();
+
+        $client->forceFill(['scopes' => null])->save();
+        $this->post('/oauth/token', [
+            ...$parameters,
+            'refresh_token' => $restricted['refresh_token'],
+        ])->assertOk()->assertJsonPath('scope', 'create read delete');
+    }
+
     #[WithConfig('passport.cache', ['enabled' => true, 'store' => 'file', 'ttl' => 300, 'prefix' => 'passport'])]
     public function testRefreshReturnsUsableTokensWhenInvalidationFailsAfterCommit(): void
     {
