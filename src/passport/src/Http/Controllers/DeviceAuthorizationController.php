@@ -54,7 +54,7 @@ class DeviceAuthorizationController
 
         $client = $deviceCode ? $this->clients->findActive($deviceCode->getClient()->getIdentifier()) : null;
 
-        if (! $deviceCode || ! $client || ! $this->clientMatchesProvider($client)) {
+        if (! $deviceCode || ! $client || ! $client->supportsProvider($this->getApprovingProvider())) {
             return to_route('passport.device')
                 ->withInput(['user_code' => $userCode])
                 ->withErrors([

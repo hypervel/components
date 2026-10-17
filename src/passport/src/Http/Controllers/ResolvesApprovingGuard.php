@@ -48,14 +48,6 @@ trait ResolvesApprovingGuard
     }
 
     /**
-     * Determine whether the client accepts the approving provider.
-     */
-    protected function clientMatchesProvider(Client $client): bool
-    {
-        return $client->provider === null || $client->provider === $this->getApprovingProvider();
-    }
-
-    /**
      * Capture the approving identity and synchronous extension decisions.
      *
      * @param array<string, mixed> $parameters
@@ -139,7 +131,7 @@ trait ResolvesApprovingGuard
     {
         $client = $this->clients->findActive($identifier);
 
-        if (! $client || ! $this->clientMatchesProvider($client) || ! $client->hasGrantType($grantType)) {
+        if (! $client || ! $client->supportsProvider($this->getApprovingProvider()) || ! $client->hasGrantType($grantType)) {
             throw OAuthServerException::unauthorizedClient();
         }
 

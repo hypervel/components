@@ -15,6 +15,9 @@ class AuthorizationRequestValidated
     /**
      * Create a synchronous authorization-policy event.
      *
+     * PAR submission has no browser session or user; routeIs('passport.par') identifies it.
+     * Additional prompts are applied only during browser authorization and are recomputed on resume.
+     *
      * @param array<string, mixed> $parameters
      */
     public function __construct(

@@ -29,6 +29,8 @@ use Hypervel\Passport\Http\RequestParameters;
 use Hypervel\Passport\Http\Responses\AuthorizationResponse;
 use Hypervel\Passport\Passport;
 use Hypervel\Passport\PendingAuthorizationRepository;
+use Hypervel\Passport\PushedAuthorizationRequest;
+use Hypervel\Passport\PushedAuthorizationRequestRepository;
 use Hypervel\Passport\Scope;
 use Hypervel\Passport\ServerFactory;
 use Hypervel\Support\Facades\Date;
@@ -59,6 +61,7 @@ class AuthorizationController
         protected AuthorizationFinalizer $finalizer,
         protected AuthorizationResponse $responses,
         protected Dispatcher $events,
+        protected PushedAuthorizationRequestRepository $pushed,
     ) {
     }
 
@@ -68,11 +71,7 @@ class AuthorizationController
     public function store(Request $request): Response
     {
         return $this->withErrorHandling(function () use ($request): Response {
-            if (strtolower(explode(';', $request->header('Content-Type', ''))[0]) !== 'application/x-www-form-urlencoded') {
-                throw LeagueException::invalidRequest('request', 'Authorization POST requests must use form encoding.');
-            }
-
-            $parameters = RequestParameters::fromRequest($request);
+            $parameters = RequestParameters::fromForm($request);
 
             return redirect()->to(route('passport.authorizations.authorize') . '?' . RequestParameters::toQuery($parameters), 303);
         });
@@ -88,9 +87,24 @@ class AuthorizationController
         AuthorizationViewResponse $viewResponse
     ): Response|AuthorizationViewResponse {
         $parameters = $this->withErrorHandling(fn (): array => RequestParameters::fromRequest($request));
-        $authRequest = $this->authorizations->validate(
-            $psrRequest->withQueryParams($parameters),
-        );
+        $pushed = null;
+
+        if (array_key_exists('request_uri', $parameters)) {
+            $pushed = $this->withErrorHandling(function () use ($parameters): PushedAuthorizationRequest {
+                if (! isset($parameters['client_id']) || $parameters['client_id'] === '') {
+                    throw LeagueException::invalidRequest('client_id');
+                }
+
+                return $this->pushed->consume($parameters['request_uri'], $parameters['client_id']);
+            });
+            $parameters = $pushed->parameters;
+        }
+
+        $authRequest = $pushed === null
+            ? $this->authorizations->validate($psrRequest->withQueryParams($parameters))
+            : $this->authorizations->resolve([
+                ...$pushed->only(['parameters', 'scopes', 'redirect_uri']), 'pushed' => true,
+            ], $psrRequest);
         $redirects = $authRequest->getClient()->getRedirectUri();
         $pending = [
             'parameters' => $parameters,
@@ -99,6 +113,7 @@ class AuthorizationController
             'scopes' => array_map(static fn (ScopeEntityInterface $scope): string => $scope->getIdentifier(), $authRequest->getScopes()),
             'guard' => $this->getApprovingGuardName(),
             'response_mode' => ($parameters['response_mode'] ?? null) === 'form_post' ? 'form_post' : 'query',
+            'pushed' => $pushed !== null,
         ];
 
         return $this->withAuthorizationErrorHandling(
@@ -202,16 +217,8 @@ class AuthorizationController
         ?string $authorization = null,
     ): Response|AuthorizationViewResponse {
         $parameters = $pending['parameters'];
-        if (! in_array($parameters['response_mode'] ?? 'query', ['query', 'form_post'], true)) {
-            throw LeagueException::invalidRequest('response_mode');
-        }
-
         $prompts = array_values(array_unique(array_filter(explode(' ', trim($parameters['prompt'] ?? '')))));
         $silent = in_array('none', $prompts, true);
-
-        if ($silent && count($prompts) > 1) {
-            throw LeagueException::invalidRequest('prompt');
-        }
 
         $guard = $this->getApprovingGuard();
 
@@ -221,29 +228,8 @@ class AuthorizationController
 
         $client = $this->clients->findActive($authRequest->getClient()->getIdentifier());
 
-        if (! $client || ! $this->clientMatchesProvider($client)) {
+        if (! $client || ! $client->supportsProvider($this->getApprovingProvider())) {
             throw LeagueException::invalidClient($psrRequest);
-        }
-
-        // Defaults may narrow only before the first presentation; resumed scopes are already frozen.
-        $useDefaultScopes = $authorization === null && trim($parameters['scope'] ?? '') === '';
-        $allowedScopes = [];
-
-        foreach ($authRequest->getScopes() as $scope) {
-            if (! $client->hasScope($scope->getIdentifier())) {
-                if ($useDefaultScopes) {
-                    continue;
-                }
-
-                throw LeagueException::invalidScope($scope->getIdentifier());
-            }
-
-            $allowedScopes[] = $scope;
-        }
-
-        if ($useDefaultScopes) {
-            $authRequest->setScopes($allowedScopes);
-            $pending['scopes'] = array_map(static fn (ScopeEntityInterface $scope): string => $scope->getIdentifier(), $allowedScopes);
         }
 
         if ($this->events->hasListeners(AuthorizationRequestValidated::class)) {
