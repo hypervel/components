@@ -51,6 +51,7 @@ class ServerMetadataTest extends PassportTestCase
             ->assertJsonPath('code_challenge_methods_supported', ['S256'])
             ->assertJsonPath('authorization_response_iss_parameter_supported', true)
             ->assertJsonMissingPath('scopes_supported')->assertJsonMissingPath('registration_endpoint')
+            ->assertJsonMissingPath('dpop_signing_alg_values_supported')
             ->assertHeader('Cache-Control', 'max-age=0, must-revalidate, public');
 
         $this->withHeader('If-None-Match', $response->headers->get('ETag'))
@@ -66,6 +67,9 @@ class ServerMetadataTest extends PassportTestCase
             ->assertJsonMissingPath('device_authorization_endpoint')
             ->assertJsonPath('grant_types_supported', ['authorization_code', 'refresh_token', 'client_credentials'])
             ->assertJsonPath('scopes_supported', ['read']);
+        config(['passport.dpop.enabled' => true]);
+        $this->get('https://auth.example/.well-known/oauth-authorization-server')->assertOk()
+            ->assertJsonPath('dpop_signing_alg_values_supported', ['RS256', 'ES256']);
     }
 
     /**

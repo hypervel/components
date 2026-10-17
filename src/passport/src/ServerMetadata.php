@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Passport;
 
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Routing\UrlGenerator;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Routing\Router;
@@ -19,6 +20,7 @@ class ServerMetadata implements Arrayable
         protected ServerFactory $servers,
         protected UrlGenerator $urls,
         protected Router $router,
+        protected Repository $config,
     ) {
     }
 
@@ -61,6 +63,10 @@ class ServerMetadata implements Arrayable
 
         if ($scopes = Passport::scopeIds()) {
             $metadata['scopes_supported'] = $scopes;
+        }
+
+        if ($this->config->boolean('passport.dpop.enabled')) {
+            $metadata['dpop_signing_alg_values_supported'] = JwkValidator::ALGORITHMS;
         }
 
         if (Passport::$deviceCodeGrantEnabled && $this->router->has('passport.device')) {
