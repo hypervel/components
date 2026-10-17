@@ -22,8 +22,23 @@ class AuthServerDiscovery
         $this->requireFetchable($metadataUrl, $resourceUrl);
 
         $resourceMetadata = $this->fetchResourceMetadata($metadataUrl, explicit: $resourceMetadataUrl !== null);
+        $resource = $resourceUrl;
 
-        $this->requireResourceMatches($resourceMetadata, $resourceUrl);
+        if ($resourceMetadataUrl === null && $resourceMetadata === []) {
+            $origin = $this->origin($resourceUrl);
+            $rootMetadataUrl = $this->wellKnown($origin, 'oauth-protected-resource');
+
+            if ($rootMetadataUrl !== $metadataUrl) {
+                $resourceMetadata = $this->fetchResourceMetadata($rootMetadataUrl);
+
+                if ($resourceMetadata !== []) {
+                    // Root discovery identifies the origin, while explicit metadata identifies the requested URL.
+                    $resource = $origin;
+                }
+            }
+        }
+
+        $this->requireResourceMatches($resourceMetadata, $resource);
 
         $issuer = $this->issuerFrom($resourceMetadata) ?? $this->origin($resourceUrl);
 
@@ -48,7 +63,7 @@ class AuthServerDiscovery
 
         $scopesSupported = array_values(array_map(strval(...), (array) ($resourceMetadata['scopes_supported'] ?? [])));
 
-        return new DiscoveryResult($serverMetadata, $scopesSupported);
+        return new DiscoveryResult($serverMetadata, $scopesSupported, $resource);
     }
 
     /**

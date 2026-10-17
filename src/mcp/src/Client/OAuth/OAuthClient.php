@@ -67,6 +67,8 @@ class OAuthClient
 
         $pkce = Pkce::generate();
         $state = Str::random(40);
+        $scope = $this->authorizationScope();
+        $resource = $discovered->resource ?? $this->resourceUrl;
 
         Session::put($this->sessionKey(), [
             'state' => $state,
@@ -79,6 +81,8 @@ class OAuthClient
             'return_to' => $returnTo,
             'issuer' => $metadata->issuer,
             'iss_supported' => $metadata->authorizationResponseIssParameterSupported,
+            'scope' => $scope,
+            'resource' => $resource,
         ]);
 
         $authorizeUrl = Uri::of($metadata->authorizationEndpoint)->withQuery(array_filter([
@@ -88,8 +92,8 @@ class OAuthClient
             'state' => $state,
             'code_challenge' => $pkce->challenge,
             'code_challenge_method' => 'S256',
-            'scope' => $this->resolveScope(),
-            'resource' => $this->resourceUrl,
+            'scope' => $scope,
+            'resource' => $resource,
         ], static fn (mixed $value): bool => $value !== null && $value !== ''));
 
         return new RedirectResponse((string) $authorizeUrl);
@@ -110,8 +114,8 @@ class OAuthClient
             $discovered->server->tokenEndpoint,
             [
                 'grant_type' => 'client_credentials',
-                'scope' => $this->resolveScope(),
-                'resource' => $this->resourceUrl,
+                'scope' => $this->authorizationScope(),
+                'resource' => $discovered->resource ?? $this->resourceUrl,
             ],
             $this->config->clientId,
             $this->config->clientSecret,
@@ -171,7 +175,7 @@ class OAuthClient
                 'grant_type' => 'refresh_token',
                 'refresh_token' => $refreshToken,
                 'scope' => $this->resolveScope(),
-                'resource' => $this->resourceUrl,
+                'resource' => $discovered->resource ?? $this->resourceUrl,
             ],
             $clientId,
             $clientSecret,
@@ -193,18 +197,7 @@ class OAuthClient
         string $state,
         ?string $iss,
     ): TokenSet {
-        /** @var null|array<string, mixed> $stored */
-        $stored = Session::get($this->sessionKey());
-
-        if (! is_array($stored)) {
-            throw new OAuthException('No pending OAuth authorization was found in the session.');
-        }
-
-        if (! is_string($stored['state'] ?? null) || ! hash_equals($stored['state'], $state)) {
-            throw new OAuthException('The OAuth state parameter did not match. Possible CSRF attempt.');
-        }
-
-        $this->validateIssuer($stored, $iss);
+        $stored = $this->pendingAuthorization($state, $iss);
 
         $this->returnTo = is_string($stored['return_to'] ?? null) && $stored['return_to'] !== ''
             ? $stored['return_to']
@@ -222,7 +215,7 @@ class OAuthClient
                 'code' => $code,
                 'redirect_uri' => (string) $stored['redirect_uri'],
                 'code_verifier' => (string) $stored['verifier'],
-                'resource' => $this->resourceUrl,
+                'resource' => (string) $stored['resource'],
             ],
             $clientId,
             $clientSecret,
@@ -231,8 +224,32 @@ class OAuthClient
 
         $token->clientId = $clientId;
         $token->clientSecret = $clientSecret;
+        $token->scope ??= $stored['scope'] ?? null;
 
         return $token;
+    }
+
+    /**
+     * Validate the callback against its pending authorization.
+     *
+     * @return array<string, mixed>
+     */
+    private function pendingAuthorization(string $state, ?string $iss): array
+    {
+        /** @var null|array<string, mixed> $stored */
+        $stored = Session::get($this->sessionKey());
+
+        if (! is_array($stored)) {
+            throw new OAuthException('No pending OAuth authorization was found in the session.');
+        }
+
+        if (! is_string($stored['state'] ?? null) || ! hash_equals($stored['state'], $state)) {
+            throw new OAuthException('The OAuth state parameter did not match. Possible CSRF attempt.');
+        }
+
+        $this->validateIssuer($stored, $iss);
+
+        return $stored;
     }
 
     /**
@@ -287,7 +304,7 @@ class OAuthClient
         return (new DynamicClientRegistration)->register(
             $metadata->registrationEndpoint,
             $redirectUri,
-            $this->resolveScope(),
+            $this->authorizationScope(),
             applicationType: $this->applicationType($redirectUri),
             tokenEndpointAuthMethod: $this->resolveTokenAuthMethod($metadata, 'confidential'),
         );
@@ -331,7 +348,11 @@ class OAuthClient
             throw new OAuthException('The token response did not include an access_token.');
         }
 
-        return TokenSet::fromResponse($data);
+        $token = TokenSet::fromResponse($data);
+        // OAuth permits omitting response scope only when it matches the requested scope.
+        $token->scope ??= $params['scope'] ?? null;
+
+        return $token;
     }
 
     /**
@@ -342,6 +363,15 @@ class OAuthClient
         if (($error = $this->query('error')) === null) {
             return;
         }
+
+        $state = Request::query('state');
+        $iss = Request::query('iss');
+
+        // Error callbacks require the same issuer validation before their descriptions can be trusted.
+        $this->pendingAuthorization(
+            is_string($state) ? $state : '',
+            is_string($iss) ? $iss : null,
+        );
 
         $description = $this->query('error_description');
 
@@ -377,7 +407,22 @@ class OAuthClient
             return $this->challengeScope;
         }
 
-        return $this->config->scope ?? 'mcp:use';
+        return filled($this->config->scope) ? $this->config->scope : null;
+    }
+
+    /**
+     * Use advertised scopes when no authorization scope was selected.
+     */
+    protected function authorizationScope(): ?string
+    {
+        if (($scope = $this->resolveScope()) !== null) {
+            return $scope;
+        }
+
+        $scopes = $this->discover()->scopesSupported;
+
+        // Refresh grants keep resolveScope(): inferred scopes could exceed the original grant.
+        return $scopes === [] ? null : implode(' ', $scopes);
     }
 
     /**
