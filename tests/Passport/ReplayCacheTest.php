@@ -17,6 +17,7 @@ use Hypervel\Contracts\Cache\Factory;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Foundation\Testing\DatabaseTransactionsManager;
 use Hypervel\Passport\ReplayCache;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\TestCase;
@@ -106,6 +107,26 @@ class ReplayCacheTest extends TestCase
         } finally {
             $this->assertSame(0, $connection->table('replays')->count());
             $connection->rollBack();
+        }
+    }
+
+    public function testTestWrappersPermitClaimsButNestedApplicationTransactionsDoNot(): void
+    {
+        $connection = DB::connection('replay');
+        (new DatabaseTransactionsManager(['replay']))->beginTransactions($this->app->make('db'));
+
+        try {
+            $replays = $this->app->make(ReplayCache::class);
+            $this->assertTrue($replays->consume('wrapped', time() + 300));
+            $this->assertFalse($replays->consume('wrapped', time() + 300));
+            $connection->beginTransaction();
+
+            $this->expectException(LogicException::class);
+            $this->expectExceptionMessage('active transaction');
+            $replays->consume('nested', time() + 300);
+        } finally {
+            $this->assertSame(1, $connection->table('replays')->count());
+            $connection->rollBack(0);
         }
     }
 

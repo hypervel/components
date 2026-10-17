@@ -8,6 +8,7 @@ use Hypervel\Cache\DatabaseStore;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Contracts\Cache\Factory;
 use Hypervel\Contracts\Config\Repository;
+use Hypervel\Database\Connection;
 use LogicException;
 
 class ReplayCache
@@ -41,8 +42,13 @@ class ReplayCache
             throw new LogicException('Passport replay protection requires a direct Redis or database cache store.');
         }
 
-        if ($store instanceof DatabaseStore && $store->getConnection()->transactionLevel() > 0) {
-            throw new LogicException('Passport replay protection cannot use a cache connection with an active transaction.');
+        if ($store instanceof DatabaseStore) {
+            /** @var Connection $connection */
+            $connection = $store->getConnection();
+
+            if ($connection->hasApplicableTransaction()) {
+                throw new LogicException('Passport replay protection cannot use a cache connection with an active transaction.');
+            }
         }
 
         return $repository->add('passport:replay:' . hash('sha256', $identifier), true, $seconds);
