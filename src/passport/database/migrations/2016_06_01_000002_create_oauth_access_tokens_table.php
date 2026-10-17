@@ -21,6 +21,7 @@ return new class extends Migration {
             $table->string('name')->nullable();
             $table->jsonb('scopes')->nullable();
             $table->jsonb('audience')->nullable();
+            $table->char('dpop_jkt', 43)->nullable();
             $table->boolean('revoked');
             $table->timestamps();
             $table->dateTime('expires_at')->nullable();

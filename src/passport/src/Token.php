@@ -20,6 +20,7 @@ use Hypervel\Support\Facades\Event;
  * @property null|string $name
  * @property null|array $scopes
  * @property null|list<string> $audience
+ * @property null|string $dpop_jkt
  * @property bool $revoked
  * @property null|CarbonInterface $created_at
  * @property null|CarbonInterface $updated_at
