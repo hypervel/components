@@ -202,6 +202,7 @@
         "hypervel/rate-limiter": "self.version",
         "hypervel/redis": "self.version",
         "hypervel/reflection": "self.version",
+        "hypervel/reverb": "self.version",
         "hypervel/routing": "self.version",
         "hypervel/saloon": "self.version",
         "hypervel/sanctum": "self.version",
