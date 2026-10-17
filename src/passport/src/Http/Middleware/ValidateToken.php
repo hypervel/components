@@ -10,6 +10,8 @@ use Hypervel\Passport\AccessToken;
 use Hypervel\Passport\Contracts\OAuthenticatable;
 use Hypervel\Passport\Contracts\ScopeAuthorizable;
 use Hypervel\Passport\Exceptions\AuthenticationException;
+use Hypervel\Passport\Exceptions\MissingScopeException;
+use Hypervel\Passport\Http\AuthenticationChallenge;
 use Hypervel\Passport\ServerFactory;
 use League\OAuth2\Server\Exception\OAuthServerException;
 use Symfony\Component\HttpFoundation\Response;
@@ -45,9 +47,15 @@ abstract class ValidateToken
      */
     public function handle(Request $request, Closure $next, string ...$params): Response
     {
-        $token = $this->validateToken($request);
+        try {
+            $token = $this->validateToken($request);
 
-        $this->validate($token, ...$params);
+            $this->validate($token, ...$params);
+        } catch (AuthenticationException|MissingScopeException $exception) {
+            app(AuthenticationChallenge::class)->forException($request, $exception);
+
+            throw $exception;
+        }
 
         return $next($request);
     }
