@@ -48,6 +48,8 @@ class StdioTransport implements Transport
             return;
         }
 
+        $this->buffer = '';
+        $this->stderr = '';
         $this->input = new StdioInput;
         $this->process = new Process([$this->command, ...$this->args], env: $this->env);
         $this->process->setInput($this->input);

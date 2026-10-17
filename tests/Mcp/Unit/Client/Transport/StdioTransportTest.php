@@ -69,6 +69,25 @@ class StdioTransportTest extends TestCase
         }
     }
 
+    public function testReconnectDiscardsUnreadFramesFromThePreviousProcess(): void
+    {
+        $transport = new InspectableStdioTransport('frames');
+
+        try {
+            $transport->connect();
+            $this->assertSame("first\n", $transport->receive());
+            $transport->send('continue');
+            $transport->waitForExit();
+
+            $transport->connect();
+
+            $this->assertSame("first\n", $transport->receive());
+            $this->assertSame("second\n", $transport->receive());
+        } finally {
+            $transport->disconnect();
+        }
+    }
+
     public function testLegacyFallbackDeliversInitializationWithoutAnotherRequest(): void
     {
         $acknowledgement = $this->directory . '/initialized.json';
