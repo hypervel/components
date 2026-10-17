@@ -778,6 +778,36 @@ class CallToolTest extends TestCase
         $this->assertFalse($payload['result']['isError']);
     }
 
+    public function testCombinesStreamedFactoriesWithOtherContentAndResultMetadata(): void
+    {
+        $tool = new class extends Tool {
+            protected string $name = 'mixed-results';
+
+            /**
+             * Yield text and factories that contribute result-level data.
+             */
+            public function handle(): Generator
+            {
+                yield 'first';
+                yield Response::make([Response::text('second')])
+                    ->withMeta(['first' => true, 'shared' => 'old'])
+                    ->withStructuredContent(['left' => 1, 'shared' => 'old']);
+                yield Response::make([Response::text('third')])
+                    ->withMeta(['second' => true, 'shared' => 'new'])
+                    ->withStructuredContent(['right' => 2, 'shared' => 'new']);
+                yield Response::text('last');
+            }
+        };
+        $request = new JsonRpcRequest(1, 'tools/call', ['name' => $tool->name()]);
+        $responses = iterator_to_array((new CallTool)->handle($request, $this->getServerContext(['tools' => [$tool::class]])));
+
+        $this->assertCount(1, $responses);
+        $result = $responses[0]->toArray()['result'];
+        $this->assertSame(['first', 'second', 'third', 'last'], array_column($result['content'], 'text'));
+        $this->assertSame(['first' => true, 'shared' => 'new', 'second' => true], $result['_meta']);
+        $this->assertSame(['left' => 1, 'shared' => 'new', 'right' => 2], $result['structuredContent']);
+    }
+
     public function testThrowsAnExceptionWhenTheNameParameterIsMissing(): void
     {
         $request = JsonRpcRequest::from([

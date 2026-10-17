@@ -177,21 +177,37 @@ trait InteractsWithResponses
 
         $items = is_array($responseFactory) ? $responseFactory : [$responseFactory];
 
-        $responses = collect($items)
-            ->map(function (mixed $item): Response {
-                if ($item instanceof Response) {
-                    return $item;
+        $responses = [];
+        $factories = [];
+
+        foreach ($items as $item) {
+            if ($item instanceof ResponseFactory) {
+                foreach ($item->responses() as $nested) {
+                    $responses[] = $nested;
                 }
 
-                if (! is_string($item)) {
-                    throw new InvalidArgumentException('Response must be a Response instance or string');
-                }
+                $factories[] = $item;
+            } elseif ($item instanceof Response) {
+                $responses[] = $item;
+            } elseif (is_string($item)) {
+                $responses[] = $this->isBinary($item) ? Response::blob($item) : Response::text($item);
+            } else {
+                throw new InvalidArgumentException('Response must be a Response instance, ResponseFactory instance or string');
+            }
+        }
 
-                return $this->isBinary($item)
-                    ? Response::blob($item)
-                    : Response::text($item);
-            });
+        $factory = new ResponseFactory($responses);
 
-        return new ResponseFactory($responses->all());
+        foreach ($factories as $item) {
+            if (($meta = $item->getMeta()) !== null) {
+                $factory->withMeta($meta);
+            }
+
+            if (($structuredContent = $item->getStructuredContent()) !== null) {
+                $factory->withStructuredContent($structuredContent);
+            }
+        }
+
+        return $factory;
     }
 }

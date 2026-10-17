@@ -35,6 +35,6 @@ trait HasStructuredContent
             return $baseArray;
         }
 
-        return array_merge($baseArray, ['structuredContent' => $this->structuredContent]);
+        return array_merge($baseArray, ['structuredContent' => $this->structuredContent === [] ? (object) [] : $this->structuredContent]);
     }
 }

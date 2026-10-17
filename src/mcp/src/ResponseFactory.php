@@ -41,7 +41,7 @@ class ResponseFactory
             }
         }
 
-        $this->responses = collect($wrapped);
+        $this->responses = collect(array_values($wrapped));
     }
 
     /**

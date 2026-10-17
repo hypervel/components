@@ -26,12 +26,20 @@ class ResponseFactoryTest extends TestCase
     {
         $response1 = Response::text('First');
         $response2 = Response::text('Second');
-        $factory = new ResponseFactory([$response1, $response2]);
+        $factory = new ResponseFactory([4 => $response1, 8 => $response2]);
 
         $this->assertInstanceOf(ResponseFactory::class, $factory);
         $this->assertCount(2, $factory->responses());
         $this->assertSame($response1, $factory->responses()->first());
         $this->assertSame($response2, $factory->responses()->last());
+        $this->assertSame([$response1, $response2], $factory->responses()->all());
+    }
+
+    public function testEmptyStructuredContentIsAnObjectOnTheWire(): void
+    {
+        $factory = Response::make(Response::text('No fields'))->withStructuredContent([]);
+
+        $this->assertSame('{"structuredContent":{}}', json_encode($factory->mergeStructuredContent([]), JSON_THROW_ON_ERROR));
     }
 
     public function testSupportsFluentWithMetaForResultLevelMetadata(): void

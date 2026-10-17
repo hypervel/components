@@ -9,52 +9,34 @@ use Hypervel\Mcp\Server\Prompt;
 use Hypervel\Mcp\Server\Resource;
 use Hypervel\Mcp\Server\Tool;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 
 class NotificationTest extends TestCase
 {
-    public function testMayBeUsedInTools(): void
+    public function testMayNotBeUsedAsToolResultContent(): void
     {
         $notification = new Notification('booking/starting', ['step' => 1]);
 
-        $payload = $notification->toTool(new class extends Tool {});
-
-        $this->assertSame([
-            'method' => 'booking/starting',
-            'params' => ['step' => 1],
-        ], $payload);
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('yielded separately');
+        $notification->toTool(new class extends Tool {});
     }
 
-    public function testMayBeUsedInPrompts(): void
+    public function testMayNotBeUsedAsPromptResultContent(): void
     {
         $notification = new Notification('booking/completed', ['step' => 2]);
 
-        $payload = $notification->toPrompt(new class extends Prompt {});
-
-        $this->assertSame([
-            'method' => 'booking/completed',
-            'params' => ['step' => 2],
-        ], $payload);
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('yielded separately');
+        $notification->toPrompt(new class extends Prompt {});
     }
 
-    public function testMayBeUsedInResourcesWithoutAddingMetadata(): void
+    public function testMayNotBeUsedAsResourceResultContent(): void
     {
         $notification = new Notification('status/update', ['ok' => true]);
-        $resource = new class extends Resource {
-            protected string $uri = 'file://ignored.txt';
-
-            protected string $name = 'ignored';
-
-            protected string $title = 'Ignored';
-
-            protected string $mimeType = 'text/plain';
-        };
-
-        $payload = $notification->toResource($resource);
-
-        $this->assertSame([
-            'method' => 'status/update',
-            'params' => ['ok' => true],
-        ], $payload);
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('yielded separately');
+        $notification->toResource(new class extends Resource {});
     }
 
     public function testCastsToStringAsMethod(): void

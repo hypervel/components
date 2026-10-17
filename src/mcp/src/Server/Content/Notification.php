@@ -9,6 +9,7 @@ use Hypervel\Mcp\Server\Contracts\Content;
 use Hypervel\Mcp\Server\Prompt;
 use Hypervel\Mcp\Server\Resource;
 use Hypervel\Mcp\Server\Tool;
+use InvalidArgumentException;
 
 class Notification implements Content
 {
@@ -24,33 +25,33 @@ class Notification implements Content
     }
 
     /**
-     * Format the notification for a tool response.
+     * Reject a notification used as tool result content.
      *
      * @return array<string, mixed>
      */
     public function toTool(Tool $tool): array
     {
-        return $this->toArray();
+        throw new InvalidArgumentException('Notifications must be yielded separately from tool result content.');
     }
 
     /**
-     * Format the notification for a prompt response.
+     * Reject a notification used as prompt result content.
      *
      * @return array<string, mixed>
      */
     public function toPrompt(Prompt $prompt): array
     {
-        return $this->toArray();
+        throw new InvalidArgumentException('Notifications must be yielded separately from prompt result content.');
     }
 
     /**
-     * Format the notification for a resource response.
+     * Reject a notification used as resource result content.
      *
      * @return array<string, mixed>
      */
     public function toResource(Resource $resource): array
     {
-        return $this->toArray();
+        throw new InvalidArgumentException('Notifications must be yielded separately from resource result content.');
     }
 
     /**
