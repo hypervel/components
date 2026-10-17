@@ -18,6 +18,7 @@ return new class extends Migration {
             $table->string('provider')->nullable();
             $table->foreignUuid('family_id')->index();
             $table->uuid('consent_id')->nullable()->index();
+            $table->jsonb('resources')->nullable();
             $table->boolean('revoked');
             $table->dateTime('expires_at')->nullable();
 
