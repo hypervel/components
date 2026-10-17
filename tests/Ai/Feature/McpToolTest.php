@@ -13,7 +13,6 @@ use Hypervel\Ai\Responses\Data\ToolCall;
 use Hypervel\Ai\Tools\McpTool;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Foundation\Testing\RefreshDatabase;
-use Hypervel\Mcp\Client\Primitives\Tool;
 use Hypervel\Tests\Ai\Fixtures\Mcp\FakeMcpClient;
 use Hypervel\Tests\Ai\Fixtures\Mcp\FakeMcpTool;
 use Hypervel\Tests\Ai\Fixtures\Mcp\FakeMcpToolResult;
@@ -29,18 +28,6 @@ class McpToolTest extends TestCase
     protected function defineEnvironment(Application $app): void
     {
         $app->make('config')->set('ai.conversations.generate_title', false);
-    }
-
-    /**
-     * Require the optional MCP client primitives.
-     */
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        if (! class_exists(Tool::class)) {
-            $this->markTestSkipped('The optional MCP package is not installed.');
-        }
     }
 
     public function testAgentsCanReturnMcpClientToolsDirectly(): void

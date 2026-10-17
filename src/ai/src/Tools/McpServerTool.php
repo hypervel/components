@@ -27,22 +27,22 @@ class McpServerTool implements Approvable, Tool
     /**
      * The MCP server tool class name.
      */
-    protected const string MCP_SERVER_TOOL = ServerTool::class; // @phpstan-ignore class.notFound (optional MCP package)
+    protected const string MCP_SERVER_TOOL = ServerTool::class;
 
     /**
      * The MCP request class name.
      */
-    protected const string MCP_REQUEST = McpRequest::class; // @phpstan-ignore class.notFound (optional MCP package)
+    protected const string MCP_REQUEST = McpRequest::class;
 
     /**
      * The MCP response class name.
      */
-    protected const string MCP_RESPONSE = Response::class; // @phpstan-ignore class.notFound (optional MCP package)
+    protected const string MCP_RESPONSE = Response::class;
 
     /**
      * The MCP response factory class name.
      */
-    protected const string MCP_RESPONSE_FACTORY = ResponseFactory::class; // @phpstan-ignore class.notFound (optional MCP package)
+    protected const string MCP_RESPONSE_FACTORY = ResponseFactory::class;
 
     /**
      * Create a new MCP server tool wrapper instance.
@@ -56,7 +56,7 @@ class McpServerTool implements Approvable, Tool
      */
     public static function supports(mixed $tool): bool
     {
-        return $tool instanceof ServerTool; // @phpstan-ignore class.notFound (optional MCP package)
+        return $tool instanceof ServerTool;
     }
 
     /**
@@ -95,7 +95,7 @@ class McpServerTool implements Approvable, Tool
         $previous = CoroutineContext::get(self::MCP_REQUEST);
 
         // The MCP request binding resolves this entry without sharing it between calls.
-        CoroutineContext::set(self::MCP_REQUEST, new (self::MCP_REQUEST)($request->toArray())); // @phpstan-ignore class.notFound (optional MCP package)
+        CoroutineContext::set(self::MCP_REQUEST, new (self::MCP_REQUEST)($request->toArray()));
 
         try {
             return $this->convertResponse($container->call([$this->tool, 'handle']));
@@ -122,13 +122,13 @@ class McpServerTool implements Approvable, Tool
     protected function convertResponse(mixed $response): string
     {
         if (is_a($response, self::MCP_RESPONSE_FACTORY)) {
-            $structured = $response->getStructuredContent(); // @phpstan-ignore class.notFound (optional MCP package)
+            $structured = $response->getStructuredContent();
 
             if (is_array($structured) && $structured !== []) {
                 return $this->json($structured);
             }
 
-            return $this->finalResponse($response->responses()->all()); // @phpstan-ignore class.notFound (optional MCP package)
+            return $this->finalResponse($response->responses()->all());
         }
 
         $items = $response instanceof Generator
@@ -148,7 +148,7 @@ class McpServerTool implements Approvable, Tool
     {
         return collect($items)->flatMap(fn (mixed $item): array => match (true) {
             is_a($item, self::MCP_RESPONSE) => [$item],
-            is_a($item, self::MCP_RESPONSE_FACTORY) => $item->responses()->all(), // @phpstan-ignore class.notFound (optional MCP package)
+            is_a($item, self::MCP_RESPONSE_FACTORY) => $item->responses()->all(),
             is_string($item) => [(self::MCP_RESPONSE)::text($item)],
             is_array($item) => $this->normalize($item),
             default => [],

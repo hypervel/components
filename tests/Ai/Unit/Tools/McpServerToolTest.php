@@ -10,17 +10,20 @@ use Hypervel\Ai\Tools\McpServerTool;
 use Hypervel\Ai\Tools\Request;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Contracts\JsonSchema\JsonSchema;
 use Hypervel\JsonSchema\JsonSchemaTypeFactory;
 use Hypervel\Mcp\Request as McpRequest;
 use Hypervel\Mcp\Response;
+use Hypervel\Mcp\ResponseFactory;
+use Hypervel\Mcp\Server\McpServiceProvider;
 use Hypervel\Mcp\Server\Tool;
+use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Ai\Fixtures\Mcp\FakeArrayMcpServerTool;
 use Hypervel\Tests\Ai\Fixtures\Mcp\FakeErroringMcpServerTool;
 use Hypervel\Tests\Ai\Fixtures\Mcp\FakeMcpServerTool;
 use Hypervel\Tests\Ai\Fixtures\Mcp\FakeStreamingMcpServerTool;
 use Hypervel\Tests\Ai\Fixtures\Mcp\FakeStructuredMcpServerTool;
-use Hypervel\Tests\TestCase;
 use RuntimeException;
 use stdClass;
 
@@ -29,18 +32,11 @@ use function Hypervel\Coroutine\parallel;
 class McpServerToolTest extends TestCase
 {
     /**
-     * Require MCP and bind its current request from coroutine context.
+     * Register the MCP request hydration callbacks.
      */
-    protected function setUp(): void
+    protected function getPackageProviders(Application $app): array
     {
-        parent::setUp();
-
-        if (! class_exists(Tool::class)) {
-            $this->markTestSkipped('The optional MCP package is not installed.');
-        }
-
-        Container::setInstance(new Container);
-        Container::getInstance()->bind(McpRequest::class, static fn (): McpRequest => CoroutineContext::get(McpRequest::class));
+        return [McpServiceProvider::class];
     }
 
     public function testItDetectsMcpServerToolPrimitives(): void
@@ -102,6 +98,21 @@ class McpServerToolTest extends TestCase
         $tool = new McpServerTool(new FakeStructuredMcpServerTool);
 
         $this->assertStringContainsString('"url":"https://example.com/report"', $tool->handle(new Request(['city' => 'Paris'])));
+    }
+
+    public function testItReplacesInvalidUtf8InStructuredContent(): void
+    {
+        $tool = new McpServerTool(new class extends FakeStructuredMcpServerTool {
+            /**
+             * Return structured content containing invalid text bytes.
+             */
+            public function handle(McpRequest $request): ResponseFactory
+            {
+                return Response::make(Response::text('Weather'))->withStructuredContent(['city' => "Par\xB1s"]);
+            }
+        });
+
+        $this->assertSame('{"city":"Par�s"}', $tool->handle(new Request));
     }
 
     public function testItSurfacesToolErrorsWithTheStandardPrefix(): void
@@ -208,6 +219,6 @@ class McpServerToolTest extends TestCase
             $this->assertSame($failure, $exception);
         }
 
-        $this->assertSame($outer, Container::getInstance()->make(McpRequest::class));
+        $this->assertSame('Paris', $this->app->make(McpRequest::class)->get('city'));
     }
 }

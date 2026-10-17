@@ -25,7 +25,7 @@ class McpTool implements Approvable, Tool
     /**
      * The MCP client tool primitive class name.
      */
-    protected const string MCP_CLIENT_TOOL = ClientTool::class; // @phpstan-ignore class.notFound (optional MCP package)
+    protected const string MCP_CLIENT_TOOL = ClientTool::class;
 
     /**
      * The prefix applied to MCP client tool names.
@@ -44,7 +44,7 @@ class McpTool implements Approvable, Tool
      */
     public static function supports(mixed $tool): bool
     {
-        return $tool instanceof ClientTool; // @phpstan-ignore class.notFound (optional MCP package)
+        return $tool instanceof ClientTool;
     }
 
     /**

@@ -8,7 +8,6 @@ use Hypervel\Ai\ObjectSchema;
 use Hypervel\Ai\Tools\McpTool;
 use Hypervel\Ai\Tools\Request;
 use Hypervel\JsonSchema\JsonSchemaTypeFactory;
-use Hypervel\Mcp\Client\Primitives\Tool;
 use Hypervel\Tests\Ai\Fixtures\Mcp\FakeMcpClient;
 use Hypervel\Tests\Ai\Fixtures\Mcp\FakeMcpTool;
 use Hypervel\Tests\Ai\Fixtures\Mcp\FakeMcpToolResult;
@@ -17,18 +16,6 @@ use stdClass;
 
 class McpToolTest extends TestCase
 {
-    /**
-     * Require the optional MCP client primitives.
-     */
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        if (! class_exists(Tool::class)) {
-            $this->markTestSkipped('The optional MCP package is not installed.');
-        }
-    }
-
     public function testItDetectsMcpClientToolPrimitives(): void
     {
         $this->assertTrue(McpTool::supports(mcpTool(new FakeMcpClient)));

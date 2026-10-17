@@ -69,7 +69,7 @@
     },
     "suggest": {
         "aws/aws-sdk-php": "Required to use the Bedrock provider (^3.369.1).",
-        "hypervel/mcp": "Required to use MCP client or server tools with Hypervel AI agents.",
+        "hypervel/mcp": "Required to use MCP client or server tools with Hypervel AI agents (^0.4).",
         "phpunit/phpunit": "Required to use the AI fake assertion methods (^13.0)."
     },
     "autoload": {
