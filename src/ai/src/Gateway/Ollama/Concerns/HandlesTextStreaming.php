@@ -21,6 +21,7 @@ use Hypervel\Ai\Streaming\Events\TextDelta;
 use Hypervel\Ai\Streaming\Events\TextEnd;
 use Hypervel\Ai\Streaming\Events\TextStart;
 use Hypervel\Ai\Streaming\Events\ToolCall as ToolCallEvent;
+use Hypervel\Http\Client\LineReader;
 use Hypervel\Support\Str;
 use Psr\Http\Message\StreamInterface;
 
@@ -247,31 +248,14 @@ trait HandlesTextStreaming
      */
     protected function parseNdjsonStream(StreamInterface $streamBody): Generator
     {
-        $buffer = '';
+        foreach (LineReader::lines($streamBody) as $line) {
+            $line = trim($line);
 
-        while (! $streamBody->eof()) {
-            $buffer .= $streamBody->read(1024);
-
-            while (($pos = strpos($buffer, "\n")) !== false) {
-                $line = substr($buffer, 0, $pos);
-                $buffer = substr($buffer, $pos + 1);
-
-                $line = trim($line);
-
-                if ($line === '') {
-                    continue;
-                }
-
-                $data = json_decode($line, true);
-
-                if ($data !== null) {
-                    yield $data;
-                }
+            if ($line === '') {
+                continue;
             }
-        }
 
-        if (filled(trim($buffer))) {
-            $data = json_decode(trim($buffer), true);
+            $data = json_decode($line, true);
 
             if ($data !== null) {
                 yield $data;

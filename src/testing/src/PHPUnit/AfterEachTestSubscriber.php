@@ -338,6 +338,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         $this->flushImageState();
         $this->flushInertiaState();
         $this->flushJwtState();
+        $this->flushMcpState();
         $this->flushNestedSetState();
         $this->flushPasskeysState();
         $this->flushPassportState();
@@ -421,6 +422,22 @@ class AfterEachTestSubscriber implements FinishedSubscriber
     {
         $this->callIfExists(\Hypervel\Jwt\ClaimFactory::class, 'flushState');
         $this->callIfExists(\Hypervel\Jwt\JwtGuard::class, 'flushState');
+    }
+
+    /**
+     * Flush MCP state.
+     */
+    protected function flushMcpState(): void
+    {
+        $this->callIfExists(\Hypervel\Mcp\Server::class, 'flushState');
+        $this->callIfExists(\Hypervel\Mcp\Server\Primitive::class, 'flushState');
+        $this->callIfExists(\Hypervel\Mcp\Request::class, 'flushMacros');
+        $this->callIfExists(\Hypervel\Mcp\Response::class, 'flushMacros');
+        $this->callIfExists(\Hypervel\Mcp\ResponseFactory::class, 'flushMacros');
+        $this->callIfExists(\Hypervel\Mcp\Client\ClientManager::class, 'flushMacros');
+        $this->callIfExists(\Hypervel\Mcp\Server\Registrar::class, 'flushMacros');
+        $this->callIfExists(\Hypervel\Mcp\Server\Testing\TestResponse::class, 'flushMacros');
+        $this->callIfExists(\Hypervel\Mcp\Server\Testing\TestListResponse::class, 'flushMacros');
     }
 
     /**

@@ -9,10 +9,8 @@ use GuzzleHttp\Psr7\FnStream;
 use GuzzleHttp\Psr7\Uri;
 use GuzzleHttp\Psr7\UriResolver;
 use GuzzleHttp\Psr7\Utils;
-use Hypervel\Database\ConnectionResolver;
 use Hypervel\Http\Client\Destinations\DestinationResolutionException;
 use Hypervel\Http\Client\Destinations\DisallowedDestinationException;
-use Hypervel\Http\Client\PendingRequest;
 use Hypervel\Http\Client\Response;
 use Hypervel\Support\Facades\Http;
 use InvalidArgumentException;
@@ -48,35 +46,11 @@ class UntrustedUrl
             $uri = new Uri($url);
             $options = [];
             $tooLarge = null;
+            $trusted = in_array(rtrim(trim($uri->getHost(), '[]'), '.'), $allowedHosts, true);
 
-            if (in_array(rtrim(trim($uri->getHost(), '[]'), '.'), $allowedHosts, true)) {
+            if ($trusted) {
                 if (! in_array($uri->getScheme(), ['http', 'https'], true) || $uri->getUserInfo() !== '') {
                     throw new InvalidArgumentException('Remote file URLs require HTTP or HTTPS without embedded credentials.');
-                }
-            } else {
-                ConnectionResolver::releaseIdleConnections();
-
-                try {
-                    $destination = $policy->resolve((string) $uri, PendingRequest::DEFAULT_DESTINATION_RESOLUTION_TIMEOUT);
-                } catch (DisallowedDestinationException|DestinationResolutionException $exception) {
-                    throw new InvalidArgumentException($exception->getMessage(), previous: $exception);
-                }
-
-                $uri = $destination->uri;
-
-                if (filter_var(trim($uri->getHost(), '[]'), FILTER_VALIDATE_IP) === false) {
-                    $addresses = array_map(
-                        static fn (string $address): string => str_contains($address, ':') ? "[{$address}]" : $address,
-                        $destination->addresses,
-                    );
-
-                    // Unnamed requests own their transport. Origin pins preserve normal proxy routing;
-                    // proxies resolving the target hostname must enforce their own destination rules.
-                    $options['curl'] = [CURLOPT_RESOLVE => [implode(':', [
-                        $destination->resolvedHost,
-                        $destination->resolvedPort,
-                        implode(',', $addresses),
-                    ])]];
                 }
             }
 
@@ -98,10 +72,20 @@ class UntrustedUrl
                 ]);
             }
 
+            $request = Http::withoutRedirecting()->withOptions($options);
+
+            if (! $trusted) {
+                try {
+                    // Origin pins preserve normal proxy routing; proxies resolving the
+                    // target hostname must enforce their own destination rules.
+                    $uri = $request->resolveDestination($policy, (string) $uri)->uri;
+                } catch (DisallowedDestinationException|DestinationResolutionException $exception) {
+                    throw new InvalidArgumentException($exception->getMessage(), previous: $exception);
+                }
+            }
+
             try {
-                $response = Http::withoutRedirecting()
-                    ->withOptions($options)
-                    ->get((string) $uri);
+                $response = $request->get((string) $uri);
             } catch (Throwable $exception) {
                 throw $exception instanceof CanceledException ? $exception : $tooLarge ?? $exception;
             }

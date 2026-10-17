@@ -126,44 +126,65 @@ final readonly class ResolvedDestination
      */
     public function curlOptions(): array
     {
-        $addresses = array_map(
-            static fn (string $address): string => str_contains($address, ':')
-                ? "[{$address}]"
-                : $address,
-            $this->addresses,
-        );
-
-        if ($this->proxy === null) {
-            $connectionHost = $this->connectionHost();
-
-            // The synthetic host lets cURL fail over across the complete vetted
-            // set without adding the real target to the handler's shared DNS cache.
-            return [
-                CURLOPT_RESOLVE => [implode(':', [
-                    "+{$connectionHost}",
-                    $this->resolvedPort,
-                    implode(',', $addresses),
-                ])],
-                CURLOPT_CONNECT_TO => [implode(':', [
-                    $this->resolvedHost,
-                    $this->resolvedPort,
-                    $connectionHost,
-                    $this->resolvedPort,
-                ])],
-            ];
+        if ($this->proxy !== null) {
+            return $this->curlResolveOptions();
         }
 
-        // Literal proxies connect to their already vetted address without DNS.
+        $connectionHost = $this->connectionHost();
+
+        // The synthetic host lets cURL fail over across the complete vetted
+        // set without adding the real target to the handler's shared DNS cache.
+        return [
+            CURLOPT_RESOLVE => [implode(':', [
+                "+{$connectionHost}",
+                $this->resolvedPort,
+                $this->curlAddresses(),
+            ])],
+            CURLOPT_CONNECT_TO => [implode(':', [
+                $this->resolvedHost,
+                $this->resolvedPort,
+                $connectionHost,
+                $this->resolvedPort,
+            ])],
+        ];
+    }
+
+    /**
+     * Pin the real hostname while preserving ordinary proxy routing.
+     *
+     * Origin pins require a request-owned handler so they cannot enter another
+     * request's shared DNS cache.
+     *
+     * @return array<int, list<string>>
+     */
+    public function curlResolveOptions(): array
+    {
+        // Literal hosts connect to their already vetted address without DNS.
         // Omitting RESOLVE also avoids its pre-8.13 restriction on IPv6 hosts.
         if (filter_var(trim($this->resolvedHost, '[]'), FILTER_VALIDATE_IP) !== false) {
             return [];
         }
 
+        CurlCapabilities::ensurePinningSupported();
+
         return [CURLOPT_RESOLVE => [implode(':', [
             $this->resolvedHost,
             $this->resolvedPort,
-            implode(',', $addresses),
+            $this->curlAddresses(),
         ])]];
+    }
+
+    /**
+     * Format the approved addresses for cURL's resolve option.
+     */
+    private function curlAddresses(): string
+    {
+        return implode(',', array_map(
+            static fn (string $address): string => str_contains($address, ':')
+                ? "[{$address}]"
+                : $address,
+            $this->addresses,
+        ));
     }
 
     /**

@@ -23,12 +23,14 @@ use GuzzleHttp\UriTemplate\UriTemplate;
 use GuzzleHttp\Utils;
 use Hypervel\Contracts\Container\Transient;
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Database\ConnectionResolver;
 use Hypervel\Http\Client\Destinations\CurlCapabilities;
 use Hypervel\Http\Client\Destinations\DestinationPolicy;
 use Hypervel\Http\Client\Destinations\DestinationPolicyException;
 use Hypervel\Http\Client\Destinations\DestinationResolutionException;
 use Hypervel\Http\Client\Destinations\DisallowedDestinationException;
 use Hypervel\Http\Client\Destinations\ProxyConnectionException;
+use Hypervel\Http\Client\Destinations\ResolvedDestination;
 use Hypervel\Http\Client\Events\ConnectionFailed;
 use Hypervel\Http\Client\Events\RequestSending;
 use Hypervel\Http\Client\Events\ResponseReceived;
@@ -592,6 +594,38 @@ class PendingRequest implements Transient
     public function withDestinationPolicy(DestinationPolicy $policy): static
     {
         return $this->withOptions([self::DESTINATION_POLICY_OPTION => $policy]);
+    }
+
+    /**
+     * Resolve and pin a destination within this request's timeout limits.
+     *
+     * Use an unnamed transport owned by this request, disable automatic
+     * redirects, and send the returned URI so its hostname matches the pins.
+     *
+     * @internal
+     */
+    public function resolveDestination(DestinationPolicy $policy, string $url): ResolvedDestination
+    {
+        ConnectionResolver::releaseIdleConnections();
+
+        [$destination, $options] = $this->resolveDestinationWithinTimeout($policy, $url, $this->getOptions());
+
+        if ($destination->proxy !== null) {
+            if ($destination->usesHttpsProxy()) {
+                CurlCapabilities::ensureHttpsProxySupported($destination->resolvedHost, $destination->resolvedPort);
+            }
+
+            // The policy vetted the proxy, so its pins must route through that proxy.
+            $options['proxy'] = $destination->proxy;
+        }
+
+        if (($pins = $destination->curlResolveOptions()) !== []) {
+            $options['curl'] = $pins;
+        }
+
+        $this->withOptions($options);
+
+        return $destination;
     }
 
     /**
@@ -2045,33 +2079,13 @@ class PendingRequest implements Transient
 
         CurlCapabilities::ensurePinningSupported();
 
-        // Guzzle treats a zero limit as unlimited, so only positive limits bound resolution.
-        $limits = [];
-
-        foreach (['connect_timeout', 'timeout'] as $option) {
-            if (is_numeric($options[$option] ?? null) && $options[$option] > 0) {
-                $limits[$option] = (float) $options[$option];
-            }
-        }
-
         try {
-            $startedAt = hrtime(true);
-            $destination = $policy->resolve(
+            [$destination, $limits] = $this->resolveDestinationWithinTimeout(
+                $policy,
                 (string) $request->getUri(),
-                $limits === [] ? self::DEFAULT_DESTINATION_RESOLUTION_TIMEOUT : min($limits),
+                $options,
             );
-            $elapsed = (hrtime(true) - $startedAt) / 1_000_000_000;
-
-            foreach ($limits as $option => $seconds) {
-                $options[$option] = $seconds - $elapsed;
-
-                // cURL counts limits in whole milliseconds, and zero would remove the limit.
-                if ($options[$option] < 0.001) {
-                    throw new DestinationResolutionException(
-                        'The request timeout ran out while resolving the destination.',
-                    );
-                }
-            }
+            $options = array_replace($options, $limits);
         } catch (ConnectionException $exception) {
             $this->dispatchConnectionFailedEvent(
                 (new Request($request))->setRequestAttributes($this->attributes),
@@ -2121,6 +2135,44 @@ class PendingRequest implements Transient
 
             return Create::rejectionFor($reason);
         });
+    }
+
+    /**
+     * Resolve a destination and deduct DNS time from the positive request limits.
+     *
+     * @param array<string, mixed> $options
+     * @return array{ResolvedDestination, array<string, float>}
+     */
+    private function resolveDestinationWithinTimeout(DestinationPolicy $policy, string $url, array $options): array
+    {
+        // Guzzle treats a zero limit as unlimited, so only positive limits bound resolution.
+        $limits = [];
+
+        foreach (['connect_timeout', 'timeout'] as $option) {
+            if (is_numeric($options[$option] ?? null) && $options[$option] > 0) {
+                $limits[$option] = (float) $options[$option];
+            }
+        }
+
+        $startedAt = hrtime(true);
+        $destination = $policy->resolve(
+            $url,
+            $limits === [] ? self::DEFAULT_DESTINATION_RESOLUTION_TIMEOUT : min($limits),
+        );
+        $elapsed = (hrtime(true) - $startedAt) / 1_000_000_000;
+
+        foreach ($limits as $option => $seconds) {
+            $limits[$option] = $seconds - $elapsed;
+
+            // cURL counts limits in whole milliseconds, and zero would remove the limit.
+            if ($limits[$option] < 0.001) {
+                throw new DestinationResolutionException(
+                    'The request timeout ran out while resolving the destination.',
+                );
+            }
+        }
+
+        return [$destination, $limits];
     }
 
     /**

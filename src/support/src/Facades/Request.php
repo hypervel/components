@@ -206,6 +206,13 @@ namespace Hypervel\Support\Facades;
 class Request extends Facade
 {
     /**
+     * Indicates if the resolved instance should be cached.
+     *
+     * The request binding reads coroutine context; caching its result would retain another request.
+     */
+    protected static bool $cached = false;
+
+    /**
      * Get the registered name of the component.
      */
     protected static function getFacadeAccessor(): string

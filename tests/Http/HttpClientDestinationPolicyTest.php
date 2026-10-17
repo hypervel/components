@@ -243,6 +243,48 @@ class HttpClientDestinationPolicyTest extends TestCase
             ->get("http://destination.invalid:{$server->port}/");
     }
 
+    public function testPreSendResolutionAppliesPinsAndDeductsFromEffectiveTimeouts(): void
+    {
+        $policy = new FakeDestinationPolicy(['destination.invalid' => ['93.184.216.34']]);
+        $request = $this->factory()->globalOptions(['timeout' => 5])
+            ->connectTimeout(2);
+
+        $destination = $request->resolveDestination($policy, 'https://destination.invalid./token');
+        $options = $request->getOptions();
+
+        $this->assertSame([2.0], $policy->timeouts);
+        $this->assertSame('https://destination.invalid/token', (string) $destination->uri);
+        $this->assertSame([CURLOPT_RESOLVE => ['destination.invalid:443:93.184.216.34']], $options['curl']);
+        $this->assertGreaterThan(0, $options['connect_timeout']);
+        $this->assertLessThan(2, $options['connect_timeout']);
+        $this->assertLessThan(5, $options['timeout']);
+        $this->assertEqualsWithDelta(3, $options['timeout'] - $options['connect_timeout'], 0.000001);
+    }
+
+    public function testPreSendResolutionUsesThePolicySelectedProxy(): void
+    {
+        $proxy = LoopbackHttpServer::start();
+        $proxyUrl = "http://proxy.invalid:{$proxy->port}";
+        $policy = new FakeDestinationPolicy(
+            ['proxy.invalid' => ['127.0.0.1']],
+            allowedNetworks: ['127.0.0.1'],
+            proxy: $proxyUrl,
+        );
+        $request = $this->factory()->globalOptions(['proxy' => 'http://other-proxy.invalid:8080'])
+            ->withoutRedirecting();
+
+        $destination = $request->resolveDestination($policy, 'http://target.invalid/probe');
+
+        $this->assertSame($proxyUrl, $request->getOptions()['proxy']);
+        $this->assertSame([
+            CURLOPT_RESOLVE => ["proxy.invalid:{$proxy->port}:127.0.0.1"],
+        ], $request->getOptions()['curl']);
+
+        $this->assertSame('OK', $request->get((string) $destination->uri)->body());
+        $this->assertStringStartsWith('GET http://target.invalid/probe HTTP/1.1', (string) $proxy->request());
+        $this->assertSame(['proxy.invalid'], $policy->resolvedHosts);
+    }
+
     public function testBoundsResolutionByTheSmallestPositiveLimit(): void
     {
         $server = LoopbackHttpServer::start();

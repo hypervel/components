@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Passport\Feature;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Passport\Client;
 use Hypervel\Testbench\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 final class ClientTest extends TestCase
 {
@@ -50,6 +51,23 @@ final class ClientTest extends TestCase
         $client = new Client(['owner_id' => 0]);
 
         $this->assertFalse($client->firstParty());
+    }
+
+    #[DataProvider('ownerlessClients')]
+    public function testOwnerlessClientTrustDependsOnItsRegistration(bool $thirdParty): void
+    {
+        $client = new Client(['owner_id' => null, 'third_party' => $thirdParty]);
+        $client->exists = true;
+
+        $this->assertSame(! $thirdParty, $client->firstParty());
+    }
+
+    /**
+     * Provide application-owned and dynamically registered clients.
+     */
+    public static function ownerlessClients(): array
+    {
+        return [[false], [true]];
     }
 
     public function testScopesWhenClientHasScope(): void

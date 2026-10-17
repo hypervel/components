@@ -5,17 +5,26 @@ declare(strict_types=1);
 namespace Hypervel\Ai\Gateway\Concerns;
 
 use Generator;
+use Hypervel\Http\Client\LineReader;
 use Psr\Http\Message\StreamInterface;
+use WeakMap;
 
 trait ParsesServerSentEvents
 {
+    /**
+     * Isolate pending bytes while readLine overrides still receive the original stream.
+     *
+     * @var null|WeakMap<StreamInterface, LineReader>
+     */
+    private ?WeakMap $lineReaders = null;
+
     /**
      * Parse an SSE stream body into decoded JSON data objects.
      */
     protected function parseServerSentEvents(StreamInterface $streamBody): Generator
     {
-        while (! $streamBody->eof()) {
-            $line = trim($this->readLine($streamBody));
+        while (($line = $this->readLine($streamBody)) !== '' || ! $streamBody->eof()) {
+            $line = trim($line);
             if ($line === '') {
                 continue;
             }
@@ -38,26 +47,12 @@ trait ParsesServerSentEvents
     }
 
     /**
-     * Read a single line from the stream, byte by byte, to prevent event batching.
+     * Read one line without waiting for a larger body buffer to fill.
      */
     protected function readLine(StreamInterface $streamBody): string
     {
-        $buffer = '';
+        $this->lineReaders ??= new WeakMap;
 
-        while (! $streamBody->eof()) {
-            $byte = $streamBody->read(1);
-
-            if ($byte === '') {
-                return $buffer;
-            }
-
-            $buffer .= $byte;
-
-            if ($byte === "\n") {
-                break;
-            }
-        }
-
-        return $buffer;
+        return ($this->lineReaders[$streamBody] ??= new LineReader)->readLine($streamBody);
     }
 }

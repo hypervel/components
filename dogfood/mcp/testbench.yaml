@@ -1,0 +1,22 @@
+hypervel: '@testbench'
+
+env:
+  OTEL_SDK_DISABLED: true
+  REVERB_ENABLED: false
+  SESSION_DRIVER: array
+
+providers:
+  - Workbench\App\Providers\WorkbenchServiceProvider
+
+workbench:
+  start: '/conformance'
+  install: true
+  health: false
+  discovers:
+    config: false
+    web: false
+    api: false
+    commands: false
+    components: false
+    factories: false
+    views: false

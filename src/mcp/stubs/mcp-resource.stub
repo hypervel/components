@@ -1,0 +1,24 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ namespace }};
+
+use Hypervel\Mcp\Request;
+use Hypervel\Mcp\Response;
+use Hypervel\Mcp\Server\Attributes\Description;
+use Hypervel\Mcp\Server\Resource;
+
+#[Description('A description of what this resource contains.')]
+class {{ class }} extends Resource
+{
+    /**
+     * Handle the resource request.
+     */
+    public function handle(Request $request): Response
+    {
+        //
+
+        return Response::text('The resource content.');
+    }
+}
