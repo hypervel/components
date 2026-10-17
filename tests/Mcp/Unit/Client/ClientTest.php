@@ -11,6 +11,7 @@ use Hypervel\Mcp\Exceptions\JsonRpcException;
 use Hypervel\Mcp\WebClient;
 use Hypervel\Tests\Mcp\Fixtures\Client\FakeTransport;
 use Hypervel\Tests\Mcp\TestCase;
+use PHPUnit\Framework\Attributes\TestWith;
 use stdClass;
 
 use function Hypervel\Tests\Mcp\Fixtures\initializeResponse;
@@ -303,13 +304,15 @@ class ClientTest extends TestCase
         $client->connect();
     }
 
-    public function testRespondsToServerInitiatedPingRequestsWithAnEmptyResult(): void
+    #[TestWith(['server-ping-1'])]
+    #[TestWith([3])]
+    public function testRespondsToServerInitiatedPingRequestsWithAnEmptyResult(string|int $serverRequestId): void
     {
         $transport = new FakeTransport;
         $transport->responses[] = initializeResponse();
         $transport->responses[] = json_encode([
             'jsonrpc' => '2.0',
-            'id' => 'server-ping-1',
+            'id' => $serverRequestId,
             'method' => 'ping',
         ]);
         $transport->responses[] = pingResponse(2);
@@ -318,18 +321,20 @@ class ClientTest extends TestCase
         $client->ping();
 
         $pingReply = json_decode($transport->sent[3], true);
-        $this->assertSame('server-ping-1', $pingReply['id']);
+        $this->assertSame($serverRequestId, $pingReply['id']);
         $this->assertSame([], $pingReply['result']);
         $this->assertArrayNotHasKey('error', $pingReply);
     }
 
-    public function testRespondsWithMethodNotFoundToUnsupportedServerInitiatedRequests(): void
+    #[TestWith(['sampling-1'])]
+    #[TestWith([3])]
+    public function testRespondsWithMethodNotFoundToUnsupportedServerInitiatedRequests(string|int $serverRequestId): void
     {
         $transport = new FakeTransport;
         $transport->responses[] = initializeResponse();
         $transport->responses[] = json_encode([
             'jsonrpc' => '2.0',
-            'id' => 'sampling-1',
+            'id' => $serverRequestId,
             'method' => 'sampling/createMessage',
             'params' => ['messages' => []],
         ]);
@@ -339,7 +344,7 @@ class ClientTest extends TestCase
         $client->ping();
 
         $errorReply = json_decode($transport->sent[3], true);
-        $this->assertSame('sampling-1', $errorReply['id']);
+        $this->assertSame($serverRequestId, $errorReply['id']);
         $this->assertSame(-32601, $errorReply['error']['code']);
         $this->assertStringContainsString('sampling/createMessage', $errorReply['error']['message']);
         $this->assertArrayNotHasKey('result', $errorReply);

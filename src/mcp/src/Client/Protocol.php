@@ -473,8 +473,10 @@ class Protocol
 
                 $this->handleServerRequest($response);
 
+                // Each direction allocates request IDs independently.
                 $responseId = Arr::get($response, 'id');
-            } while ($responseId !== $request->id && ($responseId !== null || ! Arr::has($response, 'error')));
+            } while (is_string(Arr::get($response, 'method'))
+                || ($responseId !== $request->id && ($responseId !== null || ! Arr::has($response, 'error'))));
 
             $hasResult = Arr::has($response, 'result');
             $hasError = Arr::has($response, 'error');
