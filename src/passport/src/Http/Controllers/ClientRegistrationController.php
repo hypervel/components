@@ -158,7 +158,7 @@ class ClientRegistrationController
             $client = Passport::client()->forceFill($attributes);
         }
 
-        if (! $client->saveOrFail()) {
+        if (! $client->save()) {
             throw new RuntimeException('Client registration was canceled by a model observer.');
         }
 
