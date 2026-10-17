@@ -4,11 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Passport\Feature;
 
+use DateInterval;
+use Hypervel\Auth\PasswordConfirmation;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Http\Request;
 use Hypervel\Passport\Client;
+use Hypervel\Passport\Consent;
 use Hypervel\Passport\Database\Factories\ClientFactory;
+use Hypervel\Passport\Events\AuthorizationRequestValidated;
 use Hypervel\Passport\Passport;
+use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Exceptions;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\Str;
@@ -16,7 +21,6 @@ use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\Concerns\WithHypervelMigrations;
 use Hypervel\Tests\Passport\Fixtures\UserFactory;
 use League\OAuth2\Server\Exception\OAuthServerException;
-use League\OAuth2\Server\RequestTypes\AuthorizationRequestInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 
@@ -50,7 +54,7 @@ class AuthorizationCodeGrantTest extends PassportTestCase
             'redirect_uri' => $redirect = $client->redirect_uris[0],
             'response_type' => 'code',
             'scope' => 'create read',
-            'state' => $state = Str::random(40),
+            'state' => $state = ' original state ',
         ]);
 
         $user = UserFactory::new()->create();
@@ -59,15 +63,14 @@ class AuthorizationCodeGrantTest extends PassportTestCase
         $response = $this->get('/oauth/authorize?' . $query);
 
         $response->assertOk();
-        $response->assertSessionHas('authRequest');
-        $response->assertSessionHas('authToken');
         $json = $response->json();
-        $this->assertEqualsCanonicalizing(['client', 'user', 'scopes', 'request', 'authToken'], array_keys($json));
+        $response->assertSessionHas('passport.authorizations.' . $json['authToken']);
+        $this->assertEqualsCanonicalizing(['client', 'user', 'scopes', 'permissions', 'request', 'authToken'], array_keys($json));
         $this->assertSame(collect(Passport::scopesFor(['create', 'read']))->toArray(), $json['scopes']);
 
-        $response = $this->post('/oauth/authorize', ['auth_token' => $json['authToken']]);
+        $response = $this->post('/oauth/authorize/consent', ['auth_token' => $json['authToken']]);
         $response->assertRedirect();
-        $response->assertSessionMissing(['authRequest', 'authToken']);
+        $response->assertSessionMissing('passport.authorizations.' . $json['authToken']);
 
         $location = $response->headers->get('Location');
         parse_str(parse_url($location, PHP_URL_QUERY), $params);
@@ -117,9 +120,9 @@ class AuthorizationCodeGrantTest extends PassportTestCase
         $this->actingAs($user, 'web');
         $json = $this->get('/oauth/authorize?' . $query)->json();
 
-        $response = $this->delete('/oauth/authorize', ['auth_token' => $json['authToken']]);
+        $response = $this->delete('/oauth/authorize/consent', ['auth_token' => $json['authToken']]);
         $response->assertRedirect();
-        $response->assertSessionMissing(['authRequest', 'authToken']);
+        $response->assertSessionMissing('passport.authorizations.' . $json['authToken']);
 
         $location = $response->headers->get('Location');
         parse_str(parse_url($location, PHP_URL_QUERY), $params);
@@ -146,7 +149,7 @@ class AuthorizationCodeGrantTest extends PassportTestCase
         $this->actingAs($user, 'web');
         $json = $this->get('/oauth/authorize?' . $query)->json();
 
-        $response = $this->post('/oauth/authorize', ['auth_token' => $json['authToken']]);
+        $response = $this->post('/oauth/authorize/consent', ['auth_token' => $json['authToken']]);
         parse_str(parse_url($response->headers->get('Location'), PHP_URL_QUERY), $params);
 
         $this->post('/oauth/token', [
@@ -176,7 +179,7 @@ class AuthorizationCodeGrantTest extends PassportTestCase
         $this->assertArrayHasKey('code', $params);
     }
 
-    public function testSkipsAuthorizationWhenHasActiveTokensAndEmptyScope(): void
+    public function testSkipsAuthorizationWhenHasRememberedConsentAndEmptyScope(): void
     {
         $client = ClientFactory::new()->create();
 
@@ -192,7 +195,7 @@ class AuthorizationCodeGrantTest extends PassportTestCase
         $this->actingAs($user, 'web');
         $json = $this->get('/oauth/authorize?' . $query)->json();
 
-        $response = $this->post('/oauth/authorize', ['auth_token' => $json['authToken']]);
+        $response = $this->post('/oauth/authorize/consent', ['auth_token' => $json['authToken']]);
         parse_str(parse_url($response->headers->get('Location'), PHP_URL_QUERY), $params);
 
         $this->post('/oauth/token', [
@@ -238,7 +241,7 @@ class AuthorizationCodeGrantTest extends PassportTestCase
         $this->actingAs($user, 'web');
         $json = $this->get('/oauth/authorize?' . $query)->json();
 
-        $response = $this->post('/oauth/authorize', ['auth_token' => $json['authToken']]);
+        $response = $this->post('/oauth/authorize/consent', ['auth_token' => $json['authToken']]);
         parse_str(parse_url($response->headers->get('Location'), PHP_URL_QUERY), $params);
 
         $this->post('/oauth/token', [
@@ -260,16 +263,19 @@ class AuthorizationCodeGrantTest extends PassportTestCase
         $response = $this->get('/oauth/authorize?' . $query);
 
         $response->assertOk();
-        $response->assertSessionHas('authRequest');
-        $response->assertSessionHas('authToken');
         $json = $response->json();
-        $this->assertEqualsCanonicalizing(['client', 'user', 'scopes', 'request', 'authToken'], array_keys($json));
+        $response->assertSessionHas('passport.authorizations.' . $json['authToken']);
+        $this->assertEqualsCanonicalizing(['client', 'user', 'scopes', 'permissions', 'request', 'authToken'], array_keys($json));
         $this->assertSame(collect(Passport::scopesFor(['create', 'update']))->toArray(), $json['scopes']);
     }
 
     #[WithConfig('session.serialization', 'json')]
-    public function testAuthRequestSerialization(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testAuthRequestSerialization(bool $relative): void
     {
+        $this->travelTo(now()->setDate(2026, 10, 18)->setTime(23, 59));
+        Passport::rememberConsentFor($relative ? DateInterval::createFromDateString('next weekday') : now()->addDays(30));
         $client = ClientFactory::new()->create();
 
         $query = http_build_query([
@@ -284,16 +290,17 @@ class AuthorizationCodeGrantTest extends PassportTestCase
 
         $json = $this->get('/oauth/authorize?' . $query)
             ->assertOk()
-            ->assertSessionHas('authRequest')
-            ->assertSessionHas('authToken')
+            ->assertSessionHas('passport.authorizations')
             ->json();
 
-        $this->assertEqualsCanonicalizing(['client', 'user', 'scopes', 'request', 'authToken'], array_keys($json));
+        $this->assertEqualsCanonicalizing(['client', 'user', 'scopes', 'permissions', 'request', 'authToken'], array_keys($json));
         $this->assertSame(collect(Passport::scopesFor(['create', 'read']))->toArray(), $json['scopes']);
 
-        $this->post('/oauth/authorize', ['auth_token' => $json['authToken']])
+        $this->travel(2)->minutes();
+        $this->post('/oauth/authorize/consent', ['auth_token' => $json['authToken']])
             ->assertRedirect()
-            ->assertSessionMissing(['authRequest', 'authToken']);
+            ->assertSessionMissing('passport.authorizations.' . $json['authToken']);
+        $this->assertTrue(Consent::sole()->remembered_until->equalTo(now()->add(Passport::rememberConsentFor())));
     }
 
     public function testValidateAuthorizationRequest(): void
@@ -350,8 +357,8 @@ class AuthorizationCodeGrantTest extends PassportTestCase
         ]);
 
         $response = $this->get('/oauth/authorize?' . $query);
-        $response->assertSessionHas('promptedForLogin', true);
-        $response->assertRedirectToRoute('login');
+        $resumeUrl = $response->assertRedirect()->headers->get('Location');
+        $this->get($resumeUrl)->assertRedirectToRoute('login')->assertSessionHas('url.intended', $resumeUrl);
     }
 
     public function testPromptNone(): void
@@ -421,7 +428,7 @@ class AuthorizationCodeGrantTest extends PassportTestCase
         $this->actingAs($user, 'web');
         $json = $this->get('/oauth/authorize?' . $query)->json();
 
-        $response = $this->post('/oauth/authorize', ['auth_token' => $json['authToken']]);
+        $response = $this->post('/oauth/authorize/consent', ['auth_token' => $json['authToken']]);
         parse_str(parse_url($response->headers->get('Location'), PHP_URL_QUERY), $params);
 
         $this->post('/oauth/token', [
@@ -444,16 +451,15 @@ class AuthorizationCodeGrantTest extends PassportTestCase
         $response = $this->get('/oauth/authorize?' . $query);
 
         $response->assertOk();
-        $response->assertSessionHas('authRequest');
-        $response->assertSessionHas('authToken');
         $json = $response->json();
-        $this->assertEqualsCanonicalizing(['client', 'user', 'scopes', 'request', 'authToken'], array_keys($json));
+        $response->assertSessionHas('passport.authorizations.' . $json['authToken']);
+        $this->assertEqualsCanonicalizing(['client', 'user', 'scopes', 'permissions', 'request', 'authToken'], array_keys($json));
         $this->assertSame(collect(Passport::scopesFor(['create', 'read']))->toArray(), $json['scopes']);
     }
 
     public function testPromptLogin(): void
     {
-        Route::get('/foo', fn () => '')->name('login');
+        Route::get('/confirm', fn () => '')->name('password.confirm');
 
         $client = ClientFactory::new()->create();
 
@@ -470,9 +476,8 @@ class AuthorizationCodeGrantTest extends PassportTestCase
         $this->actingAs($user, 'web');
         $response = $this->get('/oauth/authorize?' . $query);
 
-        $response->assertSessionHas('promptedForLogin', true);
-        $response->assertRedirectToRoute('login');
-        $this->assertGuest('web');
+        $response->assertRedirectToRoute('password.confirm');
+        $this->assertAuthenticatedAs($user, 'web');
     }
 
     public function testSkipsAuthorizationWhenClientSkipsAuthorization(): void
@@ -492,7 +497,7 @@ class AuthorizationCodeGrantTest extends PassportTestCase
 
         $response = $this->get('/oauth/authorize?' . $query);
         $response->assertRedirect();
-        $response->assertSessionMissing(['authRequest', 'authToken']);
+        $response->assertSessionMissing('passport.authorizations');
 
         $location = $response->headers->get('Location');
         parse_str(parse_url($location, PHP_URL_QUERY), $params);
@@ -506,16 +511,13 @@ class AuthorizationCodeGrantTest extends PassportTestCase
     {
         $this->actingAs(UserFactory::new()->create(), 'web');
 
-        $this->withoutExceptionHandling();
-        $this->expectExceptionMessage('Authorization request was not present in the session.');
-
-        $this->withSession(['authToken' => 'token'])
-            ->post('/oauth/authorize', ['auth_token' => 'token']);
+        $this->post('/oauth/authorize/consent', ['auth_token' => 'token'])->assertForbidden();
+        $this->assertDatabaseCount('oauth_auth_codes', 0);
     }
 
     public function testPromptLoginConsent(): void
     {
-        Route::get('/foo', fn () => '')->name('login');
+        Route::get('/confirm', fn () => '')->name('password.confirm');
 
         $client = ClientFactory::new()->create();
 
@@ -531,7 +533,7 @@ class AuthorizationCodeGrantTest extends PassportTestCase
         $this->actingAs($user, 'web');
         $json = $this->get('/oauth/authorize?' . $query)->json();
 
-        $response = $this->post('/oauth/authorize', ['auth_token' => $json['authToken']]);
+        $response = $this->post('/oauth/authorize/consent', ['auth_token' => $json['authToken']]);
         parse_str(parse_url($response->headers->get('Location'), PHP_URL_QUERY), $params);
 
         $this->post('/oauth/token', [
@@ -552,20 +554,15 @@ class AuthorizationCodeGrantTest extends PassportTestCase
         ]);
 
         $this->get('/oauth/authorize?' . $query)
-            ->assertSessionHas('promptedForLogin', true)
-            ->assertRedirectToRoute('login');
+            ->assertRedirectToRoute('password.confirm');
 
         $intendedUrl = session()->get('url.intended');
-        parse_str(parse_url($intendedUrl, PHP_URL_QUERY), $params);
-
-        $this->actingAs($user, 'web');
-        $json = $this->get($intendedUrl)
+        $json = $this->withSession([PasswordConfirmation::sessionKey('web') => now()->getTimestamp()])->get($intendedUrl)
             ->assertOk()
-            ->assertSessionHas('authRequest')
-            ->assertSessionHas('authToken')
+            ->assertSessionHas('passport.authorizations')
             ->json();
 
-        $this->assertEqualsCanonicalizing(['client', 'user', 'scopes', 'request', 'authToken'], array_keys($json));
+        $this->assertEqualsCanonicalizing(['client', 'user', 'scopes', 'permissions', 'request', 'authToken'], array_keys($json));
         $this->assertSame(collect(Passport::scopesFor(['create', 'read']))->toArray(), $json['scopes']);
     }
 
@@ -590,7 +587,7 @@ class AuthorizationCodeGrantTest extends PassportTestCase
 
         $this->assertStringStartsWith($redirect . '?', $location);
         $this->assertSame($state, $params['state']);
-        $this->assertSame('consent_required', $params['error']);
+        $this->assertSame('invalid_request', $params['error']);
         $this->assertArrayHasKey('error_description', $params);
     }
 
@@ -609,10 +606,10 @@ class AuthorizationCodeGrantTest extends PassportTestCase
         $user = UserFactory::new()->create();
         $this->actingAs($user, 'web');
 
-        $json = $this->get('/oauth/authorize?' . $query)
-            ->assertBadRequest()
-            ->assertSessionMissing(['authRequest', 'authToken'])
-            ->json();
+        $response = $this->get('/oauth/authorize?' . $query)
+            ->assertRedirect()
+            ->assertSessionMissing('passport.authorizations');
+        parse_str(parse_url($response->headers->get('Location'), PHP_URL_QUERY), $json);
 
         $this->assertSame('unauthorized_client', $json['error']);
         $this->assertSame(
@@ -640,7 +637,7 @@ class AuthorizationCodeGrantTest extends PassportTestCase
             ->assertOk()
             ->json('authToken');
 
-        $response = $this->post('/oauth/authorize', ['auth_token' => $authToken])->assertRedirect();
+        $response = $this->post('/oauth/authorize/consent', ['auth_token' => $authToken])->assertRedirect();
         parse_str(parse_url($response->headers->get('Location'), PHP_URL_QUERY), $params);
 
         $json = $this->post('/oauth/token', [
@@ -675,9 +672,9 @@ class AuthorizationCodeGrantTest extends PassportTestCase
         ]))->assertOk()->json('authToken');
 
         $this->actingAs($changeProvider ? $user : UserFactory::new()->create(), $changeProvider ? 'staff' : 'web');
-        $this->{$method}('/oauth/authorize', ['auth_token' => $authToken])
+        $this->{$method}('/oauth/authorize/consent', ['auth_token' => $authToken])
             ->assertForbidden()
-            ->assertSessionMissing(['authRequest', 'authToken', 'authAttributes']);
+            ->assertSessionMissing('passport.authorizations.' . $authToken);
         $this->assertDatabaseCount('oauth_auth_codes', 0);
     }
 
@@ -711,10 +708,15 @@ class AuthorizationCodeGrantTest extends PassportTestCase
             'scope' => Passport::tokensCan([]),
         };
 
-        $this->{$method}('/oauth/authorize', ['auth_token' => $authToken])
-            ->assertBadRequest()
-            ->assertHeaderMissing('Location')
-            ->assertJsonPath('error', $error);
+        $response = $this->{$method}('/oauth/authorize/consent', ['auth_token' => $authToken]);
+
+        if (in_array($change, ['revoked', 'redirect'], true)) {
+            $response->assertUnauthorized()->assertHeaderMissing('Location')->assertJsonPath('error', $error);
+        } else {
+            $response->assertRedirect();
+            parse_str(parse_url($response->headers->get('Location'), PHP_URL_QUERY), $parameters);
+            $this->assertSame($error, $parameters['error']);
+        }
         $this->assertDatabaseCount('oauth_auth_codes', 0);
     }
 
@@ -724,18 +726,23 @@ class AuthorizationCodeGrantTest extends PassportTestCase
     public static function changedClients(): iterable
     {
         foreach (['post', 'delete'] as $method) {
-            yield $method . ' revoked' => [$method, 'revoked', 'unauthorized_client'];
-            yield $method . ' redirect' => [$method, 'redirect', 'invalid_request'];
+            yield $method . ' revoked' => [$method, 'revoked', 'invalid_client'];
+            yield $method . ' redirect' => [$method, 'redirect', 'invalid_client'];
             yield $method . ' grant' => [$method, 'grant', 'unauthorized_client'];
             yield $method . ' provider' => [$method, 'provider', 'unauthorized_client'];
             yield $method . ' scope' => [$method, 'scope', 'invalid_scope'];
         }
     }
 
-    public function testAClientWithAProviderRejectsUsersOfAnotherProvider(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testAClientWithAProviderRejectsUsersOfAnotherProvider(bool $authenticated): void
     {
         $client = ClientFactory::new()->create(['provider' => 'staff']);
-        $this->actingAs(UserFactory::new()->create(), 'web');
+
+        if ($authenticated) {
+            $this->actingAs(UserFactory::new()->create(), 'web');
+        }
 
         $this->get('/oauth/authorize?' . http_build_query([
             'client_id' => $client->getKey(),
@@ -762,15 +769,15 @@ class AuthorizationCodeGrantTest extends PassportTestCase
 
     #[TestWith(['login', 'login_required'])]
     #[TestWith(['consent', 'consent_required'])]
+    #[TestWith(['select_account', 'account_selection_required'])]
     public function testAdditionalPromptsRespectSilentAuthorization(string $prompt, string $error): void
     {
         $client = ClientFactory::new()->create();
         $this->actingAs(UserFactory::new()->create(), 'web');
-        Passport::resolvePromptsUsing(function (Request $request, AuthorizationRequestInterface $authorization) use ($client, $prompt): array {
-            $this->assertSame('none', $request->query('prompt'));
-            $this->assertSame($client->getKey(), $authorization->getClient()->getIdentifier());
-
-            return [$prompt];
+        Event::listen(AuthorizationRequestValidated::class, function (AuthorizationRequestValidated $event) use ($client, $prompt): void {
+            $this->assertSame('none', $event->parameters['prompt']);
+            $this->assertSame($client->getKey(), $event->authorizationRequest->getClient()->getIdentifier());
+            $event->prompts[] = $prompt;
         });
 
         $response = $this->get('/oauth/authorize?' . http_build_query([
@@ -787,23 +794,51 @@ class AuthorizationCodeGrantTest extends PassportTestCase
         $this->assertDatabaseCount('oauth_auth_codes', 0);
     }
 
+    #[TestWith([false, false])]
+    #[TestWith([true, false])]
+    #[TestWith([false, true])]
+    public function testAccountSelectionWithoutARegisteredViewReturnsAProtocolError(bool $viewPrefix, bool $authenticated): void
+    {
+        if ($viewPrefix) {
+            Passport::viewPrefix('auth');
+        }
+
+        $client = ClientFactory::new()->create();
+
+        if ($authenticated) {
+            $this->actingAs(UserFactory::new()->create(), 'web');
+        }
+
+        $response = $this->get('/oauth/authorize?' . http_build_query([
+            'client_id' => $client->id, 'response_type' => 'code',
+            'prompt' => $authenticated ? 'login select_account' : 'select_account', 'state' => 'original-state',
+        ]))->assertRedirect();
+
+        parse_str(parse_url($response->headers->get('Location'), PHP_URL_QUERY), $parameters);
+        $this->assertSame('account_selection_required', $parameters['error']);
+        $this->assertSame('original-state', $parameters['state']);
+        $this->assertDatabaseCount('oauth_auth_codes', 0);
+    }
+
     public function testAnAdditionalLoginPromptRequiresLoginWithoutLooping(): void
     {
-        Route::get('/login', fn (): string => 'Login')->name('login');
+        Route::get('/confirm', fn (): string => 'Confirm')->name('password.confirm');
         $client = ClientFactory::new()->create();
         $user = UserFactory::new()->create();
         $this->actingAs($user, 'web');
-        Passport::resolvePromptsUsing(static fn (): array => ['login']);
+        Event::listen(AuthorizationRequestValidated::class, static function (AuthorizationRequestValidated $event): void {
+            $event->prompts[] = 'login';
+        });
         $url = '/oauth/authorize?' . http_build_query([
             'client_id' => $client->getKey(),
             'response_type' => 'code',
         ]);
 
-        $this->get($url)->assertRedirectToRoute('login')->assertSessionHas('promptedForLogin', true);
-        $this->assertGuest('web');
-
-        $this->actingAs($user, 'web');
-        $this->get($url)->assertOk()->assertSessionMissing('promptedForLogin')->assertSessionHas('authRequest');
+        $this->get($url)->assertRedirectToRoute('password.confirm');
+        $this->assertAuthenticatedAs($user, 'web');
+        $resumeUrl = session()->get('url.intended');
+        $this->withSession([PasswordConfirmation::sessionKey('web') => now()->getTimestamp()])
+            ->get($resumeUrl)->assertOk()->assertSessionHas('passport.authorizations');
     }
 
     public function testAnAdditionalConsentPromptPreventsAutomaticApproval(): void
@@ -811,24 +846,28 @@ class AuthorizationCodeGrantTest extends PassportTestCase
         Passport::useClientModel(AuthorizationCodeGrantTestSkipsAuthorizationClient::class);
         $client = ClientFactory::new()->create();
         $this->actingAs(UserFactory::new()->create(), 'web');
-        Passport::resolvePromptsUsing(static fn (): array => ['consent']);
+        Event::listen(AuthorizationRequestValidated::class, static function (AuthorizationRequestValidated $event): void {
+            $event->prompts[] = 'consent';
+        });
 
         $this->get('/oauth/authorize?' . http_build_query([
             'client_id' => $client->getKey(),
             'response_type' => 'code',
-        ]))->assertOk()->assertSessionHas('authRequest')->assertHeader('X-Frame-Options', 'SAMEORIGIN');
+        ]))->assertOk()->assertSessionHas('passport.authorizations')->assertHeader('X-Frame-Options', 'SAMEORIGIN');
         $this->assertDatabaseCount('oauth_auth_codes', 0);
     }
 
     public function testPromptValidationErrorsBecomeOAuthResponses(): void
     {
         $client = ClientFactory::new()->create();
-        Passport::resolvePromptsUsing(static fn (): never => throw OAuthServerException::invalidRequest('max_age'));
+        Event::listen(AuthorizationRequestValidated::class, static fn (): never => throw OAuthServerException::invalidRequest('max_age'));
 
-        $this->get('/oauth/authorize?' . http_build_query([
+        $response = $this->get('/oauth/authorize?' . http_build_query([
             'client_id' => $client->getKey(),
             'response_type' => 'code',
-        ]))->assertBadRequest()->assertJsonPath('error', 'invalid_request');
+        ]))->assertRedirect();
+        parse_str(parse_url($response->headers->get('Location'), PHP_URL_QUERY), $parameters);
+        $this->assertSame('invalid_request', $parameters['error']);
         $this->assertDatabaseCount('oauth_auth_codes', 0);
     }
 
@@ -836,14 +875,12 @@ class AuthorizationCodeGrantTest extends PassportTestCase
     {
         $client = ClientFactory::new()->create();
         $user = UserFactory::new()->create();
-        $token = Passport::token()->forceCreate([
-            'id' => Str::random(80),
+        $consent = Consent::factory()->create([
             'client_id' => $client->getKey(),
             'user_id' => $user->getKey(),
             'provider' => 'staff',
             'scopes' => ['read'],
-            'revoked' => false,
-            'expires_at' => now()->addHour(),
+            'remembered_until' => now()->addHour(),
         ]);
         $this->actingAs($user, 'web');
         $url = '/oauth/authorize?' . http_build_query([
@@ -852,10 +889,10 @@ class AuthorizationCodeGrantTest extends PassportTestCase
             'scope' => 'read',
         ]);
 
-        $this->get($url)->assertOk()->assertSessionHas('authRequest');
+        $this->get($url)->assertOk()->assertSessionHas('passport.authorizations');
         $this->assertDatabaseCount('oauth_auth_codes', 0);
 
-        $token->forceFill(['provider' => 'users'])->save();
+        $consent->forceFill(['provider' => 'users'])->save();
         $this->get($url)->assertRedirect();
         $this->assertDatabaseCount('oauth_auth_codes', 1);
     }
@@ -874,7 +911,7 @@ class AuthorizationCodeGrantTest extends PassportTestCase
         }
 
         $authToken = $this->get('/oauth/authorize?' . http_build_query($query))->assertOk()->json('authToken');
-        $response = $this->post('/oauth/authorize', ['auth_token' => $authToken])->assertRedirect();
+        $response = $this->post('/oauth/authorize/consent', ['auth_token' => $authToken])->assertRedirect();
 
         $this->assertStringStartsWith($destination . '?', $response->headers->get('Location'));
         parse_str(parse_url($response->headers->get('Location'), PHP_URL_QUERY), $parameters);

@@ -273,7 +273,7 @@ class RefreshTokenGrantTest extends PassportTestCase
             'scope' => 'create read delete',
         ]))->assertOk()->json('authToken');
 
-        $redirectUrl = $this->post('/oauth/authorize', ['auth_token' => $authToken])->assertRedirect()->headers->get('Location');
+        $redirectUrl = $this->post('/oauth/authorize/consent', ['auth_token' => $authToken])->assertRedirect()->headers->get('Location');
         parse_str(parse_url($redirectUrl, PHP_URL_QUERY), $params);
 
         return $this->post('/oauth/token', [

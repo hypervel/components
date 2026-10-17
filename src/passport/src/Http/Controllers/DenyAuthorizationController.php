@@ -7,9 +7,12 @@ namespace Hypervel\Passport\Http\Controllers;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Http\Request;
-use Hypervel\Passport\Bridge\TokenIssuance;
+use Hypervel\Passport\AuthorizationRequestResolver;
 use Hypervel\Passport\ClientRepository;
+use Hypervel\Passport\Http\Responses\AuthorizationResponse;
+use Hypervel\Passport\PendingAuthorizationRepository;
 use Hypervel\Passport\ServerFactory;
+use League\OAuth2\Server\Exception\OAuthServerException;
 use Psr\Http\Message\ResponseInterface;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -28,6 +31,9 @@ class DenyAuthorizationController
         protected AuthManager $auth,
         protected Repository $config,
         protected ClientRepository $clients,
+        protected PendingAuthorizationRepository $pending,
+        protected AuthorizationRequestResolver $authorizations,
+        protected AuthorizationResponse $responses,
     ) {
     }
 
@@ -36,15 +42,17 @@ class DenyAuthorizationController
      */
     public function deny(Request $request, ResponseInterface $psrResponse): Response
     {
-        return $this->withErrorHandling(function () use ($request, $psrResponse): Response {
-            $authRequest = $this->getAuthRequestFromSession($request);
-            $attributes = $request->session()->pull('authAttributes', []);
+        $pending = $this->getPendingAuthorization($request);
 
-            $authRequest->setAuthorizationApproved(false);
+        return $this->withAuthorizationErrorHandling(function () use ($request, $pending): Response {
+            $this->getAuthRequestFromSession($request);
 
-            return TokenIssuance::run($this->servers, fn () => $this->convertResponse(
-                $this->servers->authorizationServer()->completeAuthorizationRequest($authRequest, $psrResponse)
-            ), $attributes);
-        });
+            return $this->responses->error(
+                OAuthServerException::accessDenied(),
+                $pending['redirect_uri'],
+                $pending['parameters']['state'] ?? null,
+                $pending['response_mode'],
+            );
+        }, $pending, $this->responses);
     }
 }

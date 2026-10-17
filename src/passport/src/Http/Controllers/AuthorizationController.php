@@ -5,21 +5,33 @@ declare(strict_types=1);
 namespace Hypervel\Passport\Http\Controllers;
 
 use Hypervel\Auth\AuthManager;
+use Hypervel\Auth\PasswordConfirmation;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Config\Repository;
+use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Http\Exceptions\HttpResponseException;
 use Hypervel\Http\Request;
-use Hypervel\Passport\Bridge\TokenIssuance;
+use Hypervel\Passport\AuthorizationFinalizer;
+use Hypervel\Passport\AuthorizationRequestResolver;
 use Hypervel\Passport\Bridge\User;
 use Hypervel\Passport\Client;
 use Hypervel\Passport\ClientRepository;
+use Hypervel\Passport\ConsentRepository;
+use Hypervel\Passport\Contracts\AccountSelectionViewResponse;
 use Hypervel\Passport\Contracts\AuthorizationViewResponse;
+use Hypervel\Passport\Contracts\ReauthenticationResponse;
+use Hypervel\Passport\Enums\AuthorizationApproval;
+use Hypervel\Passport\Events\AuthorizationRequestValidated;
 use Hypervel\Passport\Exceptions\AuthenticationException;
+use Hypervel\Passport\Exceptions\InvalidAuthTokenException;
 use Hypervel\Passport\Exceptions\OAuthServerException;
+use Hypervel\Passport\Http\RequestParameters;
+use Hypervel\Passport\Http\Responses\AuthorizationResponse;
 use Hypervel\Passport\Passport;
+use Hypervel\Passport\PendingAuthorizationRepository;
 use Hypervel\Passport\Scope;
 use Hypervel\Passport\ServerFactory;
 use Hypervel\Support\Facades\Date;
-use Hypervel\Support\Str;
 use League\OAuth2\Server\Entities\ScopeEntityInterface;
 use League\OAuth2\Server\Exception\OAuthServerException as LeagueException;
 use League\OAuth2\Server\RequestTypes\AuthorizationRequestInterface;
@@ -41,7 +53,29 @@ class AuthorizationController
         protected AuthManager $auth,
         protected ClientRepository $clients,
         protected Repository $config,
+        protected AuthorizationRequestResolver $authorizations,
+        protected PendingAuthorizationRepository $pending,
+        protected ConsentRepository $consents,
+        protected AuthorizationFinalizer $finalizer,
+        protected AuthorizationResponse $responses,
+        protected Dispatcher $events,
     ) {
+    }
+
+    /**
+     * Turn a cross-site protocol form into a top-level GET without touching its session.
+     */
+    public function store(Request $request): Response
+    {
+        return $this->withErrorHandling(function () use ($request): Response {
+            if (strtolower(explode(';', $request->header('Content-Type', ''))[0]) !== 'application/x-www-form-urlencoded') {
+                throw LeagueException::invalidRequest('request', 'Authorization POST requests must use form encoding.');
+            }
+
+            $parameters = RequestParameters::fromRequest($request);
+
+            return redirect()->to(route('passport.authorizations.authorize') . '?' . RequestParameters::toQuery($parameters), 303);
+        });
     }
 
     /**
@@ -53,97 +87,285 @@ class AuthorizationController
         ResponseInterface $psrResponse,
         AuthorizationViewResponse $viewResponse
     ): Response|AuthorizationViewResponse {
-        $authRequest = $this->withErrorHandling(
-            fn (): AuthorizationRequestInterface => $this->servers->authorizationServer()->validateAuthorizationRequest($psrRequest)
+        $parameters = $this->withErrorHandling(fn (): array => RequestParameters::fromRequest($request));
+        $authRequest = $this->authorizations->validate(
+            $psrRequest->withQueryParams($parameters),
         );
+        $redirects = $authRequest->getClient()->getRedirectUri();
+        $pending = [
+            'parameters' => $parameters,
+            'grant_type' => 'authorization_code',
+            'redirect_uri' => $authRequest->getRedirectUri() ?? (is_array($redirects) ? $redirects[0] : $redirects),
+            'scopes' => array_map(static fn (ScopeEntityInterface $scope): string => $scope->getIdentifier(), $authRequest->getScopes()),
+            'guard' => $this->getApprovingGuardName(),
+            'response_mode' => ($parameters['response_mode'] ?? null) === 'form_post' ? 'form_post' : 'query',
+        ];
 
-        $prompt = $request->input('prompt') ?? '';
+        return $this->withAuthorizationErrorHandling(
+            fn () => $this->respondToAuthorization($request, $psrRequest, $authRequest, $psrResponse, $viewResponse, $pending),
+            $pending,
+            $this->responses,
+        );
+    }
 
-        if (! is_string($prompt)) {
-            throw new OAuthServerException(LeagueException::invalidRequest('prompt'));
+    /**
+     * Resume a browser interaction without accepting replacement protocol parameters.
+     */
+    public function resume(
+        string $authorization,
+        Request $request,
+        ServerRequestInterface $psrRequest,
+        ResponseInterface $psrResponse,
+        AuthorizationViewResponse $viewResponse,
+    ): Response|AuthorizationViewResponse {
+        $pending = $this->pending->get($request, $authorization);
+
+        if ($pending['grant_type'] !== 'authorization_code') {
+            throw InvalidAuthTokenException::different();
         }
 
-        $additionalPrompts = Passport::$resolvePromptsCallback
-            ? $this->withErrorHandling(fn () => (Passport::$resolvePromptsCallback)($request, $authRequest))
-            : [];
-        // Collection callbacks also receive the key, which trim would treat as its character mask.
-        $prompt = Str::of($prompt)->explode(' ')->map(static fn (string $prompt): string => trim($prompt))->filter()->values();
+        return $this->withAuthorizationErrorHandling(
+            function () use ($request, $psrRequest, $psrResponse, $viewResponse, $pending, $authorization) {
+                try {
+                    $authRequest = $this->authorizations->resolve($pending, $psrRequest);
 
-        // If the prompt parameter includes "none", all other prompt values will be ignored
-        // An error will be returned if the end-user is not already authenticated or the
-        // OAuth client does not have pre-configured consent for the requested scopes.
-        if ($prompt->contains('none')) {
-            if (in_array('login', $additionalPrompts, true)) {
-                throw OAuthServerException::loginRequired($authRequest);
-            }
+                    return $this->respondToAuthorization($request, $psrRequest, $authRequest, $psrResponse, $viewResponse, $pending, $authorization);
+                } catch (LeagueException|HttpResponseException $exception) {
+                    if ($exception instanceof LeagueException || $exception->getPrevious() instanceof LeagueException) {
+                        // A terminal protocol error must also prevent an older consent form from completing.
+                        $this->pending->pull($request, $authorization);
+                    }
 
-            if (in_array('consent', $additionalPrompts, true)) {
-                throw OAuthServerException::consentRequired($authRequest);
-            }
+                    throw $exception;
+                }
+            },
+            $pending,
+            $this->responses,
+        );
+    }
 
-            $prompt = collect(['none']);
-        } else {
-            $prompt = $prompt->merge($additionalPrompts);
+    /**
+     * Continue a pending authorization as the explicitly selected account.
+     */
+    public function continueAsCurrentAccount(Request $request): Response
+    {
+        $pending = $this->getPendingAuthorization($request);
+
+        if ($pending['grant_type'] !== 'authorization_code' || $pending['stage'] !== 'account') {
+            throw InvalidAuthTokenException::different();
+        }
+
+        $this->ensureApprovingUser($pending);
+        $authorization = $request->input('auth_token');
+        $this->pending->update($request, $authorization, ['account_selected' => true, 'stage' => 'resume']);
+
+        return to_route('passport.authorizations.resume', ['authorization' => $authorization]);
+    }
+
+    /**
+     * Sign out for an explicit account switch while preserving only this authorization.
+     */
+    public function switchAccount(Request $request): Response
+    {
+        $pending = $this->getPendingAuthorization($request);
+
+        if ($pending['grant_type'] !== 'authorization_code' || $pending['stage'] !== 'account') {
+            throw InvalidAuthTokenException::different();
+        }
+
+        $this->ensureApprovingUser($pending);
+        $this->getApprovingGuard()->logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+        unset(
+            $pending['user_id'], $pending['provider'], $pending['login_confirmed'], $pending['confirmation_started_at'],
+            $pending['permissions'], $pending['attributes'], $pending['remember_consent_for'],
+        );
+        $pending['stage'] = 'login';
+        $authorization = $this->pending->store($request, $pending);
+
+        return to_route('passport.authorizations.resume', ['authorization' => $authorization]);
+    }
+
+    /**
+     * Resolve login, account choice and consent for a validated authorization.
+     *
+     * @param array<string, mixed> $pending
+     */
+    protected function respondToAuthorization(
+        Request $request,
+        ServerRequestInterface $psrRequest,
+        AuthorizationRequestInterface $authRequest,
+        ResponseInterface $psrResponse,
+        AuthorizationViewResponse $viewResponse,
+        array $pending,
+        ?string $authorization = null,
+    ): Response|AuthorizationViewResponse {
+        $parameters = $pending['parameters'];
+        if (! in_array($parameters['response_mode'] ?? 'query', ['query', 'form_post'], true)) {
+            throw LeagueException::invalidRequest('response_mode');
+        }
+
+        $prompts = array_values(array_unique(array_filter(explode(' ', trim($parameters['prompt'] ?? '')))));
+        $silent = in_array('none', $prompts, true);
+
+        if ($silent && count($prompts) > 1) {
+            throw LeagueException::invalidRequest('prompt');
+        }
+
+        if ($this->events->hasListeners(AuthorizationRequestValidated::class)) {
+            $event = new AuthorizationRequestValidated($request, $parameters, $authRequest);
+            $this->events->dispatch($event);
+            $prompts = array_unique([...$prompts, ...$event->prompts]);
         }
 
         $guard = $this->getApprovingGuard();
 
-        if ($guard->guest()) {
-            $prompt->contains('none')
-                ? throw OAuthServerException::loginRequired($authRequest)
-                : $this->promptForLogin($request);
+        if ($pending['guard'] !== $this->getApprovingGuardName()) {
+            throw InvalidAuthTokenException::different();
         }
 
-        if ($prompt->contains('login')
-            && ! $request->session()->get('promptedForLogin', false)) {
-            $guard->logout();
-            $request->session()->invalidate();
-            $request->session()->regenerateToken();
+        $client = $this->clients->findActive($authRequest->getClient()->getIdentifier());
 
+        if (! $client || ! $this->clientMatchesProvider($client)) {
+            throw LeagueException::invalidClient($psrRequest);
+        }
+
+        if (in_array('select_account', $prompts, true) && ! ($pending['account_selected'] ?? false)
+            && ($silent || ! app()->bound(AccountSelectionViewResponse::class))) {
+            throw new LeagueException('The authorization server requires account selection.', 9, 'account_selection_required', 400);
+        }
+
+        if ($guard->guest()) {
+            if ($silent) {
+                throw OAuthServerException::loginRequired($authRequest);
+            }
+
+            if ($authorization === null) {
+                $authorization = $this->saveAuthorization($request, null, [...$pending, 'stage' => 'login']);
+
+                return to_route('passport.authorizations.resume', ['authorization' => $authorization]);
+            }
+
+            // The normal guest redirect saves this resume URL as the intended destination.
             $this->promptForLogin($request);
         }
 
-        $request->session()->forget('promptedForLogin');
-
         $user = $guard->user();
-        $authRequest->setUser(new User((string) $user->getAuthIdentifier()));
 
-        $scopes = $this->parseScopes($authRequest);
-        $client = $this->withErrorHandling(function () use ($authRequest, $psrRequest): Client {
-            $client = $this->clients->findActive($authRequest->getClient()->getIdentifier());
+        if (isset($pending['user_id']) && ($pending['user_id'] !== (string) $user->getAuthIdentifier()
+            || $pending['provider'] !== $this->getApprovingProvider())) {
+            $this->pending->pull($request, $authorization);
 
-            if (! $client || ! $this->clientMatchesProvider($client)) {
-                throw LeagueException::invalidClient($psrRequest);
-            }
-
-            return $client;
-        });
-        $attributes = $this->withErrorHandling(fn () => $this->authorizationAttributes($request, $user));
-
-        if ($prompt->doesntContain('consent')
-            && ($client->skipsAuthorization($user, $scopes) || $this->hasGrantedScopes($user, $client, $scopes))) {
-            return TokenIssuance::run(
-                $this->servers,
-                fn () => $this->approveRequest($authRequest, $psrResponse),
-                $attributes
-            );
+            throw InvalidAuthTokenException::different();
         }
 
-        if ($prompt->contains('none')) {
+        $pending['user_id'] = (string) $user->getAuthIdentifier();
+        $pending['provider'] = $this->getApprovingProvider();
+        $authRequest->setUser(new User($pending['user_id']));
+
+        if (in_array('login', $prompts, true) && ! ($pending['login_confirmed'] ?? false)) {
+            if ($silent) {
+                throw OAuthServerException::loginRequired($authRequest);
+            }
+
+            $confirmationKey = PasswordConfirmation::sessionKey($pending['guard']);
+
+            if (isset($pending['confirmation_started_at'])
+                && $request->session()->get($confirmationKey, 0) >= $pending['confirmation_started_at']) {
+                $pending['login_confirmed'] = true;
+                unset($pending['confirmation_started_at']);
+            } else {
+                if (! isset($pending['confirmation_started_at'])) {
+                    $request->session()->forget($confirmationKey);
+                    $pending['confirmation_started_at'] = Date::now()->getTimestamp();
+                }
+
+                $authorization = $this->saveAuthorization($request, $authorization, [...$pending, 'stage' => 'confirm']);
+
+                return app(ReauthenticationResponse::class)->withParameters([
+                    'authToken' => $authorization,
+                    'client' => $client,
+                    'user' => $user,
+                    'returnUrl' => route('passport.authorizations.resume', ['authorization' => $authorization]),
+                ])->toResponse($request);
+            }
+        }
+
+        if (in_array('select_account', $prompts, true) && ! ($pending['account_selected'] ?? false)) {
+            $authorization = $this->saveAuthorization($request, $authorization, [...$pending, 'stage' => 'account']);
+
+            return app(AccountSelectionViewResponse::class)->withParameters([
+                'client' => $client, 'user' => $user, 'request' => $request, 'authToken' => $authorization,
+            ])->toResponse($request);
+        }
+
+        $scopes = $this->parseScopes($authRequest);
+        $state = $this->authorizationState($request, $parameters, $user, $client, $scopes, $authRequest, $this->events);
+
+        if (array_key_exists('permissions', $pending)) {
+            // Reopening a presentation must not let an older form approve newly added permissions.
+            $state['permissions'] = $pending['permissions'];
+            $state['remember_consent_for'] = $pending['remember_consent_for'];
+        }
+
+        $pending = [...$pending, ...$state];
+
+        if (! in_array('consent', $prompts, true)) {
+            $approval = $client->skipsAuthorization($user, $scopes) ? AuthorizationApproval::Policy
+                : ($this->hasGrantedScopes($user, $client, $scopes, $pending['permissions']) ? AuthorizationApproval::Remembered : null);
+
+            if ($approval !== null) {
+                $response = $this->finalizer->approve(
+                    $request,
+                    $authRequest,
+                    $pending,
+                    $user,
+                    $approval,
+                    fn () => $this->approveRequest($authRequest, $psrResponse)
+                );
+
+                if ($response !== null) {
+                    if ($authorization !== null) {
+                        $this->pending->pull($request, $authorization);
+                    }
+
+                    return $this->responses->success(
+                        $response,
+                        $pending['redirect_uri'],
+                        $pending['parameters']['state'] ?? null,
+                        $pending['response_mode'],
+                    );
+                }
+            }
+        }
+
+        if ($silent) {
             throw OAuthServerException::consentRequired($authRequest);
         }
 
-        $request->session()->put('authToken', $authToken = Str::random());
-        $request->session()->put('authRequest', serialize($authRequest));
-        $request->session()->put('authAttributes', $attributes);
+        $authorization = $this->saveAuthorization($request, $authorization, [...$pending, 'stage' => 'consent']);
 
         return $viewResponse->withParameters([
-            'client' => $client,
-            'user' => $user,
-            'scopes' => $scopes,
-            'request' => $request,
-            'authToken' => $authToken,
+            'client' => $client, 'user' => $user, 'scopes' => $scopes,
+            'permissions' => $pending['permissions'], 'request' => $request, 'authToken' => $authorization,
         ]);
+    }
+
+    /**
+     * Save a new interaction or advance it without extending its lifetime.
+     *
+     * @param array<string, mixed> $pending
+     */
+    protected function saveAuthorization(Request $request, ?string $authorization, array $pending): string
+    {
+        if ($authorization === null) {
+            return $this->pending->store($request, $pending);
+        }
+
+        $this->pending->update($request, $authorization, $pending);
+
+        return $authorization;
     }
 
     /**
@@ -163,30 +385,22 @@ class AuthorizationController
     /**
      * Determine if the given user has already granted the client access to the scopes.
      *
+     * This pre-check does not replace the final locked consent check. Customize
+     * Consent::covers() for remembered coverage, or Client::skipsAuthorization()
+     * for trusted approval without remembered consent.
+     *
      * @param Scope[] $scopes
+     * @param array<string, array> $permissions
      */
-    protected function hasGrantedScopes(Authenticatable $user, Client $client, array $scopes): bool
+    protected function hasGrantedScopes(Authenticatable $user, Client $client, array $scopes, array $permissions = []): bool
     {
-        $activeTokens = $client->tokens()->where([
-            ['user_id', '=', $user->getAuthIdentifier()],
-            ['provider', '=', $this->getApprovingProvider()],
-            ['revoked', '=', false],
-            ['expires_at', '>', Date::now()],
-        ]);
+        $consent = $this->consents->findForUser(
+            $client->getKey(),
+            $this->getApprovingProvider(),
+            $user->getAuthIdentifier(),
+        );
 
-        // If no specific scope is requested, we'll simply check whether the given
-        // user has any active tokens that grant access to the specified client
-        // In this case, comparing the granted scopes is no longer necessary.
-        if (empty($scopes)) {
-            return $activeTokens->exists();
-        }
-
-        // Otherwise, we list all previously granted scopes from the active tokens
-        // of the given user that authorize access to the specified client, and
-        // check whether the newly requested scopes are included in that set.
-        return collect($scopes)->pluck('id')->diff(
-            $activeTokens->pluck('scopes')->flatten()
-        )->isEmpty();
+        return $consent?->covers(array_map(static fn (Scope $scope): string => $scope->id, $scopes), $permissions) ?? false;
     }
 
     /**
@@ -208,10 +422,8 @@ class AuthorizationController
      */
     protected function promptForLogin(Request $request): never
     {
-        $request->session()->put('promptedForLogin', true);
-
         throw new AuthenticationException(guards: [
-            $this->config->get('passport.guard') ?? $this->auth->getDefaultDriver(),
+            $this->getApprovingGuardName(),
         ]);
     }
 }

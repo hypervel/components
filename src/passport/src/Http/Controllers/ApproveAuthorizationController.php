@@ -7,8 +7,12 @@ namespace Hypervel\Passport\Http\Controllers;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Http\Request;
-use Hypervel\Passport\Bridge\TokenIssuance;
+use Hypervel\Passport\AuthorizationFinalizer;
+use Hypervel\Passport\AuthorizationRequestResolver;
 use Hypervel\Passport\ClientRepository;
+use Hypervel\Passport\Enums\AuthorizationApproval;
+use Hypervel\Passport\Http\Responses\AuthorizationResponse;
+use Hypervel\Passport\PendingAuthorizationRepository;
 use Hypervel\Passport\ServerFactory;
 use Psr\Http\Message\ResponseInterface;
 use Symfony\Component\HttpFoundation\Response;
@@ -28,6 +32,10 @@ class ApproveAuthorizationController
         protected AuthManager $auth,
         protected Repository $config,
         protected ClientRepository $clients,
+        protected PendingAuthorizationRepository $pending,
+        protected AuthorizationRequestResolver $authorizations,
+        protected AuthorizationFinalizer $finalizer,
+        protected AuthorizationResponse $responses,
     ) {
     }
 
@@ -36,15 +44,27 @@ class ApproveAuthorizationController
      */
     public function approve(Request $request, ResponseInterface $psrResponse): Response
     {
-        return $this->withErrorHandling(function () use ($request, $psrResponse): Response {
-            $authRequest = $this->getAuthRequestFromSession($request);
-            $attributes = $request->session()->pull('authAttributes', []);
+        $pending = $this->getPendingAuthorization($request);
 
+        return $this->withAuthorizationErrorHandling(function () use ($request, $psrResponse, $pending): Response {
+            $authRequest = $this->getAuthRequestFromSession($request);
             $authRequest->setAuthorizationApproved(true);
 
-            return TokenIssuance::run($this->servers, fn () => $this->convertResponse(
-                $this->servers->authorizationServer()->completeAuthorizationRequest($authRequest, $psrResponse)
-            ), $attributes);
-        });
+            $response = $this->finalizer->approve(
+                $request,
+                $authRequest,
+                $pending,
+                $this->getApprovingGuard()->user(),
+                AuthorizationApproval::Prompt,
+                fn () => $this->convertResponse($this->servers->authorizationServer()->completeAuthorizationRequest($authRequest, $psrResponse)),
+            );
+
+            return $this->responses->success(
+                $response,
+                $pending['redirect_uri'],
+                $pending['parameters']['state'] ?? null,
+                $pending['response_mode'],
+            );
+        }, $pending, $this->responses);
     }
 }

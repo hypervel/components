@@ -59,15 +59,14 @@ class AuthorizationCodeGrantWithPkceTest extends PassportTestCase
         $response = $this->get('/oauth/authorize?' . $query);
 
         $response->assertOk();
-        $response->assertSessionHas('authRequest');
-        $response->assertSessionHas('authToken');
         $json = $response->json();
-        $this->assertEqualsCanonicalizing(['client', 'user', 'scopes', 'request', 'authToken'], array_keys($json));
+        $response->assertSessionHas('passport.authorizations.' . $json['authToken']);
+        $this->assertEqualsCanonicalizing(['client', 'user', 'scopes', 'permissions', 'request', 'authToken'], array_keys($json));
         $this->assertSame(collect(Passport::scopesFor(['create', 'read']))->toArray(), $json['scopes']);
 
-        $response = $this->post('/oauth/authorize', ['auth_token' => $json['authToken']]);
+        $response = $this->post('/oauth/authorize/consent', ['auth_token' => $json['authToken']]);
         $response->assertRedirect();
-        $response->assertSessionMissing(['authRequest', 'authToken']);
+        $response->assertSessionMissing('passport.authorizations.' . $json['authToken']);
 
         $location = $response->headers->get('Location');
         parse_str(parse_url($location, PHP_URL_QUERY), $params);
@@ -152,9 +151,10 @@ class AuthorizationCodeGrantWithPkceTest extends PassportTestCase
         $this->actingAs($user, 'web');
         $response = $this->get('/oauth/authorize?' . $query);
 
-        $response->assertStatus(400);
-
-        $params = $response->json();
+        $response->assertRedirect();
+        $this->assertStringStartsWith($redirect . '?', $response->headers->get('Location'));
+        parse_str(parse_url($response->headers->get('Location'), PHP_URL_QUERY), $params);
+        $this->assertSame($state, $params['state']);
 
         $this->assertSame('invalid_request', $params['error']);
         $this->assertSame('Code challenge must be provided for public clients', $params['hint']);
@@ -163,9 +163,10 @@ class AuthorizationCodeGrantWithPkceTest extends PassportTestCase
         $query .= '&code_challenge=foo&code_challenge_method=S256';
         $response = $this->get('/oauth/authorize?' . $query);
 
-        $response->assertStatus(400);
-
-        $params = $response->json();
+        $response->assertRedirect();
+        $this->assertStringStartsWith($redirect . '?', $response->headers->get('Location'));
+        parse_str(parse_url($response->headers->get('Location'), PHP_URL_QUERY), $params);
+        $this->assertSame($state, $params['state']);
 
         $this->assertSame('invalid_request', $params['error']);
         $this->assertSame('Code challenge must follow the specifications of RFC-7636.', $params['hint']);
@@ -193,9 +194,10 @@ class AuthorizationCodeGrantWithPkceTest extends PassportTestCase
         $this->actingAs($user, 'web');
         $response = $this->get('/oauth/authorize?' . $query);
 
-        $response->assertStatus(400);
-
-        $params = $response->json();
+        $response->assertRedirect();
+        $this->assertStringStartsWith($redirect . '?', $response->headers->get('Location'));
+        parse_str(parse_url($response->headers->get('Location'), PHP_URL_QUERY), $params);
+        $this->assertSame($state, $params['state']);
 
         $this->assertSame('invalid_request', $params['error']);
         $this->assertStringStartsWith('Code challenge method must be', $params['hint']);
