@@ -2,9 +2,9 @@
 
 Use with [the design plan](2026-10-16-mcp-port.md). Paths on the left are relative to the upstream MCP checkout. Copy with cp, then read and adapt each file; preserve applicable upstream tests. Work alphabetically within each implementation slice. Remove completed entries; keep no command logs, review history or completed-work ledger here.
 
-## Existing Hypervel consumers and wiring
+## Performance acceptance
 
-- docs/todo.md — resolve completed AI/MCP item; extend existing buffered-reader follow-up
+- tests/Benchmarks/Mcp/results.md — measured concurrency, response-cache and annotation decisions
 
 ## Repository infrastructure disposition
 
