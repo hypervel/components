@@ -1,0 +1,75 @@
+import { readFileSync } from 'node:fs';
+import { createContext, runInContext } from 'node:vm';
+import { describe, expect, it } from 'vitest';
+
+async function connectApp(filename) {
+    const sent = [];
+    let listener;
+    const parent = { postMessage: message => sent.push(message) };
+    const context = createContext({
+        window: {
+            parent,
+            addEventListener: (name, callback) => { listener = callback; },
+        },
+        document: { title: 'Test App' },
+    });
+
+    runInContext(readFileSync(new URL(`../../src/mcp/resources/js/${filename}`, import.meta.url), 'utf8'), context);
+
+    const receive = message => listener({ source: parent, data: { jsonrpc: '2.0', ...message } });
+    let app;
+    const initialized = context.window.createMcpApp(value => { app = value; });
+    receive({ id: sent.at(-1).id, result: {} });
+    await initialized;
+    sent.length = 0;
+
+    return { app, receive, sent };
+}
+
+describe.each(['mcp-sdk.js', 'mcp-sdk.min.js'])('%s', filename => {
+    it('handles a host request without settling an app request with the same ID', async () => {
+        const { app, receive, sent } = await connectApp(filename);
+        let settled = false;
+        const pending = app.callServerTool('server-tool', {}).then(result => {
+            settled = true;
+            return result;
+        });
+        const id = sent.at(-1).id;
+        let receivedParams;
+        const hostResult = { content: [{ type: 'text', text: 'App tool result' }] };
+        app.onCallTool(params => {
+            receivedParams = params;
+            return hostResult;
+        });
+
+        receive({ id, method: 'tools/call', params: { name: 'app-tool' } });
+        await Promise.resolve();
+
+        expect(receivedParams).toEqual({ name: 'app-tool' });
+        expect(sent.at(-1)).toEqual({ jsonrpc: '2.0', id, result: hostResult });
+        expect(settled).toBe(false);
+
+        const result = { content: [{ type: 'text', text: 'Server tool result' }] };
+        receive({ id, result });
+        await expect(pending).resolves.toEqual(result);
+    });
+
+    it('rejects the pending app request when its error response arrives', async () => {
+        const { app, receive, sent } = await connectApp(filename);
+        const pending = app.callServerTool('server-tool', {});
+        const assertion = expect(pending).rejects.toThrow('Tool unavailable');
+
+        receive({ id: sent.at(-1).id, error: { code: -32601, message: 'Tool unavailable' } });
+
+        await assertion;
+    });
+
+    it('does not respond to unmatched replies', async () => {
+        const { receive, sent } = await connectApp(filename);
+
+        receive({ id: 99, result: {} });
+        receive({ id: 100, error: { code: -32601, message: 'Unknown method' } });
+
+        expect(sent).toEqual([]);
+    });
+});
