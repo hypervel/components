@@ -5,9 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Passport;
 
 use DomainException;
-use Firebase\JWT\JWT;
 use Hypervel\Contracts\Cache\LockTimeoutException;
 use Hypervel\Http\Client\HttpClientException;
+use Hypervel\Passport\Exceptions\UnsupportedKeyException;
+use Hypervel\Support\Facades\Date;
 use InvalidArgumentException;
 use JsonException;
 use League\OAuth2\Server\Exception\OAuthServerException;
@@ -163,8 +164,8 @@ class ClientAuthenticator
         }
 
         try {
-            $header = json_decode(JWT::urlsafeB64Decode($parts[0]), true, 32, JSON_THROW_ON_ERROR);
-            $claims = json_decode(JWT::urlsafeB64Decode($parts[1]), true, 32, JSON_THROW_ON_ERROR);
+            $header = json_decode(ClientJwt::urlsafeB64Decode($parts[0]), true, 32, JSON_THROW_ON_ERROR);
+            $claims = json_decode(ClientJwt::urlsafeB64Decode($parts[1]), true, 32, JSON_THROW_ON_ERROR);
         } catch (JsonException|InvalidArgumentException) {
             throw OAuthServerException::invalidClient($request);
         }
@@ -202,8 +203,8 @@ class ClientAuthenticator
             throw OAuthServerException::invalidClient($request);
         }
 
-        $now = time();
-        $leeway = max(0, JWT::$leeway);
+        $now = Date::now()->getTimestamp();
+        $leeway = ClientJwt::$leeway;
 
         foreach (['exp', 'iat', 'nbf'] as $name) {
             if ($name !== 'exp' && ! array_key_exists($name, $claims)) {
@@ -228,7 +229,12 @@ class ClientAuthenticator
                 throw OAuthServerException::invalidClient($request);
             }
 
-            JWT::decode($assertion, $key);
+            ClientJwt::decode($assertion, $key);
+        } catch (UnsupportedKeyException $exception) {
+            $error = OAuthServerException::invalidClient($request);
+            $error->setPayload(['error' => 'invalid_client', 'error_description' => $exception->getMessage()]);
+
+            throw $error;
         } catch (DomainException|InvalidArgumentException|UnexpectedValueException|HttpClientException|JsonException|LockTimeoutException) {
             throw OAuthServerException::invalidClient($request);
         }

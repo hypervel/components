@@ -11,6 +11,7 @@ use Hypervel\Contracts\Cache\Factory;
 use Hypervel\Passport\Bridge\ParsedKey;
 use Hypervel\Passport\Client;
 use Hypervel\Passport\ClientAuthenticator;
+use Hypervel\Passport\ClientJwt;
 use Hypervel\Passport\ClientKeyRepository;
 use Hypervel\Passport\ClientRepository;
 use Hypervel\Passport\Database\Factories\SigningKeyFactory;
@@ -161,32 +162,52 @@ class ClientAuthenticatorTest extends TestCase
     #[TestWith([360, false])]
     public function testAssertionsWithoutIssuedAtHaveABoundedRemainingLifetime(int $remaining, bool $accepted): void
     {
+        $now = $this->freezeSecond()->getTimestamp();
         [$client, $privateKey] = $this->assertionClient();
         $replays = m::mock(ReplayCache::class);
+        $expiresAt = $now + $remaining + ClientJwt::$leeway;
+        $assertion = JWT::encode([
+            'iss' => 'client', 'sub' => 'client', 'aud' => 'https://auth.example',
+            'jti' => 'assertion', 'exp' => $expiresAt,
+        ], $privateKey, 'RS256');
+        $request = (new ServerRequest('POST', '/token'))->withParsedBody([
+            'client_assertion_type' => 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
+            'client_assertion' => $assertion,
+        ]);
+
+        if ($accepted) {
+            $replays->shouldReceive('consume')->once()->with(m::type('string'), $expiresAt + ClientJwt::$leeway)->andReturnTrue();
+        } else {
+            $replays->shouldNotReceive('consume');
+            $this->expectException(OAuthServerException::class);
+        }
+
+        $this->assertSame($client, $this->authenticator($client, $replays)->authenticate($request));
+    }
+
+    #[TestWith(['iat', 60, true])]
+    #[TestWith(['iat', 61, false])]
+    #[TestWith(['nbf', 60, true])]
+    #[TestWith(['nbf', 61, false])]
+    public function testClientClockAllowanceDoesNotChangeOtherJwtConsumers(string $claim, int $offset, bool $accepted): void
+    {
+        $now = $this->freezeSecond()->getTimestamp();
+        [$client, $privateKey] = $this->assertionClient();
+        $replays = m::mock(ReplayCache::class);
+        $request = $this->assertionRequest($privateKey, ['iat' => $now, 'exp' => $now + 120, $claim => $now + $offset]);
         $previousLeeway = JWT::$leeway;
-        JWT::$leeway = 30;
+
+        if ($accepted) {
+            $replays->shouldReceive('consume')->once()->with(m::type('string'), $now + 180)->andReturnTrue();
+        } else {
+            $replays->shouldNotReceive('consume');
+            $this->expectException(OAuthServerException::class);
+        }
 
         try {
-            $expiresAt = time() + $remaining + JWT::$leeway;
-            $assertion = JWT::encode([
-                'iss' => 'client', 'sub' => 'client', 'aud' => 'https://auth.example',
-                'jti' => 'assertion', 'exp' => $expiresAt,
-            ], $privateKey, 'RS256');
-            $request = (new ServerRequest('POST', '/token'))->withParsedBody([
-                'client_assertion_type' => 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
-                'client_assertion' => $assertion,
-            ]);
-
-            if ($accepted) {
-                $replays->shouldReceive('consume')->once()->with(m::type('string'), $expiresAt + JWT::$leeway)->andReturnTrue();
-            } else {
-                $replays->shouldNotReceive('consume');
-                $this->expectException(OAuthServerException::class);
-            }
-
             $this->assertSame($client, $this->authenticator($client, $replays)->authenticate($request));
         } finally {
-            JWT::$leeway = $previousLeeway;
+            $this->assertSame($previousLeeway, JWT::$leeway);
         }
     }
 
@@ -201,6 +222,28 @@ class ClientAuthenticatorTest extends TestCase
 
         $this->expectException(OAuthServerException::class);
         $this->authenticator($client)->authenticate($request->withParsedBody($parameters));
+    }
+
+    public function testUnsupportedClientKeysExplainTheRequirementWithoutConsumingReplayState(): void
+    {
+        [$client, $privateKey] = $this->assertionClient();
+        $client->jwks = ['keys' => [[
+            'kty' => 'RSA', 'e' => 'AQAB',
+            'n' => JWT::urlsafeB64Encode("\x80" . random_bytes(511) . "\x01"),
+        ]]];
+        $replays = m::mock(ReplayCache::class);
+        $replays->shouldNotReceive('consume');
+
+        try {
+            $this->authenticator($client, $replays)->authenticate($this->assertionRequest($privateKey));
+            $this->fail('Unsupported client keys must be rejected.');
+        } catch (OAuthServerException $exception) {
+            $this->assertSame([
+                'error' => 'invalid_client',
+                'error_description' => 'RSA keys must be between 2048 and 4096 bits.',
+            ], $exception->getPayload());
+            $this->assertSame(401, $exception->getHttpStatusCode());
+        }
     }
 
     #[TestWith(['{}', 503])]
