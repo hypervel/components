@@ -19,6 +19,7 @@ return new class extends Migration {
             $table->foreignUuid('client_id');
             $table->uuid('consent_id')->nullable()->index();
             $table->jsonb('scopes')->nullable();
+            $table->jsonb('resources')->nullable();
             $table->boolean('revoked');
             $table->dateTime('expires_at')->nullable();
 
