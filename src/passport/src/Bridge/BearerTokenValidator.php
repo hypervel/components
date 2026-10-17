@@ -101,6 +101,28 @@ class BearerTokenValidator implements AuthorizationValidatorInterface
             throw OAuthServerException::accessDenied('Missing "Bearer" token');
         }
 
+        $claims = $this->validateToken($jwt)->claims();
+
+        // Check if token has been revoked
+        if ($this->accessTokenRepository->isAccessTokenRevoked($claims->get('jti'))) {
+            throw OAuthServerException::accessDenied('Access token has been revoked');
+        }
+
+        // Return the request with additional attributes
+        return $request
+            ->withAttribute('oauth_access_token_id', $claims->get('jti'))
+            ->withAttribute('oauth_client_id', $claims->get('aud')[0])
+            ->withAttribute('oauth_user_id', $claims->get('sub'))
+            ->withAttribute('oauth_scopes', $claims->get('scopes'));
+    }
+
+    /**
+     * Verify a token's signature, lifetime and identifier without applying stored-token authorization policy.
+     *
+     * @internal shared by bearer authorization and token management
+     */
+    public function validateToken(string $jwt): UnencryptedToken
+    {
         try {
             // Attempt to parse the JWT
             $token = $this->jwtConfiguration->parser()->parse($jwt);
@@ -120,19 +142,14 @@ class BearerTokenValidator implements AuthorizationValidatorInterface
             throw OAuthServerException::accessDenied('Access token is not an instance of UnencryptedToken');
         }
 
-        $claims = $token->claims();
+        // Other signed artifacts may use these keys without identifying an access-token record.
+        $identifier = $token->claims()->get('jti');
 
-        // Check if token has been revoked
-        if ($this->accessTokenRepository->isAccessTokenRevoked($claims->get('jti'))) {
-            throw OAuthServerException::accessDenied('Access token has been revoked');
+        if (! is_string($identifier) || $identifier === '') {
+            throw OAuthServerException::accessDenied('Access token has no valid identifier');
         }
 
-        // Return the request with additional attributes
-        return $request
-            ->withAttribute('oauth_access_token_id', $claims->get('jti'))
-            ->withAttribute('oauth_client_id', $claims->get('aud')[0])
-            ->withAttribute('oauth_user_id', $claims->get('sub'))
-            ->withAttribute('oauth_scopes', $claims->get('scopes'));
+        return $token;
     }
 
     /**

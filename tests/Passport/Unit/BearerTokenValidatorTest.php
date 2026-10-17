@@ -163,6 +163,29 @@ class BearerTokenValidatorTest extends TestCase
         $this->assertSame('token-id', $result->getAttribute('oauth_access_token_id'));
     }
 
+    #[DataProvider('invalidIdentifiers')]
+    public function testSignedArtifactsWithoutTokenIdentifiersAreRejectedBeforeLookup(string $scenario): void
+    {
+        $repository = m::mock(AccessTokenRepositoryInterface::class);
+        $repository->shouldNotReceive('isAccessTokenRevoked');
+        $public = ParsedKey::fromPublicKey(self::$keys[0]['public']);
+        $validator = new BearerTokenValidator($repository, [$public->getKeyId() => $public]);
+
+        $this->expectException(OAuthServerException::class);
+
+        $validator->validateAuthorization(new ServerRequest('GET', 'https://example.test', [
+            'Authorization' => 'Bearer ' . $this->token($scenario),
+        ]));
+    }
+
+    /**
+     * Supply signed artifacts that cannot identify an access token.
+     */
+    public static function invalidIdentifiers(): array
+    {
+        return [['missing identifier'], ['empty identifier']];
+    }
+
     /**
      * Issue a stock lcobucci token for a validation scenario.
      */
@@ -177,13 +200,16 @@ class BearerTokenValidatorTest extends TestCase
             );
 
         $builder = $configuration->builder()
-            ->identifiedBy('token-id')
             ->permittedFor('client-id')
             ->relatedTo('user-id')
             ->withClaim('scopes', ['read'])
             ->issuedAt(new DateTimeImmutable($scenario === 'future issue time' ? '+1 hour' : '-2 minutes'))
             ->canOnlyBeUsedAfter(new DateTimeImmutable($scenario === 'future not before' ? '+1 hour' : '-2 minutes'))
             ->expiresAt(new DateTimeImmutable($scenario === 'expired' ? '-1 minute' : '+1 hour'));
+
+        if ($scenario !== 'missing identifier') {
+            $builder = $builder->identifiedBy($scenario === 'empty identifier' ? '' : 'token-id');
+        }
 
         foreach ($headers as $name => $value) {
             $builder = $builder->withHeader($name, $value);
