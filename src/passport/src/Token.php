@@ -19,6 +19,7 @@ use Hypervel\Support\Facades\Event;
  * @property null|string $consent_id
  * @property null|string $name
  * @property null|array $scopes
+ * @property null|list<string> $audience
  * @property bool $revoked
  * @property null|CarbonInterface $created_at
  * @property null|CarbonInterface $updated_at
@@ -57,6 +58,7 @@ class Token extends Model
      */
     protected array $casts = [
         'scopes' => 'array',
+        'audience' => 'array',
         'revoked' => 'bool',
         'expires_at' => 'datetime',
     ];
