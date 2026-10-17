@@ -710,6 +710,25 @@ return Response::fromStorage('weather/radar.png', disk: 's3');
 return Response::fromStorage('weather/radar.png', mimeType: 'image/webp');
 ```
 
+<a name="resource-link-responses"></a>
+#### Resource Link Responses
+
+To return a resource link from a tool, use the `resourceLink` method, providing the URI and name. Unlike an embedded resource, a resource link returns a URI pointer that the AI client fetches independently:
+
+```php
+return Response::resourceLink(
+    uri: 'file:///data/report.json',
+    name: 'monthly-report',
+    mimeType: 'application/json',
+);
+```
+
+You may also pass a registered resource class or instance, which will automatically inherit the resource's URI, name, title, description, and MIME type:
+
+```php
+return Response::resourceLink(new WeatherForecastResource);
+```
+
 <a name="multiple-content-responses"></a>
 #### Multiple Content Responses
 
@@ -1439,25 +1458,6 @@ public function handle(Request $request): Response
 }
 ```
 
-<a name="resource-link-responses"></a>
-#### Resource Link Responses
-
-To return a resource link, use the `resourceLink` method, providing the URI and name. Unlike an embedded resource, a resource link returns a URI pointer that the AI client fetches independently:
-
-```php
-return Response::resourceLink(
-    uri: 'file:///data/report.json',
-    name: 'monthly-report',
-    mimeType: 'application/json',
-);
-```
-
-You may also pass a registered resource class or instance, which will automatically inherit the resource's URI, name, title, description, and MIME type:
-
-```php
-return Response::resourceLink(new WeatherForecastResource);
-```
-
 <a name="resource-blob-responses"></a>
 #### Blob Responses
 
@@ -1814,6 +1814,8 @@ If your application is not already using Passport, follow Passport's [installati
 
 Dynamic client registration uses Passport's named `passport` rate limiter. You may customize that limiter using Passport's [rate limiting configuration](/docs/{{version}}/passport#rate-limiting).
 
+Dynamically registered clients are marked as third-party clients, so Passport's `firstParty()` method returns `false` even though they have no owner. This keeps them subject to consent when your application skips consent for its own clients.
+
 Next, publish Hypervel MCP's provided Passport authorization view:
 
 ```shell
@@ -1846,9 +1848,7 @@ This view will be displayed to the end-user during authentication to reject or a
 
 #### Using an Existing Passport Installation
 
-If your application already uses Passport, Hypervel MCP works with that installation. The built-in MCP OAuth flow uses a single scope rather than exposing custom application scopes.
-
-Hypervel MCP, via the `Mcp::oauthRoutes` method discussed above, adds, advertises, and uses a single `mcp:use` scope.
+If your application already uses Passport, Hypervel MCP works with that installation. The `Mcp::oauthRoutes` method adds and advertises the `mcp:use` scope. This does not prevent clients from requesting other Passport scopes your application allows; Passport's consent and scope checks still apply.
 
 #### Passport vs. Sanctum
 
@@ -2042,6 +2042,8 @@ Mcp::oAuthRoutesFor(
 );
 ```
 
+If you set a custom `redirectUri` through `withOAuth`, also include it in `clientMetadata['redirect_uris']` so the public metadata document advertises that callback.
+
 To begin the authorization flow, redirect the user to the connect route:
 
 ```php
@@ -2059,7 +2061,7 @@ $client = Client::web('https://mcp.example.com/mcp')->withOAuth(scope: 'mcp:use'
 
 Token refreshes use the configured or challenged scope without adding advertised scopes. When neither is supplied, the authorization server preserves the original grant. `TokenSet::$scope` contains the scope returned by the server, or the requested scope when the server leaves it unchanged and omits it from the response.
 
-When a server requires authorization, the client throws `AuthorizationRequiredException`. You may pass its challenge parameters to the named client's connect route. If the user already has a token, include its stored scopes so authorizing another operation preserves the permissions previously granted:
+When a server requires authorization, the client throws `AuthorizationRequiredException`. Pass its challenge parameters to the named client's connect route using a signed URL. The signature prevents visitors from replacing discovery hints and directing your application's credentials to another authorization server. If the user already has a token, include its stored scopes so authorizing another operation preserves the permissions previously granted:
 
 ```php
 use Hypervel\Mcp\Client\Exceptions\AuthorizationRequiredException;
@@ -2078,7 +2080,7 @@ try {
         ))));
     }
 
-    return redirect()->route('mcp.oauth.github.connect', $query);
+    return redirect()->signedRoute('mcp.oauth.github.connect', $query);
 }
 ```
 
@@ -2091,7 +2093,7 @@ OAuth discovery, registration and token requests validate resolved addresses bef
 
 Hostname pinning requires cURL with SSL support and libcurl 7.75 or later. See the HTTP client's [destination policy limitations](/docs/{{version}}/http-client#destination-policy-limitations).
 
-Local resources may use loopback endpoints named `localhost`, `127.0.0.1` or `::1`. Remote resources cannot advertise those localhost endpoints. Other hostnames resolving to private addresses, including local `.test` domains, require an explicit allowance. Register an `OAuthDestinationPolicy` with only the addresses or networks your application trusts:
+Local resources may use loopback endpoints named `localhost`, `127.0.0.1` or `::1`. Remote resources cannot advertise those localhost endpoints. Other private addresses, whether supplied directly or resolved from hostnames such as local `.test` domains, require an explicit allowance. Register an `OAuthDestinationPolicy` with only the addresses or networks your application trusts:
 
 ```php
 use Hypervel\Mcp\Client\OAuth\OAuthDestinationPolicy;
@@ -2127,6 +2129,8 @@ The client automatically paginates through all available tools. You may limit th
 ```php
 $tools = Mcp::client('github')->tools(limit: 10);
 ```
+
+The limit applies before the client's tool filters, so the returned collection may contain fewer tools.
 
 To invoke a tool, use the `callTool` method, passing the tool name and an array of arguments. The returned `ToolResult` instance exposes the tool response:
 

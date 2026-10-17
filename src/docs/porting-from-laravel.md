@@ -554,9 +554,13 @@ OAuth clients check resolved destinations before sending, including when HTTP re
 
 If an OAuth client relies on Laravel's implicit `mcp:use` scope and the remote server does not advertise it, configure `withOAuth(scope: 'mcp:use')` explicitly. Hypervel otherwise uses the remote server's advertised scopes; see [OAuth scopes](/docs/{{version}}/mcp#client-oauth-scopes).
 
+Use `redirect()->signedRoute()` when forwarding `resource_metadata` or `scope` to an MCP client's connect route. Unsigned hints are rejected to prevent credential disclosure through substituted discovery metadata; see [authorization challenges](/docs/{{version}}/mcp#client-oauth-scopes).
+
 Modern HTTP streams cancel on client disconnect. Review handlers that perform side effects while streaming and ensure their cleanup runs on cancellation; legacy streams still finish. See [streaming responses](/docs/{{version}}/mcp#streaming-responses).
 
 Reformat `LastModified` attribute values as complete date-times with seconds and a timezone, such as `2025-01-12T15:00:58Z`. Other ISO 8601 representations accepted by Laravel are rejected to keep responses compatible with TypeScript-SDK clients. See [resource annotations](/docs/{{version}}/mcp#resource-annotations).
+
+If subclasses redeclare protected properties, use `mixed` for `JsonRpcException::$data` and `?Hypervel\Mcp\Client\Transport\StdioInput` for the client `StdioTransport::$input`. Error data preserves all JSON values, and stdio uses a live input queue so notifications can be sent without waiting for the next request.
 
 <a name="saloon"></a>
 ### Saloon
@@ -599,6 +603,8 @@ The implicit and password grants are not available. Use authorization code with 
 Use Hypervel's migrations: clients use UUIDs, JSON columns use each database's supported JSON type, tokens record their user provider, and refresh tokens belong to a refresh-token family. Set `provider` on imported user-token rows and reuse Laravel's signing key pair, or retain its public verification key, so existing access tokens continue working. Only guards using that provider accept those tokens, and a client's configured provider restricts who may authorize it. Regenerate confidential client secrets, which now use SHA-256. Laravel-issued authorization codes and refresh tokens cannot be decrypted, so users must authorize again. The API cookie is named `hypervel_token`.
 
 Clients must serialize refresh requests: reusing a refresh token revokes its grant. Rotation can only be disabled for confidential clients. Keep the token endpoint outside application transactions, including transaction-per-request middleware. Credential models and database signing-key models must share a connection; clients and users may use separate connections.
+
+Imported client tables also need the boolean `third_party` column, defaulting to `false`. Set it to `true` for externally registered clients so `firstParty()` does not classify them as trusted merely because they have no owner. See [consent](/docs/{{version}}/passport#approving-the-request).
 
 Restart the server and other long-running processes after changing file or environment signing keys. `server:reload` is not sufficient. See [signing-key rotation](/docs/{{version}}/passport#rotating-signing-keys).
 
