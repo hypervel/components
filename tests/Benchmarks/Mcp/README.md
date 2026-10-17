@@ -2,6 +2,8 @@
 
 This maintainer harness compares four sequential and four concurrent tool calls through one MCP HTTP client. It starts a local mock server on an automatically assigned loopback port, verifies matching replies and actual server overlap, and stops the server when finished. No AI account or external service is needed.
 
+See [measured results](results.md) for the concurrency comparison and the response-cache and annotation decisions.
+
 Run from the components repository root. First check the harness with a short smoke run; its timings are not performance results:
 
 ```sh
