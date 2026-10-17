@@ -6,12 +6,20 @@ namespace Hypervel\Passport\Http\Responses;
 
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Response as HttpResponse;
+use Hypervel\Passport\ServerFactory;
 use Hypervel\Support\Uri;
 use League\OAuth2\Server\Exception\OAuthServerException;
 use Symfony\Component\HttpFoundation\Response;
 
 class AuthorizationResponse
 {
+    /**
+     * Create the authorization response renderer.
+     */
+    public function __construct(protected ServerFactory $servers)
+    {
+    }
+
     /**
      * Render an issued code without generating or encrypting it again.
      */
@@ -50,6 +58,11 @@ class AuthorizationResponse
      */
     protected function render(string $redirectUri, array $parameters, string $mode, array $headers = []): Response
     {
+        if (($issuer = $this->servers->settings()->issuer) !== null) {
+            // RFC 9207 lets clients reject responses from an unexpected authorization server.
+            $parameters['iss'] = $issuer;
+        }
+
         $headers['Cache-Control'] = ['no-store'];
         $headers['Pragma'] = ['no-cache'];
         $headers['Referrer-Policy'] = ['no-referrer'];
