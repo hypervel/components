@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Http\Client;
 
 use GuzzleHttp\Exception\ConnectException;
-use GuzzleHttp\Exception\RequestException as GuzzleRequestException;
 use GuzzleHttp\Exception\ResponseException;
 use GuzzleHttp\Exception\ResponseTimeoutException;
 use GuzzleHttp\Exception\TransferException;
@@ -172,15 +171,11 @@ class CurlStreamingBody implements StreamInterface
     /**
      * Create a transport failure that retains the received response.
      */
-    protected function responseException(string $message, ResponseInterface $response, ?Throwable $previous = null, bool $timeout = false): TransferException
+    protected function responseException(string $message, ResponseInterface $response, ?Throwable $previous = null, bool $timeout = false): ResponseException
     {
-        if (class_exists(ResponseException::class)) {
-            return $timeout
-                ? new ResponseTimeoutException($message, $this->request, $response, $previous)
-                : new ResponseException($message, $this->request, $response, $previous);
-        }
-
-        return new GuzzleRequestException($message, $this->request, $response, $previous); // @phpstan-ignore argument.type (Guzzle 7 accepts the response before the cause.)
+        return $timeout
+            ? new ResponseTimeoutException($message, $this->request, $response, $previous)
+            : new ResponseException($message, $this->request, $response, $previous);
     }
 
     /**

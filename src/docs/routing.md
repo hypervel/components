@@ -35,6 +35,7 @@
     - [Skipping CORS Handling](#skipping-cors-handling)
     - [Dynamic CORS Configuration](#dynamic-cors-configuration)
 - [Route Caching](#route-caching)
+- [Credits](#credits)
 
 <a name="basic-routing"></a>
 ## Basic Routing
@@ -1205,3 +1206,8 @@ You may use the `route:clear` command to clear the route cache:
 ```shell
 php artisan route:clear
 ```
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Routing began as a port of [Laravel Routing](https://github.com/illuminate/routing) and has been adapted for Hypervel's framework architecture and coroutine runtime.

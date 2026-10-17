@@ -15,6 +15,7 @@
     - [View Creators](#view-creators)
 - [Testing Views](#testing-views)
 - [Optimizing Views](#optimizing-views)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -374,3 +375,8 @@ php artisan view:clear
 ```
 
 When editing views while application workers are running, you should run this command so the workers compile the updated views the next time they are rendered.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel View began as a port of [Laravel View](https://github.com/illuminate/view) and has been adapted for Hypervel's framework architecture and coroutine runtime.

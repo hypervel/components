@@ -106,9 +106,8 @@ class AfterEachTestSubscriber implements FinishedSubscriber
      */
     protected function flushFrameworkState(): void
     {
-        // Cancel while ownership aspects and the owning context still exist.
+        // Cancel while the owning context still exists.
         \Hypervel\Http\Client\Guzzle\CoroutineState::current()?->cancel();
-        \Hypervel\Http\Client\Guzzle\CoroutineOwnership::flushState();
         $queue = \GuzzleHttp\Promise\Utils::queue();
         if ($queue instanceof \Hypervel\Http\Client\Guzzle\CoroutineTaskQueue) {
             $queue->resetOutside();
@@ -521,6 +520,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
      */
     protected function flushSentryState(): void
     {
+        $this->callIfExists(\Hypervel\Sentry\Features\HttpClientIntegration::class, 'flushState');
         $this->callIfExists(\Sentry\SentrySdk::class, 'setRuntimeContextStorage', null);
         $this->callIfExists(\Sentry\SentrySdk::class, 'init');
     }
@@ -531,6 +531,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
     protected function flushTelescopeState(): void
     {
         $this->callIfExists(\Hypervel\Telescope\Telescope::class, 'flushState');
+        $this->callIfExists(\Hypervel\Telescope\Watchers\ClientRequestWatcher::class, 'flushState');
         $this->callIfExists(\Hypervel\Telescope\Watchers\DumpWatcher::class, 'flushState');
         $this->callIfExists(\Hypervel\Telescope\Watchers\RedisWatcher::class, 'flushState');
     }

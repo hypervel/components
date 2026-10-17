@@ -31,6 +31,7 @@ use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Process\Exception\ProcessTimedOutException as SymfonyTimeoutException;
+use Symfony\Component\Process\InputStream;
 use Symfony\Component\Process\Process as SymfonyProcess;
 use Throwable;
 
@@ -1369,6 +1370,45 @@ class ProcessTest extends TestCase
         $result = (new Factory)->input('0')->run('cat');
 
         $this->assertSame('0', $result->output());
+    }
+
+    #[RequiresOperatingSystem('Linux|Darwin')]
+    public function testChildStandardInputReadAllowsOtherCoroutinesToRun(): void
+    {
+        // @TODO: Remove this skip once Swoole hooks standard streams inherited as sockets at process startup.
+        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
+            $this->markTestSkipped('Swoole leaves socket-backed standard input outside its coroutine hooks.');
+        }
+
+        // Swoole's hooked proc_open gives the child socket-backed standard input.
+        $input = new InputStream;
+        $input->write('Test ');
+        $output = '';
+        $process = null;
+
+        try {
+            $process = (new Factory)->input($input)->timeout(5)->start(
+                [PHP_BINARY, __DIR__ . '/Fixtures/read-stdin-in-coroutine.php'],
+                static function (string $type, string $buffer) use ($input, &$output): void {
+                    if ($type === 'out') {
+                        $output .= $buffer;
+                    }
+
+                    if (! $input->isClosed() && str_contains($output, "ready\n")) {
+                        $input->write("message\n");
+                        $input->close();
+                    }
+                },
+            );
+
+            $result = $process->wait();
+
+            $this->assertTrue($result->successful(), $result->errorOutput());
+            $this->assertSame("ready\nTest message\n", $result->output());
+        } finally {
+            $input->close();
+            $process?->stop(0);
+        }
     }
 
     #[RequiresOperatingSystem('Linux|Darwin')]

@@ -342,8 +342,6 @@ class RequestExceptionTest extends TestCase
     {
         $response = new PsrResponse($status, [], 'partial');
 
-        return class_exists(ResponseException::class)
-            ? new ResponseException('cURL error 56: Recv failure', $request->toPsrRequest(), $response)
-            : new GuzzleRequestException('cURL error 56: Recv failure', $request->toPsrRequest(), $response);
+        return new ResponseException('cURL error 56: Recv failure', $request->toPsrRequest(), $response);
     }
 }

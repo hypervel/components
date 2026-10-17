@@ -22,6 +22,7 @@
     - [Faking Asynchronous Process Lifecycles](#faking-asynchronous-process-lifecycles)
     - [Available Assertions](#available-assertions)
     - [Preventing Stray Processes](#preventing-stray-processes)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -885,3 +886,8 @@ Process::run('ls -la');
 // An exception is thrown...
 Process::run('bash import.sh');
 ```
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Process began as a port of [Laravel Process](https://github.com/illuminate/process) and has been adapted for Hypervel's framework architecture and coroutine runtime.

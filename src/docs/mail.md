@@ -34,6 +34,7 @@
 - [Events](#events)
 - [Custom Transports](#custom-transports)
     - [Additional Symfony Transports](#additional-symfony-transports)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -1792,3 +1793,8 @@ Once your transport has been registered, you may create a mailer definition with
     // ...
 ],
 ```
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Mail began as a port of [Laravel Mail](https://github.com/illuminate/mail) and has been adapted for Hypervel's framework architecture and coroutine runtime.

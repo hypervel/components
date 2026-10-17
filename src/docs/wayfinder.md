@@ -16,6 +16,7 @@
     - [Server-Side Rendering](#server-side-rendering)
 - [Wayfinder and Inertia](#wayfinder-and-inertia)
 - [URL Origins](#url-origins)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -346,3 +347,8 @@ const Navigation = () => <Link href={show(1)}>View post</Link>;
 ## URL Origins
 
 Generated definitions use the path from your configured `app.url` value and preserve explicit route domains. Hypervel's `URL::useOrigin()` method is request-scoped and is not captured as process-global Wayfinder configuration. This keeps concurrent requests isolated while generated frontend URLs remain deterministic.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Wayfinder began as a port of [Laravel Wayfinder](https://github.com/laravel/wayfinder) and has been adapted for Hypervel's framework architecture and coroutine runtime.

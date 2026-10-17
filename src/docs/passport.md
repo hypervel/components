@@ -50,6 +50,7 @@
     - [Authorization Interaction and Refresh Policy](#authorization-interaction-and-refresh-policy)
     - [Token Responses, Issuers and Public Keys](#token-responses-issuers-and-public-keys)
 - [Testing](#testing)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -1559,3 +1560,8 @@ public function test_servers_can_be_retrieved(): void
     $response->assertStatus(200);
 }
 ```
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Passport began as a port of [Laravel Passport](https://github.com/laravel/passport) and has been adapted for Hypervel's framework architecture and coroutine runtime.

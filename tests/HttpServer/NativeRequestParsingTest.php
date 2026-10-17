@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\HttpServer;
 
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\HttpServer\RequestBridge;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use Swoole\Http\Request;
@@ -34,6 +35,23 @@ class NativeRequestParsingTest extends TestCase
         (new Filesystem)->deleteDirectory($this->temporaryDirectory);
 
         parent::tearDown();
+    }
+
+    public function testBearerTokenExcludesHeaderWhitespace(): void
+    {
+        // TODO: Remove this skip once Swoole strips trailing HTTP header whitespace upstream.
+        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
+            $this->markTestSkipped('Swoole retains trailing spaces and tabs in HTTP header values.');
+        }
+
+        $requestData = $this->requestData('GET', '/account', [
+            'Authorization' => " \tBearer example-token \t",
+        ], '');
+        $request = Request::create();
+
+        $this->assertSame(strlen($requestData), $request->parse($requestData));
+        $this->assertTrue($request->isCompleted());
+        $this->assertSame('example-token', RequestBridge::createFromSwoole($request)->bearerToken());
     }
 
     public function testMultipartHeadersCanBeSplitAcrossParseCalls(): void

@@ -36,6 +36,7 @@
     - [Schedule Watcher](#schedule-watcher)
     - [View Watcher](#view-watcher)
 - [Displaying User Avatars](#displaying-user-avatars)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -653,3 +654,8 @@ public function register(): void
     });
 }
 ```
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Telescope began as a port of [Laravel Telescope](https://github.com/laravel/telescope) and has been adapted for Hypervel's framework architecture and coroutine runtime.

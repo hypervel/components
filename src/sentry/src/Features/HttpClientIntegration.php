@@ -2,18 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Sentry\Aspects;
+namespace Hypervel\Sentry\Features;
 
 use GuzzleHttp\Client;
+use GuzzleHttp\Exception\ResponseException;
 use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\TransferStats;
-use Hypervel\Di\Aop\AbstractAspect;
-use Hypervel\Di\Aop\ProceedingJoinPoint;
-use Hypervel\Http\Client\Guzzle\RejectedResponse;
 use Hypervel\Sentry\Features\Concerns\ResolvesEventOrigin;
 use Hypervel\Sentry\Integration;
-use Hypervel\Sentry\SentryConfig;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\UriInterface;
@@ -35,117 +32,123 @@ use function Sentry\getTraceparent;
  * Instrument the requests of every Guzzle client: the HTTP client, directly constructed
  * clients and third-party SDKs built on Guzzle.
  *
- * A client or a single request opts out with the `no_sentry_aspect` option.
+ * A client or a single request opts out with the `sentry_enabled` option set to false.
  */
-class GuzzleHttpClientAspect extends AbstractAspect
+class HttpClientIntegration extends Feature
 {
     use ResolvesEventOrigin;
 
-    public array $classes = [
-        Client::class . '::transfer',
-    ];
+    private const string FEATURE_KEY = 'http_client_requests';
 
-    private readonly bool $tracingEnabled;
+    private const string MIDDLEWARE_NAME = 'sentry';
 
-    private readonly bool $breadcrumbsEnabled;
+    private bool $tracingEnabled;
 
-    private readonly bool $traceOrigin;
+    private bool $breadcrumbsEnabled;
 
-    private readonly int $traceOriginThresholdMs;
+    private bool $traceOrigin;
+
+    private int $traceOriginThresholdMs;
 
     /**
-     * Create a new aspect instance.
+     * Indicate if the feature is applicable to the current environment.
      */
-    public function __construct(SentryConfig $config)
+    public function isApplicable(): bool
     {
-        $userConfig = $config->all();
-
-        $this->tracingEnabled = $config->canRecordSpans()
-            && $userConfig['tracing']['http_client_requests'] === true;
-        $this->breadcrumbsEnabled = $config->canRecordBreadcrumbs()
-            && $userConfig['breadcrumbs']['http_client_requests'] === true;
-        $this->traceOrigin = $userConfig['tracing']['http_client_requests_origin'] === true;
-        $this->traceOriginThresholdMs = $userConfig['tracing']['http_client_requests_origin_threshold_ms'];
+        // An active SDK still propagates trace headers when local recording is disabled.
+        return true;
     }
 
     /**
-     * Intercept the Guzzle transfer method.
+     * Instrument outgoing Guzzle requests.
+     *
+     * Boot-only. The middleware persists for the worker lifetime and affects every Guzzle client.
      */
-    public function process(ProceedingJoinPoint $proceedingJoinPoint): mixed
+    public function onBoot(): void
     {
-        $options = $proceedingJoinPoint->arguments['keys']['options'];
+        $userConfig = $this->getUserConfig();
 
-        if (($options['no_sentry_aspect'] ?? false) === true) {
-            return $proceedingJoinPoint->process();
-        }
+        $this->tracingEnabled = $this->isTracingFeatureEnabled(self::FEATURE_KEY);
+        $this->breadcrumbsEnabled = $this->isBreadcrumbFeatureEnabled(self::FEATURE_KEY);
+        $this->traceOrigin = $userConfig['tracing']['http_client_requests_origin'] === true;
+        $this->traceOriginThresholdMs = $userConfig['tracing']['http_client_requests_origin_threshold_ms'];
 
-        /** @var RequestInterface $request */
-        $request = $proceedingJoinPoint->arguments['keys']['request'];
+        Client::pushGlobalMiddleware($this->instrumentRequests(...), self::MIDDLEWARE_NAME);
+    }
 
-        // Inject trace headers before the request is sent
-        if ($this->shouldAttachTracingHeaders($request)) {
-            $request = $request
-                ->withHeader('sentry-trace', getTraceparent())
-                ->withHeader('baggage', getBaggage());
-            $proceedingJoinPoint->arguments['keys']['request'] = $request;
-        }
-
-        $span = null;
-        if ($this->tracingEnabled) {
-            $parentSpan = SentrySdk::getCurrentHub()->getSpan();
-
-            if ($parentSpan !== null && $parentSpan->getSampled()) {
-                $span = $parentSpan->startChild(
-                    SpanContext::make()
-                        ->setOp('http.client')
-                        ->setOrigin('auto.http.guzzle')
-                        ->setDescription($request->getMethod() . ' ' . self::buildPartialUri($request->getUri()))
-                );
+    /**
+     * Trace each request and record its completed transfer.
+     */
+    protected function instrumentRequests(callable $handler): callable
+    {
+        return function (RequestInterface $request, array $options) use ($handler): PromiseInterface {
+            if (($options['sentry_enabled'] ?? true) === false) {
+                return $handler($request, $options);
             }
-        }
 
-        if ($span === null && ! $this->breadcrumbsEnabled) {
-            return $proceedingJoinPoint->process();
-        }
-
-        // Guzzle applies the request options and middleware after this point and calls on_stats once
-        // per redirect, so keep the last prepared request and record once when the transfer settles.
-        $stats = null;
-        $callerOnStats = $options['on_stats'] ?? null;
-        $proceedingJoinPoint->arguments['keys']['options']['on_stats'] = static function (TransferStats $transferStats) use (&$stats, $callerOnStats): void {
-            $stats = $transferStats;
-
-            if ($callerOnStats !== null) {
-                $callerOnStats($transferStats);
+            if ($this->shouldAttachTracingHeaders($request)) {
+                $request = $request
+                    ->withHeader('sentry-trace', getTraceparent())
+                    ->withHeader('baggage', getBaggage());
             }
+
+            $span = null;
+            if ($this->tracingEnabled) {
+                $parentSpan = SentrySdk::getCurrentHub()->getSpan();
+
+                if ($parentSpan !== null && $parentSpan->getSampled()) {
+                    $span = $parentSpan->startChild(
+                        SpanContext::make()
+                            ->setOp('http.client')
+                            ->setOrigin('auto.http.guzzle')
+                            ->setDescription($request->getMethod() . ' ' . self::buildPartialUri($request->getUri()))
+                    );
+                }
+            }
+
+            if ($span === null && ! $this->breadcrumbsEnabled) {
+                return $handler($request, $options);
+            }
+
+            // Guzzle applies the request options and middleware after this point and calls on_stats once
+            // per redirect, so keep the last prepared request and record once when the transfer settles.
+            $stats = null;
+            $callerOnStats = $options['on_stats'] ?? null;
+            $options['on_stats'] = static function (TransferStats $transferStats) use (&$stats, $callerOnStats): void {
+                $stats = $transferStats;
+
+                if ($callerOnStats !== null) {
+                    $callerOnStats($transferStats);
+                }
+            };
+
+            // An async request can settle after its caller has returned, so capture its origin now. SDKs such as AWS
+            // also send synchronous calls this way, below their own middleware and any storage decorators.
+            $backtrace = $span !== null && $this->traceOrigin && ($options['synchronous'] ?? false) !== true
+                ? debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 64)
+                : null;
+
+            try {
+                $promise = $handler($request, $options);
+            } catch (Throwable $exception) {
+                $this->recordTransfer($span, $request, $stats, $exception instanceof ResponseException ? $exception->getResponse() : null, $backtrace);
+
+                throw $exception;
+            }
+
+            return $promise->then(
+                function (ResponseInterface $response) use ($span, $request, &$stats, $backtrace): ResponseInterface {
+                    $this->recordTransfer($span, $request, $stats, $response, $backtrace);
+
+                    return $response;
+                },
+                function (mixed $reason) use ($span, $request, &$stats, $backtrace): PromiseInterface {
+                    $this->recordTransfer($span, $request, $stats, $reason instanceof ResponseException ? $reason->getResponse() : null, $backtrace);
+
+                    return Create::rejectionFor($reason);
+                }
+            );
         };
-
-        // An async request can settle after its caller has returned, so capture its origin now. SDKs such as AWS
-        // also send synchronous calls this way, below their own middleware and any storage decorators.
-        $backtrace = $span !== null && $this->traceOrigin && ($options['synchronous'] ?? false) !== true
-            ? debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 64)
-            : null;
-
-        try {
-            $promise = $proceedingJoinPoint->process();
-        } catch (Throwable $exception) {
-            $this->recordTransfer($span, $request, $stats, RejectedResponse::from($exception), $backtrace);
-
-            throw $exception;
-        }
-
-        return $promise->then(
-            function (ResponseInterface $response) use ($span, $request, &$stats, $backtrace): ResponseInterface {
-                $this->recordTransfer($span, $request, $stats, $response, $backtrace);
-
-                return $response;
-            },
-            function (mixed $reason) use ($span, $request, &$stats, $backtrace): PromiseInterface {
-                $this->recordTransfer($span, $request, $stats, RejectedResponse::from($reason), $backtrace);
-
-                return Create::rejectionFor($reason);
-            }
-        );
     }
 
     /**
@@ -187,8 +190,7 @@ class GuzzleHttpClientAspect extends AbstractAspect
             }
 
             if ($this->traceOrigin && (microtime(true) - $span->getStartTimestamp()) * 1000 >= $this->traceOriginThresholdMs) {
-                // A synchronous request settles inside its caller's wait(), below the promise queue
-                // and AOP frames of the proxied Promise::wait(), so look deeper than other origins.
+                // Synchronous completion sits below the promise queue and middleware, so look deeper than other origins.
                 $origin = $this->resolveEventOrigin($backtrace ?? debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 40));
 
                 if ($origin !== null) {
@@ -281,5 +283,13 @@ class GuzzleHttpClientAspect extends AbstractAspect
         }
 
         return $result . $uri->getPath();
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        Client::removeGlobalMiddleware(self::MIDDLEWARE_NAME);
     }
 }

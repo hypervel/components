@@ -212,8 +212,8 @@ class GenerateProxies
      */
     public static function flushState(): void
     {
-        // Only isolated loader tests may unregister this loader. Normal after-test
-        // cleanup must retain the framework proxies prepared before test discovery.
+        // Only isolated loader tests may unregister this loader. Proxy classes
+        // loaded by earlier tests stay in use for the rest of the process.
         static::$proxyLoader?->unregister();
         static::$proxyLoader = null;
         static::$proxySources = [];

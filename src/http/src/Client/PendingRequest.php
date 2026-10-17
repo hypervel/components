@@ -34,7 +34,6 @@ use Hypervel\Http\Client\Destinations\ResolvedDestination;
 use Hypervel\Http\Client\Events\ConnectionFailed;
 use Hypervel\Http\Client\Events\RequestSending;
 use Hypervel\Http\Client\Events\ResponseReceived;
-use Hypervel\Http\Client\Guzzle\RejectedResponse;
 use Hypervel\Http\Client\Guzzle\ReleaseIdleDatabaseConnections;
 use Hypervel\Http\Client\RequestException as HttpRequestException;
 use Hypervel\Support\Arr;
@@ -1100,11 +1099,9 @@ class PendingRequest implements Transient
 
                 if (($response = $this->responseFromException($e)) !== null) {
                     $this->marshalTransportExceptionWithResponse($e, $response);
-                } elseif (method_exists($e, 'getRequest')) {
+                } else {
                     $this->marshalTransportException($e);
                 }
-
-                throw $e;
             }
         }, $this->retryDelay, function ($exception) use (&$shouldRetry) {
             // Destination rejections and missing cURL capabilities fail the same way on every attempt.
@@ -1233,7 +1230,7 @@ class PendingRequest implements Transient
                     return $this->marshalAsyncTransportExceptionWithResponse($e, $response);
                 }
 
-                if ($e instanceof TransferException && method_exists($e, 'getRequest')) { // @phpstan-ignore function.alreadyNarrowedType (Guzzle 7's base TransferException has no getRequest method.)
+                if ($e instanceof TransferException) {
                     $exception = new ConnectionException($e->getMessage(), 0, $e);
 
                     $this->dispatchConnectionFailedEvent(
@@ -1274,9 +1271,8 @@ class PendingRequest implements Transient
             return $response;
         }
 
-        if ($response instanceof RequestException
-            && ($psrResponse = $this->responseFromException($response)) !== null) {
-            $response = $this->marshalAsyncTransportExceptionWithResponse($response, $psrResponse);
+        if ($response instanceof ResponseException) {
+            $response = $this->marshalAsyncTransportExceptionWithResponse($response, $response->getResponse());
         }
 
         try {
@@ -1938,22 +1934,14 @@ class PendingRequest implements Transient
                     if (is_string($sink) && ! is_dir(dirname($sink))) {
                         $message = sprintf('Directory %s does not exist for sink value of %s', dirname($sink), $sink);
 
-                        // Guzzle 8 treats this as a request failure; Guzzle 7 throws a RuntimeException.
-                        throw class_exists(ResponseException::class)
-                            ? new RequestException($message, $request)
-                            : new RuntimeException($message);
+                        throw new RequestException($message, $request);
                     }
 
                     if ($onHeaders !== null) {
                         try {
-                            // Guzzle 8 also passes the request.
-                            if (class_exists(ResponseException::class)) {
-                                $onHeaders($psrResponse, $request);
-                            } else {
-                                $onHeaders($psrResponse);
-                            }
+                            $onHeaders($psrResponse, $request);
                         } catch (Throwable $e) {
-                            throw $this->transferExceptionWithResponse('An error was encountered during the on_headers event', $request, $psrResponse, $e);
+                            throw new ResponseException('An error was encountered during the on_headers event', $request, $psrResponse, $e);
                         }
                     }
 
@@ -1993,7 +1981,7 @@ class PendingRequest implements Transient
                     return $psrResponse;
                 }
             } catch (Throwable $exception) {
-                throw $this->sinkFailure($exception, $request, $psrResponse);
+                throw new ResponseException($exception->getMessage(), $request, $psrResponse, $exception);
             }
 
             $resource = is_resource($sink);
@@ -2008,11 +1996,11 @@ class PendingRequest implements Transient
                         throw new RuntimeException('Unable to write to stream');
                     }
                 } catch (Throwable $exception) {
-                    throw $this->sinkFailure($exception, $request, $psrResponse);
+                    throw new ResponseException($exception->getMessage(), $request, $psrResponse, $exception);
                 }
 
                 if ($written !== strlen($chunk)) {
-                    throw $this->transferExceptionWithResponse('Unable to write to stream', $request, $psrResponse);
+                    throw new ResponseException('Unable to write to stream', $request, $psrResponse);
                 }
             }
 
@@ -2122,7 +2110,7 @@ class PendingRequest implements Transient
             return $handler($request, $options);
         }
 
-        // Guzzle 8 connection exceptions carry no cURL error number, so read it from the transfer statistics.
+        // Connection exceptions carry no cURL error number, so read it from the transfer statistics.
         $errorNumber = null;
         $onStats = $options['on_stats'] ?? null;
 
@@ -2421,29 +2409,7 @@ class PendingRequest implements Transient
      */
     protected function responseFromException(Throwable $e): ?ResponseInterface
     {
-        return RejectedResponse::from($e);
-    }
-
-    /**
-     * Create the exception a transport raises when a request fails after its response's headers arrived.
-     */
-    protected function transferExceptionWithResponse(string $message, RequestInterface $request, ResponseInterface $response, ?Throwable $previous = null): RequestException
-    {
-        // Guzzle 8 carries the response on ResponseException, Guzzle 7 on RequestException.
-        return class_exists(ResponseException::class)
-            ? new ResponseException($message, $request, $response, $previous)
-            : new RequestException($message, $request, $response, $previous); // @phpstan-ignore argument.type (Only Guzzle 7 reaches this branch; its RequestException takes the response third.)
-    }
-
-    /**
-     * Create the exception a transport raises when its sink fails to write a response body.
-     */
-    protected function sinkFailure(Throwable $exception, RequestInterface $request, ResponseInterface $response): Throwable
-    {
-        // Guzzle 8 rejects with the response; Guzzle 7's cURL write callback lets the exception escape.
-        return class_exists(ResponseException::class)
-            ? $this->transferExceptionWithResponse($exception->getMessage(), $request, $response, $exception)
-            : $exception;
+        return $e instanceof ResponseException ? $e->getResponse() : null;
     }
 
     /**

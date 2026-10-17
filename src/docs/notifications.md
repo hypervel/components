@@ -44,6 +44,7 @@
 - [Testing](#testing)
 - [Notification Events](#notification-events)
 - [Custom Channels](#custom-channels)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -2115,3 +2116,8 @@ public function via(object $notifiable): array
 ```
 
 The `Notification::channel` method resolves a channel instance by name. It also accepts an enum whose value is a channel name or a custom channel class.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Notifications began as a port of [Laravel Notifications](https://github.com/illuminate/notifications) and has been adapted for Hypervel's framework architecture and coroutine runtime.

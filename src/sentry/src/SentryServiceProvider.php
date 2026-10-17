@@ -22,7 +22,6 @@ use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Routing\Contracts\CallableDispatcher;
 use Hypervel\Routing\Contracts\ControllerDispatcher;
-use Hypervel\Sentry\Aspects\GuzzleHttpClientAspect;
 use Hypervel\Sentry\Console\AboutCommandIntegration;
 use Hypervel\Sentry\Console\PublishCommand;
 use Hypervel\Sentry\Console\TestCommand;
@@ -197,12 +196,6 @@ class SentryServiceProvider extends ServiceProvider
         $this->registerFeatures();
 
         $this->registerLogChannels();
-
-        // Upstream's HttpClientIntegration feature is not ported: this aspect instruments
-        // every Guzzle client, not only requests sent through the HTTP client's events.
-        if ($this->isActive()) {
-            $this->aspects(GuzzleHttpClientAspect::class);
-        }
     }
 
     /**

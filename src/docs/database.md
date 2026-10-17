@@ -22,6 +22,7 @@
     - [Custom Database Clients](#custom-database-clients)
 - [Inspecting Your Databases](#inspecting-your-databases)
 - [Monitoring Your Databases](#monitoring-your-databases)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -1004,3 +1005,8 @@ public function boot(): void
     });
 }
 ```
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Database began as a port of [Laravel Database](https://github.com/illuminate/database) and has been adapted for Hypervel's framework architecture and coroutine runtime.

@@ -820,7 +820,7 @@ foreach (array_slice($argv, 1) as $argument) {
 if (isset($flags['help']) || $arguments === []) {
     echo "Usage: php benchmark.php matrix|launch SIDE CONFIG|saturation SIDE --workspace=/tmp/sentry-benchmark [options]\n"
         . "SIDE is baseline or current; CONFIG is C0..C5. See README.md for setup.\n"
-        . "--smoke | --idle-confirmed   Correctness checks or owner-authorized measurements\n"
+        . "--smoke | --idle-confirmed   Correctness checks or measurements on an idle machine\n"
         . "--repetitions=3 --out=/tmp/results\n"
         . "--app-port=18000 --stats-port=18001 --sink-port=18080\n"
         . "Optional Linux affinity: --server-cpus=1,2 --sink-cpus=3 --loadgen-cpus=4,5\n";
@@ -866,7 +866,6 @@ if ($clockTicks < 1) {
 }
 define('CLOCK_TICKS', $clockTicks);
 
-// Full-size runs are benchmarks, which need the owner's confirmation that the machine is idle.
 if (! isset($flags['smoke']) && ! isset($flags['idle-confirmed'])) {
     fwrite(STDERR, "Full-size runs need --idle-confirmed; use --smoke otherwise.\n");
     exit(1);
