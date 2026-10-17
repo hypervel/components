@@ -83,14 +83,15 @@ return [
     | Proof-Bound Access Tokens
     |--------------------------------------------------------------------------
     |
-    | DPoP binds credentials to a client's public key. Enabling it requires
-    | a shared replay store and adds a proof verification and cache write
-    | to requests using DPoP. Ordinary bearer requests are unaffected.
+    | DPoP binds credentials to a client's public key. Proof verification and
+    | replay tracking apply only to DPoP requests. Disabling replay tracking
+    | permits repeated use of captured proofs during their short lifetime.
     |
     */
 
     'dpop' => [
         'enabled' => (bool) env('PASSPORT_DPOP_ENABLED', false),
+        'replay_protection' => (bool) env('PASSPORT_DPOP_REPLAY_PROTECTION', true),
     ],
 
     /*
@@ -160,9 +161,9 @@ return [
     | Assertion and Proof Replay Protection
     |--------------------------------------------------------------------------
     |
-    | JWT client assertions and DPoP proofs require a shared Redis or database
-    | cache store. Null uses the default cache store. Redis must use the
-    | noeviction policy; replay entries must remain until they expire.
+    | JWT client assertions and replay-protected DPoP proofs require a shared
+    | Redis or database cache store. Null uses the default store. Redis must
+    | use noeviction; replay entries must remain until they expire.
     |
     | A database store cannot share an active application transaction. Use a
     | separate cache connection when your application wraps requests in

@@ -126,6 +126,8 @@ class PassportTest extends TestCase
         Passport::tokensCan(['custom' => 'Custom scope']);
         Passport::tokensCanAccess(['urn:example:custom' => 'Custom resource']);
         Passport::tokensExpireIn(new DateInterval('PT5M'));
+        Passport::dpopTokensExpireIn($lifetimeCap = new DateInterval('PT30S'));
+        $this->assertSame($lifetimeCap, Passport::dpopTokensExpireIn());
         Passport::inheritGrantAttributes(['organization_id']);
         Passport::authenticateAccessTokensUsing(static fn (): bool => false);
         Passport::authenticateClientsUsing(static fn (): bool => false);
@@ -143,6 +145,7 @@ class PassportTest extends TestCase
         $this->assertSame([], Passport::scopeIds());
         $this->assertFalse(Passport::hasResource('urn:example:custom'));
         $this->assertEquals(new DateInterval('P1Y'), Passport::tokensExpireIn());
+        $this->assertEquals(new DateInterval('PT5M'), Passport::dpopTokensExpireIn());
         $this->assertSame([], Passport::$inheritedGrantAttributes);
         $this->assertNull(Passport::$accessTokenAuthenticationCallback);
         $this->assertNull(Passport::$clientAuthenticationCallback);

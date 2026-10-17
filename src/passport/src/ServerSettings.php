@@ -28,6 +28,8 @@ readonly class ServerSettings
         public ?string $issuer = null,
         public int $metadataCacheLifetime = 0,
         public array $resources = [],
+        public ?DateInterval $dpopTokensExpireIn = null,
+        public ?bool $dpopReplayProtection = null,
     ) {
         ProtectedResource::validateIdentifiers($resources);
 

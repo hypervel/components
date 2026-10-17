@@ -142,6 +142,11 @@ class Passport
     public static ?DateInterval $clientCredentialsTokensExpireIn = null;
 
     /**
+     * The maximum lifetime of proof-bound access tokens.
+     */
+    public static ?DateInterval $dpopTokensExpireIn = null;
+
+    /**
      * The interval for remembering user approval, or null for indefinite approval.
      */
     public static ?DateInterval $rememberConsentFor = null;
@@ -549,6 +554,22 @@ class Passport
         }
 
         return static::$clientCredentialsTokensExpireIn = $date instanceof DateTimeInterface
+            ? Date::now()->diff($date)
+            : $date;
+    }
+
+    /**
+     * Get or set the maximum lifetime of proof-bound access tokens.
+     *
+     * Boot-only when setting. The lifetime persists for every subsequent request on the worker.
+     */
+    public static function dpopTokensExpireIn(DateTimeInterface|DateInterval|null $date = null): DateInterval
+    {
+        if (is_null($date)) {
+            return static::$dpopTokensExpireIn ??= new DateInterval('PT5M');
+        }
+
+        return static::$dpopTokensExpireIn = $date instanceof DateTimeInterface
             ? Date::now()->diff($date)
             : $date;
     }
@@ -1219,6 +1240,7 @@ class Passport
         static::$refreshTokensExpireIn = null;
         static::$personalAccessTokensExpireIn = null;
         static::$clientCredentialsTokensExpireIn = null;
+        static::$dpopTokensExpireIn = null;
         static::$rememberConsentFor = null;
         static::$cookie = self::DEFAULT_COOKIE;
         static::$ignoreCsrfToken = self::DEFAULT_IGNORE_CSRF_TOKEN;
