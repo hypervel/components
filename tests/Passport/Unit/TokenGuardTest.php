@@ -8,6 +8,7 @@ use Firebase\JWT\JWT;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Encryption\Encrypter as EncrypterContract;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Cookie\CookieValuePrefix;
 use Hypervel\Encryption\Encrypter;
 use Hypervel\Http\Request;
@@ -30,7 +31,17 @@ class TokenGuardTest extends TestCase
 {
     // REMOVED: User/client integer-ID collisions require the pre-13 client schema.
 
-    public function testUsersMayBeRetrievedFromCookiesWithCsrfTokenHeader(): void
+    /**
+     * Load the guard's configuration without registering the OAuth endpoints.
+     */
+    protected function defineEnvironment(Application $app): void
+    {
+        $app->make('config')->set('passport', require __DIR__ . '/../../../src/passport/config/passport.php');
+    }
+
+    #[TestWith([null])]
+    #[TestWith(['Basic dXNlcjpwYXNzd29yZA=='])]
+    public function testUsersMayBeRetrievedFromCookiesWithCsrfTokenHeader(?string $authorization): void
     {
         $userProvider = m::mock(PassportUserProvider::class);
         $clients = m::mock(ClientRepository::class);
@@ -39,6 +50,7 @@ class TokenGuardTest extends TestCase
 
         $request = Request::create('/');
         $request->headers->set('X-CSRF-TOKEN', 'token');
+        $request->headers->set('Authorization', $authorization);
         $request->cookies->set(
             'hypervel_token',
             $encrypter->encrypt(CookieValuePrefix::create('hypervel_token', $encrypter->getKey()) . JWT::encode([
@@ -51,11 +63,16 @@ class TokenGuardTest extends TestCase
 
         $guard = $this->makeGuard($userProvider, $clients, $encrypter, $request);
 
-        $userProvider->expects('retrieveById')->with(1)->andReturn($expectedUser = new TokenGuardTestUser);
+        $userProvider->expects('retrieveById')->twice()->with(1)->andReturn($expectedUser = new TokenGuardTestUser);
 
         $user = $guard->user();
 
         $this->assertEquals($expectedUser, $user);
+        $this->assertSame($user, $guard->user());
+        $this->assertTrue($guard->hasUser());
+        $this->assertTrue($guard->validate(['request' => $request]));
+        $this->assertNull($guard->client());
+        $this->assertNull($guard->token());
     }
 
     public function testUsersMayBeRetrievedFromCookiesWithXsrfTokenHeader(): void
