@@ -586,6 +586,8 @@ Consent forms still use the named `passport.authorizations.approve` and `passpor
 
 Clients must serialize refresh requests: reusing a refresh token revokes its grant. Rotation can only be disabled for confidential clients. Keep the token endpoint outside application transactions, including transaction-per-request middleware. Credential, consent and database signing-key models must share a connection; clients and users may use separate connections.
 
+Confidential device clients must authenticate when requesting a device code, as well as when polling the token endpoint. Include their client secret or use their registered authentication method. See [the device authorization grant](/docs/{{version}}/passport#device-authorization-grant).
+
 Restart the server and other long-running processes after changing file or environment signing keys. `server:reload` is not sufficient. See [signing-key rotation](/docs/{{version}}/passport#rotating-signing-keys).
 
 Custom guards, controllers, middleware and cookie-factory subclasses must match Hypervel's constructor and protected method signatures. In particular, guards read `RequestContext` instead of accepting `setRequest()`, `CreateFreshApiToken` passes its guard explicitly, and server-building methods live on `ServerFactory`. Consult the package's [API differences](https://github.com/hypervel/passport#differences-from-laravel) and [Passport documentation](/docs/{{version}}/passport) when porting extensions.

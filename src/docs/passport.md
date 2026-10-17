@@ -13,6 +13,11 @@
     - [Overriding Routes](#overriding-routes)
     - [Rate Limiting](#rate-limiting)
     - [Token and Client Caching](#token-and-client-caching)
+- [Client Authentication](#client-authentication)
+    - [JWT Client Assertions](#jwt-client-assertions)
+- [Dynamic Client Registration](#dynamic-client-registration)
+    - [Authorized Registration](#authorized-registration)
+    - [Additional Client Metadata](#additional-client-metadata)
 - [Authorization Code Grant](#authorization-code-grant)
     - [Managing Clients](#managing-clients)
     - [Requesting Tokens](#requesting-tokens)
@@ -307,7 +312,7 @@ public function boot(): void
 }
 ```
 
-Token, authorization-code, device-code, refresh-token, refresh-token-family and database signing-key models must use the same database connection. Passport writes these records together when issuing tokens. Client models may use a different connection. If an application's user or client-owner model uses the default connection while Passport uses another, declare that default connection explicitly on the owner model so Eloquent does not inherit Passport's connection for the owner relationship.
+Token, consent, authorization-code, device-code, refresh-token, refresh-token-family and database signing-key models must use the same database connection. Passport writes these records together when issuing tokens. Client models may use a different connection. If an application's user or client-owner model uses the default connection while Passport uses another, declare that default connection explicitly on the owner model so Eloquent does not inherit Passport's connection for the owner relationship.
 
 Do not wrap the OAuth token endpoint in application transaction middleware. Reuse detection and device polling must remain committed when an exchange fails. Personal access token creation may run inside an application transaction and follows its commit or rollback.
 
@@ -351,7 +356,7 @@ Route::group([
 <a name="rate-limiting"></a>
 ### Rate Limiting
 
-Passport uses the named `passport` rate limiter on `POST /oauth/token`, `POST /oauth/device/code` and `GET /oauth/device/authorize`. Limiting the device authorization page prevents repeated attempts to guess user codes. By default, the limiter allows 60 requests per minute for each authenticated user or IP address. You may customize this limit in your application's `AppServiceProvider`:
+Passport uses the named `passport` rate limiter on `POST /oauth/token`, `POST /oauth/device/code`, `GET /oauth/device/authorize` and the optional registration endpoint. Limiting the device authorization page prevents repeated attempts to guess user codes. By default, the limiter allows 60 requests per minute for each authenticated user or IP address. You may customize this limit in your application's `AppServiceProvider`:
 
 ```php
 use Hypervel\Http\Request;
@@ -402,6 +407,103 @@ $tokenModel::clearTokenCache($tokenId);
 ```
 
 This method uses the token model's database connection. If a transaction is open, shared cache invalidation waits for its outermost commit; otherwise, it runs immediately. A rollback leaves the existing committed cache entry in place.
+
+<a name="client-authentication"></a>
+## Client Authentication
+
+Passport supports the following client authentication methods:
+
+| Method | Credentials |
+| --- | --- |
+| `none` | A public client's `client_id`, without a secret. |
+| `client_secret_basic` | An HTTP Basic header containing the client ID and secret. |
+| `client_secret_post` | The `client_id` and `client_secret` form fields. |
+| `private_key_jwt` | A signed JWT assertion using the client's registered public keys. |
+
+Clients created through `ClientRepository` accept Basic or form credentials when they have a secret, unless an explicit `token_endpoint_auth_method` is set. Public clients use `none`; they may also identify themselves through Basic with an empty password. Public clients without an explicit method ignore supplied secrets. Dynamically registered clients accept only their registered method. Do not send Basic credentials together with a form secret or assertion.
+
+For Basic authentication, form-encode the client ID and secret before constructing the header:
+
+```php
+$response = Http::asForm()
+    ->withBasicAuth(urlencode($clientId), urlencode($clientSecret))
+    ->post($tokenUrl, ['grant_type' => 'client_credentials']);
+```
+
+A client's nullable `scopes` attribute limits its allowed scopes. Null leaves the client unrestricted; an empty array allows none. Authorization and device requests reject explicit scopes outside this limit. When scopes are omitted, Passport intersects the default scopes with the client's limit and retains that selection through login and consent.
+
+<a name="jwt-client-assertions"></a>
+### JWT Client Assertions
+
+To use `private_key_jwt`, register a public `jwks` document or an HTTPS `jwks_uri`, and set the server's canonical `issuer`. Supported signing algorithms are `RS256` and `ES256`; the default is `RS256`. RSA keys must be at least 2048 bits, and ES256 keys use the P-256 curve. Do not supply private key material. A key set may also contain public keys for other purposes; Passport selects only keys suitable for the registered assertion algorithm. Registration accepts key declarations only for `private_key_jwt` clients. Inline and remote documents are limited to 64 KiB.
+
+The assertion's `iss` and `sub` must equal the client ID. Its sole `aud` must be the exact server issuer, as a string or a single-element array; endpoint URLs and multiple audiences are rejected. Include `exp` and a unique `jti`; `iat` is optional. Passport allows at most five minutes between `iat` and `exp`, or five minutes of remaining validity when `iat` is absent, allowing for clock leeway. The optional `nbf` must permit immediate use. Sign a new assertion for each request:
+
+```php
+$response = Http::asForm()->post($tokenUrl, [
+    'grant_type' => 'client_credentials',
+    'client_assertion_type' => 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
+    'client_assertion' => $signedAssertion,
+]);
+```
+
+Configure `passport.replay.store` to use a shared Redis or database cache store. A null or empty value uses the default store. Local stores, stack stores and failover stores cannot preserve a shared replay history and are rejected. Redis must use `noeviction`; a separate logical Redis database alone does not change that policy. Do not flush replay entries while assertions remain valid. Authentication fails if replay storage is unavailable.
+
+A database replay store cannot share an active application transaction, since rolling back that transaction would restore a used assertion. Use a separate cache connection when wrapping requests in transactions. Redis is recommended for high-volume assertion authentication, avoiding a database write per assertion.
+
+Remote keys use `passport.cache.store`, independently of whether token caching is enabled. The store must support atomic locks. `passport.client_keys.ttl` defaults to one hour; a new key identifier may trigger an earlier refresh, limited by `passport.client_keys.refresh_interval`, which defaults to 60 seconds. Publish replacement keys before clients begin signing with them. Remote requests use public HTTPS destinations, bounded response sizes and timeouts.
+
+<a name="dynamic-client-registration"></a>
+## Dynamic Client Registration
+
+Dynamic registration is disabled by default. To enable `POST /oauth/register`, call `enableDynamicClientRegistration` from your service provider's `register` method, before Passport registers its routes:
+
+```php
+use Hypervel\Passport\Passport;
+
+public function register(): void
+{
+    Passport::enableDynamicClientRegistration();
+}
+```
+
+Clients submit JSON metadata to this endpoint:
+
+```json
+{
+    "client_name": "Calendar",
+    "redirect_uris": ["https://calendar.example.com/callback"],
+    "grant_types": ["authorization_code", "refresh_token"],
+    "token_endpoint_auth_method": "none",
+    "scope": "calendar:read"
+}
+```
+
+Set `passport.registration.scopes` to the scopes anonymous registrations may request. It defaults to an empty array. Anonymous registration supports authorization-code and refresh grants, including shared-secret and JWT-authenticated clients, but cannot grant client-credentials authority, wildcard scopes or `passport:register`.
+
+The response returns HTTP 201 with the effective registered metadata, including defaults, and a new `client_id`. The default authentication method is `client_secret_basic`. Methods requiring a secret return it once as `client_secret`; store it securely, since Passport retains only its hash. Invalid metadata returns `invalid_client_metadata` or `invalid_redirect_uri` with HTTP 400. Unknown fields are ignored unless an extension validates them.
+
+Web clients must register exact HTTPS callbacks without fragments or wildcards. Set `application_type` to `native` to use loopback HTTP callbacks at `127.0.0.1` or `[::1]`, or a reverse-domain private-use scheme such as `com.example.app:/callback`. Public native clients should explicitly select `none`.
+
+<a name="authorized-registration"></a>
+### Authorized Registration
+
+To register machine clients or request scopes beyond the anonymous limit, send a real access token containing the explicit `passport:register` scope. Define that scope through `Passport::tokensCan`. It grants client-administration authority, including enabled machine grants and any defined scope, including `*`; the provisioning token's own API scopes do not limit the new client. A wildcard-only token does not qualify, and browser sessions or API cookies do not grant provisioning authority.
+
+Clients without a scope ceiling can request `passport:register` during authorization, so give third-party clients a ceiling that excludes it. When user-issued tokens may contain this scope, check the user's administration permission in a `ClientMetadataValidated` listener: resolve the user using `$event->token->user_id` and `$event->token->provider`, and throw `InvalidClientMetadataException` to reject unauthorized registration.
+
+A user-issued token associates the new client with that user through the token's recorded provider. The user must still exist and implement `OAuthenticatable`. A machine-issued token creates an unowned client. Submitted owner, provider and secret fields cannot override these decisions.
+
+Invalid access tokens receive an `invalid_token` response with HTTP 401. Valid tokens missing the provisioning scope receive `insufficient_scope` with HTTP 403. Both responses include a `WWW-Authenticate` challenge. Requests using another authentication scheme receive HTTP 401 with a bare Bearer challenge; requests without credentials use anonymous registration.
+
+Passport does not register client-management endpoints. Manage existing clients through your application's authorized administration routes and normal model APIs.
+
+<a name="additional-client-metadata"></a>
+### Additional Client Metadata
+
+Listen for `Hypervel\Passport\Events\ClientMetadataValidated` to validate additional fields or apply application policy. The synchronous event exposes `submitted` and core `validated` metadata, the existing `client` when validating an update, and the provisioning `token` when present. Place accepted fields in `$event->extensions`; registration persists and returns them. Add corresponding columns and casts to your configured client model. Extensions cannot replace core metadata, ownership or credentials.
+
+Reject metadata by throwing `InvalidClientMetadataException::invalidClientMetadata($description)` or `invalidRedirectUri($description)`. The registration endpoint renders these as protocol errors. Application management code may use `ClientMetadataValidator::validate($metadata, $client)` to validate a complete metadata document and run the same extension listeners. This method returns protocol metadata; the application remains responsible for authorization and persistence, including mapping `client_name` to `name` and `scope` to the model's `scopes` array. Direct model writes bypass metadata validation.
 
 <a name="authorization-code-grant"></a>
 ## Authorization Code Grant
@@ -590,7 +692,7 @@ Clients may request `response_mode=form_post` to receive the authorization code 
 
 When receiving authorization requests, Passport will automatically respond based on the value of `prompt` parameter (if present) and may display a template to the user allowing them to approve or deny the authorization request. If they approve the request, they will be redirected back to the `redirect_uri` that was specified by the consuming application. The `redirect_uri` must match the `redirect` URL that was specified when the client was created.
 
-Sometimes you may wish to skip the authorization prompt, such as when authorizing a first-party client. You may accomplish this by [extending the `Client` model](#overriding-default-models) and defining a `skipsAuthorization` method. If `skipsAuthorization` returns `true`, Passport approves the client after any required login or account selection, unless the consuming application requests `prompt=consent`. This trusted policy does not create or widen remembered user approval:
+Sometimes you may wish to skip the authorization prompt, such as when authorizing a first-party client. You may accomplish this by [extending the `Client` model](#overriding-default-models) and defining a `skipsAuthorization` method. If `skipsAuthorization` returns `true`, Passport approves the client after any required login or account selection, unless the consuming application requests `prompt=consent`. Dynamically registered clients are never considered first-party clients. This trusted policy does not create or widen remembered user approval:
 
 ```php
 <?php
@@ -904,7 +1006,7 @@ public function boot(): void
 
 Passport will automatically define routes that return these views. Your `auth.oauth.device.user-code` template should include a form that makes a GET request to the `passport.device.authorizations.authorize` route. The `passport.device.authorizations.authorize` route expects a `user_code` query parameter.
 
-Your `auth.oauth.device.authorize` template should include a form that makes a POST request to the `passport.device.authorizations.approve` route to approve the authorization and a form that makes a DELETE request to the `passport.device.authorizations.deny` route to deny the authorization. The `passport.device.authorizations.approve` and `passport.device.authorizations.deny` routes expect `state`, `client_id`, and `auth_token` fields.
+Your `auth.oauth.device.authorize` template should include a form that makes a POST request to the `passport.device.authorizations.approve` route to approve the authorization and a form that makes a DELETE request to the `passport.device.authorizations.deny` route to deny the authorization. Submit the supplied `auth_token` and the application's CSRF token. Passport retains the device request and client information; forms may also submit the [selected scopes and remember choice](#remembering-consent).
 
 <a name="creating-a-device-authorization-grant-client"></a>
 ### Creating a Device Authorization Grant Client
@@ -936,13 +1038,14 @@ $client = app(ClientRepository::class)->createDeviceAuthorizationGrantClient(
 <a name="device-code"></a>
 #### Requesting a Device Code
 
-Once a client has been created, developers may use their client ID to request a device code from your application. First, the consuming device should make a `POST` request to your application's `/oauth/device/code` route to request a device code:
+Once a client has been created, the consuming device should make a `POST` request to your application's `/oauth/device/code` route. Confidential clients authenticate using their registered [client authentication method](#client-authentication), both when requesting a device code and when polling for tokens. For example, a client using form credentials may send:
 
 ```php
 use Hypervel\Support\Facades\Http;
 
 $response = Http::asForm()->post('https://passport-app.test/oauth/device/code', [
     'client_id' => 'your-client-id',
+    'client_secret' => 'your-client-secret',
     'scope' => 'user:read orders:create',
 ]);
 
