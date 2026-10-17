@@ -74,8 +74,10 @@ class ClientRegistrationTest extends PassportTestCase
             'client_name' => 'Calendar', 'redirect_uris' => ['https://client.example/callback'], 'scope' => 'read',
             'owner_id' => 123, 'provider' => 'staff', 'secret' => 'injected', 'unknown' => 'ignored',
             'dynamically_registered' => false,
+            'require_pushed_authorization_requests' => true,
         ])->assertCreated()->assertHeader('Cache-Control', 'no-store, private')
             ->assertJsonPath('token_endpoint_auth_method', 'client_secret_basic')
+            ->assertJsonPath('require_pushed_authorization_requests', true)
             ->assertJsonPath('grant_types', ['authorization_code'])
             ->assertJsonPath('response_types', ['code'])
             ->assertJsonPath('client_secret_expires_at', 0)
@@ -88,6 +90,7 @@ class ClientRegistrationTest extends PassportTestCase
         $this->assertNull($client->owner_id);
         $this->assertNull($client->provider);
         $this->assertTrue($client->dynamically_registered);
+        $this->assertTrue($client->require_pushed_authorization_requests);
         $this->assertFalse($client->firstParty());
         $this->assertTrue($client->secretMatches($response->json('client_secret')));
         $this->assertNotSame($response->json('client_secret'), $client->secret);

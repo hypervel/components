@@ -26,6 +26,7 @@ return new class extends Migration {
             $table->jsonb('jwks')->nullable();
             $table->text('jwks_uri')->nullable();
             $table->boolean('dpop_bound_access_tokens')->default(false);
+            $table->boolean('require_pushed_authorization_requests')->default(false);
             $table->string('application_type')->default('web');
             $table->boolean('dynamically_registered')->default(false);
             $table->boolean('revoked');

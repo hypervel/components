@@ -46,6 +46,7 @@ class ClientMetadataValidatorTest extends TestCase
             'application_type' => 'web',
             'token_endpoint_auth_method' => 'client_secret_basic',
             'dpop_bound_access_tokens' => false,
+            'require_pushed_authorization_requests' => false,
             'response_types' => ['code'],
         ], $metadata);
     }
@@ -94,6 +95,7 @@ class ClientMetadataValidatorTest extends TestCase
     #[TestWith(['token_endpoint_auth_method', 'client_secret_jwt'])]
     #[TestWith(['dpop_bound_access_tokens', 'false'])]
     #[TestWith(['dpop_bound_access_tokens', true])]
+    #[TestWith(['require_pushed_authorization_requests', 'false'])]
     #[TestWith(['scope', 'unknown'])]
     #[TestWith(['scope', "read\twrite"])]
     public function testInvalidCoreMetadataDoesNotReachExtensions(string $name, mixed $value): void

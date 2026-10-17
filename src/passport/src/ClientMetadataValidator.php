@@ -61,6 +61,7 @@ class ClientMetadataValidator
             'jwks' => ['sometimes', 'required', 'array'],
             'jwks_uri' => ['sometimes', 'required', 'string'],
             'dpop_bound_access_tokens' => ['sometimes', 'boolean:strict'],
+            'require_pushed_authorization_requests' => ['sometimes', 'boolean:strict'],
         ];
         $validator = $this->validation->make($metadata, $rules);
 
@@ -77,6 +78,7 @@ class ClientMetadataValidator
             'application_type' => 'web',
             'token_endpoint_auth_method' => 'client_secret_basic',
             'dpop_bound_access_tokens' => false,
+            'require_pushed_authorization_requests' => false,
         ];
         $codeGrant = in_array('authorization_code', $validated['grant_types'], true);
         $validated['response_types'] ??= $codeGrant ? ['code'] : [];
@@ -182,7 +184,7 @@ class ClientMetadataValidator
         if ($metadata['token_endpoint_auth_method'] === 'private_key_jwt') {
             $issuer = $this->servers->settings()->issuer;
 
-            if ($issuer === null || $issuer === '' || ! isset($metadata['jwks']) && ! isset($metadata['jwks_uri'])) {
+            if ($issuer === null || ! isset($metadata['jwks']) && ! isset($metadata['jwks_uri'])) {
                 throw InvalidClientMetadataException::invalidClientMetadata('JWT client authentication requires a configured issuer and registered public keys.');
             }
 

@@ -31,6 +31,7 @@ use SensitiveParameter;
  * @property null|array $jwks
  * @property null|string $jwks_uri
  * @property bool $dpop_bound_access_tokens
+ * @property bool $require_pushed_authorization_requests
  * @property string $application_type
  * @property bool $dynamically_registered
  * @property bool $revoked
@@ -77,6 +78,7 @@ class Client extends Model
         'redirect_uris' => 'array',
         'jwks' => 'array',
         'dpop_bound_access_tokens' => 'bool',
+        'require_pushed_authorization_requests' => 'bool',
         'dynamically_registered' => 'bool',
         'revoked' => 'bool',
     ];
@@ -208,6 +210,14 @@ class Client extends Model
     public function hasScope(string $scope): bool
     {
         return ! isset($this->attributes['scopes']) || $this->scopeExistsIn($scope, $this->scopes);
+    }
+
+    /**
+     * Determine whether the client accepts users from the given provider.
+     */
+    public function supportsProvider(?string $provider): bool
+    {
+        return $this->provider === null || $this->provider === $provider;
     }
 
     /**
