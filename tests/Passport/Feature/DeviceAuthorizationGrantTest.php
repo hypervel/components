@@ -46,6 +46,7 @@ class DeviceAuthorizationGrantTest extends PassportTestCase
 
         $json = $this->post('/oauth/device/code', [
             'client_id' => $client->getKey(),
+            'client_secret' => $client->plainSecret,
             'scope' => 'create read',
         ])->assertOk()->json();
 
@@ -57,6 +58,60 @@ class DeviceAuthorizationGrantTest extends PassportTestCase
         $this->assertSame('http://localhost/oauth/device?user_code=' . $json['user_code'], $json['verification_uri_complete']);
     }
 
+    #[TestWith([null, 'invalid_request', 400])]
+    #[TestWith(['wrong-secret', 'invalid_client', 401])]
+    public function testConfidentialDeviceInitiationRequiresValidCredentials(?string $secret, string $error, int $status): void
+    {
+        $client = ClientFactory::new()->asDeviceCodeClient()->create();
+
+        $this->post('/oauth/device/code', [
+            'client_id' => $client->getKey(),
+            'client_secret' => $secret,
+        ])->assertStatus($status)->assertJsonPath('error', $error);
+
+        $this->assertDatabaseCount('oauth_device_codes', 0);
+    }
+
+    public function testDeviceInitiationAcceptsBasicAuthenticationWithoutBodyClientId(): void
+    {
+        $client = ClientFactory::new()->asDeviceCodeClient()->create();
+
+        $response = $this->withHeader('Authorization', 'Basic ' . base64_encode($client->getKey() . ':' . $client->plainSecret))
+            ->post('/oauth/device/code', ['scope' => 'read'])->assertOk();
+
+        $this->assertDatabaseHas('oauth_device_codes', [
+            'id' => $response->json('device_code'),
+            'client_id' => $client->getKey(),
+        ]);
+    }
+
+    #[TestWith([['read'], null, ['read']])]
+    #[TestWith([[], null, []])]
+    #[TestWith([['read'], 'read update', null])]
+    public function testClientScopeCeilingsAreAppliedBeforeDeviceCodePersistence(array $ceiling, ?string $requested, ?array $expected): void
+    {
+        Passport::defaultScopes(['read', 'update']);
+        $client = ClientFactory::new()->asDeviceCodeClient()->create(['scopes' => $ceiling]);
+        $parameters = ['client_id' => $client->getKey(), 'client_secret' => $client->plainSecret];
+
+        if ($requested !== null) {
+            $parameters['scope'] = $requested;
+        }
+
+        $response = $this->post('/oauth/device/code', $parameters);
+
+        if ($expected === null) {
+            $response->assertBadRequest()->assertJsonPath('error', 'invalid_scope');
+            $this->assertDatabaseCount('oauth_device_codes', 0);
+
+            return;
+        }
+
+        $response->assertOk();
+        $code = Passport::deviceCode()->newQuery()->findOrFail($response->json('device_code'));
+        $this->assertSame($expected, $code->scopes);
+    }
+
     public function testVerificationUriUsesEachRequestsHost(): void
     {
         $client = ClientFactory::new()->asDeviceCodeClient()->create();
@@ -64,6 +119,7 @@ class DeviceAuthorizationGrantTest extends PassportTestCase
         foreach (['first.example.com', 'second.example.com'] as $host) {
             $json = $this->post('https://' . $host . '/oauth/device/code', [
                 'client_id' => $client->getKey(),
+                'client_secret' => $client->plainSecret,
             ])->assertOk()->json();
 
             $this->assertSame('https://' . $host . '/oauth/device', $json['verification_uri']);
@@ -87,7 +143,10 @@ class DeviceAuthorizationGrantTest extends PassportTestCase
             'X-Forwarded-Port' => '443',
             'X-Forwarded-Prefix' => '/edge',
         ]);
-        $json = $this->post('/identity/device/code', ['client_id' => $client->getKey()])->assertOk()->json();
+        $json = $this->post('/identity/device/code', [
+            'client_id' => $client->getKey(),
+            'client_secret' => $client->plainSecret,
+        ])->assertOk()->json();
         $this->assertSame('https://auth.example/edge/identity/device', $json['verification_uri']);
         $this->assertSame($json['verification_uri'] . '?user_code=' . $json['user_code'], $json['verification_uri_complete']);
         $this->get('http://localhost/oauth-links')->assertExactJson([
@@ -116,6 +175,7 @@ class DeviceAuthorizationGrantTest extends PassportTestCase
 
         $json = $this->post('/oauth/device/code', [
             'client_id' => $client->getKey(),
+            'client_secret' => $client->plainSecret,
             'scope' => 'create read',
         ])->assertOk()->json();
 
@@ -168,6 +228,7 @@ class DeviceAuthorizationGrantTest extends PassportTestCase
             'user_code' => $userCode,
         ] = $this->post('/oauth/device/code', [
             'client_id' => $client->getKey(),
+            'client_secret' => $client->plainSecret,
             'scope' => 'create read',
         ])->assertOk()->json();
 
@@ -211,6 +272,7 @@ class DeviceAuthorizationGrantTest extends PassportTestCase
             'user_code' => $userCode,
         ] = $this->post('/oauth/device/code', [
             'client_id' => $client->getKey(),
+            'client_secret' => $client->plainSecret,
             'scope' => 'create read',
         ])->assertOk()->json();
 
@@ -279,6 +341,7 @@ class DeviceAuthorizationGrantTest extends PassportTestCase
             'user_code' => $userCode,
         ] = $this->post('/oauth/device/code', [
             'client_id' => $client->getKey(),
+            'client_secret' => $client->plainSecret,
             'scope' => 'create read',
         ])->assertOk()->json();
 
@@ -316,6 +379,7 @@ class DeviceAuthorizationGrantTest extends PassportTestCase
 
         ['user_code' => $userCode] = $this->post('/oauth/device/code', [
             'client_id' => $client->getKey(),
+            'client_secret' => $client->plainSecret,
             'scope' => 'create read',
         ])->assertOk()->json();
 
@@ -372,6 +436,7 @@ class DeviceAuthorizationGrantTest extends PassportTestCase
 
         $json = $this->post('/oauth/device/code', [
             'client_id' => $client->getKey(),
+            'client_secret' => $client->plainSecret,
         ])->assertBadRequest()->json();
 
         $this->assertSame('unauthorized_client', $json['error']);
@@ -387,7 +452,10 @@ class DeviceAuthorizationGrantTest extends PassportTestCase
             'auth.providers.staff' => config('auth.providers.users'),
         ]);
         $client = ClientFactory::new()->asDeviceCodeClient()->create();
-        $userCode = $this->post('/oauth/device/code', ['client_id' => $client->getKey()])->assertOk()->json('user_code');
+        $userCode = $this->post('/oauth/device/code', [
+            'client_id' => $client->getKey(),
+            'client_secret' => $client->plainSecret,
+        ])->assertOk()->json('user_code');
         $user = UserFactory::new()->create();
         $this->actingAs($user, 'web');
         $authToken = $this->get('/oauth/device/authorize?user_code=' . $userCode)->assertOk()->json('authToken');
@@ -410,12 +478,32 @@ class DeviceAuthorizationGrantTest extends PassportTestCase
         }
     }
 
+    #[TestWith(['grant_types', 'unauthorized_client'])]
+    #[TestWith(['scopes', 'invalid_scope'])]
+    public function testDevicePresentationRechecksTheClientsCurrentGrantAndScopes(string $attribute, string $error): void
+    {
+        $client = ClientFactory::new()->asDeviceCodeClient()->create(['scopes' => ['read']]);
+        $userCode = $this->post('/oauth/device/code', [
+            'client_id' => $client->getKey(),
+            'client_secret' => $client->plainSecret,
+            'scope' => 'read',
+        ])->assertOk()->json('user_code');
+        $client->update([$attribute => []]);
+        $this->actingAs(UserFactory::new()->create(), 'web');
+
+        $this->get('/oauth/device/authorize?user_code=' . $userCode)
+            ->assertBadRequest()->assertJsonPath('error', $error)
+            ->assertSessionMissing('passport.authorizations');
+        $this->assertDatabaseHas('oauth_device_codes', ['user_code' => $userCode, 'user_id' => null]);
+    }
+
     #[DataProvider('changedClients')]
     public function testConsentRechecksTheClientBeforeCompleting(string $method, string $change, string $error): void
     {
         $client = ClientFactory::new()->asDeviceCodeClient()->create();
         $userCode = $this->post('/oauth/device/code', [
             'client_id' => $client->getKey(),
+            'client_secret' => $client->plainSecret,
             'scope' => 'read',
         ])->assertOk()->json('user_code');
         $this->actingAs(UserFactory::new()->create(), 'web');
@@ -426,6 +514,7 @@ class DeviceAuthorizationGrantTest extends PassportTestCase
             'grant' => $client->forceFill(['grant_types' => []])->save(),
             'provider' => $client->forceFill(['provider' => 'staff'])->save(),
             'scope' => Passport::tokensCan([]),
+            'client-scopes' => $client->update(['scopes' => []]),
         };
 
         $this->{$method}('/oauth/device/authorize', ['auth_token' => $authToken])
@@ -445,13 +534,17 @@ class DeviceAuthorizationGrantTest extends PassportTestCase
             yield $method . ' grant' => [$method, 'grant', 'unauthorized_client'];
             yield $method . ' provider' => [$method, 'provider', 'unauthorized_client'];
             yield $method . ' scope' => [$method, 'scope', 'invalid_scope'];
+            yield $method . ' client scopes' => [$method, 'client-scopes', 'invalid_scope'];
         }
     }
 
     public function testAClientWithAProviderRejectsUsersOfAnotherProvider(): void
     {
         $client = ClientFactory::new()->asDeviceCodeClient()->create(['provider' => 'staff']);
-        $userCode = $this->post('/oauth/device/code', ['client_id' => $client->getKey()])->assertOk()->json('user_code');
+        $userCode = $this->post('/oauth/device/code', [
+            'client_id' => $client->getKey(),
+            'client_secret' => $client->plainSecret,
+        ])->assertOk()->json('user_code');
         $this->actingAs(UserFactory::new()->create(), 'web');
 
         $this->get('/oauth/device/authorize?user_code=' . $userCode)
@@ -465,7 +558,10 @@ class DeviceAuthorizationGrantTest extends PassportTestCase
     public function testExpiredOrPreviouslyApprovedDeviceCodesCannotBeApproved(bool $approved): void
     {
         $client = ClientFactory::new()->asDeviceCodeClient()->create();
-        $userCode = $this->post('/oauth/device/code', ['client_id' => $client->getKey()])->assertOk()->json('user_code');
+        $userCode = $this->post('/oauth/device/code', [
+            'client_id' => $client->getKey(),
+            'client_secret' => $client->plainSecret,
+        ])->assertOk()->json('user_code');
         $this->actingAs($user = UserFactory::new()->create(), 'web');
         $authToken = $this->get('/oauth/device/authorize?user_code=' . $userCode)->assertOk()->json('authToken');
         $code = Passport::deviceCode()->newQuery()->where('user_code', $userCode)->firstOrFail();

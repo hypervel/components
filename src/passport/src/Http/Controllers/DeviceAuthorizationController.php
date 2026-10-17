@@ -62,6 +62,12 @@ class DeviceAuthorizationController
                 ]);
         }
 
+        $this->withErrorHandling(fn () => $this->getClientForApproval(
+            $client->getKey(),
+            'urn:ietf:params:oauth:grant-type:device_code',
+            $deviceCode->getScopes(),
+        ));
+
         $user = $this->getApprovingGuard()->user();
         $deviceCode->setUserIdentifier((string) $user->getAuthIdentifier());
 
