@@ -10,6 +10,8 @@ use Hypervel\Mcp\Server\Resource;
 use Hypervel\Mcp\Server\Tool;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\DataProvider;
+use stdClass;
 
 class NotificationTest extends TestCase
 {
@@ -86,21 +88,40 @@ class NotificationTest extends TestCase
         ], $notification->toArray());
     }
 
-    public function testMergesSetMetaWithMetaInParams(): void
+    #[DataProvider('paramsMetadata')]
+    public function testMergesSetMetaWithMetaInParams(array|stdClass $paramsMeta, array $addedMeta, array|stdClass $expected): void
     {
         $notification = new Notification('test/event', [
             'data' => 'value',
-            '_meta' => ['source' => 'params'],
+            '_meta' => $paramsMeta,
         ]);
-        $notification->setMeta(['source' => 'default', 'author' => 'system']);
+        if ($addedMeta !== []) {
+            $notification->setMeta($addedMeta);
+        }
 
         $this->assertSame([
             'method' => 'test/event',
             'params' => [
                 'data' => 'value',
-                '_meta' => ['source' => 'params', 'author' => 'system'],
+                '_meta' => $expected,
             ],
         ], $notification->toArray());
+    }
+
+    /**
+     * Provide metadata objects with and without added response metadata.
+     */
+    public static function paramsMetadata(): array
+    {
+        $object = (object) ['source' => 'params'];
+        $added = ['source' => 'default', 'author' => 'system'];
+        $merged = ['source' => 'params', 'author' => 'system'];
+
+        return [
+            'merge array' => [['source' => 'params'], $added, $merged],
+            'merge object' => [$object, $added, $merged],
+            'preserve object' => [$object, [], $object],
+        ];
     }
 
     public function testDoesNotIncludeMetaIfNotSet(): void
