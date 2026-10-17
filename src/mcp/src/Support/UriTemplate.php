@@ -57,13 +57,7 @@ class UriTemplate implements Stringable
         $result = [];
 
         foreach ($this->variableNames as $i => $name) {
-            $value = $matches[$i + 1] ?? '';
-
-            if (isset($result[$name]) && $result[$name] !== $value) {
-                return null;
-            }
-
-            $result[$name] = $value;
+            $result[$name] = $matches[$i + 1] ?? '';
         }
 
         return $result;
@@ -135,6 +129,8 @@ class UriTemplate implements Stringable
     private function compileRegex(): string
     {
         $regexParts = [];
+        $captures = [];
+        $captureIndex = 0;
 
         $segments = preg_split('/(\{\w+})/', $this->template, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY);
 
@@ -145,7 +141,7 @@ class UriTemplate implements Stringable
         );
 
         foreach ($segments as $segment) {
-            $isVariable = preg_match('/^\{(\w+)}$/', $segment);
+            $isVariable = preg_match('/^\{(\w+)}$/', $segment, $matches);
 
             throw_if(
                 $isVariable === false,
@@ -153,7 +149,17 @@ class UriTemplate implements Stringable
                 'Failed to validate template segment: preg_match error'
             );
 
-            $regexParts[] = $isVariable === 1 ? '([^/]+)' : preg_quote($segment, '#');
+            if ($isVariable !== 1) {
+                $regexParts[] = preg_quote($segment, '#');
+                continue;
+            }
+
+            ++$captureIndex;
+            $name = $matches[1];
+
+            // Enforce repeated values during matching while keeping every occurrence's capture position.
+            $regexParts[] = isset($captures[$name]) ? '(\g{' . $captures[$name] . '})' : '([^/]+)';
+            $captures[$name] ??= $captureIndex;
         }
 
         $pattern = '#^' . implode('', $regexParts) . '$#';

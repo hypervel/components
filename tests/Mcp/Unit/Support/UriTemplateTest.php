@@ -58,6 +58,10 @@ class UriTemplateTest extends TestCase
 
         $this->assertSame(['fileId' => 'report'], $template->match('file://files/report/copies/report'));
         $this->assertNull($template->match('file://files/report/copies/invoice'));
+
+        $template = new UriTemplate('file://files/{fileId}-{fileId}/{copy}');
+
+        $this->assertSame(['fileId' => 'a-b', 'copy' => 'archive'], $template->match('file://files/a-b-a-b/archive'));
     }
 
     public function testReturnsNullForNonMatchingUris(): void
