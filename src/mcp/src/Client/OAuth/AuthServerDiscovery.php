@@ -40,6 +40,7 @@ class AuthServerDiscovery
         }
 
         $this->requireResourceMatches($resourceMetadata, $resource);
+        $resource = is_string($resourceMetadata['resource'] ?? null) ? $resourceMetadata['resource'] : $resource;
 
         $issuer = $this->issuerFrom($resourceMetadata) ?? $this->origin($resourceUrl);
 
@@ -109,6 +110,13 @@ class AuthServerDiscovery
         $resource = Arr::get($resourceMetadata, 'resource');
 
         if (is_string($resource) && ! hash_equals($resourceUrl, $resource)) {
+            // URL serializers disagree on the root slash; every other part must still match exactly.
+            $withoutRootSlash = static fn (string $url): string => preg_replace('~\A(https?://[^/?#]+)/(?=[?#]|\z)~', '$1', $url);
+
+            if (hash_equals($withoutRootSlash($resourceUrl), $withoutRootSlash($resource))) {
+                return;
+            }
+
             throw new OAuthException("Protected resource metadata resource [{$resource}] did not match the expected resource [{$resourceUrl}].");
         }
     }
@@ -188,6 +196,10 @@ class AuthServerDiscovery
         $parts = $this->parse($url);
 
         $path = $parts['path'] ?? '';
+
+        if ($path === '/') {
+            $path = '';
+        }
 
         return $this->originFromParts($parts) . '/.well-known/' . $type . $path;
     }

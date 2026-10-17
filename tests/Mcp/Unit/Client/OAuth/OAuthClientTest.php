@@ -365,7 +365,8 @@ class OAuthClientTest extends TestCase
             ->exchangeCallback();
     }
 
-    public function testRunsTheClientCredentialsGrant(): void
+    #[DataProvider('basicCredentials')]
+    public function testRunsTheClientCredentialsGrant(string $clientId, string $clientSecret, string $encodedCredentials): void
     {
         $this->fakeDiscovery();
 
@@ -377,7 +378,7 @@ class OAuthClientTest extends TestCase
         ]);
 
         $token = Client::web('https://mcp.test/mcp')
-            ->withOAuth(clientId: 'svc', clientSecret: 'secret', scope: 'mcp:use')
+            ->withOAuth(clientId: $clientId, clientSecret: $clientSecret, scope: 'mcp:use')
             ->oAuthClient()
             ->clientCredentials();
 
@@ -386,8 +387,19 @@ class OAuthClientTest extends TestCase
 
         Http::assertSent(fn ($request): bool => $request->url() === 'https://auth.test/token'
             && ($request['grant_type'] ?? null) === 'client_credentials'
-            && $request->hasHeader('Authorization', 'Basic ' . base64_encode('svc:secret'))
+            && $request->hasHeader('Authorization', 'Basic ' . base64_encode($encodedCredentials))
             && ! array_key_exists('client_secret', $request->data()));
+    }
+
+    /**
+     * Provide ordinary and reserved characters in OAuth Basic credentials.
+     */
+    public static function basicCredentials(): array
+    {
+        return [
+            'ordinary' => ['svc', 'secret', 'svc:secret'],
+            'reserved characters' => ['fixture:client', 'fixture+secret%x y', 'fixture%3Aclient:fixture%2Bsecret%25x%20y'],
+        ];
     }
 
     public function testThrowsWhenTheAuthorizationServerRedirectsBackWithAnError(): void
@@ -525,12 +537,15 @@ class OAuthClientTest extends TestCase
         $this->assertStringStartsWith('https://mcp.test/authorize?', $response->getTargetUrl());
     }
 
-    public function testUsesRootMetadataForAuthorizationAndTokenRequests(): void
+    #[DataProvider('rootResources')]
+    public function testUsesRootMetadataForAuthorizationAndTokenRequests(string $resourceUrl, string $declaredResource): void
     {
+        Http::preventStrayRequests();
+
         Http::fake([
             'https://mcp.test/.well-known/oauth-protected-resource/mcp' => Http::response('', 404),
             'https://mcp.test/.well-known/oauth-protected-resource' => Http::response([
-                'resource' => 'https://mcp.test',
+                'resource' => $declaredResource,
                 'authorization_servers' => ['https://auth.test/tenant1'],
                 'scopes_supported' => ['mcp:use'],
             ]),
@@ -543,7 +558,7 @@ class OAuthClientTest extends TestCase
             'https://auth.test/tenant1/token' => Http::response(['access_token' => 'access-token']),
         ]);
 
-        $client = Client::web('https://mcp.test/mcp')->withOAuth(
+        $client = Client::web($resourceUrl)->withOAuth(
             clientId: 'client-123',
             redirectUri: 'https://app.test/callback',
         );
@@ -551,8 +566,9 @@ class OAuthClientTest extends TestCase
         parse_str((string) parse_url($target, PHP_URL_QUERY), $query);
 
         $this->assertStringStartsWith('https://auth.test/tenant1/authorize?', $target);
-        $this->assertSame('https://mcp.test', $query['resource']);
+        $this->assertSame($declaredResource, $query['resource']);
         $this->assertSame('mcp:use', $query['scope']);
+        Http::assertSent(fn ($request): bool => $request->url() === 'https://mcp.test/.well-known/oauth-protected-resource');
         RequestContext::set(Request::create('https://app.test/callback', 'GET', [
             'code' => 'auth-code',
             'state' => $query['state'],
@@ -563,38 +579,62 @@ class OAuthClientTest extends TestCase
         $this->assertSame('mcp:use', $token->scope);
         Http::assertSent(fn ($request): bool => $request->url() === 'https://auth.test/tenant1/token'
             && $request['grant_type'] === 'authorization_code'
-            && $request['resource'] === 'https://mcp.test');
+            && $request['resource'] === $declaredResource);
 
         $client->oAuthClient()->clientCredentials();
 
         Http::assertSent(fn ($request): bool => $request->url() === 'https://auth.test/tenant1/token'
             && $request['grant_type'] === 'client_credentials'
-            && $request['resource'] === 'https://mcp.test');
+            && $request['resource'] === $declaredResource);
 
         $refreshed = $client->oAuthClient()->refreshCredentials('refresh-token');
 
         $this->assertNull($refreshed->scope);
         Http::assertSent(fn ($request): bool => $request->url() === 'https://auth.test/tenant1/token'
             && $request['grant_type'] === 'refresh_token'
-            && $request['resource'] === 'https://mcp.test'
+            && $request['resource'] === $declaredResource
             && ! isset($request['scope']));
     }
 
-    public function testRejectsRootMetadataForADifferentResource(): void
+    /**
+     * Provide equivalent root resource URL spellings.
+     */
+    public static function rootResources(): array
+    {
+        return [
+            'root fallback' => ['https://mcp.test/mcp', 'https://mcp.test'],
+            'root fallback with slash' => ['https://mcp.test/mcp', 'https://mcp.test/'],
+            'root client with slash' => ['https://mcp.test/', 'https://mcp.test'],
+        ];
+    }
+
+    #[DataProvider('mismatchedResources')]
+    public function testRejectsMetadataForADifferentResource(string $metadataUrl, string $declaredResource, string $expectedResource): void
     {
         Http::fake([
             'https://mcp.test/.well-known/oauth-protected-resource/mcp' => Http::response('', 404),
-            'https://mcp.test/.well-known/oauth-protected-resource' => Http::response([
-                'resource' => 'https://other.test',
+            $metadataUrl => Http::response([
+                'resource' => $declaredResource,
                 'authorization_servers' => ['https://auth.test'],
             ]),
         ]);
 
         $this->expectException(OAuthException::class);
-        $this->expectExceptionMessage('did not match the expected resource [https://mcp.test]');
+        $this->expectExceptionMessage("did not match the expected resource [{$expectedResource}]");
 
         Client::web('https://mcp.test/mcp')->withOAuth(clientId: 'client-123')
             ->oAuthClient()->clientCredentials();
+    }
+
+    /**
+     * Provide distinct origins and non-root paths that must not match.
+     */
+    public static function mismatchedResources(): array
+    {
+        return [
+            'different origin' => ['https://mcp.test/.well-known/oauth-protected-resource', 'https://other.test', 'https://mcp.test'],
+            'non-root trailing slash' => ['https://mcp.test/.well-known/oauth-protected-resource/mcp', 'https://mcp.test/mcp/', 'https://mcp.test/mcp'],
+        ];
     }
 
     public function testThrowsWhenTheTokenRequestFails(): void

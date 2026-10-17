@@ -333,7 +333,8 @@ class OAuthClient
         };
 
         if ($authMethod === TokenEndpointAuthMethod::ClientSecretBasic) {
-            $request = $request->withBasicAuth((string) $clientId, (string) $clientSecret);
+            // Encode each credential per RFC 6749 section 2.3.1; %20 also works with percent-only decoders.
+            $request = $request->withBasicAuth(rawurlencode((string) $clientId), rawurlencode((string) $clientSecret));
         }
 
         $destination = $this->resolveOAuthDestination($request, $tokenEndpoint);
