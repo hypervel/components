@@ -6,7 +6,27 @@ switch ($argv[1]) {
     case 'frames':
         fwrite(STDOUT, "first\nsecond\npartial");
         fgets(STDIN);
+        usleep(50000);
         fwrite(STDOUT, "-complete\n");
+        break;
+    case 'legacy':
+        $request = json_decode(fgets(STDIN), true, flags: JSON_THROW_ON_ERROR);
+
+        if ($request['method'] !== 'initialize') {
+            break;
+        }
+
+        fwrite(STDOUT, json_encode([
+            'jsonrpc' => '2.0',
+            'id' => $request['id'],
+            'result' => [
+                'protocolVersion' => $request['params']['protocolVersion'],
+                'capabilities' => new stdClass,
+                'serverInfo' => ['name' => 'Legacy fixture', 'version' => '1.0'],
+            ],
+        ], JSON_THROW_ON_ERROR) . "\n");
+        file_put_contents($argv[3], fgets(STDIN));
+        fgets(STDIN);
         break;
     case 'final':
         fwrite(STDOUT, "final\n");

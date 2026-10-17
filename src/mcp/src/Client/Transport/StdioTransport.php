@@ -7,12 +7,11 @@ namespace Hypervel\Mcp\Client\Transport;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Mcp\Client\Contracts\Transport;
 use Hypervel\Mcp\Client\Exceptions\TimeoutException;
-use Hypervel\Mcp\Exceptions\ClientException;
+use Hypervel\Mcp\Client\Exceptions\TransportException;
 use Hypervel\Process\InvokedProcess;
 use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Process\Exception\ExceptionInterface;
 use Symfony\Component\Process\Exception\ProcessTimedOutException;
-use Symfony\Component\Process\InputStream;
 use Symfony\Component\Process\Process;
 use Throwable;
 
@@ -22,7 +21,7 @@ class StdioTransport implements Transport
 
     protected ?Process $process = null;
 
-    protected ?InputStream $input = null;
+    protected ?StdioInput $input = null;
 
     protected string $buffer = '';
 
@@ -49,7 +48,7 @@ class StdioTransport implements Transport
             return;
         }
 
-        $this->input = new InputStream;
+        $this->input = new StdioInput;
         $this->process = new Process([$this->command, ...$this->args], env: $this->env);
         $this->process->setInput($this->input);
         $this->process->setTimeout(null);
@@ -57,7 +56,7 @@ class StdioTransport implements Transport
         try {
             $this->process->start();
         } catch (ExceptionInterface $exception) {
-            throw new ClientException("Failed to start process [{$this->command}]. Make sure the command exists.", 0, $exception);
+            throw new TransportException("Failed to start process [{$this->command}]. Make sure the command exists.", 0, $exception);
         }
     }
 
@@ -109,11 +108,16 @@ class StdioTransport implements Transport
      */
     public function send(string $message, array $headers = []): void
     {
-        if (! $this->input instanceof InputStream || ! $this->process?->isRunning()) {
-            throw new ClientException('Transport is not connected.');
+        if ($this->input === null || $this->process === null) {
+            throw new TransportException('Transport is not connected.');
         }
 
         $this->input->write($message . "\n");
+
+        // Service the pipes after enqueueing so notifications do not wait for receive().
+        if (! $this->process->isRunning()) {
+            throw new TransportException('Transport is not connected.');
+        }
     }
 
     /**
@@ -122,7 +126,7 @@ class StdioTransport implements Transport
     public function receive(): string
     {
         if (! $this->process instanceof Process) {
-            throw new ClientException('Transport is not connected.');
+            throw new TransportException('Transport is not connected.');
         }
 
         return $this->popLine() ?? $this->readNextLine($this->process);
@@ -133,12 +137,15 @@ class StdioTransport implements Transport
      */
     protected function readNextLine(Process $process): string
     {
-        $process->setIdleTimeout($this->timeoutSeconds);
+        $receiveStartedAt = microtime(true);
+        $process->setIdleTimeout($this->timeoutSeconds + max(0.0, $receiveStartedAt - $process->getLastOutputTime()));
         ConnectionResolver::releaseIdleConnections();
 
         try {
-            // The iterator includes output already read by send()'s running check.
+            // Retained output must not count the time spent idle between receive calls.
             foreach ($process->getIterator() as $type => $chunk) {
+                $process->setIdleTimeout($this->timeoutSeconds + max(0.0, $receiveStartedAt - $process->getLastOutputTime()));
+
                 if ($type === Process::ERR) {
                     $this->stderr = substr($this->stderr . $chunk, -self::STDERR_LIMIT);
                 }
@@ -193,7 +200,7 @@ class StdioTransport implements Transport
      */
     protected function failWith(string $message): never
     {
-        $this->disconnectAfterFailure(new ClientException($message));
+        $this->disconnectAfterFailure(new TransportException($message));
     }
 
     /**

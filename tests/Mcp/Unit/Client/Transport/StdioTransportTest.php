@@ -4,22 +4,50 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Mcp\Unit\Client\Transport;
 
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Mcp\Client;
 use Hypervel\Mcp\Client\Exceptions\TimeoutException;
+use Hypervel\Mcp\Client\Transport\StdioInput;
 use Hypervel\Mcp\Client\Transport\StdioTransport;
 use Hypervel\Mcp\Enums\ProtocolVersion;
 use Hypervel\Mcp\Exceptions\ClientException;
 use Hypervel\Mcp\Schema\Implementation;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Swoole\Coroutine\CanceledException;
-use Symfony\Component\Process\InputStream;
 use Symfony\Component\Process\Process;
 
 use function Hypervel\Coroutine\parallel;
 
 class StdioTransportTest extends TestCase
 {
+    protected string $directory;
+
+    /**
+     * Prepare an isolated subprocess acknowledgement directory.
+     */
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->directory = ParallelTesting::tempDir('McpStdioTransport');
+        $files = new Filesystem;
+        $files->deleteDirectory($this->directory);
+        $files->ensureDirectoryExists($this->directory);
+    }
+
+    /**
+     * Remove subprocess acknowledgements.
+     */
+    protected function tearDown(): void
+    {
+        try {
+            (new Filesystem)->deleteDirectory($this->directory);
+        } finally {
+            parent::tearDown();
+        }
+    }
+
     public function testReceivesOutputAlreadyReadByProcessStatusChecksAndRetainsSplitFrames(): void
     {
         $transport = new InspectableStdioTransport('frames');
@@ -31,11 +59,43 @@ class StdioTransportTest extends TestCase
             $this->assertSame("first\n", $transport->receive());
             $this->assertSame("second\n", $transport->receive());
 
+            $transport->setTimeoutSeconds(0.2);
+            usleep(300000);
             $transport->send('continue');
 
             $this->assertSame("partial-complete\n", $transport->receive());
         } finally {
             $transport->disconnect();
+        }
+    }
+
+    public function testLegacyFallbackDeliversInitializationWithoutAnotherRequest(): void
+    {
+        $acknowledgement = $this->directory . '/initialized.json';
+        $client = new Client(new StdioTransport(PHP_BINARY, [
+            __DIR__ . '/../../../Fixtures/Client/stdio-output.php',
+            'legacy',
+            ProtocolVersion::V2025_11_25->value,
+            $acknowledgement,
+        ]), new Implementation('Test client', '1.0'));
+
+        try {
+            $client->connect();
+            $deadline = microtime(true) + 3;
+
+            // Observing the file must not pump the process and accidentally deliver the notification.
+            do {
+                $notification = is_file($acknowledgement) ? file_get_contents($acknowledgement) : '';
+                if ($notification !== '') {
+                    break;
+                }
+                usleep(1000);
+            } while (microtime(true) < $deadline);
+
+            $this->assertNotSame('', $notification);
+            $this->assertSame('notifications/initialized', json_decode($notification, true, flags: JSON_THROW_ON_ERROR)['method']);
+        } finally {
+            $client->disconnect();
         }
     }
 
@@ -96,7 +156,7 @@ class StdioTransportTest extends TestCase
         $process->shouldReceive('isRunning')->once()->andReturnTrue();
         $process->shouldReceive('stop')->once()->with(0.1, null)->ordered()->andThrow($cancellation);
         $process->shouldReceive('stop')->once()->with(0, null)->ordered()->andReturn(0);
-        $input = new InputStream;
+        $input = new StdioInput;
         $transport = new InspectableStdioTransport('silent');
         $transport->installProcess($process, $input);
         $caught = null;
@@ -108,7 +168,7 @@ class StdioTransportTest extends TestCase
         }
 
         $this->assertSame($cancellation, $caught);
-        $this->assertTrue($input->isClosed());
+        $this->assertFalse($input->valid());
         $this->assertSame([null, null, '', ''], $transport->ownedState());
         $transport->disconnect();
     }
@@ -165,7 +225,7 @@ class InspectableStdioTransport extends StdioTransport
     /**
      * Install owned state for the cleanup regression.
      */
-    public function installProcess(Process $process, InputStream $input): void
+    public function installProcess(Process $process, StdioInput $input): void
     {
         $this->process = $process;
         $this->input = $input;
