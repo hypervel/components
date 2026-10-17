@@ -241,7 +241,7 @@ class ServerDelegationTest extends TestCase
 
         $response = $consumer->authorization->respondToDeviceAuthorizationRequest(
             (new ServerRequest('POST', 'https://second.example/oauth/device/code'))->withParsedBody([
-                'client_id' => $this->client->id, 'scope' => 'second',
+                'client_id' => $this->client->id, 'client_secret' => $this->client->plainSecret, 'scope' => 'second',
             ]),
             new Response,
         );

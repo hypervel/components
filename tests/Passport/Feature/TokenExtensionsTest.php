@@ -565,6 +565,7 @@ class TokenExtensionsTest extends PassportTestCase
         if ($device) {
             $code = $this->post('/oauth/device/code', [
                 'client_id' => $client->getKey(),
+                'client_secret' => $client->plainSecret,
                 'scope' => 'read offline_access',
             ])->assertOk()->json();
             $authToken = $this->get('/oauth/device/authorize?' . http_build_query([

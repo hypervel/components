@@ -15,6 +15,8 @@ use Psr\Http\Message\ServerRequestInterface;
 
 class AuthCodeGrant extends LeagueAuthCodeGrant
 {
+    use AuthenticatesClients;
+
     /**
      * Validate the authorization request and require a hashed PKCE challenge.
      */
