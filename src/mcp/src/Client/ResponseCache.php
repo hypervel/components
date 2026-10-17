@@ -59,13 +59,14 @@ class ResponseCache
             return $result;
         }
 
-        $ttlMs = min((int) (Arr::get($result, 'ttlMs') ?? 0), self::MAX_TTL_MS);
+        // Cache stores use whole seconds; rounding up would outlive the server's TTL.
+        $ttlSeconds = intdiv(min((int) (Arr::get($result, 'ttlMs') ?? 0), self::MAX_TTL_MS), 1000);
 
-        if ($ttlMs > 0) {
+        if ($ttlSeconds > 0) {
             $repository->put(
                 Arr::get($result, 'cacheScope') === CacheScope::Public->value ? $shared : $private,
                 $result,
-                now()->addMilliseconds($ttlMs),
+                $ttlSeconds,
             );
         }
 
@@ -111,7 +112,7 @@ class ResponseCache
     {
         return implode(':', [
             'mcp',
-            $this->hash(Arr::only($recipe, ['driver', 'url', 'command', 'args', 'headers'])),
+            $this->hash(Arr::only($recipe, ['driver', 'url', 'command', 'args', 'env', 'headers'])),
             $scope === CacheScope::Public
                 ? 'public'
                 : $this->hash([$this->for, Arr::except($recipe, ['timeoutSeconds'])]),

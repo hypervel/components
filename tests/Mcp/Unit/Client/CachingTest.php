@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Mcp\Unit\Client;
 
 use Hypervel\Mcp\Client;
+use Hypervel\Mcp\Client\Methods\Tools\ListTools;
 use Hypervel\Mcp\Client\ResponseCache;
+use Hypervel\Mcp\Client\Transport\StdioTransport;
 use Hypervel\Tests\Mcp\Fixtures\Client\FakeTransport;
 use Hypervel\Tests\Mcp\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 use function Hypervel\Tests\Mcp\Fixtures\initializeResponse;
 
@@ -123,6 +126,41 @@ class CachingTest extends TestCase
         $this->assertGreaterThan($sent, count($transport->sent));
     }
 
+    #[DataProvider('fractionalCacheLifetimes')]
+    public function testNeverRoundsTheServerTtlUp(int $ttlMs, int $immediateFetches): void
+    {
+        $this->freezeTime();
+        $cache = new ResponseCache;
+        $method = new ListTools;
+        $transport = new FakeTransport;
+        $fetches = 0;
+        $fetch = static function () use (&$fetches, $ttlMs): array {
+            ++$fetches;
+
+            return ['tools' => [], 'ttlMs' => $ttlMs];
+        };
+
+        $cache->remember($method, $transport, $fetch);
+        $cache->remember($method, $transport, $fetch);
+        $this->assertSame($immediateFetches, $fetches);
+
+        $this->travel(1)->seconds();
+        $cache->remember($method, $transport, $fetch);
+        $this->assertSame($immediateFetches + 1, $fetches);
+    }
+
+    /**
+     * Provide lifetimes that must not be rounded up by the cache store.
+     */
+    public static function fractionalCacheLifetimes(): array
+    {
+        return [
+            'round down to one second' => [1500, 1],
+            'skip less than one second' => [500, 2],
+            'skip negative lifetime' => [-1, 2],
+        ];
+    }
+
     public function testKeepsPrivateResultsOutOfAnotherAuthorizationContext(): void
     {
         (new Client(cacheableTransport()))->withCache(for: 'tenant-a')->tools();
@@ -142,6 +180,28 @@ class CachingTest extends TestCase
 
         $this->assertSame(['add'], $tools->keys()->all());
         $this->assertEmpty($second->sent);
+    }
+
+    public function testPublicStdioResultsAreScopedToTheServerEnvironment(): void
+    {
+        $cache = new ResponseCache;
+        $method = new ListTools;
+        $tenantA = new StdioTransport('node', ['server.js'], ['TENANT' => 'a']);
+        $tenantB = new StdioTransport('node', ['server.js'], ['TENANT' => 'b']);
+        $resultA = ['tools' => [['name' => 'a']], 'cacheScope' => 'public', 'ttlMs' => 60000];
+        $resultB = ['tools' => [['name' => 'b']], 'cacheScope' => 'public', 'ttlMs' => 60000];
+
+        $this->assertSame($resultA, $cache->remember($method, $tenantA, fn (): array => $resultA));
+        $this->assertSame($resultB, $cache->remember($method, $tenantB, fn (): array => $resultB));
+        $this->assertSame($resultA, $cache->remember(
+            $method,
+            new StdioTransport('node', ['server.js'], ['TENANT' => 'a']),
+            fn (): never => $this->fail('The same environment should share its public result.'),
+        ));
+
+        $cache->forget($method, $tenantA);
+        $this->assertSame($resultB, $cache->remember($method, $tenantB, fn (): never => $this->fail('Another environment was evicted.')));
+        $this->assertSame($resultB, $cache->remember($method, $tenantA, fn (): array => $resultB));
     }
 
     public function testNeverResolvesTheTransportRecipeForAnUncacheableMethod(): void
