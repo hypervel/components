@@ -52,17 +52,31 @@ class HttpTransportTest extends TestCase
 
     public function testParsesAnSseStreamIntoIndividualFramesInOrder(): void
     {
-        $stream = sseStream([
+        $stream = Utils::streamFor(sseStream([
             ['jsonrpc' => '2.0', 'method' => 'stream/progress', 'params' => ['progress' => 50]],
             ['jsonrpc' => '2.0', 'id' => 1, 'result' => ['done' => true]],
-        ]);
+        ]));
 
         Http::fake(['*' => Http::response($stream, 200, ['Content-Type' => 'text/event-stream'])]);
 
-        $transport = new HttpTransport('https://mcp.test/mcp');
+        $transport = new class('https://mcp.test/mcp') extends HttpTransport {
+            public ?StreamInterface $received = null;
+
+            /**
+             * Capture the original body passed through the extension point.
+             */
+            protected function readLine(StreamInterface $stream): string
+            {
+                $this->received = $stream;
+
+                return parent::readLine($stream);
+            }
+        };
         $transport->send(json_encode(['jsonrpc' => '2.0', 'id' => 1, 'method' => 'tools/call', 'params' => []]));
 
         $this->assertSame('stream/progress', json_decode($transport->receive(), true)['method']);
+        $this->assertSame($stream, $transport->received);
+        $this->assertTrue($stream->eof());
         $reply = json_decode($transport->receive(), true);
         $this->assertSame(1, $reply['id']);
         $this->assertSame(['done' => true], $reply['result']);

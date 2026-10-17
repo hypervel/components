@@ -50,13 +50,20 @@ $receive = static function () use ($server, &$connections): array {
 };
 
 /**
- * Send a complete JSON response.
+ * Send a complete JSON response or progress followed by an SSE reply.
  *
  * @param resource $connection
  */
-$reply = static function (mixed $connection, int $id, array $result): void {
+$reply = static function (mixed $connection, int $id, array $result, bool $streaming = false): void {
     $body = json_encode(['jsonrpc' => '2.0', 'id' => $id, 'result' => $result], JSON_THROW_ON_ERROR);
-    fwrite($connection, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: " . strlen($body) . "\r\nConnection: close\r\n\r\n" . $body);
+    $contentType = 'application/json';
+
+    if ($streaming) {
+        $contentType = 'text/event-stream';
+        $body = "data: {\"jsonrpc\":\"2.0\",\"method\":\"notifications/progress\",\"params\":{\"progressToken\":\"test\",\"progress\":50}}\n\ndata: {$body}\n\n";
+    }
+
+    fwrite($connection, "HTTP/1.1 200 OK\r\nContent-Type: {$contentType}\r\nContent-Length: " . strlen($body) . "\r\nConnection: close\r\n\r\n" . $body);
     fclose($connection);
 };
 
@@ -117,12 +124,12 @@ try {
         $reply($second, $secondRequest['id'], [
             'resultType' => 'complete',
             'content' => [['type' => 'text', 'text' => $secondRequest['params']['name']]],
-        ]);
+        ], $argv[1] === 'concurrent');
         if ($argv[1] === 'concurrent') {
             $reply($first, $firstRequest['id'], [
                 'resultType' => 'complete',
                 'content' => [['type' => 'text', 'text' => $firstRequest['params']['name']]],
-            ]);
+            ], true);
         }
     } else {
         $body = json_encode(['jsonrpc' => '2.0', 'id' => $firstRequest['id'], 'result' => [

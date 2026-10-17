@@ -7,6 +7,7 @@ namespace Hypervel\Mcp\Client\Transport;
 use Closure;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Client\ConnectionException;
+use Hypervel\Http\Client\LineReader;
 use Hypervel\Http\Client\Response as ClientResponse;
 use Hypervel\Mcp\Client\Contracts\IsolatesExchanges;
 use Hypervel\Mcp\Client\Contracts\Transport;
@@ -25,6 +26,7 @@ use Psr\Http\Message\StreamInterface;
 use SensitiveParameter;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
+use WeakMap;
 
 class HttpTransport implements Transport, UsesProtocol, IsolatesExchanges
 {
@@ -58,6 +60,13 @@ class HttpTransport implements Transport, UsesProtocol, IsolatesExchanges
 
     /** @var array<int, HttpExchange> */
     private array $exchanges = [];
+
+    /**
+     * Isolate pending bytes while readLine overrides still receive the original stream.
+     *
+     * @var null|WeakMap<StreamInterface, LineReader>
+     */
+    private ?WeakMap $lineReaders = null;
 
     private int $generation = 0;
 
@@ -423,9 +432,19 @@ class HttpTransport implements Transport, UsesProtocol, IsolatesExchanges
         $stream = $response->toPsrResponse()->getBody();
         $data = [];
 
-        while (! $stream->eof()) {
-            $line = rtrim($this->readLine($stream), "\r\n");
+        while (true) {
+            $line = $this->readLine($stream);
             $exchange->ensureOpen();
+
+            if ($line === '') {
+                if ($stream->eof()) {
+                    break;
+                }
+
+                continue;
+            }
+
+            $line = rtrim($line, "\r\n");
 
             if ($line === '') {
                 if ($data !== []) {
@@ -451,23 +470,9 @@ class HttpTransport implements Transport, UsesProtocol, IsolatesExchanges
      */
     protected function readLine(StreamInterface $stream): string
     {
-        $line = '';
+        $this->lineReaders ??= new WeakMap;
 
-        while (! $stream->eof()) {
-            $byte = $stream->read(1);
-
-            if ($byte === '') {
-                break;
-            }
-
-            $line .= $byte;
-
-            if ($byte === "\n") {
-                break;
-            }
-        }
-
-        return $line;
+        return ($this->lineReaders[$stream] ??= new LineReader)->readLine($stream);
     }
 
     /**

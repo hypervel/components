@@ -9,14 +9,21 @@ use Hypervel\Mcp\Client;
 use Hypervel\Mcp\Enums\ProtocolVersion;
 use Hypervel\Mcp\Exceptions\ClientException;
 use Hypervel\Mcp\WebClient;
+use Hypervel\Support\Facades\Http;
+use Hypervel\Tests\Http\Fixtures\StreamingHttpFactory;
+use PHPUnit\Framework\Attributes\TestWith;
 use Symfony\Component\Process\Process;
 
 use function Hypervel\Coroutine\parallel;
 
 class HttpClientConcurrencyTest extends TestCase
 {
-    public function testOneClientCanCompleteOverlappingCallsWithTheirMatchingReplies(): void
+    #[TestWith([true])]
+    #[TestWith([false])]
+    public function testOneClientCanCompleteOverlappingCallsWithTheirMatchingReplies(bool $native): void
     {
+        Http::swap(new StreamingHttpFactory($native));
+
         $this->withServer('concurrent', function (WebClient $client): void {
             $results = parallel([
                 fn (): string => $client->callTool('first')->text(),
@@ -27,8 +34,12 @@ class HttpClientConcurrencyTest extends TestCase
         });
     }
 
-    public function testATerminalSseReplyCompletesWithoutWaitingForEof(): void
+    #[TestWith([true])]
+    #[TestWith([false])]
+    public function testATerminalSseReplyCompletesWithoutWaitingForEof(bool $native): void
     {
+        Http::swap(new StreamingHttpFactory($native));
+
         $this->withServer('sse', function (WebClient $client): void {
             $this->assertSame('finished', $client->callTool('first')->text());
         });
