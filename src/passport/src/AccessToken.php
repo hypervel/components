@@ -23,6 +23,7 @@ use Psr\Http\Message\ServerRequestInterface;
  *
  * @property string $oauth_access_token_id
  * @property string $oauth_client_id
+ * @property list<string> $oauth_audiences
  * @property string $oauth_user_id
  * @property string[] $oauth_scopes
  */

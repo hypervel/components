@@ -103,6 +103,7 @@ class ServerFactoryTest extends TestCase
         $currentId = ParsedKey::fromPublicKey($current['public'])->getKeyId();
         $builder = (new Builder(new JoseEncoder, ChainedFormatter::default()))
             ->identifiedBy($token->id)->permittedFor($client->id)->relatedTo($client->id)
+            ->withClaim('client_id', $client->id)
             ->issuedAt($now)->expiresAt($now->addYear())->withClaim('scopes', []);
         $withoutKid = $builder->getToken(new Sha256, InMemory::plainText($originalPrivate))->toString();
         $withKid = $builder->withHeader('kid', $originalId)->getToken(new Sha256, InMemory::plainText($originalPrivate))->toString();

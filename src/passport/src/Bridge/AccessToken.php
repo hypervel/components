@@ -159,7 +159,8 @@ class AccessToken implements AccessTokenEntityInterface, Transient
         $key = $this->jwtConfiguration->signingKey();
 
         $builder = $this->jwtConfiguration->builder()
-            ->permittedFor($this->getClient()->getIdentifier())
+            ->permittedFor(...($this->token?->audience ?: [$this->getClient()->getIdentifier()]))
+            ->withClaim('client_id', $this->getClient()->getIdentifier())
             ->identifiedBy($this->getIdentifier())
             ->issuedAt(new DateTimeImmutable)
             ->canOnlyBeUsedAfter(new DateTimeImmutable)
@@ -174,7 +175,7 @@ class AccessToken implements AccessTokenEntityInterface, Transient
 
         if ($callback = Passport::$accessTokenClaimsCallback) {
             foreach ($callback($this->token) as $name => $value) {
-                if (in_array($name, ['iss', 'sub', 'aud', 'exp', 'iat', 'nbf', 'jti', 'scopes'], true)) {
+                if (in_array($name, ['iss', 'sub', 'aud', 'exp', 'iat', 'nbf', 'jti', 'scopes', 'client_id', 'cnf'], true)) {
                     throw new InvalidArgumentException("The access token claim [{$name}] is reserved.");
                 }
 

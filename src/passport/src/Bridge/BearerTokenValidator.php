@@ -111,7 +111,8 @@ class BearerTokenValidator implements AuthorizationValidatorInterface
         // Return the request with additional attributes
         return $request
             ->withAttribute('oauth_access_token_id', $claims->get('jti'))
-            ->withAttribute('oauth_client_id', $claims->get('aud')[0])
+            ->withAttribute('oauth_client_id', $claims->get('client_id'))
+            ->withAttribute('oauth_audiences', $claims->get('aud'))
             ->withAttribute('oauth_user_id', $claims->get('sub'))
             ->withAttribute('oauth_scopes', $claims->get('scopes'));
     }
@@ -147,6 +148,12 @@ class BearerTokenValidator implements AuthorizationValidatorInterface
 
         if (! is_string($identifier) || $identifier === '') {
             throw OAuthServerException::accessDenied('Access token has no valid identifier');
+        }
+
+        $clientId = $token->claims()->get('client_id');
+
+        if (! is_string($clientId) || $clientId === '') {
+            throw OAuthServerException::accessDenied('Access token has no valid client identifier');
         }
 
         return $token;

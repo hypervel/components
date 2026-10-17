@@ -183,7 +183,7 @@ class BearerTokenValidatorTest extends TestCase
      */
     public static function invalidIdentifiers(): array
     {
-        return [['missing identifier'], ['empty identifier']];
+        return [['missing identifier'], ['empty identifier'], ['missing client identifier'], ['invalid client identifier']];
     }
 
     /**
@@ -209,6 +209,10 @@ class BearerTokenValidatorTest extends TestCase
 
         if ($scenario !== 'missing identifier') {
             $builder = $builder->identifiedBy($scenario === 'empty identifier' ? '' : 'token-id');
+        }
+
+        if ($scenario !== 'missing client identifier') {
+            $builder = $builder->withClaim('client_id', $scenario === 'invalid client identifier' ? [] : 'client-id');
         }
 
         foreach ($headers as $name => $value) {
