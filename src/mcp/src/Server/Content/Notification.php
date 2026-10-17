@@ -70,9 +70,10 @@ class Notification implements Content
     public function toArray(): array
     {
         $params = $this->params;
+        $meta = [...($this->meta ?? []), ...($params['_meta'] ?? [])];
 
-        if ($this->meta !== null && $this->meta !== [] && ! isset($params['_meta'])) {
-            $params['_meta'] = $this->meta;
+        if ($meta !== []) {
+            $params['_meta'] = $meta;
         }
 
         return [

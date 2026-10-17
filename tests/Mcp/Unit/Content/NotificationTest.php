@@ -86,6 +86,23 @@ class NotificationTest extends TestCase
         ], $notification->toArray());
     }
 
+    public function testMergesSetMetaWithMetaInParams(): void
+    {
+        $notification = new Notification('test/event', [
+            'data' => 'value',
+            '_meta' => ['source' => 'params'],
+        ]);
+        $notification->setMeta(['source' => 'default', 'author' => 'system']);
+
+        $this->assertSame([
+            'method' => 'test/event',
+            'params' => [
+                'data' => 'value',
+                '_meta' => ['source' => 'params', 'author' => 'system'],
+            ],
+        ], $notification->toArray());
+    }
+
     public function testDoesNotIncludeMetaIfNotSet(): void
     {
         $notification = new Notification('test/event', ['data' => 'value']);
