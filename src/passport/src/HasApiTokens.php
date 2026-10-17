@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Passport;
 
+use Hypervel\Database\Eloquent\Relations\HasMany;
 use Hypervel\Passport\Contracts\OAuthenticatable;
 use Hypervel\Passport\Contracts\ScopeAuthorizable;
 use LogicException;
@@ -38,6 +39,23 @@ trait HasApiTokens
             $client->qualifyColumn($id),
             $this->getKeyName()
         );
+    }
+
+    /**
+     * Get the user's OAuth authorizations.
+     *
+     * @return HasMany<Consent, $this>
+     */
+    public function oauthConsents(): HasMany
+    {
+        $consent = Passport::consent();
+
+        return (new HasMany(
+            $consent->newQuery(),
+            $this,
+            $consent->qualifyColumn('user_id'),
+            $this->getAuthIdentifierName()
+        ))->withAttributes(['provider' => $this->getProviderName()]);
     }
 
     /**
@@ -113,14 +131,19 @@ trait HasApiTokens
     public function getProviderName(): string
     {
         $providers = collect(config()->array('auth.guards'))->where('driver', 'passport')->pluck('provider')->all();
+        $matchingProvider = null;
 
         foreach (config()->array('auth.providers') as $provider => $config) {
             if (in_array($provider, $providers, true) && $config['driver'] === 'eloquent' && is_a($this, $config['model'])) {
-                return $provider;
+                if ($matchingProvider !== null) {
+                    throw new LogicException('Multiple authentication providers match this model. Override getProviderName() to select its provider.');
+                }
+
+                $matchingProvider = $provider;
             }
         }
 
-        throw new LogicException('Unable to determine authentication provider for this model from configuration.');
+        return $matchingProvider ?? throw new LogicException('Unable to determine authentication provider for this model from configuration.');
     }
 
     /**

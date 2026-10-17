@@ -13,6 +13,7 @@ use Hypervel\Passport\Database\Factories\ClientFactory;
 use Hypervel\Passport\Http\Middleware\CheckToken;
 use Hypervel\Passport\Http\Middleware\EnsureClientIsResourceOwner;
 use Hypervel\Passport\Passport;
+use Hypervel\Passport\PersonalAccessTokenFactory;
 use Hypervel\Passport\TransientToken;
 use Hypervel\Sanctum\HasApiTokens as HasSanctumTokens;
 use Hypervel\Sanctum\PersonalAccessToken;
@@ -176,7 +177,7 @@ class TokenGuardTest extends PassportTestCase
         ]);
         $user = UserFactory::new()->create();
         ClientFactory::new()->asPersonalAccessTokenClient()->create(['provider' => null]);
-        $result = $user->createToken('user token');
+        $result = app(PersonalAccessTokenFactory::class)->make($user->getAuthIdentifier(), 'user token', [], 'users');
 
         Route::get('/admins', fn (Request $request) => $request->user()->getKey())->middleware('auth:passport-admins');
         Route::get('/either', fn (Request $request) => $request->user()->getKey())->middleware('auth:passport-admins,passport');

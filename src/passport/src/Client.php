@@ -11,6 +11,7 @@ use Hypervel\Database\Eloquent\Concerns\HasUuids;
 use Hypervel\Database\Eloquent\Factories\Factory;
 use Hypervel\Database\Eloquent\Factories\HasFactory;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\HasMany;
 use Hypervel\Database\Eloquent\Relations\MorphTo;
 use Hypervel\Passport\Database\Factories\ClientFactory;
 use SensitiveParameter;
@@ -111,6 +112,18 @@ class Client extends Model
     }
 
     // The deprecated authCodes() relation is omitted.
+
+    /**
+     * Get the authorizations granted to the client.
+     *
+     * @return HasMany<Consent, $this>
+     */
+    public function consents(): HasMany
+    {
+        $consent = Passport::consent();
+
+        return new HasMany($consent->newQuery(), $this, $consent->qualifyColumn('client_id'), $this->getKeyName());
+    }
 
     /**
      * Get all of the tokens that belong to the client.
