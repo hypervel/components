@@ -344,6 +344,44 @@ class AuthorizationCodeGrantTest extends PassportTestCase
         $this->assertArrayHasKey('error_description', $params);
     }
 
+    #[TestWith([null, ['read'], ['read']])]
+    #[TestWith([null, [], []])]
+    #[TestWith(['read update', ['read'], null])]
+    public function testClientScopeCeilingsAreAppliedBeforeInteractionAndEvents(?string $scope, array $allowed, ?array $expected): void
+    {
+        Passport::defaultScopes(['read', 'update']);
+        $client = ClientFactory::new()->create([
+            'redirect_uris' => ['https://client.example/callback'],
+            'scopes' => $allowed,
+        ]);
+        $seenScopes = [];
+        Event::listen(AuthorizationRequestValidated::class, static function (AuthorizationRequestValidated $event) use (&$seenScopes): void {
+            $seenScopes[] = array_map(static fn ($scope): string => $scope->getIdentifier(), $event->authorizationRequest->getScopes());
+        });
+
+        $response = $this->get('/oauth/authorize?' . http_build_query([
+            'client_id' => $client->getKey(), 'response_type' => 'code', 'scope' => $scope, 'state' => ' original ',
+        ]))->assertRedirect();
+
+        if ($expected === null) {
+            $response->assertSessionMissing('passport.authorizations');
+            $this->assertStringStartsWith('https://client.example/callback?', $response->headers->get('Location'));
+            parse_str(parse_url($response->headers->get('Location'), PHP_URL_QUERY), $parameters);
+            $this->assertSame('invalid_scope', $parameters['error']);
+            $this->assertSame(' original ', $parameters['state']);
+            $this->assertSame([], $seenScopes);
+
+            return;
+        }
+
+        $this->assertSame([$expected], $seenScopes);
+        $response->assertSessionHas('passport.authorizations', static fn (array $pending): bool => count($pending) === 1
+            && array_values($pending)[0]['scopes'] === $expected);
+        $presentation = $this->actingAs(UserFactory::new()->create(), 'web')
+            ->get($response->headers->get('Location'))->assertOk()->json();
+        $this->assertSame($expected, array_column($presentation['scopes'], 'id'));
+    }
+
     public function testRedirectGuestUser(): void
     {
         Route::get('/foo', fn () => '')->name('login');
@@ -706,6 +744,7 @@ class AuthorizationCodeGrantTest extends PassportTestCase
             'grant' => $client->forceFill(['grant_types' => []])->save(),
             'provider' => $client->forceFill(['provider' => 'staff'])->save(),
             'scope' => Passport::tokensCan([]),
+            'client-scopes' => $client->update(['scopes' => []]),
         };
 
         $response = $this->{$method}('/oauth/authorize/consent', ['auth_token' => $authToken]);
@@ -731,6 +770,7 @@ class AuthorizationCodeGrantTest extends PassportTestCase
             yield $method . ' grant' => [$method, 'grant', 'unauthorized_client'];
             yield $method . ' provider' => [$method, 'provider', 'unauthorized_client'];
             yield $method . ' scope' => [$method, 'scope', 'invalid_scope'];
+            yield $method . ' client scopes' => [$method, 'client-scopes', 'invalid_scope'];
         }
     }
 

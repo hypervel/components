@@ -223,6 +223,28 @@ class AuthorizationInteractionTest extends PassportTestCase
         $this->assertSame(2, $generation);
     }
 
+    public function testResumingDefaultScopesDoesNotSilentlyNarrowTheSavedPresentation(): void
+    {
+        Passport::defaultScopes(['read', 'write']);
+        $client = ClientFactory::new()->create(['scopes' => ['read']]);
+        $this->actingAs(UserFactory::new()->create(), 'web');
+        $presentation = $this->get('/oauth/authorize?' . http_build_query([
+            'client_id' => $client->id, 'response_type' => 'code', 'state' => 'original',
+        ]))->assertOk()->json();
+        $this->assertSame(['read'], array_column($presentation['scopes'], 'id'));
+        $token = $presentation['authToken'];
+        $client->update(['scopes' => []]);
+
+        $response = $this->get('/oauth/authorize/resume/' . $token)->assertRedirect()
+            ->assertSessionMissing('passport.authorizations.' . $token);
+        parse_str(parse_url($response->headers->get('Location'), PHP_URL_QUERY), $parameters);
+        $this->assertSame('invalid_scope', $parameters['error']);
+        $this->assertSame('original', $parameters['state']);
+        $this->post('/oauth/authorize/consent', ['auth_token' => $token])->assertForbidden();
+        $this->assertDatabaseCount('oauth_auth_codes', 0);
+        $this->assertDatabaseCount('oauth_consents', 0);
+    }
+
     #[TestWith([false])]
     #[TestWith([true])]
     public function testResumedProtocolErrorsConsumeTheOlderFormButApplicationRedirectsDoNot(bool $resolverError): void

@@ -213,12 +213,6 @@ class AuthorizationController
             throw LeagueException::invalidRequest('prompt');
         }
 
-        if ($this->events->hasListeners(AuthorizationRequestValidated::class)) {
-            $event = new AuthorizationRequestValidated($request, $parameters, $authRequest);
-            $this->events->dispatch($event);
-            $prompts = array_unique([...$prompts, ...$event->prompts]);
-        }
-
         $guard = $this->getApprovingGuard();
 
         if ($pending['guard'] !== $this->getApprovingGuardName()) {
@@ -229,6 +223,33 @@ class AuthorizationController
 
         if (! $client || ! $this->clientMatchesProvider($client)) {
             throw LeagueException::invalidClient($psrRequest);
+        }
+
+        // Defaults may narrow only before the first presentation; resumed scopes are already frozen.
+        $useDefaultScopes = $authorization === null && trim($parameters['scope'] ?? '') === '';
+        $allowedScopes = [];
+
+        foreach ($authRequest->getScopes() as $scope) {
+            if (! $client->hasScope($scope->getIdentifier())) {
+                if ($useDefaultScopes) {
+                    continue;
+                }
+
+                throw LeagueException::invalidScope($scope->getIdentifier());
+            }
+
+            $allowedScopes[] = $scope;
+        }
+
+        if ($useDefaultScopes) {
+            $authRequest->setScopes($allowedScopes);
+            $pending['scopes'] = array_map(static fn (ScopeEntityInterface $scope): string => $scope->getIdentifier(), $allowedScopes);
+        }
+
+        if ($this->events->hasListeners(AuthorizationRequestValidated::class)) {
+            $event = new AuthorizationRequestValidated($request, $parameters, $authRequest);
+            $this->events->dispatch($event);
+            $prompts = array_unique([...$prompts, ...$event->prompts]);
         }
 
         if (in_array('select_account', $prompts, true) && ! ($pending['account_selected'] ?? false)
