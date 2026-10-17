@@ -50,6 +50,36 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Dynamic Client Registration
+    |--------------------------------------------------------------------------
+    |
+    | When dynamic registration is enabled, anonymous clients may request only
+    | these scopes. Privileged provisioning requires an access token with
+    | the explicit passport:register scope; browser sessions do not qualify.
+    |
+    */
+
+    'registration' => [
+        'scopes' => [],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Proof-Bound Access Tokens
+    |--------------------------------------------------------------------------
+    |
+    | DPoP binds credentials to a client's public key. Enabling it requires
+    | a shared replay store and adds a proof verification and cache write
+    | to requests using DPoP. Ordinary bearer requests are unaffected.
+    |
+    */
+
+    'dpop' => [
+        'enabled' => (bool) env('PASSPORT_DPOP_ENABLED', false),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Encryption Keys
     |--------------------------------------------------------------------------
     |
@@ -105,6 +135,42 @@ return [
     'issuer' => env('PASSPORT_ISSUER'),
 
     'server_cache_size' => (int) env('PASSPORT_SERVER_CACHE_SIZE', 1000),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Assertion and Proof Replay Protection
+    |--------------------------------------------------------------------------
+    |
+    | JWT client assertions and DPoP proofs require a shared Redis or database
+    | cache store. Null uses the default cache store. Redis must use the
+    | noeviction policy; replay entries must remain until they expire.
+    |
+    | A database store cannot share an active application transaction. Use a
+    | separate cache connection when your application wraps requests in
+    | transactions, or choose Redis to avoid a database write per proof.
+    |
+    */
+
+    'replay' => [
+        'store' => env('PASSPORT_REPLAY_STORE'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Remote Client Keys
+    |--------------------------------------------------------------------------
+    |
+    | Remote public keys use the store selected below for Passport's cache.
+    | The lifetime and minimum refresh interval are expressed in seconds.
+    | A new key identifier may trigger an early refresh, at most once per
+    | interval, so invalid assertions cannot cause unlimited downloads.
+    |
+    */
+
+    'client_keys' => [
+        'ttl' => (int) env('PASSPORT_CLIENT_KEYS_TTL', 3600),
+        'refresh_interval' => (int) env('PASSPORT_CLIENT_KEYS_REFRESH_INTERVAL', 60),
+    ],
 
     /*
     |--------------------------------------------------------------------------
