@@ -43,6 +43,11 @@ class AuthCodeGrant extends LeagueAuthCodeGrant
     ): AccessTokenEntityInterface {
         /** @var TokenIssuance $issuance */
         $issuance = TokenIssuance::current();
+
+        if ($issuance->grant?->dpop_jkt !== null && $issuance->grant->dpop_jkt !== $issuance->dpopJkt) {
+            throw OAuthServerException::invalidGrant();
+        }
+
         $issuance->claimGrant();
 
         return parent::issueAccessToken($accessTokenTTL, $client, $userIdentifier, $scopes);

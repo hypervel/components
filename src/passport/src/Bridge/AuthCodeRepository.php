@@ -38,6 +38,7 @@ class AuthCodeRepository implements AuthCodeRepositoryInterface
             'client_id' => $authCodeEntity->getClient()->getIdentifier(),
             'scopes' => $authCodeEntity->getScopes(),
             'resources' => $issuance?->resources,
+            'dpop_jkt' => $issuance?->dpopJkt,
             'revoked' => false,
             'expires_at' => $authCodeEntity->getExpiryDateTime(),
         ]);

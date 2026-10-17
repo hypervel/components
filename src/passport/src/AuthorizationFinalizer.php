@@ -124,6 +124,7 @@ class AuthorizationFinalizer
             $issuance->resources = $selected['permissions']['resources'] ?? null;
 
             if ($authorization instanceof AuthorizationRequestInterface) {
+                $issuance->dpopJkt = $pending['parameters']['dpop_jkt'] ?? null;
                 $authorization->setScopes(array_values(array_filter(
                     $authorization->getScopes(),
                     static fn (ScopeEntityInterface $scope): bool => in_array($scope->getIdentifier(), $selected['scopes'], true),

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Passport;
 
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Http\Exceptions\HttpResponseException;
 use Hypervel\Passport\Http\Responses\AuthorizationResponse;
 use League\OAuth2\Server\Exception\OAuthServerException;
@@ -22,6 +23,7 @@ class AuthorizationRequestResolver
         protected ClientRepository $clients,
         protected AuthorizationResponse $responses,
         protected ResourceRepository $resources,
+        protected Repository $config,
     ) {
     }
 
@@ -71,6 +73,13 @@ class AuthorizationRequestResolver
 
         if (array_key_exists('resource', $parameters)) {
             $this->resources->validate($parameters['resource']);
+        }
+
+        // A SHA-256 thumbprint has 43 base64url characters with two unused bits in the last one.
+        if (array_key_exists('dpop_jkt', $parameters)
+            && (! $this->config->boolean('passport.dpop.enabled') || ! is_string($parameters['dpop_jkt'])
+                || preg_match('/^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/D', $parameters['dpop_jkt']) !== 1)) {
+            throw OAuthServerException::invalidRequest('dpop_jkt');
         }
 
         $prompts = array_unique(array_filter(explode(' ', trim($parameters['prompt'] ?? ''))));

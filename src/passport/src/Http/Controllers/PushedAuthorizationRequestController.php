@@ -11,6 +11,7 @@ use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
 use Hypervel\Passport\AuthorizationRequestResolver;
 use Hypervel\Passport\ClientAuthenticator;
+use Hypervel\Passport\DpopProofValidator;
 use Hypervel\Passport\Events\AuthorizationRequestValidated;
 use Hypervel\Passport\Exceptions\OAuthServerException;
 use Hypervel\Passport\Http\RequestParameters;
@@ -34,6 +35,7 @@ class PushedAuthorizationRequestController
         protected PushedAuthorizationRequestRepository $pushed,
         protected AuthorizationResponse $responses,
         protected Dispatcher $events,
+        protected DpopProofValidator $proofs,
     ) {
     }
 
@@ -63,6 +65,10 @@ class PushedAuthorizationRequestController
                 'client_id' => $client->getKey(),
             ];
             $authorization = $this->authorizations->validateAuthorizationRequest($psrRequest->withQueryParams($parameters), pushed: true);
+
+            if ($psrRequest->hasHeader('DPoP')) {
+                $parameters['dpop_jkt'] = $this->proofs->validate($psrRequest, thumbprint: $parameters['dpop_jkt'] ?? null);
+            }
 
             if ($this->events->hasListeners(AuthorizationRequestValidated::class)) {
                 $this->events->dispatch(new AuthorizationRequestValidated($request, $parameters, $authorization));
