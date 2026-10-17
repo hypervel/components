@@ -5,20 +5,24 @@ declare(strict_types=1);
 namespace Hypervel\Passport;
 
 use Hypervel\Auth\AuthManager;
+use Hypervel\Auth\Events\Login;
 use Hypervel\Auth\Events\Logout;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\ModelCacheStoreValidator;
 use Hypervel\Console\Scheduling\Schedule;
+use Hypervel\Contracts\Auth\StatefulGuard;
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Core\Events\AfterWorkerStart;
 use Hypervel\Http\Request as HttpRequest;
 use Hypervel\Passport\Contracts\ApprovedDeviceAuthorizationResponse as ApprovedDeviceAuthorizationResponseContract;
 use Hypervel\Passport\Contracts\DeniedDeviceAuthorizationResponse as DeniedDeviceAuthorizationResponseContract;
+use Hypervel\Passport\Contracts\ReauthenticationResponse as ReauthenticationResponseContract;
 use Hypervel\Passport\Enums\KeyStore;
 use Hypervel\Passport\Guards\TokenGuard;
 use Hypervel\Passport\Http\Responses\ApprovedDeviceAuthorizationResponse;
 use Hypervel\Passport\Http\Responses\DeniedDeviceAuthorizationResponse;
+use Hypervel\Passport\Http\Responses\ReauthenticationResponse;
 use Hypervel\RateLimiter\Limit;
 use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\Support\Facades\Cookie;
@@ -42,6 +46,7 @@ class PassportServiceProvider extends ServiceProvider
         $this->registerCommands();
 
         $this->deleteCookieOnLogout();
+        $this->confirmPendingAuthorizationsOnLogin();
         $this->configureCache();
         $this->configureRateLimiter();
         $this->scheduleKeyRotation();
@@ -126,6 +131,7 @@ class PassportServiceProvider extends ServiceProvider
      */
     protected function registerResponseBindings(): void
     {
+        $this->app->bind(ReauthenticationResponseContract::class, ReauthenticationResponse::class);
         $this->app->singleton(ApprovedDeviceAuthorizationResponseContract::class, ApprovedDeviceAuthorizationResponse::class);
         $this->app->singleton(DeniedDeviceAuthorizationResponseContract::class, DeniedDeviceAuthorizationResponse::class);
     }
@@ -197,6 +203,33 @@ class PassportServiceProvider extends ServiceProvider
     }
 
     /**
+     * Recognize fresh guest authentication without treating cookie recall as a login challenge.
+     */
+    protected function confirmPendingAuthorizationsOnLogin(): void
+    {
+        Event::listen(Login::class, function (Login $event): void {
+            $request = $this->app->make(HttpRequest::class);
+
+            if (! $request->hasSession()) {
+                return;
+            }
+
+            $auth = $this->app->make(AuthManager::class);
+            $guard = $auth->guard($event->guard);
+
+            // Recall can occur on an earlier request; only the Login event distinguishes it reliably.
+            if ($guard instanceof StatefulGuard && ! $guard->viaRemember()) {
+                $this->app->make(PendingAuthorizationRepository::class)->confirmLogin(
+                    $request,
+                    $event->guard,
+                    (string) $event->user->getAuthIdentifier(),
+                    $auth->getUserProviderName($event->guard),
+                );
+            }
+        });
+    }
+
+    /**
      * Allow cached Passport models to be restored by the cache store.
      */
     protected function configureCache(): void
@@ -252,8 +285,12 @@ class PassportServiceProvider extends ServiceProvider
             throw new InvalidArgumentException('Passport server cache size must be a positive integer.');
         }
 
+        if ($config->integer('passport.authorization.lifetime') <= 0 || $config->integer('passport.authorization.max_pending') <= 0) {
+            throw new InvalidArgumentException('Passport authorization lifetime and pending request limit must be positive integers.');
+        }
+
         $models = [
-            Passport::token(), Passport::authCode(), Passport::deviceCode(),
+            Passport::token(), Passport::consent(), Passport::authCode(), Passport::deviceCode(),
             Passport::refreshToken(), Passport::refreshTokenFamily(),
         ];
 

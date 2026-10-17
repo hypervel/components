@@ -34,6 +34,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Pending Authorizations
+    |--------------------------------------------------------------------------
+    |
+    | Each browser session may hold several authorization requests while users
+    | log in or review permissions. Requests expire after the given number
+    | of seconds. The oldest request is removed when the limit is reached.
+    |
+    */
+
+    'authorization' => [
+        'lifetime' => 600,
+        'max_pending' => 10,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Encryption Keys
     |--------------------------------------------------------------------------
     |

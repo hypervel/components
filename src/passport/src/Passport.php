@@ -13,6 +13,7 @@ use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Http\Request;
 use Hypervel\Passport\Bridge\AccessToken as AccessTokenEntity;
+use Hypervel\Passport\Contracts\AccountSelectionViewResponse;
 use Hypervel\Passport\Contracts\AuthorizationViewResponse;
 use Hypervel\Passport\Contracts\DeviceAuthorizationViewResponse;
 use Hypervel\Passport\Contracts\DeviceUserCodeViewResponse;
@@ -21,7 +22,6 @@ use Hypervel\Passport\Contracts\ServerSettingsResolver;
 use Hypervel\Passport\Http\Responses\SimpleViewResponse;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Date;
-use League\OAuth2\Server\RequestTypes\AuthorizationRequestInterface;
 use League\OAuth2\Server\ResourceServer;
 use League\OAuth2\Server\ResponseTypes\ResponseTypeInterface;
 use Mockery;
@@ -56,6 +56,9 @@ class Passport
 
     /** @var class-string<Client> */
     protected const string DEFAULT_CLIENT_MODEL = Client::class;
+
+    /** @var class-string<Consent> */
+    protected const string DEFAULT_CONSENT_MODEL = Consent::class;
 
     /** @var class-string<Token> */
     protected const string DEFAULT_TOKEN_MODEL = Token::class;
@@ -129,6 +132,11 @@ class Passport
     public static ?DateInterval $clientCredentialsTokensExpireIn = null;
 
     /**
+     * The interval for remembering user approval, or null for indefinite approval.
+     */
+    public static ?DateInterval $rememberConsentFor = null;
+
+    /**
      * The name for API token cookies.
      */
     public static string $cookie = self::DEFAULT_COOKIE;
@@ -170,6 +178,13 @@ class Passport
      * @var class-string<Client>
      */
     public static string $clientModel = self::DEFAULT_CLIENT_MODEL;
+
+    /**
+     * The consent model class name.
+     *
+     * @var class-string<Consent>
+     */
+    public static string $consentModel = self::DEFAULT_CONSENT_MODEL;
 
     // Client IDs always use UUIDs; the pre-13 integer-ID toggle is omitted.
 
@@ -262,20 +277,6 @@ class Passport
      * @var null|(Closure(Request): ?string)
      */
     public static ?Closure $cookieBindingCallback = null;
-
-    /**
-     * The callback used to capture authorization attributes.
-     *
-     * @var null|(Closure(Request, Authenticatable): array<string, mixed>)
-     */
-    public static ?Closure $authorizationAttributesCallback = null;
-
-    /**
-     * The callback used to resolve additional authorization prompts.
-     *
-     * @var null|(Closure(Request, AuthorizationRequestInterface): list<string>)
-     */
-    public static ?Closure $resolvePromptsCallback = null;
 
     /**
      * The callback used to add access token claims.
@@ -388,6 +389,22 @@ class Passport
     public static function tokensCan(array $scopes): void
     {
         static::$scopes = $scopes;
+    }
+
+    /**
+     * Get or set how long user approval is remembered.
+     *
+     * Boot-only when setting. The duration persists for every subsequent request on the worker.
+     */
+    public static function rememberConsentFor(DateTimeInterface|DateInterval|null $duration = null): ?DateInterval
+    {
+        if (func_num_args() === 0) {
+            return static::$rememberConsentFor;
+        }
+
+        return static::$rememberConsentFor = $duration instanceof DateTimeInterface
+            ? Date::now()->diff($duration)
+            : $duration;
     }
 
     /**
@@ -579,6 +596,36 @@ class Passport
     public static function useAccessTokenEntity(string $accessTokenEntity): void
     {
         static::$accessTokenEntity = $accessTokenEntity;
+    }
+
+    /**
+     * Set the consent model class name.
+     *
+     * Boot-only. The model class persists in a static property and affects every request on the worker.
+     *
+     * @param class-string<Consent> $consentModel
+     */
+    public static function useConsentModel(string $consentModel): void
+    {
+        static::$consentModel = $consentModel;
+    }
+
+    /**
+     * Get the consent model class name.
+     *
+     * @return class-string<Consent>
+     */
+    public static function consentModel(): string
+    {
+        return static::$consentModel;
+    }
+
+    /**
+     * Get a new consent model instance.
+     */
+    public static function consent(): Consent
+    {
+        return new static::$consentModel;
     }
 
     /**
@@ -850,30 +897,6 @@ class Passport
     }
 
     /**
-     * Specify attributes to save with an approved authorization.
-     *
-     * Boot-only. The callback persists in a static property and affects every authorization on the worker.
-     *
-     * @param Closure(Request, Authenticatable): array<string, mixed> $callback
-     */
-    public static function authorizationAttributesUsing(Closure $callback): void
-    {
-        static::$authorizationAttributesCallback = $callback;
-    }
-
-    /**
-     * Specify additional interactions required for an authorization request.
-     *
-     * Boot-only. The callback persists in a static property and affects every authorization on the worker.
-     *
-     * @param Closure(Request, AuthorizationRequestInterface): list<string> $callback
-     */
-    public static function resolvePromptsUsing(Closure $callback): void
-    {
-        static::$resolvePromptsCallback = $callback;
-    }
-
-    /**
      * Specify additional claims for issued access tokens.
      *
      * Boot-only. The callback persists in a static property and affects every issuance on the worker.
@@ -954,6 +977,18 @@ class Passport
     {
         // withParameters() stores consent data, so each resolution needs its own response.
         app()->bind(AuthorizationViewResponse::class, fn () => new SimpleViewResponse($view));
+    }
+
+    /**
+     * Specify which view should be used to select the approving account.
+     *
+     * Boot-only. The response binding persists in the worker's container and affects subsequent requests.
+     *
+     * @param (Closure(array<string, mixed>): mixed)|string $view
+     */
+    public static function accountSelectionView(Closure|string $view): void
+    {
+        app()->bind(AccountSelectionViewResponse::class, fn () => new SimpleViewResponse($view));
     }
 
     /**
@@ -1044,6 +1079,7 @@ class Passport
         static::$refreshTokensExpireIn = null;
         static::$personalAccessTokensExpireIn = null;
         static::$clientCredentialsTokensExpireIn = null;
+        static::$rememberConsentFor = null;
         static::$cookie = self::DEFAULT_COOKIE;
         static::$ignoreCsrfToken = self::DEFAULT_IGNORE_CSRF_TOKEN;
         static::$keyPath = null;
@@ -1051,6 +1087,7 @@ class Passport
         static::$authCodeModel = self::DEFAULT_AUTH_CODE_MODEL;
         static::$deviceCodeModel = self::DEFAULT_DEVICE_CODE_MODEL;
         static::$clientModel = self::DEFAULT_CLIENT_MODEL;
+        static::$consentModel = self::DEFAULT_CONSENT_MODEL;
         static::$tokenModel = self::DEFAULT_TOKEN_MODEL;
         static::$refreshTokenModel = self::DEFAULT_REFRESH_TOKEN_MODEL;
         static::$refreshTokenFamilyModel = self::DEFAULT_REFRESH_TOKEN_FAMILY_MODEL;
@@ -1065,8 +1102,6 @@ class Passport
         static::$clientAuthenticationCallback = null;
         static::$inheritedGrantAttributes = self::DEFAULT_INHERITED_GRANT_ATTRIBUTES;
         static::$cookieBindingCallback = null;
-        static::$authorizationAttributesCallback = null;
-        static::$resolvePromptsCallback = null;
         static::$accessTokenClaimsCallback = null;
         static::$issueRefreshTokensCallback = null;
     }

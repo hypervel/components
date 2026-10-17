@@ -100,8 +100,7 @@ class PassportTest extends TestCase
         Passport::authenticateAccessTokensUsing(static fn (): bool => false);
         Passport::authenticateClientsUsing(static fn (): bool => false);
         Passport::bindCookiesUsing(static fn (): string => 'organization');
-        Passport::authorizationAttributesUsing(static fn (): array => ['organization_id' => 1]);
-        Passport::resolvePromptsUsing(static fn (): array => ['consent']);
+        Passport::rememberConsentFor(new DateInterval('PT5M'));
         Passport::accessTokenClaimsUsing(static fn (): array => ['organization_id' => 1]);
         Passport::issueRefreshTokensUsing(static fn (): bool => false);
 
@@ -115,8 +114,7 @@ class PassportTest extends TestCase
         $this->assertNull(Passport::$accessTokenAuthenticationCallback);
         $this->assertNull(Passport::$clientAuthenticationCallback);
         $this->assertNull(Passport::$cookieBindingCallback);
-        $this->assertNull(Passport::$authorizationAttributesCallback);
-        $this->assertNull(Passport::$resolvePromptsCallback);
+        $this->assertNull(Passport::rememberConsentFor());
         $this->assertNull(Passport::$accessTokenClaimsCallback);
         $this->assertNull(Passport::$issueRefreshTokensCallback);
     }
