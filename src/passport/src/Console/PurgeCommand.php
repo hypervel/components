@@ -71,6 +71,11 @@ class PurgeCommand extends Command
             $this->purge(Passport::deviceCode()->newQuery()->where($constraint));
         }
 
+        if ($expired) {
+            // Short-lived request references have no credential replay evidence to retain.
+            $this->purge(Passport::pushedAuthorizationRequest()->newQuery()->where('expires_at', '<=', $now));
+        }
+
         $this->components->info(sprintf('Purged %s.', implode(' and ', array_filter([
             $revoked ? 'revoked items' : null,
             $expired ? "items expired for more than {$expired->longAbsoluteDiffForHumans()}" : null,
