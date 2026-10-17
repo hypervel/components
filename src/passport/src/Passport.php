@@ -43,6 +43,8 @@ class Passport
 
     protected const array DEFAULT_SCOPES = [];
 
+    protected const array DEFAULT_RESOURCES = [];
+
     protected const bool DEFAULT_IGNORE_CSRF_TOKEN = false;
 
     /** @var class-string<AccessTokenEntity> */
@@ -115,6 +117,9 @@ class Passport
      * @var array<string, string>
      */
     public static array $scopes = self::DEFAULT_SCOPES;
+
+    /** @var array<string, string> */
+    protected static array $resources = self::DEFAULT_RESOURCES;
 
     /**
      * The interval when access tokens expire.
@@ -416,6 +421,59 @@ class Passport
     }
 
     /**
+     * Define the resources tokens may access.
+     *
+     * Boot-only. The catalog persists in a static property and affects every request on the worker.
+     *
+     * @param array<string, string> $resources
+     */
+    public static function tokensCanAccess(array $resources): void
+    {
+        ProtectedResource::validateIdentifiers($resources);
+        static::$resources = $resources;
+    }
+
+    /**
+     * Determine whether a resource has been defined.
+     */
+    public static function hasResource(string $identifier): bool
+    {
+        return array_key_exists($identifier, static::configuredResources());
+    }
+
+    /**
+     * Get the resources matching the given identifiers.
+     *
+     * @param list<string> $identifiers
+     * @return list<ProtectedResource>
+     */
+    public static function resourcesFor(array $identifiers): array
+    {
+        $resources = static::configuredResources();
+        $matched = [];
+
+        foreach ($identifiers as $identifier) {
+            if (isset($resources[$identifier])) {
+                $matched[] = new ProtectedResource($identifier, $resources[$identifier]);
+            }
+        }
+
+        return $matched;
+    }
+
+    /**
+     * Get the global resources and those belonging to the current server.
+     *
+     * @return array<string, string>
+     */
+    protected static function configuredResources(): array
+    {
+        return app()->bound(ServerSettingsResolver::class)
+            ? [...static::$resources, ...app(ServerFactory::class)->settings()->resources]
+            : static::$resources;
+    }
+
+    /**
      * Get or set how long user approval is remembered.
      *
      * Boot-only when setting. The duration persists for every subsequent request on the worker.
@@ -526,6 +584,7 @@ class Passport
      *
      * @param OAuthenticatable $user
      * @param string[] $scopes
+     * @param list<string> $resources
      * @return OAuthenticatable
      */
     public static function actingAs(
@@ -533,9 +592,11 @@ class Passport
         array $scopes = [],
         ?string $guard = self::DEFAULT_GUARD,
         ?Client $client = null,
+        array $resources = [],
     ): Authenticatable {
         $token = new AccessToken([
             'oauth_client_id' => $client?->getKey(),
+            'oauth_audiences' => $resources ?: ($client === null ? [] : [(string) $client->getKey()]),
             'oauth_user_id' => $user->getAuthIdentifier(),
             'user_id' => $user->getAuthIdentifier(),
             'oauth_scopes' => $scopes,
@@ -560,13 +621,15 @@ class Passport
      * Tests only. This installs a resource-server mock and authenticated client in the coroutine's context.
      *
      * @param string[] $scopes
+     * @param list<string> $resources
      */
-    public static function actingAsClient(Client $client, array $scopes = [], ?string $guard = self::DEFAULT_GUARD): Client
+    public static function actingAsClient(Client $client, array $scopes = [], ?string $guard = self::DEFAULT_GUARD, array $resources = []): Client
     {
         $mock = Mockery::mock(ResourceServer::class);
         $mock->shouldReceive('validateAuthenticatedRequest')->andReturnUsing(
             fn (ServerRequestInterface $request) => $request
                 ->withAttribute('oauth_client_id', (string) $client->getKey())
+                ->withAttribute('oauth_audiences', $resources ?: [(string) $client->getKey()])
                 ->withAttribute('oauth_scopes', $scopes)
                 ->withAttribute('oauth_user_id', (string) $client->getKey())
         );
@@ -1151,6 +1214,7 @@ class Passport
         static::$deviceCodeGrantEnabled = self::DEFAULT_DEVICE_CODE_GRANT_ENABLED;
         static::$defaultScope = self::DEFAULT_SCOPE;
         static::$scopes = self::DEFAULT_SCOPES;
+        static::$resources = self::DEFAULT_RESOURCES;
         static::$tokensExpireIn = null;
         static::$refreshTokensExpireIn = null;
         static::$personalAccessTokensExpireIn = null;

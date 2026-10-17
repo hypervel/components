@@ -16,6 +16,7 @@ readonly class ServerSettings
      * @param list<ServerKey> $keys
      * @param array<string, string> $scopes
      * @param int $metadataCacheLifetime Discovery and JWKS HTTP freshness in seconds
+     * @param array<string, string> $resources
      */
     public function __construct(
         public array $keys,
@@ -26,7 +27,10 @@ readonly class ServerSettings
         public array $scopes = [],
         public ?string $issuer = null,
         public int $metadataCacheLifetime = 0,
+        public array $resources = [],
     ) {
+        ProtectedResource::validateIdentifiers($resources);
+
         if ($issuer !== null) {
             $uri = Uri::of($issuer)->getUri();
 

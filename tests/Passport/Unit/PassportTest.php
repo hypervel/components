@@ -11,8 +11,11 @@ use Hypervel\Passport\DeviceCode;
 use Hypervel\Passport\Passport;
 use Hypervel\Passport\PushedAuthorizationRequest;
 use Hypervel\Passport\RefreshToken;
+use Hypervel\Passport\ServerSettings;
 use Hypervel\Passport\Token;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\TestWith;
 
 // REMOVED: RedirectRuleTest covers validation owned by the deprecated client JSON API; applications validate their own client-management input.
 class PassportTest extends TestCase
@@ -34,6 +37,30 @@ class PassportTest extends TestCase
 
         $this->assertInstanceOf(AuthCode::class, $authCode);
         $this->assertInstanceOf(Passport::authCodeModel(), $authCode);
+    }
+
+    public function testResourcesUseExactAbsoluteIdentifiersAndReadableDescriptions(): void
+    {
+        Passport::tokensCanAccess(['urn:example:calendar' => 'Calendar', 'https://api.example?account=1' => 'Account']);
+        $this->assertTrue(Passport::hasResource('urn:example:calendar'));
+        $this->assertFalse(Passport::hasResource('https://api.example?account=2'));
+        $resource = Passport::resourcesFor(['urn:example:calendar', 'urn:unknown'])[0];
+        $this->assertSame(['id' => 'urn:example:calendar', 'description' => 'Calendar'], $resource->toArray());
+        $this->assertSame($resource->toArray(), json_decode($resource->toJson(), true));
+    }
+
+    #[TestWith(['/relative'])]
+    #[TestWith(['https://api.example#fragment'])]
+    public function testResourceCatalogRejectsInvalidIdentifiers(string $identifier): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        Passport::tokensCanAccess([$identifier => 'Invalid']);
+    }
+
+    public function testServerSettingsRejectInvalidResourceIdentifiers(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        new ServerSettings([], resources: ['/relative' => 'Invalid']);
     }
 
     public function testClientInstanceCanBeCreated(): void
@@ -97,6 +124,7 @@ class PassportTest extends TestCase
         Passport::usePushedAuthorizationRequestModel(PushedAuthorizationRequestStub::class);
         Passport::cookie('custom_cookie');
         Passport::tokensCan(['custom' => 'Custom scope']);
+        Passport::tokensCanAccess(['urn:example:custom' => 'Custom resource']);
         Passport::tokensExpireIn(new DateInterval('PT5M'));
         Passport::inheritGrantAttributes(['organization_id']);
         Passport::authenticateAccessTokensUsing(static fn (): bool => false);
@@ -113,6 +141,7 @@ class PassportTest extends TestCase
         $this->assertSame(PushedAuthorizationRequest::class, Passport::pushedAuthorizationRequestModel());
         $this->assertSame('hypervel_token', Passport::cookie());
         $this->assertSame([], Passport::scopeIds());
+        $this->assertFalse(Passport::hasResource('urn:example:custom'));
         $this->assertEquals(new DateInterval('P1Y'), Passport::tokensExpireIn());
         $this->assertSame([], Passport::$inheritedGrantAttributes);
         $this->assertNull(Passport::$accessTokenAuthenticationCallback);

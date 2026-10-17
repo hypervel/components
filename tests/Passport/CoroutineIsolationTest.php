@@ -213,7 +213,12 @@ class CoroutineIsolationTest extends TestCase
              */
             public function resolve(string $identifier): ServerSettings
             {
-                return new ServerSettings([$this->key], scopes: [$identifier => $identifier], issuer: 'https://' . $identifier);
+                return new ServerSettings(
+                    [$this->key],
+                    scopes: [$identifier => $identifier],
+                    issuer: 'https://' . $identifier,
+                    resources: ['https://' . $identifier . '/api' => $identifier],
+                );
             }
         });
         $factory = $this->app->make(ServerFactory::class);
@@ -222,6 +227,9 @@ class CoroutineIsolationTest extends TestCase
             $server = $factory->authorizationServer();
             usleep(5000);
             $this->assertSame($server, $factory->authorizationServer());
+            $this->assertTrue(Passport::hasResource('https://' . $host . '/api'));
+            $other = $host === 'first.example' ? 'second.example' : 'first.example';
+            $this->assertFalse(Passport::hasResource('https://' . $other . '/api'));
 
             return [$factory->settings()->issuer, Passport::scopeIds(), $server];
         };
