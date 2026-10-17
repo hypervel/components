@@ -9,6 +9,7 @@ use Hypervel\Cache\RedisStore;
 use Hypervel\Contracts\Cache\Factory;
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Database\Connection;
+use Hypervel\Support\Facades\Date;
 use LogicException;
 
 class ReplayCache
@@ -27,7 +28,7 @@ class ReplayCache
      */
     public function consume(string $identifier, int $expiresAt): bool
     {
-        $seconds = $expiresAt - time();
+        $seconds = $expiresAt - Date::now()->getTimestamp();
 
         if ($seconds <= 0) {
             return false;

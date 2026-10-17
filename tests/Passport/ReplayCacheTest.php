@@ -69,16 +69,23 @@ class ReplayCacheTest extends TestCase
     #[TestWith(['replay'])]
     public function testClaimsAreConsumedOnceUntilTheirAcceptanceWindowEnds(?string $store): void
     {
+        $now = $this->freezeSecond();
         config(['passport.replay.store' => $store]);
         $replays = $this->app->make(ReplayCache::class);
-        $expiresAt = time() + 300;
+        $expiresAt = $now->getTimestamp() + 300;
 
         $this->assertTrue($replays->consume('client:assertion', $expiresAt));
         $this->assertFalse($replays->consume('client:assertion', $expiresAt));
         $this->assertTrue($replays->consume('other-client:assertion', $expiresAt));
-        $this->assertFalse($replays->consume('expired', time() - 1));
+        $this->assertFalse($replays->consume('expired', $now->getTimestamp() - 1));
         $this->assertSame(2, DB::connection('replay')->table('replays')->count());
-        $this->assertGreaterThanOrEqual($expiresAt, DB::connection('replay')->table('replays')->min('expiration'));
+        $this->assertSame($expiresAt, DB::connection('replay')->table('replays')->min('expiration'));
+
+        $this->travelTo($now->addSeconds(299));
+        $this->assertFalse($replays->consume('client:assertion', $expiresAt));
+        $this->travelTo($now->addSeconds(300));
+        $this->assertFalse($replays->consume('client:assertion', $expiresAt));
+        $this->assertTrue($replays->consume('client:assertion', $expiresAt + 300));
     }
 
     public function testAnApplicationTransactionCannotRollBackAClaimOnTheDedicatedConnection(): void
