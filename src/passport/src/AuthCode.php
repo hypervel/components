@@ -15,6 +15,7 @@ use Hypervel\Database\Eloquent\Model;
  * @property null|string $consent_id
  * @property null|array $scopes
  * @property null|array<string, list<string>> $resources
+ * @property null|string $dpop_jkt
  * @property bool $revoked
  * @property null|CarbonInterface $expires_at
  */

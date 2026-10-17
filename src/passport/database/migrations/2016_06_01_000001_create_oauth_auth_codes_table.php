@@ -20,6 +20,7 @@ return new class extends Migration {
             $table->uuid('consent_id')->nullable()->index();
             $table->jsonb('scopes')->nullable();
             $table->jsonb('resources')->nullable();
+            $table->char('dpop_jkt', 43)->nullable();
             $table->boolean('revoked');
             $table->dateTime('expires_at')->nullable();
 
