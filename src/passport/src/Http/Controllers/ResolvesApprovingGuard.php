@@ -8,10 +8,12 @@ use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\StatefulGuard;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Http\Request;
+use Hypervel\Passport\Bridge\DeviceCode;
 use Hypervel\Passport\Client;
 use Hypervel\Passport\Events\AuthorizationUserResolved;
 use Hypervel\Passport\Exceptions\InvalidAuthTokenException;
 use Hypervel\Passport\Passport;
+use Hypervel\Passport\ResourceRepository;
 use Hypervel\Passport\Scope;
 use League\OAuth2\Server\Entities\DeviceCodeEntityInterface;
 use League\OAuth2\Server\Entities\ScopeEntityInterface;
@@ -76,6 +78,17 @@ trait ResolvesApprovingGuard
         $permissions = $event->permissions ?? [];
         // Resource permissions belong to the validated protocol request, not extension contributions.
         unset($permissions['resources']);
+
+        $resources = $authorization instanceof DeviceCode
+            ? ($authorization->resources === null ? null : array_keys($authorization->resources))
+            : ($parameters['resource'] ?? null);
+
+        if ($resources !== null) {
+            $permissions['resources'] = array_fill_keys(
+                app(ResourceRepository::class)->validate($resources),
+                array_map(static fn (Scope $scope): string => $scope->id, $scopes),
+            );
+        }
 
         return [
             'user_id' => (string) $user->getAuthIdentifier(),

@@ -21,6 +21,7 @@ class AuthorizationRequestResolver
         protected ServerFactory $servers,
         protected ClientRepository $clients,
         protected AuthorizationResponse $responses,
+        protected ResourceRepository $resources,
     ) {
     }
 
@@ -66,6 +67,10 @@ class AuthorizationRequestResolver
 
         if (! in_array($parameters['response_mode'] ?? 'query', ['query', 'form_post'], true)) {
             throw OAuthServerException::invalidRequest('response_mode');
+        }
+
+        if (array_key_exists('resource', $parameters)) {
+            $this->resources->validate($parameters['resource']);
         }
 
         $prompts = array_unique(array_filter(explode(' ', trim($parameters['prompt'] ?? ''))));
