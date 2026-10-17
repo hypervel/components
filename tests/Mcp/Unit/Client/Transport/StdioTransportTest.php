@@ -15,6 +15,7 @@ use Hypervel\Mcp\Schema\Implementation;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Process\Process;
 
@@ -132,6 +133,31 @@ class StdioTransportTest extends TestCase
         }
     }
 
+    #[TestWith(['receive'])]
+    #[TestWith(['send'])]
+    public function testDrainsProcessDiagnosticsWhileKeepingABoundedTail(string $operation): void
+    {
+        $transport = new InspectableStdioTransport('diagnostics');
+
+        try {
+            $transport->connect();
+            $this->assertTrue($transport->readInitialOutput());
+
+            if ($operation === 'send') {
+                $transport->send('finish');
+            } else {
+                $this->assertSame("partial\n", $transport->receive());
+            }
+
+            $this->assertSame('', $transport->retainedErrorOutput());
+            $tail = $transport->ownedState()[3];
+            $this->assertLessThanOrEqual(8192, strlen($tail));
+            $this->assertStringEndsWith(':diagnostic-tail', $tail);
+        } finally {
+            $transport->disconnect();
+        }
+    }
+
     public function testIncompleteOutputReportsABoundedDiagnosticTailAndDisconnects(): void
     {
         $transport = new InspectableStdioTransport('incomplete');
@@ -239,6 +265,14 @@ class InspectableStdioTransport extends StdioTransport
     {
         $this->process->setTimeout(3);
         $this->process->wait();
+    }
+
+    /**
+     * Read diagnostics still retained by Symfony's process buffer.
+     */
+    public function retainedErrorOutput(): string
+    {
+        return $this->process->getErrorOutput();
     }
 
     /**

@@ -120,6 +120,8 @@ class StdioTransport implements Transport
         if (! $this->process->isRunning()) {
             throw new TransportException('Transport is not connected.');
         }
+
+        $this->drainErrorOutput($this->process);
     }
 
     /**
@@ -153,6 +155,8 @@ class StdioTransport implements Transport
                 }
 
                 if ($this->bufferUntilNewline($type, $chunk)) {
+                    $this->drainErrorOutput($process);
+
                     return $this->popLine() ?? $this->failWith('Subprocess output stream did not yield a complete line.');
                 }
             }
@@ -164,6 +168,16 @@ class StdioTransport implements Transport
         $suffix = $stderr === '' ? '' : " stderr: {$stderr}";
 
         return $this->popLine() ?? $this->failWith("Subprocess [{$this->command}] closed its output before sending a complete response.{$suffix}");
+    }
+
+    /**
+     * Retain a bounded diagnostic tail without leaving stderr in the process buffer.
+     */
+    protected function drainErrorOutput(Process $process): void
+    {
+        // Process status checks and an early return from the iterator both leave stderr in Symfony's buffer.
+        $this->stderr = substr($this->stderr . $process->getIncrementalErrorOutput(), -self::STDERR_LIMIT);
+        $process->clearErrorOutput();
     }
 
     /**

@@ -31,6 +31,11 @@ switch ($argv[1]) {
     case 'final':
         fwrite(STDOUT, "final\n");
         break;
+    case 'diagnostics':
+        fwrite(STDERR, str_repeat('x', 9000) . ':diagnostic-tail');
+        fwrite(STDOUT, "partial\n");
+        fgets(STDIN);
+        break;
     case 'incomplete':
         fwrite(STDERR, 'discarded-prefix:' . str_repeat('x', 9000) . ':diagnostic-tail');
         fwrite(STDOUT, 'incomplete');
