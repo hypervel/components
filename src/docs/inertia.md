@@ -307,6 +307,7 @@ Version labels refer to the Inertia client-side libraries. Features marked with 
     - [Router Requests](#typescript-router-requests)
     - [Scoped Flash Data](#typescript-scoped-flash-data)
     - [Client-Side Visits](#typescript-client-side-visits)
+- [Credits](#credits)
 
 <a name="how-it-works"></a>
 
@@ -15564,3 +15565,8 @@ router.replace<UserPageProps>({
   }),
 });
 ```
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Inertia began as a port of [Inertia Laravel](https://github.com/inertiajs/inertia-laravel) and has been adapted for Hypervel's framework architecture and coroutine runtime.

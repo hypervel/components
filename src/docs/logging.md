@@ -13,6 +13,7 @@
     - [Customizing Monolog for Channels](#customizing-monolog-for-channels)
     - [Creating Monolog Handler Channels](#creating-monolog-handler-channels)
     - [Creating Custom Channels via Factories](#creating-custom-channels-via-factories)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -546,3 +547,8 @@ class CreateCustomLogger
     }
 }
 ```
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Log began as a port of [Laravel Log](https://github.com/illuminate/log) and has been adapted for Hypervel's framework architecture and coroutine runtime.

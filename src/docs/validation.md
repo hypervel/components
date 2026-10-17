@@ -36,6 +36,7 @@
     - [Using Rule Objects](#using-rule-objects)
     - [Using Closures](#using-closures)
     - [Implicit Rules](#implicit-rules)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -3556,3 +3557,8 @@ php artisan make:rule Uppercase --implicit
 
 > [!WARNING]
 > An "implicit" rule only _implies_ that the attribute is required. Whether it actually invalidates a missing or empty attribute is up to you.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Validation began as a port of [Laravel Validation](https://github.com/illuminate/validation) and has been adapted for Hypervel's framework architecture and coroutine runtime.

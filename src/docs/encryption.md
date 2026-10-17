@@ -4,6 +4,7 @@
 - [Configuration](#configuration)
     - [Gracefully Rotating Encryption Keys](#gracefully-rotating-encryption-keys)
 - [Using the Encrypter](#using-the-encrypter)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -89,3 +90,8 @@ try {
     // ...
 }
 ```
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Encryption began as a port of [Laravel Encryption](https://github.com/illuminate/encryption) and has been adapted for Hypervel's framework architecture and coroutine runtime.

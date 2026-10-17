@@ -63,6 +63,7 @@
     - [Files](#testing-files)
     - [Vector Stores](#testing-vector-stores)
 - [Events](#events)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -4187,3 +4188,8 @@ For remembered conversations, abandoning a stream preserves completed tool steps
 Queued listeners require a serializable event. Raw uploaded files cannot be serialized. If you use queued listeners, attach uploads using the `fromUpload()` method of the matching `Hypervel\Ai\Files` class, such as `Document::fromUpload()`, `Image::fromUpload()` or `Audio::fromUpload()`, to include the file's contents. Alternatively, store the file on a disk the queue worker can access and attach it using `fromStorage()`.
 
 Failure and failover events also include the thrown exception, which PHP can't always serialize. For those events, or when a listener only needs a few values such as token usage, handle the event synchronously and dispatch a job containing only those values.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel AI SDK began as a port of [Laravel AI SDK](https://github.com/laravel/ai) and has been adapted for Hypervel's framework architecture and coroutine runtime.

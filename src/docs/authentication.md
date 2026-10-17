@@ -35,6 +35,7 @@
 - [Automatic Password Rehashing](#automatic-password-rehashing)
 - [Social Authentication](/docs/{{version}}/socialite)
 - [Events](#events)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -1172,3 +1173,8 @@ Hypervel dispatches a variety of [events](/docs/{{version}}/events) during the a
 | `Hypervel\Auth\Events\PasswordResetLinkSent` |
 
 </div>
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Auth began as a port of [Laravel Auth](https://github.com/illuminate/auth) and has been adapted for Hypervel's framework architecture and coroutine runtime.

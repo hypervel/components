@@ -34,6 +34,7 @@
     - [Registering the Driver](#registering-the-driver)
 - [Console Commands](#console-commands)
 - [Events](#events)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -1276,3 +1277,8 @@ To increase performance, you may disable cache events by setting the `events` co
 ```
 
 The failover store disables ordinary events on its outer repository by default because its backing repositories already dispatch them. The `CacheFailedOver` event is still dispatched when a backing store fails.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Cache began as a port of [Laravel Cache](https://github.com/illuminate/cache) and has been adapted for Hypervel's framework architecture and coroutine runtime.
