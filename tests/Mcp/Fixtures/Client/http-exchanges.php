@@ -1,0 +1,130 @@
+<?php
+
+declare(strict_types=1);
+
+$server = stream_socket_server('tcp://127.0.0.1:0', $error, $message);
+
+if ($server === false) {
+    throw new RuntimeException($message, $error);
+}
+
+echo stream_socket_get_name($server, false), "\n";
+fflush(STDOUT);
+$connections = [];
+
+/**
+ * Accept and read one complete JSON request.
+ *
+ * @return array{resource, array}
+ */
+$receive = static function () use ($server, &$connections): array {
+    $connection = stream_socket_accept($server, 3);
+
+    if ($connection === false) {
+        throw new RuntimeException('The MCP client did not send the next request.');
+    }
+
+    $connections[] = $connection;
+    stream_set_timeout($connection, 3);
+    $length = 0;
+
+    while (($line = fgets($connection)) !== "\r\n" && $line !== false) {
+        if (preg_match('/^Content-Length:\s*(\d+)/i', $line, $matches)) {
+            $length = (int) $matches[1];
+        }
+    }
+
+    $body = '';
+
+    while (strlen($body) < $length) {
+        $chunk = fread($connection, $length - strlen($body));
+
+        if ($chunk === false || $chunk === '') {
+            throw new RuntimeException('The MCP request body ended early.');
+        }
+
+        $body .= $chunk;
+    }
+
+    return [$connection, json_decode($body, true, flags: JSON_THROW_ON_ERROR)];
+};
+
+/**
+ * Send a complete JSON response.
+ *
+ * @param resource $connection
+ */
+$reply = static function (mixed $connection, int $id, array $result): void {
+    $body = json_encode(['jsonrpc' => '2.0', 'id' => $id, 'result' => $result], JSON_THROW_ON_ERROR);
+    fwrite($connection, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: " . strlen($body) . "\r\nConnection: close\r\n\r\n" . $body);
+    fclose($connection);
+};
+
+try {
+    [$connection, $request] = $receive();
+    if ($request['method'] !== 'server/discover') {
+        throw new RuntimeException('The first request must negotiate discovery.');
+    }
+
+    $reply($connection, $request['id'], [
+        'resultType' => 'complete',
+        'supportedVersions' => [$argv[2]],
+        'capabilities' => ['tools' => new stdClass],
+        '_meta' => ['io.modelcontextprotocol/serverInfo' => ['name' => 'Local MCP fixture', 'version' => '1.0']],
+    ]);
+
+    [$first, $firstRequest] = $receive();
+
+    if ($argv[1] === 'concurrent' || $argv[1] === 'failure') {
+        // Neither response is available until both calls reach the server.
+        [$second, $secondRequest] = $receive();
+
+        if ($argv[1] === 'failure') {
+            // Handshake waiters can send before the coroutine that negotiated.
+            if ($firstRequest['params']['name'] !== 'first') {
+                [$first, $second] = [$second, $first];
+                [$firstRequest, $secondRequest] = [$secondRequest, $firstRequest];
+            }
+
+            fwrite($first, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 1\r\nConnection: close\r\n\r\n{");
+            fflush($first);
+            fread($first, 1);
+
+            if (! feof($first)) {
+                throw new RuntimeException('The MCP client did not close the failed exchange.');
+            }
+        }
+
+        $reply($second, $secondRequest['id'], [
+            'resultType' => 'complete',
+            'content' => [['type' => 'text', 'text' => $secondRequest['params']['name']]],
+        ]);
+        if ($argv[1] === 'concurrent') {
+            $reply($first, $firstRequest['id'], [
+                'resultType' => 'complete',
+                'content' => [['type' => 'text', 'text' => $firstRequest['params']['name']]],
+            ]);
+        }
+    } else {
+        $body = json_encode(['jsonrpc' => '2.0', 'id' => $firstRequest['id'], 'result' => [
+            'resultType' => 'complete',
+            'content' => [['type' => 'text', 'text' => 'finished']],
+        ]], JSON_THROW_ON_ERROR);
+        fwrite($first, "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\ndata: {$body}\n\n");
+        fflush($first);
+
+        // Leave the response open: consuming the terminal reply must close it.
+        fread($first, 1);
+        if (! feof($first)) {
+            throw new RuntimeException('The MCP client waited for EOF instead of closing its completed exchange.');
+        }
+    }
+} finally {
+    foreach ($connections as $connection) {
+        if (is_resource($connection)) {
+            fclose($connection);
+        }
+    }
+
+    fclose($server);
+}
