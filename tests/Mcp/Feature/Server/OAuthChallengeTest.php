@@ -6,11 +6,13 @@ namespace Hypervel\Tests\Mcp\Feature\Server\OAuthChallengeTest;
 
 use Closure;
 use Hypervel\Auth\Middleware\Authenticate;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Http\Request;
 use Hypervel\Mcp\Facades\Mcp;
 use Hypervel\Mcp\Server\Middleware\AddWwwAuthenticateHeader;
 use Hypervel\Mcp\Server\Registrar;
 use Hypervel\Routing\Middleware\SubstituteBindings;
+use Hypervel\Sanctum\SanctumServiceProvider;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Tests\Mcp\Fixtures\ExampleServer;
 use Hypervel\Tests\Mcp\TestCase;
@@ -29,6 +31,14 @@ class RejectsEveryone
 
 class OAuthChallengeTest extends TestCase
 {
+    /**
+     * Load Sanctum alongside the MCP server.
+     */
+    protected function getPackageProviders(Application $app): array
+    {
+        return [...parent::getPackageProviders($app), SanctumServiceProvider::class];
+    }
+
     /**
      * Register OAuth metadata routes.
      */
@@ -80,6 +90,29 @@ class OAuthChallengeTest extends TestCase
         $this->postJson('not-mcp', [])
             ->assertStatus(401)
             ->assertHeaderMissing('WWW-Authenticate');
+    }
+
+    public function testSanctumRoutesDoNotAdvertiseAnotherServersOAuthDiscovery(): void
+    {
+        config(['auth.guards.personal' => ['driver' => 'sanctum', 'provider' => 'users', 'session_guards' => []]]);
+        Mcp::web('oauth-mcp', ExampleServer::class)->middleware(Authenticate::class);
+        Mcp::web('sanctum-mcp', ExampleServer::class)->middleware('auth:personal');
+
+        $this->postJson('oauth-mcp', [])->assertUnauthorized()
+            ->assertHeader('WWW-Authenticate', 'Bearer realm="mcp", resource_metadata="' . url('/.well-known/oauth-protected-resource/oauth-mcp') . '"');
+        $this->postJson('sanctum-mcp', [])->assertUnauthorized()
+            ->assertHeader('WWW-Authenticate', 'Bearer realm="mcp", error="invalid_token"');
+    }
+
+    public function testPreservesAnAuthenticationChallengeSuppliedByTheApplication(): void
+    {
+        Route::aliasMiddleware('custom-challenge', function () {
+            return response('', 401, ['WWW-Authenticate' => 'Bearer realm="custom"']);
+        });
+        Mcp::web('custom-challenge', ExampleServer::class)->middleware('custom-challenge');
+
+        $this->postJson('custom-challenge', [])->assertUnauthorized()
+            ->assertHeader('WWW-Authenticate', 'Bearer realm="custom"');
     }
 
     public function testDoesNotChallengeWhenTheMiddlewareIsExcludedFromTheRoute(): void

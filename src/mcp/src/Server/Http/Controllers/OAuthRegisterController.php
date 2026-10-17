@@ -7,14 +7,16 @@ namespace Hypervel\Mcp\Server\Http\Controllers;
 use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\BindingResolutionException;
-use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
 use Hypervel\Mcp\Server\Registrar;
+use Hypervel\Passport\Client;
 use Hypervel\Passport\ClientRepository;
+use Hypervel\Passport\Passport;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Validator;
 use Hypervel\Support\Str;
+use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
 
@@ -83,16 +85,23 @@ class OAuthRegisterController
         $clients = Container::getInstance()->make(ClientRepository::class);
 
         try {
-            $client = $clients->createAuthorizationCodeGrantClient(
-                name: $this->resolveClientName($validated),
-                redirectUris: $validated['redirect_uris'],
-                confidential: false,
-                enableDeviceFlow: false,
-            );
+            [$client, $metadata] = Passport::client()->getConnection()->transaction(function () use ($clients, $validated): array {
+                $client = $clients->createAuthorizationCodeGrantClient(
+                    name: $this->resolveClientName($validated),
+                    redirectUris: $validated['redirect_uris'],
+                    confidential: false,
+                    enableDeviceFlow: false,
+                );
 
-            $this->grantMcpScope($client);
+                // Commit registration only after the client is classified as untrusted.
+                if (! $client->forceFill(['third_party' => true])->save()) {
+                    throw new RuntimeException('The client trust classification could not be saved.');
+                }
 
-            $metadata = $this->persistClientMetadata($client, $validated);
+                $this->grantMcpScope($client);
+
+                return [$client, $this->persistClientMetadata($client, $validated)];
+            });
         } catch (CanceledException $exception) {
             throw $exception;
         } catch (Throwable $throwable) {
@@ -118,19 +127,17 @@ class OAuthRegisterController
     /**
      * Grant the MCP scope when the client restricts its scopes.
      */
-    protected function grantMcpScope(mixed $client): void
+    protected function grantMcpScope(Client $client): void
     {
-        if (! $client instanceof Model) {
-            return;
-        }
-
         $scopes = $client->refresh()->getAttribute('scopes');
 
         if (! is_array($scopes) || in_array(Registrar::OAUTH_SCOPE, $scopes, true)) {
             return;
         }
 
-        $client->forceFill(['scopes' => [...$scopes, Registrar::OAUTH_SCOPE]])->save();
+        if (! $client->forceFill(['scopes' => [...$scopes, Registrar::OAUTH_SCOPE]])->save()) {
+            throw new RuntimeException('The client scopes could not be saved.');
+        }
     }
 
     /**
@@ -139,18 +146,14 @@ class OAuthRegisterController
      * @param array<string, mixed> $validated
      * @return array<string, mixed>
      */
-    protected function persistClientMetadata(mixed $client, array $validated): array
+    protected function persistClientMetadata(Client $client, array $validated): array
     {
-        if (! $client instanceof Model) {
-            return [];
-        }
-
         $columns = $client->getConnection()->getSchemaBuilder()->getColumnListing($client->getTable());
         $supported = array_intersect(['logo_uri', 'client_uri'], $columns);
         $metadata = array_filter(Arr::only($validated, $supported));
 
-        if ($metadata !== []) {
-            $client->forceFill($metadata)->save();
+        if ($metadata !== [] && ! $client->forceFill($metadata)->save()) {
+            throw new RuntimeException('The client metadata could not be saved.');
         }
 
         return array_filter($client->only($supported));

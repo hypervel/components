@@ -17,6 +17,7 @@ use Hypervel\Passport\PassportServiceProvider;
 use Hypervel\RateLimiter\Limit;
 use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\Routing\Route as RoutingRoute;
+use Hypervel\Routing\RouteCollection;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Tests\Mcp\Fixtures\CustomPassportClient;
 use Hypervel\Tests\Mcp\Fixtures\ExampleServer;
@@ -25,7 +26,7 @@ use Hypervel\Tests\Mcp\Fixtures\PassportClientRepository;
 use Hypervel\Tests\Mcp\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
-use stdClass;
+use PHPUnit\Framework\Attributes\TestWith;
 use Swoole\Coroutine\CanceledException;
 
 class RegistrarTest extends TestCase
@@ -60,6 +61,14 @@ class RegistrarTest extends TestCase
     }
 
     /**
+     * Provide real client storage for registration requests.
+     */
+    protected function setUpInCoroutine(): void
+    {
+        $this->createOauthClientsTable(withScopesColumn: false);
+    }
+
+    /**
      * Create the client columns used by the current registration case.
      */
     private function createOauthClientsTable(bool $withScopesColumn, ?string $scopesDefault = null, array $metadataColumns = []): void
@@ -71,6 +80,8 @@ class RegistrarTest extends TestCase
         $schema->create($model->getTable(), function (Blueprint $table) use ($withScopesColumn, $scopesDefault, $metadataColumns): void {
             $table->string('id')->primary();
             $table->string('name');
+            $table->nullableMorphs('owner');
+            $table->boolean('third_party')->default(false);
             $table->jsonb('grant_types');
             $table->jsonb('redirect_uris');
 
@@ -294,6 +305,33 @@ class RegistrarTest extends TestCase
         ]);
     }
 
+    #[TestWith([null])]
+    #[TestWith(['b.example.com'])]
+    public function testExistingDiscoveryOnAnotherDomainDoesNotSuppressTheCurrentGroup(?string $domain): void
+    {
+        Route::domain('a.example.com')->get('/api/.well-known/oauth-protected-resource', fn () => ['existing' => true]);
+        Route::group(['domain' => $domain, 'prefix' => 'api'], function (): void {
+            (new Registrar)->oauthRoutes();
+        });
+
+        $this->getJson('http://a.example.com/api/.well-known/oauth-protected-resource')
+            ->assertOk()->assertJsonPath('existing', true);
+        $this->getJson('http://b.example.com/api/.well-known/oauth-protected-resource')
+            ->assertOk()->assertJsonPath('resource', 'http://b.example.com');
+    }
+
+    public function testAuthorizationMetadataIsUnavailableWithoutPassportRoutes(): void
+    {
+        Route::setRoutes(new RouteCollection);
+        config(['mcp.authorization_server' => 'https://auth.example.com']);
+        (new Registrar)->oauthRoutes(registration: false);
+
+        $this->getJson('/.well-known/oauth-authorization-server')->assertNotFound();
+        $this->getJson('/.well-known/oauth-authorization-server/mcp/server')->assertNotFound();
+        $this->getJson('/.well-known/oauth-protected-resource/mcp/server')
+            ->assertOk()->assertJsonPath('authorization_servers', ['https://auth.example.com']);
+    }
+
     public function testResolvesTheNestedProtectedResourcePathWhenARouteParameterPrecedesIt(): void
     {
         Route::group(['domain' => '{account}.example.com'], function (): void {
@@ -353,6 +391,27 @@ class RegistrarTest extends TestCase
             'scope' => 'mcp:use',
             'token_endpoint_auth_method' => 'none',
         ]);
+
+        $client = Passport::client()->findOrFail('test-client-id');
+        $this->assertTrue($client->third_party);
+        $this->assertFalse($client->firstParty());
+    }
+
+    #[TestWith(['third_party'])]
+    #[TestWith(['scopes'])]
+    #[TestWith(['logo_uri'])]
+    public function testRollsBackRegistrationWhenAnObserverCancelsSaving(string $attribute): void
+    {
+        $this->createOauthClientsTable(withScopesColumn: true, scopesDefault: '[]', metadataColumns: ['logo_uri']);
+        PassportClient::updating(fn (PassportClient $client): bool => ! $client->isDirty($attribute));
+        (new Registrar)->oauthRoutes();
+
+        $this->postJson('/oauth/register', [
+            'redirect_uris' => ['https://example.com/callback'],
+            'logo_uri' => 'https://example.com/logo.png',
+        ])->assertStatus(500)->assertJsonPath('error', 'server_error');
+
+        $this->assertSame(0, Passport::client()->newQuery()->count());
     }
 
     public function testRegistrationHonorsTheApplicationPassportRateLimit(): void
@@ -383,7 +442,7 @@ class RegistrarTest extends TestCase
         }
     }
 
-    public function testIgnoresRegistrationMetadataWhenTheClientIsNotAnEloquentModel(): void
+    public function testIgnoresRegistrationMetadataWhenTheClientTableHasNoMetadataColumns(): void
     {
         (new Registrar)->oauthRoutes();
 
@@ -678,28 +737,8 @@ class RegistrarTest extends TestCase
 
     public function testFallsBackToTheRedirectHostWhenNoClientNameIsProvided(): void
     {
-        $clientRepository = new class {
-            public ?string $capturedName = null;
-
-            /**
-             * Capture the resolved client name.
-             */
-            public function createAuthorizationCodeGrantClient(string $name, array $redirectUris, bool $confidential = true, ?Authenticatable $user = null, bool $enableDeviceFlow = false): stdClass
-            {
-                $this->capturedName = $name;
-
-                return (object) [
-                    'id' => 'test-client-id',
-                    'grant_types' => ['authorization_code'],
-                    'redirect_uris' => $redirectUris,
-                ];
-            }
-        };
-
         $registrar = new Registrar;
         $registrar->oauthRoutes();
-
-        $this->app->instance(ClientRepository::class, $clientRepository);
 
         $response = $this->postJson('/oauth/register', [
             'redirect_uris' => ['https://example.com/callback'],
@@ -707,7 +746,7 @@ class RegistrarTest extends TestCase
 
         $response->assertStatus(201);
 
-        $this->assertSame('example.com', $clientRepository->capturedName);
+        $this->assertSame('example.com', Passport::client()->findOrFail('test-client-id')->name);
     }
 
     public function testReturnsInvalidClientMetadataWhenClientMetadataIsInvalid(): void
@@ -728,28 +767,8 @@ class RegistrarTest extends TestCase
 
     public function testPreservesAFalsyClientNameForOauthRegistration(): void
     {
-        $clientRepository = new class {
-            public ?string $capturedName = null;
-
-            /**
-             * Capture the resolved client name.
-             */
-            public function createAuthorizationCodeGrantClient(string $name, array $redirectUris, bool $confidential = true, ?Authenticatable $user = null, bool $enableDeviceFlow = false): stdClass
-            {
-                $this->capturedName = $name;
-
-                return (object) [
-                    'id' => 'test-client-id',
-                    'grant_types' => ['authorization_code'],
-                    'redirect_uris' => $redirectUris,
-                ];
-            }
-        };
-
         $registrar = new Registrar;
         $registrar->oauthRoutes();
-
-        $this->app->instance(ClientRepository::class, $clientRepository);
 
         $response = $this->postJson('/oauth/register', [
             'client_name' => '0',
@@ -758,33 +777,13 @@ class RegistrarTest extends TestCase
 
         $response->assertStatus(201);
 
-        $this->assertSame('0', $clientRepository->capturedName);
+        $this->assertSame('0', Passport::client()->findOrFail('test-client-id')->name);
     }
 
     public function testFallsBackToTheLegacyNameFieldForOauthRegistration(): void
     {
-        $clientRepository = new class {
-            public ?string $capturedName = null;
-
-            /**
-             * Capture the resolved client name.
-             */
-            public function createAuthorizationCodeGrantClient(string $name, array $redirectUris, bool $confidential = true, ?Authenticatable $user = null, bool $enableDeviceFlow = false): stdClass
-            {
-                $this->capturedName = $name;
-
-                return (object) [
-                    'id' => 'test-client-id',
-                    'grant_types' => ['authorization_code'],
-                    'redirect_uris' => $redirectUris,
-                ];
-            }
-        };
-
         $registrar = new Registrar;
         $registrar->oauthRoutes();
-
-        $this->app->instance(ClientRepository::class, $clientRepository);
 
         $response = $this->postJson('/oauth/register', [
             'name' => 'Legacy Client',
@@ -793,33 +792,13 @@ class RegistrarTest extends TestCase
 
         $response->assertStatus(201);
 
-        $this->assertSame('Legacy Client', $clientRepository->capturedName);
+        $this->assertSame('Legacy Client', Passport::client()->findOrFail('test-client-id')->name);
     }
 
     public function testPrefersClientNameOverNameForOauthRegistration(): void
     {
-        $clientRepository = new class {
-            public ?string $capturedName = null;
-
-            /**
-             * Capture the resolved client name.
-             */
-            public function createAuthorizationCodeGrantClient(string $name, array $redirectUris, bool $confidential = true, ?Authenticatable $user = null, bool $enableDeviceFlow = false): stdClass
-            {
-                $this->capturedName = $name;
-
-                return (object) [
-                    'id' => 'test-client-id',
-                    'grant_types' => ['authorization_code'],
-                    'redirect_uris' => $redirectUris,
-                ];
-            }
-        };
-
         $registrar = new Registrar;
         $registrar->oauthRoutes();
-
-        $this->app->instance(ClientRepository::class, $clientRepository);
 
         $response = $this->postJson('/oauth/register', [
             'client_name' => 'Preferred Client',
@@ -829,7 +808,7 @@ class RegistrarTest extends TestCase
 
         $response->assertStatus(201);
 
-        $this->assertSame('Preferred Client', $clientRepository->capturedName);
+        $this->assertSame('Preferred Client', Passport::client()->findOrFail('test-client-id')->name);
     }
 
     public function testHandlesOauthRegistrationWithAllowedDomains(): void

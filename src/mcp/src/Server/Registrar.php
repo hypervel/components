@@ -104,7 +104,7 @@ class Registrar
      *
      * Boot-only. The routes persist for the worker lifetime.
      *
-     * @param array{0: class-string, 1: string}|Closure(string, TokenSet): mixed $handler
+     * @param array{0: class-string, 1: string}|Closure(string, TokenSet): mixed $handler receives provider or client, token, and optional returnTo by parameter name
      * @param array<int, string>|string $middleware
      * @param array<string, mixed> $clientMetadata
      */
@@ -199,6 +199,8 @@ class Registrar
      */
     protected static function authorizationServerMetadata(string $oauthPrefix): array
     {
+        abort_unless(Router::has('passport.authorizations.authorize') && Router::has('passport.token'), 404);
+
         return array_filter([
             'issuer' => config('mcp.authorization_server') ?? url('/'),
             'authorization_endpoint' => route('passport.authorizations.authorize'),
@@ -231,8 +233,14 @@ class Registrar
      */
     protected function hasGetRoute(string $uri): bool
     {
+        $uri = trim(Router::getLastGroupPrefix() . '/' . $uri, '/');
+        $groups = Router::getGroupStack();
+        $domain = end($groups)['domain'] ?? null;
+
         foreach (Router::getRoutes()->getRoutes() as $route) {
-            if ($route->uri() === $uri && in_array('GET', $route->methods(), true)) {
+            if ($route->uri() === $uri
+                && in_array('GET', $route->methods(), true)
+                && ($route->getDomain() === null || $route->getDomain() === $domain)) {
                 return true;
             }
         }
