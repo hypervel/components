@@ -244,12 +244,14 @@ class RequestTest extends TestCase
 
     public function testDistinguishesNestedNumericObjectsFromLists(): void
     {
-        $source = '{"params":{"arguments":{"calls":[{"arguments":{"0":"value"}},{"arguments":["value"]}]}}}';
+        $source = '{"params":{"arguments":{"calls":[{"arguments":{"0":"value"}},{"arguments":["value"]},{"arguments":{}},{"arguments":[]}]}}}';
         $request = new Request(json_decode($source, true, flags: JSON_THROW_ON_ERROR)['params']['arguments']);
         $request->setSource($source);
 
         $this->assertTrue($request->isObject('calls.0.arguments'));
         $this->assertFalse($request->isObject('calls.1.arguments'));
+        $this->assertTrue($request->isObject('calls.2.arguments'));
+        $this->assertFalse($request->isObject('calls.3.arguments'));
 
         $request->setSource('{"params":{"arguments":{"calls":[{"arguments":["value"]}]}}}');
         $this->assertFalse($request->isObject('calls.0.arguments'));

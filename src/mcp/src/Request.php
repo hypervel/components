@@ -178,7 +178,8 @@ class Request implements Arrayable, Transient
             return false;
         }
 
-        if ($value === [] || ! array_is_list($value)) {
+        // Missing arguments default to an empty map in toRequest(); only keyed empties consult the wire shape.
+        if (($value === [] && ($key === null || $this->source === null)) || ! array_is_list($value)) {
             return true;
         }
 
@@ -186,7 +187,7 @@ class Request implements Arrayable, Transient
             return false;
         }
 
-        // Numeric object properties otherwise become indistinguishable from list indexes.
+        // Empty objects and numeric object properties lose their shape when decoded as arrays.
         $this->decodedSource ??= json_decode($this->source, flags: JSON_THROW_ON_ERROR);
 
         return data_get($this->decodedSource, $key === null ? 'params.arguments' : "params.arguments.{$key}") instanceof stdClass;
