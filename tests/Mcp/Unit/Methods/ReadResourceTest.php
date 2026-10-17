@@ -82,7 +82,13 @@ class ReadResourceTest extends TestCase
             params: [] // intentionally omitting 'uri'
         );
 
-        $readResource->handle($jsonRpcRequest, $context);
+        try {
+            $readResource->handle($jsonRpcRequest, $context);
+        } catch (JsonRpcException $exception) {
+            $this->assertNull($exception->data());
+
+            throw $exception;
+        }
     }
 
     public function testThrowsExceptionWhenResourceIsNotFound(): void
@@ -99,7 +105,13 @@ class ReadResourceTest extends TestCase
             params: ['uri' => 'file://resources/non-existent']
         );
 
-        $readResource->handle($jsonRpcRequest, $context);
+        try {
+            $readResource->handle($jsonRpcRequest, $context);
+        } catch (JsonRpcException $exception) {
+            $this->assertSame(['uri' => 'file://resources/non-existent'], $exception->data());
+
+            throw $exception;
+        }
     }
 
     public function testThrowsInternalErrorWithExceptionMessageWhenModelNotFoundExceptionIsThrownWithAppDebugTrue(): void
