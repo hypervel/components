@@ -44,12 +44,13 @@ class PushedAuthorizationRequestTest extends PassportTestCase
 
     public function testPushFreezesParametersAndConsumptionIgnoresBrowserOverrides(): void
     {
+        Passport::tokensCanAccess(['https://first.example' => 'First', 'https://second.example' => 'Second']);
         $client = ClientFactory::new()->create(['require_pushed_authorization_requests' => true]);
         $contexts = [];
         Event::listen(AuthorizationRequestValidated::class, static function (AuthorizationRequestValidated $event) use (&$contexts): void {
             $contexts[] = [$event->request->routeIs('passport.par'), $event->parameters];
         });
-        $uri = $this->push($client, ['scope' => 'read', 'state' => ' original '])->assertCreated()
+        $uri = $this->push($client, ['scope' => 'read', 'state' => ' original ', 'resource' => ['https://first.example', 'https://second.example']])->assertCreated()
             ->assertHeader('Cache-Control', 'no-store, private')->assertJsonPath('expires_in', 90)->json('request_uri');
         $stored = Passport::pushedAuthorizationRequest()->newQuery()->sole();
         $this->assertSame(hash('sha256', $uri), $stored->id);
@@ -61,6 +62,7 @@ class PushedAuthorizationRequestTest extends PassportTestCase
         $url = '/oauth/authorize?' . http_build_query([
             'client_id' => $client->id, 'request_uri' => $uri, 'scope' => 'write',
             'redirect_uri' => 'https://attacker.example/callback', 'state' => 'replaced',
+            'resource' => 'https://attacker.example',
         ]);
         $consent = $this->get($url)->assertOk()->assertJsonPath('scopes.0.id', 'read')->json('authToken');
         $this->assertDatabaseCount('oauth_pushed_authorization_requests', 0);
@@ -69,6 +71,9 @@ class PushedAuthorizationRequestTest extends PassportTestCase
         $location = $this->post('/oauth/authorize/consent', ['auth_token' => $consent])->assertRedirect()->headers->get('Location');
         parse_str(parse_url($location, PHP_URL_QUERY), $result);
         $this->assertSame(' original ', $result['state']);
+        $this->assertSame([
+            'https://first.example' => ['read'], 'https://second.example' => ['read'],
+        ], Passport::authCode()->sole()->resources);
         $this->get($url)->assertBadRequest()->assertJsonPath('error', 'invalid_request_uri')->assertHeaderMissing('Location');
     }
 
@@ -136,6 +141,7 @@ class PushedAuthorizationRequestTest extends PassportTestCase
     #[TestWith(['scope', 'write', 'invalid_scope'])]
     #[TestWith(['response_mode', 'fragment', 'invalid_request'])]
     #[TestWith(['prompt', 'none login', 'invalid_request'])]
+    #[TestWith(['resource', 'https://unknown.example', 'invalid_target'])]
     public function testInvalidPushesReturnJsonWithoutRedirecting(string $name, string $value, string $error): void
     {
         $client = ClientFactory::new()->create(['scopes' => ['read']]);
