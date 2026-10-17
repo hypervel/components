@@ -1796,7 +1796,7 @@ You may authenticate access to your MCP server using bearer tokens through [Sanc
 
 To protect your web-based MCP servers with OAuth, use [Passport](/docs/{{version}}/passport).
 
-When authenticating your MCP server via OAuth, invoke the `Mcp::oauthRoutes` method in your `routes/ai.php` file to register the required OAuth2 discovery and client registration routes. Then, apply Passport's `auth:api` middleware to your `Mcp::web` route in your `routes/ai.php` file:
+When authenticating your MCP server via OAuth, invoke the `Mcp::oauthRoutes` method in your `routes/ai.php` file to register the required OAuth2 discovery and client registration routes. Then, apply Passport's `auth:passport` middleware to your `Mcp::web` route in your `routes/ai.php` file:
 
 ```php
 use App\Mcp\Servers\WeatherExample;
@@ -1805,7 +1805,7 @@ use Hypervel\Mcp\Facades\Mcp;
 Mcp::oauthRoutes();
 
 Mcp::web('/mcp/weather', WeatherExample::class)
-    ->middleware('auth:api');
+    ->middleware('auth:passport');
 ```
 
 #### New Passport Installation
@@ -1848,7 +1848,22 @@ This view will be displayed to the end-user during authentication to reject or a
 
 #### Using an Existing Passport Installation
 
-If your application already uses Passport, Hypervel MCP works with that installation. The `Mcp::oauthRoutes` method adds and advertises the `mcp:use` scope. This does not prevent clients from requesting other Passport scopes your application allows; Passport's consent and scope checks still apply.
+If your application already uses Passport, Hypervel MCP works with that installation. The `Mcp::oauthRoutes` method adds and advertises the `mcp:use` scope.
+
+#### Token Scopes
+
+Clients may request any Passport scopes your application allows, subject to consent. Tokens issued to dynamically registered clients authenticate on any route using the same Passport guard; `auth:passport` does not check token scopes. Protect your other Passport routes with their own scopes using the [`CheckToken` or `CheckTokenForAnyScope` middleware](/docs/{{version}}/passport#checking-scopes), so tokens granting only `mcp:use` cannot access them.
+
+If you also issue tokens to other third-party clients, require `mcp:use` on your MCP route to reject tokens granted only for other scopes:
+
+```php
+use Hypervel\Passport\Http\Middleware\CheckToken;
+
+Mcp::web('/mcp/weather', WeatherExample::class)
+    ->middleware(['auth:passport', CheckToken::using('mcp:use')]);
+```
+
+Clients must then obtain tokens with `mcp:use`. Passport grants no scopes by default, so clients that do not request a scope will be rejected.
 
 #### Passport vs. Sanctum
 
