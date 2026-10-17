@@ -160,9 +160,11 @@ Explain that `tokensCanAccess()` replaces the global catalog. Applications with 
 
 The scope middleware remains necessary: partial consent can retain an audience while granting no `mcp:use` scope. Audience enforcement adds an in-memory comparison using the already validated token, not another database read or signature verification.
 
-Pass the saved, validated `redirectUri` alongside existing parameters to Passport's code-consent view. Use the pending entry's resolved callback so PAR, resume and omitted-redirect requests display the actual destination. MCP's view displays the escaped callback host prominently, falling back to the escaped complete URI for hostless native callbacks. Client names/logos are self-asserted and cannot replace this destination display.
+Pass the saved, validated `redirectUri` alongside existing parameters to Passport's code-consent view. Use the pending entry's resolved callback so PAR, resume and omitted-redirect requests display the actual destination. MCP's view displays the escaped host for HTTP/HTTPS callbacks and the escaped complete URI for other schemes, so the scheme identifies the receiving application. Client names/logos are self-asserted and cannot replace this destination display.
 
 Render requested resources alongside scopes. Remove stale hidden `state` and `client_id` fields; retain CSRF and `auth_token`, and keep using named approval/denial routes so the new consent URL is followed automatically. Preserve full approval by omission of subset fields; this work does not add another consent-selection UI.
+
+Let the client callback own completion and window closing: remove consent-page close timers and URL polling, which can interrupt callback delivery. Disable both decision buttons after either form is submitted, retaining the approval loading indicator and native form submission. Guard against reintroducing the timers in the existing rendered-view test, without a separate JavaScript harness.
 
 ## 6. Regression tests and verification
 
@@ -177,7 +179,7 @@ Extend the tests that own each behavior. Keep applicable upstream coverage; adap
 | Redirect transport | Wildcard rejects non-loopback HTTP, permits HTTPS and HTTP loopback; explicit administrator HTTP allowance remains valid. Retain configured custom-scheme and lookalike/fragment tests. |
 | Challenge composition | Real Passport failures with absent/invalid tokens include resource_metadata and retain errors/DPoP advertisement. Scope failure includes metadata and scope details. Non-MCP Passport, Sanctum, excluded middleware and explicit application challenges retain their behavior. Successful optional-auth guest requests and multi-guard requests must not invoke the resolver after an unsuccessful Passport guard lookup. |
 | Complete MCP OAuth flow | Real public registration → consent → PKCE exchange with resource → authenticated MCP operation succeeds using actual provider wiring. A wrong-audience token fails. Exercise missing mcp:use through the actual scope middleware without duplicating every Passport grant case. |
-| Consent display | Saved callback host/native fallback and resource identifiers render escaped; valid approval/denial still works through named routes. Extend existing PAR/resume coverage to verify the new view parameter instead of creating another complete protocol matrix. |
+| Consent display | Saved HTTP/HTTPS callback host, complete native callback URI and resource identifiers render escaped; valid approval/denial still works through named routes. Extend existing PAR/resume coverage to verify the new view parameter instead of creating another complete protocol matrix. |
 | Selected-server isolation | Two sequential requests reuse the services with different selected settings and verify the correct issuer each time. This detects accidental issuer capture without another overlapping-coroutine or stress test. |
 
 Update `tests/Mcp/Unit/Server/RegistrarTest.php` fixtures to use the current required client schema. New cross-package behavior belongs in a focused MCP feature test with real Passport wiring. Preserve existing native registration, consent, resource and challenge tests. Adapt upstream tests by the behavior they protect:
@@ -196,7 +198,7 @@ Trace the final caller/callee paths and check API compatibility, selected-server
 
 Update canonical `src/docs/mcp.md` and `src/docs/passport.md` in their existing prose style. Cover one local issuer, explicit external override, selected registration endpoint, anonymous scope policy, resource/audience/scope setup, callback security and consent display. Keep examples internally consistent and distinguish MCP's public-client profile from Passport's general registration capabilities.
 
-Document `redirectUri` in Passport's authorization-view parameter description and Inertia example as the saved, validated callback. Recommend displaying its host on third-party consent screens because client names and logos are self-asserted; custom views need this guidance as well as MCP's bundled view.
+Document `redirectUri` in Passport's authorization-view parameter description and Inertia example as the saved, validated callback. Recommend displaying its HTTP/HTTPS host or complete native callback URI on third-party consent screens because client names and logos are self-asserted; custom views need this guidance as well as MCP's bundled view. Ported published MCP views must adopt the destination/resource display and remove window-closing timers.
 
 Update the MCP and Passport README public-contract differences and `src/docs/porting-from-laravel.md` only for changes requiring developer action, linking to canonical explanations. Name the required nullable JSONB `scopes` column alongside the boolean `third_party` column for imported client schemas; MCP now persists its ceiling unconditionally. Remove obsolete AS-route names, unrestricted anonymous-scope claims, missing-Passport endpoint promises and request-derived issuer defaults from active source/docs/tests. Preserve incoming credits and unrelated valid changes. Do not alter completed historical plans to match later behavior.
 
