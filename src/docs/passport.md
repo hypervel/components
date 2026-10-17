@@ -13,11 +13,14 @@
     - [Overriding Routes](#overriding-routes)
     - [Rate Limiting](#rate-limiting)
     - [Token and Client Caching](#token-and-client-caching)
+- [Server Metadata and Public Keys](#server-metadata-and-public-keys)
 - [Client Authentication](#client-authentication)
     - [JWT Client Assertions](#jwt-client-assertions)
 - [Dynamic Client Registration](#dynamic-client-registration)
     - [Authorized Registration](#authorized-registration)
     - [Additional Client Metadata](#additional-client-metadata)
+- [Pushed Authorization Requests](#pushed-authorization-requests)
+- [Token Introspection](#token-introspection)
 - [Authorization Code Grant](#authorization-code-grant)
     - [Managing Clients](#managing-clients)
     - [Requesting Tokens](#requesting-tokens)
@@ -233,7 +236,7 @@ php artisan passport:keys:rotate --due
 php artisan passport:keys:revoke your-key-id
 ```
 
-Revocation is immediate in storage. If the revoked key was signing, Passport creates an immediately active replacement. Tokens signed by the revoked key stop working as workers refresh their keys; during that refresh interval, a token signed by the replacement may fail on another worker. Use this command for emergency revocation and use ordinary rotation for planned changes.
+Revocation is immediate in storage. If the revoked key was signing, Passport creates an immediately active replacement. Tokens signed by the revoked key stop working as workers refresh their keys; during that refresh interval, a token signed by the replacement may fail on another worker. External servers caching the [public key endpoint](#server-metadata-and-public-keys) may retain the old keys for its HTTP cache lifetime in addition to the worker refresh interval. Use this command for emergency revocation and use ordinary rotation for planned changes.
 
 Applications may import customer-supplied private keys through `Hypervel\Passport\SigningKeyRepository::import`. Imported keys must be RSA keys of at least 2048 bits. They activate after `passport.key_activation_delay`, following any key already waiting to activate. An imported key follows the same automatic rotation policy as a generated key. If your application promises customer-managed keys, set `passport.key_rotation.enabled` to false, or override `SigningKeyRepository::rotateDueKeys()` when managing several key sets, and let customers supply replacements.
 
@@ -312,9 +315,9 @@ public function boot(): void
 }
 ```
 
-Token, consent, authorization-code, device-code, refresh-token, refresh-token-family and database signing-key models must use the same database connection. Passport writes these records together when issuing tokens. Client models may use a different connection. If an application's user or client-owner model uses the default connection while Passport uses another, declare that default connection explicitly on the owner model so Eloquent does not inherit Passport's connection for the owner relationship.
+Token, consent, authorization-code, device-code, refresh-token, refresh-token-family, pushed-authorization-request and database signing-key models must use the same database connection. Client models may use a different connection. If an application's user or client-owner model uses the default connection while Passport uses another, declare that default connection explicitly on the owner model so Eloquent does not inherit Passport's connection for the owner relationship.
 
-Do not wrap the OAuth token endpoint in application transaction middleware. Reuse detection and device polling must remain committed when an exchange fails. Personal access token creation may run inside an application transaction and follows its commit or rollback.
+Do not wrap the OAuth token endpoint in application transaction middleware. Reuse detection and device polling must remain committed when an exchange fails. Personal access token creation and explicit token revocation may run inside an application transaction and follow its commit or rollback.
 
 <a name="overriding-routes"></a>
 ### Overriding Routes
@@ -341,22 +344,41 @@ public function register(): void
 }
 ```
 
-Then, you may copy the routes from `vendor/hypervel/passport/routes/web.php` to your application's `routes/web.php` file and modify them to your liking:
+Then, you may copy `vendor/hypervel/passport/routes/web.php` to your application's `routes/passport.php` file and modify it to your liking. Register it through the `then` callback of `withRouting` in `bootstrap/app.php`, without an enclosing `web` middleware group, so token and other protocol endpoints remain stateless. The copied file applies browser middleware to the routes that need it.
+
+The discovery route is registered separately from that file. Include it outside the OAuth prefix when registering your routes:
 
 ```php
-Route::group([
-    'as' => 'passport.',
-    'prefix' => config()->string('passport.path'),
-    'namespace' => '\Hypervel\Passport\Http\Controllers',
-], function () {
-    // Passport routes...
-});
+use Hypervel\Http\Middleware\SetCacheHeaders;
+use Hypervel\Passport\Http\Controllers\ServerMetadataController;
+use Hypervel\Support\Facades\Route;
+
+->withRouting(
+    web: __DIR__.'/../routes/web.php',
+    commands: __DIR__.'/../routes/console.php',
+    health: '/up',
+    then: function () {
+        Route::group([
+            'as' => 'passport.',
+            'prefix' => config()->string('passport.path'),
+            'namespace' => '\Hypervel\Passport\Http\Controllers',
+            'middleware' => config()->array('passport.middleware'),
+        ], base_path('routes/passport.php'));
+
+        Route::get('/.well-known/oauth-authorization-server/{issuerPath?}', [ServerMetadataController::class, 'show'])
+            ->where('issuerPath', '.*')
+            ->name('passport.metadata')
+            ->middleware([...config()->array('passport.middleware'), SetCacheHeaders::using('etag')]);
+    },
+)
 ```
+
+For more information, see [customizing routing](/docs/{{version}}/routing#routing-customization).
 
 <a name="rate-limiting"></a>
 ### Rate Limiting
 
-Passport uses the named `passport` rate limiter on `POST /oauth/token`, `POST /oauth/device/code`, `GET /oauth/device/authorize` and the optional registration endpoint. Limiting the device authorization page prevents repeated attempts to guess user codes. By default, the limiter allows 60 requests per minute for each authenticated user or IP address. You may customize this limit in your application's `AppServiceProvider`:
+Passport uses the named `passport` rate limiter on `POST /oauth/token`, `POST /oauth/device/code`, `GET /oauth/device/authorize`, `POST /oauth/par`, `POST /oauth/revoke` and the optional registration endpoint. Limiting the device authorization page prevents repeated attempts to guess user codes. By default, the limiter allows 60 requests per minute for each authenticated user or IP address. You may customize this limit in your application's `AppServiceProvider`:
 
 ```php
 use Hypervel\Http\Request;
@@ -370,7 +392,7 @@ public function boot(): void
 }
 ```
 
-For additional options, consult the [rate limiting documentation](/docs/{{version}}/rate-limiting#named-rate-limiters).
+Introspection requires confidential client authentication and does not share this limit: a resource server may introspect on every API request. To add an application-specific limit, [override its route](#overriding-routes). For additional options, consult the [rate limiting documentation](/docs/{{version}}/rate-limiting#named-rate-limiters).
 
 <a name="token-and-client-caching"></a>
 ### Token and Client Caching
@@ -407,6 +429,35 @@ $tokenModel::clearTokenCache($tokenId);
 ```
 
 This method uses the token model's database connection. If a transaction is open, shared cache invalidation waits for its outermost commit; otherwise, it runs immediately. A rollback leaves the existing committed cache entry in place.
+
+<a name="server-metadata-and-public-keys"></a>
+## Server Metadata and Public Keys
+
+Set `PASSPORT_ISSUER` to your authorization server's public HTTPS URL:
+
+```dotenv
+PASSPORT_ISSUER=https://passport-app.test
+```
+
+The issuer cannot contain user information, a query string or a fragment. Passport uses this exact value in discovery, the `iss` claim of access tokens, authorization responses, and the audience expected in JWT client assertions. A null issuer disables discovery and omits `iss`, while ordinary OAuth flows and the public key endpoint remain available. You may leave it null for local HTTP development.
+
+Clients can discover the server's endpoints and supported features by requesting `GET https://passport-app.test/.well-known/oauth-authorization-server`. This RFC 8414 document lists the features enabled by your application. For a path-based issuer such as `https://passport-app.test/accounts/example`, the discovery URL is `https://passport-app.test/.well-known/oauth-authorization-server/accounts/example`.
+
+The public JSON Web Key Set is available at `GET /oauth/jwks`, named `passport.jwks`. It contains the selected server's current, upcoming and retained public keys. Configure external resource servers to use the `jwks_uri` published in discovery.
+
+The discovery route is named `passport.metadata` and is independent of `passport.path`. Both discovery and the ordinary Passport routes use `passport.middleware`. Endpoint URLs use named routes, so your configured prefix, route defaults and trusted proxy headers are honored. Behind a proxy with an application prefix, forward the canonical well-known URL to the application while keeping the normal `X-Forwarded-Prefix` header for endpoint URL generation. Applications defining their own routes should retain these route names and apply `Hypervel\Http\Middleware\SetCacheHeaders::using('etag')` to discovery and JWKS.
+
+For browser clients on other origins, add the appropriate paths to your application's `cors.php` configuration, adjusting `oauth/*` if you changed Passport's prefix:
+
+```php
+'paths' => ['api/*', 'sanctum/csrf-cookie', 'oauth/*', '.well-known/oauth-authorization-server*'],
+```
+
+Discovery and JWKS support ETags and conditional requests. File keys require revalidation on every request. With database keys, the HTTP cache lifetime is the smaller of `key_refresh_interval` and `key_activation_delay - key_refresh_interval`: 60 seconds with the defaults. Clients must revalidate expired responses. This allows planned keys to reach clients before activation while limiting the additional delay during emergency revocation.
+
+Custom `ServerSettings` default to a `metadataCacheLifetime` of zero, which also requires revalidation. You may supply a positive number of seconds when your key publication delay accounts for both settings-cache staleness and this HTTP cache lifetime. Remember that the HTTP lifetime also delays external clients learning about an emergency key removal.
+
+When an issuer is configured, authorization responses include the standard `iss` parameter, including redirected errors and form-post responses. Clients supporting RFC 9207 should compare it with the issuer they selected before exchanging the authorization code.
 
 <a name="client-authentication"></a>
 ## Client Authentication
@@ -504,6 +555,82 @@ Passport does not register client-management endpoints. Manage existing clients 
 Listen for `Hypervel\Passport\Events\ClientMetadataValidated` to validate additional fields or apply application policy. The synchronous event exposes `submitted` and core `validated` metadata, the existing `client` when validating an update, and the provisioning `token` when present. Place accepted fields in `$event->extensions`; registration persists and returns them. Add corresponding columns and casts to your configured client model. Extensions cannot replace core metadata, ownership or credentials.
 
 Reject metadata by throwing `InvalidClientMetadataException::invalidClientMetadata($description)` or `invalidRedirectUri($description)`. The registration endpoint renders these as protocol errors. Application management code may use `ClientMetadataValidator::validate($metadata, $client)` to validate a complete metadata document and run the same extension listeners. This method returns protocol metadata; the application remains responsible for authorization and persistence, including mapping `client_name` to `name` and `scope` to the model's `scopes` array. Direct model writes bypass metadata validation.
+
+<a name="pushed-authorization-requests"></a>
+## Pushed Authorization Requests
+
+Pushed authorization requests (PAR) let a client send authorization parameters directly to Passport instead of placing them in the browser URL. Submit the usual authorization parameters as a form to `POST /oauth/par`, using the client's registered authentication method:
+
+```php
+$response = Http::asForm()
+    ->withBasicAuth(urlencode($clientId), urlencode($clientSecret))
+    ->post('https://passport-app.test/oauth/par', [
+        'response_type' => 'code',
+        'redirect_uri' => 'https://third-party-app.com/callback',
+        'scope' => 'calendar:read',
+        'state' => $state,
+        'code_challenge' => $codeChallenge,
+        'code_challenge_method' => 'S256',
+    ]);
+```
+
+Public clients send their `client_id` without a secret and must supply an `S256` PKCE challenge. Keep the corresponding verifier and state as you would for an ordinary authorization-code request.
+
+A successful response has HTTP status 201 and contains `request_uri` and `expires_in`. Redirect the browser to the authorization endpoint with just the client ID and this reference:
+
+```php
+return redirect('https://passport-app.test/oauth/authorize?' . http_build_query([
+    'client_id' => $clientId,
+    'request_uri' => $response->json('request_uri'),
+]));
+```
+
+Passport uses the pushed parameters and ignores replacement authorization parameters in that browser request. A reference expires after 90 seconds by default, configured through `passport.par.lifetime`, and can be consumed only once. Login, confirmation and consent then continue through the saved browser interaction; they do not consume the reference again. Scopes and the callback are rechecked against current client policy without recalculating the original defaults.
+
+Set a client's `require_pushed_authorization_requests` attribute to `true` to require PAR for that client. The same field is accepted during dynamic registration. It defaults to `false`; enabling it rejects direct authorization requests, including previously saved direct interactions.
+
+PAR accepts form bodies up to 64 KiB. Errors return JSON, without redirecting to a callback; oversized bodies receive HTTP 413. Unknown, expired, consumed or mismatched references return `invalid_request_uri`. Exclude browser requests that consume PAR references from application-wide database transactions: a rollback could restore a used reference while its browser session survives.
+
+Schedule `passport:purge` to remove unused expired references. These are removed immediately on expiry whenever expired records are purged, regardless of `--hours`; `--revoked` alone leaves them unchanged. To customize storage, extend `Hypervel\Passport\PushedAuthorizationRequest` and register it with `Passport::usePushedAuthorizationRequestModel()` during application boot. Its database connection must match the other Passport credential models.
+
+<a name="token-introspection"></a>
+## Token Introspection
+
+Confidential clients may check an access or refresh token by sending a form request to `/oauth/introspect`, named `passport.token.introspect`. Authenticate using the client's registered [authentication method](#client-authentication):
+
+```php
+use Hypervel\Support\Facades\Http;
+
+$response = Http::asForm()->withBasicAuth(urlencode($clientId), urlencode($clientSecret))
+    ->post('https://passport-app.test/oauth/introspect', [
+        'token' => $accessToken,
+    ]);
+```
+
+A valid token belonging to the client returns `active: true` with its client ID, scope, subject when present, issuer and expiry. Access tokens also include their audience and token type. Invalid, expired, revoked or inaccessible tokens return only `{"active": false}`. Public clients cannot use this endpoint. Responses must not be cached.
+
+By default, clients may inspect only their own tokens. To allow a resource server to inspect another client's access tokens, register `authorizeIntrospectionUsing` during provider boot. The callback receives the authenticated client and stored access token, after Passport checks the token's normal validity and [authentication policy](#customizing-authentication):
+
+```php
+use App\Services\ResourceAccess;
+use Hypervel\Passport\Client;
+use Hypervel\Passport\Passport;
+use Hypervel\Passport\Token;
+
+/**
+ * Bootstrap any application services.
+ */
+public function boot(ResourceAccess $resources): void
+{
+    Passport::authorizeIntrospectionUsing(
+        fn (Client $client, Token $token): bool => $resources->mayInspect($client, $token)
+    );
+}
+```
+
+Your policy must restrict the caller to the intended resource and enforce the token's audience when applicable. This callback does not grant permission to inspect another client's refresh tokens or revoke their credentials. A refresh token can remain active after its access token expires.
+
+Deleting a user row does not revoke OAuth credentials. When deleting an account, [revoke its consents](#remembering-consent) to invalidate their authorizations and refresh-token families, and [revoke its remaining tokens](#revoking-tokens), including personal access tokens. Applications requiring a live account check may use `authenticateAccessTokensUsing`; introspection applies this policy without loading the user itself.
 
 <a name="authorization-code-grant"></a>
 ## Authorization Code Grant
@@ -831,6 +958,21 @@ User::find($userId)->tokens()->each(function (Token $token) {
     $token->refreshToken?->revoke();
 });
 ```
+
+OAuth clients may revoke their own access or refresh credentials through `POST /oauth/revoke`, named `passport.token.revoke`. Send a form request and authenticate using the client's registered authentication method. Public clients send their `client_id` without a secret:
+
+```php
+use Hypervel\Support\Facades\Http;
+
+Http::asForm()->withBasicAuth(urlencode($clientId), urlencode($clientSecret))
+    ->post('https://passport-app.test/oauth/revoke', [
+        'token' => $refreshToken,
+    ])->throw();
+```
+
+The endpoint returns an empty successful response even if the credential is already revoked, expired, invalid or belongs to another client. Revoking an access token affects only that token. Revoking an unexpired refresh token revokes its entire refresh-token family and linked access tokens, including replacements issued by a concurrent refresh. An expired refresh credential cannot revoke its family. To revoke the whole remembered authorization, use [consent revocation](#remembering-consent).
+
+Explicit revocation follows an application's database transaction, and cache invalidation and events wait for commit. Revocation uses the Passport rate limiter; confidential-client introspection does not. Both endpoints accept an optional `token_type_hint`; the credential's format determines its type regardless of that hint.
 
 <a name="purging-tokens"></a>
 ### Purging Tokens
@@ -1554,7 +1696,7 @@ return new ServerSettings(
 
 `ServerKey` accepts PEM contents or file paths. Omit its private key for verification-only use. An optional `activatesAt` selects when a private key may start signing; publish future public keys before that date. The newest active private key signs tokens, and every supplied public key may verify them.
 
-`ServerSettings` also accepts `personalAccessTokensExpireIn` and `clientCredentialsTokensExpireIn`. A null lifetime uses the corresponding global Passport lifetime. Its scope definitions extend the global catalog configured by `Passport::tokensCan`. A null issuer omits the `iss` claim; it does not fall back to `passport.issuer`.
+`ServerSettings` also accepts `personalAccessTokensExpireIn` and `clientCredentialsTokensExpireIn`. A null lifetime uses the corresponding global Passport lifetime. Its scope definitions extend the global catalog configured by `Passport::tokensCan`. A null issuer omits `iss` and disables discovery; it does not fall back to `passport.issuer`. A configured issuer follows the [server metadata](#server-metadata-and-public-keys) URL requirements, and `metadataCacheLifetime` controls discovery and JWKS HTTP caching.
 
 When using database-managed keys, return the keys from `SigningKeyRepository::serverKeys()` instead of rebuilding plain `ServerKey` objects from database rows. This preserves the information Passport needs to retain each signing key for its tokens' lifetimes. Your configured signing-key model and repository select the appropriate key set; Passport does not supply an organization schema or resolve organizations itself.
 
@@ -1571,7 +1713,7 @@ When settings change, make the new identifier available to every application ins
 
 Passport provides callbacks for applications that need additional ownership or access checks. Register them during provider boot, and read request-specific values from request context when they run. They do not replace your application's authorization policies.
 
-`authenticateAccessTokensUsing` receives the stored token and its normal validity result. Returning false rejects it on both guard and token-middleware paths. Returning true cannot make a revoked token valid. The callback runs even when the token was loaded from the cache:
+`authenticateAccessTokensUsing` receives the stored token and its normal validity result. Returning false rejects it on guard, token-middleware and introspection paths. Returning true cannot make a revoked token valid. The callback runs even when the token was loaded from the cache. Explicit revocation does not use this callback, so a temporary access restriction cannot prevent a client from revoking its own credential:
 
 ```php
 use App\Services\CurrentOrganization;
@@ -1613,6 +1755,8 @@ The Passport guard's `token()` method returns the validated bearer token, includ
 
 <a name="authorization-attributes"></a>
 ### Authorization Attributes
+
+`AuthorizationRequestValidated` runs before browser login and also when a client submits a pushed authorization request. Its `parameters` contain the authoritative authorization input, excluding PAR authentication secrets. PAR has no browser session or user; use `$event->request->routeIs('passport.par')` when a listener needs to distinguish it. Additional prompts are applied only during browser authorization. Validation runs again when an interaction resumes, so listeners should support repeated calls.
 
 Listen for `AuthorizationUserResolved` to capture data when a user authorizes a client. Its attributes survive the consent screen and are saved with the authorization code or approved device code. Values must be JSON-compatible. Add the corresponding columns to your configured models' tables:
 
@@ -1686,7 +1830,7 @@ For authorization-code and device exchanges, false omits the refresh token. Duri
 <a name="token-responses-issuers-and-public-keys"></a>
 ### Token Responses, Issuers and Public Keys
 
-Set `passport.issuer` or `PASSPORT_ISSUER` to include an `iss` claim in the default server's access tokens. Custom server settings use their own issuer; a null issuer leaves the claim out without falling back to the configuration value.
+Set `passport.issuer` or `PASSPORT_ISSUER` to identify the default server in access tokens and authorization responses and enable [server discovery](#server-metadata-and-public-keys). Custom server settings use their own issuer; a null issuer leaves it unset without falling back to the configuration value.
 
 You may register a custom response type with `Passport::useAuthorizationServerResponseType`. Extend `Hypervel\Passport\Bridge\BearerTokenResponse` and override `getExtraParams()` to add fields, merging `parent::getExtraParams()` to retain the final granted `scope`. Its protected `getToken()`, `getGrant()` and `getSigningKey()` methods expose the current issuance's saved token, redeemed credential and pinned signing key without additional queries. The grant is null for issuance without an earlier credential, such as client credentials.
 
@@ -1694,7 +1838,7 @@ Passport's access token entity also exposes its saved model through `getToken()`
 
 `ServerFactory::jwks()` returns the public JSON Web Key Set for the selected server. `ServerFactory::signingKey(DateInterval $lifetime)` returns the current signing key and ensures it will be retained for the additional token's lifetime. Both methods use the settings and key selected when issuance began, even if another key activates before the response completes.
 
-These extension points support an OpenID Connect layer without replacing Passport's grant implementation. Passport itself does not register discovery or user-info endpoints or implement OpenID Connect request validation.
+These extension points support an OpenID Connect layer without replacing Passport's grant implementation. Passport publishes OAuth server metadata and public keys; an OpenID Connect layer supplies its own discovery, user-info endpoint and request validation.
 
 <a name="testing"></a>
 ## Testing
