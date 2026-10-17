@@ -51,7 +51,7 @@ class BroadcastBatchingTest extends TestCase
         Event::listen(JobQueued::class, static fn () => $queued->push(true));
         $response = new StreamableAgentResponse('invocation', function () use ($queued): Generator {
             yield new TextDelta('text', 'message', 'Hello', 1);
-            $this->assertTrue($queued->pop(1));
+            $this->assertTrue($queued->pop(5));
         });
         $response->then(static fn () => DB::connection('broadcasts')->table('turns')->insert(['content' => 'Hello']));
 
@@ -112,6 +112,8 @@ class BroadcastBatchingTest extends TestCase
             'database.connections.broadcasts' => [
                 'driver' => 'sqlite',
                 'database' => $this->databaseFile,
+                // Durability is not under test; avoid disk flush stalls during parallel runs.
+                'synchronous' => 'off',
                 'pool' => ['testing_enabled' => true, 'max_connections' => 1, 'wait_timeout' => 0.2],
             ],
             'queue.default' => 'broadcasts',
