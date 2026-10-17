@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { createContext, runInContext } from 'node:vm';
 import { describe, expect, it } from 'vitest';
 
-async function connectApp(filename) {
+async function connectApp(filename, capabilities) {
     const sent = [];
     let listener;
     const parent = { postMessage: message => sent.push(message) };
@@ -18,15 +18,25 @@ async function connectApp(filename) {
 
     const receive = message => listener({ source: parent, data: { jsonrpc: '2.0', ...message } });
     let app;
-    const initialized = context.window.createMcpApp(value => { app = value; });
-    receive({ id: sent.at(-1).id, result: {} });
+    const initialized = context.window.createMcpApp(value => { app = value; }, capabilities);
+    const initialize = sent.at(-1);
+    receive({ id: initialize.id, result: {} });
     await initialized;
     sent.length = 0;
 
-    return { app, receive, sent };
+    return { app, receive, sent, initialize };
 }
 
 describe.each(['mcp-sdk.js', 'mcp-sdk.min.js'])('%s', filename => {
+    it.each([
+        [undefined, {}],
+        [{ tools: {}, availableDisplayModes: ['inline', 'fullscreen'] }, { tools: {}, availableDisplayModes: ['inline', 'fullscreen'] }],
+    ])('advertises the supplied app capabilities (%j)', async (capabilities, expected) => {
+        const { initialize } = await connectApp(filename, capabilities);
+
+        expect(initialize.params.appCapabilities).toEqual(expected);
+    });
+
     it('handles a host request without settling an app request with the same ID', async () => {
         const { app, receive, sent } = await connectApp(filename);
         let settled = false;

@@ -393,14 +393,14 @@
         }
     });
 
-    window.createMcpApp = async function createMcpApp(setup) {
+    window.createMcpApp = async function createMcpApp(setup, appCapabilities = {}) {
         const initializeResult = await request("ui/initialize", {
             protocolVersion: protocolVersion,
             appInfo: {
                 name: document.title || "MCP App",
                 version: "1.0.0",
             },
-            appCapabilities: {},
+            appCapabilities: appCapabilities,
         });
 
         state.hostInfo = initializeResult?.hostInfo ?? null;
