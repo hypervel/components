@@ -183,8 +183,7 @@ class DeviceAuthorizationGrantTest extends PassportTestCase
 
         $this->get('/oauth/device/authorize?user_code=' . Str::substrReplace($userCode, '-', 4, 0))
             ->assertOk()
-            ->assertSessionHas('deviceCode')
-            ->assertSessionHas('authToken')
+            ->assertSessionHas('passport.authorizations')
             ->assertSessionHasNoErrors();
     }
 
@@ -221,16 +220,18 @@ class DeviceAuthorizationGrantTest extends PassportTestCase
         $json = $this->get('/oauth/device/authorize?user_code=' . $userCode)
             ->assertOk()
             ->assertHeader('X-Frame-Options', 'SAMEORIGIN')
-            ->assertSessionHas('deviceCode')
-            ->assertSessionHas('authToken')
+            ->assertSessionHas('passport.authorizations')
             ->json();
-        $this->assertEqualsCanonicalizing(['client', 'user', 'scopes', 'request', 'authToken'], array_keys($json));
+        $this->assertEqualsCanonicalizing(['client', 'user', 'scopes', 'permissions', 'request', 'authToken'], array_keys($json));
         $this->assertSame(collect(Passport::scopesFor(['create', 'read']))->toArray(), $json['scopes']);
+
+        Passport::authorizationView(static fn (array $parameters): array => $parameters);
+        $this->get('/oauth/authorize/resume/' . $json['authToken'])->assertForbidden();
 
         $this->post('/oauth/device/authorize', ['auth_token' => $json['authToken']])
             ->assertRedirectToRoute('passport.device')
             ->assertSessionHas('status', 'authorization-approved')
-            ->assertSessionMissing(['deviceCode', 'authToken']);
+            ->assertSessionMissing('passport.authorizations.' . $json['authToken']);
 
         $this->get('/oauth/device/authorize?user_code=' . $userCode)
             ->assertRedirect()
@@ -289,7 +290,7 @@ class DeviceAuthorizationGrantTest extends PassportTestCase
         $this->delete('/oauth/device/authorize', ['auth_token' => $authToken])
             ->assertRedirectToRoute('passport.device')
             ->assertSessionHas('status', 'authorization-denied')
-            ->assertSessionMissing(['deviceCode', 'authToken']);
+            ->assertSessionMissing('passport.authorizations.' . $authToken);
 
         $this->get('/oauth/device/authorize?user_code=' . $userCode)
             ->assertRedirect()
@@ -323,16 +324,15 @@ class DeviceAuthorizationGrantTest extends PassportTestCase
 
         $json = $this->get('/oauth/device/authorize?user_code=' . $userCode)
             ->assertOk()
-            ->assertSessionHas('deviceCode')
-            ->assertSessionHas('authToken')
+            ->assertSessionHas('passport.authorizations')
             ->json();
-        $this->assertEqualsCanonicalizing(['client', 'user', 'scopes', 'request', 'authToken'], array_keys($json));
+        $this->assertEqualsCanonicalizing(['client', 'user', 'scopes', 'permissions', 'request', 'authToken'], array_keys($json));
         $this->assertSame(collect(Passport::scopesFor(['create', 'read']))->toArray(), $json['scopes']);
 
         $this->post('/oauth/device/authorize', ['auth_token' => $json['authToken']])
             ->assertRedirectToRoute('passport.device')
             ->assertSessionHas('status', 'authorization-approved')
-            ->assertSessionMissing(['deviceCode', 'authToken']);
+            ->assertSessionMissing('passport.authorizations.' . $json['authToken']);
     }
 
     public function testPublicClient(): void
@@ -395,7 +395,7 @@ class DeviceAuthorizationGrantTest extends PassportTestCase
         $this->actingAs($changeProvider ? $user : UserFactory::new()->create(), $changeProvider ? 'staff' : 'web');
         $this->{$method}('/oauth/device/authorize', ['auth_token' => $authToken])
             ->assertForbidden()
-            ->assertSessionMissing(['deviceCode', 'authToken', 'authAttributes']);
+            ->assertSessionMissing('passport.authorizations.' . $authToken);
         $this->assertDatabaseHas('oauth_device_codes', ['user_code' => $userCode, 'user_id' => null]);
     }
 
