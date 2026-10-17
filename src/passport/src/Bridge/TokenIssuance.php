@@ -46,6 +46,8 @@ class TokenIssuance implements NonCopyableContext, Transient
 
     public ?string $tokenName = null;
 
+    public ?string $dpopJkt = null;
+
     /** @var null|list<string> */
     public ?array $approvedScopes = null;
 
@@ -194,7 +196,7 @@ class TokenIssuance implements NonCopyableContext, Transient
             : $this->authorizationAttributes;
 
         // Protocol authorization belongs to each credential's repository, not extension inheritance.
-        unset($attributes['resources'], $attributes['audience']);
+        unset($attributes['resources'], $attributes['audience'], $attributes['dpop_jkt']);
 
         return $attributes;
     }

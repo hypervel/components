@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Passport\Bridge;
 
 use Hypervel\Passport\ClientAuthenticator;
+use Hypervel\Passport\DpopProofValidator;
 use League\OAuth2\Server\Entities\ClientEntityInterface;
 use League\OAuth2\Server\Exception\OAuthServerException;
 use League\OAuth2\Server\RequestEvent;
@@ -27,6 +28,13 @@ trait AuthenticatesClients
             throw $exception;
         }
 
-        return $this->getClientEntityOrFail($client->getKey(), $request);
+        $entity = $this->getClientEntityOrFail($client->getKey(), $request);
+        $issuance = TokenIssuance::current();
+
+        if ($issuance?->isTokenRequest() && ($request->hasHeader('DPoP') || $client->dpop_bound_access_tokens)) {
+            $issuance->dpopJkt = app(DpopProofValidator::class)->validate($request);
+        }
+
+        return $entity;
     }
 }
