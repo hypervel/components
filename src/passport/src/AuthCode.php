@@ -12,6 +12,7 @@ use Hypervel\Database\Eloquent\Model;
  * @property int|string $user_id
  * @property null|string $provider
  * @property string $client_id
+ * @property null|string $consent_id
  * @property null|array $scopes
  * @property bool $revoked
  * @property null|CarbonInterface $expires_at

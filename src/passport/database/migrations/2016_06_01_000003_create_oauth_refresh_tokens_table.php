@@ -17,6 +17,7 @@ return new class extends Migration {
             $table->char('access_token_id', 80)->index();
             $table->string('provider')->nullable();
             $table->foreignUuid('family_id')->index();
+            $table->uuid('consent_id')->nullable()->index();
             $table->boolean('revoked');
             $table->dateTime('expires_at')->nullable();
 

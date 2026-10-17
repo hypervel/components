@@ -14,6 +14,7 @@ return new class extends Migration {
     {
         Schema::create('oauth_refresh_token_families', function (Blueprint $table): void {
             $table->uuid('id')->primary();
+            $table->uuid('consent_id')->nullable()->index();
             $table->timestamp('revoked_at')->nullable();
             $table->timestamps();
         });

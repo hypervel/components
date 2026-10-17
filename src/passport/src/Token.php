@@ -16,6 +16,7 @@ use Hypervel\Support\Facades\Event;
  * @property null|int|string $user_id
  * @property null|string $provider
  * @property string $client_id
+ * @property null|string $consent_id
  * @property null|string $name
  * @property null|array $scopes
  * @property bool $revoked

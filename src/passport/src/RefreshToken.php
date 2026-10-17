@@ -13,6 +13,7 @@ use Hypervel\Database\Eloquent\Relations\BelongsTo;
  * @property string $access_token_id
  * @property null|string $provider
  * @property string $family_id
+ * @property null|string $consent_id
  * @property bool $revoked
  * @property null|CarbonInterface $expires_at
  */
