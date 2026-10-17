@@ -15,6 +15,7 @@ use Hypervel\Mcp\Server\Ui\Csp;
 use Hypervel\Mcp\Server\Ui\Enums\Permission;
 use Hypervel\Mcp\Server\Ui\Permissions;
 use Hypervel\Testbench\TestCase;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class AppResourceTest extends TestCase
 {
@@ -149,7 +150,9 @@ class AppResourceTest extends TestCase
         $this->assertArrayHasKey('uri', $array);
     }
 
-    public function testUsesTheComputedClaudeDomainWhenNotSetOnAppResource(): void
+    #[TestWith([null])]
+    #[TestWith([''])]
+    public function testUsesTheComputedClaudeDomainWhenNotSetOnAppResource(?string $domain): void
     {
         $currentUrl = 'https://myapp.example.com/mcp/test';
         RequestContext::set(HttpRequest::create($currentUrl, 'GET'));
@@ -159,7 +162,22 @@ class AppResourceTest extends TestCase
             ->append(AppResource::CLAUDE_DOMAIN_SUFFIX)
             ->value();
 
-        $resource = new class extends AppResource {
+        $resource = new class($domain) extends AppResource {
+            /**
+             * Set the application's optional domain.
+             */
+            public function __construct(private ?string $domain)
+            {
+            }
+
+            /**
+             * Get the application metadata.
+             */
+            public function appMeta(): AppMeta
+            {
+                return new AppMeta(domain: $this->domain);
+            }
+
             /**
              * Handle the resource request.
              */

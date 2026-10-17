@@ -15,7 +15,7 @@ class Csp implements Arrayable
      * Create an application content security policy.
      *
      * @param null|array<int, string> $connectDomains domains the app may connect to via fetch, XHR, or WebSocket (CSP connect-src)
-     * @param null|array<int, string> $resourceDomains domains the app may load images, scripts, styles, and fonts from (CSP default-src)
+     * @param null|array<int, string> $resourceDomains domains the app may load images, scripts, styles, and fonts from (CSP img-src, script-src, style-src, and font-src)
      * @param null|array<int, string> $frameDomains domains the app may embed as nested iframes (CSP frame-src)
      * @param null|array<int, string> $baseUriDomains allowed URLs for the document's base element (CSP base-uri)
      */

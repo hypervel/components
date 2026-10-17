@@ -121,7 +121,7 @@ class AppMeta implements Arrayable
         return array_filter([
             'csp' => $cspArray ?: null,
             'permissions' => $this->permissions?->toArray() ?: null,
-            'domain' => $this->domain,
+            'domain' => $this->domain === '' ? null : $this->domain,
             'prefersBorder' => $this->prefersBorder,
         ], fn (mixed $value): bool => $value !== null);
     }

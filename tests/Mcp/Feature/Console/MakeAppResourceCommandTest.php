@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Mcp\Feature\Console;
 
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Tests\Mcp\TestCase;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class MakeAppResourceCommandTest extends TestCase
 {
@@ -83,18 +85,31 @@ class MakeAppResourceCommandTest extends TestCase
         $this->assertFileExists(base_path('stubs/mcp-app-resource.view.stub'));
     }
 
-    public function testPreservesNamespaceSegmentsInViewPaths(): void
+    #[TestWith(['Admin/DashboardApp', false])]
+    #[TestWith(['Admin\DashboardApp', false])]
+    #[TestWith(['Admin\DashboardApp', true])]
+    public function testPreservesNamespaceSegmentsInViewPaths(string $name, bool $customViewPath): void
     {
-        $this->artisan('make:mcp-app-resource', [
-            'name' => 'Admin/DashboardApp',
-        ])->assertExitCode(0)->run();
+        $viewPath = resource_path($customViewPath ? 'custom-views' : 'views');
 
-        $this->assertFileExists(app_path('Mcp/Resources/Admin/DashboardApp.php'));
-        $this->assertFileExists(resource_path('views/mcp/admin/dashboard-app.blade.php'));
+        if ($customViewPath) {
+            config(['view.paths' => [$viewPath]]);
+        }
 
-        $content = file_get_contents(app_path('Mcp/Resources/Admin/DashboardApp.php'));
+        try {
+            $this->artisan('make:mcp-app-resource', ['name' => $name])->assertExitCode(0)->run();
 
-        $this->assertStringContainsString("Response::view('mcp.admin.dashboard-app'", $content);
+            $this->assertFileExists(app_path('Mcp/Resources/Admin/DashboardApp.php'));
+            $this->assertFileExists($viewPath . '/mcp/admin/dashboard-app.blade.php');
+
+            $content = file_get_contents(app_path('Mcp/Resources/Admin/DashboardApp.php'));
+
+            $this->assertStringContainsString("Response::view('mcp.admin.dashboard-app'", $content);
+        } finally {
+            if ($customViewPath) {
+                (new Filesystem)->deleteDirectory($viewPath);
+            }
+        }
     }
 
     public function testGeneratesUniqueViewsForDifferentNamespacesWithSameClassName(): void

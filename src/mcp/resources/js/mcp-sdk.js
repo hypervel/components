@@ -263,7 +263,7 @@
         try {
             disconnectResizeObserver();
 
-            respond(id, await (handlers.onteardown?.() ?? {}));
+            respond(id, (await handlers.onteardown?.()) ?? {});
         } catch (error) {
             respondWithError(
                 id,
@@ -300,7 +300,7 @@
         try {
             respond(
                 id,
-                await (handlers.onlisttools?.(params) ?? { tools: [] }),
+                (await handlers.onlisttools?.(params)) ?? { tools: [] },
             );
         } catch (error) {
             respondWithError(
@@ -338,6 +338,9 @@
     }
 
     const requestHandlers = {
+        "ping": function (message) {
+            respond(message.id, {});
+        },
         "ui/resource-teardown": function (message) {
             handleTeardown(message.id);
         },

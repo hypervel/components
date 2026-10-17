@@ -107,7 +107,7 @@ class MakeAppResourceCommand extends GeneratorCommand
      */
     protected function getViewPath(): string
     {
-        return resource_path('views/mcp/' . $this->getKebabName() . '.blade.php');
+        return $this->viewPath('mcp/' . $this->getKebabName() . '.blade.php');
     }
 
     /**
@@ -115,7 +115,7 @@ class MakeAppResourceCommand extends GeneratorCommand
      */
     protected function getKebabName(): string
     {
-        return collect(explode('/', $this->getNameInput()))
+        return collect(explode('/', str_replace('\\', '/', $this->getNameInput())))
             ->map(fn (string $segment) => Str::kebab($segment))
             ->implode('/');
     }
@@ -128,7 +128,7 @@ class MakeAppResourceCommand extends GeneratorCommand
     protected function getOptions(): array
     {
         return [
-            ['force', 'f', InputOption::VALUE_NONE, 'Create the class even if the resource already exists'],
+            ['force', 'f', InputOption::VALUE_NONE, 'Overwrite the resource class and linked view if they already exist'],
         ];
     }
 }

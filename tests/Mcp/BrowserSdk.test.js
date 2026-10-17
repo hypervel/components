@@ -72,4 +72,27 @@ describe.each(['mcp-sdk.js', 'mcp-sdk.min.js'])('%s', filename => {
 
         expect(sent).toEqual([]);
     });
+
+    it.each([
+        ['ui/resource-teardown', 'onTeardown', {}],
+        ['tools/list', 'onListTools', { tools: [] }],
+    ])('returns a result when an asynchronous %s handler returns nothing', async (method, register, result) => {
+        const { app, receive, sent } = await connectApp(filename);
+        let called = false;
+        app[register](async () => { called = true; });
+
+        receive({ id: 42, method });
+        await new Promise(setImmediate);
+
+        expect(called).toBe(true);
+        expect(sent).toEqual([{ jsonrpc: '2.0', id: 42, result }]);
+    });
+
+    it('answers host pings', async () => {
+        const { receive, sent } = await connectApp(filename);
+
+        receive({ id: 'host-ping', method: 'ping' });
+
+        expect(sent).toEqual([{ jsonrpc: '2.0', id: 'host-ping', result: {} }]);
+    });
 });
