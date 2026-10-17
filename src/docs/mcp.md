@@ -35,6 +35,7 @@
     - [Resource Annotations](#resource-annotations)
     - [Conditional Resource Registration](#conditional-resource-registration)
     - [Resource Responses](#resource-responses)
+- [Completions](#completions)
 - [Apps](#apps)
     - [Creating App Resources](#creating-app-resources)
     - [Rendering Apps From Tools](#rendering-apps-from-tools)
@@ -1491,6 +1492,41 @@ To indicate an error occurred during resource retrieval, use the `error()` metho
 return Response::error('Unable to fetch weather data for the specified location.');
 ```
 
+<a name="completions"></a>
+## Completions
+
+Completions let MCP clients suggest values for prompt arguments and resource template variables. To enable them, add the completions capability in your server's `boot` method:
+
+```php
+/**
+ * Bootstrap the server.
+ */
+protected function boot(): void
+{
+    $this->addCapability(self::CAPABILITY_COMPLETIONS);
+}
+```
+
+Next, implement `Hypervel\Mcp\Server\Contracts\Completable` on your prompt or resource template class and add a `complete` method. The method receives the argument name, its current value, and any other argument values supplied by the client:
+
+```php
+use Hypervel\Mcp\Server\Completions\CompletionResponse;
+
+/**
+ * Suggest values for a prompt argument.
+ *
+ * @param array<string, mixed> $context
+ */
+public function complete(string $argument, string $value, array $context): CompletionResponse
+{
+    return $argument === 'city'
+        ? CompletionResponse::match(['London', 'Los Angeles', 'Paris'])
+        : CompletionResponse::empty();
+}
+```
+
+The `match` method filters an array of strings or an enum's values by the supplied prefix. Use `CompletionResponse::result($values)` when you have already selected the suggestions, or `CompletionResponse::empty()` when there are none. Responses contain at most 100 suggestions and indicate when more matches are available.
+
 <a name="apps"></a>
 ## Apps
 
@@ -1974,6 +2010,7 @@ use Hypervel\Support\Facades\Auth;
 Mcp::oAuthRoutesFor('github', function (string $client, TokenSet $token): RedirectResponse {
     Auth::user()->update([
         'github_mcp_token' => $token->accessToken,
+        'github_mcp_scope' => $token->scope,
     ]);
 
     return redirect('/dashboard');
@@ -2009,6 +2046,42 @@ To begin the authorization flow, redirect the user to the connect route:
 ```php
 return redirect()->route('mcp.oauth.github.connect');
 ```
+
+<a name="client-oauth-scopes"></a>
+#### OAuth Scopes and Authorization Challenges
+
+Hypervel uses the scopes requested by the server's authorization challenge. When there is no challenge scope, it uses the `scope` configured through `withOAuth`, or the scopes advertised in the server's protected resource metadata. If none are available, it omits the scope parameter. To request a particular scope, pass it explicitly:
+
+```php
+$client = Client::web('https://mcp.example.com/mcp')->withOAuth(scope: 'mcp:use');
+```
+
+Token refreshes use the configured or challenged scope without adding advertised scopes. When neither is supplied, the authorization server preserves the original grant. `TokenSet::$scope` contains the scope returned by the server, or the requested scope when the server leaves it unchanged and omits it from the response.
+
+When a server requires authorization, the client throws `AuthorizationRequiredException`. You may pass its challenge parameters to the named client's connect route. If the user already has a token, include its stored scopes so authorizing another operation preserves the permissions previously granted:
+
+```php
+use Hypervel\Mcp\Client\Exceptions\AuthorizationRequiredException;
+use Hypervel\Mcp\Facades\Mcp;
+use Hypervel\Support\Facades\Auth;
+
+try {
+    $tools = Mcp::client('github')->tools();
+} catch (AuthorizationRequiredException $exception) {
+    $query = $exception->query();
+    $grantedScope = Auth::user()->github_mcp_scope;
+
+    if ($grantedScope !== null) {
+        $query['scope'] = implode(' ', array_unique(explode(' ', trim(
+            $grantedScope . ' ' . ($exception->scope() ?? '')
+        ))));
+    }
+
+    return redirect()->route('mcp.oauth.github.connect', $query);
+}
+```
+
+Your application stores the token and scopes and decides when to retry the operation. Limit repeated authorization attempts when a server continues to reject the requested permissions.
 
 <a name="oauth-destinations"></a>
 #### OAuth Destinations

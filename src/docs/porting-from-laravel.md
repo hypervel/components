@@ -552,6 +552,8 @@ For direct browser clients from another origin, add their origins to `mcp.allowe
 
 OAuth clients check resolved destinations before sending, including when HTTP responses are faked. Explicitly allow private DNS destinations and substitute DNS for invented test hostnames; see [OAuth destinations](/docs/{{version}}/mcp#oauth-destinations) and [OAuth tests](/docs/{{version}}/mcp#testing-oauth). The Inspector also keeps HTTPS verification enabled; configure `NODE_EXTRA_CA_CERTS` for locally issued certificates.
 
+If an OAuth client relies on Laravel's implicit `mcp:use` scope and the remote server does not advertise it, configure `withOAuth(scope: 'mcp:use')` explicitly. Hypervel otherwise uses the remote server's advertised scopes; see [OAuth scopes](/docs/{{version}}/mcp#client-oauth-scopes).
+
 Modern HTTP streams cancel on client disconnect. Review handlers that perform side effects while streaming and ensure their cleanup runs on cancellation; legacy streams still finish. See [streaming responses](/docs/{{version}}/mcp#streaming-responses).
 
 Reformat `LastModified` attribute values as complete date-times with seconds and a timezone, such as `2025-01-12T15:00:58Z`. Other ISO 8601 representations accepted by Laravel are rejected to keep responses compatible with TypeScript-SDK clients. See [resource annotations](/docs/{{version}}/mcp#resource-annotations).
