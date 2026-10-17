@@ -11,12 +11,21 @@ SUITE="${1:-all}"
 
 CONFORMANCE_OUTPUT_DIR="${CONFORMANCE_OUTPUT_DIR:-$(mktemp -d "${TMPDIR:-/tmp}/hypervel-mcp-conformance.XXXXXX")}" || exit 1
 export CONFORMANCE_OUTPUT_DIR
+if [[ -d "$CONFORMANCE_OUTPUT_DIR" && -n "$(find "$CONFORMANCE_OUTPUT_DIR" -mindepth 1 -maxdepth 1 -print -quit)" ]]; then
+    printf 'Conformance output directory must be empty: %s\n' "$CONFORMANCE_OUTPUT_DIR" >&2
+    exit 1
+fi
 mkdir -p "$CONFORMANCE_OUTPUT_DIR/logs" || exit 1
 printf 'Conformance output: %s\n' "$CONFORMANCE_OUTPUT_DIR"
 
 status=0
 
 run_server() {
+    if php -r '$socket = @stream_socket_client($argv[1], $errorCode, $errorMessage, 1); if ($socket === false) { exit(1); } fclose($socket);' "tcp://127.0.0.1:$PORT"; then
+        printf 'Conformance port is already in use: %s\n' "$PORT" >&2
+        exit 1
+    fi
+
     APP_URL="http://127.0.0.1:$PORT" php "$ROOT/vendor/bin/testbench" serve --host=127.0.0.1 --port="$PORT" >"$CONFORMANCE_OUTPUT_DIR/logs/serve.log" 2>&1 &
     local pid=$!
     trap 'kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null' EXIT
@@ -38,7 +47,7 @@ run_server() {
         sleep 1
     done
 
-    if [[ "$ready" != true ]]; then
+    if [[ "$ready" != true ]] || ! kill -0 "$pid" 2>/dev/null; then
         printf 'Conformance server did not become ready; see %s/logs/serve.log\n' "$CONFORMANCE_OUTPUT_DIR" >&2
         exit 1
     fi

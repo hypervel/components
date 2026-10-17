@@ -61,11 +61,15 @@ $color = match (true) {
     default => 'orange',
 };
 
-file_put_contents($outputDirectory . '/' . $suite . '-conformance.json', json_encode([
+if (file_put_contents($outputDirectory . '/' . $suite . '-conformance.json', json_encode([
     'schemaVersion' => 1,
     'label' => $suite . ' conformance',
     'message' => sprintf('%d/%d (%d%%)', $passed, $total, $percentage),
     'color' => $color,
-], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n") === false) {
+    fwrite(STDERR, "Unable to write the conformance summary.\n");
+
+    exit(1);
+}
 
 printf("%s conformance: %d/%d (%d%%)\n", $suite, $passed, $total, $percentage);

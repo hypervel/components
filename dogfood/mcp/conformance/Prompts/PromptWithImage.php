@@ -22,7 +22,7 @@ class PromptWithImage extends Prompt
     public function handle(): array
     {
         return [
-            Response::image(Fixtures::IMAGE_BASE64, 'image/png'),
+            Response::image(base64_decode(Fixtures::IMAGE_BASE64, true), 'image/png'),
             Response::text('Please analyze the image above.'),
         ];
     }

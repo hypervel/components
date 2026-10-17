@@ -22,9 +22,11 @@ class PromptWithEmbeddedResource extends Prompt
      */
     public function handle(Request $request): array
     {
+        $validated = $request->validate(['resourceUri' => ['required', 'string']]);
+
         return [
             Response::resourceLink(
-                uri: $request->get('resourceUri'),
+                uri: $validated['resourceUri'],
                 name: 'embedded-resource',
                 description: 'Embedded resource content for testing.',
             ),

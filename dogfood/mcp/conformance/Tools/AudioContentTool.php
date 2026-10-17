@@ -20,6 +20,6 @@ class AudioContentTool extends Tool
      */
     public function handle(Request $request): Response
     {
-        return Response::audio(Fixtures::AUDIO_BASE64, 'audio/wav');
+        return Response::audio(base64_decode(Fixtures::AUDIO_BASE64, true), 'audio/wav');
     }
 }
