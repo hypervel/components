@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Passport;
 
 use Firebase\JWT\JWT;
+use Hypervel\Passport\Exceptions\UnsupportedKeyException;
 use Hypervel\Passport\JwkValidator;
+use Hypervel\Tests\Passport\Fixtures\JsonWebKeyPair;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\TestWith;
+use ReflectionProperty;
 use UnexpectedValueException;
 
 class JwkValidatorTest extends TestCase
@@ -16,9 +19,11 @@ class JwkValidatorTest extends TestCase
     #[TestWith(['ES256'])]
     public function testPublicKeysVerifySignaturesWithoutAnAlgorithmMember(string $algorithm): void
     {
-        [$privateKey, $jwk] = $this->key($algorithm);
-        $key = (new JwkValidator)->validate($jwk, $algorithm);
-        $jwt = JWT::encode(['sub' => 'client'], $privateKey, $algorithm);
+        $pair = $algorithm === 'RS256'
+            ? JsonWebKeyPair::sharedRsa()
+            : JsonWebKeyPair::generate();
+        $key = (new JwkValidator)->validate($pair->jwk, $algorithm);
+        $jwt = JWT::encode(['sub' => 'client'], $pair->privateKey, $algorithm);
 
         $this->assertSame('client', JWT::decode($jwt, $key)->sub);
     }
@@ -36,45 +41,72 @@ class JwkValidatorTest extends TestCase
     #[TestWith(['n', 'invalid base64!'])]
     public function testPrivateMaterialAndInvalidKeyMetadataAreRejected(string $parameter, mixed $value): void
     {
-        [, $jwk] = $this->key('RS256');
+        $jwk = JsonWebKeyPair::sharedRsa()->jwk;
+        $validator = new JwkValidator;
+        $validator->validate($jwk, 'RS256');
         $jwk[$parameter] = $value;
 
         $this->expectException(UnexpectedValueException::class);
-        (new JwkValidator)->validate($jwk, 'RS256');
+        $validator->validate($jwk, 'RS256');
     }
 
-    public function testWeakRsaKeysAreRejected(): void
+    #[TestWith([128, 3, 'RSA keys must be between 2048 and 4096 bits.'])]
+    #[TestWith([513, 3, 'RSA keys must be between 2048 and 4096 bits.'])]
+    #[TestWith([256, 5, 'RSA public exponents must not exceed 32 bits.'])]
+    public function testUnsupportedRsaParametersAreRejectedWithoutCaching(int $modulusBytes, int $exponentBytes, string $message): void
     {
-        [, $jwk] = $this->key('RS256', 1024);
+        $validator = new JwkValidator;
+        $jwk = [
+            'kty' => 'RSA',
+            'n' => JWT::urlsafeB64Encode("\x80" . random_bytes($modulusBytes - 2) . "\x01"),
+            'e' => JWT::urlsafeB64Encode("\x01" . str_repeat("\0", $exponentBytes - 2) . "\x01"),
+        ];
 
-        $this->expectException(UnexpectedValueException::class);
-        $this->expectExceptionMessage('too short');
-        (new JwkValidator)->validate($jwk, 'RS256');
+        try {
+            $validator->validate($jwk, 'RS256');
+            $this->fail('Unsupported RSA parameters were accepted.');
+        } catch (UnsupportedKeyException $exception) {
+            $this->assertSame($message, $exception->getMessage());
+            $this->assertSame([], (new ReflectionProperty(JwkValidator::class, 'parsedKeys'))->getValue($validator));
+        }
+    }
+
+    public function testRsaParametersAtBothUpperBoundsAreAccepted(): void
+    {
+        $key = (new JwkValidator)->validate([
+            'kty' => 'RSA',
+            'n' => JWT::urlsafeB64Encode("\x80" . random_bytes(510) . "\x01"),
+            'e' => JWT::urlsafeB64Encode("\xff\xff\xff\xff"),
+        ], 'RS256');
+
+        $this->assertSame('RS256', $key->getAlgorithm());
+    }
+
+    public function testParsedKeysAreReusedAndLeastRecentlyUsedEntriesAreEvictedAtTheBound(): void
+    {
+        $validator = new JwkValidator;
+        $recent = JsonWebKeyPair::generate()->jwk;
+        $old = JsonWebKeyPair::generate()->jwk;
+        $recentKey = $validator->validate($recent, 'ES256');
+        $oldKey = $validator->validate($old, 'ES256');
+
+        for ($index = 2; $index < 256; ++$index) {
+            $validator->validate(JsonWebKeyPair::generate()->jwk, 'ES256');
+        }
+
+        $this->assertSame($recentKey, $validator->validate($recent, 'ES256'));
+        $validator->validate(JsonWebKeyPair::generate()->jwk, 'ES256');
+        $this->assertSame($recentKey, $validator->validate($recent, 'ES256'));
+        $this->assertNotSame($oldKey, $validator->validate($old, 'ES256'));
+        $this->assertCount(256, (new ReflectionProperty(JwkValidator::class, 'parsedKeys'))->getValue($validator));
     }
 
     public function testEs256DoesNotAcceptAnotherCurve(): void
     {
-        [, $jwk] = $this->key('ES256');
+        $jwk = JsonWebKeyPair::generate()->jwk;
         $jwk['crv'] = 'P-384';
 
         $this->expectException(UnexpectedValueException::class);
         (new JwkValidator)->validate($jwk, 'ES256');
-    }
-
-    /**
-     * Generate signing material and its public JWK for a supported algorithm.
-     */
-    protected function key(string $algorithm, int $bits = 2048): array
-    {
-        $key = openssl_pkey_new($algorithm === 'RS256'
-            ? ['private_key_type' => OPENSSL_KEYTYPE_RSA, 'private_key_bits' => $bits]
-            : ['private_key_type' => OPENSSL_KEYTYPE_EC, 'curve_name' => 'prime256v1']);
-        openssl_pkey_export($key, $privateKey);
-        $details = openssl_pkey_get_details($key);
-        $jwk = $algorithm === 'RS256'
-            ? ['kty' => 'RSA', 'n' => JWT::urlsafeB64Encode($details['rsa']['n']), 'e' => JWT::urlsafeB64Encode($details['rsa']['e'])]
-            : ['kty' => 'EC', 'crv' => 'P-256', 'x' => JWT::urlsafeB64Encode($details['ec']['x']), 'y' => JWT::urlsafeB64Encode($details['ec']['y'])];
-
-        return [$privateKey, $jwk];
     }
 }

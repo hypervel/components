@@ -6,12 +6,18 @@ namespace Hypervel\Passport;
 
 use Firebase\JWT\JWK;
 use Firebase\JWT\Key;
+use Hypervel\Passport\Exceptions\UnsupportedKeyException;
 use OpenSSLAsymmetricKey;
 use UnexpectedValueException;
 
 class JwkValidator
 {
     public const array ALGORITHMS = ['RS256', 'ES256'];
+
+    protected const int MAX_PARSED_KEYS = 256;
+
+    /** @var array<string, Key> */
+    protected array $parsedKeys = [];
 
     /**
      * Validate public signing material for the selected JWT algorithm.
@@ -27,22 +33,56 @@ class JwkValidator
         $this->ensurePublic($jwk);
         $type = $algorithm === 'RS256' ? 'RSA' : 'EC';
 
-        foreach ($type === 'RSA' ? ['n', 'e'] : ['x', 'y'] as $parameter) {
+        $parameters = $type === 'RSA' ? ['n', 'e'] : ['x', 'y'];
+
+        foreach ($parameters as $parameter) {
             if (! is_string($jwk[$parameter] ?? null) || preg_match('/^[A-Za-z0-9_-]+$/D', $jwk[$parameter]) !== 1) {
                 throw new UnexpectedValueException('The public key contains an invalid parameter.');
             }
+        }
+
+        // A collision would substitute verification material; retain a fixed-size cryptographic digest.
+        $identifier = hash('sha256', implode('.', [$algorithm, ...array_map(static fn (string $name): string => $jwk[$name], $parameters)]), true);
+
+        if (isset($this->parsedKeys[$identifier])) {
+            $key = $this->parsedKeys[$identifier];
+            unset($this->parsedKeys[$identifier]);
+
+            return $this->parsedKeys[$identifier] = $key;
         }
 
         $key = JWK::parseKey($jwk, $algorithm);
         $material = $key->getKeyMaterial();
         $publicKey = $material instanceof OpenSSLAsymmetricKey ? $material : openssl_pkey_get_public($material);
 
-        if ($publicKey === false || ($details = openssl_pkey_get_details($publicKey)) === false
-            || ($type === 'RSA' && $details['bits'] < 2048)) {
-            throw new UnexpectedValueException('The public key is invalid or too short.');
+        if ($publicKey === false) {
+            throw new UnexpectedValueException('The public key is invalid.');
         }
 
-        return new Key($publicKey, $algorithm);
+        if ($type === 'RSA') {
+            $details = openssl_pkey_get_details($publicKey);
+
+            if ($details === false) {
+                throw new UnexpectedValueException('The public key is invalid.');
+            }
+
+            // Client-selected RSA parameters must not make each proof verification arbitrarily expensive.
+            if ($details['bits'] < 2048 || $details['bits'] > 4096) {
+                throw new UnsupportedKeyException('RSA keys must be between 2048 and 4096 bits.');
+            }
+
+            if (strlen($details['rsa']['e']) > 4) {
+                throw new UnsupportedKeyException('RSA public exponents must not exceed 32 bits.');
+            }
+        }
+
+        $this->parsedKeys[$identifier] = $key = new Key($publicKey, $algorithm);
+
+        if (count($this->parsedKeys) > self::MAX_PARSED_KEYS) {
+            unset($this->parsedKeys[array_key_first($this->parsedKeys)]);
+        }
+
+        return $key;
     }
 
     /**
