@@ -14,6 +14,7 @@ namespace Hypervel\Passport\Bridge;
 use DateInterval;
 use DateTimeImmutable;
 use DateTimeZone;
+use Hypervel\Passport\DpopProofValidator;
 use Lcobucci\JWT\Configuration;
 use Lcobucci\JWT\Exception;
 use Lcobucci\JWT\Signer\Key\InMemory;
@@ -29,8 +30,6 @@ use Psr\Clock\ClockInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
 use function date_default_timezone_get;
-use function preg_replace;
-use function trim;
 
 class BearerTokenValidator implements AuthorizationValidatorInterface
 {
@@ -94,14 +93,25 @@ class BearerTokenValidator implements AuthorizationValidatorInterface
             throw OAuthServerException::accessDenied('Missing "Authorization" header');
         }
 
-        $header = $request->getHeader('authorization');
-        $jwt = trim((string) preg_replace('/^\s*Bearer\s/i', '', $header[0]));
+        $credentials = BearerRequestFactory::credentials($request->getHeaderLine('authorization'));
+        $jwt = $credentials['token'] ?? '';
 
         if ($jwt === '') {
-            throw OAuthServerException::accessDenied('Missing "Bearer" token');
+            throw OAuthServerException::accessDenied('Missing access token');
         }
 
         $claims = $this->validateToken($jwt)->claims();
+        $confirmation = $claims->get('cnf');
+
+        if ($credentials['scheme'] === 'DPoP') {
+            if (! is_array($confirmation) || ! is_string($confirmation['jkt'] ?? null) || $confirmation['jkt'] === '') {
+                throw OAuthServerException::accessDenied('The access token is not bound to a DPoP key');
+            }
+
+            app(DpopProofValidator::class)->validate($request, $jwt, $confirmation['jkt']);
+        } elseif ($confirmation !== null) {
+            throw OAuthServerException::accessDenied('A proof-bound access token cannot be used as a bearer token');
+        }
 
         // Check if token has been revoked
         if ($this->accessTokenRepository->isAccessTokenRevoked($claims->get('jti'))) {

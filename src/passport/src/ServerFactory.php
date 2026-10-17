@@ -61,6 +61,8 @@ class ServerFactory
 
     protected ?string $cookieSigningKey = null;
 
+    protected int $hashSeed;
+
     /**
      * Create the worker's server and key cache.
      */
@@ -70,6 +72,7 @@ class ServerFactory
         protected Encrypter $encrypter,
         protected BearerRequestFactory $bearerRequests,
     ) {
+        $this->hashSeed = random_int(1, PHP_INT_MAX);
     }
 
     /**
@@ -316,7 +319,7 @@ class ServerFactory
     public function validateAuthenticatedRequest(Request $request, bool $cache = true): ServerRequestInterface
     {
         $server = $this->resourceServer();
-        $fingerprint = $cache ? hash('xxh128', $request->headers->get('Authorization') ?? '') : '';
+        $fingerprint = $cache ? $this->authenticationFingerprint($request) : '';
 
         if ($cache && ($cached = CoroutineContext::get(self::BEARER_CONTEXT_KEY)) !== null
             && $cached['request'] === $request && $cached['server'] === $server && $cached['fingerprint'] === $fingerprint) {
@@ -346,6 +349,24 @@ class ServerFactory
         }
 
         return $result;
+    }
+
+    /**
+     * Identify the request inputs shared by authentication caches.
+     *
+     * @internal used by the guard and resource-server request cache
+     */
+    public function authenticationFingerprint(Request $request): string
+    {
+        $authorization = $request->headers->get('Authorization') ?? '';
+        $credentials = BearerRequestFactory::credentials($authorization);
+        $inputs = ($credentials['scheme'] ?? null) === 'DPoP'
+            ? serialize([
+                $authorization, $request->headers->all('DPoP'), $request->getMethod(), $request->getUri(),
+            ])
+            : $authorization;
+
+        return hash('xxh128', $inputs, options: ['seed' => $this->hashSeed]);
     }
 
     /**
