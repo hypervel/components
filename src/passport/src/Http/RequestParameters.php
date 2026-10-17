@@ -9,7 +9,21 @@ use League\OAuth2\Server\Exception\OAuthServerException;
 
 class RequestParameters
 {
-    protected const int MAX_ENCODED_LENGTH = 65536;
+    public const int MAX_ENCODED_LENGTH = 65536;
+
+    /**
+     * Read protocol parameters submitted as a form.
+     *
+     * @return array<string, list<string>|string>
+     */
+    public static function fromForm(Request $request): array
+    {
+        if (strtolower(trim(explode(';', $request->header('Content-Type', ''))[0])) !== 'application/x-www-form-urlencoded') {
+            throw OAuthServerException::invalidRequest('request', 'OAuth POST requests must use form encoding.');
+        }
+
+        return static::fromRequest($request);
+    }
 
     /**
      * Read OAuth parameters without losing repeated resource indicators or duplicate scalar fields.
@@ -55,7 +69,7 @@ class RequestParameters
     public static function parse(string $encoded): array
     {
         if (strlen($encoded) > self::MAX_ENCODED_LENGTH) {
-            throw OAuthServerException::invalidRequest('request', 'The OAuth request is too large. Use a pushed authorization request.');
+            throw OAuthServerException::invalidRequest('request', 'The OAuth request is too large.');
         }
 
         $parameters = [];

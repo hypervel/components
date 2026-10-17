@@ -42,7 +42,7 @@ class AuthorizationRequestResolverTest extends PassportTestCase
         $servers->authorizationServer()->validateAuthorizationRequest(
             (new ServerRequest('GET', '/oauth/authorize'))->withQueryParams($parameters),
         );
-        $pending = ['parameters' => $parameters, 'scopes' => [], 'redirect_uri' => $destination];
+        $pending = ['parameters' => $parameters, 'scopes' => [], 'redirect_uri' => $destination, 'pushed' => false];
         $client->update(['redirect_uris' => ['https://client.example/new-default', $destination]]);
         $restored = $this->app->make(AuthorizationRequestResolver::class)->resolve(
             $pending,
@@ -82,7 +82,7 @@ class AuthorizationRequestResolverTest extends PassportTestCase
         $servers->authorizationServer()->setDefaultScope('read');
         $restored = $this->app->make(AuthorizationRequestResolver::class)->resolve([
             'parameters' => ['client_id' => $client->id, 'response_type' => 'code'],
-            'scopes' => [], 'redirect_uri' => $client->redirect_uris[0],
+            'scopes' => [], 'redirect_uri' => $client->redirect_uris[0], 'pushed' => false,
         ], new ServerRequest('GET', '/oauth/authorize/resume/pending'));
 
         $this->assertSame([], $restored->getScopes());
@@ -95,7 +95,7 @@ class AuthorizationRequestResolverTest extends PassportTestCase
         try {
             $this->app->make(AuthorizationRequestResolver::class)->resolve([
                 'parameters' => ['client_id' => $client->id, 'response_type' => 'code'],
-                'scopes' => [], 'redirect_uri' => 'https://client.example/old',
+                'scopes' => [], 'redirect_uri' => 'https://client.example/old', 'pushed' => false,
             ], new ServerRequest('GET', '/oauth/authorize/resume/pending'));
             $this->fail('The removed callback was accepted.');
         } catch (HttpResponseException $exception) {
