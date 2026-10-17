@@ -10,10 +10,12 @@ use Hypervel\Http\Exceptions\HttpResponseException;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
 use Hypervel\Passport\AccessToken;
+use Hypervel\Passport\Bridge\BearerRequestFactory;
 use Hypervel\Passport\Client;
 use Hypervel\Passport\ClientMetadataValidator;
 use Hypervel\Passport\Contracts\OAuthenticatable;
 use Hypervel\Passport\Exceptions\InvalidClientMetadataException;
+use Hypervel\Passport\Http\AuthenticationChallenge;
 use Hypervel\Passport\Passport;
 use Hypervel\Passport\ServerFactory;
 use Hypervel\Support\Arr;
@@ -35,6 +37,7 @@ class ClientRegistrationController
         protected ServerFactory $servers,
         protected AuthManager $auth,
         protected Repository $config,
+        protected AuthenticationChallenge $challenges,
     ) {
     }
 
@@ -55,7 +58,7 @@ class ClientRegistrationController
                     throw InvalidClientMetadataException::invalidClientMetadata('The requested grants or scopes require authorized registration.');
                 }
 
-                $client = $this->createClient($metadata, $scopes, $token);
+                $client = $this->createClient($metadata, $scopes, $token, $request);
                 $result = [
                     ...$metadata,
                     'client_id' => $client->getKey(),
@@ -87,35 +90,35 @@ class ClientRegistrationController
             return null;
         }
 
-        if ($request->bearerToken() === null) {
-            throw $this->bearerChallenge();
+        if (BearerRequestFactory::credentials($request->headers->get('Authorization') ?? '') === null) {
+            throw $this->bearerChallenge($request);
         }
 
         try {
             $validated = $this->servers->validateAuthenticatedRequest($request);
         } catch (OAuthServerException $exception) {
-            throw $this->bearerChallenge('invalid_token', $exception);
+            throw $this->bearerChallenge($request, 'invalid_token', $exception);
         }
 
         $token = AccessToken::fromPsrRequest($validated);
 
         if ($token->oauth_audiences !== [$token->oauth_client_id]
             && ! in_array(route('passport.clients.register'), $token->oauth_audiences, true)) {
-            throw $this->bearerChallenge('invalid_token');
+            throw $this->bearerChallenge($request, 'invalid_token');
         }
 
         // Wildcard scopes and browser cookies are not provisioning credentials.
         if (! in_array('passport:register', $token->oauth_scopes, true)) {
-            throw $this->bearerChallenge('insufficient_scope');
+            throw $this->bearerChallenge($request, 'insufficient_scope');
         }
 
         return $token;
     }
 
     /**
-     * Reject provisioning credentials with the bearer protocol's status and challenge.
+     * Reject provisioning credentials with their protocol's status and challenge.
      */
-    protected function bearerChallenge(?string $error = null, ?Throwable $previous = null): HttpResponseException
+    protected function bearerChallenge(Request $request, ?string $error = null, ?Throwable $previous = null): HttpResponseException
     {
         $insufficientScope = $error === 'insufficient_scope';
 
@@ -125,8 +128,7 @@ class ClientRegistrationController
             [
                 'Cache-Control' => 'no-store',
                 'Pragma' => 'no-cache',
-                'WWW-Authenticate' => 'Bearer' . ($error === null ? '' : ' error="' . $error . '"')
-                    . ($insufficientScope ? ', scope="passport:register"' : ''),
+                'WWW-Authenticate' => $this->challenges->header($request, $error, $insufficientScope ? ['passport:register'] : []),
             ],
         ), $previous);
     }
@@ -137,7 +139,7 @@ class ClientRegistrationController
      * @param array<string, mixed> $metadata
      * @param list<string> $scopes
      */
-    protected function createClient(array $metadata, array $scopes, ?AccessToken $token): Client
+    protected function createClient(array $metadata, array $scopes, ?AccessToken $token, Request $request): Client
     {
         $attributes = [
             ...Arr::except($metadata, ['client_name', 'scope', 'response_types']),
@@ -155,7 +157,7 @@ class ClientRegistrationController
             $owner = $provider === null ? null : $this->auth->createUserProvider($provider)?->retrieveById($token->user_id);
 
             if (! $owner instanceof OAuthenticatable) {
-                throw $this->bearerChallenge('invalid_token');
+                throw $this->bearerChallenge($request, 'invalid_token');
             }
 
             $client = $owner->oauthApps()->make()->forceFill($attributes);

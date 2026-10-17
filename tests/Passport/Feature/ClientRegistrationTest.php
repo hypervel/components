@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Passport\Feature;
 
+use Firebase\JWT\JWT;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Passport\Bridge\ParsedKey;
@@ -116,6 +117,23 @@ class ClientRegistrationTest extends PassportTestCase
         $this->assertNull($client->secret);
         $this->assertSame([], $client->scopes);
         $this->assertSame($method === 'private_key_jwt', $client->confidential());
+    }
+
+    public function testUnsupportedInlineKeysAreRejectedBeforeSavingWithAClearDescription(): void
+    {
+        config(['passport.issuer' => 'https://issuer.example']);
+        $this->postJson('/oauth/register', [
+            'redirect_uris' => ['https://client.example/callback'],
+            'token_endpoint_auth_method' => 'private_key_jwt',
+            'jwks' => ['keys' => [[
+                'kty' => 'RSA', 'e' => 'AQAB',
+                'n' => JWT::urlsafeB64Encode("\x80" . random_bytes(511) . "\x01"),
+            ]]],
+        ])->assertBadRequest()->assertExactJson([
+            'error' => 'invalid_client_metadata',
+            'error_description' => 'RSA keys must be between 2048 and 4096 bits.',
+        ]);
+        $this->assertDatabaseCount('oauth_clients', 0);
     }
 
     #[TestWith(['grant_types', ['client_credentials']])]
