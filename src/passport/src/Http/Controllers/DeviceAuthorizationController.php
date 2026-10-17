@@ -87,6 +87,7 @@ class DeviceAuthorizationController
             'client' => $client,
             'user' => $user,
             'scopes' => $scopes,
+            'resources' => Passport::resourcesFor(array_keys($state['permissions']['resources'] ?? [])),
             'permissions' => $state['permissions'],
             'request' => $request,
             'authToken' => $authToken,

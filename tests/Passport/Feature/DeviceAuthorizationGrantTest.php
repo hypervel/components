@@ -284,7 +284,7 @@ class DeviceAuthorizationGrantTest extends PassportTestCase
             ->assertHeader('X-Frame-Options', 'SAMEORIGIN')
             ->assertSessionHas('passport.authorizations')
             ->json();
-        $this->assertEqualsCanonicalizing(['client', 'user', 'scopes', 'permissions', 'request', 'authToken'], array_keys($json));
+        $this->assertEqualsCanonicalizing(['client', 'user', 'scopes', 'resources', 'permissions', 'request', 'authToken'], array_keys($json));
         $this->assertSame(collect(Passport::scopesFor(['create', 'read']))->toArray(), $json['scopes']);
 
         Passport::authorizationView(static fn (array $parameters): array => $parameters);
@@ -390,7 +390,7 @@ class DeviceAuthorizationGrantTest extends PassportTestCase
             ->assertOk()
             ->assertSessionHas('passport.authorizations')
             ->json();
-        $this->assertEqualsCanonicalizing(['client', 'user', 'scopes', 'permissions', 'request', 'authToken'], array_keys($json));
+        $this->assertEqualsCanonicalizing(['client', 'user', 'scopes', 'resources', 'permissions', 'request', 'authToken'], array_keys($json));
         $this->assertSame(collect(Passport::scopesFor(['create', 'read']))->toArray(), $json['scopes']);
 
         $this->post('/oauth/device/authorize', ['auth_token' => $json['authToken']])
