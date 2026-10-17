@@ -40,7 +40,7 @@ class ConsentRepository
         }
 
         $consent = $exists ? (clone $query)->where($identity)->first() : null;
-        $consent ??= $query->createOrFirst($identity, ['scopes' => [], 'permissions' => [], 'remembered_until' => Date::now()]);
+        $consent ??= $query->createOrFirst($identity, ['scopes' => null, 'permissions' => [], 'remembered_until' => Date::now()]);
 
         if (! $consent->exists) {
             throw new RuntimeException('Consent persistence was canceled.');
@@ -58,11 +58,11 @@ class ConsentRepository
     public function remember(Consent $consent, array $presented, array $approved, ?DateInterval $duration): void
     {
         $remembered = $consent->isRemembered();
-        $scopes = $remembered ? $consent->scopes : [];
+        $scopes = $remembered ? $consent->scopes : null;
         $permissions = $remembered ? $consent->permissions : [];
 
         if (empty($presented['permissions']['resources'])) {
-            $scopes = $this->mergePermissions($scopes, $presented['scopes'], $approved['scopes']);
+            $scopes = $this->mergePermissions($scopes ?? [], $presented['scopes'], $approved['scopes']);
         }
 
         foreach ($presented['permissions'] as $namespace => $values) {
@@ -73,6 +73,11 @@ class ConsentRepository
                         $resourceScopes,
                         $approved['permissions']['resources'][$resource] ?? [],
                     );
+
+                    // An absent target is different from explicitly approving it with no scopes.
+                    if ($permissions['resources'][$resource] === [] && ! isset($approved['permissions']['resources'][$resource])) {
+                        unset($permissions['resources'][$resource]);
+                    }
                 }
             } else {
                 $permissions[$namespace] = $this->mergePermissions(

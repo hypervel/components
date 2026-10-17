@@ -47,9 +47,14 @@ class ConsentTest extends PassportTestCase
         $this->assertFalse($consent->covers(['read']));
     }
 
-    public function testResourceApprovalDoesNotCombineScopesAcrossResources(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testResourceApprovalDoesNotCombineScopesAcrossResources(bool $expired): void
     {
-        $consent = Consent::factory()->create();
+        $consent = Consent::factory()->create([
+            'scopes' => [],
+            'remembered_until' => $expired ? Date::now()->subMinute() : null,
+        ]);
         $repository = $this->app->make(ConsentRepository::class);
 
         foreach (['https://api.example.com/a' => ['read', 'write'], 'https://api.example.com/b' => ['read']] as $resource => $scopes) {
@@ -58,6 +63,8 @@ class ConsentTest extends PassportTestCase
         }
 
         $consent->refresh();
+        $this->assertSame($expired ? null : [], $consent->scopes);
+        $this->assertSame(! $expired, $consent->covers([]));
         $this->assertTrue($consent->covers(['write'], ['resources' => ['https://api.example.com/a' => ['write']]]));
         $this->assertTrue($consent->covers(['read'], ['resources' => ['https://api.example.com/b' => ['read']]]));
         $this->assertFalse($consent->covers(['write'], ['resources' => ['https://api.example.com/b' => ['write']]]));

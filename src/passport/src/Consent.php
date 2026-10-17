@@ -18,7 +18,7 @@ use Hypervel\Support\Facades\Date;
  * @property string $client_id
  * @property string $provider
  * @property int|string $user_id
- * @property array<string> $scopes
+ * @property null|array<string> $scopes
  * @property array<string, array> $permissions
  * @property null|CarbonInterface $remembered_until
  * @property null|CarbonInterface $created_at
@@ -87,7 +87,8 @@ class Consent extends Model
             return false;
         }
 
-        if (empty($permissions['resources']) && array_diff($scopes, $this->scopes) !== []) {
+        // Resource-only approval must not authorize the default audience, even without scopes.
+        if (empty($permissions['resources']) && ($this->scopes === null || array_diff($scopes, $this->scopes) !== [])) {
             return false;
         }
 

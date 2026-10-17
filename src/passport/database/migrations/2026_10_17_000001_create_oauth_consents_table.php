@@ -17,7 +17,7 @@ return new class extends Migration {
             $table->foreignUuid('client_id');
             $table->string('provider');
             $table->foreignId('user_id');
-            $table->jsonb('scopes');
+            $table->jsonb('scopes')->nullable();
             $table->jsonb('permissions');
             $table->dateTime('remembered_until')->nullable();
             $table->timestamps();
