@@ -16,6 +16,8 @@ use Hypervel\Mcp\Server\Prompts\Argument;
 use Hypervel\Mcp\Server\Resource;
 use Hypervel\Mcp\Support\UriTemplate;
 use Hypervel\Tests\Mcp\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\ExpectationFailedException;
 
 enum TestUnits: string
 {
@@ -311,6 +313,28 @@ class UserFileCompletionResource extends Resource implements Completable, HasUri
 
 class CompletionTest extends TestCase
 {
+    #[DataProvider('emptyCompletionAssertions')]
+    public function testFailedCompletionsDoNotPassEmptyResultAssertions(string $assertion, array|int $expected): void
+    {
+        $response = ResultTestServer::completion(LanguageCompletionPrompt::class, 'language');
+        $response->assertHasErrors();
+
+        $this->expectException(ExpectationFailedException::class);
+        $this->expectExceptionMessage('No completion data found in response.');
+        $response->{$assertion}($expected);
+    }
+
+    /**
+     * Provide assertions that must distinguish an error from an empty completion.
+     */
+    public static function emptyCompletionAssertions(): array
+    {
+        return [
+            ['assertCompletionValues', []],
+            ['assertCompletionCount', 0],
+        ];
+    }
+
     public function testFiltersByPrefixAndReturnsAllWhenEmpty(): void
     {
         TestCompletionServer::completion(LanguageCompletionPrompt::class, 'language', 'py')

@@ -18,6 +18,7 @@ use Hypervel\Support\Traits\Macroable;
 use Hypervel\Testing\Fluent\AssertableJson;
 use PHPUnit\Framework\Assert;
 use RuntimeException;
+use stdClass;
 
 class TestResponse
 {
@@ -340,11 +341,6 @@ class TestResponse
     {
         $actualValues = $this->completionValues();
 
-        Assert::assertNotNull(
-            $this->response->toArray()['result']['completion'] ?? null,
-            'No completion data found in response.'
-        );
-
         foreach ($expectedValues as $expected) {
             Assert::assertContains(
                 $expected,
@@ -446,7 +442,7 @@ class TestResponse
         $response = $this->response->toArray();
 
         if (data_get($response, 'result.isError', false)) {
-            return $this->content();
+            return $this->content() ?: [''];
         }
 
         if (array_key_exists('error', $response)) {
@@ -465,6 +461,11 @@ class TestResponse
     {
         $response = $this->response->toArray();
 
+        Assert::assertNotNull(
+            $response['result']['completion'] ?? null,
+            'No completion data found in response.'
+        );
+
         return $response['result']['completion']['values'] ?? [];
     }
 
@@ -477,7 +478,7 @@ class TestResponse
     {
         $structuredContent = $this->response->toArray()['result']['structuredContent'] ?? null;
 
-        if (is_array($structuredContent) === false) {
+        if (! is_array($structuredContent) && ! $structuredContent instanceof stdClass) {
             return null;
         }
 

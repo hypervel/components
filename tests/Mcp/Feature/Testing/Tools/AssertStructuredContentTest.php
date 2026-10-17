@@ -23,6 +23,7 @@ class BookingServer extends Server
         GetBookingTool::class,
         GetBookingWithoutStructuredContentTool::class,
         GetBookingWithSerializableValuesTool::class,
+        EmptyStructuredContentTool::class,
     ];
 }
 
@@ -84,8 +85,26 @@ class GetBookingWithoutStructuredContentTool extends Tool
     }
 }
 
+class EmptyStructuredContentTool extends Tool
+{
+    /**
+     * Return an explicitly empty structured result.
+     */
+    public function handle(): ResponseFactory
+    {
+        return Response::make(Response::text('No booking'))->withStructuredContent([]);
+    }
+}
+
 class AssertStructuredContentTest extends TestCase
 {
+    public function testMayAssertEmptyStructuredContent(): void
+    {
+        BookingServer::tool(EmptyStructuredContentTool::class)
+            ->assertStructuredContent([])
+            ->assertStructuredContent(fn (AssertableJson $json): AssertableJson => $json->count(0));
+    }
+
     public function testMayAssertTheStructuredContent(): void
     {
         $response = BookingServer::tool(GetBookingTool::class);
