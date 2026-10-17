@@ -602,7 +602,8 @@ class ClientManagerTest extends TestCase
             $this->assertFalse($second->connected());
             $this->assertSame('first', transportRecipe($first)['token']);
             $this->assertSame('second', transportRecipe($second)['token']);
-            Http::assertSent(fn (Request $request): bool => ($request['method'] ?? null) === 'ping'
+            Http::assertSent(fn (Request $request): bool => ($request['method'] ?? null) === 'server/discover'
+                && $request['id'] === 2
                 && $request->hasHeader('Authorization', 'Bearer second'));
         } finally {
             $manager->disconnectAll();

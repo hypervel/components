@@ -17,6 +17,7 @@ use Hypervel\Mcp\Client\Exceptions\OAuthException;
 use Hypervel\Mcp\Client\Exceptions\TransportException;
 use Hypervel\Mcp\Client\Methods\Discover;
 use Hypervel\Mcp\Client\Methods\Initialize;
+use Hypervel\Mcp\Client\Methods\Ping;
 use Hypervel\Mcp\Client\Schema\DiscoverResult;
 use Hypervel\Mcp\Client\Schema\InitializeResult;
 use Hypervel\Mcp\Enums\ErrorCode;
@@ -444,7 +445,10 @@ class Protocol
 
         $request = new JsonRpcRequest(
             id: $this->nextRequestId++,
-            method: $method->method(),
+            // Modern liveness checks use discovery; select per attempt while keeping ping uncached.
+            method: $method instanceof Ping && $protocolVersion->handshake() === ProtocolHandshake::Discovery
+                ? 'server/discover'
+                : $method->method(),
             params: $this->params($method, $protocolVersion),
         );
 

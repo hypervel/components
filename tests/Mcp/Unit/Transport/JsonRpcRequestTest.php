@@ -187,6 +187,27 @@ class JsonRpcRequestTest extends TestCase
         $this->assertNull($request->meta());
     }
 
+    #[DataProvider('requestEras')]
+    public function testIdentifiesLegacyRequests(string $method, array $params, bool $legacy): void
+    {
+        $this->assertSame($legacy, (new JsonRpcRequest(1, $method, $params))->isLegacy());
+    }
+
+    /**
+     * Provide legacy requests and modern requests requiring metadata validation.
+     */
+    public static function requestEras(): array
+    {
+        return [
+            ['server/discover', [], false],
+            ['subscriptions/listen', [], false],
+            ['ping', [], true],
+            ['tools/call', ['_meta' => ['progressToken' => 1]], true],
+            ['tools/list', ['_meta' => ['io.modelcontextprotocol/protocolVersion' => '2026-07-28']], false],
+            ['tools/list', ['_meta' => ['io.modelcontextprotocol/clientCapabilities' => []]], false],
+        ];
+    }
+
     public function testPassesMetaToRequestObject(): void
     {
         $jsonRpcRequest = JsonRpcRequest::from([

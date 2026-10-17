@@ -14,6 +14,7 @@ use Hypervel\Tests\Mcp\TestCase;
 use PHPUnit\Framework\Attributes\TestWith;
 use stdClass;
 
+use function Hypervel\Tests\Mcp\Fixtures\discoverResponse;
 use function Hypervel\Tests\Mcp\Fixtures\initializeResponse;
 use function Hypervel\Tests\Mcp\Fixtures\pingResponse;
 
@@ -84,6 +85,21 @@ class ClientTest extends TestCase
         $ping = json_decode($transport->sent[2], true);
         $this->assertSame('ping', $ping['method']);
         $this->assertSame(3, $ping['id']);
+    }
+
+    public function testPingsAModernServerUsingDiscovery(): void
+    {
+        $transport = new FakeTransport;
+        $transport->negotiates = true;
+        $transport->responses = [discoverResponse(), discoverResponse(2)];
+
+        (new Client($transport))->ping();
+
+        $this->assertCount(2, $transport->sent);
+        $ping = json_decode($transport->sent[1], true);
+        $this->assertSame('server/discover', $ping['method']);
+        $this->assertSame(2, $ping['id']);
+        $this->assertSame('server/discover', $transport->sentHeaders[1]['Mcp-Method']);
     }
 
     public function testLazilyConnectsWhenPingIsCalledFirst(): void

@@ -143,12 +143,34 @@ class ValidateMcpHeadersTest extends TestCase
         $this->assertSame(-32602, $response->json('error.code'));
     }
 
-    public function testAnswersAnUnknownMethodWithA404(): void
+    #[DataProvider('missingMetadataMethods')]
+    public function testRejectsMissingMetadataWhenTheRequestIdentifiesAModernProtocol(string $method): void
+    {
+        $response = $this->postJson('test-mcp', ['jsonrpc' => '2.0', 'id' => 3, 'method' => $method], [
+            'MCP-Protocol-Version' => '2026-07-28',
+            'Mcp-Method' => $method,
+        ]);
+
+        $response->assertStatus(400);
+        $this->assertSame(3, $response->json('id'));
+        $this->assertSame(-32602, $response->json('error.code'));
+    }
+
+    /**
+     * Provide modern-only methods and a method identified by its version header.
+     */
+    public static function missingMetadataMethods(): array
+    {
+        return [['server/discover'], ['subscriptions/listen'], ['tools/list']];
+    }
+
+    #[DataProvider('unsupportedModernMethods')]
+    public function testAnswersAnUnsupportedModernMethodWithA404(string $method): void
     {
         $message = [
             'jsonrpc' => '2.0',
             'id' => 9,
-            'method' => 'unknown/method',
+            'method' => $method,
             'params' => ['_meta' => protocolMeta()],
         ];
 
@@ -157,6 +179,14 @@ class ValidateMcpHeadersTest extends TestCase
         $response->assertStatus(404);
 
         $this->assertSame(-32601, $response->json('error.code'));
+    }
+
+    /**
+     * Provide unknown methods and methods removed from the modern protocol.
+     */
+    public static function unsupportedModernMethods(): array
+    {
+        return [['unknown/method'], ['initialize'], ['ping']];
     }
 
     public function testRequiresTheProtocolVersionHeaderEvenWhenTheBodyOmitsTheMetaMember(): void

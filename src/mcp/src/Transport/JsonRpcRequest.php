@@ -122,6 +122,11 @@ class JsonRpcRequest
      */
     public function isLegacy(): bool
     {
+        // These methods are modern-only; missing metadata is a validation error, not a legacy request.
+        if (in_array($this->method, ['server/discover', 'subscriptions/listen'], true)) {
+            return false;
+        }
+
         $meta = $this->meta() ?? [];
 
         return ! array_key_exists(MetaKey::PROTOCOL_VERSION->value, $meta)

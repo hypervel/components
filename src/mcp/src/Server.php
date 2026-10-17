@@ -240,12 +240,15 @@ abstract class Server
 
             $requestId = $request->id;
             $request->source = $rawMessage;
+            $legacy = $request->isLegacy();
 
-            if (! $request->isLegacy()) {
+            if (! $legacy) {
                 $this->validateProtocolMeta($request, $context);
             }
 
-            if (! isset($this->methods[$request->method])) {
+            // Initialize and ping belong to the legacy protocol, even on a server supporting both eras.
+            if (! isset($this->methods[$request->method])
+                || (! $legacy && in_array($request->method, ['initialize', 'ping'], true))) {
                 throw new JsonRpcException(
                     "The method [{$request->method}] was not found.",
                     ErrorCode::METHOD_NOT_FOUND->value,

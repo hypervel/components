@@ -107,6 +107,28 @@ class ServerTest extends TestCase
         $this->assertEquals(expectedDiscoverResponse(), $response);
     }
 
+    #[DataProvider('modernOnlyMethods')]
+    public function testRequiresMetadataForModernOnlyMethods(string $method): void
+    {
+        $transport = new ArrayTransport;
+        $server = new ExampleServer($transport);
+        $server->start();
+
+        ($transport->handler)(json_encode(['jsonrpc' => '2.0', 'id' => 1, 'method' => $method]));
+
+        $response = json_decode($transport->sent[0], true);
+        $this->assertSame(1, $response['id']);
+        $this->assertSame(-32602, $response['error']['code']);
+    }
+
+    /**
+     * Provide methods that cannot use legacy request semantics.
+     */
+    public static function modernOnlyMethods(): array
+    {
+        return [['server/discover'], ['subscriptions/listen']];
+    }
+
     #[DataProvider('invalidProtocolMetadata')]
     public function testRejectsARequestWithoutTheRequiredProtocolMetadata(array $meta, string $message): void
     {
@@ -518,7 +540,7 @@ class ServerTest extends TestCase
             'jsonrpc' => '2.0',
             'id' => 456,
             'method' => 'initialize',
-            'params' => ['_meta' => protocolMeta()],
+            'params' => ['protocolVersion' => '2025-11-25', 'capabilities' => (object) []],
         ]);
 
         ($transport->handler)($payload);

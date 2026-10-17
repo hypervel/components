@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Http\Request;
 use Hypervel\Mcp\Enums\ErrorCode;
 use Hypervel\Mcp\Enums\MetaKey;
+use Hypervel\Mcp\Enums\ProtocolHandshake;
 use Hypervel\Mcp\Enums\ProtocolVersion;
 use Hypervel\Mcp\Enums\RequestHeader;
 use Hypervel\Mcp\Transport\HeaderValue;
@@ -58,7 +59,7 @@ class ValidateMcpHeaders
     }
 
     /**
-     * Reject an unsupported legacy protocol version.
+     * Validate the version on a request without modern metadata.
      *
      * Legacy clients never send the method and name headers, but they do send
      * the negotiated protocol version after the handshake.
@@ -69,6 +70,17 @@ class ValidateMcpHeaders
 
         if (! is_string($version) || $version === '' || in_array($version, ProtocolVersion::initializeSupported(), true)) {
             return null;
+        }
+
+        if (ProtocolVersion::tryFrom($version)?->handshake() === ProtocolHandshake::Discovery) {
+            return response()->json([
+                'jsonrpc' => '2.0',
+                'id' => $id,
+                'error' => [
+                    'code' => ErrorCode::INVALID_PARAMS->value,
+                    'message' => 'Invalid params: The request [_meta] is missing the required [' . MetaKey::PROTOCOL_VERSION->value . '] member.',
+                ],
+            ], 400);
         }
 
         return response()->json([
