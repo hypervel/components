@@ -189,7 +189,7 @@ class AuthServerDiscovery
     }
 
     /**
-     * Build a well-known metadata URL for the resource path.
+     * Build a well-known metadata URL for the resource path and query.
      */
     protected function wellKnown(string $url, string $type): string
     {
@@ -201,7 +201,8 @@ class AuthServerDiscovery
             $path = '';
         }
 
-        return $this->originFromParts($parts) . '/.well-known/' . $type . $path;
+        return $this->originFromParts($parts) . '/.well-known/' . $type . $path
+            . (isset($parts['query']) ? '?' . $parts['query'] : '');
     }
 
     /**
@@ -297,7 +298,7 @@ class AuthServerDiscovery
     /**
      * Parse the URL components required for discovery.
      *
-     * @return array{scheme: string, host: string, port?: int, path?: string}
+     * @return array{scheme: string, host: string, port?: int, path?: string, query?: string}
      */
     protected function parse(string $url): array
     {
@@ -307,7 +308,7 @@ class AuthServerDiscovery
             throw new OAuthException("Unable to parse URL [{$url}] during OAuth discovery.");
         }
 
-        /** @var array{scheme: string, host: string, port?: int, path?: string} $parts */
+        /** @var array{scheme: string, host: string, port?: int, path?: string, query?: string} $parts */
         return $parts;
     }
 }

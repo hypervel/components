@@ -1210,10 +1210,14 @@ class OAuthClientTest extends TestCase
         $this->assertSame('https://mcp.test/mcp/', $query['resource']);
     }
 
-    public function testStripsTheFragmentButPreservesTheQueryStringInTheResourceIdentifier(): void
+    #[DataProvider('resourceUrlsWithQueries')]
+    public function testStripsTheFragmentButPreservesTheQueryStringInTheResourceIdentifier(string $resourceUrl, string $metadataUrl): void
     {
+        Http::preventStrayRequests();
+
         Http::fake([
-            'https://mcp.test/.well-known/oauth-protected-resource/mcp' => Http::response([
+            $metadataUrl => Http::response([
+                'resource' => $resourceUrl,
                 'authorization_servers' => ['https://auth.test'],
             ]),
             'https://auth.test/.well-known/oauth-authorization-server' => Http::response([
@@ -1224,7 +1228,7 @@ class OAuthClientTest extends TestCase
             ]),
         ]);
 
-        $target = Client::web('https://mcp.test/mcp?tenant=acme#section')
+        $target = Client::web($resourceUrl . '#section')
             ->withOAuth(clientId: 'client-123', redirectUri: 'https://app.test/callback')
             ->oAuthClient()
             ->redirect()
@@ -1232,7 +1236,18 @@ class OAuthClientTest extends TestCase
 
         parse_str((string) parse_url($target, PHP_URL_QUERY), $query);
 
-        $this->assertSame('https://mcp.test/mcp?tenant=acme', $query['resource']);
+        $this->assertSame($resourceUrl, $query['resource']);
+    }
+
+    /**
+     * Provide resource paths whose discovery must preserve the query component.
+     */
+    public static function resourceUrlsWithQueries(): array
+    {
+        return [
+            'path' => ['https://mcp.test/mcp?tenant=acme', 'https://mcp.test/.well-known/oauth-protected-resource/mcp?tenant=acme'],
+            'root' => ['https://mcp.test/?tenant=acme', 'https://mcp.test/.well-known/oauth-protected-resource?tenant=acme'],
+        ];
     }
 
     public function testLeavesAResourceIdentifierWithoutAFragmentUnchanged(): void
