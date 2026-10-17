@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Mcp\Server\Testing;
 
+use Hypervel\Container\Container;
 use Hypervel\Mcp\Server\Primitive;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Traits\Conditionable;
@@ -36,7 +37,7 @@ class TestListResponse
         $classes = is_array($classes) ? $classes : [$classes];
 
         foreach ($classes as $class) {
-            $name = (new $class)->name();
+            $name = Container::getInstance()->make($class)->name();
 
             Assert::assertContains($name, $itemNames, "The expected class [{$class}] was not found in the response content.");
         }
@@ -58,7 +59,7 @@ class TestListResponse
         $classes = is_array($classes) ? $classes : [$classes];
 
         foreach ($classes as $class) {
-            $name = (new $class)->name();
+            $name = Container::getInstance()->make($class)->name();
 
             Assert::assertNotContains($name, $itemNames, "The expected class [{$class}] was found in the response content.");
         }

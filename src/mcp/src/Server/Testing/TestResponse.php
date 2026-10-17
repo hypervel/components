@@ -39,6 +39,7 @@ class TestResponse
     public function __construct(
         protected Primitive $primitive,
         iterable|JsonRpcResponse $response,
+        protected ?string $requestedUri = null,
     ) {
         try {
             foreach (is_iterable($response) ? $response : [$response] as $message) {
@@ -232,7 +233,7 @@ class TestResponse
         [$primitiveType, $primitiveIdentifier] = match (true) {
             $this->primitive instanceof Tool => ['tool', $this->primitive->name()],
             $this->primitive instanceof Prompt => ['prompt', $this->primitive->name()],
-            $this->primitive instanceof Resource => ['resource', $this->primitive->uri()],
+            $this->primitive instanceof Resource => ['resource', $this->requestedUri ?? $this->primitive->uri()],
             default => throw new RuntimeException('This primitive type is not supported.'),
         };
 

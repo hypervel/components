@@ -6,7 +6,9 @@ namespace Hypervel\Tests\Mcp\Feature\Testing\Resources;
 
 use Hypervel\Mcp\Request;
 use Hypervel\Mcp\Server;
+use Hypervel\Mcp\Server\Contracts\HasUriTemplate;
 use Hypervel\Mcp\Server\Resource;
+use Hypervel\Mcp\Support\UriTemplate;
 use Hypervel\Tests\Mcp\TestCase;
 use PHPUnit\Framework\AssertionFailedError;
 
@@ -14,6 +16,7 @@ class ShopNotRegisteredTestResourceServer extends Server
 {
     protected array $resources = [
         BuyNotRegisteredTestResource::class,
+        TemplatedNotRegisteredTestResource::class,
     ];
 }
 
@@ -35,6 +38,17 @@ class BuyNotRegisteredTestResource extends Resource
     public function handle(Request $request): string
     {
         return 'Purchase successful!';
+    }
+}
+
+class TemplatedNotRegisteredTestResource extends BuyNotRegisteredTestResource implements HasUriTemplate
+{
+    /**
+     * Identify a purchase by its identifier.
+     */
+    public function uriTemplate(): UriTemplate
+    {
+        return new UriTemplate('shop://purchases/{id}');
     }
 }
 
@@ -68,5 +82,14 @@ class AssertNotRegisteredTest extends TestCase
         $this->expectException(AssertionFailedError::class);
         $this->expectExceptionMessage('The resource [' . BuyNotRegisteredTestResource::class . '] is registered.');
         $response->assertNotRegistered();
+    }
+
+    public function testMayAssertThatATemplatedResourceIsNotRegistered(): void
+    {
+        BuyNotRegisteredTestResource::$shouldRegister = false;
+
+        ShopNotRegisteredTestResourceServer::resource(TemplatedNotRegisteredTestResource::class, ['id' => '42'])
+            ->assertHasErrors(['Resource [shop://purchases/42] not found.'])
+            ->assertNotRegistered();
     }
 }

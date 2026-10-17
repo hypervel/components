@@ -307,7 +307,7 @@ class PendingTestResponse
 
         $response = $this->executeRequest($server, $request);
 
-        return new TestResponse($primitive, $response);
+        return new TestResponse($primitive, $response, is_string($params['uri'] ?? null) ? $params['uri'] : null);
     }
 
     /**

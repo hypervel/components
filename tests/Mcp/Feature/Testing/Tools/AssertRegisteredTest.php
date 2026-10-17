@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Mcp\Feature\Testing\Tools\AssertRegisteredTest;
 
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Mcp\Server;
 use Hypervel\Mcp\Server\Tool;
 use Hypervel\Tests\Mcp\TestCase;
@@ -23,7 +24,13 @@ class OilChangeTool extends Tool
 {
     public static bool $shouldRegister = true;
 
-    protected string $name = 'garage/oil-change';
+    /**
+     * Resolve the application's tool name through its configured dependencies.
+     */
+    public function __construct(Repository $config)
+    {
+        $this->name = $config->string('app.name') . '/oil-change';
+    }
 
     /**
      * Determine whether this tool is registered.
