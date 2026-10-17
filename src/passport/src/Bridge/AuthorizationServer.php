@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Passport\Bridge;
 
 use Defuse\Crypto\Key;
+use Hypervel\Passport\Http\RequestParameters;
+use Hypervel\Passport\ResourceRepository;
 use Hypervel\Passport\ServerFactory;
 use League\OAuth2\Server\AuthorizationServer as LeagueAuthorizationServer;
 use League\OAuth2\Server\CryptKeyInterface;
@@ -105,7 +107,7 @@ class AuthorizationServer extends LeagueAuthorizationServer
      */
     protected function issueDeviceAuthorization(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
-        return parent::respondToDeviceAuthorizationRequest($request, $response);
+        return parent::respondToDeviceAuthorizationRequest($this->prepareRequest($request), $response);
     }
 
     /**
@@ -147,7 +149,20 @@ class AuthorizationServer extends LeagueAuthorizationServer
      */
     protected function issueAccessTokenResponse(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
-        return parent::respondToAccessTokenRequest($request, $response);
+        return parent::respondToAccessTokenRequest($this->prepareRequest($request), $response);
+    }
+
+    /**
+     * Normalize protocol fields and capture the operation's requested resources.
+     */
+    protected function prepareRequest(ServerRequestInterface $request): ServerRequestInterface
+    {
+        $parameters = RequestParameters::fromPsrRequest($request);
+        TokenIssuance::current()->requestedResources = array_key_exists('resource', $parameters)
+            ? app(ResourceRepository::class)->validate($parameters['resource'])
+            : null;
+
+        return $request->withParsedBody($parameters);
     }
 
     /**

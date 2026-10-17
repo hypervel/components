@@ -390,6 +390,7 @@ class AuthorizationInteractionTest extends PassportTestCase
 
     public function testProtocolPostPreservesTheSessionAndRepeatedResourcesWhileConsentRequiresCsrf(): void
     {
+        Passport::tokensCanAccess(['https://api.example/a' => 'First API', 'https://api.example/b' => 'Second API']);
         $this->app->bind(PreventRequestForgery::class, PassportInteractionForgeryMiddleware::class);
         $client = ClientFactory::new()->create();
         $this->actingAs(UserFactory::new()->create(), 'web');

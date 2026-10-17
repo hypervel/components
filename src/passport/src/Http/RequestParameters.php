@@ -6,10 +6,29 @@ namespace Hypervel\Passport\Http;
 
 use Hypervel\Http\Request;
 use League\OAuth2\Server\Exception\OAuthServerException;
+use Psr\Http\Message\ServerRequestInterface;
 
 class RequestParameters
 {
     public const int MAX_ENCODED_LENGTH = 65536;
+
+    /**
+     * Preserve repeated protocol fields at PSR token and device endpoints.
+     *
+     * @return array<string, mixed>
+     */
+    public static function fromPsrRequest(ServerRequestInterface $request): array
+    {
+        if (strtolower(trim(explode(';', $request->getHeaderLine('Content-Type'))[0])) === 'application/x-www-form-urlencoded') {
+            $encoded = (string) $request->getBody();
+
+            if ($encoded !== '') {
+                return static::parse($encoded);
+            }
+        }
+
+        return (array) $request->getParsedBody();
+    }
 
     /**
      * Read protocol parameters submitted as a form.
