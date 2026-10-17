@@ -11,7 +11,7 @@ SUITE="${1:-all}"
 
 CONFORMANCE_OUTPUT_DIR="${CONFORMANCE_OUTPUT_DIR:-$(mktemp -d "${TMPDIR:-/tmp}/hypervel-mcp-conformance.XXXXXX")}" || exit 1
 export CONFORMANCE_OUTPUT_DIR
-if [[ -d "$CONFORMANCE_OUTPUT_DIR" && -n "$(find "$CONFORMANCE_OUTPUT_DIR" -mindepth 1 -maxdepth 1 -print -quit)" ]]; then
+if [[ -d "$CONFORMANCE_OUTPUT_DIR" && -n "$(find -H "$CONFORMANCE_OUTPUT_DIR" -mindepth 1 -maxdepth 1 -print -quit)" ]]; then
     printf 'Conformance output directory must be empty: %s\n' "$CONFORMANCE_OUTPUT_DIR" >&2
     exit 1
 fi
