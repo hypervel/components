@@ -58,3 +58,30 @@ The one-off fixture used `Name`, `Title`, `Description`, `IsReadOnly` and `IsIde
 The filtered loop reduces annotation time by about 81% and complete serialization time by about 20% in this fixture. Peak extra PHP heap for annotation calls falls from 2,424 to 1,072 bytes; the complete serialization peak remains 8,560 bytes. These are allocation peaks during repeated calls, not retained memory per tool.
 
 The reflection-cache candidate still constructed fresh annotations. Its additional saving was only about 0.24 µs per annotation call and 0.37 µs per serialization, so it was not adopted. The loop fixes the unrelated-attribute failure and removes collection overhead without extra cache state or invalidation rules. Existing tool/resource coverage and a regression for an unavailable unrelated attribute check behavior; timing is not asserted in CI.
+
+## Shared buffered line reader
+
+With `hypervel/guzzle` 8.2.0.1, the PHP-stream fallback returns short reads promptly, as the native transport already did. The shared HTTP-client reader replaces AI and MCP bytewise SSE reads and consolidates HTTP response lines and Ollama NDJSON parsing. It reads up to 8 KiB without waiting to fill that buffer. Existing protected `readLine()` overrides receive the original body, and per-stream weak references keep concurrent responses independent without retaining abandoned bodies.
+
+The comparison uses the source at `d39123876` as the baseline, with identical installed dependencies. Measurements used the same host and PHP/Swoole versions described above, with CLI OPcache and JIT disabled. Fresh PHP processes measured seven samples after warmup: 1,000 streams per sample for one 1 KiB text value, 30 for one 128 KiB value, and 20 for 256 events containing 1 KiB each. A repeat confirmed the SSE gains; the table reports the final comparison's sample medians. Peak heap is one warmed operation above its starting allocation, measured separately from timing.
+
+The fixture invokes the real AI SSE parser, MCP SSE parsing/queueing, Ollama parser and HTTP `jsonLines()` over PSR-7 streams. It includes body construction and JSON decoding, checks event counts, and discards consumed output. MCP includes the consumer's JSON decode as well as its existing server-request check. Results are per complete stream, including all 256 events in the many-event case. They exclude sockets, provider latency, agent orchestration and retained replay events.
+
+| Parser / stream | CPU µs, before → after | Wall µs, before → after | Peak extra heap KiB, before → after |
+| --- | ---: | ---: | ---: |
+| AI SSE / 1 KiB | 214.17 → 6.12 | 214.17 → 6.11 | 7.61 → 15.02 |
+| MCP SSE / 1 KiB | 216.71 → 10.82 | 216.71 → 10.81 | 7.62 → 14.61 |
+| Ollama / 1 KiB | 4.71 → 5.05 | 4.71 → 5.05 | 6.45 → 15.78 |
+| HTTP JSON lines / 1 KiB | 6.72 → 6.96 | 6.72 → 6.96 | 16.06 → 16.53 |
+| AI SSE / 128 KiB | 24,466.53 → 147.43 | 24,468.53 → 147.36 | 530.61 → 530.66 |
+| MCP SSE / 128 KiB | 24,760.53 → 258.87 | 24,761.34 → 258.80 | 530.62 → 530.70 |
+| Ollama / 128 KiB | 240.40 → 134.77 | 240.34 → 134.69 | 398.70 → 399.50 |
+| HTTP JSON lines / 128 KiB | 134.10 → 136.67 | 134.03 → 136.59 | 399.78 → 400.25 |
+| AI SSE / 256 events | 52,979.05 → 594.70 | 52,981.41 → 594.62 | 280.83 → 302.41 |
+| MCP SSE / 256 events | 54,084.10 → 1,268.30 | 54,087.38 → 1,268.48 | 278.38 → 298.85 |
+| Ollama / 256 events | 493.05 → 424.50 | 492.53 → 424.37 | 276.95 → 299.17 |
+| HTTP JSON lines / 256 events | 492.80 → 477.35 | 492.70 → 477.15 | 299.45 → 299.92 |
+
+SSE parsing removes roughly 95–99% of measured CPU. Ollama's large-line case also benefits from searching only newly read bytes. HTTP lines retain their original chunk-scanning loop: routing every line through the single-line method added avoidable CPU cost, so the static iterator scans chunks directly instead. Its small timing differences do not establish a speed improvement over the original HTTP implementation. These are parser costs, not end-user response times. Bulk reads increase temporary heap for small/many-event streams; the reader retains only its incomplete line and bounded read-ahead, and releases consumed large-line prefixes.
+
+Local acceptance tests use a server-side barrier to prove OpenAI SSE and Ollama NDJSON yield text before the next server write, through both native and PHP-stream handlers. MCP tests prove overlapping SSE responses stay separate and a terminal reply completes while the server keeps its connection open. Existing cancellation and response-close tests also pass. The AI HTTP harness now uses the shared reader for its direct comparison; both direct and agent paths were smoke-tested against local HTTPS. No paid service or timing assertion is involved.
