@@ -51,6 +51,9 @@ class Passport
     /** @var class-string<AuthCode> */
     protected const string DEFAULT_AUTH_CODE_MODEL = AuthCode::class;
 
+    /** @var class-string<PushedAuthorizationRequest> */
+    protected const string DEFAULT_PUSHED_AUTHORIZATION_REQUEST_MODEL = PushedAuthorizationRequest::class;
+
     /** @var class-string<DeviceCode> */
     protected const string DEFAULT_DEVICE_CODE_MODEL = DeviceCode::class;
 
@@ -188,6 +191,13 @@ class Passport
      */
     public static string $consentModel = self::DEFAULT_CONSENT_MODEL;
 
+    /**
+     * The pushed authorization request model class name.
+     *
+     * @var class-string<PushedAuthorizationRequest>
+     */
+    public static string $pushedAuthorizationRequestModel = self::DEFAULT_PUSHED_AUTHORIZATION_REQUEST_MODEL;
+
     // Client IDs always use UUIDs; the pre-13 integer-ID toggle is omitted.
 
     /**
@@ -270,6 +280,13 @@ class Passport
      * @var null|(Closure(Client): bool)
      */
     public static ?Closure $clientAuthenticationCallback = null;
+
+    /**
+     * The callback authorizing another client to inspect an access token.
+     *
+     * @var null|(Closure(Client, Token): bool)
+     */
+    public static ?Closure $introspectionAuthorizationCallback = null;
 
     /**
      * The grant attributes inherited by issued credentials.
@@ -666,6 +683,36 @@ class Passport
     }
 
     /**
+     * Set the pushed authorization request model class name.
+     *
+     * Boot-only. The model class persists for the worker lifetime and affects every request.
+     *
+     * @param class-string<PushedAuthorizationRequest> $pushedAuthorizationRequestModel
+     */
+    public static function usePushedAuthorizationRequestModel(string $pushedAuthorizationRequestModel): void
+    {
+        static::$pushedAuthorizationRequestModel = $pushedAuthorizationRequestModel;
+    }
+
+    /**
+     * Get the pushed authorization request model class name.
+     *
+     * @return class-string<PushedAuthorizationRequest>
+     */
+    public static function pushedAuthorizationRequestModel(): string
+    {
+        return static::$pushedAuthorizationRequestModel;
+    }
+
+    /**
+     * Get a new pushed authorization request model instance.
+     */
+    public static function pushedAuthorizationRequest(): PushedAuthorizationRequest
+    {
+        return new static::$pushedAuthorizationRequestModel;
+    }
+
+    /**
      * Set the default ResponseType that should be used by the authorization server.
      *
      * Boot-only. Cached servers retain this response prototype for the worker lifetime.
@@ -877,6 +924,18 @@ class Passport
     public static function authenticateClientsUsing(Closure $callback): void
     {
         static::$clientAuthenticationCallback = $callback;
+    }
+
+    /**
+     * Authorize resource-server clients to inspect another client's access token.
+     *
+     * Boot-only. The callback persists in a static property and affects every introspection request.
+     *
+     * @param Closure(Client, Token): bool $callback
+     */
+    public static function authorizeIntrospectionUsing(Closure $callback): void
+    {
+        static::$introspectionAuthorizationCallback = $callback;
     }
 
     /**
@@ -1105,6 +1164,7 @@ class Passport
         static::$deviceCodeModel = self::DEFAULT_DEVICE_CODE_MODEL;
         static::$clientModel = self::DEFAULT_CLIENT_MODEL;
         static::$consentModel = self::DEFAULT_CONSENT_MODEL;
+        static::$pushedAuthorizationRequestModel = self::DEFAULT_PUSHED_AUTHORIZATION_REQUEST_MODEL;
         static::$tokenModel = self::DEFAULT_TOKEN_MODEL;
         static::$refreshTokenModel = self::DEFAULT_REFRESH_TOKEN_MODEL;
         static::$refreshTokenFamilyModel = self::DEFAULT_REFRESH_TOKEN_FAMILY_MODEL;
@@ -1118,6 +1178,7 @@ class Passport
         static::$dynamicClientRegistrationEnabled = self::DEFAULT_DYNAMIC_CLIENT_REGISTRATION_ENABLED;
         static::$accessTokenAuthenticationCallback = null;
         static::$clientAuthenticationCallback = null;
+        static::$introspectionAuthorizationCallback = null;
         static::$inheritedGrantAttributes = self::DEFAULT_INHERITED_GRANT_ATTRIBUTES;
         static::$cookieBindingCallback = null;
         static::$accessTokenClaimsCallback = null;

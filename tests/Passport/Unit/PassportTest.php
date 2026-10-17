@@ -9,6 +9,7 @@ use Hypervel\Passport\AuthCode;
 use Hypervel\Passport\Client;
 use Hypervel\Passport\DeviceCode;
 use Hypervel\Passport\Passport;
+use Hypervel\Passport\PushedAuthorizationRequest;
 use Hypervel\Passport\RefreshToken;
 use Hypervel\Passport\Token;
 use Hypervel\Tests\TestCase;
@@ -93,12 +94,14 @@ class PassportTest extends TestCase
     public function testFlushStateRestoresConfigurationAndRemovesApplicationCallbacks(): void
     {
         Passport::useRefreshTokenModel(RefreshTokenStub::class);
+        Passport::usePushedAuthorizationRequestModel(PushedAuthorizationRequestStub::class);
         Passport::cookie('custom_cookie');
         Passport::tokensCan(['custom' => 'Custom scope']);
         Passport::tokensExpireIn(new DateInterval('PT5M'));
         Passport::inheritGrantAttributes(['organization_id']);
         Passport::authenticateAccessTokensUsing(static fn (): bool => false);
         Passport::authenticateClientsUsing(static fn (): bool => false);
+        Passport::authorizeIntrospectionUsing(static fn (): bool => false);
         Passport::bindCookiesUsing(static fn (): string => 'organization');
         Passport::rememberConsentFor(new DateInterval('PT5M'));
         Passport::accessTokenClaimsUsing(static fn (): array => ['organization_id' => 1]);
@@ -107,12 +110,14 @@ class PassportTest extends TestCase
         Passport::flushState();
 
         $this->assertSame(RefreshToken::class, Passport::refreshTokenModel());
+        $this->assertSame(PushedAuthorizationRequest::class, Passport::pushedAuthorizationRequestModel());
         $this->assertSame('hypervel_token', Passport::cookie());
         $this->assertSame([], Passport::scopeIds());
         $this->assertEquals(new DateInterval('P1Y'), Passport::tokensExpireIn());
         $this->assertSame([], Passport::$inheritedGrantAttributes);
         $this->assertNull(Passport::$accessTokenAuthenticationCallback);
         $this->assertNull(Passport::$clientAuthenticationCallback);
+        $this->assertNull(Passport::$introspectionAuthorizationCallback);
         $this->assertNull(Passport::$cookieBindingCallback);
         $this->assertNull(Passport::rememberConsentFor());
         $this->assertNull(Passport::$accessTokenClaimsCallback);
@@ -121,5 +126,9 @@ class PassportTest extends TestCase
 }
 
 class RefreshTokenStub extends RefreshToken
+{
+}
+
+class PushedAuthorizationRequestStub extends PushedAuthorizationRequest
 {
 }
