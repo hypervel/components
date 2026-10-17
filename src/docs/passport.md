@@ -432,14 +432,67 @@ public function boot(): void
             'client' => $parameters['client'],
             'user' => $parameters['user'],
             'scopes' => $parameters['scopes'],
+            'permissions' => $parameters['permissions'],
         ])
     );
 }
 ```
 
-Passport will automatically define the `/oauth/authorize` route that returns this view. Your `auth.oauth.authorize` template should include a form that makes a POST request to the `passport.authorizations.approve` route to approve the authorization and a form that makes a DELETE request to the `passport.authorizations.deny` route to deny the authorization. The `passport.authorizations.approve` and `passport.authorizations.deny` routes expect `state`, `client_id`, and `auth_token` fields.
+Passport automatically defines the `/oauth/authorize` route that returns this view. Your `auth.oauth.authorize` template should include a form that makes a POST request to the `passport.authorizations.approve` route to approve the authorization and a form that makes a DELETE request to the `passport.authorizations.deny` route to deny it. Both routes use `/oauth/authorize/consent` and require the `auth_token` supplied to the view and the application's CSRF token. Passport retains the client, callback and protocol parameters in the session; the forms do not need to submit them again.
 
 Passport's consent pages use `Hypervel\Http\Middleware\FrameGuard` to prevent other sites from framing them. Apply the same protection to your application's login pages.
+
+Use a server-side session driver and a shared lock-capable session blocking store for browser authorization. Passport locks each interaction request and stores pending authorizations separately, so completing one tab does not consume another. Cookie sessions cannot provide these guarantees: an older browser cookie can replay pending state, and concurrent requests can overwrite each other's entries. The default SameSite `lax` policy supports cross-site authorization redirects; `strict` can withhold the session through a redirect chain and lose the pending interaction.
+
+The `authorization.lifetime` and `authorization.max_pending` options in `config/passport.php` default to ten minutes and ten pending interactions per session. Expired entries are removed and the oldest entry is evicted when the limit is reached.
+
+<a name="remembering-consent"></a>
+#### Remembering Consent
+
+Passport remembers approval independently of issued tokens. A user does not need to approve the same permissions again when an access token expires. By default, approval is remembered until the user forgets or revokes it. You may set a duration in a service provider:
+
+```php
+Passport::rememberConsentFor(now()->addDays(30));
+```
+
+Reusing an approval does not extend its duration. To let users approve only some permissions, submit a `scopes` array containing their selected scope identifiers. Extensions may also provide named permission sets through the `permissions` view parameter; submit the selected values under the same names. Values not present in the original presentation are rejected. Omitting either field approves its entire presented set; send an empty array or an empty form value to approve none of that set. A `remember` value of `false` grants access without remembering the approval for the next authorization.
+
+When using checkboxes, place an empty hidden input before them so unchecking every scope submits an explicit empty selection:
+
+```blade
+<input type="hidden" name="scopes" value="">
+
+@foreach ($scopes as $scope)
+    <label>
+        <input type="checkbox" name="scopes[]" value="{{ $scope->id }}" checked>
+        {{ $scope->description }}
+    </label>
+@endforeach
+```
+
+Likewise, place a hidden false value before a remember checkbox. Otherwise, leaving the checkbox unchecked omits the field and uses the configured remember duration:
+
+```blade
+<input type="hidden" name="remember" value="0">
+
+<label>
+    <input type="checkbox" name="remember" value="1" checked>
+    Remember this approval
+</label>
+```
+
+Retrieve a user's approvals through `$user->oauthConsents()`, or a client's approvals through `$client->consents()`. Use `forget()` to require consent next time without revoking existing credentials. Use `revoke()` to revoke linked codes, device codes, access tokens and refresh tokens, and delete the approval:
+
+```php
+$consent = $user->oauthConsents()->findOrFail($consentId);
+
+$consent->forget();
+
+// Revoke the authorization and its credentials...
+$consent->revoke();
+```
+
+Deleting a consent model also revokes its credentials. Mass-query deletes and raw database writes bypass this model behavior; use the model methods when revoking access. To customize remembered permission coverage, extend `Hypervel\Passport\Consent`, override `covers()`, and register the model with `Passport::useConsentModel()`.
 
 <a name="managing-clients"></a>
 ### Managing Clients
@@ -510,7 +563,7 @@ Route::get('/redirect', function (Request $request) {
         'response_type' => 'code',
         'scope' => 'user:read orders:create',
         'state' => $state,
-        // 'prompt' => '', // "none", "consent", or "login"
+        // 'prompt' => '', // "none", "consent", "login", or "select_account"
     ]);
 
     return redirect('https://passport-app.test/oauth/authorize?'.$query);
@@ -519,9 +572,15 @@ Route::get('/redirect', function (Request $request) {
 
 The `prompt` parameter may be used to specify the authentication behavior of the Passport application.
 
-If the `prompt` value is `none`, Passport will always throw an authentication error if the user is not already authenticated with the Passport application. If the value is `consent`, Passport will always display the authorization approval screen, even if all scopes were previously granted to the consuming application. When the value is `login`, the Passport application will always prompt the user to re-login to the application, even if they already have an existing session.
+If the `prompt` value is `none`, Passport returns a protocol error when login, account selection or consent requires user interaction. The value `none` cannot be combined with another prompt. If the value is `consent`, Passport always displays the approval screen, even when the requested permissions were previously granted. When the value is `login`, guests sign in normally; users with an existing session must confirm their identity without being logged out. Remember-cookie restoration does not count as fresh authentication.
 
-If no `prompt` value is provided, the user will be prompted for authorization only if they have not previously authorized access to the consuming application for the requested scopes.
+If no `prompt` value is provided, Passport requests consent when remembered approval does not cover the requested permissions, unless the client's trusted `skipsAuthorization()` policy permits access.
+
+Passport's default reauthentication response redirects to your application's `password.confirm` route. Fortify and Passkeys can provide this confirmation flow. Applications with their own confirmation screens may bind `Hypervel\Passport\Contracts\ReauthenticationResponse`; after verifying the user, call `$request->session()->passwordConfirmed($guard)` and return to the response's `returnUrl`. The response receives `client`, `user` and `authToken` as well. Starting a challenge clears that guard's earlier password-confirmation timestamp, so it also expires the application's previous confirmation window for that guard.
+
+The `select_account` prompt displays the view registered with `Passport::accountSelectionView()`. Register this view explicitly; `viewPrefix()` does not register an account-selection view. Without one, Passport returns the `account_selection_required` protocol error. The view receives `client`, `user`, `request` and `authToken`. Submit `auth_token` and a CSRF token to `passport.authorizations.account.continue` to continue as that user, or to `passport.authorizations.account.switch` to sign out and choose another account. Both routes accept POST requests. A new login after an explicit account switch must still complete account selection.
+
+Clients may request `response_mode=form_post` to receive the authorization code or protocol error through an automatically submitted form instead of a query redirect. A manual submit button is provided when JavaScript is unavailable. Errors for an invalid client or callback remain local and are never sent to an untrusted URL. Protocol requests may also POST form data to `/oauth/authorize`; this endpoint redirects to GET without starting a session. Consent decisions belong at `/oauth/authorize/consent`.
 
 > [!NOTE]
 > Remember, the `/oauth/authorize` route is already defined by Passport. You do not need to manually define this route.
@@ -531,7 +590,7 @@ If no `prompt` value is provided, the user will be prompted for authorization on
 
 When receiving authorization requests, Passport will automatically respond based on the value of `prompt` parameter (if present) and may display a template to the user allowing them to approve or deny the authorization request. If they approve the request, they will be redirected back to the `redirect_uri` that was specified by the consuming application. The `redirect_uri` must match the `redirect` URL that was specified when the client was created.
 
-Sometimes you may wish to skip the authorization prompt, such as when authorizing a first-party client. You may accomplish this by [extending the `Client` model](#overriding-default-models) and defining a `skipsAuthorization` method. If `skipsAuthorization` returns `true` the client will be approved and the user will be redirected back to the `redirect_uri` immediately, unless the consuming application has explicitly set the `prompt` parameter when redirecting for authorization:
+Sometimes you may wish to skip the authorization prompt, such as when authorizing a first-party client. You may accomplish this by [extending the `Client` model](#overriding-default-models) and defining a `skipsAuthorization` method. If `skipsAuthorization` returns `true`, Passport approves the client after any required login or account selection, unless the consuming application requests `prompt=consent`. This trusted policy does not create or widen remembered user approval:
 
 ```php
 <?php
@@ -762,7 +821,7 @@ Route::get('/redirect', function (Request $request) {
         'state' => $state,
         'code_challenge' => $codeChallenge,
         'code_challenge_method' => 'S256',
-        // 'prompt' => '', // "none", "consent", or "login"
+        // 'prompt' => '', // "none", "consent", "login", or "select_account"
     ]);
 
     return redirect('https://passport-app.test/oauth/authorize?'.$query);
@@ -1005,7 +1064,7 @@ php artisan passport:client --personal
 
 If your application uses more than one [authentication user provider](/docs/{{version}}/authentication#introduction), you may specify which user provider the personal access grant client uses by providing a `--provider` option when creating the client via the `artisan passport:client --personal` command. The given provider name should match a valid provider defined in your application's `config/auth.php` configuration file. Personal access clients without an explicit provider use the `passport` guard's provider. You can then [protect your route using middleware](#multiple-authentication-guards) to ensure that only users from the guard's specified provider are authorized.
 
-The `HasApiTokens` trait selects the first configured Eloquent provider matching the model and used by a Passport guard. If several providers use the same model, override the model's `getProviderName(): string` method to select the intended provider when creating or listing tokens.
+The `HasApiTokens` trait uses the Eloquent provider that matches the model and is used by a Passport guard. If several matching providers are used by Passport guards, override the model's `getProviderName(): string` method to select the intended provider. Otherwise, creating or listing tokens and authorizations throws an exception.
 
 <a name="managing-personal-access-tokens"></a>
 ### Managing Personal Access Tokens
@@ -1452,23 +1511,27 @@ The Passport guard's `token()` method returns the validated bearer token, includ
 <a name="authorization-attributes"></a>
 ### Authorization Attributes
 
-Use `authorizationAttributesUsing` to capture data when a user authorizes a client. The values survive the consent screen and are saved with the authorization code or approved device code. Add the corresponding columns to your configured models' tables:
+Listen for `AuthorizationUserResolved` to capture data when a user authorizes a client. Its attributes survive the consent screen and are saved with the authorization code or approved device code. Values must be JSON-compatible. Add the corresponding columns to your configured models' tables:
 
 ```php
-use Hypervel\Contracts\Auth\Authenticatable;
-use Hypervel\Http\Request;
+use Hypervel\Passport\Events\AuthorizationUserResolved;
 use Hypervel\Passport\Passport;
+use Hypervel\Support\Facades\Event;
 
-Passport::authorizationAttributesUsing(
-    fn (Request $request, Authenticatable $user): array => [
-        'organization_id' => $request->attributes->get('organization_id'),
-    ]
-);
+Event::listen(AuthorizationUserResolved::class, function (AuthorizationUserResolved $event): void {
+    $event->attributes['organization_id'] = $event->request->attributes->get('organization_id');
+});
 
 Passport::inheritGrantAttributes(['organization_id']);
 ```
 
-`inheritGrantAttributes` copies the named values from the redeemed code or refresh token into the new access and refresh tokens, and into newly created refresh-token families. Add these columns to all affected tables. This allows a shared token endpoint to preserve the ownership chosen at authorization. Passport always carries its own provider information.
+`inheritGrantAttributes` copies the named values from the redeemed code or refresh token into the new access and refresh tokens, and into newly created refresh-token families. Add these columns to all affected tables. This allows a shared token endpoint to preserve the ownership chosen at authorization. Passport always carries its own provider and consent information; listeners cannot replace these protected fields.
+
+The event also exposes the approving user, provider, guard, client, scopes and authoritative protocol `parameters`. Use `parameters` when interpreting authorization input, since resumed requests contain only the interaction identifier. Add application permission sets through `$event->permissions['your.namespace']`, using lists of strings, or set `$event->rememberConsentFor` to a `DateInterval` or `null` for this approval. The `resources` permission namespace is reserved.
+
+Reopening an interaction keeps the permissions and remember duration first presented and captures attributes again. A protocol rejection ends the interaction, so an older consent form can no longer approve it. Switching accounts discards the previous user's captured presentation.
+
+Listen for `AuthorizationApproved` when an extension needs the final selected scopes and permissions. Its `approval` is `AuthorizationApproval::Prompt`, `Remembered`, or `Policy`, according to the actual decision. It runs inside the credential transaction before issuance, and may add saved attributes or reject the request. Keep these listeners synchronous and limit them to local checks and writes on the credential connection; use after-commit or queued work for side effects. A failure rolls back consent and credentials together.
 
 Personal access and client-credentials tokens have no earlier authorization to inherit from. Use your configured models' creation hooks to assign their application-specific attributes.
 
@@ -1490,7 +1553,20 @@ The claims `iss`, `sub`, `aud`, `exp`, `iat`, `nbf`, `jti` and `scopes` are rese
 <a name="authorization-interaction-and-refresh-policy"></a>
 ### Authorization Interaction and Refresh Policy
 
-`Passport::resolvePromptsUsing` receives the HTTP request and League's validated authorization request. Return additional `login` or `consent` prompts to apply your application's interaction policy. With `prompt=none`, a required interaction produces `login_required` or `consent_required`. The callback may throw a League `OAuthServerException` to reject invalid parameters.
+Listen for `AuthorizationRequestValidated` to apply additional interaction requirements after the client and callback have been validated:
+
+```php
+use Hypervel\Passport\Events\AuthorizationRequestValidated;
+use Hypervel\Support\Facades\Event;
+
+Event::listen(AuthorizationRequestValidated::class, function (AuthorizationRequestValidated $event): void {
+    if ($event->request->attributes->get('requires_fresh_authentication', false)) {
+        $event->prompts[] = 'login';
+    }
+});
+```
+
+In this example, application middleware sets the request attribute according to its authentication policy. Listeners may add `login`, `consent` or `select_account` prompts. With `prompt=none`, a required interaction produces the corresponding protocol error. Authorization policy listeners may throw a League `OAuthServerException`; Passport renders it using the validated callback, original state and response mode. These listeners must run synchronously, not through a queue.
 
 `Passport::issueRefreshTokensUsing` receives the newly saved access token and returns whether a refresh token may be issued:
 
@@ -1509,7 +1585,9 @@ For authorization-code and device exchanges, false omits the refresh token. Duri
 
 Set `passport.issuer` or `PASSPORT_ISSUER` to include an `iss` claim in the default server's access tokens. Custom server settings use their own issuer; a null issuer leaves the claim out without falling back to the configuration value.
 
-You may register a custom League response type with `Passport::useAuthorizationServerResponseType`. Passport's access token entity exposes its saved model through `getToken()`. Repeated calls to `toString()` return the same signed token, allowing your response to include a hash of the exact access token sent to the client. If response generation or signing fails, Passport rolls back the new tokens.
+You may register a custom response type with `Passport::useAuthorizationServerResponseType`. Extend `Hypervel\Passport\Bridge\BearerTokenResponse` and override `getExtraParams()` to add fields, merging `parent::getExtraParams()` to retain the final granted `scope`. Its protected `getToken()`, `getGrant()` and `getSigningKey()` methods expose the current issuance's saved token, redeemed credential and pinned signing key without additional queries. The grant is null for issuance without an earlier credential, such as client credentials.
+
+Passport's access token entity also exposes its saved model through `getToken()`. Repeated calls to `toString()` return the same signed token, allowing your response to include a hash of the exact access token sent to the client. If response generation or signing fails, Passport rolls back the new tokens. Other League response types remain supported and are responsible for their own response fields.
 
 `ServerFactory::jwks()` returns the public JSON Web Key Set for the selected server. `ServerFactory::signingKey(DateInterval $lifetime)` returns the current signing key and ensures it will be retained for the additional token's lifetime. Both methods use the settings and key selected when issuance began, even if another key activates before the response completes.
 
