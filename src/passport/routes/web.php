@@ -3,12 +3,36 @@
 declare(strict_types=1);
 
 use Hypervel\Http\Middleware\FrameGuard;
+use Hypervel\Http\Middleware\SetCacheHeaders;
 use Hypervel\Passport\Passport;
 use Hypervel\Support\Facades\Route;
+
+Route::get('/jwks', [
+    'uses' => 'ServerMetadataController@jwks',
+    'as' => 'jwks',
+    'middleware' => SetCacheHeaders::using('etag'),
+]);
 
 Route::post('/token', [
     'uses' => 'AccessTokenController@issueToken',
     'as' => 'token',
+    'middleware' => 'throttle:passport',
+]);
+
+Route::post('/revoke', [
+    'uses' => 'TokenManagementController@revoke',
+    'as' => 'token.revoke',
+    'middleware' => 'throttle:passport',
+]);
+
+Route::post('/introspect', [
+    'uses' => 'TokenManagementController@introspect',
+    'as' => 'token.introspect',
+]);
+
+Route::post('/par', [
+    'uses' => 'PushedAuthorizationRequestController@store',
+    'as' => 'par',
     'middleware' => 'throttle:passport',
 ]);
 

@@ -110,7 +110,7 @@ class PassportServiceProviderTest extends PassportTestCase
     }
 
     #[DataProvider('invalidConfiguration')]
-    public function testInvalidCacheAndRotationSettingsAreRejected(array $settings, string $message): void
+    public function testInvalidSettingsAreRejectedAtStartup(array $settings, string $message): void
     {
         config($settings);
 
@@ -120,10 +120,13 @@ class PassportServiceProviderTest extends PassportTestCase
     }
 
     /**
-     * Provide settings that cannot maintain cache or key-publication guarantees.
+     * Provide invalid issuer, cache and key-publication settings.
      */
     public static function invalidConfiguration(): iterable
     {
+        yield 'insecure issuer' => [
+            ['passport.issuer' => 'http://passport-app.test'], 'Passport issuers must be absolute HTTPS URLs',
+        ];
         yield 'unbounded settings cache' => [
             ['passport.server_cache_size' => 0], 'Passport server cache size must be a positive integer.',
         ];

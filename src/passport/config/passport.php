@@ -50,6 +50,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Pushed Authorization Requests
+    |--------------------------------------------------------------------------
+    |
+    | Clients may submit authorization parameters directly and receive a short-
+    | lived, single-use reference for the browser. This lifetime is in seconds.
+    | Schedule passport:purge to remove unused references after they expire.
+    |
+    */
+
+    'par' => [
+        'lifetime' => (int) env('PASSPORT_PAR_LIFETIME', 90),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Dynamic Client Registration
     |--------------------------------------------------------------------------
     |
@@ -126,7 +141,11 @@ return [
     | Authorization Server Settings
     |--------------------------------------------------------------------------
     |
-    | An issuer adds an "iss" claim to access tokens; null leaves it out.
+    | An HTTPS issuer enables discovery, identifies authorization responses
+    | and access tokens, and is the audience for JWT client assertions. It
+    | cannot contain user information, a query or a fragment. Leave it
+    | null for local HTTP development.
+    |
     | The server cache size limits how many resolved settings sets each
     | worker retains, including their parsed keys and OAuth servers.
     |

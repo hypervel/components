@@ -14,12 +14,14 @@ use Hypervel\Contracts\Auth\StatefulGuard;
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Core\Events\AfterWorkerStart;
+use Hypervel\Http\Middleware\SetCacheHeaders;
 use Hypervel\Http\Request as HttpRequest;
 use Hypervel\Passport\Contracts\ApprovedDeviceAuthorizationResponse as ApprovedDeviceAuthorizationResponseContract;
 use Hypervel\Passport\Contracts\DeniedDeviceAuthorizationResponse as DeniedDeviceAuthorizationResponseContract;
 use Hypervel\Passport\Contracts\ReauthenticationResponse as ReauthenticationResponseContract;
 use Hypervel\Passport\Enums\KeyStore;
 use Hypervel\Passport\Guards\TokenGuard;
+use Hypervel\Passport\Http\Controllers\ServerMetadataController;
 use Hypervel\Passport\Http\Responses\ApprovedDeviceAuthorizationResponse;
 use Hypervel\Passport\Http\Responses\DeniedDeviceAuthorizationResponse;
 use Hypervel\Passport\Http\Responses\ReauthenticationResponse;
@@ -66,6 +68,12 @@ class PassportServiceProvider extends ServiceProvider
     protected function registerRoutes(): void
     {
         if (Passport::$registersRoutes && ! $this->app->routesAreCached()) {
+            Route::get('/.well-known/oauth-authorization-server/{issuerPath?}', [
+                'uses' => ServerMetadataController::class . '@show',
+                'as' => 'passport.metadata',
+                'middleware' => [...config()->array('passport.middleware'), SetCacheHeaders::using('etag')],
+            ])->where('issuerPath', '.*');
+
             Route::group([
                 'as' => 'passport.',
                 'prefix' => config()->string('passport.path'),
@@ -280,6 +288,9 @@ class PassportServiceProvider extends ServiceProvider
     protected function validateConfiguration(): void
     {
         $config = $this->app->make(Repository::class);
+        $issuer = $config->get('passport.issuer');
+        // Reuse settings validation so a bad issuer stops startup before requests are served.
+        new ServerSettings([], issuer: $issuer === '' ? null : $issuer);
 
         if ($config->integer('passport.server_cache_size') <= 0) {
             throw new InvalidArgumentException('Passport server cache size must be a positive integer.');
@@ -289,9 +300,13 @@ class PassportServiceProvider extends ServiceProvider
             throw new InvalidArgumentException('Passport authorization lifetime and pending request limit must be positive integers.');
         }
 
+        if ($config->integer('passport.par.lifetime') <= 0) {
+            throw new InvalidArgumentException('Passport pushed authorization request lifetime must be a positive integer.');
+        }
+
         $models = [
             Passport::token(), Passport::consent(), Passport::authCode(), Passport::deviceCode(),
-            Passport::refreshToken(), Passport::refreshTokenFamily(),
+            Passport::refreshToken(), Passport::refreshTokenFamily(), Passport::pushedAuthorizationRequest(),
         ];
 
         if (KeyStore::from($config->string('passport.key_store')) === KeyStore::Database) {
