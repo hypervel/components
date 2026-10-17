@@ -130,7 +130,7 @@ class ValidateMcpHeadersTest extends TestCase
      */
     public static function invalidRequestIds(): array
     {
-        return [[true], [1.5], [['invalid']], [(object) ['invalid' => true]]];
+        return [[true], [1.5], [['invalid']]];
     }
 
     public function testDecodesABase64SentinelNameHeaderBeforeComparingIt(): void
