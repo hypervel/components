@@ -435,6 +435,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         $this->callIfExists(\Hypervel\Mcp\Request::class, 'flushMacros');
         $this->callIfExists(\Hypervel\Mcp\Response::class, 'flushMacros');
         $this->callIfExists(\Hypervel\Mcp\ResponseFactory::class, 'flushMacros');
+        $this->callIfExists(\Hypervel\Mcp\Client\ClientManager::class, 'flushMacros');
         $this->callIfExists(\Hypervel\Mcp\Server\Registrar::class, 'flushMacros');
         $this->callIfExists(\Hypervel\Mcp\Server\Testing\TestResponse::class, 'flushMacros');
         $this->callIfExists(\Hypervel\Mcp\Server\Testing\TestListResponse::class, 'flushMacros');

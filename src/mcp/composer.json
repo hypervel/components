@@ -43,6 +43,7 @@
         "hypervel/http": "^0.4",
         "hypervel/json-schema": "^0.4",
         "hypervel/macroable": "^0.4",
+        "hypervel/process": "^0.4",
         "hypervel/routing": "^0.4",
         "hypervel/support": "^0.4",
         "hypervel/testing": "^0.4",
@@ -51,6 +52,7 @@
         "psr/http-message": "^2.0",
         "symfony/console": "^8.1.2",
         "symfony/http-foundation": "^8.1",
+        "symfony/http-kernel": "^8.1",
         "symfony/process": "^8.1",
         "symfony/routing": "^8.1"
     },
@@ -69,6 +71,14 @@
     "extra": {
         "branch-alias": {
             "dev-main": "0.4-dev"
+        },
+        "hypervel": {
+            "aliases": {
+                "Mcp": "Hypervel\\Mcp\\Facades\\Mcp"
+            },
+            "providers": [
+                "Hypervel\\Mcp\\Server\\McpServiceProvider"
+            ]
         }
     }
 }

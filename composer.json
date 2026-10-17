@@ -371,6 +371,7 @@
         },
         "hypervel": {
             "aliases": {
+                "Mcp": "Hypervel\\Mcp\\Facades\\Mcp",
                 "OpenTelemetry": "Hypervel\\OpenTelemetry\\Facades\\OpenTelemetry",
                 "Saloon": "Hypervel\\Saloon\\Facades\\Saloon",
                 "Sentry": "Hypervel\\Sentry\\Facade",
@@ -401,6 +402,7 @@
                 "Hypervel\\Log\\Context\\ContextServiceProvider",
                 "Hypervel\\Log\\LogServiceProvider",
                 "Hypervel\\Mail\\MailServiceProvider",
+                "Hypervel\\Mcp\\Server\\McpServiceProvider",
                 "Hypervel\\NestedSet\\NestedSetServiceProvider",
                 "Hypervel\\Notifications\\NotificationServiceProvider",
                 "Hypervel\\Notifications\\SlackChannelServiceProvider",
