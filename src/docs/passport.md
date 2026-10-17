@@ -557,6 +557,8 @@ class Client extends BaseClient
 }
 ```
 
+The `firstParty()` method returns `true` only for ownerless clients whose `third_party` flag is `false`. MCP dynamic registration sets that flag to `true`, keeping externally registered clients subject to consent. When importing a Laravel Passport schema, add the boolean `third_party` column with a default of `false` and mark any imported externally registered clients as `true`.
+
 <a name="requesting-tokens-converting-authorization-codes-to-access-tokens"></a>
 #### Converting Authorization Codes to Access Tokens
 

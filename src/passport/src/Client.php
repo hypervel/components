@@ -19,6 +19,7 @@ use SensitiveParameter;
  * @property string $id
  * @property null|int|string $owner_id
  * @property null|string $owner_type
+ * @property bool $third_party
  * @property string $name
  * @property null|string $secret
  * @property null|string $provider
@@ -68,6 +69,7 @@ class Client extends Model
         'scopes' => 'array',
         'redirect_uris' => 'array',
         'revoked' => 'bool',
+        'third_party' => 'bool',
     ];
 
     /**
@@ -157,7 +159,8 @@ class Client extends Model
      */
     public function firstParty(): bool
     {
-        return $this->owner_id === null;
+        // Dynamically registered clients have no owner but are not trusted application clients.
+        return $this->owner_id === null && ! $this->third_party;
     }
 
     /**
