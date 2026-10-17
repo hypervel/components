@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Passport;
 
 use DateInterval;
+use Defuse\Crypto\Crypto;
 use Defuse\Crypto\Encoding;
 use Defuse\Crypto\Key;
 use Hypervel\Context\CoroutineContext;
@@ -38,6 +39,7 @@ use League\OAuth2\Server\ResourceServer;
 use League\OAuth2\Server\ResponseTypes\ResponseTypeInterface;
 use LogicException;
 use Psr\Http\Message\ServerRequestInterface;
+use SensitiveParameter;
 
 class ServerFactory
 {
@@ -160,6 +162,18 @@ class ServerFactory
     }
 
     /**
+     * Decrypt a grant credential with the same key used during issuance.
+     *
+     * @internal shared with token management; callers validate the payload's credential type
+     */
+    public function decryptToken(#[SensitiveParameter] string $token): string
+    {
+        $this->initializeEncryptionKeys();
+
+        return Crypto::decrypt($token, $this->encryptionKey);
+    }
+
+    /**
      * Derive separate keys for grant encryption and API cookies once per worker.
      */
     protected function initializeEncryptionKeys(): void
@@ -273,12 +287,27 @@ class ServerFactory
             $entry->resourceServer = new Bridge\ResourceServer(
                 $repository,
                 new SigningCryptKey($publicKey),
-                new BearerTokenValidator($repository, $entry->verificationKeys),
+                $this->tokenValidator(),
                 $this,
             );
         }
 
         return $entry->resourceServer;
+    }
+
+    /**
+     * Get the token verifier shared by resource requests and credential management.
+     *
+     * @internal does not perform request-specific proof or authorization checks
+     */
+    public function tokenValidator(): BearerTokenValidator
+    {
+        $entry = $this->entry();
+
+        return $entry->tokenValidator ??= new BearerTokenValidator(
+            $this->app->make(Bridge\AccessTokenRepository::class),
+            $entry->verificationKeys,
+        );
     }
 
     /**
@@ -371,7 +400,13 @@ class ServerFactory
 
             if ($this->defaultEntry === null || $identifiers !== $this->storedKeyIds) {
                 $issuer = $this->config->get('passport.issuer');
-                $this->defaultEntry = $this->makeEntry(new ServerSettings($keys, issuer: $issuer === '' ? null : $issuer));
+                $refreshInterval = $this->config->integer('passport.key_refresh_interval');
+                $this->defaultEntry = $this->makeEntry(new ServerSettings(
+                    $keys,
+                    issuer: $issuer === '' ? null : $issuer,
+                    // Bound HTTP staleness for both scheduled activation and emergency revocation.
+                    metadataCacheLifetime: min($refreshInterval, $this->config->integer('passport.key_activation_delay') - $refreshInterval),
+                ));
                 $this->storedKeyIds = $identifiers;
             }
 

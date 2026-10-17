@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Passport;
 
 use Hypervel\Passport\Bridge\AuthorizationServer;
+use Hypervel\Passport\Bridge\BearerTokenValidator;
 use Hypervel\Passport\Bridge\ParsedKey;
 use Hypervel\Passport\Bridge\SigningCryptKey;
 use Hypervel\Support\CarbonImmutable;
@@ -29,6 +30,8 @@ class ServerEntry
     public array $personalAccessServers = [];
 
     public ?ResourceServer $resourceServer = null;
+
+    public ?BearerTokenValidator $tokenValidator = null;
 
     /**
      * Keep a settings set and its parsed keys for reuse by the worker.

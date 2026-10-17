@@ -214,6 +214,7 @@ class ServerFactoryTest extends TestCase
         $servers = $this->app->make(ServerFactory::class);
         DB::enableQueryLog();
         $entry = $servers->entry();
+        $this->assertSame(60, $entry->settings->metadataCacheLifetime);
         $this->assertCount(1, DB::getQueryLog());
         $this->assertSame($entry, $servers->entry());
         $this->assertCount(1, DB::getQueryLog());
