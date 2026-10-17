@@ -141,14 +141,25 @@ class StdioTransport implements Transport
      */
     protected function readNextLine(Process $process): string
     {
-        $receiveStartedAt = microtime(true);
-        $process->setIdleTimeout($this->timeoutSeconds + max(0.0, $receiveStartedAt - $process->getLastOutputTime()));
+        $deadline = $this->timeoutSeconds > 0 ? microtime(true) + $this->timeoutSeconds : null;
+        // Start a fresh wait for retained output, and preserve zero as no timeout.
+        $process->setIdleTimeout($deadline === null ? $this->timeoutSeconds : $deadline - $process->getLastOutputTime());
         ConnectionResolver::releaseIdleConnections();
 
         try {
-            // Retained output must not count the time spent idle between receive calls.
             foreach ($process->getIterator() as $type => $chunk) {
-                $process->setIdleTimeout($this->timeoutSeconds + max(0.0, $receiveStartedAt - $process->getLastOutputTime()));
+                if ($deadline !== null) {
+                    $now = microtime(true);
+
+                    if ($type === Process::OUT) {
+                        $deadline = $now + $this->timeoutSeconds;
+                    } elseif ($now >= $deadline) {
+                        throw new ProcessTimedOutException($process, ProcessTimedOutException::TYPE_IDLE);
+                    }
+
+                    // Symfony counts stderr as activity; only protocol output extends this deadline.
+                    $process->setIdleTimeout($deadline - $process->getLastOutputTime());
+                }
 
                 if ($type === Process::ERR) {
                     $this->stderr = substr($this->stderr . $chunk, -self::STDERR_LIMIT);

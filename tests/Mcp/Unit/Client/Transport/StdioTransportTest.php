@@ -194,6 +194,33 @@ class StdioTransportTest extends TestCase
         }
     }
 
+    public function testStderrDoesNotExtendTheResponseTimeout(): void
+    {
+        $transport = new InspectableStdioTransport('noisy');
+        $transport->setTimeoutSeconds(0.2);
+
+        try {
+            $transport->connect();
+            $this->expectException(TimeoutException::class);
+            $transport->receive();
+        } finally {
+            $transport->disconnect();
+        }
+    }
+
+    public function testZeroTimeoutAllowsADelayedResponseAfterStderr(): void
+    {
+        $transport = new InspectableStdioTransport('delayed');
+        $transport->setTimeoutSeconds(0);
+
+        try {
+            $transport->connect();
+            $this->assertSame("ready\n", $transport->receive());
+        } finally {
+            $transport->disconnect();
+        }
+    }
+
     public function testDisconnectDetachesOwnedStateBeforePropagatingCancellation(): void
     {
         $cancellation = new CanceledException('Stop canceled.');

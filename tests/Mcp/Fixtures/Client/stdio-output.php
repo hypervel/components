@@ -43,6 +43,17 @@ switch ($argv[1]) {
     case 'silent':
         sleep(5);
         break;
+    case 'noisy':
+        for ($index = 0; $index < 40; ++$index) {
+            fwrite(STDERR, "heartbeat\n");
+            usleep(50000);
+        }
+        break;
+    case 'delayed':
+        fwrite(STDERR, "preparing response\n");
+        usleep(250000);
+        fwrite(STDOUT, "ready\n");
+        break;
     case 'protocol':
         $discovery = json_decode(fgets(STDIN), true, flags: JSON_THROW_ON_ERROR);
         fwrite(STDOUT, json_encode([
