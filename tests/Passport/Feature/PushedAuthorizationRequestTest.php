@@ -135,19 +135,18 @@ class PushedAuthorizationRequestTest extends PassportTestCase
         $this->assertDatabaseCount('oauth_pushed_authorization_requests', 1);
     }
 
-    #[TestWith(['client_secret', 'wrong', 'invalid_client'])]
-    #[TestWith(['request_uri', 'urn:example:existing', 'invalid_request'])]
-    #[TestWith(['scope', 'unknown', 'invalid_scope'])]
-    #[TestWith(['scope', 'write', 'invalid_scope'])]
-    #[TestWith(['response_mode', 'fragment', 'invalid_request'])]
-    #[TestWith(['prompt', 'none login', 'invalid_request'])]
-    #[TestWith(['resource', 'https://unknown.example', 'invalid_target'])]
-    public function testInvalidPushesReturnJsonWithoutRedirecting(string $name, string $value, string $error): void
+    #[TestWith(['client_secret', 'wrong', 'invalid_client', 401])]
+    #[TestWith(['request_uri', 'urn:example:existing', 'invalid_request', 400])]
+    #[TestWith(['scope', 'unknown', 'invalid_scope', 400])]
+    #[TestWith(['scope', 'write', 'invalid_scope', 400])]
+    #[TestWith(['response_mode', 'fragment', 'invalid_request', 400])]
+    #[TestWith(['prompt', 'none login', 'invalid_request', 400])]
+    #[TestWith(['resource', 'https://unknown.example', 'invalid_target', 400])]
+    public function testInvalidPushesReturnJsonWithoutRedirecting(string $name, string $value, string $error, int $status): void
     {
         $client = ClientFactory::new()->create(['scopes' => ['read']]);
         $response = $this->push($client, [$name => $value]);
-        $this->assertGreaterThanOrEqual(400, $response->status());
-        $response->assertJsonPath('error', $error)->assertHeaderMissing('Location');
+        $response->assertStatus($status)->assertJsonPath('error', $error)->assertHeaderMissing('Location');
         $this->assertDatabaseCount('oauth_pushed_authorization_requests', 0);
     }
 
