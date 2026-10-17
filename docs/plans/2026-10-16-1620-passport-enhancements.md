@@ -1,6 +1,6 @@
 # Passport consent and OAuth server enhancements
 
-Status: all planned features are implemented and verified. Complete the final cross-feature review. The deliberate route, authorization-hook, consent, token-claim and schema changes, including DPoP bindings on individual refresh rows, are approved. DPoP's additional verification and replay-store cost is approved for requests using that opt-in feature.
+Status: all planned features are implemented, verified and reviewed, including cross-feature behavior. The deliberate route, authorization-hook, consent, token-claim and schema changes, including DPoP bindings on individual refresh rows, are approved. DPoP's additional verification and replay-store cost is approved for requests using that opt-in feature.
 
 ## 1. Purpose and boundaries
 
