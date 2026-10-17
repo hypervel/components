@@ -27,6 +27,7 @@ class AuthorizationFinalizer
         protected ConsentRepository $consents,
         protected ClientRepository $clients,
         protected Dispatcher $events,
+        protected ResourceRepository $resources,
     ) {
     }
 
@@ -50,6 +51,15 @@ class AuthorizationFinalizer
         $selected = $approval === AuthorizationApproval::Prompt
             ? $this->selection($request, $presented)
             : $presented;
+
+        if (isset($presented['permissions']['resources'])) {
+            if (empty($selected['permissions']['resources'])) {
+                throw OAuthServerException::accessDenied('No resource was approved.');
+            }
+
+            $this->resources->validate(array_keys($selected['permissions']['resources']));
+        }
+
         $duration = $pending['remember_consent_for'] === null ? null : DateInterval::__set_state($pending['remember_consent_for']);
 
         if ($approval === AuthorizationApproval::Prompt && array_key_exists('remember', $request->all())) {
@@ -111,6 +121,7 @@ class AuthorizationFinalizer
                 'consent_id' => $consent->getKey(),
             ]);
             $issuance->approvedScopes = $selected['scopes'];
+            $issuance->resources = $selected['permissions']['resources'] ?? null;
 
             if ($authorization instanceof AuthorizationRequestInterface) {
                 $authorization->setScopes(array_values(array_filter(
@@ -160,6 +171,11 @@ class AuthorizationFinalizer
             } else {
                 $permissions[$namespace] = $this->selectedValues($values, $presented['permissions'][$namespace], 'permissions');
             }
+        }
+
+        if (isset($presented['permissions']['resources'])) {
+            $resourceScopes = array_merge([], ...array_values($permissions['resources'] ?? []));
+            $scopes = array_values(array_intersect($scopes, $resourceScopes));
         }
 
         return ['scopes' => $scopes, 'permissions' => $permissions];

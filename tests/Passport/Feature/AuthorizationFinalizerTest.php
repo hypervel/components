@@ -230,7 +230,7 @@ class AuthorizationFinalizerTest extends PassportTestCase
         $finalizer->approve(Request::create('/'), $authorization, $pending, $user, AuthorizationApproval::Policy, static fn (): bool => true);
         $consent = Consent::sole();
         $this->assertFalse($consent->isRemembered());
-        $this->assertSame([], $consent->scopes);
+        $this->assertNull($consent->scopes);
 
         $consent->update(['remembered_until' => null, 'scopes' => ['read']]);
         $finalizer->approve(Request::create('/'), $authorization, $pending, $user, AuthorizationApproval::Policy, static fn (): bool => true);
