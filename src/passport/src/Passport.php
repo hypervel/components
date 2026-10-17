@@ -299,6 +299,13 @@ class Passport
     public static ?Closure $introspectionAuthorizationCallback = null;
 
     /**
+     * The callback resolving protected-resource discovery for an authentication challenge.
+     *
+     * @var null|(Closure(Request): ?string)
+     */
+    public static ?Closure $resourceMetadataCallback = null;
+
+    /**
      * The grant attributes inherited by issued credentials.
      *
      * @var list<string>
@@ -1023,6 +1030,18 @@ class Passport
     }
 
     /**
+     * Specify the callback resolving protected-resource metadata for authentication challenges.
+     *
+     * Boot-only. The callback persists in a static property and affects every authentication challenge on the worker.
+     *
+     * @param null|(Closure(Request): ?string) $callback
+     */
+    public static function resolveResourceMetadataUsing(?Closure $callback): void
+    {
+        static::$resourceMetadataCallback = $callback;
+    }
+
+    /**
      * Specify grant attributes to carry into issued tokens.
      *
      * Boot-only. The attribute list persists in a static property and affects every issuance on the worker.
@@ -1265,6 +1284,7 @@ class Passport
         static::$accessTokenAuthenticationCallback = null;
         static::$clientAuthenticationCallback = null;
         static::$introspectionAuthorizationCallback = null;
+        static::$resourceMetadataCallback = null;
         static::$inheritedGrantAttributes = self::DEFAULT_INHERITED_GRANT_ATTRIBUTES;
         static::$cookieBindingCallback = null;
         static::$accessTokenClaimsCallback = null;

@@ -26,7 +26,9 @@
     - [Scheduling](#scheduling)
     - [Maintenance Mode](#maintenance-mode)
     - [HTTP Client and Concurrency](#http-client-and-concurrency)
+    - [Streamed Responses](#streamed-responses)
     - [AI SDK](#ai-sdk)
+    - [MCP](#mcp)
     - [Saloon](#saloon)
     - [Broadcasting](#broadcasting)
     - [JSON:API Resources](#jsonapi-resources)
@@ -521,6 +523,11 @@ Hypervel installs `hypervel/guzzle`, a Guzzle 8 fork that replaces `guzzlehttp/g
 
 Hypervel's `Concurrency` facade provides `coroutine`, `process`, and `sync` drivers. Laravel's `fork` driver is not available because coroutines are Hypervel's native lightweight execution model. Use the default `coroutine` driver for normal concurrent application work and reserve `process` for work that requires operating system process isolation. See the [concurrency documentation](/docs/{{version}}/concurrency#choosing-a-driver).
 
+<a name="streamed-responses"></a>
+### Streamed Responses
+
+`connection_aborted()` does not report Swoole client disconnects. Replace loops that rely on it with a generator callback passed to `response()->stream()`, or an `IterableStreamedResponse`. See [Canceling Disconnected Streams](/docs/{{version}}/responses#canceling-disconnected-streams) to also cancel production during a wait.
+
 <a name="ai-sdk"></a>
 ### AI SDK
 
@@ -537,6 +544,29 @@ Skill definitions in `resources/skills` are cached across requests. If your appl
 Existing conversation data needs a schema migration. Compare column types and indexes with Hypervel's migration, add the approval claim and replay columns, and resolve messages whose conversations no longer exist before adding the foreign key. See [migrating conversation data](/docs/{{version}}/ai-sdk#migrating-conversation-data).
 
 Custom conversation stores must implement `ClaimsPendingApprovals` to resume stored approvals. Move overrides of the removed `ResumesToolApprovals::storeApprovalResultRecorderFor()` into your store's `ClaimsPendingApprovals::recordApprovalResult()` method. In `RememberConversation` subclasses, replace `openTurn()` overrides with `rememberTurn(): StoredTurn`. See [custom conversation stores](/docs/{{version}}/ai-sdk#custom-conversation-stores).
+
+<a name="mcp"></a>
+### MCP
+
+For direct browser clients from another origin, add their origins to `mcp.allowed_origins`; `app.url` is allowed automatically. See [allowed origins](/docs/{{version}}/mcp#allowed-origins).
+
+Local OAuth discovery is served by Passport's `passport.metadata` route, using its explicitly configured HTTPS issuer. Replace references to `mcp.oauth.register` with `passport.clients.register`; MCP no longer defines authorization-server metadata routes. Choose one registration endpoint, using `Mcp::oauthRoutes(registration: false)` with native Passport registration or an external server. Register MCP resource identifiers in Passport and enforce both audience and `mcp:use` on the MCP routes. See [OAuth setup](/docs/{{version}}/mcp#oauth).
+
+Republish `mcp-views` or update your published `mcp/authorize.blade.php` to display the callback destination and requested resources and remove window-closing timers that can interrupt callback delivery. See [authorization view setup](/docs/{{version}}/mcp#oauth).
+
+MCP's anonymous client registrations receive explicit scope allowances from `passport.registration.scopes` plus `mcp:use`. Imported client schemas need the nullable JSONB `scopes` column and boolean `third_party` column. The wildcard redirect allowance accepts HTTPS and HTTP loopback callbacks; remote HTTP callbacks require explicit administrator configuration. See [registration policy](/docs/{{version}}/mcp#oauth).
+
+OAuth clients check resolved destinations before sending, including when HTTP responses are faked. Explicitly allow private DNS destinations and substitute DNS for invented test hostnames; see [OAuth destinations](/docs/{{version}}/mcp#oauth-destinations) and [OAuth tests](/docs/{{version}}/mcp#testing-oauth). The Inspector also keeps HTTPS verification enabled; configure `NODE_EXTRA_CA_CERTS` for locally issued certificates.
+
+If an OAuth client relies on Laravel's implicit `mcp:use` scope and the remote server does not advertise it, configure `withOAuth(scope: 'mcp:use')` explicitly. Hypervel otherwise uses the remote server's advertised scopes; see [OAuth scopes](/docs/{{version}}/mcp#client-oauth-scopes).
+
+Use `redirect()->signedRoute()` when forwarding `resource_metadata` or `scope` to an MCP client's connect route. Unsigned hints are rejected to prevent credential disclosure through substituted discovery metadata; see [authorization challenges](/docs/{{version}}/mcp#client-oauth-scopes).
+
+Modern HTTP streams cancel on client disconnect. Review handlers that perform side effects while streaming and ensure their cleanup runs on cancellation; legacy streams still finish. See [streaming responses](/docs/{{version}}/mcp#streaming-responses).
+
+Reformat `LastModified` attribute values as complete date-times with seconds and a timezone, such as `2025-01-12T15:00:58Z`. Other ISO 8601 representations accepted by Laravel are rejected to keep responses compatible with TypeScript-SDK clients. See [resource annotations](/docs/{{version}}/mcp#resource-annotations).
+
+If subclasses redeclare protected properties, use `mixed` for `JsonRpcException::$data` and `?Hypervel\Mcp\Client\Transport\StdioInput` for the client `StdioTransport::$input`. Error data preserves all JSON values, and stdio uses a live input queue so notifications can be sent without waiting for the next request.
 
 <a name="saloon"></a>
 ### Saloon
@@ -587,6 +617,8 @@ Consent forms still use the named `passport.authorizations.approve` and `passpor
 Clients must serialize refresh requests: reusing a refresh token revokes its grant. Rotation can only be disabled for confidential clients or public clients using [DPoP-bound refresh tokens](/docs/{{version}}/passport#proof-bound-tokens). Keep the token endpoint outside application transactions, including transaction-per-request middleware. Credential, consent, pushed-authorization-request and database signing-key models must share a connection; clients and users may use separate connections.
 
 Confidential device clients must authenticate when requesting a device code, as well as when polling the token endpoint. Include their client secret or use their registered authentication method. See [the device authorization grant](/docs/{{version}}/passport#device-authorization-grant).
+
+Imported client tables also need the nullable JSONB `scopes` column and boolean `third_party` column, defaulting to `false`. Set `third_party` to `true` for externally registered clients so `firstParty()` does not classify them as trusted merely because they have no owner. See [consent](/docs/{{version}}/passport#approving-the-request).
 
 Restart the server and other long-running processes after changing file or environment signing keys. `server:reload` is not sufficient. See [signing-key rotation](/docs/{{version}}/passport#rotating-signing-keys).
 

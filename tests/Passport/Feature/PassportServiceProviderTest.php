@@ -130,6 +130,12 @@ class PassportServiceProviderTest extends PassportTestCase
         yield 'unbounded settings cache' => [
             ['passport.server_cache_size' => 0], 'Passport server cache size must be a positive integer.',
         ];
+        yield 'anonymous wildcard scope' => [
+            ['passport.registration.scopes' => ['*']], 'Passport anonymous registration scopes cannot include wildcard or provisioning scopes.',
+        ];
+        yield 'anonymous provisioning scope' => [
+            ['passport.registration.scopes' => ['passport:register']], 'Passport anonymous registration scopes cannot include wildcard or provisioning scopes.',
+        ];
         yield 'activation before refresh' => [
             ['passport.key_store' => 'database', 'passport.key_activation_delay' => 60],
             'Passport key activation delay must exceed a positive key refresh interval.',

@@ -9,6 +9,7 @@ use Countable;
 use Hypervel\Contracts\Process\InvokedProcess;
 use Hypervel\Support\Collection;
 use IteratorAggregate;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 use Traversable;
 
@@ -53,7 +54,10 @@ class InvokedProcessPool implements Countable, IteratorAggregate
                     $running[] = $process;
                 }
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                if ($exception === null
+                    || ($throwable instanceof CanceledException && ! $exception instanceof CanceledException)) {
+                    $exception = $throwable;
+                }
             }
 
             if (! $shouldStop) {
@@ -63,7 +67,10 @@ class InvokedProcessPool implements Countable, IteratorAggregate
             try {
                 $process->stop($timeout, $signal);
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                if ($exception === null
+                    || ($throwable instanceof CanceledException && ! $exception instanceof CanceledException)) {
+                    $exception = $throwable;
+                }
             }
         }
 
@@ -100,8 +107,10 @@ class InvokedProcessPool implements Countable, IteratorAggregate
             try {
                 // Stopping bounds cleanup when a sibling depends on external progress that may never arrive.
                 $this->stop(0);
-            } catch (Throwable) {
-                // Preserve the wait failure.
+            } catch (Throwable $cleanupException) {
+                if ($cleanupException instanceof CanceledException && ! $exception instanceof CanceledException) {
+                    throw $cleanupException;
+                }
             }
 
             throw $exception;

@@ -20,6 +20,7 @@ use SensitiveParameter;
  * @property string $id
  * @property null|int|string $owner_id
  * @property null|string $owner_type
+ * @property bool $third_party
  * @property string $name
  * @property null|string $secret
  * @property null|string $provider
@@ -33,7 +34,6 @@ use SensitiveParameter;
  * @property bool $dpop_bound_access_tokens
  * @property bool $require_pushed_authorization_requests
  * @property string $application_type
- * @property bool $dynamically_registered
  * @property bool $revoked
  * @property null|CarbonInterface $created_at
  * @property null|CarbonInterface $updated_at
@@ -79,8 +79,8 @@ class Client extends Model
         'jwks' => 'array',
         'dpop_bound_access_tokens' => 'bool',
         'require_pushed_authorization_requests' => 'bool',
-        'dynamically_registered' => 'bool',
         'revoked' => 'bool',
+        'third_party' => 'bool',
     ];
 
     /**
@@ -182,8 +182,8 @@ class Client extends Model
      */
     public function firstParty(): bool
     {
-        // Ownerless dynamic registrations are external clients, not trusted application clients.
-        return $this->owner_id === null && $this->dynamically_registered !== true;
+        // Dynamically registered clients have no owner but are not trusted application clients.
+        return $this->owner_id === null && ! ($this->third_party ?? false);
     }
 
     /**

@@ -29,6 +29,7 @@
 - [Testing](#testing)
     - [Faking a Subset of Events](#faking-a-subset-of-events)
     - [Scoped Event Fakes](#scoped-event-fakes)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -1411,3 +1412,8 @@ class ExampleTest extends TestCase
     }
 }
 ```
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Events began as a port of [Laravel Events](https://github.com/illuminate/events) and has been adapted for Hypervel's framework architecture and coroutine runtime.

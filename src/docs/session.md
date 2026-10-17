@@ -17,6 +17,7 @@
 - [Adding Custom Session Drivers](#adding-custom-session-drivers)
     - [Implementing the Driver](#implementing-the-driver)
     - [Registering the Driver](#registering-the-driver)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -626,3 +627,8 @@ class SessionServiceProvider extends ServiceProvider
 ```
 
 Once the session driver has been registered, you may specify the `custom` driver as your application's session driver using the `SESSION_DRIVER` environment variable or within the application's `config/session.php` configuration file.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Session began as a port of [Laravel Session](https://github.com/illuminate/session) and has been adapted for Hypervel's framework architecture and coroutine runtime.

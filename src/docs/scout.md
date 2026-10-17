@@ -38,6 +38,7 @@
     - [Soft Deleting](#soft-deleting)
     - [Customizing Engine Searches](#customizing-engine-searches)
 - [Custom Engines](#custom-engines)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -1630,3 +1631,8 @@ Once your engine has been registered, you may specify it as your default Scout `
 ```php
 'driver' => 'mysql',
 ```
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Scout began as a port of [Laravel Scout](https://github.com/laravel/scout) and has been adapted for Hypervel's framework architecture and coroutine runtime.

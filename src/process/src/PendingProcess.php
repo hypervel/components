@@ -17,6 +17,7 @@ use Hypervel\Support\Traits\Conditionable;
 use LogicException;
 use RuntimeException;
 use Stringable;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Process\Exception\ProcessTimedOutException as SymfonyTimeoutException;
 use Symfony\Component\Process\Process;
 use Throwable;
@@ -232,6 +233,8 @@ class PendingProcess
             return new ProcessResult(tap($process)->run($this->guardProcessOutput($process, $output))); // @phpstan-ignore method.notFound (tap proxy __call)
         } catch (SymfonyTimeoutException $e) {
             throw ProcessTimedOutException::make($e, new ProcessResult($process));
+        } catch (Throwable $exception) {
+            $this->stopAfterFailure($process, $exception);
         }
     }
 
@@ -257,7 +260,27 @@ class PendingProcess
             throw new RuntimeException('Attempted process [' . $command . '] without a matching fake.');
         }
 
-        return new InvokedProcess(tap($process)->start($this->guardProcessOutput($process, $output))); // @phpstan-ignore method.notFound (tap proxy __call)
+        try {
+            return new InvokedProcess(tap($process)->start($this->guardProcessOutput($process, $output))); // @phpstan-ignore method.notFound (tap proxy __call)
+        } catch (Throwable $exception) {
+            $this->stopAfterFailure($process, $exception);
+        }
+    }
+
+    /**
+     * Stop an owned child before propagating an execution failure.
+     */
+    private function stopAfterFailure(Process $process, Throwable $exception): never
+    {
+        try {
+            (new InvokedProcess($process))->stop(0);
+        } catch (Throwable $cleanupException) {
+            if ($cleanupException instanceof CanceledException && ! $exception instanceof CanceledException) {
+                throw $cleanupException;
+            }
+        }
+
+        throw $exception;
     }
 
     /**

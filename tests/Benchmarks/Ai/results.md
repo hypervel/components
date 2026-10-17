@@ -4,6 +4,8 @@ Measured on October 15, 2026, from the AI branch at `b15a346d2` with the streami
 
 The host was Linux x86-64 on an Intel Core i7-7700 at 3.60 GHz, with six logical CPUs exposed. Installed libraries included Guzzle 8.2.0, PSR-7 3.1.0 and AWS SDK 3.401.2; native cURL was 8.5.0 with OpenSSL 3.0.13. CPU excludes separate service processes. Repeated streaming and broadcasting comparisons used ten alternating process pairs; the Scout transaction experiment used five pairs with three measured samples per input mode. Tables show medians rather than selected fastest runs.
 
+The later [shared buffered-reader comparison](../Mcp/results.md#shared-buffered-line-reader) measures AI SSE, Ollama NDJSON, MCP SSE and HTTP response lines after the Guzzle fallback fix became available. The historical bytewise/bulk-read comparisons below retain their original dependencies and scope.
+
 ## Streaming and import findings
 
 - Eliminating response-reference cycles and repeated receive-buffer copying preserves replay and incremental delivery while reducing CPU and retained heap. The combined measurements are below; the framework-only receive-buffer comparison is recorded separately in the HTTP transport benchmark results.

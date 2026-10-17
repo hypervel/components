@@ -50,6 +50,44 @@ class AuthenticationChallengeTest extends PassportTestCase
             ->assertHeader('WWW-Authenticate', 'Bearer');
     }
 
+    public function testApplicationChallengesAreNotReplaced(): void
+    {
+        Route::get('/protected', static fn (): string => 'Allowed')->middleware('auth:passport');
+        $this->app->make(ExceptionHandler::class)->renderable(static fn (AuthenticationException $exception): JsonResponse => new JsonResponse(
+            ['message' => 'Please sign in'],
+            401,
+            ['WWW-Authenticate' => 'Bearer realm="application"'],
+        ));
+
+        $this->getJson('/protected')->assertUnauthorized()->assertHeader('WWW-Authenticate', 'Bearer realm="application"');
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testSuccessfulRequestsDoNotResolveChallengesAfterAnEmptyGuardLookup(bool $anotherGuard): void
+    {
+        $calls = 0;
+        Passport::resolveResourceMetadataUsing(static function (Request $request) use (&$calls): ?string {
+            ++$calls;
+
+            return 'https://resource.example/metadata';
+        });
+
+        if ($anotherGuard) {
+            $this->actingAs(new User, 'web');
+            Route::get('/optional', static fn (): string => 'Allowed')->middleware('auth:passport,web');
+        } else {
+            Route::get('/optional', function (): string {
+                $this->assertNull($this->app->make('auth')->guard('passport')->user());
+
+                return 'Allowed';
+            });
+        }
+
+        $this->getJson('/optional')->assertOk()->assertHeaderMissing('WWW-Authenticate');
+        $this->assertSame(0, $calls);
+    }
+
     public function testScopeFailuresReceiveChallengesThroughTheHttpExceptionWrapper(): void
     {
         Passport::actingAs(new User, [], 'passport');

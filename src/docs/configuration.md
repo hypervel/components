@@ -14,6 +14,7 @@
 - [Configuration Publishing](#configuration-publishing)
 - [Debug Mode](#debug-mode)
 - [Maintenance Mode](#maintenance-mode)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -540,3 +541,8 @@ php artisan up
 #### Maintenance Mode and Queues
 
 While your application is in maintenance mode, no [queued jobs](/docs/{{version}}/queues) will be handled. The jobs will continue to be handled as normal once the application is out of maintenance mode.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Config began as a port of [Laravel Config](https://github.com/illuminate/config) and has been adapted for Hypervel's framework architecture and coroutine runtime.

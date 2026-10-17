@@ -21,6 +21,7 @@
     - [Storing Uploaded Files](#storing-uploaded-files)
 - [Configuring Trusted Proxies](#configuring-trusted-proxies)
 - [Configuring Trusted Hosts](#configuring-trusted-hosts)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -1032,3 +1033,8 @@ The resolver runs during trusted host resolution for each request. In production
 Do not build trusted host patterns directly from the incoming `Host` header unless that host has first been verified against trusted application data.
 
 When `TrustHosts` is enabled, Hypervel rejects requests if no trusted host patterns can be resolved. Configure a valid application URL, `at` list, or resolver so legitimate hosts are trusted.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel HTTP began as a port of [Laravel HTTP](https://github.com/illuminate/http) and has been adapted for Hypervel's framework architecture and coroutine runtime.

@@ -12,6 +12,7 @@ use Hypervel\Http\Request;
 use Hypervel\Passport\Bridge\BearerRequestFactory;
 use Hypervel\Passport\Exceptions\MissingScopeException;
 use Hypervel\Passport\JwkValidator;
+use Hypervel\Passport\Passport;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
@@ -41,10 +42,14 @@ class AuthenticationChallenge
             $details .= ', scope="' . addcslashes(implode(' ', $scopes), '\"') . '"';
         }
 
-        $header = 'Bearer' . ($scheme === 'Bearer' ? $details : '');
+        $resourceMetadata = Passport::$resourceMetadataCallback === null ? null : (Passport::$resourceMetadataCallback)($request);
+        $metadata = $resourceMetadata === null ? '' : 'resource_metadata="' . addcslashes($resourceMetadata, '\"') . '"';
+        $header = 'Bearer' . ($metadata === '' ? '' : ' ' . $metadata)
+            . ($scheme === 'Bearer' && $details !== '' ? ($metadata === '' ? '' : ',') . $details : '');
 
         if ($this->config->boolean('passport.dpop.enabled')) {
             $header .= ', DPoP algs="' . implode(' ', JwkValidator::ALGORITHMS) . '"'
+                . ($metadata === '' ? '' : ', ' . $metadata)
                 . ($scheme === 'DPoP' && $details !== '' ? ',' . $details : '');
         }
 
@@ -57,16 +62,15 @@ class AuthenticationChallenge
     public function forGuard(Request $request, string $guard): void
     {
         $defaultGuard = $this->auth->getDefaultDriver();
-        $header = $this->header($request, 'invalid_token');
-
-        $this->exceptions->afterResponse(static function (Response $response, Throwable $exception, Request $renderedRequest) use ($request, $guard, $defaultGuard, $header): void {
-            if ($renderedRequest !== $request || $response->getStatusCode() !== 401 || ! $exception instanceof AuthenticationException) {
+        $this->exceptions->afterResponse(function (Response $response, Throwable $exception, Request $renderedRequest) use ($request, $guard, $defaultGuard): void {
+            if ($renderedRequest !== $request || $response->getStatusCode() !== 401 || ! $exception instanceof AuthenticationException
+                || $response->headers->has('WWW-Authenticate')) {
                 return;
             }
 
             foreach ($exception->guards() ?: [null] as $failedGuard) {
                 if (($failedGuard ?? $defaultGuard) === $guard) {
-                    $response->headers->set('WWW-Authenticate', $header);
+                    $response->headers->set('WWW-Authenticate', $this->header($request, 'invalid_token'));
 
                     return;
                 }
@@ -81,13 +85,16 @@ class AuthenticationChallenge
     {
         $scopeFailure = $exception instanceof MissingScopeException;
         $status = $scopeFailure ? 403 : 401;
-        $header = $this->header($request, $scopeFailure ? 'insufficient_scope' : 'invalid_token', $scopeFailure ? $exception->scopes() : []);
-
-        $this->exceptions->afterResponse(static function (Response $response, Throwable $renderedException, Request $renderedRequest) use ($request, $exception, $status, $header): void {
+        $this->exceptions->afterResponse(function (Response $response, Throwable $renderedException, Request $renderedRequest) use ($request, $exception, $status, $scopeFailure): void {
             // The handler wraps authorization exceptions in an HTTP exception before rendering.
             if ($renderedRequest === $request && $response->getStatusCode() === $status
+                && ! $response->headers->has('WWW-Authenticate')
                 && ($renderedException === $exception || $renderedException->getPrevious() === $exception)) {
-                $response->headers->set('WWW-Authenticate', $header);
+                $response->headers->set('WWW-Authenticate', $this->header(
+                    $request,
+                    $scopeFailure ? 'insufficient_scope' : 'invalid_token',
+                    $scopeFailure ? $exception->scopes() : [],
+                ));
             }
         });
     }

@@ -100,30 +100,7 @@ class Response implements ArrayAccess, Stringable
      */
     public function lines(): Generator
     {
-        $stream = $this->response->getBody();
-        $buffer = '';
-
-        while (! $stream->eof()) {
-            $chunk = $stream->read(8192);
-            $start = 0;
-
-            while (($end = strpos($chunk, "\n", $start)) !== false) {
-                $line = $buffer . substr($chunk, $start, $end - $start);
-                $buffer = '';
-
-                yield str_ends_with($line, "\r") ? substr($line, 0, -1) : $line;
-
-                // Release the untrimmed CRLF line before accumulating the next record.
-                unset($line);
-                $start = $end + 1;
-            }
-
-            $buffer .= substr($chunk, $start);
-        }
-
-        if ($buffer !== '') {
-            yield $buffer;
-        }
+        yield from LineReader::lines($this->response->getBody());
     }
 
     /**

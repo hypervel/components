@@ -15,6 +15,7 @@ return new class extends Migration {
         Schema::create('oauth_clients', function (Blueprint $table): void {
             $table->uuid('id')->primary();
             $table->nullableMorphs('owner');
+            $table->boolean('third_party')->default(false);
             $table->string('name');
             $table->string('secret')->nullable();
             $table->string('provider')->nullable();
@@ -28,7 +29,6 @@ return new class extends Migration {
             $table->boolean('dpop_bound_access_tokens')->default(false);
             $table->boolean('require_pushed_authorization_requests')->default(false);
             $table->string('application_type')->default('web');
-            $table->boolean('dynamically_registered')->default(false);
             $table->boolean('revoked');
             $table->timestamps();
         });

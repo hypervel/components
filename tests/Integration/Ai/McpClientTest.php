@@ -22,10 +22,6 @@ class McpClientTest extends TestCase
     #[DataProviderExternal(Providers::class, 'agents')]
     public function testEveryWeirdMcpToolFromTheEverythingServerWorksAcrossProviders(string $provider, string $apiKey, string $model): void
     {
-        if (! class_exists(Client::class)) {
-            $this->markTestSkipped('The optional MCP package is not installed.');
-        }
-
         requiresApiKey($apiKey);
         $this->requiresMcpServerEverything();
 

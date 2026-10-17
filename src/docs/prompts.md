@@ -32,6 +32,7 @@
 - [Terminal Considerations](#terminal-considerations)
 - [Unsupported Environments and Fallbacks](#fallbacks)
 - [Testing](#testing)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -1775,3 +1776,8 @@ public function test_report_generation(): void
         ->assertExitCode(0);
 }
 ```
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Prompts began as a port of [Laravel Prompts](https://github.com/laravel/prompts) and has been adapted for Hypervel's framework architecture and coroutine runtime.

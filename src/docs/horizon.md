@@ -23,6 +23,7 @@
 - [Metrics](#metrics)
 - [Deleting Failed Jobs](#deleting-failed-jobs)
 - [Clearing Jobs From Queues](#clearing-jobs-from-queues)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -866,3 +867,8 @@ php artisan horizon:clear redis --queue=emails
 ```
 
 If multiple connections share the same Redis queue, clearing it removes all jobs from that queue. Horizon removes dashboard records for the selected connection; records for the other connections remain until they expire and are trimmed.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Horizon began as a port of [Laravel Horizon](https://github.com/laravel/horizon) and has been adapted for Hypervel's framework architecture and coroutine runtime.

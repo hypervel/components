@@ -48,10 +48,13 @@ final class ClientTest extends TestCase
 
     #[TestWith([['owner_id' => null], true])]
     #[TestWith([['owner_id' => 0], false])]
-    #[TestWith([['owner_id' => null, 'dynamically_registered' => true], false])]
-    public function testFirstPartyClientsExcludeOwnedAndDynamicallyRegisteredClients(array $attributes, bool $expected): void
+    #[TestWith([['owner_id' => 1, 'third_party' => false], false])]
+    #[TestWith([['owner_id' => null, 'third_party' => false], true])]
+    #[TestWith([['owner_id' => null, 'third_party' => true], false])]
+    public function testFirstPartyClientsExcludeOwnedAndThirdPartyClients(array $attributes, bool $expected): void
     {
         $client = new Client($attributes);
+        $client->exists = true;
 
         $this->assertSame($expected, $client->firstParty());
     }

@@ -5,14 +5,19 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Ai;
 
 use GuzzleHttp\Exception\TransferException;
+use Hypervel\Ai\AiManager;
 use Hypervel\Ai\Streaming\Events\StreamEnd;
 use Hypervel\Ai\Streaming\Events\TextDelta;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine;
+use Hypervel\Support\Facades\Http;
+use Hypervel\Tests\Ai\Fixtures\Agents\OllamaAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\OpenAiAgent;
 use Hypervel\Tests\Ai\Fixtures\OpenAiHelpers;
 use Hypervel\Tests\Http\Fixtures\LoopbackHttpServer;
+use Hypervel\Tests\Http\Fixtures\StreamingHttpFactory;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use Swoole\Coroutine\CanceledException;
 use Swoole\Coroutine\Socket;
 use Throwable;
@@ -21,14 +26,33 @@ class HttpStreamingTest extends TestCase
 {
     use OpenAiHelpers;
 
-    public function testProviderTextArrivesBeforeCompletionAndCanBeReplayed(): void
+    #[TestWith([true, 'openai'])]
+    #[TestWith([false, 'openai'])]
+    #[TestWith([true, 'ollama'])]
+    #[TestWith([false, 'ollama'])]
+    public function testProviderTextArrivesBeforeCompletionAndCanBeReplayed(bool $native, string $provider): void
     {
+        Http::swap((new StreamingHttpFactory($native))->registerConnection(AiManager::HTTP_CONNECTION));
         $release = new Channel(1);
-        $first = $this->ssePayload([$this->responseCreated(), $this->outputTextDelta('Hello')]);
-        $last = $this->ssePayload([$this->outputTextDelta(' world'), $this->outputTextDone('Hello world'), $this->responseCompleted(2, 2)]);
+        [$agent, $first, $last, $contentType, $requestLine] = match ($provider) {
+            'openai' => [
+                new OpenAiAgent,
+                $this->ssePayload([$this->responseCreated(), $this->outputTextDelta('Hello')]),
+                $this->ssePayload([$this->outputTextDelta(' world'), $this->outputTextDone('Hello world'), $this->responseCompleted(2, 2)]),
+                'text/event-stream',
+                'POST /responses HTTP/1.1',
+            ],
+            'ollama' => [
+                new OllamaAgent,
+                "{\"model\":\"mock\",\"message\":{\"role\":\"assistant\",\"content\":\"Hello\"},\"done\":false}\n",
+                "{\"model\":\"mock\",\"message\":{\"role\":\"assistant\",\"content\":\" world\"},\"done\":true,\"done_reason\":\"stop\",\"prompt_eval_count\":2,\"eval_count\":2}\n",
+                'application/x-ndjson',
+                'POST /api/chat HTTP/1.1',
+            ],
+        };
         $server = LoopbackHttpServer::start([
-            static function (Socket $client) use ($first, $last, $release): void {
-                $client->sendAll("HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nContent-Length: " . strlen($first . $last) . "\r\nConnection: close\r\n\r\n" . $first);
+            static function (Socket $client) use ($first, $last, $release, $contentType): void {
+                $client->sendAll("HTTP/1.1 200 OK\r\nContent-Type: {$contentType}\r\nContent-Length: " . strlen($first . $last) . "\r\nConnection: close\r\n\r\n" . $first);
 
                 // Waiting for completion before yielding text would time out here and truncate the response.
                 if ($release->pop(2) === true) {
@@ -36,9 +60,9 @@ class HttpStreamingTest extends TestCase
                 }
             },
         ]);
-        $this->useProviderServer($server);
+        $this->useProviderServer($server, $provider);
 
-        $response = (new OpenAiAgent)->stream('Hello');
+        $response = $agent->stream('Hello', model: 'mock');
         $events = [];
 
         try {
@@ -56,7 +80,7 @@ class HttpStreamingTest extends TestCase
         $this->assertInstanceOf(StreamEnd::class, $events[array_key_last($events)]);
         $this->assertSame('Hello world', $response->text);
         $this->assertSame($events, iterator_to_array($response));
-        $this->assertStringContainsString('POST /responses HTTP/1.1', $server->request());
+        $this->assertStringContainsString($requestLine, $server->request());
     }
 
     public function testAbandoningConsumptionClosesTheProviderConnection(): void
@@ -238,10 +262,10 @@ class HttpStreamingTest extends TestCase
     }
 
     /**
-     * Point the OpenAI provider at the loopback server.
+     * Point the provider at the loopback server.
      */
-    private function useProviderServer(LoopbackHttpServer $server): void
+    private function useProviderServer(LoopbackHttpServer $server, string $provider = 'openai'): void
     {
-        config(['ai.providers.openai.key' => 'test-key', 'ai.providers.openai.url' => 'http://127.0.0.1:' . $server->port]);
+        config(["ai.providers.{$provider}.key" => 'test-key', "ai.providers.{$provider}.url" => 'http://127.0.0.1:' . $server->port]);
     }
 }

@@ -64,7 +64,8 @@ class PushedAuthorizationRequestTest extends PassportTestCase
             'redirect_uri' => 'https://attacker.example/callback', 'state' => 'replaced',
             'resource' => 'https://attacker.example',
         ]);
-        $consent = $this->get($url)->assertOk()->assertJsonPath('scopes.0.id', 'read')->json('authToken');
+        $consent = $this->get($url)->assertOk()->assertJsonPath('scopes.0.id', 'read')
+            ->assertJsonPath('redirectUri', $client->redirect_uris[0])->json('authToken');
         $this->assertDatabaseCount('oauth_pushed_authorization_requests', 0);
         $this->assertFalse($contexts[1][0]);
         $this->assertSame($contexts[0][1], $contexts[1][1]);
@@ -89,7 +90,7 @@ class PushedAuthorizationRequestTest extends PassportTestCase
         $this->assertStringNotContainsString('request_uri', $resume);
         $this->get($resume)->assertRedirectToRoute('login');
         $this->actingAs(UserFactory::new()->create(), 'web');
-        $token = $this->get($resume)->assertOk()->json('authToken');
+        $token = $this->get($resume)->assertOk()->assertJsonPath('redirectUri', $client->redirect_uris[0])->json('authToken');
         $location = $this->post('/oauth/authorize/consent', ['auth_token' => $token])->assertRedirect()->headers->get('Location');
         $this->assertDatabaseCount('oauth_auth_codes', 1);
         parse_str(parse_url($location, PHP_URL_QUERY), $parameters);

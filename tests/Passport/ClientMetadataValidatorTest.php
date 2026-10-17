@@ -154,7 +154,7 @@ class ClientMetadataValidatorTest extends TestCase
     #[TestWith(['scope'])]
     #[TestWith(['secret'])]
     #[TestWith(['owner_id'])]
-    #[TestWith(['dynamically_registered'])]
+    #[TestWith(['third_party'])]
     public function testExtensionsCannotOverrideCoreMetadataOrOwnership(string $name): void
     {
         Event::listen(ClientMetadataValidated::class, static function (ClientMetadataValidated $event) use ($name): void {

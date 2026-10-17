@@ -74,7 +74,7 @@ class ClientRegistrationTest extends PassportTestCase
         $response = $this->postJson('/oauth/register', [
             'client_name' => 'Calendar', 'redirect_uris' => ['https://client.example/callback'], 'scope' => 'read',
             'owner_id' => 123, 'provider' => 'staff', 'secret' => 'injected', 'unknown' => 'ignored',
-            'dynamically_registered' => false,
+            'third_party' => false,
             'require_pushed_authorization_requests' => true,
         ])->assertCreated()->assertHeader('Cache-Control', 'no-store, private')
             ->assertJsonPath('token_endpoint_auth_method', 'client_secret_basic')
@@ -83,14 +83,14 @@ class ClientRegistrationTest extends PassportTestCase
             ->assertJsonPath('response_types', ['code'])
             ->assertJsonPath('client_secret_expires_at', 0)
             ->assertJsonMissingPath('owner_id')->assertJsonMissingPath('provider')->assertJsonMissingPath('secret')
-            ->assertJsonMissingPath('unknown')->assertJsonMissingPath('dynamically_registered');
+            ->assertJsonMissingPath('unknown')->assertJsonMissingPath('third_party');
         $client = Client::findOrFail($response->json('client_id'));
 
         $this->assertSame('Calendar', $client->name);
         $this->assertSame(['read'], $client->scopes);
         $this->assertNull($client->owner_id);
         $this->assertNull($client->provider);
-        $this->assertTrue($client->dynamically_registered);
+        $this->assertTrue($client->third_party);
         $this->assertTrue($client->require_pushed_authorization_requests);
         $this->assertFalse($client->firstParty());
         $this->assertTrue($client->secretMatches($response->json('client_secret')));
@@ -143,8 +143,6 @@ class ClientRegistrationTest extends PassportTestCase
     #[TestWith(['scope', '*'])]
     public function testAnonymousRegistrationCannotGrantPrivilegedScopesOrGrants(string $name, mixed $value): void
     {
-        // Even a mistakenly broad anonymous ceiling cannot expose the reserved provisioning scope.
-        config(['passport.registration.scopes' => ['read', 'passport:register', '*']]);
         $this->postJson('/oauth/register', [
             'redirect_uris' => ['https://client.example/callback'], $name => $value,
         ])->assertBadRequest()->assertJsonPath('error', 'invalid_client_metadata');
@@ -246,7 +244,7 @@ class ClientRegistrationTest extends PassportTestCase
         $client = Client::findOrFail($response->json('client_id'));
         $this->assertNull($client->owner_id);
 
-        $this->assertTrue($client->dynamically_registered);
+        $this->assertTrue($client->third_party);
         $this->assertFalse($client->firstParty());
 
         $this->withoutToken()->post('/oauth/token', [
@@ -270,7 +268,7 @@ class ClientRegistrationTest extends PassportTestCase
         ])->assertCreated();
         $client = Client::findOrFail($response->json('client_id'));
         $this->assertTrue($client->owner->is($owner));
-        $this->assertTrue($client->dynamically_registered);
+        $this->assertTrue($client->third_party);
         $this->assertFalse($client->firstParty());
 
         $owner->delete();

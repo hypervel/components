@@ -10,6 +10,7 @@
 - [Registering Aspects](#registering-aspects)
 - [Proxy Generation](#proxy-generation)
 - [Testing Aspects](#testing-aspects)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -285,3 +286,8 @@ class ProfileReportsTest extends TestCase
 The `unseal` method reopens registration for this test while keeping the application's existing aspects. It does not change classes that have already been loaded, so only use it in tests. Aspects registered by a test are removed before the next test runs.
 
 The `callWithAspects` method expects an object that has not already been proxied. If the object is already proxied, call the method normally instead.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel AOP began as a port of [Hyperf DI](https://github.com/hyperf/di) and has been adapted for Hypervel's framework architecture and coroutine runtime.

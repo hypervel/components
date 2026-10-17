@@ -32,14 +32,13 @@ The first burst is reported separately as `cold`; it includes lazy package initi
 | Unpaced streaming | `--pace-us=0` |
 | Buffered generation | `--buffered` |
 | Direct HTTP comparison | `--http-only`, with the same buffering, payload and pacing options |
-| Native transport bulk reads | `--http-only --bulk-reads`; use framework 8 KiB line reads to check bulk-read costs separately |
 | Dynamic provider accounts | `--accounts=10000`; the boot-registered resolver reads the current operation's dummy account key |
 | Slow consumer | `--chunks=256 --bytes=4096 --pace-us=0 --consumer-us=1000` |
 | Sustained concurrent calls | `--requests=4096 --samples=10 --concurrency=64` |
 
-Alternate full-agent and direct-HTTP runs with identical PHP settings and dependencies for at least ten pairs per scenario, and report median and spread. Throughput includes the configured burst gaps; compare runs with identical settings. The direct comparison decodes the same payload and uses byte-at-a-time SSE reads, but doesn't run the agent loop, create SDK events or retain them for replay. The difference measures the cost of those SDK features; it isn't a Laravel comparison or evidence that those features can be removed.
+Alternate full-agent and direct-HTTP runs with identical PHP settings and dependencies for at least ten pairs per scenario, and report median and spread. Throughput includes the configured burst gaps; compare runs with identical settings. Both paths use the shared buffered line reader. The direct comparison decodes the same payload but doesn't run the agent loop, create SDK events or retain them for replay. The difference measures the cost of those SDK features; it isn't a Laravel comparison or evidence that those features can be removed.
 
-`--bulk-reads` is a separate native-transport diagnostic, not an equivalent agent-overhead comparison. It requires `--http-only` without `--buffered`. The AI parser retains bytewise reads because larger reads can delay delivery on the PHP-stream fallback.
+The shared reader accepts short reads without waiting to fill its 8 KiB buffer. Native and PHP-stream fallback delivery are covered by local acceptance tests. The earlier `--bulk-reads` diagnostic is now the ordinary direct-HTTP path; historical measurements retain their original reader descriptions.
 
 Latency starts before admitting a burst of coroutines. Reports separate the first event, first text and completed request. Buffered calls have no incremental event latency. `peak_active_operations` counts active client callbacks; `peak_origin_requests` records overlapping requests observed by the origin, rather than assuming that scheduled coroutines are simultaneous transfers. The origin also supplies connection IDs and a digest of the received dummy credential; a mismatched account aborts the run.
 

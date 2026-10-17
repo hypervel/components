@@ -9,7 +9,8 @@ use Hypervel\Ai\Contracts\HasTools;
 use Hypervel\Ai\Promptable;
 use Hypervel\Ai\Responses\Data\ToolCall;
 use Hypervel\Ai\Tools\McpServerTool;
-use Hypervel\Mcp\Server\Tool;
+use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Mcp\Server\McpServiceProvider;
 use Hypervel\Mcp\Server\Tools\Annotations\IsReadOnly;
 use Hypervel\Tests\Ai\Fixtures\Mcp\FakeMcpServerTool;
 use Hypervel\Tests\Ai\TestCase;
@@ -17,15 +18,11 @@ use Hypervel\Tests\Ai\TestCase;
 class McpServerToolTest extends TestCase
 {
     /**
-     * Require the optional MCP server tools.
+     * Register the AI and MCP providers.
      */
-    protected function setUp(): void
+    protected function getPackageProviders(Application $app): array
     {
-        parent::setUp();
-
-        if (! class_exists(Tool::class)) {
-            $this->markTestSkipped('The optional MCP package is not installed.');
-        }
+        return [...parent::getPackageProviders($app), McpServiceProvider::class];
     }
 
     public function testAgentsCanReturnMcpServerToolsDirectly(): void

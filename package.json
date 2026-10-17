@@ -9,12 +9,15 @@
     "scripts": {
         "test": "vitest run",
         "test:watch": "vitest",
+        "test:mcp": "vitest run --project mcp",
+        "minify:mcp": "terser src/mcp/resources/js/mcp-sdk.js --compress --mangle --output src/mcp/resources/js/mcp-sdk.min.js",
         "test:wayfinder": "pnpm --dir src/wayfinder test",
         "test:wayfinder:cached": "pnpm --dir src/wayfinder test:cached",
         "typecheck:wayfinder": "pnpm --dir src/wayfinder typecheck"
     },
     "devDependencies": {
         "@types/node": "^22.20.5",
+        "terser": "5.51.2",
         "typescript": "^7.0.2",
         "vite": "^8.3.3",
         "vitest": "^5.0.3"

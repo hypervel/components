@@ -49,6 +49,7 @@
     - [Listening for Model Broadcasts](#listening-for-model-broadcasts)
 - [Client Events](#client-events)
 - [Notifications](#notifications)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -2282,3 +2283,8 @@ Echo.private(`App.Models.User.${userId}`)
 Echo.private(`App.Models.User.${userId}`)
     .stopListeningForNotification(callback);
 ```
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Broadcasting began as a port of [Laravel Broadcasting](https://github.com/illuminate/broadcasting) and has been adapted for Hypervel's framework architecture and coroutine runtime.

@@ -31,6 +31,7 @@
     - [Multi-Instance Redis Scaling](#multi-instance-redis-scaling)
     - [Recovering Redis Shared State](#recovering-redis-shared-state)
 - [Events](#events)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -662,3 +663,8 @@ Dispatched when a message is sent to a client connection. The event receives the
 #### `Hypervel\Reverb\Webhooks\Events\WebhookFailed`
 
 Dispatched when a webhook delivery exhausts all retry attempts. The event receives the `Hypervel\Reverb\Webhooks\WebhookPayload` instance, the webhook URL, and the exception that caused the failure.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Reverb began as a port of [Laravel Reverb](https://github.com/laravel/reverb) and has been adapted for Hypervel's framework architecture and coroutine runtime.

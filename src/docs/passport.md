@@ -61,6 +61,7 @@
     - [Authorization Interaction and Refresh Policy](#authorization-interaction-and-refresh-policy)
     - [Token Responses, Issuers and Public Keys](#token-responses-issuers-and-public-keys)
 - [Testing](#testing)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -450,6 +451,8 @@ The public JSON Web Key Set is available at `GET /oauth/jwks`, named `passport.j
 
 The discovery route is named `passport.metadata` and is independent of `passport.path`. Both discovery and the ordinary Passport routes use `passport.middleware`. Endpoint URLs use named routes, so your configured prefix, route defaults and trusted proxy headers are honored. Behind a proxy with an application prefix, forward the canonical well-known URL to the application while keeping the normal `X-Forwarded-Prefix` header for endpoint URL generation. Applications defining their own routes should retain these route names and apply `Hypervel\Http\Middleware\SetCacheHeaders::using('etag')` to discovery and JWKS.
 
+Resource-server integrations may add a protected-resource metadata URL to Passport's Bearer and DPoP authentication challenges. Register `Passport::resolveResourceMetadataUsing` during provider boot with a callback accepting the current `Request` and returning a URL, or `null` for routes it does not serve. The callback runs only when a challenge is needed. [MCP](/docs/{{version}}/mcp#oauth) registers this callback automatically; ordinary API requests do not need additional configuration.
+
 For browser clients on other origins, add the appropriate paths to your application's `cors.php` configuration, adjusting `oauth/*` if you changed Passport's prefix:
 
 ```php
@@ -543,7 +546,7 @@ Clients submit JSON metadata to this endpoint:
 }
 ```
 
-Set `passport.registration.scopes` to the scopes anonymous registrations may request. It defaults to an empty array. Anonymous registration supports authorization-code and refresh grants, including shared-secret and JWT-authenticated clients, but cannot grant client-credentials authority, wildcard scopes or `passport:register`.
+Set `passport.registration.scopes` to the scopes anonymous registrations may request. It defaults to an empty array. Anonymous registration supports authorization-code and refresh grants, including shared-secret and JWT-authenticated clients, but cannot grant client-credentials authority, wildcard scopes or `passport:register`. Including either reserved scope in the anonymous allowance prevents application startup.
 
 The response returns HTTP 201 with the effective registered metadata, including defaults, and a new `client_id`. The default authentication method is `client_secret_basic`. Methods requiring a secret return it once as `client_secret`; store it securely, since Passport retains only its hash. Invalid metadata returns `invalid_client_metadata` or `invalid_redirect_uri` with HTTP 400. Unknown fields are ignored unless an extension validates them.
 
@@ -672,6 +675,7 @@ public function boot(): void
             'request' => $parameters['request'],
             'authToken' => $parameters['authToken'],
             'client' => $parameters['client'],
+            'redirectUri' => $parameters['redirectUri'],
             'user' => $parameters['user'],
             'scopes' => $parameters['scopes'],
             'permissions' => $parameters['permissions'],
@@ -681,6 +685,8 @@ public function boot(): void
 ```
 
 Passport automatically defines the `/oauth/authorize` route that returns this view. Your `auth.oauth.authorize` template should include a form that makes a POST request to the `passport.authorizations.approve` route to approve the authorization and a form that makes a DELETE request to the `passport.authorizations.deny` route to deny it. Both routes use `/oauth/authorize/consent` and require the `auth_token` supplied to the view and the application's CSRF token. Passport retains the client, callback and protocol parameters in the session; the forms do not need to submit them again.
+
+The `redirectUri` view parameter contains the saved, validated callback, including when the client omitted it from the authorization request or used a pushed request. For HTTP and HTTPS callbacks, display its host on third-party consent screens so users can recognize the destination; client names and logos are supplied by the client itself. For other callback schemes, display the complete URI so users can identify the receiving application by its scheme. Escape these values as you would any other client-supplied text.
 
 Passport's consent pages use `Hypervel\Http\Middleware\FrameGuard` to prevent other sites from framing them. Apply the same protection to your application's login pages.
 
@@ -858,6 +864,8 @@ class Client extends BaseClient
     }
 }
 ```
+
+The `firstParty()` method returns `true` only for ownerless clients whose `third_party` flag is `false`. Passport and MCP dynamic registration set that flag to `true`, keeping externally registered clients subject to consent. When importing a Laravel Passport schema, add the boolean `third_party` column with a default of `false` and mark any imported externally registered clients as `true`.
 
 <a name="requesting-tokens-converting-authorization-codes-to-access-tokens"></a>
 #### Converting Authorization Codes to Access Tokens
@@ -2019,3 +2027,8 @@ public function test_servers_can_be_retrieved(): void
     $response->assertStatus(200);
 }
 ```
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Passport began as a port of [Laravel Passport](https://github.com/laravel/passport) and has been adapted for Hypervel's framework architecture and coroutine runtime.

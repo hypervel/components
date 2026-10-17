@@ -355,6 +355,7 @@ class AuthorizationController
 
         return $viewResponse->withParameters([
             'client' => $client, 'user' => $user, 'scopes' => $scopes,
+            'redirectUri' => $pending['redirect_uri'],
             'resources' => Passport::resourcesFor(array_keys($pending['permissions']['resources'] ?? [])),
             'permissions' => $pending['permissions'], 'request' => $request, 'authToken' => $authorization,
         ]);

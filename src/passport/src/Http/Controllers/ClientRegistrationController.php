@@ -53,8 +53,7 @@ class ClientRegistrationController
                 $scopes = $metadata['scope'] === '' ? [] : explode(' ', $metadata['scope']);
 
                 if ($token === null && (array_diff($metadata['grant_types'], ['authorization_code', 'refresh_token']) !== []
-                    || array_diff($scopes, $this->config->array('passport.registration.scopes')) !== []
-                    || array_intersect($scopes, ['*', 'passport:register']) !== [])) {
+                    || array_diff($scopes, $this->config->array('passport.registration.scopes')) !== [])) {
                     throw InvalidClientMetadataException::invalidClientMetadata('The requested grants or scopes require authorized registration.');
                 }
 
@@ -148,7 +147,7 @@ class ClientRegistrationController
             'secret' => in_array($metadata['token_endpoint_auth_method'], ['client_secret_basic', 'client_secret_post'], true)
                 ? Str::random(40) : null,
             'revoked' => false,
-            'dynamically_registered' => true,
+            'third_party' => true,
         ];
 
         if ($token?->user_id !== null) {

@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Integration\Engine;
 use GuzzleHttp;
 use Hypervel\Engine\Exceptions\HttpClientException;
 use Hypervel\Engine\Http\Client;
+use Swoole\Exception as SwooleException;
 use Throwable;
 
 /**
@@ -119,17 +120,10 @@ class ClientTest extends EngineIntegrationTestCase
     public function testClientRejectsInvalidDeferredSocketSettings(): void
     {
         if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
-            $this->markTestSkipped('Requires rejected deferred client settings from https://github.com/swoole/swoole-src/pull/6267.');
+            $this->markTestSkipped('Requires rejected deferred client settings from https://github.com/swoole/swoole-src/commit/ebd71cb20f131da956249d0293f4c3008b197d30.');
         }
 
         $client = new Client($this->getServerHost(), $this->getServerPort());
-        $warnings = [];
-
-        set_error_handler(static function (int $severity, string $message) use (&$warnings): bool {
-            $warnings[] = $message;
-
-            return true;
-        });
 
         try {
             $this->assertTrue($client->set([
@@ -140,16 +134,11 @@ class ClientTest extends EngineIntegrationTestCase
             try {
                 $client->request('GET', '/');
                 $this->fail('Invalid deferred socket settings must stop the request.');
-            } catch (HttpClientException $exception) {
+            } catch (SwooleException $exception) {
                 $this->assertSame(SWOOLE_ERROR_INVALID_PARAMS, $exception->getCode());
+                $this->assertStringContainsString('socks5_port should not be null', $exception->getMessage());
             }
-
-            $this->assertTrue((bool) array_filter(
-                $warnings,
-                static fn (string $warning): bool => str_contains($warning, 'socks5_port should not be null'),
-            ));
         } finally {
-            restore_error_handler();
             $client->close();
         }
     }

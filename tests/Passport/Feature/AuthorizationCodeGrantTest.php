@@ -65,7 +65,8 @@ class AuthorizationCodeGrantTest extends PassportTestCase
         $response->assertOk();
         $json = $response->json();
         $response->assertSessionHas('passport.authorizations.' . $json['authToken']);
-        $this->assertEqualsCanonicalizing(['client', 'user', 'scopes', 'resources', 'permissions', 'request', 'authToken'], array_keys($json));
+        $this->assertEqualsCanonicalizing(['client', 'user', 'scopes', 'resources', 'permissions', 'request', 'authToken', 'redirectUri'], array_keys($json));
+        $this->assertSame($client->redirect_uris[0], $json['redirectUri']);
         $this->assertSame(collect(Passport::scopesFor(['create', 'read']))->toArray(), $json['scopes']);
 
         $response = $this->post('/oauth/authorize/consent', ['auth_token' => $json['authToken']]);
@@ -265,7 +266,7 @@ class AuthorizationCodeGrantTest extends PassportTestCase
         $response->assertOk();
         $json = $response->json();
         $response->assertSessionHas('passport.authorizations.' . $json['authToken']);
-        $this->assertEqualsCanonicalizing(['client', 'user', 'scopes', 'resources', 'permissions', 'request', 'authToken'], array_keys($json));
+        $this->assertEqualsCanonicalizing(['client', 'user', 'scopes', 'resources', 'permissions', 'request', 'authToken', 'redirectUri'], array_keys($json));
         $this->assertSame(collect(Passport::scopesFor(['create', 'update']))->toArray(), $json['scopes']);
     }
 
@@ -293,7 +294,7 @@ class AuthorizationCodeGrantTest extends PassportTestCase
             ->assertSessionHas('passport.authorizations')
             ->json();
 
-        $this->assertEqualsCanonicalizing(['client', 'user', 'scopes', 'resources', 'permissions', 'request', 'authToken'], array_keys($json));
+        $this->assertEqualsCanonicalizing(['client', 'user', 'scopes', 'resources', 'permissions', 'request', 'authToken', 'redirectUri'], array_keys($json));
         $this->assertSame(collect(Passport::scopesFor(['create', 'read']))->toArray(), $json['scopes']);
 
         $this->travel(2)->minutes();
@@ -491,7 +492,7 @@ class AuthorizationCodeGrantTest extends PassportTestCase
         $response->assertOk();
         $json = $response->json();
         $response->assertSessionHas('passport.authorizations.' . $json['authToken']);
-        $this->assertEqualsCanonicalizing(['client', 'user', 'scopes', 'resources', 'permissions', 'request', 'authToken'], array_keys($json));
+        $this->assertEqualsCanonicalizing(['client', 'user', 'scopes', 'resources', 'permissions', 'request', 'authToken', 'redirectUri'], array_keys($json));
         $this->assertSame(collect(Passport::scopesFor(['create', 'read']))->toArray(), $json['scopes']);
     }
 
@@ -516,6 +517,32 @@ class AuthorizationCodeGrantTest extends PassportTestCase
 
         $response->assertRedirectToRoute('password.confirm');
         $this->assertAuthenticatedAs($user, 'web');
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testFirstPartyConsentPolicyDoesNotTrustDynamicallyRegisteredClients(bool $thirdParty): void
+    {
+        Passport::useClientModel(AuthorizationCodeGrantTestFirstPartyClient::class);
+        $client = ClientFactory::new()->asPublic()->create(['third_party' => $thirdParty]);
+        $this->actingAs(UserFactory::new()->create(), 'web');
+
+        $response = $this->get('/oauth/authorize?' . http_build_query([
+            'client_id' => $client->getKey(),
+            'response_type' => 'code',
+            'redirect_uri' => $client->redirect_uris[0],
+            'scope' => 'read',
+            'code_challenge' => rtrim(strtr(base64_encode(hash('sha256', Str::random(64), true)), '+/', '-_'), '='),
+            'code_challenge_method' => 'S256',
+        ]));
+
+        if ($thirdParty) {
+            $response->assertOk()->assertSessionHas('passport.authorizations.' . $response->json('authToken'));
+            $this->assertDatabaseCount('oauth_auth_codes', 0);
+        } else {
+            $response->assertRedirect();
+            $this->assertDatabaseCount('oauth_auth_codes', 1);
+        }
     }
 
     public function testSkipsAuthorizationWhenClientSkipsAuthorization(): void
@@ -600,7 +627,7 @@ class AuthorizationCodeGrantTest extends PassportTestCase
             ->assertSessionHas('passport.authorizations')
             ->json();
 
-        $this->assertEqualsCanonicalizing(['client', 'user', 'scopes', 'resources', 'permissions', 'request', 'authToken'], array_keys($json));
+        $this->assertEqualsCanonicalizing(['client', 'user', 'scopes', 'resources', 'permissions', 'request', 'authToken', 'redirectUri'], array_keys($json));
         $this->assertSame(collect(Passport::scopesFor(['create', 'read']))->toArray(), $json['scopes']);
     }
 
@@ -957,6 +984,19 @@ class AuthorizationCodeGrantTest extends PassportTestCase
         parse_str(parse_url($response->headers->get('Location'), PHP_URL_QUERY), $parameters);
         $this->assertArrayHasKey('code', $parameters);
         $this->assertArrayNotHasKey('error', $parameters);
+    }
+}
+
+class AuthorizationCodeGrantTestFirstPartyClient extends Client
+{
+    protected ?string $table = 'oauth_clients';
+
+    /**
+     * Apply the documented first-party consent policy.
+     */
+    public function skipsAuthorization(Authenticatable $user, array $scopes): bool
+    {
+        return $this->firstParty();
     }
 }
 

@@ -30,6 +30,7 @@
     - [Filtering Dev Processes](#filtering-dev-processes)
 - [Stub Customization](#stub-customization)
 - [Events](#events)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -1231,3 +1232,8 @@ The published stubs will be located within a `stubs` directory in the root of yo
 Artisan dispatches three framework-level events outside the command's execution boundary: `Hypervel\Console\Events\ArtisanStarting`, `Hypervel\Console\Events\CommandStarting`, and `Hypervel\Console\Events\CommandFinished`. The `ArtisanStarting` event is dispatched immediately when Artisan starts running. Next, the `CommandStarting` event is dispatched immediately before a command runs. Finally, the `CommandFinished` event is dispatched once a command finishes executing.
 
 Hypervel also dispatches command lifecycle events inside that execution boundary: `Hypervel\Console\Events\BeforeHandle`, `Hypervel\Console\Events\AfterHandle`, and `Hypervel\Console\Events\AfterExecute`. The `BeforeHandle` event is dispatched immediately before the command's `handle` method is called and includes the original console input. The `AfterHandle` event is dispatched after the `handle` method completes successfully. The `AfterExecute` event is dispatched after execution completes, whether the command succeeded or failed, and includes the original input, normalized exit code, and any thrown exception. Commands normally run in a coroutine, but a command may disable coroutine execution, so listeners should check before using coroutine-only APIs.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Console began as a port of [Laravel Console](https://github.com/illuminate/console) and has been adapted for Hypervel's framework architecture and coroutine runtime.

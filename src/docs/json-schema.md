@@ -13,6 +13,7 @@
 - [Reconstructing Schemas](#reconstructing-schemas)
     - [Local References](#local-references)
     - [Supported Schema Subset](#supported-schema-subset)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -269,3 +270,8 @@ An `InvalidArgumentException` will also be thrown when a supported keyword conta
 Some valid JSON Schema forms cannot be represented by the fluent builder. These include an `additionalProperties` value that contains another schema, tuple or `false` values for `items`, boolean schemas used as object properties or composition branches, type-specific constraints on a multi-type union, and `anyOf` or `oneOf` schemas that carry incompatible type or composition rules. Attempting to reconstruct these forms will throw an `InvalidArgumentException`.
 
 When a nullable `anyOf` or `oneOf` is converted to a single nullable type, title, description, and default annotations beside the composition override the same annotations on its non-null branch. Supported validation rules may appear on either side or be repeated with the same value. If both sides give different values for the same validation rule, an `InvalidArgumentException` will be thrown. Array values must match exactly, including their order.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel JSON Schema began as a port of [Laravel JSON Schema](https://github.com/illuminate/json-schema) and has been adapted for Hypervel's framework architecture and coroutine runtime.

@@ -31,6 +31,7 @@
     - [Passkey Cleanup](#passkey-cleanup)
     - [Standalone Passkeys](#standalone-passkeys)
 - [Swoole And Worker State](#swoole-and-worker-state)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -919,3 +920,8 @@ Call these only during application boot or tests:
 </div>
 
 Do not call `config()->set()` or mutate Fortify / Passkeys static configuration from request handlers. Per-request decisions should use request data, session data, middleware, the current guard selected by `Auth::shouldUse()`, or request-aware callbacks registered during boot.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Fortify began as a port of [Laravel Fortify](https://github.com/laravel/fortify) and has been adapted for Hypervel's framework architecture and coroutine runtime.

@@ -13,6 +13,7 @@ use Hypervel\Http\UploadedFile;
 use Hypervel\HttpServer\Events\RequestHandled;
 use Hypervel\HttpServer\Events\RequestReceived;
 use Hypervel\HttpServer\Events\RequestTerminated;
+use Hypervel\HttpServer\Events\ResponseSent;
 use Hypervel\HttpServer\Server as HttpServer;
 use Hypervel\Routing\Router;
 use Hypervel\Server\Event;
@@ -125,6 +126,18 @@ $events->listen(RequestTerminated::class, function (RequestTerminated $event) us
             : null,
     ];
 });
+$events->listen(ResponseSent::class, function (ResponseSent $event) use ($state): void {
+    $token = $event->request?->query('token');
+
+    if ($event->request?->getPathInfo() !== '/response-header'
+        || ! is_string($token)
+        || $token === ''
+    ) {
+        return;
+    }
+
+    $state->responseHeaders[$token] = bin2hex($event->response->headers->get('X-Test'));
+});
 
 $filesystem = new Filesystem;
 $filesystem->ensureDirectoryExists(storage_path('app/private'));
@@ -180,6 +193,24 @@ $router->get('/cookies', function (): Response {
     );
 
     return $response;
+});
+$router->get('/response-header', function (): Response {
+    // Build the value at runtime so it has the same refcounted storage as application header values.
+    $value = implode('', ['value', "\t "]);
+
+    return new Response('response header', headers: ['X-Test' => $value]);
+});
+$router->get('/response-header-state', function (Request $request) use ($state): JsonResponse {
+    $token = $request->query('token');
+
+    if (! is_string($token) || $token === '') {
+        return new JsonResponse([]);
+    }
+
+    $value = $state->responseHeaders[$token] ?? null;
+    unset($state->responseHeaders[$token]);
+
+    return new JsonResponse(['value' => $value]);
 });
 $router->get('/callback-stream', fn (): Response => response()->stream(function (): void {
     echo 'callback-';
@@ -267,6 +298,11 @@ class HttpServerIntegrationState
     public bool $streamReleased = false;
 
     public ?string $deletePath = null;
+
+    /**
+     * @var array<string, string>
+     */
+    public array $responseHeaders = [];
 
     /**
      * @var array<string, array<string, mixed>>

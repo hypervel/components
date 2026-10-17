@@ -186,6 +186,7 @@
         "hypervel/log": "self.version",
         "hypervel/macroable": "self.version",
         "hypervel/mail": "self.version",
+        "hypervel/mcp": "self.version",
         "hypervel/nested-set": "self.version",
         "hypervel/notifications": "self.version",
         "hypervel/object-pool": "self.version",
@@ -201,6 +202,7 @@
         "hypervel/rate-limiter": "self.version",
         "hypervel/redis": "self.version",
         "hypervel/reflection": "self.version",
+        "hypervel/reverb": "self.version",
         "hypervel/routing": "self.version",
         "hypervel/saloon": "self.version",
         "hypervel/sanctum": "self.version",
@@ -271,6 +273,7 @@
             "Hypervel\\Jwt\\": "src/jwt/src/",
             "Hypervel\\Log\\": "src/log/src/",
             "Hypervel\\Mail\\": "src/mail/src/",
+            "Hypervel\\Mcp\\": "src/mcp/src/",
             "Hypervel\\NestedSet\\": "src/nested-set/src/",
             "Hypervel\\Notifications\\": [
                 "src/notifications/src/",
@@ -369,6 +372,7 @@
         },
         "hypervel": {
             "aliases": {
+                "Mcp": "Hypervel\\Mcp\\Facades\\Mcp",
                 "OpenTelemetry": "Hypervel\\OpenTelemetry\\Facades\\OpenTelemetry",
                 "Saloon": "Hypervel\\Saloon\\Facades\\Saloon",
                 "Sentry": "Hypervel\\Sentry\\Facade",
@@ -399,6 +403,7 @@
                 "Hypervel\\Log\\Context\\ContextServiceProvider",
                 "Hypervel\\Log\\LogServiceProvider",
                 "Hypervel\\Mail\\MailServiceProvider",
+                "Hypervel\\Mcp\\Server\\McpServiceProvider",
                 "Hypervel\\NestedSet\\NestedSetServiceProvider",
                 "Hypervel\\Notifications\\NotificationServiceProvider",
                 "Hypervel\\Notifications\\SlackChannelServiceProvider",

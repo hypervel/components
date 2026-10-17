@@ -18,6 +18,7 @@
     - [Reporting Test Coverage](#reporting-test-coverage)
     - [Profiling Tests](#profiling-tests)
 - [Configuration Caching](#configuration-caching)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -554,3 +555,8 @@ class ConfigTest extends TestCase
     // ...
 }
 ```
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Testing began as a port of [Laravel Testing](https://github.com/illuminate/testing) and has been adapted for Hypervel's framework architecture and coroutine runtime.

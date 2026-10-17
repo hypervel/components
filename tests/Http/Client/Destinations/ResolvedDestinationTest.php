@@ -111,12 +111,26 @@ class ResolvedDestinationTest extends TestCase
         ], $proxy->curlOptions());
     }
 
+    public function testRealHostPinsPreserveEveryApprovedAddressAndTheTargetPort(): void
+    {
+        $destination = ResolvedDestination::direct(
+            new Uri('https://target.example:8443/path'),
+            '2001:db8::4',
+            '203.0.114.8',
+        );
+
+        $this->assertSame([
+            CURLOPT_RESOLVE => ['target.example:8443:[2001:db8::4],203.0.114.8'],
+        ], $destination->curlResolveOptions());
+    }
+
     #[DataProvider('literalProxies')]
-    public function testLiteralProxiesNeedNoDnsPinning(string $uri, string $address): void
+    public function testLiteralHostsNeedNoRealHostDnsPinning(string $uri, string $address): void
     {
         $proxy = ResolvedDestination::proxy(new Uri('https://target.example'), new Uri($uri), $address);
 
         $this->assertSame([], $proxy->curlOptions());
+        $this->assertSame([], ResolvedDestination::direct(new Uri($uri), $address)->curlResolveOptions());
     }
 
     /**

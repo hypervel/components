@@ -122,7 +122,7 @@ class ClientMetadataValidator
             // Extensions supply their own columns, never core metadata or model ownership/credentials.
             $protected = [...array_keys($rules), 'id', 'client_id', 'name', 'secret', 'client_secret',
                 'client_secret_expires_at', 'client_id_issued_at', 'scopes', 'provider', 'owner_id', 'owner_type',
-                'dynamically_registered', 'revoked', 'created_at', 'updated_at'];
+                'third_party', 'revoked', 'created_at', 'updated_at'];
 
             if (array_intersect(array_keys($event->extensions), $protected) !== []) {
                 throw new LogicException('Client metadata extensions cannot replace core metadata or protected client attributes.');

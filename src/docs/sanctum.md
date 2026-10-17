@@ -27,6 +27,7 @@
     - [Revoking Tokens](#revoking-mobile-api-tokens)
 - [Events](#events)
 - [Testing](#testing)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -805,3 +806,8 @@ Sanctum::actingAs(
     ['*']
 );
 ```
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Sanctum began as a port of [Laravel Sanctum](https://github.com/laravel/sanctum) and has been adapted for Hypervel's framework architecture and coroutine runtime.
