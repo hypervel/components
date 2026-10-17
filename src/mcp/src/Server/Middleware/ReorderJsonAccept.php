@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Mcp\Server\Middleware;
 
 use Closure;
+use GuzzleHttp\Psr7\Header;
 use Hypervel\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -19,7 +20,7 @@ class ReorderJsonAccept
     {
         $accept = $request->header('Accept');
         if (is_string($accept) && str_contains($accept, ',')) {
-            $accept = array_map(trim(...), explode(',', $accept));
+            $accept = Header::splitList($accept);
         }
 
         if (! is_array($accept)) {

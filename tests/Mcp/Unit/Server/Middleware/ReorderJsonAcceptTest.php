@@ -105,6 +105,16 @@ class ReorderJsonAcceptTest extends TestCase
         $this->assertSame('application/json, text/html, text/plain', $request->header('Accept'));
     }
 
+    public function testPreservesQuotedCommasInMediaTypeParameters(): void
+    {
+        $request = new Request;
+        $request->headers->set('Accept', 'text/event-stream; profile="https://example.org/a,b", application/json');
+
+        (new ReorderJsonAccept)->handle($request, fn (): Response => new Response('test'));
+
+        $this->assertSame('application/json, text/event-stream; profile="https://example.org/a,b"', $request->header('Accept'));
+    }
+
     public function testHandlesNoJsonInAcceptHeader(): void
     {
         $request = new Request;

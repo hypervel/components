@@ -26,6 +26,7 @@
     "require": {
         "php": "^8.4",
         "ext-swoole": "^6.3.0RC1",
+        "guzzlehttp/psr7": "^3.1",
         "hypervel/auth": "^0.4",
         "hypervel/cache": "^0.4",
         "hypervel/collections": "^0.4",
