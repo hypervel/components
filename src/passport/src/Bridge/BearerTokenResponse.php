@@ -32,7 +32,7 @@ class BearerTokenResponse extends LeagueBearerTokenResponse implements Transient
     {
         $expireDateTime = $this->accessToken->getExpiryDateTime()->getTimestamp();
         $responseParams = [
-            'token_type' => 'Bearer',
+            'token_type' => $this->getToken()?->dpop_jkt !== null ? 'DPoP' : 'Bearer',
             'expires_in' => $expireDateTime - time(),
             'access_token' => $this->accessToken->toString(),
         ];

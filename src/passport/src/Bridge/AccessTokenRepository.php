@@ -10,6 +10,7 @@ use Hypervel\Passport\Events\AccessTokenCreated;
 use Hypervel\Passport\Events\AccessTokenRevoked;
 use Hypervel\Passport\Passport;
 use Hypervel\Passport\ResourceRepository;
+use Hypervel\Support\CarbonImmutable;
 use League\OAuth2\Server\Entities\AccessTokenEntityInterface;
 use League\OAuth2\Server\Entities\ClientEntityInterface;
 use League\OAuth2\Server\Entities\ScopeEntityInterface;
@@ -63,6 +64,14 @@ class AccessTokenRepository implements AccessTokenRepositoryInterface
         $issuance = TokenIssuance::current();
         $issuance?->begin();
 
+        if ($issuance?->dpopJkt !== null) {
+            $expiresAt = CarbonImmutable::now()->add($issuance->entry->settings->dpopTokensExpireIn ?? Passport::dpopTokensExpireIn());
+
+            if ($expiresAt < $accessTokenEntity->getExpiryDateTime()) {
+                $accessTokenEntity->setExpiryDateTime($expiresAt);
+            }
+        }
+
         $token = Passport::token()->forceFill([
             ...($issuance?->attributes() ?? []),
             'id' => $id = $accessTokenEntity->getIdentifier(),
@@ -70,6 +79,7 @@ class AccessTokenRepository implements AccessTokenRepositoryInterface
             'client_id' => $clientId = $accessTokenEntity->getClient()->getIdentifier(),
             'scopes' => $accessTokenEntity->getScopes(),
             'audience' => $issuance?->audience ?: null,
+            'dpop_jkt' => $issuance?->dpopJkt,
             'revoked' => false,
             'expires_at' => $accessTokenEntity->getExpiryDateTime(),
         ]);

@@ -173,6 +173,10 @@ class AccessToken implements AccessTokenEntityInterface, Transient
             $builder = $builder->issuedBy($issuer);
         }
 
+        if ($this->token?->dpop_jkt !== null) {
+            $builder = $builder->withClaim('cnf', ['jkt' => $this->token->dpop_jkt]);
+        }
+
         if ($callback = Passport::$accessTokenClaimsCallback) {
             foreach ($callback($this->token) as $name => $value) {
                 if (in_array($name, ['iss', 'sub', 'aud', 'exp', 'iat', 'nbf', 'jti', 'scopes', 'client_id', 'cnf'], true)) {
