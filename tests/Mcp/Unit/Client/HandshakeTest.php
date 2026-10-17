@@ -14,6 +14,7 @@ use Hypervel\Mcp\Exceptions\ClientException;
 use Hypervel\Mcp\Exceptions\JsonRpcException;
 use Hypervel\Tests\Mcp\Fixtures\Client\FakeTransport;
 use Hypervel\Tests\Mcp\TestCase;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 
@@ -196,7 +197,9 @@ class HandshakeTest extends TestCase
         $this->assertSame(ProtocolVersion::V2025_11_25->value, json_decode($transport->sent[1], true)['params']['protocolVersion']);
     }
 
-    public function testPropagatesAnUnsupportedVersionErrorWithNoMutuallySupportedVersion(): void
+    #[TestWith([['supported' => ['2027-01-01'], 'requested' => '2026-07-28']])]
+    #[TestWith(['No supported protocol version'])]
+    public function testPropagatesAnUnsupportedVersionErrorWithNoMutuallySupportedVersion(mixed $data): void
     {
         $transport = $this->negotiatingTransport();
         $transport->responses[] = json_encode([
@@ -205,7 +208,7 @@ class HandshakeTest extends TestCase
             'error' => [
                 'code' => -32022,
                 'message' => 'Unsupported protocol version',
-                'data' => ['supported' => ['2027-01-01'], 'requested' => '2026-07-28'],
+                'data' => $data,
             ],
         ]);
 
@@ -214,6 +217,7 @@ class HandshakeTest extends TestCase
             $this->fail('Expected an unsupported protocol version error.');
         } catch (JsonRpcException $exception) {
             $this->assertStringContainsString('Unsupported protocol version', $exception->getMessage());
+            $this->assertSame($data, $exception->data());
         }
 
         $this->assertCount(1, $transport->sent);

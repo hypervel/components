@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Mcp\Support;
 
+use stdClass;
 use Stringable;
 
 class SchemaPath implements Stringable
@@ -43,6 +44,10 @@ class SchemaPath implements Stringable
         $value = $arguments;
 
         foreach ($this->segments as $segment) {
+            if ($value instanceof stdClass) {
+                $value = get_object_vars($value);
+            }
+
             if (! is_array($value) || ! array_key_exists($segment, $value)) {
                 return null;
             }

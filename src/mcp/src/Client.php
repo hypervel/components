@@ -316,6 +316,7 @@ class Client
                 throw $jsonRpcException;
             }
 
+            $this->protocol->cache()?->forget(new ListTools(client: $this), $this->transport);
             $refreshed = $this->tools()->get($name)?->mirroredParameters();
 
             if (! $refreshed instanceof MirroredParameters

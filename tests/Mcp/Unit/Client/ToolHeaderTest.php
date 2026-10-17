@@ -8,9 +8,12 @@ use Hypervel\Mcp\Client;
 use Hypervel\Mcp\Client\Primitives\Tool;
 use Hypervel\Mcp\Enums\ProtocolVersion;
 use Hypervel\Mcp\Exceptions\JsonRpcException;
+use Hypervel\Mcp\Exceptions\MirroredParameterException;
 use Hypervel\Support\Facades\Log;
 use Hypervel\Tests\Mcp\Fixtures\Client\FakeTransport;
 use Hypervel\Tests\Mcp\TestCase;
+use JsonException;
+use PHPUnit\Framework\Attributes\TestWith;
 
 use function Hypervel\Tests\Mcp\Fixtures\discoverResponse;
 use function Hypervel\Tests\Mcp\Fixtures\initializeResponse;
@@ -116,7 +119,7 @@ class ToolHeaderTest extends TestCase
 
         $client = (new Client($transport))->withProtocolVersion(ProtocolVersion::V2025_11_25);
 
-        $client->tools()->get('execute_sql')->call(['region' => 'us-west1']);
+        $client->tools()->get('execute_sql')->call(['region' => 42]);
 
         $this->assertEmpty($transport->sentHeaders[2]);
     }
@@ -162,6 +165,55 @@ class ToolHeaderTest extends TestCase
         $this->assertArrayNotHasKey('Mcp-Param-Region', $transport->sentHeaders[1]);
         $this->assertSame('us-west1', $transport->sentHeaders[3]['Mcp-Param-Region']);
         $this->assertSame(['tools/call', 'tools/list', 'tools/call'], sentMethods($transport));
+    }
+
+    #[TestWith(['public'])]
+    #[TestWith(['private'])]
+    public function testHeaderMismatchRefreshesACachedToolDefinition(string $scope): void
+    {
+        $transport = new FakeTransport;
+        $transport->negotiates = true;
+        $transport->responses[] = discoverResponse();
+        $cached = json_decode(toolsListResponse(2, [annotatedTool('OldRegion')]), true);
+        $cached['result'] += ['ttlMs' => 60000, 'cacheScope' => $scope];
+        $transport->responses[] = json_encode($cached);
+        $transport->responses[] = headerMismatchResponse(3);
+        $transport->responses[] = toolsListResponse(4, [annotatedTool()]);
+        $transport->responses[] = toolCallResponse(5, 'done');
+
+        $client = (new Client($transport))->withProtocolVersion(ProtocolVersion::LATEST)->withCache();
+        $tool = $client->tools()->get('execute_sql');
+
+        $this->assertSame('done', $tool->call(['region' => 'us-west1'])->text());
+        $this->assertSame(['tools/list', 'tools/call', 'tools/list', 'tools/call'], sentMethods($transport));
+        $this->assertSame('us-west1', $transport->sentHeaders[4]['Mcp-Param-Region']);
+        $this->assertArrayNotHasKey('Mcp-Param-OldRegion', $transport->sentHeaders[4]);
+    }
+
+    #[TestWith([['region' => 42], MirroredParameterException::class])]
+    #[TestWith([['region' => INF], JsonException::class])]
+    public function testInvalidLocalArgumentsDoNotDisconnectAHealthySession(array $arguments, string $exceptionClass): void
+    {
+        $transport = new FakeTransport;
+        $transport->negotiates = true;
+        $transport->responses[] = discoverResponse();
+        $transport->responses[] = toolsListResponse(2, [annotatedTool()]);
+        $transport->responses[] = toolCallResponse(4, 'done');
+        $client = (new Client($transport))->withProtocolVersion(ProtocolVersion::LATEST);
+        $tool = $client->tools()->get('execute_sql');
+
+        try {
+            $tool->call($arguments);
+            $this->fail('Invalid local arguments must fail before sending.');
+        } catch (JsonException|MirroredParameterException $exception) {
+            $this->assertInstanceOf($exceptionClass, $exception);
+        }
+
+        $this->assertTrue($client->connected());
+        $this->assertTrue($transport->connected);
+        $this->assertCount(2, $transport->sent);
+        $this->assertSame('done', $tool->call(['region' => 'us-west1'])->text());
+        $this->assertCount(3, $transport->sent);
     }
 
     public function testDoesNotRetryWhenTheRefreshedDefinitionMirrorsNothingNew(): void

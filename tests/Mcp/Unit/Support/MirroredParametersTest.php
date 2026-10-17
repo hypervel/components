@@ -46,6 +46,7 @@ class MirroredParametersTest extends TestCase
 
         $this->assertSame('/target/region', (string) $parameters->all()->first()->path);
         $this->assertSame(['Mcp-Param-Region' => 'us-west1'], $parameters->headers(['target' => ['region' => 'us-west1']]));
+        $this->assertSame(['Mcp-Param-Region' => 'us-west1'], $parameters->headers(['target' => (object) ['region' => 'us-west1']]));
     }
 
     #[DataProvider('invalidAnnotations')]

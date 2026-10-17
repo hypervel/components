@@ -163,14 +163,18 @@ class ClientTest extends TestCase
         }
     }
 
-    public function testKeepsTheConnectionOpenAfterAJsonRpcErrorResponse(): void
+    #[TestWith([null])]
+    #[TestWith(['Try another tool'])]
+    #[TestWith([false])]
+    #[TestWith([0])]
+    public function testKeepsTheConnectionOpenAfterAJsonRpcErrorResponse(mixed $data): void
     {
         $transport = new FakeTransport;
         $transport->responses[] = initializeResponse();
         $transport->responses[] = json_encode([
             'jsonrpc' => '2.0',
             'id' => 2,
-            'error' => ['code' => -32601, 'message' => 'Method not found'],
+            'error' => ['code' => -32601, 'message' => 'Method not found', ...($data === null ? [] : ['data' => $data])],
         ]);
 
         $client = new Client($transport);
@@ -180,6 +184,10 @@ class ClientTest extends TestCase
         $this->expectExceptionMessage('Method not found');
         try {
             $client->ping();
+        } catch (JsonRpcException $exception) {
+            $this->assertSame($data, $exception->data());
+
+            throw $exception;
         } finally {
             $this->assertTrue($client->connected());
             $this->assertTrue($transport->connected);

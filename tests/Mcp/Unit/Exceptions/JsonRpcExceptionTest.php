@@ -10,12 +10,13 @@ use PHPUnit\Framework\Attributes\DataProvider;
 
 class JsonRpcExceptionTest extends TestCase
 {
-    public function testConvertsToJsonRpcErrorWithoutIdAndWithData(): void
+    #[DataProvider('errorData')]
+    public function testConvertsToJsonRpcErrorWithoutIdAndWithData(mixed $data): void
     {
         $exception = new JsonRpcException(
             message: 'Invalid params',
             code: -32602,
-            data: ['hint' => 'Missing field']
+            data: $data
         );
 
         $response = $exception->toJsonRpcResponse();
@@ -25,9 +26,19 @@ class JsonRpcExceptionTest extends TestCase
             'error' => [
                 'code' => -32602,
                 'message' => 'Invalid params',
-                'data' => ['hint' => 'Missing field'],
+                'data' => $data,
             ],
         ], $response->toArray());
+        $this->assertSame($data, $exception->data());
+        $this->assertSame($data, json_decode($response->toJson(), true, flags: JSON_THROW_ON_ERROR)['error']['data']);
+    }
+
+    /**
+     * Provide structured and primitive JSON error details.
+     */
+    public static function errorData(): array
+    {
+        return [[['hint' => 'Missing field']], ['Missing field'], [0], [false]];
     }
 
     public function testConvertsToJsonRpcErrorWithIdAndWithoutData(): void

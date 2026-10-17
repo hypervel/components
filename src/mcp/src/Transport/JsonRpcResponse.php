@@ -48,10 +48,8 @@ class JsonRpcResponse implements Arrayable
 
     /**
      * Create an error response.
-     *
-     * @param null|array<string, mixed> $data
      */
-    public static function error(string|int|null $id, int $code, string $message, ?array $data = null): static
+    public static function error(string|int|null $id, int $code, string $message, mixed $data = null): static
     {
         $error = [
             'code' => $code,

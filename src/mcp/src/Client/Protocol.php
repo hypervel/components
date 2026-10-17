@@ -295,7 +295,8 @@ class Protocol
      */
     protected function retryWithMutualVersion(JsonRpcException $jsonRpcException): NegotiatedConnection
     {
-        $supported = Arr::get($jsonRpcException->data() ?? [], 'supported');
+        $data = $jsonRpcException->data();
+        $supported = is_array($data) ? Arr::get($data, 'supported') : null;
 
         $protocolVersion = is_array($supported)
             ? ProtocolVersion::preferredFrom(...array_values(array_filter($supported, is_string(...))))
@@ -452,11 +453,11 @@ class Protocol
             params: $this->params($method, $protocolVersion),
         );
 
+        $json = $request->toJson();
+        $headers = $this->requestHeaders($method, $request, $protocolVersion);
+
         try {
-            $this->transport->send(
-                $request->toJson(),
-                $this->requestHeaders($method, $request, $protocolVersion),
-            );
+            $this->transport->send($json, $headers);
 
             do {
                 $raw = $this->transport->receive();
@@ -519,7 +520,7 @@ class Protocol
                 is_string($message) ? $message : 'Unknown JSON-RPC error.',
                 is_int($code) ? $code : 0,
                 Arr::get($response, 'id'),
-                is_array($data) ? $data : null,
+                $data,
             );
         }
 

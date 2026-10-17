@@ -11,24 +11,20 @@ class JsonRpcException extends Exception
 {
     /**
      * Create a JSON-RPC exception.
-     *
-     * @param null|array<string, mixed> $data
      */
     public function __construct(
         string $message,
         int $code,
         protected mixed $requestId = null,
-        protected ?array $data = null
+        protected mixed $data = null
     ) {
         parent::__construct($message, $code);
     }
 
     /**
      * Get the error data.
-     *
-     * @return null|array<string, mixed>
      */
-    public function data(): ?array
+    public function data(): mixed
     {
         return $this->data;
     }

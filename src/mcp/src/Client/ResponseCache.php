@@ -73,6 +73,22 @@ class ResponseCache
     }
 
     /**
+     * Forget both cache scopes for a request whose response is stale.
+     *
+     * @param Method<mixed> $method
+     */
+    public function forget(Method $method, Transport $transport): void
+    {
+        $params = $method->params();
+        ksort($params);
+        $recipe = $transport->recipe();
+        $repository = Cache::store($this->store);
+
+        $repository->forget($this->key($recipe, $method->method(), $params, CacheScope::Private));
+        $repository->forget($this->key($recipe, $method->method(), $params, CacheScope::Public));
+    }
+
+    /**
      * Determine whether the request permits response caching.
      *
      * @param array<string, mixed> $params
