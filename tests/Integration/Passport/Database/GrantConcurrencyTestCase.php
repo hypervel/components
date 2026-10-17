@@ -7,6 +7,8 @@ namespace Hypervel\Tests\Integration\Passport\Database;
 use Closure;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Events\QueryExecuted;
+use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Engine\Channel;
 use Hypervel\Foundation\Testing\DatabaseTruncation;
 use Hypervel\Passport\AuthCode;
@@ -21,6 +23,7 @@ use Hypervel\Passport\DeviceCode;
 use Hypervel\Passport\PassportServiceProvider;
 use Hypervel\Passport\RefreshToken;
 use Hypervel\Passport\RefreshTokenFamily;
+use Hypervel\Passport\ReplayCache;
 use Hypervel\Passport\ServerFactory;
 use Hypervel\Passport\Token;
 use Hypervel\Support\Facades\DB;
@@ -77,6 +80,63 @@ abstract class GrantConcurrencyTestCase extends TestCase
             '2026_10_17_000001_create_oauth_consents_table.php',
         ] as $migration) {
             (require dirname(__DIR__, 4) . '/src/passport/database/migrations/' . $migration)->up();
+        }
+    }
+
+    public function testConcurrentReplayClaimsAcceptOnlyOneRequest(): void
+    {
+        $schema = DB::connection()->getSchemaBuilder();
+        $schema->create('passport_replays', static function (Blueprint $table): void {
+            $table->string('key')->primary();
+            $table->text('value');
+            $table->integer('expiration');
+        });
+        config([
+            'passport.replay.store' => 'passport-replay',
+            'cache.stores.passport-replay' => [
+                'driver' => 'database',
+                'connection' => config('database.default'),
+                'table' => 'passport_replays',
+                'prefix' => '',
+            ],
+        ]);
+        $ready = new Channel(2);
+        $release = new Channel(2);
+        $waiting = true;
+
+        // Both requests must miss before either writes its claim.
+        DB::listen(function (QueryExecuted $query) use ($ready, $release, &$waiting): void {
+            if ($waiting && str_starts_with($query->sql, 'select') && str_contains($query->sql, 'passport_replays')) {
+                $ready->push(true);
+                $this->assertTrue($release->pop(5));
+            }
+        });
+        $replays = $this->app->make(ReplayCache::class);
+        $expiresAt = time() + 300;
+        $claim = static fn (): bool => $replays->consume('client:assertion', $expiresAt);
+
+        try {
+            [$first, $second] = parallel([
+                $claim,
+                $claim,
+                function () use ($ready, $release): void {
+                    try {
+                        $this->assertTrue($ready->pop(5));
+                        $this->assertTrue($ready->pop(5));
+                    } finally {
+                        $release->push(true);
+                        $release->push(true);
+                    }
+                },
+            ]);
+            $waiting = false;
+
+            $this->assertEqualsCanonicalizing([true, false], [$first, $second]);
+            $this->assertFalse($claim());
+            $this->assertSame(1, DB::table('passport_replays')->count());
+        } finally {
+            $waiting = false;
+            $schema->drop('passport_replays');
         }
     }
 
@@ -360,6 +420,7 @@ abstract class GrantConcurrencyTestCase extends TestCase
         $response = $this->app->make(ServerFactory::class)->authorizationServer()->respondToDeviceAuthorizationRequest(
             (new ServerRequest('POST', 'https://example.test/oauth/device/code'))->withParsedBody([
                 'client_id' => $client->getKey(),
+                'client_secret' => $client->plainSecret,
             ]),
             new Response,
         );
@@ -400,9 +461,7 @@ abstract class GrantConcurrencyTestCase extends TestCase
 
         if ($grant === 'device_code') {
             $response = $server->respondToDeviceAuthorizationRequest(
-                (new ServerRequest('POST', 'https://example.test/oauth/device/code'))->withParsedBody([
-                    'client_id' => $client->getKey(),
-                ]),
+                (new ServerRequest('POST', 'https://example.test/oauth/device/code'))->withParsedBody($credentials),
                 new Response,
             );
             $code = json_decode((string) $response->getBody(), true)['device_code'];
