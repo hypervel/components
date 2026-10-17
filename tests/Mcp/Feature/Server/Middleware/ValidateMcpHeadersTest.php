@@ -106,6 +106,33 @@ class ValidateMcpHeadersTest extends TestCase
             ->assertJsonPath('error.data.requested', "invalid-\u{FFFD}");
     }
 
+    #[DataProvider('invalidRequestIds')]
+    public function testMalformedIdsAreRejectedByTheProtocolParser(mixed $id): void
+    {
+        $message = callToolMessage();
+        $message['id'] = $id;
+
+        $this->postJson('test-mcp', $message)
+            ->assertStatus(400)
+            ->assertJsonPath('error.code', -32600)
+            ->assertJsonPath('id', null);
+
+        unset($message['params']['_meta']);
+
+        $this->postJson('test-mcp', $message, ['MCP-Protocol-Version' => 'unsupported'])
+            ->assertStatus(400)
+            ->assertJsonPath('error.code', -32600)
+            ->assertJsonPath('id', null);
+    }
+
+    /**
+     * Provide IDs that cannot be echoed in a protocol response.
+     */
+    public static function invalidRequestIds(): array
+    {
+        return [[true], [1.5], [['invalid']], [(object) ['invalid' => true]]];
+    }
+
     public function testDecodesABase64SentinelNameHeaderBeforeComparingIt(): void
     {
         $message = callToolMessage();

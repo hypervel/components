@@ -26,12 +26,12 @@ class ValidateMcpHeaders
     {
         $body = json_decode((string) $request->getContent(), true);
 
-        if (! is_array($body) || ! isset($body['id']) || ! is_string($body['method'] ?? null)) {
+        if (! is_array($body) || (! is_int($body['id'] ?? null) && ! is_string($body['id'] ?? null)) || ! is_string($body['method'] ?? null)) {
             return $next($request);
         }
 
         $message = new JsonRpcRequest(
-            id: is_int($body['id']) || is_string($body['id']) ? $body['id'] : 0,
+            id: $body['id'],
             method: $body['method'],
             params: is_array($body['params'] ?? null) ? $body['params'] : [],
         );
