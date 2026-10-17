@@ -56,6 +56,7 @@ abstract class Tool extends Primitive
      *     inputSchema?: array<string, mixed>,
      *     outputSchema?: array<string, mixed>,
      *     annotations?: array<string, mixed>,
+     *     icons?: list<array<string, mixed>>,
      *     _meta?: array<string, mixed>
      * }
      */

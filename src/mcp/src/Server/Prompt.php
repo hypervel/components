@@ -31,7 +31,14 @@ abstract class Prompt extends Primitive
     /**
      * Convert the prompt to an array.
      *
-     * @return array{name: string, title: string, description: string, arguments: array<int, array{name: string, description: string, required: bool, _meta?: array<string, mixed>}>}
+     * @return array{
+     *     name: string,
+     *     title: string,
+     *     description: string,
+     *     arguments: array<int, array{name: string, description: string, required: bool}>,
+     *     icons?: list<array<string, mixed>>,
+     *     _meta?: array<string, mixed>
+     * }
      */
     public function toArray(): array
     {
