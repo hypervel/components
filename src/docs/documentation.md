@@ -91,6 +91,7 @@
     - [Factories](/docs/{{version}}/eloquent-factories)
 - ## AI
     - [AI SDK](/docs/{{version}}/ai-sdk)
+    - [MCP](/docs/{{version}}/mcp)
 - ## Testing
     - [Getting Started](/docs/{{version}}/testing)
     - [HTTP Tests](/docs/{{version}}/http-tests)

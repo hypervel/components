@@ -1035,7 +1035,9 @@ $document = Document::fromUrl('https://example.com/report.pdf');
 
 When the SDK downloads a remote file, it applies the HTTP client's [destination checks](/docs/{{version}}/http-client#restricting-destinations) to the URL and each redirect. Direct connections are pinned to the checked addresses. Private and reserved addresses are rejected unless the hostname or IP address is listed in `ai.remote_files.allowed_hosts`. These explicitly trusted hosts skip DNS and address checks, so they may also be used when only your proxy can resolve them. URLs containing embedded credentials, such as `https://user:password@example.com/file`, are rejected. Signed URLs with credentials in their query string remain supported.
 
-Downloads inherit your application's outgoing proxy configuration; no separate AI proxy setting is needed. When a proxy resolves the destination hostname, it must enforce the [proxy destination filtering requirements](/docs/{{version}}/http-client#proxies). The default DNS resolver has a 10-second limit per untrusted hostname lookup, separate from the HTTP client's connection and request timeouts.
+Downloads inherit your application's outgoing proxy configuration; no separate AI proxy setting is needed. When a proxy resolves the destination hostname, it must enforce the [proxy destination filtering requirements](/docs/{{version}}/http-client#proxies). DNS resolution uses the smallest positive connection or request timeout, and its elapsed time is deducted before sending. If both limits are unlimited, DNS resolution has a 10-second limit.
+
+Pinning an untrusted hostname requires cURL with SSL support and libcurl 7.75 or later; see the HTTP client's [destination policy limitations](/docs/{{version}}/http-client#destination-policy-limitations). Explicitly trusted hosts bypass destination checks and do not require hostname pinning.
 
 Downloads are limited to 32 MiB of decoded content by default. You may set a different positive byte limit, or `null` to disable the limit, in your `config/ai.php` file:
 
@@ -1645,10 +1647,7 @@ return FileStorage::all('s3')
 <a name="mcp-tools"></a>
 ### MCP Tools
 
-The SDK includes adapters for tools exposed by [Model Context Protocol](https://modelcontextprotocol.io) servers. These adapters require the separate Hypervel MCP package; ordinary agents and local tools do not depend on it.
-
-> [!NOTE]
-> The Hypervel MCP package is not yet available. These examples show the integration once it is installed.
+The SDK includes adapters for tools exposed by [Model Context Protocol](https://modelcontextprotocol.io) servers. Install the [Hypervel MCP package](/docs/{{version}}/mcp#installation) to use these adapters; ordinary agents and local tools do not depend on it.
 
 Because an MCP client's `tools` method returns a collection, spread it into your agent's `tools` array using the `...` operator:
 
@@ -1694,7 +1693,7 @@ use Hypervel\Mcp\Client;
 public function tools(): iterable
 {
     return [
-        ...Client::local('php', ['artisan', 'mcp:start'])->tools(),
+        ...Client::local('php', ['artisan', 'mcp:start', 'weather'])->tools(),
     ];
 }
 ```
