@@ -58,6 +58,7 @@
     - [MCP Inspector](#mcp-inspector)
     - [Unit Tests](#unit-tests)
     - [Testing OAuth Clients](#testing-oauth)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -2398,3 +2399,8 @@ Http::fake([
     'https://auth.test/token' => Http::response(['access_token' => 'test-token']),
 ]);
 ```
+
+<a name="credits"></a>
+## Credits
+
+Hypervel MCP began as a port of [Laravel MCP](https://github.com/laravel/mcp) and has been adapted for Hypervel's framework architecture and coroutine runtime.
