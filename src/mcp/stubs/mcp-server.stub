@@ -1,0 +1,28 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ namespace }};
+
+use Hypervel\Mcp\Server;
+use Hypervel\Mcp\Server\Attributes\Instructions;
+use Hypervel\Mcp\Server\Attributes\Name;
+use Hypervel\Mcp\Server\Attributes\Version;
+
+#[Name('{{ serverDisplayName }}')]
+#[Version('0.0.1')]
+#[Instructions('Instructions describing how to use the server and its features.')]
+class {{ class }} extends Server
+{
+    protected array $tools = [
+        //
+    ];
+
+    protected array $resources = [
+        //
+    ];
+
+    protected array $prompts = [
+        //
+    ];
+}

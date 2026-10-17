@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Mcp;
 
 use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Mcp\Schema\Implementation;
 use Hypervel\Mcp\Server\McpServiceProvider;
 use Hypervel\Mcp\Server\Resource;
@@ -17,6 +18,28 @@ require_once __DIR__ . '/Fixtures/helpers.php';
 
 abstract class TestCase extends TestbenchTestCase
 {
+    /**
+     * Remove generated MCP files from the worker's shared runtime skeleton.
+     */
+    protected function tearDown(): void
+    {
+        try {
+            $files = new Filesystem;
+            $files->deleteDirectory(app_path('Mcp'));
+            $files->deleteDirectory(resource_path('views/mcp'));
+            $files->delete([
+                base_path('stubs/mcp-app-resource.stub'),
+                base_path('stubs/mcp-app-resource.view.stub'),
+                base_path('stubs/mcp-prompt.stub'),
+                base_path('stubs/mcp-resource.stub'),
+                base_path('stubs/mcp-server.stub'),
+                base_path('stubs/mcp-tool.stub'),
+            ]);
+        } finally {
+            parent::tearDown();
+        }
+    }
+
     /**
      * Register the MCP provider and the test server registrations.
      */
