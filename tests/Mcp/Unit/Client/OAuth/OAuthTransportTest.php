@@ -73,6 +73,16 @@ class OAuthTransportTest extends TestCase
         $this->assertSame('needs access', $challenge->errorDescription);
     }
 
+    public function testEscapedQuotedValuesDoNotIntroduceChallengeParameters(): void
+    {
+        $challenge = WwwAuthenticateChallenge::parse(<<<'HEADER'
+Bearer scope="files:read", realm="example\", scope=admin", error_description="use \"quoted\" text and \\slashes"
+HEADER);
+
+        $this->assertSame('files:read', $challenge->scope);
+        $this->assertSame('use "quoted" text and \slashes', $challenge->errorDescription);
+    }
+
     public function testExposesTheConfiguredEndpointUrl(): void
     {
         $this->assertSame('https://mcp.test/mcp', (new HttpTransport('https://mcp.test/mcp'))->url());

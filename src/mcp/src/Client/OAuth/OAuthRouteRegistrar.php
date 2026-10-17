@@ -10,6 +10,7 @@ use Hypervel\Http\JsonResponse;
 use Hypervel\Mcp\Client\ClientManager;
 use Hypervel\Mcp\Exceptions\ClientException;
 use Hypervel\Mcp\WebClient;
+use Hypervel\Routing\Exceptions\InvalidSignatureException;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Route as Router;
 
@@ -30,7 +31,7 @@ class OAuthRouteRegistrar
      *
      * Boot-only. Routes persist for the worker lifetime and affect subsequent requests.
      *
-     * @param array{0: class-string, 1: string}|Closure(string, TokenSet): mixed $handler
+     * @param array{0: class-string, 1: string}|Closure(string, TokenSet): mixed $handler receives provider or client, token, and optional returnTo by parameter name
      * @param array<int, string>|string $middleware
      * @param array<string, mixed> $clientMetadata
      */
@@ -48,8 +49,15 @@ class OAuthRouteRegistrar
         }
 
         $connect = Router::get($connectUri ?? "mcp/{$client}/connect", function () use ($client): mixed {
-            $resourceMetadata = request()->query('resource_metadata');
-            $scope = request()->query('scope');
+            $request = request();
+
+            // Only application-generated hints may choose where configured credentials are sent.
+            if (($request->query->has('resource_metadata') || $request->query->has('scope')) && ! $request->hasValidSignature()) {
+                throw new InvalidSignatureException;
+            }
+
+            $resourceMetadata = $request->query('resource_metadata');
+            $scope = $request->query('scope');
 
             return $this->webClient($client)->oAuthClient(
                 is_string($resourceMetadata) && $resourceMetadata !== '' ? $resourceMetadata : null,

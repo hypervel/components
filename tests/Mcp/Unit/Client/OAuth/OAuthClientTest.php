@@ -11,11 +11,14 @@ use Hypervel\Http\Request;
 use Hypervel\Mcp\Client;
 use Hypervel\Mcp\Client\Exceptions\OAuthException;
 use Hypervel\Mcp\Client\OAuth\AuthServerDiscovery;
+use Hypervel\Mcp\Client\OAuth\AuthServerMetadata;
 use Hypervel\Mcp\Client\OAuth\DynamicClientRegistration;
+use Hypervel\Mcp\Client\OAuth\Enums\TokenEndpointAuthMethod;
 use Hypervel\Mcp\Client\OAuth\OAuthClient;
 use Hypervel\Mcp\Client\OAuth\OAuthConfig;
 use Hypervel\Mcp\Client\OAuth\OAuthDestinationPolicy;
 use Hypervel\Mcp\Client\OAuth\TokenSet;
+use Hypervel\Mcp\Facades\Mcp;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\Facades\Session;
@@ -56,6 +59,16 @@ class OAuthClientTest extends TestCase
         ]);
     }
 
+    /**
+     * Identify manually seeded callback state for an unnamed client.
+     */
+    private function pendingSessionKey(?string $clientId = 'client-123'): string
+    {
+        $client = Client::web('https://mcp.test/mcp')->withOAuth(clientId: $clientId)->oAuthClient();
+
+        return (fn (): string => $this->sessionKey())->call($client);
+    }
+
     public function testBuildsAnAuthorizationRedirectWithPkceAndStashesSessionState(): void
     {
         Http::fake([
@@ -89,7 +102,7 @@ class OAuthClientTest extends TestCase
         $this->assertArrayHasKey('code_challenge', $query);
         $this->assertArrayHasKey('state', $query);
 
-        $stored = Session::get('mcp.oauth.' . sha1('https://mcp.test/mcp'));
+        $stored = array_values(Session::get('mcp.oauth'))[0];
 
         $this->assertSame($query['state'], $stored['state']);
         $this->assertSame('client-123', $stored['client_id']);
@@ -166,13 +179,14 @@ class OAuthClientTest extends TestCase
             ->oAuthClient()
             ->redirect();
 
-        $stored = Session::get('mcp.oauth.' . sha1('https://mcp.test/mcp'));
+        $stored = array_values(Session::get('mcp.oauth'))[0];
 
         $this->assertSame('dcr-999', $stored['client_id']);
         $this->assertSame('shh', $stored['client_secret']);
 
         Http::assertSent(fn ($request): bool => $request->url() === 'https://auth.test/register'
-            && ($request['redirect_uris'] ?? null) === ['https://app.test/callback']);
+            && ($request['redirect_uris'] ?? null) === ['https://app.test/callback']
+            && $request['token_endpoint_auth_method'] === 'client_secret_basic');
     }
 
     #[DataProvider('tokenScopes')]
@@ -190,7 +204,7 @@ class OAuthClientTest extends TestCase
             ]),
         ]);
 
-        $key = 'mcp.oauth.' . sha1('https://mcp.test/mcp');
+        $key = $this->pendingSessionKey();
 
         Session::put($key, [
             'state' => 'the-state',
@@ -240,11 +254,92 @@ class OAuthClientTest extends TestCase
         ];
     }
 
+    public function testNamedClientsForTheSameResourceKeepIndependentPendingAuthorizations(): void
+    {
+        $this->fakeDiscovery();
+        Http::fake([
+            'https://auth.test/token' => fn ($request) => Http::response(['access_token' => $request['redirect_uri']]),
+        ]);
+
+        $authorizations = [];
+
+        foreach (['first', 'second'] as $name) {
+            Mcp::registerClient($name, fn () => Client::web('https://mcp.test/mcp')->withOAuth(clientId: 'client-123'));
+            Mcp::oAuthRoutesFor($name, fn (): null => null);
+            $target = Mcp::client($name)->oAuthClient()->redirect()->getTargetUrl();
+            parse_str((string) parse_url($target, PHP_URL_QUERY), $authorizations[$name]);
+        }
+
+        foreach ($authorizations as $name => $authorization) {
+            RequestContext::set(Request::create($authorization['redirect_uri'], 'GET', [
+                'code' => 'auth-code',
+                'state' => $authorization['state'],
+            ]));
+
+            $token = Mcp::client($name)->oAuthClient()->exchangeCallback();
+            $this->assertSame($authorization['redirect_uri'], $token->accessToken);
+        }
+    }
+
+    #[DataProvider('registrationAuthMethods')]
+    public function testSelectsAnAdvertisedAuthenticationMethodForDynamicRegistration(array $supported, ?string $expected, bool $forceBasic = false): void
+    {
+        Http::fake([
+            'https://mcp.test/.well-known/oauth-protected-resource/mcp' => Http::response([
+                'authorization_servers' => ['https://auth.test'],
+            ]),
+            'https://auth.test/.well-known/oauth-authorization-server' => Http::response([
+                'issuer' => 'https://auth.test',
+                'authorization_endpoint' => 'https://auth.test/authorize',
+                'token_endpoint' => 'https://auth.test/token',
+                'registration_endpoint' => 'https://auth.test/register',
+                'code_challenge_methods_supported' => ['S256'],
+                'token_endpoint_auth_methods_supported' => $supported,
+            ]),
+            'https://auth.test/register' => Http::response(['client_id' => 'public-client']),
+        ]);
+
+        if ($expected === null) {
+            $this->expectException(OAuthException::class);
+            $this->expectExceptionMessage('does not advertise a supported token authentication method');
+        }
+
+        $client = new class(new OAuthConfig(redirectUri: 'https://app.test/callback'), 'https://mcp.test/mcp') extends OAuthClient {
+            public bool $forceBasic = false;
+
+            /**
+             * Allow an application to select Basic authentication for registration and tokens.
+             */
+            protected function resolveTokenAuthMethod(AuthServerMetadata $metadata, ?string $clientSecret): TokenEndpointAuthMethod
+            {
+                return $this->forceBasic ? TokenEndpointAuthMethod::ClientSecretBasic : parent::resolveTokenAuthMethod($metadata, $clientSecret);
+            }
+        };
+        $client->forceBasic = $forceBasic;
+        $client->redirect();
+
+        Http::assertSent(fn ($request): bool => $request->url() === 'https://auth.test/register'
+            && $request['token_endpoint_auth_method'] === $expected);
+    }
+
+    /**
+     * Provide advertised registration authentication choices.
+     */
+    public static function registrationAuthMethods(): array
+    {
+        return [
+            'public only' => [['none'], 'none'],
+            'prefer post when available' => [['client_secret_basic', 'client_secret_post'], 'client_secret_post'],
+            'application override' => [['client_secret_basic', 'client_secret_post'], 'client_secret_basic', true],
+            'unsupported authentication' => [['private_key_jwt'], null],
+        ];
+    }
+
     public function testRejectsAMismatchedStateParameter(): void
     {
         $this->fakeDiscovery();
 
-        $key = 'mcp.oauth.' . sha1('https://mcp.test/mcp');
+        $key = $this->pendingSessionKey();
 
         Session::put($key, [
             'state' => 'expected-state',
@@ -291,13 +386,13 @@ class OAuthClientTest extends TestCase
 
         Http::assertSent(fn ($request): bool => $request->url() === 'https://auth.test/token'
             && ($request['grant_type'] ?? null) === 'client_credentials'
-            && ($request['client_id'] ?? null) === 'svc'
-            && ($request['client_secret'] ?? null) === 'secret');
+            && $request->hasHeader('Authorization', 'Basic ' . base64_encode('svc:secret'))
+            && ! array_key_exists('client_secret', $request->data()));
     }
 
     public function testThrowsWhenTheAuthorizationServerRedirectsBackWithAnError(): void
     {
-        Session::put('mcp.oauth.' . sha1('https://mcp.test/mcp'), [
+        Session::put($this->pendingSessionKey(), [
             'state' => 'the-state',
             'issuer' => 'https://auth.test',
             'iss_supported' => true,
@@ -322,7 +417,7 @@ class OAuthClientTest extends TestCase
     #[DataProvider('invalidErrorIssuers')]
     public function testValidatesTheIssuerBeforeReportingAnAuthorizationError(?string $issuer, bool $issuerSupported, string $message): void
     {
-        $key = 'mcp.oauth.' . sha1('https://mcp.test/mcp');
+        $key = $this->pendingSessionKey();
         $pending = ['state' => 'the-state', 'issuer' => 'https://auth.test', 'iss_supported' => $issuerSupported];
         Session::put($key, $pending);
         Http::fake();
@@ -374,14 +469,15 @@ class OAuthClientTest extends TestCase
             ->exchangeCallback();
     }
 
-    public function testRefreshesATokenUsingTheRefreshGrant(): void
+    #[DataProvider('refreshTokens')]
+    public function testRefreshesATokenUsingTheRefreshGrant(?string $refreshToken): void
     {
         $this->fakeDiscovery();
 
         Http::fake([
             'https://auth.test/token' => Http::response([
                 'access_token' => 'fresh-token',
-                'refresh_token' => 'new-refresh',
+                ...($refreshToken === null ? [] : ['refresh_token' => $refreshToken]),
                 'expires_in' => 3600,
             ]),
         ]);
@@ -392,12 +488,20 @@ class OAuthClientTest extends TestCase
             ->refreshCredentials('old-refresh');
 
         $this->assertSame('fresh-token', $token->accessToken);
-        $this->assertSame('new-refresh', $token->refreshToken);
+        $this->assertSame($refreshToken ?? 'old-refresh', $token->refreshToken);
         $this->assertSame('mcp:use', $token->scope);
 
         Http::assertSent(fn ($request): bool => ($request['grant_type'] ?? null) === 'refresh_token'
             && ($request['refresh_token'] ?? null) === 'old-refresh'
             && ($request['client_id'] ?? null) === 'client-123');
+    }
+
+    /**
+     * Provide rotated and unchanged refresh tokens.
+     */
+    public static function refreshTokens(): array
+    {
+        return [['new-refresh'], [null]];
     }
 
     public function testFallsBackToTheResourceOriginWhenProtectedResourceMetadataIsUnavailable(): void
@@ -796,7 +900,7 @@ class OAuthClientTest extends TestCase
             'https://auth.test/token' => Http::response(['access_token' => 'access-token']),
         ]);
 
-        $key = 'mcp.oauth.' . sha1('https://mcp.test/mcp');
+        $key = $this->pendingSessionKey();
 
         Session::put($key, [
             'state' => 'the-state',
@@ -829,7 +933,7 @@ class OAuthClientTest extends TestCase
     {
         $this->fakeDiscovery();
 
-        $key = 'mcp.oauth.' . sha1('https://mcp.test/mcp');
+        $key = $this->pendingSessionKey();
 
         Session::put($key, [
             'state' => 'the-state',
@@ -861,7 +965,7 @@ class OAuthClientTest extends TestCase
     {
         $this->fakeDiscovery();
 
-        $key = 'mcp.oauth.' . sha1('https://mcp.test/mcp');
+        $key = $this->pendingSessionKey();
 
         Session::put($key, [
             'state' => 'the-state',
@@ -908,7 +1012,7 @@ class OAuthClientTest extends TestCase
             ->oAuthClient()
             ->redirect();
 
-        $stored = Session::get('mcp.oauth.' . sha1('https://mcp.test/mcp'));
+        $stored = array_values(Session::get('mcp.oauth'))[0];
 
         $this->assertSame('https://auth.test', $stored['issuer']);
         $this->assertTrue($stored['iss_supported']);
@@ -1197,7 +1301,7 @@ class OAuthClientTest extends TestCase
             'https://auth.test/token' => Http::response(['access_token' => 'access-token', 'refresh_token' => 'refresh-token']),
         ]);
 
-        $key = 'mcp.oauth.' . sha1('https://mcp.test/mcp');
+        $key = $this->pendingSessionKey(null);
 
         Session::put($key, [
             'state' => 'the-state',
@@ -1241,8 +1345,8 @@ class OAuthClientTest extends TestCase
         $this->assertSame('dcr-999', $token->clientId);
 
         Http::assertSent(fn ($request): bool => ($request['grant_type'] ?? null) === 'refresh_token'
-            && ($request['client_id'] ?? null) === 'dcr-999'
-            && ($request['client_secret'] ?? null) === 'dcr-secret');
+            && $request->hasHeader('Authorization', 'Basic ' . base64_encode('dcr-999:dcr-secret'))
+            && ! array_key_exists('client_secret', $request->data()));
     }
 
     public function testUsesClientSecretBasicWhenTheServerOnlySupportsIt(): void
@@ -1325,7 +1429,7 @@ class OAuthClientTest extends TestCase
 
         $this->assertSame('https://app.example.com/mcp/oauth/github/client-metadata.json', $query['client_id']);
 
-        $stored = Session::get('mcp.oauth.' . sha1('https://mcp.test/mcp'));
+        $stored = array_values(Session::get('mcp.oauth'))[0];
 
         $this->assertSame('https://app.example.com/mcp/oauth/github/client-metadata.json', $stored['client_id']);
         $this->assertNull($stored['client_secret']);
@@ -1357,7 +1461,7 @@ class OAuthClientTest extends TestCase
 
         $this->cimdClient('https://app.example.com/mcp/oauth/github/client-metadata.json')->redirect();
 
-        $this->assertSame('dcr-999', Session::get('mcp.oauth.' . sha1('https://mcp.test/mcp'))['client_id']);
+        $this->assertSame('dcr-999', array_values(Session::get('mcp.oauth'))[0]['client_id']);
 
         Http::assertSent(fn ($request): bool => $request->url() === 'https://auth.test/register');
     }
@@ -1369,7 +1473,7 @@ class OAuthClientTest extends TestCase
 
         $this->cimdClient($url)->redirect();
 
-        $this->assertSame('dcr-999', Session::get('mcp.oauth.' . sha1('https://mcp.test/mcp'))['client_id']);
+        $this->assertSame('dcr-999', array_values(Session::get('mcp.oauth'))[0]['client_id']);
 
         Http::assertSent(fn ($request): bool => $request->url() === 'https://auth.test/register');
     }
@@ -1415,7 +1519,7 @@ class OAuthClientTest extends TestCase
 
         $this->cimdClient('https://app.example.com/client-metadata.json', clientSecret: 'leaked-secret')->redirect();
 
-        $stored = Session::get('mcp.oauth.' . sha1('https://mcp.test/mcp'));
+        $stored = array_values(Session::get('mcp.oauth'))[0];
 
         $this->assertNull($stored['client_secret']);
         $this->assertSame('none', $stored['token_auth_method']);
@@ -1520,6 +1624,24 @@ class OAuthClientTest extends TestCase
         $this->assertSame(['auth.test:443:10.0.0.5'], $options['curl'][CURLOPT_RESOLVE]);
         $this->assertSame('http://proxy.test:8080', $options['proxy']['https']);
         $this->assertFalse($options['allow_redirects']);
+    }
+
+    public function testExplicitPrivateAddressAllowanceAppliesToDiscoveryAndAdvertisedEndpoints(): void
+    {
+        $this->app->instance(OAuthDestinationPolicy::class, new FakeDestinationPolicy(allowedNetworks: ['10.0.0.5']));
+        Http::fake([
+            'https://10.0.0.5/resource' => Http::response(['authorization_servers' => ['https://10.0.0.5']]),
+            'https://10.0.0.5/.well-known/oauth-authorization-server' => Http::response([
+                'issuer' => 'https://10.0.0.5',
+                'authorization_endpoint' => 'https://10.0.0.5/authorize',
+                'token_endpoint' => 'https://10.0.0.5/token',
+                'registration_endpoint' => 'https://10.0.0.5/register',
+            ]),
+        ]);
+
+        $discovered = (new AuthServerDiscovery)->discover('https://mcp.test/mcp', 'https://10.0.0.5/resource');
+        $this->assertSame('https://10.0.0.5/token', $discovered->server->tokenEndpoint);
+        Http::assertSentCount(2);
     }
 
     public function testLocalResourceDiscoveryAllowsLoopbackEndpoints(): void

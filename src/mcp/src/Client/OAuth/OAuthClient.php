@@ -184,6 +184,7 @@ class OAuthClient
 
         $token->clientId = $clientId;
         $token->clientSecret = $clientSecret;
+        $token->refreshToken ??= $refreshToken;
 
         return $token;
     }
@@ -437,15 +438,15 @@ class OAuthClient
             return TokenEndpointAuthMethod::None;
         }
 
-        $supported = $metadata->tokenEndpointAuthMethodsSupported;
+        $supported = $metadata->tokenEndpointAuthMethodsSupported ?: [TokenEndpointAuthMethod::ClientSecretBasic->value];
 
-        if ($supported !== []
-            && ! in_array(TokenEndpointAuthMethod::ClientSecretPost->value, $supported, true)
-            && in_array(TokenEndpointAuthMethod::ClientSecretBasic->value, $supported, true)) {
-            return TokenEndpointAuthMethod::ClientSecretBasic;
+        foreach ([TokenEndpointAuthMethod::ClientSecretPost, TokenEndpointAuthMethod::ClientSecretBasic, TokenEndpointAuthMethod::None] as $method) {
+            if (in_array($method->value, $supported, true)) {
+                return $method;
+            }
         }
 
-        return TokenEndpointAuthMethod::ClientSecretPost;
+        throw new OAuthException('The authorization server does not advertise a supported token authentication method.');
     }
 
     /**
@@ -483,10 +484,15 @@ class OAuthClient
     }
 
     /**
-     * Get the session key for this resource's pending authorization.
+     * Get the session key for this client's pending authorization.
      */
     protected function sessionKey(): string
     {
-        return 'mcp.oauth.' . sha1($this->resourceUrl);
+        return 'mcp.oauth.' . hash('xxh128', serialize([
+            $this->resourceUrl,
+            $this->config->clientId,
+            $this->config->redirectUri,
+            $this->clientIdMetadataUrl,
+        ]));
     }
 }

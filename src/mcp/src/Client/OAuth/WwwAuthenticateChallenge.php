@@ -29,7 +29,7 @@ class WwwAuthenticateChallenge
             return new self;
         }
 
-        preg_match_all('/([\w-]+)\s*=\s*("[^"]*"|[^,\s]+)/', $header, $matches, PREG_SET_ORDER);
+        preg_match_all('/([\w-]+)\s*=\s*("(?:[^"\\\]|\\\.)*"|[^,\s]+)/', $header, $matches, PREG_SET_ORDER);
 
         $params = [];
 

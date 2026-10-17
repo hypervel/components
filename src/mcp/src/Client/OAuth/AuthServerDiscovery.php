@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Mcp\Client\OAuth;
 
+use Hypervel\Http\Client\Destinations\DisallowedDestinationException;
 use Hypervel\Mcp\Client\Exceptions\OAuthException;
 use Hypervel\Mcp\Client\OAuth\Concerns\InteractsWithOAuthEndpoints;
 use Hypervel\Support\Arr;
@@ -236,8 +237,22 @@ class AuthServerDiscovery
         $host = $this->normalizedHost($parts['host']);
         $resourceHost = $this->normalizedHost($resourceParts['host']);
 
-        if ($this->isInternalHost($host) && (! $this->isLocalhost($host) || ! $this->isLocalhost($resourceHost))) {
-            throw new OAuthException("OAuth endpoint [{$url}] cannot use a private or internal host.");
+        if (! $this->isInternalHost($host)) {
+            return;
+        }
+
+        if ($this->isLocalhost($host)) {
+            if (! $this->isLocalhost($resourceHost)) {
+                throw new OAuthException("OAuth endpoint [{$url}] cannot use a private or internal host.");
+            }
+
+            return;
+        }
+
+        try {
+            app(OAuthDestinationPolicy::class)->validate($url);
+        } catch (DisallowedDestinationException $exception) {
+            throw new OAuthException($exception->getMessage(), previous: $exception);
         }
     }
 

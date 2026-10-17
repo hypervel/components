@@ -7,12 +7,15 @@ namespace Hypervel\Tests\Mcp\Feature\Client;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Http\RedirectResponse;
 use Hypervel\Mcp\Client;
+use Hypervel\Mcp\Client\Exceptions\AuthorizationRequiredException;
 use Hypervel\Mcp\Client\OAuth\OAuthDestinationPolicy;
 use Hypervel\Mcp\Client\OAuth\TokenSet;
+use Hypervel\Mcp\Client\OAuth\WwwAuthenticateChallenge;
 use Hypervel\Mcp\Facades\Mcp;
 use Hypervel\Mcp\WebClient;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Support\Facades\Route;
+use Hypervel\Support\Facades\URL;
 use Hypervel\Tests\Mcp\Fixtures\Client\OAuth\FakeDestinationPolicy;
 use Hypervel\Tests\Mcp\Fixtures\Client\OAuthCallbackController;
 use Hypervel\Tests\Mcp\TestCase;
@@ -42,7 +45,9 @@ class OAuthCallbackRouteTest extends TestCase
      */
     private function fakeOAuthSession(): array
     {
-        return ['mcp.oauth.' . sha1('https://mcp.test/mcp') => [
+        $key = (fn (): string => $this->sessionKey())->call(Mcp::client('github')->oAuthClient());
+
+        return [$key => [
             'state' => 'the-state',
             'verifier' => 'the-verifier',
             'client_id' => 'client-123',
@@ -201,7 +206,7 @@ class OAuthCallbackRouteTest extends TestCase
         });
 
         $session = $this->fakeOAuthSession();
-        $session['mcp.oauth.' . sha1('https://mcp.test/mcp')]['return_to'] = '/connected';
+        $session[array_key_first($session)]['return_to'] = '/connected';
 
         $this->withSession($session)
             ->get('/mcp/oauth/github/callback?code=auth-code&state=the-state')
@@ -231,12 +236,38 @@ class OAuthCallbackRouteTest extends TestCase
 
         Mcp::oAuthRoutesFor('github', fn (string $provider, TokenSet $token): null => null);
 
+        $exception = new AuthorizationRequiredException(challenge: new WwwAuthenticateChallenge(
+            resourceMetadataUrl: 'https://mcp.test/.well-known/custom-resource',
+            scope: 'files:read',
+        ));
+
         $this->withSession([])
-            ->get('/mcp/github/connect?resource_metadata=https://mcp.test/.well-known/custom-resource&scope=files:read')
+            ->get(URL::signedRoute('mcp.oauth.github.connect', $exception->query()))
             ->assertRedirectContains('https://auth.test/authorize')
             ->assertRedirectContains('scope=files%3Aread');
 
         Http::assertSent(fn ($request): bool => $request->url() === 'https://mcp.test/.well-known/custom-resource');
+    }
+
+    public function testRejectsUnsignedOrTamperedHintsBeforeDiscovery(): void
+    {
+        Http::fake();
+        $this->registerGithubClient();
+        Mcp::oAuthRoutesFor('github', fn (string $provider, TokenSet $token): null => null);
+
+        $exception = new AuthorizationRequiredException(challenge: new WwwAuthenticateChallenge(
+            resourceMetadataUrl: 'https://attacker.test/metadata',
+            scope: 'files:read',
+        ));
+
+        $this->get(route('mcp.oauth.github.connect', $exception->query()))->assertForbidden();
+        $this->get(route('mcp.oauth.github.connect', ['scope' => 'admin']))->assertForbidden();
+
+        $signed = URL::signedRoute('mcp.oauth.github.connect', $exception->query());
+        $this->get(str_replace('attacker.test', 'another.test', $signed))->assertForbidden();
+        $this->get(str_replace('files%3Aread', 'admin', $signed))->assertForbidden();
+
+        Http::assertNothingSent();
     }
 
     public function testServesAClientIdMetadataDocumentMatchingItsOwnUrl(): void
