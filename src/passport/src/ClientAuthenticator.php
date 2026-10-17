@@ -194,7 +194,7 @@ class ClientAuthenticator
 
         // Issuer-only audiences prevent audience injection; see draft-ietf-oauth-rfc7523bis, sections 4–5.
         // https://datatracker.ietf.org/doc/draft-ietf-oauth-rfc7523bis/
-        if ($issuer === null || $issuer === '' || ($audience !== $issuer && $audience !== [$issuer])
+        if ($issuer === null || ($audience !== $issuer && $audience !== [$issuer])
             || ($header['alg'] ?? null) !== $algorithm || ! in_array($algorithm, JwkValidator::ALGORITHMS, true)
             || ($claims['iss'] ?? null) !== $client->getKey() || ($claims['sub'] ?? null) !== $client->getKey()
             || ($identifier !== null && (! is_string($identifier) || $identifier === ''))

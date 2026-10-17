@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Passport;
 
 use DateInterval;
+use Hypervel\Support\Uri;
+use InvalidArgumentException;
 
 readonly class ServerSettings
 {
@@ -13,6 +15,7 @@ readonly class ServerSettings
      *
      * @param list<ServerKey> $keys
      * @param array<string, string> $scopes
+     * @param int $metadataCacheLifetime Discovery and JWKS HTTP freshness in seconds
      */
     public function __construct(
         public array $keys,
@@ -22,6 +25,19 @@ readonly class ServerSettings
         public ?DateInterval $clientCredentialsTokensExpireIn = null,
         public array $scopes = [],
         public ?string $issuer = null,
+        public int $metadataCacheLifetime = 0,
     ) {
+        if ($issuer !== null) {
+            $uri = Uri::of($issuer)->getUri();
+
+            if ($uri->getScheme() !== 'https' || $uri->getHost() === null || $uri->getHost() === ''
+                || $uri->getUserInfo() !== null || $uri->getQuery() !== null || $uri->getFragment() !== null) {
+                throw new InvalidArgumentException('Passport issuers must be absolute HTTPS URLs without user information, query parameters or fragments.');
+            }
+        }
+
+        if ($metadataCacheLifetime < 0) {
+            throw new InvalidArgumentException('The Passport metadata cache lifetime cannot be negative.');
+        }
     }
 }
