@@ -11,7 +11,7 @@ class ResponseSerializationTest extends HttpServerIntegrationTestCase
 {
     public function testResponseSerializationDoesNotMutateHeaderValues(): void
     {
-        // @TODO: Remove this skip once Swoole preserves response header values during serialization.
+        // @TODO: Remove this skip once https://github.com/swoole/swoole-src/pull/6313 is released.
         if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
             $this->markTestSkipped('Swoole mutates caller-owned response header values while serializing them.');
         }
@@ -25,7 +25,7 @@ class ResponseSerializationTest extends HttpServerIntegrationTestCase
 
     public function testHttpTwoResponseSerializationDoesNotMutateHeaderValues(): void
     {
-        // @TODO: Remove this skip once Swoole preserves response header values during serialization.
+        // @TODO: Remove this skip once https://github.com/swoole/swoole-src/pull/6313 is released.
         if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
             $this->markTestSkipped('Swoole mutates caller-owned response header values while serializing them.');
         }
