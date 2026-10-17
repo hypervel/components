@@ -12,6 +12,14 @@ Route::post('/token', [
     'middleware' => 'throttle:passport',
 ]);
 
+if (Passport::$dynamicClientRegistrationEnabled) {
+    Route::post('/register', [
+        'uses' => 'ClientRegistrationController@store',
+        'as' => 'clients.register',
+        'middleware' => 'throttle:passport',
+    ]);
+}
+
 Route::get('/authorize', [
     'uses' => 'AuthorizationController@authorize',
     'as' => 'authorizations.authorize',

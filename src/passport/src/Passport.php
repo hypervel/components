@@ -80,6 +80,8 @@ class Passport
 
     protected const bool DEFAULT_REGISTERS_ROUTES = true;
 
+    protected const bool DEFAULT_DYNAMIC_CLIENT_REGISTRATION_ENABLED = false;
+
     protected const array DEFAULT_INHERITED_GRANT_ATTRIBUTES = [];
 
     /**
@@ -247,6 +249,11 @@ class Passport
      * Indicates if Passport routes will be registered.
      */
     public static bool $registersRoutes = self::DEFAULT_REGISTERS_ROUTES;
+
+    /**
+     * Indicates if the dynamic client registration endpoint is enabled.
+     */
+    public static bool $dynamicClientRegistrationEnabled = self::DEFAULT_DYNAMIC_CLIENT_REGISTRATION_ENABLED;
 
     // Deprecated JSON API routes are omitted; applications define their own management routes.
 
@@ -1026,6 +1033,16 @@ class Passport
     }
 
     /**
+     * Enable the dynamic client registration endpoint.
+     *
+     * Boot-only. Call during provider registration, before Passport registers routes for the worker.
+     */
+    public static function enableDynamicClientRegistration(): void
+    {
+        static::$dynamicClientRegistrationEnabled = true;
+    }
+
+    /**
      * Instruct Passport to enable cookie serialization.
      *
      * Boot-only. The policy persists in a static property and affects every request on the worker.
@@ -1098,6 +1115,7 @@ class Passport
         static::$withInheritedScopes = self::DEFAULT_WITH_INHERITED_SCOPES;
         static::$authorizationServerResponseType = null;
         static::$registersRoutes = self::DEFAULT_REGISTERS_ROUTES;
+        static::$dynamicClientRegistrationEnabled = self::DEFAULT_DYNAMIC_CLIENT_REGISTRATION_ENABLED;
         static::$accessTokenAuthenticationCallback = null;
         static::$clientAuthenticationCallback = null;
         static::$inheritedGrantAttributes = self::DEFAULT_INHERITED_GRANT_ATTRIBUTES;
