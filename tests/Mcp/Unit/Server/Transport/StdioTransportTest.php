@@ -40,6 +40,21 @@ class StdioTransportTest extends TestCase
         }
     }
 
+    public function testReportsIncompleteStandardOutputWrites(): void
+    {
+        $process = new Process([
+            'sh', '-c', 'exec "$0" -d display_errors=stderr "$1" 1>&-',
+            PHP_BINARY, __DIR__ . '/../../../Fixtures/StdioWriteFailure.php',
+        ], timeout: 5);
+
+        try {
+            $this->assertNotSame(0, $process->run());
+            $this->assertStringContainsString('Could not write the complete MCP message to standard output.', $process->getErrorOutput());
+        } finally {
+            $process->stop(0);
+        }
+    }
+
     public function testExecutesStreamCallback(): void
     {
         $transport = new StdioTransport;

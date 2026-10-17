@@ -6,6 +6,7 @@ namespace Hypervel\Mcp\Server\Transport;
 
 use Closure;
 use Hypervel\Mcp\Server\Contracts\Transport;
+use RuntimeException;
 
 class StdioTransport implements Transport
 {
@@ -32,7 +33,11 @@ class StdioTransport implements Transport
      */
     public function send(string $message): void
     {
-        fwrite(STDOUT, $message . PHP_EOL);
+        $message .= PHP_EOL;
+
+        if (fwrite(STDOUT, $message) !== strlen($message)) {
+            throw new RuntimeException('Could not write the complete MCP message to standard output.');
+        }
     }
 
     /**
