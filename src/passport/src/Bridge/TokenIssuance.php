@@ -322,14 +322,12 @@ class TokenIssuance implements NonCopyableContext, Transient
     }
 
     /**
-     * Revoke a replayed refresh grant and every access token still linked to it.
+     * Revoke a refresh grant and every access token still linked to it.
      */
     public static function revokeRefreshTokenFamily(string $familyId): void
     {
         $family = Passport::refreshTokenFamily();
         $connection = $family->getConnection();
-        self::ensureRedemptionAllowed($connection);
-
         $connection->transaction(static function () use ($family, $familyId): void {
             $record = $family->newQuery()->whereKey($familyId)->lockForUpdate()->first();
 
