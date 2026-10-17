@@ -296,7 +296,7 @@ class PendingTestResponse
 
         $params = [
             ...$primitive->toMethodCall(),
-            'arguments' => $arguments,
+            'arguments' => (object) $arguments,
         ];
 
         if ($method === 'resources/read' && $primitive instanceof HasUriTemplate) {

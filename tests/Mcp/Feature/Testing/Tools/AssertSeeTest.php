@@ -15,6 +15,7 @@ class HotelT extends Server
 {
     protected array $tools = [
         BookingTool::class,
+        NumericArgumentsTool::class,
     ];
 }
 
@@ -50,6 +51,17 @@ class BookingTool extends Tool
     }
 }
 
+class NumericArgumentsTool extends Tool
+{
+    /**
+     * Return the argument with a numeric property name.
+     */
+    public function handle(Request $request): string
+    {
+        return $request->get('0');
+    }
+}
+
 class AssertSeeTest extends TestCase
 {
     public function testMayAssertThatTextIsSeenWhenReturningStringContent(): void
@@ -68,6 +80,13 @@ class AssertSeeTest extends TestCase
         $response->assertSee('Your booking is confirmed!')
             ->assertDontSee('The booking date cannot be in the past.')
             ->assertDontSee('Please select a more reasonable date.');
+    }
+
+    public function testPreservesNumericArgumentNames(): void
+    {
+        HotelT::tool(NumericArgumentsTool::class, ['0' => 'numeric argument'])
+            ->assertOk()
+            ->assertSee('numeric argument');
     }
 
     public function testMayAssertThatTextIsSeenWhenProvidingArgumentsThatAreWrong(): void
