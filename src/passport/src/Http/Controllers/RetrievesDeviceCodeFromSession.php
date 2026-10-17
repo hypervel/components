@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Passport\Http\Controllers;
 
-use DateTimeImmutable;
 use Exception;
 use Hypervel\Http\Request;
 use Hypervel\Passport\Exceptions\InvalidAuthTokenException;
+use Hypervel\Support\Facades\Date;
 use League\OAuth2\Server\Entities\DeviceCodeEntityInterface;
+use League\OAuth2\Server\Exception\OAuthServerException;
 
 trait RetrievesDeviceCodeFromSession
 {
@@ -20,30 +21,30 @@ trait RetrievesDeviceCodeFromSession
      */
     protected function getDeviceCodeFromSession(Request $request): DeviceCodeEntityInterface
     {
-        if ($request->isNotFilled('auth_token')
-            || $request->session()->pull('authToken') !== $request->input('auth_token')) {
-            $request->session()->forget(['authToken', 'deviceCode', 'authAttributes']);
+        $pending = $this->getPendingAuthorization($request);
 
-            throw InvalidAuthTokenException::different();
+        try {
+            if ($pending['grant_type'] !== 'urn:ietf:params:oauth:grant-type:device_code' || $pending['stage'] !== 'consent') {
+                throw InvalidAuthTokenException::different();
+            }
+
+            $this->ensureApprovingUser($pending);
+            $deviceCode = $this->deviceCodes->getDeviceCodeEntityByDeviceCode($pending['device_code']);
+
+            if ($deviceCode === null || $deviceCode->getUserIdentifier() !== null || $deviceCode->getExpiryDateTime() <= Date::now()) {
+                throw OAuthServerException::invalidRequest('user_code');
+            }
+
+            $this->getClientForApproval(
+                $deviceCode->getClient()->getIdentifier(),
+                $pending['grant_type'],
+                $deviceCode->getScopes(),
+            );
+            $deviceCode->setUserIdentifier($pending['user_id']);
+
+            return $deviceCode;
+        } finally {
+            $this->pending->pull($request, $request->input('auth_token'));
         }
-
-        $deviceCode = $request->session()->pull('deviceCode')
-            ?? throw new Exception('Device code was not present in the session.');
-
-        $deviceCode = unserialize($deviceCode, ['allowed_classes' => [
-            \Hypervel\Passport\Bridge\DeviceCode::class,
-            \Hypervel\Passport\Bridge\Client::class,
-            \Hypervel\Passport\Bridge\Scope::class,
-            DateTimeImmutable::class,
-        ]]);
-
-        $this->ensureApprovingUser($request, $deviceCode->getUserIdentifier());
-        $this->getClientForApproval(
-            $deviceCode->getClient()->getIdentifier(),
-            'urn:ietf:params:oauth:grant-type:device_code',
-            $deviceCode->getScopes()
-        );
-
-        return $deviceCode;
     }
 }
