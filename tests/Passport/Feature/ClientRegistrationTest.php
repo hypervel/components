@@ -150,6 +150,38 @@ class ClientRegistrationTest extends PassportTestCase
         $this->assertDatabaseCount('oauth_clients', 1);
     }
 
+    #[TestWith([true])]
+    #[TestWith([false])]
+    public function testProvisioningTokensMustIncludeTheRegistrationAudience(bool $allowed): void
+    {
+        $resource = $allowed ? route('passport.clients.register') : 'https://other.example/api';
+        Passport::tokensCanAccess([$resource => 'Resource']);
+        $client = ClientFactory::new()->asClientCredentials()->create();
+        $token = $this->post('/oauth/token', [
+            'grant_type' => 'client_credentials', 'client_id' => $client->id,
+            'client_secret' => $client->plainSecret, 'scope' => 'passport:register', 'resource' => $resource,
+        ])->assertOk()->json('access_token');
+
+        $response = $this->withToken($token)->postJson('/oauth/register', ['grant_types' => ['client_credentials']]);
+
+        if ($allowed) {
+            $response->assertCreated();
+        } else {
+            $response->assertUnauthorized()->assertJsonPath('error', 'invalid_token');
+        }
+
+        $this->assertDatabaseCount('oauth_clients', $allowed ? 2 : 1);
+    }
+
+    public function testClientTestingHelperCanAuthorizeRegistration(): void
+    {
+        Passport::actingAsClient(ClientFactory::new()->asClientCredentials()->create(), ['passport:register']);
+
+        $this->withToken('test-token')->postJson('/oauth/register', ['grant_types' => ['client_credentials']])
+            ->assertCreated();
+        $this->assertDatabaseCount('oauth_clients', 2);
+    }
+
     #[TestWith(['Bearer invalid', 'invalid_token'])]
     #[TestWith(['Basic Y2xpZW50OnNlY3JldA==', null])]
     public function testInvalidProvisioningCredentialsReturnBearerChallenges(string $authorization, ?string $error): void

@@ -99,6 +99,11 @@ class ClientRegistrationController
 
         $token = AccessToken::fromPsrRequest($validated);
 
+        if ($token->oauth_audiences !== [$token->oauth_client_id]
+            && ! in_array(route('passport.clients.register'), $token->oauth_audiences, true)) {
+            throw $this->bearerChallenge('invalid_token');
+        }
+
         // Wildcard scopes and browser cookies are not provisioning credentials.
         if (! in_array('passport:register', $token->oauth_scopes, true)) {
             throw $this->bearerChallenge('insufficient_scope');
