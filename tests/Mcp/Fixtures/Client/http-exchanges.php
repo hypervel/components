@@ -75,9 +75,28 @@ try {
 
     [$first, $firstRequest] = $receive();
 
-    if ($argv[1] === 'concurrent' || $argv[1] === 'failure') {
+    if (in_array($argv[1], ['concurrent', 'failure', 'cancellation'], true)) {
         // Neither response is available until both calls reach the server.
         [$second, $secondRequest] = $receive();
+
+        if ($argv[1] === 'cancellation') {
+            foreach ([$first, $second] as $connection) {
+                fwrite($connection, "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\n: waiting\n\n");
+                fflush($connection);
+            }
+
+            echo "waiting\n";
+            fflush(STDOUT);
+
+            foreach ([$first, $second] as $connection) {
+                fread($connection, 1);
+                if (! feof($connection)) {
+                    throw new RuntimeException('Canceling the AI operation did not close its MCP exchange.');
+                }
+            }
+
+            return;
+        }
 
         if ($argv[1] === 'failure') {
             // Handshake waiters can send before the coroutine that negotiated.
