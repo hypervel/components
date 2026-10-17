@@ -64,6 +64,15 @@ class DeviceCodeGrant extends LeagueDeviceCodeGrant
             $allowedScopes[] = $scope;
         }
 
+        $issuance = TokenIssuance::current();
+
+        if ($issuance?->requestedResources !== null) {
+            $issuance->resources = array_fill_keys($issuance->requestedResources, array_map(
+                static fn (ScopeEntityInterface $scope): string => $scope->getIdentifier(),
+                $allowedScopes,
+            ));
+        }
+
         $deviceCodeEntity = $this->issueDeviceCode($this->deviceCodeTTL, $client, '', $allowedScopes);
         $response = new DeviceCodeResponse;
 
