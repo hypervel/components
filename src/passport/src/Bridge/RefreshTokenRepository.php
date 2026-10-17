@@ -77,6 +77,7 @@ class RefreshTokenRepository implements RefreshTokenRepositoryInterface
                 'id' => $id = $refreshTokenEntity->getIdentifier(),
                 'access_token_id' => $accessTokenId = $refreshTokenEntity->getAccessToken()->getIdentifier(),
                 'family_id' => $familyId,
+                'resources' => $issuance?->resources,
                 'revoked' => false,
                 'expires_at' => $refreshTokenEntity->getExpiryDateTime(),
             ]);

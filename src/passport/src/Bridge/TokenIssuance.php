@@ -49,6 +49,18 @@ class TokenIssuance implements NonCopyableContext, Transient
     /** @var null|list<string> */
     public ?array $approvedScopes = null;
 
+    /** @var null|list<string> */
+    public ?array $refreshTokenScopes = null;
+
+    /** @var null|list<string> */
+    public ?array $requestedResources = null;
+
+    /** @var null|array<string, list<string>> */
+    public ?array $resources = null;
+
+    /** @var list<string> */
+    public array $audience = [];
+
     protected ?Connection $connection = null;
 
     protected int $transactionLevel = 0;
@@ -138,6 +150,10 @@ class TokenIssuance implements NonCopyableContext, Transient
     public function setGrant(AuthCode|DeviceCode|RefreshToken|null $grant): void
     {
         $this->grant = $grant;
+
+        if ($this->tokenRequest) {
+            $this->resources = $grant?->resources;
+        }
     }
 
     /**
@@ -173,9 +189,14 @@ class TokenIssuance implements NonCopyableContext, Transient
      */
     public function attributes(): array
     {
-        return $this->tokenRequest && $this->grant !== null
+        $attributes = $this->tokenRequest && $this->grant !== null
             ? $this->grant->only(['provider', 'consent_id', ...Passport::$inheritedGrantAttributes])
             : $this->authorizationAttributes;
+
+        // Protocol authorization belongs to each credential's repository, not extension inheritance.
+        unset($attributes['resources'], $attributes['audience']);
+
+        return $attributes;
     }
 
     /**
