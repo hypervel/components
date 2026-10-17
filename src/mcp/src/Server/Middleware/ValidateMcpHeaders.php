@@ -55,7 +55,7 @@ class ValidateMcpHeaders
                 'code' => ErrorCode::HEADER_MISMATCH->value,
                 'message' => $mismatch,
             ],
-        ], 400);
+        ], 400, options: JSON_INVALID_UTF8_SUBSTITUTE);
     }
 
     /**
@@ -80,7 +80,7 @@ class ValidateMcpHeaders
                     'code' => ErrorCode::INVALID_PARAMS->value,
                     'message' => 'Invalid params: The request [_meta] is missing the required [' . MetaKey::PROTOCOL_VERSION->value . '] member.',
                 ],
-            ], 400);
+            ], 400, options: JSON_INVALID_UTF8_SUBSTITUTE);
         }
 
         return response()->json([
@@ -94,7 +94,7 @@ class ValidateMcpHeaders
                     'requested' => $version,
                 ],
             ],
-        ], 400);
+        ], 400, options: JSON_INVALID_UTF8_SUBSTITUTE);
     }
 
     /**

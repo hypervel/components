@@ -86,6 +86,26 @@ class ValidateMcpHeadersTest extends TestCase
         $this->assertSame(-32020, $response->json('error.code'));
     }
 
+    public function testInvalidHeaderBytesStillProduceAProtocolError(): void
+    {
+        $message = callToolMessage();
+
+        $this->postJson('test-mcp', $message, [
+            ...mcpHeaders($message),
+            'Mcp-Name' => "invalid-\xFF",
+        ])->assertStatus(400)
+            ->assertJsonPath('id', $message['id'])
+            ->assertJsonPath('error.code', -32020)
+            ->assertJsonPath('error.message', "Header mismatch: The [Mcp-Name] header value [invalid-\u{FFFD}] does not match the request body value [{$message['params']['name']}].");
+
+        $this->postJson('test-mcp', ['jsonrpc' => '2.0', 'id' => 3, 'method' => 'tools/list'], [
+            'MCP-Protocol-Version' => "invalid-\xFF",
+        ])->assertStatus(400)
+            ->assertJsonPath('id', 3)
+            ->assertJsonPath('error.code', -32022)
+            ->assertJsonPath('error.data.requested', "invalid-\u{FFFD}");
+    }
+
     public function testDecodesABase64SentinelNameHeaderBeforeComparingIt(): void
     {
         $message = callToolMessage();

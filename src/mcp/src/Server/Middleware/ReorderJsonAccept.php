@@ -26,7 +26,7 @@ class ReorderJsonAccept
             return $next($request);
         }
 
-        usort($accept, fn (string $a, string $b): int => str_contains($b, 'application/json') <=> str_contains($a, 'application/json'));
+        usort($accept, fn (string $a, string $b): int => (stripos($b, 'application/json') !== false) <=> (stripos($a, 'application/json') !== false));
         $request->headers->set('Accept', implode(', ', $accept));
 
         return $next($request);

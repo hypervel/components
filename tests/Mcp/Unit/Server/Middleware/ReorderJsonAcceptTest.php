@@ -8,6 +8,7 @@ use Hypervel\Http\Request;
 use Hypervel\Http\Response;
 use Hypervel\Mcp\Server\Middleware\ReorderJsonAccept;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class ReorderJsonAcceptTest extends TestCase
 {
@@ -35,16 +36,18 @@ class ReorderJsonAcceptTest extends TestCase
         $this->assertSame('text/html', $request->header('Accept'));
     }
 
-    public function testReordersMultipleAcceptHeadersToPrioritizeJson(): void
+    #[TestWith(['application/json'])]
+    #[TestWith(['Application/JSON'])]
+    public function testReordersMultipleAcceptHeadersToPrioritizeJson(string $json): void
     {
         $request = new Request;
-        $request->headers->set('Accept', 'text/html, application/json, text/plain');
+        $request->headers->set('Accept', "text/html, {$json}, text/plain");
 
         $middleware = new ReorderJsonAccept;
 
         $middleware->handle($request, fn (Request $request): Response => new Response('test'));
 
-        $this->assertSame('application/json, text/html, text/plain', $request->header('Accept'));
+        $this->assertSame("{$json}, text/html, text/plain", $request->header('Accept'));
     }
 
     public function testHandlesJsonAlreadyFirstInList(): void
