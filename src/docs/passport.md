@@ -1635,7 +1635,9 @@ The consent view receives `resources`, a list of `ProtectedResource` objects wit
 
 Custom consent forms may submit a subset through `permissions[resources]`, using each resource URI as a key and its selected scopes as the value. Selections must also be within the submitted `scopes` selection. Omitting `permissions` approves the presented permissions. An explicitly empty resource selection denies authorization; a resource with an explicitly empty scope list grants access to that resource without scope permissions. Remembered consent retains the resource and scope pairs, so permission to write to one API never grants permission to write to another.
 
-At code exchange or refresh, clients may select one or more originally approved resources using `resource`. If omitted, Passport selects all approved resources. A token intended for several resources contains only scopes approved for every selected resource. Prefer a separate access token for each API when the APIs do not trust one another. The refresh token retains the original authorization, allowing later refresh requests to select another approved API. An authorization made without resources cannot acquire a resource during exchange or refresh.
+At code exchange or refresh, clients may select one or more originally approved resources using `resource`. If omitted, Passport selects all approved resources. A token intended for several resources contains only scopes approved for every selected resource. The refresh token retains the original authorization, allowing later refresh requests to select another approved API. An authorization made without resources cannot acquire a resource during exchange or refresh.
+
+Each refresh revokes the access token associated with the refresh token being used, including when selecting another API. To keep separate tokens for APIs that do not trust one another, obtain a separate authorization for each API. Remembered consent can avoid repeated consent prompts.
 
 Client-credentials requests may also supply `resource`. Their tokens use the requested audiences and the client's permitted scopes, without user consent.
 

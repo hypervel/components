@@ -56,6 +56,9 @@ class ResourceIndicatorsTest extends PassportTestCase
     #[TestWith([null, ''])]
     public function testResourcePairsSurviveCodeExchangeAndRefresh(?array $selected, string $scope): void
     {
+        Route::get('/resource-token', static fn (): string => 'first')->middleware([
+            'auth:passport', CheckTokenAudience::using(self::FIRST),
+        ]);
         $client = ClientFactory::new()->create();
         $presentation = $this->presentation($client, [self::FIRST, self::SECOND]);
         $this->assertSame([
@@ -89,11 +92,13 @@ class ResourceIndicatorsTest extends PassportTestCase
         $this->assertSame($client->id, $claims->get('client_id'));
         $this->assertSame($selected ?? [self::FIRST, self::SECOND], $claims->get('aud'));
         $this->assertSame($permissions, Passport::refreshToken()->sole()->resources);
+        $this->getJson('/resource-token', ['Authorization' => 'Bearer ' . $tokens['access_token']])->assertOk();
 
         $next = $this->post('/oauth/token', [
             'grant_type' => 'refresh_token', 'client_id' => $client->id,
             'client_secret' => $client->plainSecret, 'refresh_token' => $tokens['refresh_token'], 'resource' => self::SECOND,
         ])->assertOk()->assertJsonPath('scope', 'read')->json();
+        $this->getJson('/resource-token', ['Authorization' => 'Bearer ' . $tokens['access_token']])->assertUnauthorized();
         $this->post('/oauth/token', [
             'grant_type' => 'refresh_token', 'client_id' => $client->id,
             'client_secret' => $client->plainSecret, 'refresh_token' => $next['refresh_token'], 'resource' => self::FIRST,
