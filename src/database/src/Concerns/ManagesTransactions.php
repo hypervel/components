@@ -29,6 +29,11 @@ trait ManagesTransactions
      */
     public function transaction(Closure $callback, int $attempts = 1): mixed
     {
+        // Only the outermost transaction can replay all enclosing work, even if failed cleanup resets its level.
+        if ($this->transactionLevel() > 0) {
+            $attempts = min(1, $attempts);
+        }
+
         for ($currentAttempt = 1; $currentAttempt <= $attempts; ++$currentAttempt) {
             $this->beginTransaction();
 
@@ -352,6 +357,19 @@ trait ManagesTransactions
         try {
             $this->performRollBack($toLevel);
         } catch (Throwable $exception) {
+            if ($toLevel > 0 && ! $this->causedByLostConnection($exception)) {
+                // A missing or failed savepoint cannot safely preserve the enclosing transaction.
+                try {
+                    $this->disconnect();
+                } catch (CanceledException $cancellation) {
+                    if (! $exception instanceof CanceledException) {
+                        throw $cancellation;
+                    }
+                } catch (Throwable) {
+                    // Preserve the rollback failure after detaching the unusable connection.
+                }
+            }
+
             $this->handleRollBackException($exception);
         }
 
