@@ -367,6 +367,8 @@ In this example, `CurrentWeatherTool` is advertised directly, while the historic
 
 The maximum number of tools that may be executed in one `execute_tools` call and the maximum response size are controlled by the `mcp.tool_search.max_tool_calls` and `mcp.tool_search.max_output_bytes` configuration values.
 
+Notifications yielded by catalog tools are sent when the `execute_tools` call finishes. Register tools directly when they need to stream progress as it happens.
+
 <a name="tool-name-title-description"></a>
 #### Tool Name, Title, and Description
 
@@ -1601,6 +1603,17 @@ The generated Blade view uses the `<x-mcp::app>` component, which renders a comp
 ```
 
 The `createMcpApp` global is provided by the bundled SDK and handles connecting the iframe to the server, applying host theming, and exposing helpers such as `callServerTool`, `sendMessage`, `openLink`, and event callbacks. For the full client-side API, refer to the [MCP Apps specification](https://modelcontextprotocol.io/extensions/apps/overview).
+
+You may pass an app capabilities object as the second argument to `createMcpApp`. The following example declares app-provided tools and the supported display modes:
+
+```js
+createMcpApp(async (app) => {
+    app.onListTools(() => ({ tools: [/* ... */] }));
+    app.onCallTool(async (params) => { /* ... */ });
+}, { tools: {}, availableDisplayModes: ['inline', 'fullscreen'] });
+```
+
+These capabilities are sent to the host during initialization; registering a callback does not advertise them automatically. Calls to `requestDisplayMode` should use one of the declared display modes.
 
 <a name="rendering-apps-from-tools"></a>
 ### Rendering Apps From Tools
