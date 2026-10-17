@@ -12,6 +12,7 @@ use Hypervel\Passport\ClientKeyRepository;
 use Hypervel\Passport\Database\Factories\SigningKeyFactory;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Passport\Fixtures\JsonWebKeyPair;
 use PHPUnit\Framework\Attributes\TestWith;
 use UnexpectedValueException;
 
@@ -114,7 +115,7 @@ class ClientKeyRepositoryTest extends TestCase
         unset($key['alg']);
         Http::fake(['https://keys.example/jwks' => Http::response(['keys' => [
             [...$key, 'kid' => 'encryption', 'use' => 'enc'],
-            $this->ecKey(),
+            JsonWebKeyPair::generate()->jwk,
             ['kty' => 'OKP', 'crv' => 'Ed25519', 'x' => JWT::urlsafeB64Encode(str_repeat('a', 32))],
             $key,
         ]])]);
@@ -132,7 +133,7 @@ class ClientKeyRepositoryTest extends TestCase
         unset($key['alg']);
         $client = $this->client();
         $client->jwks_uri = null;
-        $client->jwks = ['keys' => [$key, [...$this->ecKey(), 'kid' => $key['kid']]]];
+        $client->jwks = ['keys' => [$key, [...JsonWebKeyPair::generate()->jwk, 'kid' => $key['kid']]]];
         $keys = $this->app->make(ClientKeyRepository::class);
         $keys->validate($client->jwks, 'RS256');
         $keys->validate($client->jwks, 'ES256');
@@ -194,20 +195,5 @@ class ClientKeyRepositoryTest extends TestCase
     protected function key(): array
     {
         return ParsedKey::fromPublicKey((new SigningKeyFactory)->definition()['public_key'])->getJwk();
-    }
-
-    /**
-     * Generate a public EC key without optional algorithm metadata.
-     */
-    protected function ecKey(): array
-    {
-        $key = openssl_pkey_new(['private_key_type' => OPENSSL_KEYTYPE_EC, 'curve_name' => 'prime256v1']);
-        $details = openssl_pkey_get_details($key);
-
-        return [
-            'kty' => 'EC', 'crv' => 'P-256',
-            'x' => JWT::urlsafeB64Encode($details['ec']['x']),
-            'y' => JWT::urlsafeB64Encode($details['ec']['y']),
-        ];
     }
 }
