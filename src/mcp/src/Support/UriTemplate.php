@@ -57,7 +57,13 @@ class UriTemplate implements Stringable
         $result = [];
 
         foreach ($this->variableNames as $i => $name) {
-            $result[$name] = $matches[$i + 1] ?? '';
+            $value = $matches[$i + 1] ?? '';
+
+            if (isset($result[$name]) && $result[$name] !== $value) {
+                return null;
+            }
+
+            $result[$name] = $value;
         }
 
         return $result;

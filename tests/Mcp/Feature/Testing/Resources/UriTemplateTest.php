@@ -35,6 +35,19 @@ class UriTemplateTest extends TestCase
             ->assertSee('"uri":"file://users/42/files/document.pdf"');
     }
 
+    public function testDoesNotExpandPlaceholdersInsideVariableValues(): void
+    {
+        $response = UriTemplateTestServer::resource(UriTemplateUserFileResource::class, [
+            'userId' => '{fileId}',
+            'fileId' => 'report',
+        ]);
+
+        $response->assertOk()
+            ->assertSee('"userId":"{fileId}"')
+            ->assertSee('"fileId":"report"')
+            ->assertSee('"uri":"file://users/{fileId}/files/report"');
+    }
+
     public function testCastsNonStringScalarArgumentsWhenExpandingUriTemplates(): void
     {
         $response = UriTemplateTestServer::resource(UriTemplateSummaryResource::class, ['id' => 123]);

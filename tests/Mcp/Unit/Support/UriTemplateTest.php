@@ -52,6 +52,14 @@ class UriTemplateTest extends TestCase
         $this->assertSame(['userId', 'fileId'], $template->variableNames());
     }
 
+    public function testRepeatedVariablesMustHaveTheSameValue(): void
+    {
+        $template = new UriTemplate('file://files/{fileId}/copies/{fileId}');
+
+        $this->assertSame(['fileId' => 'report'], $template->match('file://files/report/copies/report'));
+        $this->assertNull($template->match('file://files/report/copies/invoice'));
+    }
+
     public function testReturnsNullForNonMatchingUris(): void
     {
         $template = new UriTemplate('file://users/{username}');

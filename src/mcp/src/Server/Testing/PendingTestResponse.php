@@ -317,7 +317,7 @@ class PendingTestResponse
      */
     protected function expandUriTemplate(UriTemplate $template, array $variables): string
     {
-        $expanded = (string) $template;
+        $replacements = [];
 
         foreach ($template->variableNames() as $name) {
             if (! array_key_exists($name, $variables)) {
@@ -336,9 +336,9 @@ class PendingTestResponse
                 throw new InvalidArgumentException("URI template variable [{$name}] value must not contain '/'.");
             }
 
-            $expanded = str_replace('{' . $name . '}', $value, $expanded);
+            $replacements['{' . $name . '}'] = $value;
         }
 
-        return $expanded;
+        return strtr((string) $template, $replacements);
     }
 }
