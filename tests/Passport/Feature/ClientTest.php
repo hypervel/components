@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Passport\Feature;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Passport\Client;
 use Hypervel\Testbench\TestCase;
+use PHPUnit\Framework\Attributes\TestWith;
 
 final class ClientTest extends TestCase
 {
@@ -45,11 +46,14 @@ final class ClientTest extends TestCase
         $this->assertFalse($client->hasScope('foo'));
     }
 
-    public function testAClientOwnedByUserZeroIsNotFirstParty(): void
+    #[TestWith([['owner_id' => null], true])]
+    #[TestWith([['owner_id' => 0], false])]
+    #[TestWith([['owner_id' => null, 'dynamically_registered' => true], false])]
+    public function testFirstPartyClientsExcludeOwnedAndDynamicallyRegisteredClients(array $attributes, bool $expected): void
     {
-        $client = new Client(['owner_id' => 0]);
+        $client = new Client($attributes);
 
-        $this->assertFalse($client->firstParty());
+        $this->assertSame($expected, $client->firstParty());
     }
 
     public function testScopesWhenClientHasScope(): void

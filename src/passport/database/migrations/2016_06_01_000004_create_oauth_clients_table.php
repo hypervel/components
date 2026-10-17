@@ -20,6 +20,14 @@ return new class extends Migration {
             $table->string('provider')->nullable();
             $table->jsonb('redirect_uris');
             $table->jsonb('grant_types');
+            $table->jsonb('scopes')->nullable();
+            $table->string('token_endpoint_auth_method')->nullable();
+            $table->string('token_endpoint_auth_signing_alg')->nullable();
+            $table->jsonb('jwks')->nullable();
+            $table->text('jwks_uri')->nullable();
+            $table->boolean('dpop_bound_access_tokens')->default(false);
+            $table->string('application_type')->default('web');
+            $table->boolean('dynamically_registered')->default(false);
             $table->boolean('revoked');
             $table->timestamps();
         });

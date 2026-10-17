@@ -26,6 +26,13 @@ use SensitiveParameter;
  * @property array $redirect_uris
  * @property array $grant_types
  * @property null|array $scopes
+ * @property null|string $token_endpoint_auth_method
+ * @property null|string $token_endpoint_auth_signing_alg
+ * @property null|array $jwks
+ * @property null|string $jwks_uri
+ * @property bool $dpop_bound_access_tokens
+ * @property string $application_type
+ * @property bool $dynamically_registered
  * @property bool $revoked
  * @property null|CarbonInterface $created_at
  * @property null|CarbonInterface $updated_at
@@ -68,6 +75,9 @@ class Client extends Model
         'grant_types' => 'array',
         'scopes' => 'array',
         'redirect_uris' => 'array',
+        'jwks' => 'array',
+        'dpop_bound_access_tokens' => 'bool',
+        'dynamically_registered' => 'bool',
         'revoked' => 'bool',
     ];
 
@@ -170,7 +180,8 @@ class Client extends Model
      */
     public function firstParty(): bool
     {
-        return $this->owner_id === null;
+        // Ownerless dynamic registrations are external clients, not trusted application clients.
+        return $this->owner_id === null && $this->dynamically_registered !== true;
     }
 
     /**
@@ -204,6 +215,10 @@ class Client extends Model
      */
     public function confidential(): bool
     {
+        if (($method = $this->getAttributes()['token_endpoint_auth_method'] ?? null) !== null) {
+            return $method !== 'none';
+        }
+
         return ! empty($this->getAttributes()['secret'] ?? null);
     }
 
