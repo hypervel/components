@@ -21,6 +21,8 @@ use Hypervel\Passport\Database\Factories\ClientFactory;
 use Hypervel\Passport\Database\Factories\SigningKeyFactory;
 use Hypervel\Passport\DeviceCode;
 use Hypervel\Passport\PassportServiceProvider;
+use Hypervel\Passport\PushedAuthorizationRequest;
+use Hypervel\Passport\PushedAuthorizationRequestRepository;
 use Hypervel\Passport\RefreshToken;
 use Hypervel\Passport\RefreshTokenFamily;
 use Hypervel\Passport\ReplayCache;
@@ -78,6 +80,7 @@ abstract class GrantConcurrencyTestCase extends TestCase
             '2016_06_01_000006_create_oauth_refresh_token_families_table.php',
             '2024_06_01_000001_create_oauth_device_codes_table.php',
             '2026_10_17_000001_create_oauth_consents_table.php',
+            '2026_10_17_000002_create_oauth_pushed_authorization_requests_table.php',
         ] as $migration) {
             (require dirname(__DIR__, 4) . '/src/passport/database/migrations/' . $migration)->up();
         }
@@ -138,6 +141,65 @@ abstract class GrantConcurrencyTestCase extends TestCase
             $waiting = false;
             $schema->drop('passport_replays');
         }
+    }
+
+    public function testConcurrentPushedRequestConsumptionAcceptsOnlyOneBrowser(): void
+    {
+        $client = ClientFactory::new()->create();
+        $uri = 'urn:ietf:params:oauth:request_uri:test-reference';
+        PushedAuthorizationRequest::create([
+            'id' => hash('sha256', $uri), 'client_id' => $client->id,
+            'parameters' => ['client_id' => $client->id, 'response_type' => 'code'],
+            'scopes' => [], 'redirect_uri' => $client->redirect_uris[0], 'expires_at' => now()->addMinute(),
+        ]);
+        $repository = $this->app->make(PushedAuthorizationRequestRepository::class);
+
+        try {
+            $repository->consume($uri, 'not-a-uuid');
+            $this->fail('A malformed client identifier must not consume the reference.');
+        } catch (OAuthServerException $exception) {
+            $this->assertSame('invalid_request_uri', $exception->getErrorType());
+        }
+
+        $ready = new Channel(2);
+        $release = new Channel(2);
+        $waiting = true;
+        DB::listen(function (QueryExecuted $query) use ($ready, $release, &$waiting): void {
+            if ($waiting && str_starts_with($query->sql, 'select') && str_contains($query->sql, 'oauth_pushed_authorization_requests')) {
+                $ready->push(true);
+                $this->assertTrue($release->pop(5));
+            }
+        });
+        $consume = static function () use ($repository, $uri, $client): string {
+            try {
+                $repository->consume($uri, $client->id);
+
+                return 'accepted';
+            } catch (OAuthServerException $exception) {
+                return $exception->getErrorType();
+            }
+        };
+
+        try {
+            [$first, $second] = parallel([
+                $consume,
+                $consume,
+                function () use ($ready, $release): void {
+                    try {
+                        $this->assertTrue($ready->pop(5));
+                        $this->assertTrue($ready->pop(5));
+                    } finally {
+                        $release->push(true);
+                        $release->push(true);
+                    }
+                },
+            ]);
+        } finally {
+            $waiting = false;
+        }
+
+        $this->assertEqualsCanonicalizing(['accepted', 'invalid_request_uri'], [$first, $second]);
+        $this->assertSame(0, PushedAuthorizationRequest::count());
     }
 
     #[TestWith([2, false])]
