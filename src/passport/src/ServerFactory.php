@@ -242,7 +242,7 @@ class ServerFactory
             $this->app->make(Bridge\ScopeRepository::class),
             $key,
             $this->encryptionKey,
-            $responseType ?? Passport::$authorizationServerResponseType,
+            $responseType ?? Passport::$authorizationServerResponseType ?? new Bridge\BearerTokenResponse,
             $this,
             $personalAccess,
         ), function (AuthorizationServer $server): void {
