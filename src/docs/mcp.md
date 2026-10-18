@@ -1898,7 +1898,7 @@ Passport serves the local authorization-server discovery document. MCP serves pr
 
 Choose one registration endpoint. To use Passport's [general dynamic registration](/docs/{{version}}/passport#dynamic-client-registration), enable it during provider registration and call `Mcp::oauthRoutes(registration: false)`. Include `mcp:use` in `passport.registration.scopes` if anonymous clients need that scope. The general endpoint keeps its own callback and authentication-method policies; it does not inherit MCP's desktop callback allowances. A custom registration endpoint should use the `passport.clients.register` route name. Enabling both built-in endpoints raises a configuration error.
 
-For an external authorization server, set `mcp.authorization_server` to its issuer and call `Mcp::oauthRoutes(registration: false)`, even when Passport is installed for other APIs. Apply authentication middleware for that server's tokens. This mode does not require Passport; MCP publishes protected-resource metadata and leaves authorization-server discovery to the external server. Without Passport, no local registration endpoint is added.
+For an external authorization server, set `mcp.authorization_server` to its issuer and call `Mcp::oauthRoutes(registration: false)`, even when Passport is installed for other APIs. Use that server's token authentication instead of Passport's middleware, including audience and scope checks. This mode does not require Passport; MCP publishes protected-resource metadata and leaves authorization-server discovery to the external server. Without Passport, no local registration endpoint is added.
 
 #### Token Scopes
 
