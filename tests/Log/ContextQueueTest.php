@@ -19,6 +19,7 @@ use Hypervel\Foundation\Bus\Dispatchable;
 use Hypervel\Foundation\Queue\Queueable;
 use Hypervel\Log\Context\Repository;
 use Hypervel\Queue\BackgroundQueue;
+use Hypervel\Queue\Events\JobAttempted;
 use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Queue;
@@ -387,6 +388,42 @@ class ContextQueueTest extends TestCase
 
         $this->assertSame('e2e-test-123', ContextQueueTestJob::$receivedTraceId);
         $this->assertSame('e2e-secret', ContextQueueTestJob::$receivedSecret);
+        $this->assertSame('e2e-test-123', Repository::getInstance()->get('trace_id'));
+        $this->assertSame('e2e-secret', Repository::getInstance()->getHidden('secret'));
+    }
+
+    public function testSyncJobDoesNotLeaveContextInACallerWithoutARepository(): void
+    {
+        $this->assertFalse(Repository::hasInstance());
+
+        $this->createSyncQueue()->push(new ContextQueueTestJob);
+
+        $this->assertFalse(Repository::hasInstance());
+    }
+
+    public function testFailingSyncJobRestoresCallerContextAfterItsLifecycleEvents(): void
+    {
+        $context = Repository::getInstance()->add('trace_id', 'caller')->addHidden('secret', 'caller-secret');
+        $expected = ContextQueueFailingJob::$exception = new RuntimeException('Job failed.');
+        $caught = null;
+        $attemptedContext = null;
+        $this->app->make('events')->listen(JobAttempted::class, static function () use (&$attemptedContext): void {
+            $attemptedContext = Repository::getInstance()->get('trace_id');
+        });
+
+        try {
+            $this->createSyncQueue()->push(new ContextQueueFailingJob);
+        } catch (RuntimeException $exception) {
+            $caught = $exception;
+        } finally {
+            ContextQueueFailingJob::$exception = null;
+        }
+
+        $this->assertSame($expected, $caught);
+        $this->assertSame('job-context', $attemptedContext);
+        $this->assertSame($context, Repository::getInstance());
+        $this->assertSame('caller', $context->get('trace_id'));
+        $this->assertSame('caller-secret', $context->getHidden('secret'));
     }
 
     #[TestWith([true])]
@@ -412,6 +449,9 @@ class ContextQueueTest extends TestCase
 
         $this->assertSame($commit ? 'dispatch-context' : null, ContextQueueTestJob::$receivedTraceId);
         $this->assertSame($commit ? 'dispatch-secret' : null, ContextQueueTestJob::$receivedSecret);
+        $this->assertSame($context, Repository::getInstance());
+        $this->assertSame('commit-context', $context->get('trace_id'));
+        $this->assertSame('commit-secret', $context->getHidden('secret'));
     }
 
     public function testBackgroundJobPayloadCapturesParentLogContextBeforeSpawning(): void
@@ -479,6 +519,19 @@ class ContextQueueTestJob implements ShouldQueue
     {
         static::$receivedTraceId = Repository::getInstance()->get('trace_id');
         static::$receivedSecret = Repository::getInstance()->getHidden('secret');
+        Repository::getInstance()->add('trace_id', 'job-context')->addHidden('secret', 'job-secret');
+    }
+}
+
+class ContextQueueFailingJob extends ContextQueueTestJob
+{
+    public static ?RuntimeException $exception = null;
+
+    public function handle(): void
+    {
+        parent::handle();
+
+        throw self::$exception;
     }
 }
 

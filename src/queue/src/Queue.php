@@ -9,6 +9,7 @@ use DateInterval;
 use DateTimeInterface;
 use Hypervel\Bus\DispatchLockContext;
 use Hypervel\Container\Container as GlobalContainer;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
@@ -127,6 +128,29 @@ abstract class Queue
         return is_object($job)
             ? $this->getAttributeValue($job, Delay::class, 'delay')
             : null;
+    }
+
+    /**
+     * Run an operation with its own log context, then restore the caller.
+     *
+     * @template TReturn
+     * @param Closure(): TReturn $callback
+     * @return TReturn
+     */
+    protected function withLogContext(?ContextRepository $context, Closure $callback): mixed
+    {
+        $previous = CoroutineContext::get(ContextRepository::CONTEXT_KEY);
+        $context === null
+            ? CoroutineContext::forget(ContextRepository::CONTEXT_KEY)
+            : CoroutineContext::set(ContextRepository::CONTEXT_KEY, $context);
+
+        try {
+            return $callback();
+        } finally {
+            $previous === null
+                ? CoroutineContext::forget(ContextRepository::CONTEXT_KEY)
+                : CoroutineContext::set(ContextRepository::CONTEXT_KEY, $previous);
+        }
     }
 
     /**

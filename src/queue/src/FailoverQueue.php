@@ -335,18 +335,9 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
                     }
 
                     // Child payload hooks run after commit but must see the dispatch-time log context.
-                    $previousContext = CoroutineContext::get(ContextRepository::CONTEXT_KEY);
-                    $context === null
-                        ? CoroutineContext::forget(ContextRepository::CONTEXT_KEY)
-                        : CoroutineContext::set(ContextRepository::CONTEXT_KEY, $context);
-
                     try {
-                        $this->attemptOnAllConnections($method, $arguments, $job);
+                        $this->withLogContext($context, fn () => $this->attemptOnAllConnections($method, $arguments, $job));
                     } finally {
-                        $previousContext === null
-                            ? CoroutineContext::forget(ContextRepository::CONTEXT_KEY)
-                            : CoroutineContext::set(ContextRepository::CONTEXT_KEY, $previousContext);
-
                         if (is_object($job)) {
                             DispatchLockContext::release($job);
                         }
