@@ -105,6 +105,33 @@ class RefreshTokenGrantTest extends PassportTestCase
         $this->assertSame(1, Passport::refreshTokenFamily()->newQuery()->whereNotNull('revoked_at')->count());
     }
 
+    public function testAnAuthorizationCodeCannotBeUsedAsARefreshToken(): void
+    {
+        $client = ClientFactory::new()->create();
+        $this->actingAs(UserFactory::new()->create(), 'web');
+        $decision = $this->get('/oauth/authorize?' . http_build_query([
+            'client_id' => $client->getKey(), 'response_type' => 'code',
+        ]))->assertOk()->json('authToken');
+        $location = $this->post('/oauth/authorize/consent', ['auth_token' => $decision])
+            ->assertRedirect()->headers->get('Location');
+        parse_str(parse_url($location, PHP_URL_QUERY), $parameters);
+
+        $this->post('/oauth/token', [
+            'grant_type' => 'refresh_token',
+            'client_id' => $client->getKey(),
+            'client_secret' => $client->plainSecret,
+            'refresh_token' => $parameters['code'],
+        ])->assertBadRequest()->assertJsonPath('error', 'invalid_grant');
+        $this->assertDatabaseCount('oauth_access_tokens', 0);
+
+        $this->post('/oauth/token', [
+            'grant_type' => 'authorization_code',
+            'client_id' => $client->getKey(),
+            'client_secret' => $client->plainSecret,
+            'code' => $parameters['code'],
+        ])->assertOk()->assertJsonStructure(['access_token', 'refresh_token']);
+    }
+
     public function testReplacementRefreshTokenRetainsItsOriginalScopes(): void
     {
         $client = ClientFactory::new()->create();
