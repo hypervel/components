@@ -217,7 +217,8 @@ class DpopIssuanceTest extends PassportTestCase
 
         $this->getJson(self::ORIGIN . '/proof-user', $headers)->assertOk()
             ->assertJsonPath('user', $userId)->assertJsonPath('client', $client->id)->assertJsonPath('valid', true);
-        $this->getJson(self::ORIGIN . '/proof-user', $headers)->assertUnauthorized();
+        $this->getJson(self::ORIGIN . '/proof-user', $headers)->assertUnauthorized()
+            ->assertHeader('WWW-Authenticate', 'Bearer, DPoP algs="RS256 ES256", error="invalid_dpop_proof"');
         $this->getJson(self::ORIGIN . '/proof-user', ['Authorization' => 'Bearer ' . $tokens['access_token']])->assertUnauthorized();
     }
 
@@ -237,7 +238,13 @@ class DpopIssuanceTest extends PassportTestCase
         $this->getJson(self::ORIGIN . '/proof-machine', ['Authorization' => 'DPoP ' . $bound])->assertUnauthorized();
         $this->getJson(self::ORIGIN . '/proof-machine', [
             'Authorization' => 'DPoP ' . $bound, 'DPoP' => $this->proof($key, '/proof-machine', 'GET', $unbound),
+        ])->assertUnauthorized()->assertHeader('WWW-Authenticate', 'Bearer, DPoP algs="RS256 ES256", error="invalid_dpop_proof"');
+        $this->getJson(self::ORIGIN . '/proof-machine', [
+            'Authorization' => 'DPoP ' . $bound, 'DPoP' => $this->proof(JsonWebKeyPair::generate(), '/proof-machine', 'GET', $bound),
         ])->assertUnauthorized();
+        $this->getJson(self::ORIGIN . '/proof-machine', [
+            'Authorization' => 'DPoP ' . $bound, 'DPoP' => $this->proof($key, '/proof-machine', 'GET'),
+        ])->assertUnauthorized()->assertHeader('WWW-Authenticate', 'Bearer, DPoP algs="RS256 ES256", error="invalid_dpop_proof"');
         $this->getJson(self::ORIGIN . '/proof-machine', [
             'Authorization' => 'DPoP ' . $unbound, 'DPoP' => $this->proof($key, '/proof-machine', 'GET', $unbound),
         ])->assertUnauthorized();
@@ -385,7 +392,8 @@ class DpopIssuanceTest extends PassportTestCase
 
         $this->postJson(self::ORIGIN . '/oauth/register', $metadata, $headers)->assertCreated();
         $this->postJson(self::ORIGIN . '/oauth/register', $metadata, $headers)->assertUnauthorized()
-            ->assertHeader('WWW-Authenticate', 'Bearer, DPoP algs="RS256 ES256", error="invalid_token"');
+            ->assertJsonPath('error', 'invalid_dpop_proof')
+            ->assertHeader('WWW-Authenticate', 'Bearer, DPoP algs="RS256 ES256", error="invalid_dpop_proof"');
 
         $unprivileged = $this->token([...$parameters, 'scope' => 'read'], $key)->assertOk()->json('access_token');
         $this->postJson(self::ORIGIN . '/oauth/register', $metadata, [

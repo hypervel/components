@@ -105,6 +105,20 @@ class AuthenticationChallengeTest extends PassportTestCase
             ->assertHeader('WWW-Authenticate', 'Bearer error="invalid_token"');
     }
 
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testScopeChallengesRetainScopesNeededByEarlierMiddleware(bool $stacked): void
+    {
+        Passport::actingAs(new User, ['read'], 'passport');
+        $middleware = $stacked
+            ? [CheckToken::using('read'), CheckToken::using('write')]
+            : [CheckToken::using('read', 'write')];
+        Route::get('/scope-upgrade', static fn (): string => 'Allowed')->middleware(['auth:passport', ...$middleware]);
+
+        $this->getJson('/scope-upgrade', ['Authorization' => 'Bearer test-token'])->assertForbidden()
+            ->assertHeader('WWW-Authenticate', 'Bearer error="insufficient_scope", scope="read write"');
+    }
+
     public function testGuardCallbacksDoNotAffectOtherGuardsOrReplacementRequests(): void
     {
         $request = Request::create('/protected');

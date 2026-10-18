@@ -13,6 +13,7 @@ use Hypervel\Passport\Bridge\BearerRequestFactory;
 use Hypervel\Passport\Exceptions\MissingScopeException;
 use Hypervel\Passport\JwkValidator;
 use Hypervel\Passport\Passport;
+use Hypervel\Passport\ServerFactory;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
@@ -25,6 +26,7 @@ class AuthenticationChallenge
         protected Repository $config,
         protected ExceptionHandler $exceptions,
         protected AuthManager $auth,
+        protected ServerFactory $servers,
     ) {
     }
 
@@ -35,6 +37,10 @@ class AuthenticationChallenge
      */
     public function header(Request $request, ?string $error = null, array $scopes = []): string
     {
+        if ($error === 'invalid_token' && $this->servers->authenticationError($request)?->getErrorType() === 'invalid_dpop_proof') {
+            $error = 'invalid_dpop_proof';
+        }
+
         $scheme = BearerRequestFactory::credentials($request->headers->get('Authorization') ?? '')['scheme'] ?? null;
         $details = $error === null ? '' : ' error="' . $error . '"';
 
@@ -80,12 +86,14 @@ class AuthenticationChallenge
 
     /**
      * Add a challenge to this middleware failure without replacing its rendered body.
+     *
+     * @param null|list<string> $scopes
      */
-    public function forException(Request $request, AuthenticationException|MissingScopeException $exception): void
+    public function forException(Request $request, AuthenticationException|MissingScopeException $exception, ?array $scopes = null): void
     {
         $scopeFailure = $exception instanceof MissingScopeException;
         $status = $scopeFailure ? 403 : 401;
-        $this->exceptions->afterResponse(function (Response $response, Throwable $renderedException, Request $renderedRequest) use ($request, $exception, $status, $scopeFailure): void {
+        $this->exceptions->afterResponse(function (Response $response, Throwable $renderedException, Request $renderedRequest) use ($request, $exception, $status, $scopeFailure, $scopes): void {
             // The handler wraps authorization exceptions in an HTTP exception before rendering.
             if ($renderedRequest === $request && $response->getStatusCode() === $status
                 && ! $response->headers->has('WWW-Authenticate')
@@ -93,7 +101,7 @@ class AuthenticationChallenge
                 $response->headers->set('WWW-Authenticate', $this->header(
                     $request,
                     $scopeFailure ? 'insufficient_scope' : 'invalid_token',
-                    $scopeFailure ? $exception->scopes() : [],
+                    $scopeFailure ? ($scopes ?? $exception->scopes()) : [],
                 ));
             }
         });

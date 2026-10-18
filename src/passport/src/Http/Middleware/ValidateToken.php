@@ -52,7 +52,15 @@ abstract class ValidateToken
 
             $this->validate($token, ...$params);
         } catch (AuthenticationException|MissingScopeException $exception) {
-            app(AuthenticationChallenge::class)->forException($request, $exception);
+            $scopes = null;
+
+            if ($exception instanceof MissingScopeException) {
+                $granted = ($token ?? null) instanceof AccessToken ? $token->oauth_scopes : [];
+                // A replacement token must retain the scopes that already satisfied earlier middleware.
+                $scopes = array_values(array_unique([...$granted, ...$params]));
+            }
+
+            app(AuthenticationChallenge::class)->forException($request, $exception, $scopes);
 
             throw $exception;
         }
@@ -90,6 +98,8 @@ abstract class ValidateToken
 
     /**
      * Validate the given access token.
+     *
+     * @throws AuthenticationException|MissingScopeException
      */
     abstract protected function validate(ScopeAuthorizable $token, string ...$params): void;
 }
