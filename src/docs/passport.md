@@ -508,7 +508,7 @@ A client's nullable `scopes` attribute limits its allowed scopes. Null leaves th
 <a name="jwt-client-assertions"></a>
 ### JWT Client Assertions
 
-To use `private_key_jwt`, register a public `jwks` document or an HTTPS `jwks_uri`, and set the server's canonical `issuer`. Supported signing algorithms are `RS256` and `ES256`; the default is `RS256`. RSA keys must be between 2048 and 4096 bits, with public exponents no larger than 32 bits; the usual exponent of 65537 is supported. ES256 keys use the P-256 curve. Do not supply private key material. A key set may also contain public keys for other purposes; Passport selects only keys suitable for the registered assertion algorithm. Registration accepts key declarations only for `private_key_jwt` clients. Inline and remote documents are limited to 64 KiB.
+To use `private_key_jwt`, register a public `jwks` document or an HTTPS `jwks_uri`, and set the server's canonical `issuer`. Supported signing algorithms are `RS256` and `ES256`; the default is `RS256`. RSA keys must be between 2048 and 4096 bits, with public exponents no larger than 32 bits; the usual exponent of 65537 is supported. ES256 keys use the P-256 curve. Do not supply private key material. A key set may also contain public keys for other purposes; Passport selects only keys suitable for the registered assertion algorithm. Inline and remote documents are limited to 64 KiB. For other authentication methods, registration ignores `jwks`, `jwks_uri` and `token_endpoint_auth_signing_alg`, leaving them out of the registered metadata.
 
 The assertion's `iss` and `sub` must equal the client ID. Its sole `aud` must be the exact server issuer, as a string or a single-element array; endpoint URLs and multiple audiences are rejected. Include `exp` and a unique `jti`; `iat` is optional. Passport allows at most five minutes between `iat` and `exp`, or five minutes of remaining validity when `iat` is absent, allowing 60 seconds for clock differences. The optional `nbf` must permit immediate use within that allowance. Sign a new assertion for each request:
 
@@ -562,7 +562,7 @@ Clients submit JSON metadata to this endpoint:
 }
 ```
 
-Set `passport.registration.scopes` to the scopes anonymous registrations may request. It defaults to an empty array. Anonymous registration supports authorization-code and refresh grants, including shared-secret and JWT-authenticated clients, but cannot grant client-credentials authority, wildcard scopes or `passport:register`. Including either reserved scope in the anonymous allowance prevents application startup.
+Set `passport.registration.scopes` to the scopes anonymous registrations may request. It defaults to an empty array. Registrations that omit `scope` receive this list, except clients supporting `client_credentials`, which must explicitly request their scopes. An explicit empty `scope` allows none. List only scopes defined for every server that accepts registration; defaults undergo the same scope validation as explicit requests. Anonymous registration supports authorization-code and refresh grants, including shared-secret and JWT-authenticated clients, but cannot grant client-credentials authority, wildcard scopes or `passport:register`. Including either reserved scope in the anonymous allowance prevents application startup.
 
 The response returns HTTP 201 with the effective registered metadata, including defaults, and a new `client_id`. The default authentication method is `client_secret_basic`. Methods requiring a secret return it once as `client_secret`; store it securely, since Passport retains only its hash. Invalid metadata returns `invalid_client_metadata` or `invalid_redirect_uri` with HTTP 400. Unknown fields are ignored unless an extension validates them.
 
@@ -590,7 +590,7 @@ This event is dispatched by `ClientMetadataValidator`, including Passport's regi
 
 For additional browser callback fields, call the validator's `validateRedirectUri($uri, $applicationType)` method to reuse Passport's HTTPS and native-application URI rules. It validates the address without fetching it.
 
-Reject metadata by throwing `InvalidClientMetadataException::invalidClientMetadata($description)` or `invalidRedirectUri($description)`. The registration endpoint renders these as protocol errors. Application management code may use `ClientMetadataValidator::validate($metadata, $client)` to validate a complete metadata document and run the same extension listeners. This is a replacement document, not a partial update: omitted nullable key fields return `null` so removed keys and authentication algorithms are cleared when persisted. Extensions should likewise return defaults for all their fields, including null for removed optional metadata. Registration responses omit null effective values. The application remains responsible for authorization and persistence, including mapping `client_name` to `name` and `scope` to the model's `scopes` array. Direct model writes bypass metadata validation.
+Reject metadata by throwing `InvalidClientMetadataException::invalidClientMetadata($description)` or `invalidRedirectUri($description)`. The registration endpoint renders these as protocol errors. Application management code may use `ClientMetadataValidator::validate($metadata, $client)` to validate a complete metadata document and run the same extension listeners. This is a replacement document, not a partial update: omitted nullable key fields return `null` so removed keys and authentication algorithms are cleared when persisted. Omitted scopes receive the registration defaults; send `scope: ""` to allow no scopes. Extensions should likewise return defaults for all their fields, including null for removed optional metadata. Registration responses omit null effective values. The application remains responsible for authorization and persistence, including mapping `client_name` to `name` and `scope` to the model's `scopes` array. Direct model writes bypass metadata validation.
 
 <a name="pushed-authorization-requests"></a>
 ## Pushed Authorization Requests
@@ -629,7 +629,7 @@ PAR accepts form bodies up to 64 KiB. Errors return JSON, without redirecting to
 
 Schedule `passport:purge` to remove unused expired references. These are removed immediately on expiry whenever expired records are purged, regardless of `--hours`; `--revoked` alone leaves them unchanged. To customize storage, extend `Hypervel\Passport\PushedAuthorizationRequest` and register it with `Passport::usePushedAuthorizationRequestModel()` during application boot. Its database connection must match the other Passport credential models.
 
-Custom authorization entry points may use `PushedAuthorizationRequestRepository::find($requestUri, $clientId)` to inspect a live reference without consuming it. It returns null for an expired, unknown or mismatched reference. Inspection does not grant authorization; retain Passport's request validation and single-use consumption when continuing the browser flow.
+Custom authorization entry points may use `PushedAuthorizationRequestRepository::isPushedRequestUri($requestUri)` to recognize Passport's PAR namespace, then `find($requestUri, $clientId)` to inspect a live reference without consuming it. It returns null for an expired, unknown or mismatched reference. Inspection does not grant authorization; retain Passport's request validation and single-use consumption when continuing the browser flow. Other request-object URIs are unsupported and are never fetched.
 
 <a name="token-introspection"></a>
 ## Token Introspection
@@ -924,6 +924,8 @@ This `/oauth/token` route will return a JSON response containing `access_token`,
 > [!NOTE]
 > Like the `/oauth/authorize` route, the `/oauth/token` route is defined for you by Passport. There is no need to manually define this route.
 
+Authorization codes are single-use. Reusing a code after passing its client, callback and any required PKCE or proof checks revokes the access token and refresh-token family issued from it, including rotated replacements. Exchange each code once; if an exchange's outcome is unknown, begin a new authorization request instead of retrying the code.
+
 <a name="managing-tokens"></a>
 ### Managing Tokens
 
@@ -1048,7 +1050,7 @@ php artisan passport:purge --revoked
 php artisan passport:purge --expired
 ```
 
-Revoked refresh tokens remain until they expire so Passport can detect reuse. Empty refresh-token families are removed once none of their refresh tokens remain.
+Used authorization codes and revoked refresh tokens remain until they expire so Passport can detect reuse and revoke the credentials issued from them. Refresh records also remain while their access token is still valid, even if the refresh token has expired; this preserves the links needed to revoke the whole family. Empty refresh-token families are removed once none of their refresh tokens remain.
 
 You may also configure a [scheduled job](/docs/{{version}}/scheduling) in your application's `routes/console.php` file to automatically prune your tokens on a schedule:
 
