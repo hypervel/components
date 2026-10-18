@@ -85,4 +85,30 @@ class RemoteDocumentFetcherTest extends TestCase
         $this->expectException(DisallowedDestinationException::class);
         $this->app->make(HttpsDestinationPolicy::class)->resolve('http://keys.example/jwks', 1);
     }
+
+    public function testFetchingUsesTheRuntimePolicyToRejectPrivateDnsAddresses(): void
+    {
+        $policy = new class extends HttpsDestinationPolicy {
+            public array $hosts = [];
+
+            /**
+             * Resolve a public-looking hostname to a private address.
+             */
+            protected function resolveHost(string $host, float $timeoutSeconds): array
+            {
+                $this->hosts[] = $host;
+
+                return ['127.0.0.1'];
+            }
+        };
+        $this->app->instance(HttpsDestinationPolicy::class, $policy);
+
+        try {
+            $this->expectException(DisallowedDestinationException::class);
+            $this->expectExceptionMessage('127.0.0.1');
+            $this->app->make(RemoteDocumentFetcher::class)->fetch('https://keys.example/jwks');
+        } finally {
+            $this->assertSame(['keys.example'], $policy->hosts);
+        }
+    }
 }
