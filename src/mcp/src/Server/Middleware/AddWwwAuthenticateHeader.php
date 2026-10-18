@@ -59,7 +59,10 @@ class AddWwwAuthenticateHeader
             return null;
         }
 
-        return route('mcp.oauth.protected-resource.nested', ['path' => $request->path()]);
+        $metadataRoute = app('router')->getRoutes()->getByName('mcp.oauth.protected-resource.nested');
+        $parameters = array_intersect_key($request->route()->parameters(), array_flip($metadataRoute->parameterNames()));
+
+        return route('mcp.oauth.protected-resource.nested', [...$parameters, 'path' => $request->path()]);
     }
 
     /**
