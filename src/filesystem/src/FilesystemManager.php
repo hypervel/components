@@ -17,6 +17,7 @@ use Hypervel\Contracts\ObjectPool\InvalidatesPool;
 use Hypervel\ObjectPool\Concerns\HasPoolProxy;
 use Hypervel\ObjectPool\PoolDefinition;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Aws\ReleaseIdleDatabaseConnections;
 use Hypervel\Support\Aws\SerializedCredentialProvider;
 use Hypervel\Support\RebindsCallbacksToSelf;
 use Hypervel\Support\Str;
@@ -566,7 +567,10 @@ class FilesystemManager implements FactoryContract
             $clientConfig['credentials'] = new SerializedCredentialProvider($clientConfig['credentials']);
         }
 
-        return new S3Client($clientConfig);
+        $client = new S3Client($clientConfig);
+        $client->getHandlerList()->appendInit(new ReleaseIdleDatabaseConnections);
+
+        return $client;
     }
 
     /**

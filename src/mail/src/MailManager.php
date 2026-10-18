@@ -22,6 +22,7 @@ use Hypervel\Mail\Transport\ResendTransport;
 use Hypervel\Mail\Transport\SesV2Transport;
 use Hypervel\ObjectPool\Concerns\HasPoolProxy;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Aws\ReleaseIdleDatabaseConnections;
 use Hypervel\Support\Aws\SerializedCredentialProvider;
 use Hypervel\Support\ConfigurationUrlParser;
 use Hypervel\Support\Str;
@@ -486,10 +487,10 @@ class MailManager implements FactoryContract
             $config['credentials'] = new SerializedCredentialProvider($config['credentials']);
         }
 
-        return new SesV2Transport(
-            new SesV2Client($config),
-            $config['options'] ?? []
-        );
+        $client = new SesV2Client($config);
+        $client->getHandlerList()->appendInit(new ReleaseIdleDatabaseConnections);
+
+        return new SesV2Transport($client, $config['options'] ?? []);
     }
 
     /**

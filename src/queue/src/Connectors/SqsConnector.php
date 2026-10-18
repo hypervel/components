@@ -14,6 +14,7 @@ use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Queue\AwsCredentialCache;
 use Hypervel\Queue\SqsQueue;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Aws\ReleaseIdleDatabaseConnections;
 use Hypervel\Support\Aws\SerializedCredentialProvider;
 use InvalidArgumentException;
 
@@ -27,9 +28,11 @@ class SqsConnector implements ConnectorInterface
         $config = $this->withCredentials(
             $this->getDefaultConfiguration($config)
         );
+        $client = new SqsClient($this->clientConfiguration($config));
+        $client->getHandlerList()->appendInit(new ReleaseIdleDatabaseConnections);
 
         return new SqsQueue(
-            new SqsClient($this->clientConfiguration($config)),
+            $client,
             $config['queue'],
             $config['prefix'],
             $config['suffix'],

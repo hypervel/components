@@ -288,7 +288,7 @@ When you need a direct connection for migrations or schema operations, configure
 
 A request may spend much longer waiting for an external service than running database queries. Holding a database session throughout that wait prevents other requests from using it, even though the database has no work to do.
 
-Hypervel's [HTTP client](/docs/{{version}}/http-client) automatically returns the current execution's idle database sessions to their pools before sending an outgoing request, including retries and redirects. This happens after request callbacks, so connections used by those callbacks can also be released. The next database operation borrows a session automatically. Existing connection objects, builders, query logs and sticky reads remain valid. No database connection is opened merely to release it.
+Hypervel's [HTTP client](/docs/{{version}}/http-client) automatically returns the current execution's idle database sessions to their pools before sending an outgoing request, including retries and redirects. This happens after request callbacks, so connections used by those callbacks can also be released. The S3 filesystem driver, the SQS queue driver and the SES mail transport do the same before each AWS command, before credentials are fetched. The next database operation borrows a session automatically. Existing connection objects, builders, query logs and sticky reads remain valid. No database connection is opened merely to release it.
 
 Registered [session configurators](#configuring-database-session-state) apply the current execution's settings before a borrowed PDO is used, updating the physical session only when its desired state changes. Ordinary database queries need no changes to take advantage of early release.
 
@@ -310,7 +310,16 @@ $responses = parallel([
 ]);
 ```
 
-Automatic release occurs before sending a request, not on every read of a streamed response. If your stream consumer performs database work between chunks, you may call `releaseIdleConnections()` before waiting for more data. Faked HTTP requests do not release connections. If you provide your own Guzzle client using `setClient`, call `DB::releaseIdleConnections()` yourself before sending requests.
+Automatic release occurs before sending a request, not on every read of a streamed response. If your stream consumer performs database work between chunks, you may call `releaseIdleConnections()` before waiting for more data. Faked HTTP requests do not release connections. If you provide your own Guzzle client using `setClient`, call `DB::releaseIdleConnections()` yourself before sending requests. AWS SDK clients you create yourself can release before each command with the same middleware Hypervel's drivers use:
+
+```php
+use Aws\Sqs\SqsClient;
+use Hypervel\Support\Aws\ReleaseIdleDatabaseConnections;
+
+$client = new SqsClient($config);
+
+$client->getHandlerList()->appendInit(new ReleaseIdleDatabaseConnections);
+```
 
 Active queries, transactions, open cursors and `Schema::withoutForeignKeyConstraints` callbacks retain their sessions automatically. This includes transactions started directly through PDO or SQL, on either the read or write connection. In particular, an HTTP call inside `DB::transaction()` keeps the transaction's connection. Completed `chunk` or `lazy` query batches may release between batches.
 

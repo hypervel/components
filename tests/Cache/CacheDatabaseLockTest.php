@@ -11,10 +11,12 @@ use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\QueryException;
+use Hypervel\Database\UniqueConstraintViolationException;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
+use PDOException;
 use PHPUnit\Framework\Attributes\TestWith;
 
 class CacheDatabaseLockTest extends TestCase
@@ -62,7 +64,7 @@ class CacheDatabaseLockTest extends TestCase
         $owner = $lock->owner();
 
         // First attempt throws exception (key exists)
-        $table->shouldReceive('insert')->once()->andThrow(new QueryException('', '', [], new Exception));
+        $table->shouldReceive('insert')->once()->andThrow(new UniqueConstraintViolationException('', '', [], new Exception));
 
         // So it tries to update
         $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
@@ -87,7 +89,7 @@ class CacheDatabaseLockTest extends TestCase
         [$lock, $table] = $this->getLock();
 
         // Insert fails
-        $table->shouldReceive('insert')->once()->andThrow(new QueryException('', '', [], new Exception));
+        $table->shouldReceive('insert')->once()->andThrow(new UniqueConstraintViolationException('', '', [], new Exception));
 
         // Update fails too (someone else owns it)
         $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
@@ -107,6 +109,22 @@ class CacheDatabaseLockTest extends TestCase
         $table->shouldReceive('update')->once()->andReturn(0);
 
         $this->assertFalse($lock->acquire());
+    }
+
+    public function testInsertFailureOtherThanAnExistingLockPropagatesWithoutTakingOver(): void
+    {
+        [$lock, $table] = $this->getLock();
+        $failure = new QueryException('default', 'insert into "cache_locks"', [], new PDOException('SQLSTATE[HY000]: General error: 5 database is locked'));
+
+        $table->shouldReceive('insert')->once()->andThrow($failure);
+        $table->shouldNotReceive('update');
+
+        try {
+            $lock->acquire();
+            $this->fail('The insert failure was not thrown.');
+        } catch (QueryException $exception) {
+            $this->assertSame($failure, $exception);
+        }
     }
 
     public function testExpiredLocksAreDeletedDuringAcquisition(): void

@@ -14,6 +14,7 @@ use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Cache\Repository as CacheContract;
 use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Contracts\Database\LostConnectionDetector;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Queue\IndexAwareQueue;
@@ -26,6 +27,8 @@ use Hypervel\Coordinator\Timer;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\WaitConcurrent;
 use Hypervel\Coroutine\Waiter;
+use Hypervel\Database\LostConnectionException;
+use Hypervel\Database\QueryException;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Http\Request;
@@ -59,6 +62,8 @@ use Hypervel\Queue\WorkerStopReason;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PDOException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use Psr\Log\LogLevel;
 use ReflectionProperty;
@@ -1814,11 +1819,12 @@ class QueueWorkerTest extends TestCase
         }))->once();
     }
 
-    public function testWorkerStopsWithLostConnectionReason(): void
+    #[DataProvider('lostDatabaseConnections')]
+    public function testWorkerStopsWithLostConnectionReason(Throwable $failure): void
     {
         $workerOptions = new WorkerOptions(stopWhenEmpty: true);
         $worker = $this->getWorker('default', ['queue' => [
-            $job = new WorkerFakeJob(static fn (): never => throw new RuntimeException('server has gone away')),
+            $job = new WorkerFakeJob(static fn (): never => throw $failure),
         ]]);
 
         $status = $worker->daemon('default', 'queue', $workerOptions);
@@ -1834,11 +1840,83 @@ class QueueWorkerTest extends TestCase
         ))->once();
     }
 
+    /**
+     * @return iterable<string, array{Throwable}>
+     */
+    public static function lostDatabaseConnections(): iterable
+    {
+        yield 'query' => [self::queryException('select 1', [], 'server has gone away')];
+        yield 'no reconnector' => [new LostConnectionException('Lost connection and no reconnector available.')];
+        yield 'wrapped by the job' => [new RuntimeException('The import failed.', previous: self::queryException('select 1', [], 'server has gone away'))];
+    }
+
+    public function testWorkerStopsForADatabaseFailureTheBoundDetectorRecognizes(): void
+    {
+        $this->container->instance(LostConnectionDetector::class, new class implements LostConnectionDetector {
+            public function causedByLostConnection(Throwable $e): bool
+            {
+                return $e->getMessage() === 'the proxy closed the session';
+            }
+        });
+        $worker = $this->getWorker('default', ['queue' => [
+            new WorkerFakeJob(static fn (): never => throw self::queryException('select 1', [], 'the proxy closed the session')),
+        ]]);
+
+        $worker->daemon('default', 'queue', new WorkerOptions(stopWhenEmpty: true));
+
+        $this->assertTrue($worker->lostConnection);
+    }
+
+    #[DataProvider('failuresThatOnlyReadLikeALostConnection')]
+    public function testWorkerKeepsRunningAfterAFailureThatOnlyReadsLikeALostConnection(Throwable $failure): void
+    {
+        $workerOptions = new WorkerOptions(stopWhenEmpty: true);
+        $worker = $this->getWorker('default', ['queue' => [
+            $failing = new WorkerFakeJob(static fn (): never => throw $failure),
+            $next = new WorkerFakeJob,
+        ]]);
+
+        $status = $worker->daemon('default', 'queue', $workerOptions);
+
+        $this->assertSame(Worker::EXIT_SUCCESS, $status);
+        $this->assertTrue($failing->fired);
+        $this->assertTrue($next->fired);
+        $this->assertFalse($worker->lostConnection);
+        $this->exceptionHandler->shouldHaveReceived('report')->with($failure);
+        $this->events->shouldHaveReceived('dispatch')->with(m::on(
+            static fn (object $event): bool => $event instanceof WorkerStopping
+                && $event->reason === WorkerStopReason::QueueEmpty
+        ))->once();
+    }
+
+    /**
+     * @return iterable<string, array{Throwable}>
+     */
+    public static function failuresThatOnlyReadLikeALostConnection(): iterable
+    {
+        yield 'transport failure' => [new RuntimeException('cURL error 56: Recv failure: Connection reset by peer')];
+        yield 'query binding' => [self::queryException('insert into logs (message) values (?)', ['Connection reset by peer'], 'SQLSTATE[23505]: Unique violation')];
+    }
+
+    public function testAPopFailureThatOnlyReadsLikeALostConnectionDoesNotStopTheWorker(): void
+    {
+        $worker = new InsomniacWorker(
+            new WorkerFakeManager('default', new BrokenQueueConnection('default', new RuntimeException('Redis server went away'))),
+            $this->events,
+            $this->exceptionHandler,
+            static fn (): bool => false,
+        );
+
+        $worker->runNextJob('default', 'queue', $this->workerOptions());
+
+        $this->assertFalse($worker->lostConnection);
+    }
+
     public function testWorkerDoesNotStopOnLostConnectionWhenDisabled(): void
     {
         $workerOptions = new WorkerOptions(stopWhenEmpty: true);
         $worker = $this->getWorker('default', ['queue' => [
-            $job = new WorkerFakeJob(static fn (): never => throw new RuntimeException('server has gone away')),
+            $job = new WorkerFakeJob(static fn (): never => throw self::queryException('select 1', [], 'server has gone away')),
         ]]);
 
         Worker::$stopOnLostConnection = false;
@@ -2161,6 +2239,14 @@ class QueueWorkerTest extends TestCase
             },
             $timer,
         ];
+    }
+
+    /**
+     * Create the query exception a connection throws for a driver error.
+     */
+    private static function queryException(string $sql, array $bindings, string $driverMessage): QueryException
+    {
+        return new QueryException('default', $sql, $bindings, new PDOException($driverMessage));
     }
 
     private function workerOptions(array $overrides = [])

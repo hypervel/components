@@ -8,7 +8,7 @@ use Hypervel\Contracts\Cache\RefreshableLock;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\DetectsConcurrencyErrors;
-use Hypervel\Database\QueryException;
+use Hypervel\Database\UniqueConstraintViolationException;
 use InvalidArgumentException;
 use Throwable;
 
@@ -92,7 +92,8 @@ class DatabaseLock extends Lock implements RefreshableLock
             ]);
 
             $acquired = true;
-        } catch (QueryException) {
+        } catch (UniqueConstraintViolationException) {
+            // Only an existing row means the lock may still be taken over; other failures, such as a busy database, propagate.
             $updated = $connection->table($this->table)
                 ->where('key', $this->name)
                 ->where(function ($query) {
