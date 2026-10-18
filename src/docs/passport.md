@@ -627,6 +627,8 @@ PAR accepts form bodies up to 64 KiB. Errors return JSON, without redirecting to
 
 Schedule `passport:purge` to remove unused expired references. These are removed immediately on expiry whenever expired records are purged, regardless of `--hours`; `--revoked` alone leaves them unchanged. To customize storage, extend `Hypervel\Passport\PushedAuthorizationRequest` and register it with `Passport::usePushedAuthorizationRequestModel()` during application boot. Its database connection must match the other Passport credential models.
 
+Custom authorization entry points may use `PushedAuthorizationRequestRepository::find($requestUri, $clientId)` to inspect a live reference without consuming it. It returns null for an expired, unknown or mismatched reference. Inspection does not grant authorization; retain Passport's request validation and single-use consumption when continuing the browser flow.
+
 <a name="token-introspection"></a>
 ## Token Introspection
 
@@ -1254,6 +1256,8 @@ This will return a JSON response containing `device_code`, `user_code`, `verific
 #### Displaying the Verification URI and User Code
 
 Once a device code request has been obtained, the consuming device should instruct the user to use another device and visit the provided `verification_uri` and enter the `user_code` in order to approve the authorization request.
+
+Custom code-entry controllers may use `Hypervel\Passport\Bridge\DeviceCodeRepository::findByUserCode($userCode)` to find the live, unapproved device record. It normalizes letter case and hyphens and returns null for unknown, expired, revoked or already decided codes. Apply rate limiting before this lookup, and retain Passport's authenticated approval and denial flow; finding a code does not approve it.
 
 <a name="polling-token-request"></a>
 #### Polling Token Request
