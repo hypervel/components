@@ -15,7 +15,7 @@ class RequestParameters
     /**
      * Preserve repeated protocol fields at PSR token and device endpoints.
      *
-     * @return array<string, mixed>
+     * @return array<array-key, mixed>
      */
     public static function fromPsrRequest(ServerRequestInterface $request): array
     {
@@ -33,7 +33,7 @@ class RequestParameters
     /**
      * Read protocol parameters submitted as a form.
      *
-     * @return array<string, list<string>|string>
+     * @return array<array-key, list<string>|string>
      */
     public static function fromForm(Request $request): array
     {
@@ -47,7 +47,7 @@ class RequestParameters
     /**
      * Read OAuth parameters without losing repeated resource indicators or duplicate scalar fields.
      *
-     * @return array<string, list<string>|string>
+     * @return array<array-key, list<string>|string>
      */
     public static function fromRequest(Request $request): array
     {
@@ -83,7 +83,7 @@ class RequestParameters
     /**
      * Parse a query string or form body using OAuth's repeated-parameter rules.
      *
-     * @return array<string, list<string>|string>
+     * @return array<array-key, list<string>|string>
      */
     public static function parse(string $encoded): array
     {
@@ -117,7 +117,7 @@ class RequestParameters
     /**
      * Encode protocol parameters without PHP's bracket notation for repeated resources.
      *
-     * @param array<string, list<string>|string> $parameters
+     * @param array<array-key, list<string>|string> $parameters
      */
     public static function toQuery(array $parameters): string
     {
@@ -125,7 +125,7 @@ class RequestParameters
 
         foreach ($parameters as $name => $value) {
             foreach (is_array($value) ? $value : [$value] as $item) {
-                $fields[] = urlencode($name) . '=' . urlencode($item);
+                $fields[] = urlencode((string) $name) . '=' . urlencode($item);
             }
         }
 

@@ -44,6 +44,13 @@ class RequestParametersTest extends TestCase
         RequestParameters::parse('state=' . str_repeat('a', 65536));
     }
 
+    public function testNumericParameterNamesSurviveEncoding(): void
+    {
+        $encoded = '123=value&client_id=client';
+
+        $this->assertSame($encoded, RequestParameters::toQuery(RequestParameters::parse($encoded)));
+    }
+
     public function testConstructedRequestsRetainParsedInput(): void
     {
         $request = Request::create('/oauth/authorize', 'POST', [
