@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Mcp\Unit\Server;
 
+use Closure;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Eloquent\Model;
@@ -23,6 +24,8 @@ use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\Routing\Route as RoutingRoute;
 use Hypervel\Routing\RouteCollection;
 use Hypervel\Support\Facades\Route;
+use Hypervel\Support\Facades\URL;
+use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Tests\Mcp\Fixtures\CustomPassportClient;
 use Hypervel\Tests\Mcp\Fixtures\ExampleServer;
 use Hypervel\Tests\Mcp\Fixtures\PassportClient;
@@ -32,6 +35,7 @@ use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use Swoole\Coroutine\CanceledException;
+use Symfony\Component\HttpFoundation\Response;
 
 class RegistrarTest extends TestCase
 {
@@ -56,6 +60,14 @@ class RegistrarTest extends TestCase
         $keys = (new SigningKeyFactory)->definition();
         $app->make('config')->set('passport.private_key', $keys['private_key']);
         $app->make('config')->set('passport.public_key', $keys['public_key']);
+    }
+
+    /**
+     * Configure request-scoped defaults for parameterized registration routes.
+     */
+    protected function withRegistrationContext(Application $app): void
+    {
+        $app->make('config')->set('passport.middleware', [RegistrationContextMiddleware::class]);
     }
 
     /**
@@ -519,12 +531,14 @@ class RegistrarTest extends TestCase
         }
     }
 
-    public function testRejectsNonStringRedirectUrisBeforeCreatingAClient(): void
+    #[TestWith([[42, 'https://example.com/callback']])]
+    #[TestWith([['https://example.com/callback', 42]])]
+    public function testRejectsNonStringRedirectUrisBeforeCreatingAClient(array $redirects): void
     {
         $this->prepareOauthRegistration();
 
         $this->postJson('/oauth/register', [
-            'redirect_uris' => [42],
+            'redirect_uris' => $redirects,
         ])->assertBadRequest()->assertJson(['error' => 'invalid_redirect_uri']);
 
         $this->assertDatabaseCount('oauth_clients', 0);
@@ -1227,6 +1241,30 @@ class RegistrarTest extends TestCase
             ->assertJsonPath('registration_endpoint', 'https://localhost/custom-oauth/register');
     }
 
+    #[DefineEnvironment('withRegistrationContext')]
+    public function testParameterizedRegistrationUsesPassportMiddlewareAndUrlDefaults(): void
+    {
+        Route::prefix('servers/{server}')->group(static function (): void {
+            (new Registrar)->oauthRoutes();
+        });
+
+        $this->getJson('https://localhost/.well-known/oauth-authorization-server')->assertOk()
+            ->assertJsonPath('registration_endpoint', 'https://localhost/servers/calendar/oauth/register');
+        $this->postJson('https://localhost/servers/calendar/oauth/register', [
+            'redirect_uris' => ['http://localhost:3000/callback'],
+        ])->assertCreated()->assertHeader('X-Registration-Context', 'calendar');
+    }
+
+    public function testRejectsAnObjectOfRedirectUris(): void
+    {
+        (new Registrar)->oauthRoutes();
+
+        $this->postJson('/oauth/register', [
+            'redirect_uris' => ['callback' => 'http://localhost:3000/callback'],
+        ])->assertBadRequest()->assertJsonPath('error', 'invalid_redirect_uri');
+        $this->assertSame(0, Passport::client()->newQuery()->count());
+    }
+
     public function testAdvertisesACustomRegistrationRouteWhenRegistrationIsDisabled(): void
     {
         (new Registrar)->oauthRoutes(registration: false);
@@ -1289,5 +1327,21 @@ class RegistrarTest extends TestCase
             'custom scheme' => ['cursor://extension/callback#fragment', []],
             'empty fragment' => ['https://example.com/callback#', ['https://example.com']],
         ];
+    }
+}
+
+class RegistrationContextMiddleware
+{
+    /**
+     * Supply route defaults and expose the selected request context.
+     */
+    public function handle(Request $request, Closure $next): Response
+    {
+        $server = $request->route('server', 'calendar');
+        URL::defaults(['server' => $server]);
+        $response = $next($request);
+        $response->headers->set('X-Registration-Context', $server);
+
+        return $response;
     }
 }

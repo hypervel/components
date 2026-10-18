@@ -29,10 +29,9 @@ class OAuthRegisterController
      */
     public function __invoke(Request $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
-            'client_name' => ['nullable', 'string', 'min:1', 'max:255'],
-            'name' => ['nullable', 'string', 'min:1', 'max:255'],
-            'redirect_uris' => ['required', 'array', 'min:1'],
+        // Redirect errors take precedence, including errors in individual list members.
+        $redirectValidator = Validator::make($request->only('redirect_uris'), [
+            'redirect_uris' => ['required', 'array', 'list', 'min:1'],
             'redirect_uris.*' => ['bail', 'required', 'string', function (string $attribute, string $value, Closure $fail): void {
                 if (! $this->isValidRedirectUri($value)) {
                     $fail($attribute . ' is not a valid URL.');
@@ -60,21 +59,30 @@ class OAuthRegisterController
                     $fail($attribute . ' is not a permitted redirect domain.');
                 }
             }],
-            'logo_uri' => ['nullable', 'string', 'url:http,https', 'max:2048'],
-            'client_uri' => ['nullable', 'string', 'url:http,https', 'max:2048'],
-        ]);
+        ])->stopOnFirstFailure();
 
-        if ($validator->fails()) {
-            $errors = $validator->errors();
-            $redirectError = $errors->first('redirect_uris*');
-
+        if ($redirectValidator->fails()) {
             return response()->json([
-                'error' => $redirectError !== '' ? 'invalid_redirect_uri' : 'invalid_client_metadata',
-                'error_description' => $redirectError !== '' ? $redirectError : $errors->first(),
+                'error' => 'invalid_redirect_uri',
+                'error_description' => $redirectValidator->errors()->first(),
             ], 400, ['Cache-Control' => 'no-store', 'Pragma' => 'no-cache']);
         }
 
-        $validated = $validator->validated();
+        $validator = Validator::make($request->except('redirect_uris'), [
+            'client_name' => ['nullable', 'string', 'min:1', 'max:255'],
+            'name' => ['nullable', 'string', 'min:1', 'max:255'],
+            'logo_uri' => ['nullable', 'string', 'url:http,https', 'max:2048'],
+            'client_uri' => ['nullable', 'string', 'url:http,https', 'max:2048'],
+        ])->stopOnFirstFailure();
+
+        if ($validator->fails()) {
+            return response()->json([
+                'error' => 'invalid_client_metadata',
+                'error_description' => $validator->errors()->first(),
+            ], 400, ['Cache-Control' => 'no-store', 'Pragma' => 'no-cache']);
+        }
+
+        $validated = $redirectValidator->validated() + $validator->validated();
 
         $clients = Container::getInstance()->make(ClientRepository::class);
 
