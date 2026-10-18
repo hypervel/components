@@ -10,19 +10,24 @@ use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Passport\ApiTokenCookieFactory;
 use Hypervel\Passport\Bridge\ParsedKey;
 use Hypervel\Passport\Client;
+use Hypervel\Passport\ClientMetadataValidator;
 use Hypervel\Passport\Database\Factories\ClientFactory;
 use Hypervel\Passport\Database\Factories\SigningKeyFactory;
 use Hypervel\Passport\Events\ClientMetadataValidated;
 use Hypervel\Passport\Exceptions\InvalidClientMetadataException;
 use Hypervel\Passport\Http\Controllers\ClientRegistrationController;
 use Hypervel\Passport\Passport;
+use Hypervel\Passport\RemoteDocumentFetcher;
+use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Support\Facades\URL;
+use Hypervel\Support\Str;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\Concerns\WithHypervelMigrations;
 use Hypervel\Tests\Passport\Fixtures\UserFactory;
+use Mockery as m;
 use PHPUnit\Framework\Attributes\TestWith;
 
 class ClientRegistrationTest extends PassportTestCase
@@ -86,6 +91,8 @@ class ClientRegistrationTest extends PassportTestCase
             ->assertJsonPath('grant_types', ['authorization_code'])
             ->assertJsonPath('response_types', ['code'])
             ->assertJsonPath('client_secret_expires_at', 0)
+            ->assertJsonPath('dpop_bound_access_tokens', false)
+            ->assertJsonMissingPath('jwks')->assertJsonMissingPath('jwks_uri')->assertJsonMissingPath('token_endpoint_auth_signing_alg')
             ->assertJsonMissingPath('owner_id')->assertJsonMissingPath('provider')->assertJsonMissingPath('secret')
             ->assertJsonMissingPath('unknown')->assertJsonMissingPath('third_party');
         $client = Client::findOrFail($response->json('client_id'));
@@ -121,6 +128,50 @@ class ClientRegistrationTest extends PassportTestCase
         $this->assertNull($client->secret);
         $this->assertSame([], $client->scopes);
         $this->assertSame($method === 'private_key_jwt', $client->confidential());
+    }
+
+    public function testCompleteMetadataUpdatesReplaceTheAuthenticationKeySource(): void
+    {
+        config(['passport.issuer' => 'https://issuer.example', 'passport.replay.store' => 'database']);
+        $material = (new SigningKeyFactory)->definition();
+        $key = ParsedKey::fromPublicKey($material['public_key'])->getJwk();
+        $documents = m::mock(RemoteDocumentFetcher::class);
+        $documents->shouldReceive('fetch')->with('https://keys.example/jwks')->andReturn(['keys' => [[...$key, 'kid' => 'remote']]]);
+        $this->app->instance(RemoteDocumentFetcher::class, $documents);
+        $validator = $this->app->make(ClientMetadataValidator::class);
+        $client = ClientFactory::new()->asClientCredentials()->create(['secret' => null]);
+        $update = function (array $metadata) use ($validator, $client): void {
+            $validated = $validator->validate($metadata + ['grant_types' => ['client_credentials']], $client);
+            $client->forceFill(Arr::except($validated, ['client_name', 'scope', 'response_types']))->save();
+            $client->refresh();
+        };
+        $authenticate = function (string $kid) use ($client, $material) {
+            return $this->post('/oauth/token', [
+                'grant_type' => 'client_credentials',
+                'client_assertion_type' => 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
+                'client_assertion' => JWT::encode([
+                    'iss' => $client->id, 'sub' => $client->id, 'aud' => 'https://issuer.example',
+                    'jti' => Str::random(40), 'exp' => time() + 120,
+                ], $material['private_key'], 'RS256', $kid),
+            ]);
+        };
+
+        $update(['token_endpoint_auth_method' => 'private_key_jwt', 'jwks' => ['keys' => [[...$key, 'kid' => 'inline']]]]);
+        $authenticate('inline')->assertOk();
+        $update(['token_endpoint_auth_method' => 'private_key_jwt', 'jwks_uri' => 'https://keys.example/jwks']);
+        $this->assertNull($client->jwks);
+        $authenticate('remote')->assertOk();
+        $authenticate('inline')->assertUnauthorized()->assertJsonPath('error', 'invalid_client');
+
+        $update(['token_endpoint_auth_method' => 'client_secret_post']);
+        $this->assertNull($client->jwks);
+        $this->assertNull($client->jwks_uri);
+        $this->assertNull($client->token_endpoint_auth_signing_alg);
+        $client->forceFill(['secret' => 'replacement-secret'])->save();
+        $this->post('/oauth/token', [
+            'grant_type' => 'client_credentials', 'client_id' => $client->id, 'client_secret' => 'replacement-secret',
+        ])->assertOk();
+        $authenticate('remote')->assertUnauthorized()->assertJsonPath('error', 'invalid_client');
     }
 
     public function testUnsupportedInlineKeysAreRejectedBeforeSavingWithAClearDescription(): void

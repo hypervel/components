@@ -73,12 +73,16 @@ class ClientRegistrationController
 
                 // Return registered values after model normalization, without exposing unrelated attributes.
                 foreach (array_keys($metadata) as $name) {
-                    $result[$name] = match ($name) {
+                    $value = match ($name) {
                         'client_name' => $client->name,
                         'scope' => implode(' ', $client->scopes),
                         'response_types' => in_array('authorization_code', $client->grant_types, true) ? ['code'] : [],
                         default => $client->getAttribute($name),
                     };
+
+                    if ($value !== null) {
+                        $result[$name] = $value;
+                    }
                 }
 
                 $result += [

@@ -48,6 +48,9 @@ class ClientMetadataValidatorTest extends TestCase
             'dpop_bound_access_tokens' => false,
             'require_pushed_authorization_requests' => false,
             'response_types' => ['code'],
+            'jwks' => null,
+            'jwks_uri' => null,
+            'token_endpoint_auth_signing_alg' => null,
         ], $metadata);
     }
 

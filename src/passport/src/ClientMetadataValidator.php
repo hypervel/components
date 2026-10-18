@@ -116,6 +116,9 @@ class ClientMetadataValidator
 
         $validated = $this->validateKeys($validated);
 
+        // Complete-document updates must clear keys removed from the client's registration.
+        $validated += ['jwks' => null, 'jwks_uri' => null, 'token_endpoint_auth_signing_alg' => null];
+
         if ($this->events->hasListeners(ClientMetadataValidated::class)) {
             $event = new ClientMetadataValidated($metadata, $validated, $client, $token);
             $this->events->dispatch($event);
@@ -138,7 +141,7 @@ class ClientMetadataValidator
     /**
      * Validate web and native callback addresses without fetching them.
      */
-    protected function validateRedirectUri(string $uri, string $applicationType): void
+    public function validateRedirectUri(string $uri, string $applicationType): void
     {
         $parts = parse_url($uri);
 
