@@ -924,7 +924,7 @@ This `/oauth/token` route will return a JSON response containing `access_token`,
 > [!NOTE]
 > Like the `/oauth/authorize` route, the `/oauth/token` route is defined for you by Passport. There is no need to manually define this route.
 
-Authorization codes are single-use. Reusing a code after passing its client, callback and any required PKCE or proof checks revokes the access token and refresh-token family issued from it, including rotated replacements. Exchange each code once; if an exchange's outcome is unknown, begin a new authorization request instead of retrying the code.
+Authorization codes are single-use. Reusing an unexpired code after passing its client, callback and any required PKCE or proof checks revokes the access token and refresh-token family issued from it, including rotated replacements. Exchange each code once; if an exchange's outcome is unknown, begin a new authorization request instead of retrying the code.
 
 <a name="managing-tokens"></a>
 ### Managing Tokens
