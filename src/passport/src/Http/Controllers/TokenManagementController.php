@@ -18,6 +18,7 @@ use Hypervel\Passport\Passport;
 use Hypervel\Passport\RefreshToken;
 use Hypervel\Passport\ServerFactory;
 use Hypervel\Passport\Token;
+use Hypervel\Support\Facades\Date;
 use League\OAuth2\Server\Exception\OAuthServerException;
 use Psr\Http\Message\ServerRequestInterface;
 use SensitiveParameter;
@@ -131,7 +132,7 @@ class TokenManagementController
         }
 
         // Authorization codes use the same cipher; only a refresh payload identifies a refresh row.
-        if (! is_string($claims['refresh_token_id'] ?? null) || $claims['expire_time'] < time()) {
+        if (! is_string($claims['refresh_token_id'] ?? null) || $claims['expire_time'] < Date::now()->getTimestamp()) {
             return null;
         }
 

@@ -5,9 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Passport\Feature;
 
 use DateInterval;
-use Defuse\Crypto\Crypto;
-use Defuse\Crypto\Encoding;
-use Defuse\Crypto\Key;
 use Firebase\JWT\JWT;
 use Hypervel\Passport\Bridge\ParsedKey;
 use Hypervel\Passport\Client;
@@ -124,13 +121,9 @@ class TokenManagementTest extends PassportTestCase
         $value = $credentials['refresh_token'];
         if ($expired) {
             $claims = json_decode($this->app->make(ServerFactory::class)->decryptToken($value), true, flags: JSON_THROW_ON_ERROR);
-            $claims['expire_time'] = time() - 60;
-            $key = Key::loadFromAsciiSafeString(Encoding::saveBytesToChecksummedAsciiSafeString(
-                Key::KEY_CURRENT_VERSION,
-                hash_hkdf('sha256', $this->app->make('encrypter')->getKey(), Key::KEY_BYTE_SIZE, 'hypervel-passport'),
-            ));
-            $value = Crypto::encrypt(json_encode($claims, JSON_THROW_ON_ERROR), $key);
-            $this->assertSame($claims, json_decode($this->app->make(ServerFactory::class)->decryptToken($value), true, flags: JSON_THROW_ON_ERROR));
+            $this->travelTo(now()->setTimestamp($claims['expire_time'])->addSecond());
+            // Extending the stored row cannot extend the encrypted credential's lifetime.
+            Passport::refreshToken()->newQuery()->whereKey($claims['refresh_token_id'])->update(['expires_at' => now()->addDay()]);
         }
 
         DB::beginTransaction();
