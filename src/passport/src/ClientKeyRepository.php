@@ -110,6 +110,10 @@ class ClientKeyRepository
         if ($signers === 0) {
             throw new UnexpectedValueException('The public key set contains no key for the selected signature algorithm.');
         }
+
+        if ($signers > 1 && $identifiers === []) {
+            throw new UnexpectedValueException('A public key set with multiple signing keys needs a key identifier for selection.');
+        }
     }
 
     /**

@@ -181,6 +181,22 @@ class ClientKeyRepositoryTest extends TestCase
         $this->app->make(ClientKeyRepository::class)->validate(['keys' => [$key, $key]], 'RS256');
     }
 
+    public function testMultipleUnnamedKeysNeedASelectableSigner(): void
+    {
+        $key = $this->key();
+        unset($key['kid']);
+        $keys = $this->app->make(ClientKeyRepository::class);
+        $keys->validate(['keys' => [$key]], 'RS256');
+        $client = $this->client();
+        $client->jwks = ['keys' => [$key, [...$key, 'kid' => 'named']]];
+        $keys->validate($client->jwks, 'RS256');
+        $this->assertNotNull($keys->find($client, 'named', 'RS256'));
+
+        $this->expectException(UnexpectedValueException::class);
+        $this->expectExceptionMessage('needs a key identifier');
+        $keys->validate(['keys' => [$key, $key]], 'RS256');
+    }
+
     /**
      * Build a client with a remote public-key declaration.
      */
