@@ -56,6 +56,8 @@ class CoroutineStateTest extends TestCase
         [$promise, $handler, $owner] = $result;
 
         $this->assertSame(PromiseInterface::REJECTED, $promise->getState());
+        // The cancellation exception's trace can retain the handler through its arguments.
+        unset($promise, $result);
         gc_collect_cycles();
         Utils::queue()->run();
         $this->assertSame([$owner], $callbacks);
