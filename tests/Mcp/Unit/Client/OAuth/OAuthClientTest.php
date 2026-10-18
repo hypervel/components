@@ -892,20 +892,46 @@ class OAuthClientTest extends TestCase
             ->redirect();
     }
 
-    public function testRejectsAnAuthorizationServerServedOverPlainHttp(): void
+    #[DataProvider('insecureAuthorizationMetadata')]
+    public function testRejectsInsecureAuthorizationMetadata(string $field, string $url): void
     {
         Http::fake([
             'https://mcp.test/.well-known/oauth-protected-resource/mcp' => Http::response([
-                'authorization_servers' => ['http://auth.test'],
+                'authorization_servers' => [$field === 'issuer' ? $url : 'https://auth.test'],
+            ]),
+            'https://auth.test/.well-known/oauth-authorization-server' => Http::response([
+                'issuer' => 'https://auth.test',
+                'authorization_endpoint' => 'https://auth.test/authorize',
+                'token_endpoint' => 'https://auth.test/token',
+                'registration_endpoint' => 'https://auth.test/register',
+                'code_challenge_methods_supported' => ['S256'],
+                $field => $url,
             ]),
         ]);
 
         $this->expectException(OAuthException::class);
-        $this->expectExceptionMessage('must be served over HTTPS');
+        $this->expectExceptionMessage(str_starts_with($url, 'http:') ? 'must be served over HTTPS' : 'disallowed address');
         Client::web('https://mcp.test/mcp')
             ->withOAuth(clientId: 'client-123', redirectUri: 'https://app.test/callback')
             ->oAuthClient()
             ->redirect();
+    }
+
+    /**
+     * Provide insecure issuers and advertised protocol endpoints.
+     */
+    public static function insecureAuthorizationMetadata(): array
+    {
+        return [
+            ['issuer', 'http://auth.test'],
+            ['issuer', 'https://10.0.0.5'],
+            ['authorization_endpoint', 'http://auth.test/authorize'],
+            ['token_endpoint', 'http://auth.test/token'],
+            ['registration_endpoint', 'http://auth.test/register'],
+            ['authorization_endpoint', 'https://10.0.0.5/authorize'],
+            ['token_endpoint', 'https://10.0.0.5/token'],
+            ['registration_endpoint', 'https://10.0.0.5/register'],
+        ];
     }
 
     public function testFallsBackToOpenidConnectDiscoveryWhenOauthMetadataIsAbsent(): void
@@ -1608,10 +1634,10 @@ class OAuthClientTest extends TestCase
     }
 
     #[DataProvider('outboundOAuthEndpoints')]
-    public function testRejectsPrivateDnsTargetsBeforeSendingAtEveryOAuthBoundary(string $stage): void
+    public function testRejectsPrivateDnsTargetsBeforeSendingAtEveryOAuthBoundary(string $stage, string $address = '10.0.0.5'): void
     {
         $this->app->instance(OAuthDestinationPolicy::class, new FakeDestinationPolicy([
-            'blocked.test' => ['10.0.0.5'],
+            'blocked.test' => [$address],
         ]));
 
         Http::fake([
@@ -1637,7 +1663,7 @@ class OAuthClientTest extends TestCase
             $this->fail('Expected private DNS resolution to prevent the request.');
         } catch (OAuthException $exception) {
             $this->assertInstanceOf(DisallowedDestinationException::class, $exception->getPrevious());
-            $this->assertStringContainsString('10.0.0.5', $exception->getMessage());
+            $this->assertStringContainsString($address, $exception->getMessage());
         }
 
         Http::assertNotSent(fn ($request): bool => str_contains($request->url(), 'blocked.test'));
@@ -1648,7 +1674,7 @@ class OAuthClientTest extends TestCase
      */
     public static function outboundOAuthEndpoints(): array
     {
-        return [['resource'], ['metadata'], ['token'], ['registration']];
+        return [['resource'], ['metadata'], ['token'], ['registration'], ['metadata', '127.0.0.1']];
     }
 
     public function testPrivateDnsAllowancePinsTheNormalizedEndpointAndPreservesProxyRouting(): void
