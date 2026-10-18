@@ -33,6 +33,8 @@ class Passport
 
     public const string DEFAULT_COOKIE = 'hypervel_token';
 
+    public const string REGISTRATION_SCOPE = 'passport:register';
+
     protected const bool DEFAULT_VALIDATE_KEY_PERMISSIONS = true;
 
     protected const bool DEFAULT_REVOKE_REFRESH_TOKEN_AFTER_USE = true;
