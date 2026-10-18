@@ -15,11 +15,11 @@ class CurrentDeviceLogout
      * Create a new event instance.
      *
      * @param string $guard the authentication guard name
-     * @param Authenticatable $user the authenticated user
+     * @param ?Authenticatable $user the authenticated user
      */
     public function __construct(
         public string $guard,
-        public Authenticatable $user,
+        public ?Authenticatable $user,
     ) {
     }
 }

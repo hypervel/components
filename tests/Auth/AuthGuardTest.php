@@ -538,13 +538,16 @@ class AuthGuardTest extends TestCase
     {
         [$session, $provider, $request, $cookie, $timebox, $app] = $this->getMocks();
         $mock = $this->getMockBuilder(SessionGuard::class)->onlyMethods(['clearUserDataFromStorage'])->setConstructorArgs(['default', $provider, $session, $app])->getMock();
-        $mock->expects($this->once())->method('clearUserDataFromStorage');
+        $mock->expects($this->exactly(2))->method('clearUserDataFromStorage');
         $events = $this->mockEventDispatcher();
         $mock->setDispatcher($events);
         $user = m::mock(Authenticatable::class);
         $events->expects('dispatch')->with(m::type(Authenticated::class));
         $mock->setUser($user);
-        $events->expects('dispatch')->with(m::type(CurrentDeviceLogout::class));
+        $events->expects('dispatch')->with(m::on(fn (CurrentDeviceLogout $event): bool => $event->guard === 'default' && $event->user === $user));
+        $mock->logoutCurrentDevice();
+
+        $events->expects('dispatch')->with(m::on(fn (CurrentDeviceLogout $event): bool => $event->guard === 'default' && $event->user === null));
         $mock->logoutCurrentDevice();
     }
 
