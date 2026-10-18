@@ -1852,11 +1852,11 @@ Mcp::web('/mcp/weather', WeatherExample::class)
 
 If your application is not already using Passport, follow Passport's [installation and deployment guide](/docs/{{version}}/passport#installation) to add Passport to your application. You should have an `OAuthenticatable` model, new authentication guard, and Passport keys before moving on.
 
-Dynamic client registration uses Passport's named `passport` rate limiter. You may customize that limiter using Passport's [rate limiting configuration](/docs/{{version}}/passport#rate-limiting).
+Dynamic client registration applies `passport.middleware` and Passport's named `passport` rate limiter. You may customize that limiter using Passport's [rate limiting configuration](/docs/{{version}}/passport#rate-limiting).
 
 Dynamically registered clients are marked as third-party clients, so Passport's `firstParty()` method returns `false` even though they have no owner. This keeps them subject to consent when your application skips consent for its own clients.
 
-MCP registration creates public clients and grants them `mcp:use` plus the anonymous scopes allowed by `passport.registration.scopes`. Custom client scope defaults are preserved, with wildcard and provisioning scopes excluded. Client tables must include Passport's nullable JSONB `scopes` column and boolean `third_party` column. The registration response reports the saved client name and scope allowance.
+MCP registration creates public clients and grants them `mcp:use` plus the anonymous scopes allowed by `passport.registration.scopes`. Custom client scope defaults are preserved, with wildcard and provisioning scopes excluded. Use Hypervel's Passport migrations and schema when importing client data, including its nullable JSONB `scopes` column and boolean `third_party` column. The registration response reports the saved client name and scope allowance.
 
 The `redirect_domains` option in `config/mcp.php` controls permitted callbacks. Its default wildcard allows HTTPS and HTTP loopback callbacks. A non-loopback HTTP callback requires an explicit administrator allowance; use this only when you accept sending authorization responses over an unencrypted connection. Configure desktop callback schemes such as `cursor` through `custom_schemes`.
 
@@ -1896,7 +1896,11 @@ If your application already uses Passport, Hypervel MCP works with that installa
 
 Passport serves the local authorization-server discovery document. MCP serves protected-resource metadata, which points clients to the selected Passport issuer. The MCP registration route is named `passport.clients.register`, so Passport advertises it automatically. The optional `oauthPrefix` argument changes its URL prefix.
 
+If registration routes contain parameters, set their [URL defaults](/docs/{{version}}/urls#default-values) in request middleware before discovery builds their URLs. For example, `URL::defaults(['server' => $serverId])` supplies the `server` parameter in a `servers/{server}` route group. This uses the same request context as Passport's other parameterized endpoints.
+
 Choose one registration endpoint. To use Passport's [general dynamic registration](/docs/{{version}}/passport#dynamic-client-registration), enable it during provider registration and call `Mcp::oauthRoutes(registration: false)`. Include `mcp:use` in `passport.registration.scopes` if anonymous clients need that scope. The general endpoint keeps its own callback and authentication-method policies; it does not inherit MCP's desktop callback allowances. A custom registration endpoint should use the `passport.clients.register` route name. Enabling both built-in endpoints raises a configuration error.
+
+Passport's `ClientMetadataValidated` event belongs to its general metadata validator and registration endpoint. MCP's specialized registration does not dispatch it. Use the general endpoint when your registration policy depends on that event.
 
 For an external authorization server, set `mcp.authorization_server` to its issuer and call `Mcp::oauthRoutes(registration: false)`, even when Passport is installed for other APIs. Use that server's token authentication instead of Passport's middleware, including audience and scope checks. This mode does not require Passport; MCP publishes protected-resource metadata and leaves authorization-server discovery to the external server. Without Passport, no local registration endpoint is added.
 
