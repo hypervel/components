@@ -596,6 +596,13 @@ class RequestBridgeTest extends TestCase
         $request = RequestBridge::createFromSwoole($swooleRequest);
 
         $this->assertSame('example.com', $request->getHost());
+        $this->assertSame('http', $request->getScheme());
+
+        $swooleRequest->server['https'] = 'on';
+        $request = RequestBridge::createFromSwoole($swooleRequest);
+
+        $this->assertSame('https', $request->getScheme());
+        $this->assertSame('https://example.com/test', $request->getUri());
     }
 
     /**

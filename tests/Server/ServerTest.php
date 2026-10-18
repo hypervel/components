@@ -11,11 +11,14 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Core\Events\BeforeMainServerStart;
 use Hypervel\Core\Events\BeforeServerFork;
 use Hypervel\Core\Events\BeforeServerStart;
+use Hypervel\Engine\Channel;
+use Hypervel\Engine\Coroutine;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Server\Event;
 use Hypervel\Server\Exceptions\InvalidArgumentException as ServerInvalidArgumentException;
 use Hypervel\Server\Exceptions\ServerException;
 use Hypervel\Server\Port;
+use Hypervel\Server\ResponseCancellation;
 use Hypervel\Server\Server;
 use Hypervel\Server\ServerConfig;
 use Hypervel\Server\ServerInterface;
@@ -407,6 +410,90 @@ class ServerTest extends TestCase
         ]));
     }
 
+    public function testInheritedResponseCallbacksUseTheirReceivingListenerAndPreserveCloseHandling(): void
+    {
+        $registered = [];
+        $received = [];
+        $closed = [];
+        $requestCallback = static function (SwooleRequest $request) use (&$received): void {
+            $received[] = $request->server['https'] ?? null;
+        };
+        $closeCallback = static function (SwooleServer $server, int $connection) use (&$closed): void {
+            $closed[] = $connection;
+        };
+        $nativeServer = m::mock(SwooleServer::class);
+        $nativeServer->mode = SWOOLE_BASE;
+        $nativeServer->ssl = false;
+        $nativeServer->ports = [m::mock(SwoolePort::class)];
+        $inherited = m::mock(SwoolePort::class);
+        $inherited->ssl = true;
+        $overridden = m::mock(SwoolePort::class);
+        $overridden->ssl = false;
+
+        foreach ([$nativeServer, $inherited, $overridden] as $index => $listener) {
+            $listener->expects('set')->with([])->andReturnTrue();
+            $listener->expects('on')->times(3)->andReturnUsing(
+                static function (string $event, callable $callback) use (&$registered, $index): bool {
+                    $registered[$index][$event] = $callback;
+
+                    return true;
+                },
+            );
+        }
+
+        $nativeServer->expects('addlistener')->with('127.0.0.2', 8443, SWOOLE_SOCK_TCP | SWOOLE_SSL)->andReturn($inherited);
+        $nativeServer->expects('addlistener')->with('127.0.0.1', 8080, SWOOLE_SOCK_TCP)->andReturn($overridden);
+        $server = $this->server(m::mock(Container::class));
+        $server->createWith($nativeServer);
+        $server->init(new ServerConfig(['servers' => [
+            ['name' => 'http', 'host' => '127.0.0.1', 'port' => 8443, 'callbacks' => [
+                Event::ON_REQUEST => $requestCallback,
+                Event::ON_HANDSHAKE => $requestCallback,
+                Event::ON_CLOSE => $closeCallback,
+            ]],
+            ['name' => 'https', 'host' => '127.0.0.2', 'port' => 8443, 'sock_type' => SWOOLE_SOCK_TCP | SWOOLE_SSL],
+            ['name' => 'other', 'host' => '127.0.0.1', 'port' => 8080, 'callbacks' => [
+                Event::ON_HANDSHAKE => static function () use (&$received): void {
+                    $received[] = 'custom handshake';
+                },
+            ]],
+        ]]));
+
+        foreach ([0, 1, 2] as $index) {
+            foreach ([Event::ON_REQUEST, Event::ON_HANDSHAKE] as $event) {
+                $request = m::mock(SwooleRequest::class);
+                $request->server = [];
+                $registered[$index][$event]($request, m::mock(SwooleResponse::class));
+            }
+        }
+
+        $this->assertSame([null, null, 'on', 'on', null, 'custom handshake'], $received);
+
+        $waiting = new Channel(1);
+        $completed = new Channel(1);
+        Coroutine::create(static function () use ($waiting, $completed): void {
+            $registration = ResponseCancellation::register(123);
+
+            try {
+                $waiting->pop(1);
+                $completed->push(false);
+            } catch (CanceledException) {
+                $completed->push(true);
+            } finally {
+                $registration?->release();
+            }
+        });
+
+        try {
+            $registered[1][Event::ON_CLOSE]($nativeServer, 123, 0);
+            $this->assertTrue($completed->pop(1));
+            $this->assertSame([123], $closed);
+        } finally {
+            $waiting->close();
+            $completed->close();
+        }
+    }
+
     public function testServerInitializationDispatchesLifecycleEventsWhenListenedFor(): void
     {
         $mainPort = m::mock(SwoolePort::class);
@@ -663,7 +750,7 @@ class ServerTestServer extends Server
 
     public function guardedResponseCallback(callable $callback): Closure
     {
-        return $this->guardResponseCallback($callback);
+        return $this->guardResponseCallback($callback, false);
     }
 
     public function guardedWorkerDeliveryCallback(callable $callback): Closure
