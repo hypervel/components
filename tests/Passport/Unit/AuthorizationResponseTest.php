@@ -42,7 +42,7 @@ class AuthorizationResponseTest extends TestCase
 
     #[TestWith([false])]
     #[TestWith([true])]
-    public function testFormPostEscapesProtocolFieldsAndLimitsTheSubmissionTarget(bool $error): void
+    public function testFormPostEscapesProtocolFieldsWithoutRestrictingTheClientsSubsequentNavigation(bool $error): void
     {
         $state = '"><script>alert("state")</script>';
         $redirectUri = 'https://client.example/callback?tenant=a&label=%22';
@@ -71,7 +71,8 @@ class AuthorizationResponseTest extends TestCase
         $nonce = $document->getElementsByTagName('script')->item(0)->getAttribute('nonce');
         $this->assertNotSame('', $nonce);
         $this->assertStringContainsString("script-src 'nonce-{$nonce}'", $response->headers->get('Content-Security-Policy'));
-        $this->assertStringContainsString('form-action https://client.example;', $response->headers->get('Content-Security-Policy'));
+        $this->assertStringNotContainsString('form-action', $response->headers->get('Content-Security-Policy'));
+        $this->assertStringContainsString("default-src 'none'", $response->headers->get('Content-Security-Policy'));
         $this->assertTrue($response->headers->hasCacheControlDirective('no-store'));
         $this->assertSame(1, $document->getElementsByTagName('button')->length);
     }

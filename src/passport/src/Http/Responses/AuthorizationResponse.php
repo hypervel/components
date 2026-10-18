@@ -7,7 +7,6 @@ namespace Hypervel\Passport\Http\Responses;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Response as HttpResponse;
 use Hypervel\Passport\ServerFactory;
-use Hypervel\Support\Uri;
 use League\OAuth2\Server\Exception\OAuthServerException;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -74,12 +73,10 @@ class AuthorizationResponse
         }
 
         $nonce = base64_encode(random_bytes(16));
-        $target = Uri::of($redirectUri)->getUri()
-            ->withUserInfo(null)->withPath('')->withQuery(null)->withFragment(null)->toString();
         $headers['Content-Type'] = ['text/html; charset=UTF-8'];
+        // form-action would also restrict the client's navigation after handling this POST.
         $headers['Content-Security-Policy'] = [
-            "default-src 'none'; script-src 'nonce-{$nonce}'; form-action " . str_replace(';', '%3B', $target)
-            . "; base-uri 'none'; frame-ancestors 'none'",
+            "default-src 'none'; script-src 'nonce-{$nonce}'; base-uri 'none'; frame-ancestors 'none'",
         ];
         unset($headers['location'], $headers['Location']);
 
