@@ -19,6 +19,7 @@ use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
+use PHPUnit\Framework\Attributes\TestWith;
 use Psr\Http\Message\RequestInterface;
 use Pusher\ApiErrorException;
 use Pusher\Pusher;
@@ -117,7 +118,9 @@ class PusherClientTest extends TestCase
         return ['Pusher' => ['pusher'], 'Reverb' => ['reverb']];
     }
 
-    public function testSynchronousBurstsRetainMoreThanThreeConnections(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testBurstsRetainConnectionsAcrossCoroutines(bool $async): void
     {
         $ready = new Channel(8);
         $arrived = 0;
@@ -138,7 +141,9 @@ class PusherClientTest extends TestCase
             $response->end('{"result":"accepted"}');
         });
         $client = $this->client('pusher', ['transport_sharing' => TransportSharing::NONE]);
-        $requests = array_fill(0, 8, static fn (): object => $client->trigger('channel', 'burst', []));
+        $requests = array_fill(0, 8, static fn (): object => $async
+            ? $client->triggerAsync('channel', 'burst', [])->wait()
+            : $client->trigger('channel', 'burst', []));
 
         parallel($requests);
         $first = array_unique($this->connections);
@@ -148,6 +153,23 @@ class PusherClientTest extends TestCase
         parallel($requests);
         $this->assertCount(8, $this->connections);
         $this->assertEqualsCanonicalizing($first, array_unique($this->connections));
+    }
+
+    #[TestWith([false, 'max_idle_handles'])]
+    #[TestWith([true, 'max_idle_multi_handlers'])]
+    public function testClientOptionsCanDisableIdleRetention(bool $async, string $option): void
+    {
+        $this->startServer();
+        $client = $this->client('pusher', [$option => 0]);
+
+        for ($index = 0; $index < 2; ++$index) {
+            $result = $async
+                ? $client->triggerAsync('channel', 'event', [])->wait()
+                : $client->trigger('channel', 'event', []);
+            $this->assertSame('accepted', $result->result);
+        }
+
+        $this->assertCount(2, array_unique($this->connections));
     }
 
     public function testAsyncRequestsInOneCoroutineMakeProgressTogether(): void
