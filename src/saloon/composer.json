@@ -49,7 +49,7 @@
         "hypervel/events": "^0.4",
         "hypervel/filesystem": "^0.4",
         "hypervel/foundation": "^0.4",
-        "hypervel/guzzle": "^8.2",
+        "hypervel/guzzle": "^8.3",
         "hypervel/http": "^0.4",
         "hypervel/macroable": "^0.4",
         "hypervel/prompts": "^0.4",

@@ -63,7 +63,7 @@ class CoroutineTaskQueue implements ScopedTaskQueueInterface
     }
 
     /**
-     * Retain a pending transfer in the current context until its completion callbacks run.
+     * Retain pending transport work until its completion callbacks run.
      */
     public function track(PromiseInterface $promise): void
     {

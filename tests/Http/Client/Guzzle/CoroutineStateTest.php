@@ -7,12 +7,14 @@ namespace Hypervel\Tests\Http\Client\Guzzle;
 use Aws\Credentials\CredentialProvider;
 use Aws\Credentials\Credentials;
 use Generator;
+use GuzzleHttp\Handler\ContextualCurlMultiHandler;
 use GuzzleHttp\Handler\CurlMultiHandler;
 use GuzzleHttp\Promise\CancellationException;
 use GuzzleHttp\Promise\Coroutine as PromiseCoroutine;
 use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\Promise\Utils;
 use GuzzleHttp\Psr7\Request;
+use GuzzleHttp\Psr7\Response;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Coroutine\Coroutine as FrameworkCoroutine;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
@@ -20,6 +22,7 @@ use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Http\Client\Guzzle\Fixtures\HttpServer;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine;
 use Swoole\Coroutine\Channel;
@@ -53,6 +56,8 @@ class CoroutineStateTest extends TestCase
         [$promise, $handler, $owner] = $result;
 
         $this->assertSame(PromiseInterface::REJECTED, $promise->getState());
+        // The cancellation exception's trace can retain the handler through its arguments.
+        unset($promise, $result);
         gc_collect_cycles();
         Utils::queue()->run();
         $this->assertSame([$owner], $callbacks);
@@ -148,8 +153,9 @@ class CoroutineStateTest extends TestCase
         $this->app->instance(ExceptionHandler::class, $reporter);
         $transfer = null;
         $earlierDeferRan = false;
+        $laterTaskRan = false;
 
-        parallel([static function () use ($url, $failure, &$transfer, &$earlierDeferRan): void {
+        parallel([static function () use ($url, $failure, &$transfer, &$earlierDeferRan, &$laterTaskRan): void {
             FrameworkCoroutine::defer(static function () use (&$earlierDeferRan): void {
                 $earlierDeferRan = true;
             });
@@ -158,10 +164,39 @@ class CoroutineStateTest extends TestCase
 
                 throw $failure;
             });
+            Utils::queue()->add(static function () use (&$laterTaskRan): void {
+                $laterTaskRan = true;
+            });
         }]);
 
         $this->assertTrue($earlierDeferRan);
+        $this->assertTrue($laterTaskRan);
         $this->assertSame(PromiseInterface::REJECTED, $transfer->getState());
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testExitCleanupRemovesTransfersWhosePromisesWereSettledDirectly(bool $pooled): void
+    {
+        $created = 0;
+        $factory = static function () use (&$created): CurlMultiHandler {
+            ++$created;
+
+            return new CurlMultiHandler;
+        };
+        $handler = $pooled ? new ContextualCurlMultiHandler($factory) : $factory();
+        [$settled] = parallel([static function () use ($handler): PromiseInterface {
+            $promise = $handler(new Request('GET', 'http://127.0.0.1:1'), ['delay' => 60000]);
+            $promise->resolve(new Response(204));
+
+            return $promise;
+        }]);
+
+        $this->assertSame(204, $settled->wait()->getStatusCode());
+        $next = $handler(new Request('GET', 'http://127.0.0.1:1'), ['delay' => 60000]);
+        $next->cancel();
+        $this->assertSame(PromiseInterface::REJECTED, $next->getState());
+        $this->assertSame(1, $created);
     }
 
     public function testCanceledTransfersReleaseTheirHandlerAfterTheQueueDrains(): void

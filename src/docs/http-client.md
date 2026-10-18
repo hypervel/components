@@ -981,16 +981,18 @@ defer(function () {
 <a name="guzzle-promises"></a>
 ### Guzzle Promises
 
-When using Guzzle's asynchronous APIs directly, create and finish each operation in the same coroutine. This keeps its callbacks, request context, and database transactions together. For example, create the client and wait for its response inside each parallel task:
+When using Guzzle's asynchronous APIs directly, create and finish each operation in the same coroutine. This keeps its callbacks, request context, and database transactions together. The default client may be shared across coroutines:
 
 ```php
 use GuzzleHttp\Client;
 
 use function Hypervel\Coroutine\parallel;
 
+$client = new Client;
+
 $responses = parallel([
-    fn () => (new Client)->getAsync('https://example.com/users')->wait(),
-    fn () => (new Client)->getAsync('https://example.com/orders')->wait(),
+    fn () => $client->getAsync('https://example.com/users')->wait(),
+    fn () => $client->getAsync('https://example.com/orders')->wait(),
 ]);
 ```
 
@@ -1001,9 +1003,9 @@ Hypervel installs `hypervel/guzzle` in place of `guzzlehttp/guzzle` and `hyperve
 <a name="connections"></a>
 ## Connections
 
-Hypervel's HTTP client supports named connection presets for services your application calls frequently. Synchronous requests on a registered connection share one low-level Guzzle transport handler, which retains reusable cURL handles and keep-alive connection state. Every pending request still receives a fresh Guzzle client and middleware stack, so request-specific middleware, callbacks, and options never become frozen onto the first request. Asynchronous requests use isolated handlers because a worker-lived cURL multi-handler cannot be driven safely by concurrent coroutines. These handlers still use the connection's registered transport sharing and multiplexing settings.
+Hypervel's HTTP client reuses connections for both synchronous and asynchronous requests. Requests without a connection share one transport, and each named connection has its own. Every pending request still receives a fresh Guzzle client, middleware stack, and cookie jar, so request-specific middleware, callbacks, and options stay with that request.
 
-For streamed responses, each named connection keeps up to 32 idle connections per worker for reuse. Connections are opened as needed; this does not limit how many requests can run at once.
+Asynchronous requests borrow a cURL multi-handler for their coroutine while it has work. Once idle, the handler returns to a pool so another coroutine can reuse its connections. Each transport retains up to 64 idle multi-handlers by default. For streamed responses, each transport keeps up to 32 idle connections per worker. These limits apply to idle resources, not concurrent requests; connections are opened as needed.
 
 To register a connection, typically in the `boot` method of your application's `AppServiceProvider`, call the `registerConnection` method:
 
@@ -1032,10 +1034,13 @@ The second argument is a request-option preset. It accepts normal Guzzle request
 - `pool` is rejected. HTTP clients are not object-pooled.
 - `max_host_connections` and `max_total_connections` are rejected. Use bounded coroutine fan-out or the rate limiter instead.
 - `transport_sharing` configures the connection's shared and isolated handlers. It accepts Guzzle's `TransportSharing` modes and is never passed into request options.
-- `max_idle_handles` sets how many idle cURL handles each of the connection's buffered transports keeps for its next requests (256 for synchronous requests and 50 for asynchronous requests by default; 0 keeps none). Each handle holds its own keep-alive connections, allowing requests from concurrent coroutines to reuse them. It does not limit concurrent requests or open sockets: handles in use are additional, and Guzzle's persistent transport sharing keeps connections in its share instead. Streamed responses use the separate retention limit described above.
+- `max_idle_handles` sets how many idle cURL easy handles each buffered handler keeps (256 for the synchronous handler and 50 per asynchronous multi-handler by default; 0 keeps none). Synchronous easy handles keep their own connections; asynchronous ones use their multi-handler's connection cache. This is not a limit on concurrent requests or open sockets. Streamed responses use the separate retention limit described above.
+- `max_idle_multi_handlers` sets how many idle asynchronous multi-handlers the connection retains (64 by default; 0 keeps none). Active handlers are additional. Increase this when recurring bursts benefit from more warm connections, or decrease it to retain fewer idle resources.
 - `multiplex` remains a request option. The `Multiplexing::NONE` mode also configures the connection handler so its guarantee applies to every request using that handler.
 
-The dedicated connection-cap options are rejected at every option layer. `pool`, `handler`, `cookies`, `transport_sharing`, and `max_idle_handles` are also rejected from global options, per-call connection overrides, fluent `withOptions()` calls, and raw `send()` options. This keeps cookie and handler ownership consistent regardless of which option layer supplied a value.
+The dedicated connection-cap options are rejected at every option layer. `pool`, `handler`, `cookies`, `transport_sharing`, `max_idle_handles`, and `max_idle_multi_handlers` are also rejected from global options, per-call connection overrides, fluent `withOptions()` calls, and raw `send()` options. This keeps cookie and handler ownership consistent regardless of which option layer supplied a value.
+
+Requests with raw `CURLOPT_RESOLVE` DNS pins use an isolated transport so their pins cannot affect later requests. Connections that require persistent transport sharing can't send these requests, and `PERSISTENT_PREFER` falls back to handler-level sharing.
 
 Once registered, select a connection for a request by chaining the `connection` method:
 
@@ -1057,7 +1062,7 @@ Http::connection('github', [])->get('https://example.com');
 
 `setHandler()` replaces only the low-level handler beneath that request's fresh middleware stack; its global, connection, and fluent options still apply. `setClient()` gives the caller complete ownership of the client and bypasses the connection preset. Global and fluent request options still apply to the request sent through that client.
 
-Each pending request constructs one cookie jar and reuses it only across that request's redirects and retry attempts. Concurrent requests never share cookies. Requests made without `connection()` use their own default low-level handler and the same per-request cookie behavior.
+Each pending request constructs one cookie jar and reuses it only across that request's redirects and retry attempts. Concurrent requests never share cookies, including requests made without `connection()`.
 
 Calling `registerConnection()` or `setConnectionConfig()` again invalidates the connection's cached low-level handler. Subsequent requests lazily create a handler from the new configuration, while in-flight requests safely finish on their existing handler reference.
 
@@ -1117,6 +1122,8 @@ class EgressProxyPolicy extends PublicDestinationPolicy
 ```
 
 A proxy URL without a port uses its scheme's default port: 80 for `http` and 443 for `https`. The policy then checks and pins the proxy's address instead of the destination's. Since proxies usually run on private addresses, allow the proxy's address using `allowedNetworks` or `allowsAddress`. Destinations written as IP addresses are still checked, but hostnames are resolved by the proxy, which must enforce the [destination filtering requirements](#proxies).
+
+Each proxied request, including each redirect, uses an isolated transport so an older connection cannot bypass the newly approved proxy address. Connections that require persistent transport sharing can't send these requests, and `PERSISTENT_PREFER` falls back to handler-level sharing. Direct policy requests still reuse connections when the approved addresses match.
 
 If the proxy cannot be resolved or refuses the connection, a `Hypervel\Http\Client\Destinations\ProxyConnectionException` is thrown. It extends `ConnectionException`, and lets you tell a failure of your own egress path apart from a failure of the destination.
 

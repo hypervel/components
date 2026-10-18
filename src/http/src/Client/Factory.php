@@ -9,6 +9,7 @@ use GuzzleHttp\Client;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Cookie\CookieJar;
 use GuzzleHttp\Exception\ConnectException;
+use GuzzleHttp\Handler\CurlShareHandleState;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use GuzzleHttp\Multiplexing;
@@ -16,6 +17,7 @@ use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\Psr7\Response as Psr7Response;
 use GuzzleHttp\TransferStats;
+use GuzzleHttp\TransportSharing;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Http\Client\Guzzle\HandlerFactory;
@@ -91,6 +93,11 @@ class Factory
      * @var array<string, callable>
      */
     protected array $connectionHandlers = [];
+
+    /**
+     * The transport shared by requests without a named connection.
+     */
+    protected ?Closure $defaultHandler = null;
 
     /**
      * Create a new factory instance.
@@ -659,32 +666,61 @@ class Factory
     }
 
     /**
-     * Get the shared low-level transport handler for a connection.
-     *
-     * The handler serves synchronous requests from any coroutine. Send through
-     * it only with the "synchronous" request option: its cURL multi-handler,
-     * which asynchronous requests use, cannot be driven by concurrent coroutines.
+     * Get the shared low-level transport handler for default requests.
      */
-    public function getConnectionHandler(string $name): callable
+    public function getDefaultHandler(): callable
     {
-        return $this->connectionHandlers[$name] ??= $this->newConnectionHandler($name);
+        return $this->defaultHandler ??= $this->createConnectionHandler([])(...);
     }
 
     /**
-     * Create an isolated transport handler with the connection's registered options.
+     * Get the shared low-level transport handler for a connection.
      */
-    public function newConnectionHandler(string $name): callable
+    public function getConnectionHandler(string $name): callable
     {
+        return $this->connectionHandlers[$name] ??= $this->createConnectionHandler($this->connectionHandlerOptions($name));
+    }
+
+    /**
+     * Create a request-owned transport whose DNS pins cannot reach shared caches.
+     *
+     * @internal
+     */
+    public function newIsolatedHandler(?string $connection = null): callable
+    {
+        $options = $this->connectionHandlerOptions($connection);
+        $sharing = CurlShareHandleState::normalizeMode($options['transport_sharing'] ?? null, 'transport_sharing');
+
+        if ($sharing === TransportSharing::PERSISTENT_REQUIRE) {
+            throw new InvalidArgumentException("HTTP connection [{$connection}] requires persistent transport sharing, which cannot be used with destination pinning.");
+        }
+
+        $options['transport_sharing'] = $sharing === TransportSharing::PERSISTENT_PREFER
+            ? TransportSharing::HANDLER_PREFER
+            : $sharing;
+
+        return $this->createConnectionHandler($options);
+    }
+
+    /**
+     * Get the transport options owned by a registered connection.
+     */
+    protected function connectionHandlerOptions(?string $name): array
+    {
+        if ($name === null) {
+            return [];
+        }
+
         $this->ensureConnectionIsRegistered($name);
 
         $config = $this->connectionConfigs[$name];
-        $handlerOptions = Arr::only($config, ['transport_sharing', 'max_idle_handles']);
+        $handlerOptions = Arr::only($config, ['transport_sharing', 'max_idle_handles', 'max_idle_multi_handlers']);
 
         if (($config['multiplex'] ?? null) === Multiplexing::NONE) {
             $handlerOptions['multiplex'] = Multiplexing::NONE;
         }
 
-        return $this->createConnectionHandler($handlerOptions);
+        return $handlerOptions;
     }
 
     /**
@@ -693,7 +729,7 @@ class Factory
     protected function createConnectionHandler(array $options): callable
     {
         $handler = HandlerFactory::create($options);
-        unset($options['max_idle_handles']);
+        unset($options['max_idle_handles'], $options['max_idle_multi_handlers']);
 
         return CurlStreamingHandler::wrap($handler, $options, CurlStreamingHandler::MAX_IDLE_CONNECTIONS);
     }
@@ -732,7 +768,7 @@ class Factory
     {
         $this->ensureConnectionIsRegistered($name);
 
-        return Arr::except($this->connectionConfigs[$name], ['transport_sharing', 'max_idle_handles']);
+        return Arr::except($this->connectionConfigs[$name], ['transport_sharing', 'max_idle_handles', 'max_idle_multi_handlers']);
     }
 
     /**
@@ -752,7 +788,7 @@ class Factory
     }
 
     /**
-     * Forget all resolved connection handlers.
+     * Forget the resolved default and connection handlers.
      *
      * Boot or tests only. Request-time use forces subsequent requests to
      * rebuild warmed keep-alive, DNS, and TLS session state.
@@ -760,6 +796,7 @@ class Factory
     public function forgetConnectionHandlers(): static
     {
         $this->connectionHandlers = [];
+        $this->defaultHandler = null;
 
         return $this;
     }
@@ -781,8 +818,10 @@ class Factory
     {
         ReservedOptions::reject($config, true, 'registered connection configuration');
 
-        if (array_key_exists('max_idle_handles', $config) && (! is_int($config['max_idle_handles']) || $config['max_idle_handles'] < 0)) {
-            throw new InvalidArgumentException('The [max_idle_handles] connection option must be an integer of 0 or more.');
+        foreach (['max_idle_handles', 'max_idle_multi_handlers'] as $option) {
+            if (array_key_exists($option, $config) && (! is_int($config[$option]) || $config[$option] < 0)) {
+                throw new InvalidArgumentException("The [{$option}] connection option must be an integer of 0 or more.");
+            }
         }
     }
 
