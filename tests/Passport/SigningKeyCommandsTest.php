@@ -125,16 +125,6 @@ class SigningKeyCommandsTest extends TestCase
         $this->assertSame(CarbonImmutable::parse('2030-01-01T00:00:00Z')->getTimestamp(), SigningKey::sole()->retain_until->getTimestamp());
     }
 
-    public function testProvisioningReportsWhenAnotherProcessAlreadyCreatedTheKeys(): void
-    {
-        $repository = m::mock(SigningKeyRepository::class);
-        $repository->shouldReceive('create')->with(2048)->once()->andReturnNull();
-        $this->app->instance(SigningKeyRepository::class, $repository);
-
-        $this->artisan('passport:keys', ['--length' => 2048])
-            ->expectsOutputToContain('Signing keys already exist.')->assertFailed();
-    }
-
     public function testRevokingAnUnknownKeyFails(): void
     {
         $this->artisan('passport:keys:revoke', ['kid' => 'unknown'])

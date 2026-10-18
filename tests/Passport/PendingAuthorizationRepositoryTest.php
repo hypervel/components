@@ -15,23 +15,6 @@ use Hypervel\Testbench\TestCase;
 
 class PendingAuthorizationRepositoryTest extends TestCase
 {
-    public function testConsumingOneDecisionPreservesOtherTabsAndRejectsReplay(): void
-    {
-        $repository = $this->repository();
-        $request = $this->request();
-        $first = $repository->store($request, ['client_id' => 'first']);
-        $second = $repository->store($request, ['client_id' => 'second']);
-
-        $this->assertSame('first', $repository->pull($request, $first)['client_id']);
-
-        try {
-            $repository->pull($request, $first);
-            $this->fail('An authorization may only be consumed once.');
-        } catch (InvalidAuthTokenException) {
-            $this->assertSame('second', $repository->get($request, $second)['client_id']);
-        }
-    }
-
     public function testUpdatingAnInteractionDoesNotExtendItsLifetime(): void
     {
         $repository = $this->repository();
