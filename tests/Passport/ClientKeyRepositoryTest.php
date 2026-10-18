@@ -11,6 +11,7 @@ use Hypervel\Passport\Client;
 use Hypervel\Passport\ClientKeyRepository;
 use Hypervel\Passport\Database\Factories\SigningKeyFactory;
 use Hypervel\Support\Facades\Http;
+use Hypervel\Support\Sleep;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Passport\Fixtures\JsonWebKeyPair;
 use PHPUnit\Framework\Attributes\TestWith;
@@ -82,6 +83,13 @@ class ClientKeyRepositoryTest extends TestCase
         });
         $client = $this->client();
         $keys = $this->app->make(ClientKeyRepository::class);
+
+        // Advance only after the waiter starts, without delaying the suite for a slow remote fetch.
+        Sleep::fake();
+        Sleep::whenFakingSleep(function (): void {
+            $this->travel(6)->seconds();
+            Sleep::fake(false);
+        });
 
         [$first, $second] = parallel([
             static fn () => $keys->find($client, $key['kid'], 'RS256'),

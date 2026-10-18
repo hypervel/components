@@ -13,6 +13,8 @@ use UnexpectedValueException;
 
 class ClientKeyRepository
 {
+    protected const int REFRESH_LOCK_SECONDS = 30;
+
     /**
      * Create the client public-key repository.
      */
@@ -57,7 +59,8 @@ class ClientKeyRepository
         }
 
         // One lock and cooldown per client/key declaration, never per attacker-supplied kid.
-        $document = $store->lock($cacheKey . ':lock', 30)->block(5, function () use ($cache, $cacheKey, $client, $identifier, $algorithm): ?array {
+        // Redirects can outlast one HTTP timeout; both the lease and wait cover the complete fetch.
+        $document = $store->lock($cacheKey . ':lock', self::REFRESH_LOCK_SECONDS)->block(self::REFRESH_LOCK_SECONDS, function () use ($cache, $cacheKey, $client, $identifier, $algorithm): ?array {
             $document = $cache->get($cacheKey);
 
             if ($document !== null && $this->select($document, $identifier, $algorithm) !== null) {
