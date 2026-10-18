@@ -31,6 +31,7 @@ final class ReservedOptions
         if (! $allowHandlerOptions) {
             $messages['transport_sharing'] = 'Configure transport sharing through Factory::registerConnection().';
             $messages['max_idle_handles'] = 'Configure idle handle retention through Factory::registerConnection().';
+            $messages['max_idle_multi_handlers'] = 'Configure idle multi-handler retention through Factory::registerConnection().';
         }
 
         foreach ($messages as $key => $remedy) {

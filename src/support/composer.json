@@ -40,7 +40,7 @@
         "hypervel/events": "^0.4",
         "hypervel/filesystem": "^0.4",
         "hypervel/foundation": "^0.4",
-        "hypervel/guzzle-promises": "^3.0.2",
+        "hypervel/guzzle-promises": "^3.1",
         "hypervel/http": "^0.4",
         "hypervel/macroable": "^0.4",
         "hypervel/mail": "^0.4",

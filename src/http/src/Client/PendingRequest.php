@@ -599,8 +599,9 @@ class PendingRequest implements Transient
     /**
      * Resolve and pin a destination within this request's timeout limits.
      *
-     * Use an unnamed transport owned by this request, disable automatic
-     * redirects, and send the returned URI so its hostname matches the pins.
+     * Hostname pins use an isolated transport; literal addresses can reuse
+     * connections. Disable automatic redirects and send the returned URI so
+     * its hostname matches the pins.
      *
      * @internal
      */
@@ -1769,21 +1770,31 @@ class PendingRequest implements Transient
     {
         $handler = $this->handler;
 
-        if ($handler === null && $this->connection !== null && $this->factory !== null) {
-            $handler = $this->async
-                ? $this->factory->newConnectionHandler($this->connection)
-                : $this->factory->getConnectionHandler($this->connection);
+        if ($handler === null && $this->factory !== null) {
+            $handler = $this->connection !== null
+                ? $this->factory->getConnectionHandler($this->connection)
+                : $this->factory->getDefaultHandler();
         }
 
         $handler ??= CurlStreamingHandler::wrap(Utils::chooseHandler());
 
         $stack = $this->pushHandlers(HandlerStack::create($handler));
 
-        if ($this->handler === null && ! ini_get('allow_url_fopen')) {
-            // Faked responses return before reaching this transport-only guard.
-            $stack->push(static fn (callable $handler): Closure => static function (RequestInterface $request, array $options) use ($handler): PromiseInterface {
-                if (($options['stream'] ?? false) && ! CurlStreamingHandler::supports($options)) {
+        if ($this->handler === null) {
+            $allowUrlFopen = (bool) ini_get('allow_url_fopen');
+
+            $stack->before('destination_policy', fn (callable $handler): Closure => function (RequestInterface $request, array $options) use ($handler, $allowUrlFopen): PromiseInterface {
+                if (isset($options[self::DESTINATION_POLICY_OPTION])) {
+                    return $handler($request, $options);
+                }
+
+                if (! $allowUrlFopen && ($options['stream'] ?? false) && ! CurlStreamingHandler::supports($options)) {
                     throw new RuntimeException('Streaming responses require allow_url_fopen when using the default HTTP handler.');
+                }
+
+                // Real-host DNS pins must not survive in another request's shared transport.
+                if (isset($options['curl'][CURLOPT_RESOLVE])) {
+                    $handler = $this->newIsolatedHandler();
                 }
 
                 return $handler($request, $options);
@@ -1791,6 +1802,15 @@ class PendingRequest implements Transient
         }
 
         return $stack;
+    }
+
+    /**
+     * Create a request-owned transport for destination pinning.
+     */
+    protected function newIsolatedHandler(): callable
+    {
+        return $this->factory?->newIsolatedHandler($this->connection)
+            ?? CurlStreamingHandler::wrap(Utils::chooseHandler());
     }
 
     /**
@@ -1816,7 +1836,7 @@ class PendingRequest implements Transient
             $stack->push($this->buildStubHandler());
             $stack->push($this->buildDatabaseReleaseHandler());
             // Innermost, so it vets every physical request (each redirect included) and never sees faked ones.
-            $stack->push($this->buildDestinationPolicyHandler());
+            $stack->push($this->buildDestinationPolicyHandler(), 'destination_policy');
         });
     }
 
@@ -2109,6 +2129,10 @@ class PendingRequest implements Transient
         if ($destination->proxy === null) {
             return $handler($request, $options);
         }
+
+        // A reused proxy connection can bypass the address this policy just
+        // vetted. Keep its real-hostname DNS pins and connections request-owned.
+        $handler = $this->newIsolatedHandler();
 
         // Connection exceptions carry no cURL error number, so read it from the transfer statistics.
         $errorNumber = null;

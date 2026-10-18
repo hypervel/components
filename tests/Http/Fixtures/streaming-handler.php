@@ -14,6 +14,9 @@ $factory = new Factory;
 $request = $factory->withOptions(['stream' => true]);
 
 switch ($argv[1]) {
+    case 'pinned':
+        $request->withOptions(['curl' => [CURLOPT_RESOLVE => ['example.test:80:127.0.0.1']]]);
+        break;
     case 'handler':
         $request->setHandler(new MockHandler([new Response(body: 'custom handler')]));
         break;
