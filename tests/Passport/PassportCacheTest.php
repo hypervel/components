@@ -541,7 +541,9 @@ class PassportCacheTest extends TestCase
         $this->assertNull($clients->find($client->id));
     }
 
-    public function testFamilyRevocationInvalidatesEveryCachedAccessTokenAfterCommit(): void
+    #[TestWith([true])]
+    #[TestWith([false])]
+    public function testFamilyRevocationInvalidatesEveryCachedAccessTokenAfterCommit(bool $commit): void
     {
         (require __DIR__ . '/../../src/passport/database/migrations/2016_06_01_000003_create_oauth_refresh_tokens_table.php')->up();
         (require __DIR__ . '/../../src/passport/database/migrations/2016_06_01_000006_create_oauth_refresh_token_families_table.php')->up();
@@ -562,13 +564,29 @@ class PassportCacheTest extends TestCase
             $this->assertSame(0, DB::transactionLevel());
             $events[] = $event->tokenId;
         });
-        TokenIssuance::revokeRefreshTokenFamily($family->id);
-        $this->assertEqualsCanonicalizing([$first->id, $second->id], $events);
+        DB::beginTransaction();
+
+        try {
+            TokenIssuance::revokeRefreshTokenFamily($family->id);
+            $this->assertSame([], $events);
+            $this->assertNotNull($family->fresh()->revoked_at);
+
+            if ($commit) {
+                DB::commit();
+            }
+        } finally {
+            if (DB::transactionLevel() > 0) {
+                DB::rollBack();
+            }
+        }
+
+        $this->assertEqualsCanonicalizing($commit ? [$first->id, $second->id] : [], $events);
+        $this->assertSame($commit, $family->fresh()->revoked_at !== null);
 
         foreach ([$first, $second] as $token) {
-            $this->assertTrue(Token::findToken($token->id)->revoked);
+            $this->assertSame($commit, Token::findToken($token->id)->revoked);
             [$revoked] = parallel([static fn (): bool => Token::findToken($token->id)->revoked]);
-            $this->assertTrue($revoked);
+            $this->assertSame($commit, $revoked);
         }
     }
 

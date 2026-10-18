@@ -25,7 +25,9 @@ return [
     | for redirect URIs. Each domain should be specified with its scheme
     | and host. Domains not in this list will raise validation errors.
     |
-    | An "*" may be used to allow all domains.
+    | A "*" allows HTTPS and HTTP loopback callbacks. Other HTTP callbacks
+    | require an explicit domain allowance and should only be used where
+    | the administrator has accepted the risk of an unencrypted callback.
     |
     */
 
@@ -57,9 +59,9 @@ return [
     | Authorization Server
     |--------------------------------------------------------------------------
     |
-    | Here you may configure the OAuth authorization server issuer identifier
-    | per RFC 8414. This value appears in your protected resource and auth
-    | server metadata endpoints. When null, this defaults to `url('/')`.
+    | Set this to an external OAuth server's issuer when it handles login.
+    | When null or empty, protected-resource discovery uses the current Passport
+    | issuer. Configure that issuer in Passport for local OAuth servers.
     |
     */
 

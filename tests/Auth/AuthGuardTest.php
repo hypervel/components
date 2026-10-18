@@ -691,12 +691,32 @@ class AuthGuardTest extends TestCase
         $guard->getSession()->expects('get')->with($guard->getName())->andReturn(null);
         $user = m::mock(Authenticatable::class);
         $guard->getProvider()->expects('retrieveByToken')->with('id', 'recaller')->andReturn($user);
-        $user->expects('getAuthIdentifier')->andReturn('bar');
-        $user->expects('getAuthPassword')->andReturn($passwordHash);
-        $guard->getSession()->expects('put')->with($guard->getName(), 'bar');
-        $session->expects('regenerate');
+        $user->expects('getAuthIdentifier')->twice()->andReturn('bar');
+        $user->expects('getAuthPassword')->twice()->andReturn($passwordHash);
+        $guard->getSession()->expects('put')->twice()->with($guard->getName(), 'bar');
+        $session->expects('regenerate')->twice();
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->andReturnUsing(static fn (string $event): bool => $event === Login::class);
+        $rememberedLogins = [];
+        $events->expects('dispatch')->twice()->with(m::on(function (Login $event) use ($guard, &$rememberedLogins): bool {
+            $rememberedLogins[] = $guard->viaRemember();
+
+            return true;
+        }));
+        $guard->setDispatcher($events);
+
         $this->assertSame($user, $guard->user());
         $this->assertTrue($guard->viaRemember());
+
+        if ($passwordHash !== null) {
+            $session->expects('put')->with('password_hash_default', $guard->hashPasswordForCookie($passwordHash));
+        } else {
+            $session->expects('remove')->with('password_hash_default');
+        }
+
+        $guard->login($user);
+        $this->assertFalse($guard->viaRemember());
+        $this->assertSame([true, false], $rememberedLogins);
     }
 
     /**

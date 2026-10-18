@@ -368,7 +368,13 @@ class MessageBag implements Countable, Jsonable, JsonSerializable, MessageBagCon
      */
     public function any(): bool
     {
-        return $this->count() > 0;
+        foreach ($this->messages as $messages) {
+            if ($messages !== []) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

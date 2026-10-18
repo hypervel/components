@@ -821,6 +821,8 @@ DB::transaction(function () {
 });
 ```
 
+The `transaction` method commits or rolls back the transaction it starts, so don't call `commit` or `rollBack` for that transaction inside the closure. If you do, an exception is thrown when the closure returns. You may nest `transaction` calls, or pair your own `beginTransaction` with `commit` or `rollBack` inside the closure. If a nested failure ends the outer transaction, such as a MySQL deadlock, the outer `transaction` call throws even when the closure catches the nested exception.
+
 <a name="handling-concurrency-errors"></a>
 #### Handling Concurrency Errors
 

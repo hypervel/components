@@ -45,7 +45,7 @@ class OAuthChallengeTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->app->make(Registrar::class)->oauthRoutes();
+        $this->app->make(Registrar::class)->oauthRoutes(registration: false);
     }
 
     public function testChallengesWhenAuthenticationIsSortedAheadOfTheRouteMiddleware(): void

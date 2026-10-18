@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Passport\Feature;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Passport\Client;
 use Hypervel\Testbench\TestCase;
-use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 
 final class ClientTest extends TestCase
 {
@@ -46,28 +46,17 @@ final class ClientTest extends TestCase
         $this->assertFalse($client->hasScope('foo'));
     }
 
-    public function testAClientOwnedByUserZeroIsNotFirstParty(): void
+    #[TestWith([['owner_id' => null], true])]
+    #[TestWith([['owner_id' => 0], false])]
+    #[TestWith([['owner_id' => 1, 'third_party' => false], false])]
+    #[TestWith([['owner_id' => null, 'third_party' => false], true])]
+    #[TestWith([['owner_id' => null, 'third_party' => true], false])]
+    public function testFirstPartyClientsExcludeOwnedAndThirdPartyClients(array $attributes, bool $expected): void
     {
-        $client = new Client(['owner_id' => 0]);
-
-        $this->assertFalse($client->firstParty());
-    }
-
-    #[DataProvider('ownerlessClients')]
-    public function testOwnerlessClientTrustDependsOnItsRegistration(bool $thirdParty): void
-    {
-        $client = new Client(['owner_id' => null, 'third_party' => $thirdParty]);
+        $client = new Client($attributes);
         $client->exists = true;
 
-        $this->assertSame(! $thirdParty, $client->firstParty());
-    }
-
-    /**
-     * Provide application-owned and dynamically registered clients.
-     */
-    public static function ownerlessClients(): array
-    {
-        return [[false], [true]];
+        $this->assertSame($expected, $client->firstParty());
     }
 
     public function testScopesWhenClientHasScope(): void

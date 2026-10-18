@@ -116,6 +116,13 @@ class Validator implements ValidatorContract
     protected array $distinctValues = [];
 
     /**
+     * Typed occurrence counts for each distinct attribute during this validation pass.
+     *
+     * @var array<string, array{counts: array<string, int>, looseType: null|string}>
+     */
+    protected array $distinctValueCounts = [];
+
+    /**
      * The compiled execution plans for the current passes() invocation.
      *
      * @var array<string, AttributePlan>
@@ -426,6 +433,7 @@ class Validator implements ValidatorContract
     {
         $this->messages = new MessageBag;
         [$this->distinctValues, $this->failedRules, $this->excludeAttributes] = [[], [], []];
+        $this->distinctValueCounts = [];
         $this->activeExclusions = [];
         $this->originalPresenceVerifier = null;
         $this->parsedTables = [];

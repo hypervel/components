@@ -7,6 +7,7 @@ namespace Hypervel\Mcp\Server;
 use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Http\JsonResponse;
+use Hypervel\Http\Request;
 use Hypervel\Http\Response;
 use Hypervel\Mcp\Client;
 use Hypervel\Mcp\Client\ClientManager;
@@ -22,9 +23,11 @@ use Hypervel\Mcp\Server\Middleware\ValidateOrigin;
 use Hypervel\Mcp\Server\Transport\HttpTransport;
 use Hypervel\Mcp\Server\Transport\StdioTransport;
 use Hypervel\Passport\Passport;
+use Hypervel\Passport\ServerFactory;
 use Hypervel\Routing\Route;
 use Hypervel\Support\Facades\Route as Router;
 use Hypervel\Support\Traits\Macroable;
+use LogicException;
 
 class Registrar
 {
@@ -152,23 +155,28 @@ class Registrar
     /**
      * Register server-side OAuth discovery and registration routes.
      *
-     * Boot-only. The routes persist for the worker lifetime.
+     * Boot-only. Routes and Passport's challenge resolver persist for the worker lifetime.
      */
     public function oauthRoutes(string $oauthPrefix = 'oauth', bool $registration = true): void
     {
         static::ensureMcpScope();
         $hasExactProtectedResourceRoute = $this->hasGetRoute('.well-known/oauth-protected-resource');
-        $hasExactAuthorizationServerRoute = $this->hasGetRoute('.well-known/oauth-authorization-server');
+
+        if (class_exists(Passport::class)) {
+            if ($registration && Passport::$dynamicClientRegistrationEnabled) {
+                throw new LogicException('Choose MCP or Passport client registration. Use Mcp::oauthRoutes(registration: false) with Passport dynamic registration.');
+            }
+
+            $challenges = app(AddWwwAuthenticateHeader::class);
+            Passport::resolveResourceMetadataUsing(static fn (Request $request): ?string => $challenges->resourceMetadataUrl($request));
+        }
 
         if (! $hasExactProtectedResourceRoute) {
             Router::get('/.well-known/oauth-protected-resource', static fn (): JsonResponse => response()->json(static::protectedResourceMetadata('')))
                 ->name('mcp.oauth.protected-resource');
         }
 
-        if (! $hasExactAuthorizationServerRoute) {
-            Router::get('/.well-known/oauth-authorization-server', static fn (): JsonResponse => response()->json(static::authorizationServerMetadata($oauthPrefix)))
-                ->name('mcp.oauth.authorization-server');
-        }
+        // REMOVED: Passport owns authorization-server metadata, including issuer-path discovery.
 
         Router::get('/.well-known/oauth-protected-resource/{path}', static function (Route $route): JsonResponse {
             $path = $route->parameter('path');
@@ -178,41 +186,14 @@ class Registrar
             ->where('path', '.*')
             ->name('mcp.oauth.protected-resource.nested');
 
-        Router::get('/.well-known/oauth-authorization-server/{path}', static fn (string $path): JsonResponse => response()->json(static::authorizationServerMetadata($oauthPrefix)))
-            ->where('path', '.*')
-            ->name('mcp.oauth.authorization-server.nested');
-
-        if ($registration) {
-            $route = Router::post($oauthPrefix . '/register', OAuthRegisterController::class)
-                ->name('mcp.oauth.register');
-
-            if (class_exists(Passport::class)) {
-                $route->middleware('throttle:passport');
-            }
+        if ($registration && class_exists(Passport::class)) {
+            Router::post($oauthPrefix . '/register', OAuthRegisterController::class)
+                ->name('passport.clients.register')
+                ->middleware([...config()->array('passport.middleware'), 'throttle:passport']);
         }
     }
 
-    /**
-     * Get the authorization server's discovery metadata.
-     *
-     * @return array<string, array<int, string>|string>
-     */
-    protected static function authorizationServerMetadata(string $oauthPrefix): array
-    {
-        abort_unless(Router::has('passport.authorizations.authorize') && Router::has('passport.token'), 404);
-
-        return array_filter([
-            'issuer' => config('mcp.authorization_server') ?? url('/'),
-            'authorization_endpoint' => route('passport.authorizations.authorize'),
-            'token_endpoint' => route('passport.token'),
-            'registration_endpoint' => Router::has('mcp.oauth.register') ? route('mcp.oauth.register') : null,
-            'response_types_supported' => ['code'],
-            'code_challenge_methods_supported' => ['S256'],
-            'scopes_supported' => [self::OAUTH_SCOPE],
-            'grant_types_supported' => ['authorization_code', 'refresh_token'],
-            'token_endpoint_auth_methods_supported' => ['none', 'client_secret_basic', 'client_secret_post'],
-        ], fn (mixed $value): bool => $value !== null);
-    }
+    // REMOVED: authorizationServerMetadata(); use Passport's selected server metadata.
 
     /**
      * Get discovery metadata for a protected resource.
@@ -221,9 +202,20 @@ class Registrar
      */
     protected static function protectedResourceMetadata(string $path): array
     {
+        $issuer = config('mcp.authorization_server');
+        $issuer = $issuer === '' ? null : $issuer;
+
+        if ($issuer === null && class_exists(Passport::class)) {
+            $issuer = app(ServerFactory::class)->settings()->issuer;
+        }
+
+        if ($issuer === null) {
+            throw new LogicException('Configure a Passport issuer or an external mcp.authorization_server for MCP OAuth discovery.');
+        }
+
         return [
             'resource' => url('/' . $path),
-            'authorization_servers' => [config('mcp.authorization_server') ?? url('/')],
+            'authorization_servers' => [$issuer],
             'scopes_supported' => [self::OAUTH_SCOPE],
         ];
     }

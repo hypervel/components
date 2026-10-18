@@ -14,6 +14,7 @@ namespace Hypervel\Passport\Bridge;
 use DateInterval;
 use DateTimeImmutable;
 use DateTimeZone;
+use Hypervel\Passport\DpopProofValidator;
 use Lcobucci\JWT\Configuration;
 use Lcobucci\JWT\Exception;
 use Lcobucci\JWT\Signer\Key\InMemory;
@@ -29,8 +30,6 @@ use Psr\Clock\ClockInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
 use function date_default_timezone_get;
-use function preg_replace;
-use function trim;
 
 class BearerTokenValidator implements AuthorizationValidatorInterface
 {
@@ -94,13 +93,47 @@ class BearerTokenValidator implements AuthorizationValidatorInterface
             throw OAuthServerException::accessDenied('Missing "Authorization" header');
         }
 
-        $header = $request->getHeader('authorization');
-        $jwt = trim((string) preg_replace('/^\s*Bearer\s/i', '', $header[0]));
+        $credentials = BearerRequestFactory::credentials($request->getHeaderLine('authorization'));
+        $jwt = $credentials['token'] ?? '';
 
         if ($jwt === '') {
-            throw OAuthServerException::accessDenied('Missing "Bearer" token');
+            throw OAuthServerException::accessDenied('Missing access token');
         }
 
+        $claims = $this->validateToken($jwt)->claims();
+        $confirmation = $claims->get('cnf');
+
+        if ($credentials['scheme'] === 'DPoP') {
+            if (! is_array($confirmation) || ! is_string($confirmation['jkt'] ?? null) || $confirmation['jkt'] === '') {
+                throw OAuthServerException::accessDenied('The access token is not bound to a DPoP key');
+            }
+
+            app(DpopProofValidator::class)->validate($request, $jwt, $confirmation['jkt']);
+        } elseif ($confirmation !== null) {
+            throw OAuthServerException::accessDenied('A proof-bound access token cannot be used as a bearer token');
+        }
+
+        // Check if token has been revoked
+        if ($this->accessTokenRepository->isAccessTokenRevoked($claims->get('jti'))) {
+            throw OAuthServerException::accessDenied('Access token has been revoked');
+        }
+
+        // Return the request with additional attributes
+        return $request
+            ->withAttribute('oauth_access_token_id', $claims->get('jti'))
+            ->withAttribute('oauth_client_id', $claims->get('client_id'))
+            ->withAttribute('oauth_audiences', $claims->get('aud'))
+            ->withAttribute('oauth_user_id', $claims->get('sub'))
+            ->withAttribute('oauth_scopes', $claims->get('scopes'));
+    }
+
+    /**
+     * Verify a token's signature, lifetime and identifier without applying stored-token authorization policy.
+     *
+     * @internal shared by bearer authorization and token management
+     */
+    public function validateToken(string $jwt): UnencryptedToken
+    {
         try {
             // Attempt to parse the JWT
             $token = $this->jwtConfiguration->parser()->parse($jwt);
@@ -120,19 +153,20 @@ class BearerTokenValidator implements AuthorizationValidatorInterface
             throw OAuthServerException::accessDenied('Access token is not an instance of UnencryptedToken');
         }
 
-        $claims = $token->claims();
+        // Other signed artifacts may use these keys without identifying an access-token record.
+        $identifier = $token->claims()->get('jti');
 
-        // Check if token has been revoked
-        if ($this->accessTokenRepository->isAccessTokenRevoked($claims->get('jti'))) {
-            throw OAuthServerException::accessDenied('Access token has been revoked');
+        if (! is_string($identifier) || $identifier === '') {
+            throw OAuthServerException::accessDenied('Access token has no valid identifier');
         }
 
-        // Return the request with additional attributes
-        return $request
-            ->withAttribute('oauth_access_token_id', $claims->get('jti'))
-            ->withAttribute('oauth_client_id', $claims->get('aud')[0])
-            ->withAttribute('oauth_user_id', $claims->get('sub'))
-            ->withAttribute('oauth_scopes', $claims->get('scopes'));
+        $clientId = $token->claims()->get('client_id');
+
+        if (! is_string($clientId) || $clientId === '') {
+            throw OAuthServerException::accessDenied('Access token has no valid client identifier');
+        }
+
+        return $token;
     }
 
     /**

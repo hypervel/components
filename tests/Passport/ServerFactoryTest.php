@@ -18,6 +18,7 @@ use Hypervel\Passport\ServerKey;
 use Hypervel\Passport\ServerSettings;
 use Hypervel\Passport\SigningKey;
 use Hypervel\Passport\SigningKeyRepository;
+use Hypervel\Passport\StoredServerKey;
 use Hypervel\Passport\Token;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\DB;
@@ -34,6 +35,9 @@ use Nyholm\Psr7\Response;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
+use Swoole\Coroutine\Channel;
+
+use function Hypervel\Coroutine\parallel;
 
 class ServerFactoryTest extends TestCase
 {
@@ -103,6 +107,7 @@ class ServerFactoryTest extends TestCase
         $currentId = ParsedKey::fromPublicKey($current['public'])->getKeyId();
         $builder = (new Builder(new JoseEncoder, ChainedFormatter::default()))
             ->identifiedBy($token->id)->permittedFor($client->id)->relatedTo($client->id)
+            ->withClaim('client_id', $client->id)
             ->issuedAt($now)->expiresAt($now->addYear())->withClaim('scopes', []);
         $withoutKid = $builder->getToken(new Sha256, InMemory::plainText($originalPrivate))->toString();
         $withKid = $builder->withHeader('kid', $originalId)->getToken(new Sha256, InMemory::plainText($originalPrivate))->toString();
@@ -214,6 +219,7 @@ class ServerFactoryTest extends TestCase
         $servers = $this->app->make(ServerFactory::class);
         DB::enableQueryLog();
         $entry = $servers->entry();
+        $this->assertSame(60, $entry->settings->metadataCacheLifetime);
         $this->assertCount(1, DB::getQueryLog());
         $this->assertSame($entry, $servers->entry());
         $this->assertCount(1, DB::getQueryLog());
@@ -238,6 +244,97 @@ class ServerFactoryTest extends TestCase
         CarbonImmutable::setTestNow($waiting->activates_at);
         $this->assertSame($replacement, $servers->entry());
         $this->assertNotSame($oldKey, $replacement->signingKey(CarbonImmutable::now()));
+    }
+
+    #[TestWith(['warm'])]
+    #[TestWith(['cold'])]
+    #[TestWith(['superseded'])]
+    #[TestWith(['failure'])]
+    public function testConcurrentKeyLoadsDoNotOverwriteNewerEntriesAndFailuresCanRetry(string $scenario): void
+    {
+        config(['passport.key_store' => 'database']);
+        $now = CarbonImmutable::now()->startOfSecond();
+        CarbonImmutable::setTestNow($now);
+        $original = new StoredServerKey('original', 0, config('passport.public_key'), config('passport.private_key'), $now);
+        $replacement = new StoredServerKey('replacement', 0, config('passport.public_key'), config('passport.private_key'), $now);
+        $keys = [$original];
+        $pause = false;
+        $calls = 0;
+        $ready = new Channel(1);
+        $release = new Channel(1);
+        $failure = new RuntimeException('Key storage unavailable.');
+        $repository = m::mock(SigningKeyRepository::class);
+        $repository->shouldReceive('serverKeys')->andReturnUsing(function () use (&$keys, &$pause, &$calls, $ready, $release, $scenario, $failure): array {
+            ++$calls;
+            $snapshot = $keys;
+
+            if ($pause) {
+                $pause = false;
+                $ready->push(true);
+                $this->assertTrue($release->pop(5));
+
+                if ($scenario === 'failure') {
+                    throw $failure;
+                }
+            }
+
+            return $snapshot;
+        });
+        $this->app->instance(SigningKeyRepository::class, $repository);
+        $servers = $this->app->make(ServerFactory::class);
+
+        if ($scenario !== 'cold') {
+            $servers->entry();
+            CarbonImmutable::setTestNow($now->addSeconds(60));
+        }
+
+        $pause = true;
+
+        try {
+            [$first, $second] = parallel([
+                static function () use ($servers, $failure) {
+                    try {
+                        return $servers->entry();
+                    } catch (RuntimeException $exception) {
+                        if ($exception !== $failure) {
+                            throw $exception;
+                        }
+
+                        return $exception;
+                    }
+                },
+                function () use ($ready, $release, $servers, &$keys, $replacement, $scenario, $now) {
+                    $this->assertTrue($ready->pop(5));
+
+                    try {
+                        $keys = [$replacement];
+
+                        if ($scenario === 'superseded') {
+                            CarbonImmutable::setTestNow($now->addSeconds(120));
+                        }
+
+                        return $servers->entry();
+                    } finally {
+                        $release->push(true);
+                    }
+                },
+            ]);
+
+            if ($scenario === 'failure') {
+                $this->assertSame($failure, $first);
+                $this->assertSame($original, $second->settings->keys[0]);
+                $this->assertSame($replacement, $servers->entry()->settings->keys[0]);
+                $this->assertSame(3, $calls);
+            } else {
+                $this->assertSame($second, $first);
+                $this->assertSame($first, $servers->entry());
+                $this->assertSame($scenario === 'warm' ? $original : $replacement, $first->settings->keys[0]);
+                $this->assertSame($scenario === 'superseded' ? 3 : 2, $calls);
+            }
+        } finally {
+            $ready->close();
+            $release->close();
+        }
     }
 
     public function testCustomSettingsPreserveStoredKeyRetentionAndDoNotPublishRolledBackBounds(): void

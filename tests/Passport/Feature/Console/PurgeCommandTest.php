@@ -11,6 +11,7 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Tests\Passport\Feature\PassportTestCase;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 
 // REMOVED: Console/HashCommandTest covers the pre-13 passport:hash upgrade command; client secrets are always stored as SHA-256 digests.
 class PurgeCommandTest extends PassportTestCase
@@ -38,6 +39,7 @@ class PurgeCommandTest extends PassportTestCase
             'select "oauth_refresh_tokens"."id" from "oauth_refresh_tokens" where ("revoked" = 1 or "expires_at" < \'2000-01-01 00:00:00\') and "expires_at" <= \'2000-01-08 00:00:00\' and "id" is not null order by "id" asc limit 1000',
             'select "oauth_refresh_token_families"."id" from "oauth_refresh_token_families" where not exists (select * from "oauth_refresh_tokens" where "oauth_refresh_token_families"."id" = "oauth_refresh_tokens"."family_id") and "id" is not null order by "id" asc limit 1000',
             'select "oauth_device_codes"."id" from "oauth_device_codes" where ("revoked" = 1 or "expires_at" < \'2000-01-01 00:00:00\') and "id" is not null order by "id" asc limit 1000',
+            'select "oauth_pushed_authorization_requests"."id" from "oauth_pushed_authorization_requests" where "expires_at" <= \'2000-01-08 00:00:00\' and "id" is not null order by "id" asc limit 1000',
         ], array_column($query, 'query'));
     }
 
@@ -74,6 +76,7 @@ class PurgeCommandTest extends PassportTestCase
             'select "oauth_refresh_tokens"."id" from "oauth_refresh_tokens" where ("expires_at" < \'2000-01-01 00:00:00\') and "expires_at" <= \'2000-01-08 00:00:00\' and "id" is not null order by "id" asc limit 1000',
             'select "oauth_refresh_token_families"."id" from "oauth_refresh_token_families" where not exists (select * from "oauth_refresh_tokens" where "oauth_refresh_token_families"."id" = "oauth_refresh_tokens"."family_id") and "id" is not null order by "id" asc limit 1000',
             'select "oauth_device_codes"."id" from "oauth_device_codes" where ("expires_at" < \'2000-01-01 00:00:00\') and "id" is not null order by "id" asc limit 1000',
+            'select "oauth_pushed_authorization_requests"."id" from "oauth_pushed_authorization_requests" where "expires_at" <= \'2000-01-08 00:00:00\' and "id" is not null order by "id" asc limit 1000',
         ], array_column($query, 'query'));
     }
 
@@ -92,6 +95,7 @@ class PurgeCommandTest extends PassportTestCase
             'select "oauth_refresh_tokens"."id" from "oauth_refresh_tokens" where ("revoked" = 1 or "expires_at" < \'2000-01-01 00:00:00\') and "expires_at" <= \'2000-01-08 00:00:00\' and "id" is not null order by "id" asc limit 1000',
             'select "oauth_refresh_token_families"."id" from "oauth_refresh_token_families" where not exists (select * from "oauth_refresh_tokens" where "oauth_refresh_token_families"."id" = "oauth_refresh_tokens"."family_id") and "id" is not null order by "id" asc limit 1000',
             'select "oauth_device_codes"."id" from "oauth_device_codes" where ("revoked" = 1 or "expires_at" < \'2000-01-01 00:00:00\') and "id" is not null order by "id" asc limit 1000',
+            'select "oauth_pushed_authorization_requests"."id" from "oauth_pushed_authorization_requests" where "expires_at" <= \'2000-01-08 00:00:00\' and "id" is not null order by "id" asc limit 1000',
         ], array_column($query, 'query'));
     }
 
@@ -110,6 +114,7 @@ class PurgeCommandTest extends PassportTestCase
             'select "oauth_refresh_tokens"."id" from "oauth_refresh_tokens" where ("revoked" = 1 or "expires_at" < \'2000-01-01 00:00:00\') and "expires_at" <= \'2000-01-01 02:00:00\' and "id" is not null order by "id" asc limit 1000',
             'select "oauth_refresh_token_families"."id" from "oauth_refresh_token_families" where not exists (select * from "oauth_refresh_tokens" where "oauth_refresh_token_families"."id" = "oauth_refresh_tokens"."family_id") and "id" is not null order by "id" asc limit 1000',
             'select "oauth_device_codes"."id" from "oauth_device_codes" where ("revoked" = 1 or "expires_at" < \'2000-01-01 00:00:00\') and "id" is not null order by "id" asc limit 1000',
+            'select "oauth_pushed_authorization_requests"."id" from "oauth_pushed_authorization_requests" where "expires_at" <= \'2000-01-01 02:00:00\' and "id" is not null order by "id" asc limit 1000',
         ], array_column($query, 'query'));
     }
 
@@ -194,6 +199,30 @@ class PurgeCommandTest extends PassportTestCase
         $this->assertDatabaseCount('oauth_refresh_tokens', 1);
         $this->assertDatabaseHas('oauth_refresh_tokens', ['id' => 'refresh-indefinite']);
         $this->assertDatabaseCount('oauth_refresh_token_families', 1);
+    }
+
+    #[TestWith([[]])]
+    #[TestWith([['--expired' => true, '--hours' => 168]])]
+    #[TestWith([['--revoked' => true]])]
+    public function testPushedRequestsExpireWithoutTheCredentialRetentionDelay(array $options): void
+    {
+        $this->freezeTime();
+        $client = ClientFactory::new()->create();
+
+        foreach (['expired' => now()->subSecond(), 'current' => now()->addMinute()] as $id => $expiry) {
+            Passport::pushedAuthorizationRequest()->newQuery()->create([
+                'id' => hash('sha256', $id), 'client_id' => $client->id,
+                'parameters' => [], 'scopes' => [], 'redirect_uri' => $client->redirect_uris[0], 'expires_at' => $expiry,
+            ]);
+        }
+
+        $command = $this->artisan('passport:purge', $options);
+        if (! isset($options['--revoked'])) {
+            $command->expectsOutputToContain('Purged expired pushed authorization requests.');
+        }
+        $command->assertSuccessful()->run();
+        $this->assertDatabaseHas('oauth_pushed_authorization_requests', ['id' => hash('sha256', 'current')]);
+        $this->assertSame(isset($options['--revoked']), Passport::pushedAuthorizationRequest()->newQuery()->whereKey(hash('sha256', 'expired'))->exists());
     }
 
     #[DataProvider('invalidHours')]

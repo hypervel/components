@@ -7,9 +7,11 @@ namespace Hypervel\Passport\Http\Controllers;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Http\Request;
+use Hypervel\Passport\Bridge\DeviceCodeRepository;
 use Hypervel\Passport\Bridge\TokenIssuance;
 use Hypervel\Passport\ClientRepository;
 use Hypervel\Passport\Contracts\DeniedDeviceAuthorizationResponse;
+use Hypervel\Passport\PendingAuthorizationRepository;
 use Hypervel\Passport\ServerFactory;
 
 class DenyDeviceAuthorizationController
@@ -26,6 +28,8 @@ class DenyDeviceAuthorizationController
         protected AuthManager $auth,
         protected Repository $config,
         protected ClientRepository $clients,
+        protected PendingAuthorizationRepository $pending,
+        protected DeviceCodeRepository $deviceCodes,
     ) {
     }
 
@@ -38,13 +42,12 @@ class DenyDeviceAuthorizationController
     ): DeniedDeviceAuthorizationResponse {
         $this->withErrorHandling(function () use ($request): void {
             $deviceCode = $this->getDeviceCodeFromSession($request);
-            $attributes = $request->session()->pull('authAttributes', []);
 
             TokenIssuance::run($this->servers, fn () => $this->servers->authorizationServer()->completeDeviceAuthorizationRequest(
                 $deviceCode->getIdentifier(),
                 $deviceCode->getUserIdentifier(),
                 false
-            ), $attributes);
+            ), ['provider' => $this->getApprovingProvider()]);
         });
 
         return $response;

@@ -24,34 +24,62 @@ class AddWwwAuthenticateHeader
             return $response;
         }
 
-        $route = $request->route();
-        if (! $route instanceof Route) {
-            return $response;
-        }
-
-        $middleware = app('router')->gatherRouteMiddleware($route);
-
-        if (! in_array(self::class, $middleware, true)) {
-            return $response;
-        }
-
-        $isOauth = app('router')->has('mcp.oauth.protected-resource.nested') && ! $this->usesOnlySanctum($middleware);
-        if ($isOauth) {
+        $metadataUrl = $this->resourceMetadataUrl($request);
+        if ($metadataUrl !== null) {
             $response->headers->set(
                 'WWW-Authenticate',
-                'Bearer realm="mcp", resource_metadata="' . route('mcp.oauth.protected-resource.nested', ['path' => $request->path()]) . '"'
+                'Bearer realm="mcp", resource_metadata="' . addcslashes($metadataUrl, '\"') . '"'
             );
 
             return $response;
         }
 
-        // Sanctum, can't share discover URL
+        if ($this->mcpMiddleware($request) === null) {
+            return $response;
+        }
+
+        // Sanctum does not use OAuth discovery.
         $response->headers->set(
             'WWW-Authenticate',
             'Bearer realm="mcp", error="invalid_token"'
         );
 
         return $response;
+    }
+
+    /**
+     * Get the discovery URL for a route protected by MCP OAuth middleware.
+     */
+    public function resourceMetadataUrl(Request $request): ?string
+    {
+        $middleware = $this->mcpMiddleware($request);
+
+        if ($middleware === null || ! app('router')->has('mcp.oauth.protected-resource.nested')
+            || $this->usesOnlySanctum($middleware)) {
+            return null;
+        }
+
+        $metadataRoute = app('router')->getRoutes()->getByName('mcp.oauth.protected-resource.nested');
+        $parameters = array_intersect_key($request->route()->parameters(), array_flip($metadataRoute->parameterNames()));
+
+        return route('mcp.oauth.protected-resource.nested', [...$parameters, 'path' => $request->path()]);
+    }
+
+    /**
+     * Get the route's effective middleware when MCP challenges are enabled.
+     *
+     * @return null|array<int, Closure|string>
+     */
+    protected function mcpMiddleware(Request $request): ?array
+    {
+        $route = $request->route();
+        if (! $route instanceof Route) {
+            return null;
+        }
+
+        $middleware = app('router')->gatherRouteMiddleware($route);
+
+        return in_array(self::class, $middleware, true) ? $middleware : null;
     }
 
     /**

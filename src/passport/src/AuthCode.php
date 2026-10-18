@@ -12,7 +12,10 @@ use Hypervel\Database\Eloquent\Model;
  * @property int|string $user_id
  * @property null|string $provider
  * @property string $client_id
+ * @property null|string $consent_id
  * @property null|array $scopes
+ * @property null|array<string, list<string>> $resources
+ * @property null|string $dpop_jkt
  * @property bool $revoked
  * @property null|CarbonInterface $expires_at
  */
@@ -42,6 +45,7 @@ class AuthCode extends Model
      */
     protected array $casts = [
         'scopes' => 'array',
+        'resources' => 'array',
         'revoked' => 'bool',
         'expires_at' => 'datetime',
     ];

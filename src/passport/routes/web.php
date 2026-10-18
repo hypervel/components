@@ -3,8 +3,15 @@
 declare(strict_types=1);
 
 use Hypervel\Http\Middleware\FrameGuard;
+use Hypervel\Http\Middleware\SetCacheHeaders;
 use Hypervel\Passport\Passport;
 use Hypervel\Support\Facades\Route;
+
+Route::get('/jwks', [
+    'uses' => 'ServerMetadataController@jwks',
+    'as' => 'jwks',
+    'middleware' => SetCacheHeaders::using('etag'),
+]);
 
 Route::post('/token', [
     'uses' => 'AccessTokenController@issueToken',
@@ -12,11 +19,47 @@ Route::post('/token', [
     'middleware' => 'throttle:passport',
 ]);
 
+Route::post('/revoke', [
+    'uses' => 'TokenManagementController@revoke',
+    'as' => 'token.revoke',
+    'middleware' => 'throttle:passport',
+]);
+
+Route::post('/introspect', [
+    'uses' => 'TokenManagementController@introspect',
+    'as' => 'token.introspect',
+]);
+
+Route::post('/par', [
+    'uses' => 'PushedAuthorizationRequestController@store',
+    'as' => 'par',
+    'middleware' => 'throttle:passport',
+]);
+
+if (Passport::$dynamicClientRegistrationEnabled) {
+    Route::post('/register', [
+        'uses' => 'ClientRegistrationController@store',
+        'as' => 'clients.register',
+        'middleware' => 'throttle:passport',
+    ]);
+}
+
 Route::get('/authorize', [
     'uses' => 'AuthorizationController@authorize',
     'as' => 'authorizations.authorize',
     'middleware' => ['web', FrameGuard::class],
+])->block();
+
+Route::post('/authorize', [
+    'uses' => 'AuthorizationController@store',
+    'as' => 'authorizations.store',
 ]);
+
+Route::get('/authorize/resume/{authorization}', [
+    'uses' => 'AuthorizationController@resume',
+    'as' => 'authorizations.resume',
+    'middleware' => ['web', FrameGuard::class],
+])->block();
 
 if (Passport::$deviceCodeGrantEnabled) {
     Route::get('/device', [
@@ -40,32 +83,48 @@ Route::middleware(['web', $guard ? 'auth:' . $guard : 'auth'])->group(function (
         'as' => 'token.refresh',
     ]);
 
-    Route::post('/authorize', [
+    Route::post('/authorize/consent', [
         'uses' => 'ApproveAuthorizationController@approve',
         'as' => 'authorizations.approve',
-    ]);
+        'middleware' => [FrameGuard::class],
+    ])->block();
 
-    Route::delete('/authorize', [
+    Route::delete('/authorize/consent', [
         'uses' => 'DenyAuthorizationController@deny',
         'as' => 'authorizations.deny',
-    ]);
+        'middleware' => [FrameGuard::class],
+    ])->block();
+
+    Route::post('/authorize/account/continue', [
+        'uses' => 'AuthorizationController@continueAsCurrentAccount',
+        'as' => 'authorizations.account.continue',
+        'middleware' => [FrameGuard::class],
+    ])->block();
+
+    Route::post('/authorize/account/switch', [
+        'uses' => 'AuthorizationController@switchAccount',
+        'as' => 'authorizations.account.switch',
+        'middleware' => [FrameGuard::class],
+    ])->block();
 
     if (Passport::$deviceCodeGrantEnabled) {
         Route::get('/device/authorize', [
             'uses' => 'DeviceAuthorizationController',
             'as' => 'device.authorizations.authorize',
             'middleware' => [FrameGuard::class, 'throttle:passport'],
-        ]);
+        ])->block();
 
         Route::post('/device/authorize', [
             'uses' => 'ApproveDeviceAuthorizationController',
             'as' => 'device.authorizations.approve',
-        ]);
+            'middleware' => [FrameGuard::class],
+        ])->block();
 
         Route::delete('/device/authorize', [
             'uses' => 'DenyDeviceAuthorizationController',
             'as' => 'device.authorizations.deny',
-        ]);
+            'middleware' => [FrameGuard::class],
+        ])->block();
     }
 
     // Deprecated JSON management routes are omitted; applications define their own routes.

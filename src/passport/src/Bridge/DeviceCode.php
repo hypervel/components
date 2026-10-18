@@ -17,6 +17,9 @@ class DeviceCode implements DeviceCodeEntityInterface, Transient
     use DeviceCodeTrait;
     use TokenEntityTrait;
 
+    /** @var null|array<string, list<string>> */
+    public ?array $resources = null;
+
     /**
      * Create a new device code instance.
      *

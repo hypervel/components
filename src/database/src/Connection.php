@@ -1364,13 +1364,6 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     }
 
     /**
-     * Invalidate the state remembered for the current physical session.
-     */
-    protected function invalidateCurrentSessionState(): void
-    {
-    }
-
-    /**
      * Mark the current physical session state as unknown.
      *
      * @internal

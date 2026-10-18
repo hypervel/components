@@ -66,13 +66,26 @@
                 </h3>
 
                 <p class="text-sm text-muted-foreground text-center">
-                    This application will be able to:<br/>Use available MCP functionality.
+                    You will be redirected to {{ in_array(strtolower(parse_url($redirectUri, PHP_URL_SCHEME)), ['http', 'https'], true) ? parse_url($redirectUri, PHP_URL_HOST) : $redirectUri }}.
                 </p>
 
                 @if ($client->client_uri ?? null)
                 <a href="{{ $client->client_uri }}" target="_blank" rel="noopener noreferrer" class="text-sm text-primary underline text-center">
                     {{ $client->client_uri }}
                 </a>
+                @endif
+
+                @if(count($resources) > 0)
+                    <div class="space-y-2">
+                        <p class="text-sm font-medium">Resources:</p>
+                        <ul class="space-y-2">
+                            @foreach($resources as $resource)
+                                <li class="text-sm text-muted-foreground">
+                                    {{ $resource->description }} ({{ $resource->id }})
+                                </li>
+                            @endforeach
+                        </ul>
+                    </div>
                 @endif
             </div>
 
@@ -108,13 +121,11 @@
             <!-- Footer With Buttons -->
             <div class="flex items-center p-6 pt-0 gap-3">
                 <!-- Deny Form -->
-                <form method="POST" action="{{ route('passport.authorizations.deny') }}" class="flex-1">
+                <form method="POST" action="{{ route('passport.authorizations.deny') }}" class="flex-1" id="denyForm">
                     @csrf
                     @method('DELETE')
-                    <input type="hidden" name="state" value="">
-                    <input type="hidden" name="client_id" value="{{ $client->id }}">
                     <input type="hidden" name="auth_token" value="{{ $authToken }}">
-                    <button type="submit" class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 w-full">
+                    <button type="submit" class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 w-full" id="denyButton">
                         <svg class="mr-2 h-4 w-4" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                         </svg>
@@ -125,8 +136,6 @@
                 <!-- Approve Form -->
                 <form method="POST" action="{{ route('passport.authorizations.approve') }}" class="flex-1" id="authorizeForm">
                     @csrf
-                    <input type="hidden" name="state" value="">
-                    <input type="hidden" name="client_id" value="{{ $client->id }}">
                     <input type="hidden" name="auth_token" value="{{ $authToken }}">
                     <button type="submit" class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 w-full" id="authorizeButton">
                         <span id="authorizeText">Authorize</span>
@@ -142,48 +151,27 @@
     </div>
 </div>
 
+{{-- The client callback owns window closing; a timer here can interrupt callback delivery. --}}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const form = document.getElementById('authorizeForm');
         const button = document.getElementById('authorizeButton');
+        const denyForm = document.getElementById('denyForm');
+        const denyButton = document.getElementById('denyButton');
         const authorizeText = document.getElementById('authorizeText');
         const loadingSpinner = document.getElementById('loadingSpinner');
 
-        form.addEventListener('submit', function(e) {
-            // Show loading state...
+        form.addEventListener('submit', function() {
             button.disabled = true;
+            denyButton.disabled = true;
             authorizeText.textContent = 'Authorizing...';
             loadingSpinner.classList.remove('hidden');
-
-            // After form submission, watch for redirect and close window...
-            setTimeout(function() {
-                const checkRedirect = setInterval(function() {
-                    // If URL changed or we have OAuth params, redirect happened...
-                    if (!window.location.href.includes('/oauth/authorize') ||
-                        window.location.search.includes('code=') ||
-                        window.location.search.includes('error=')) {
-                        clearInterval(checkRedirect);
-                        window.close();
-                    }
-                }, 100);
-
-                // Fallback: Close after five seconds...
-                setTimeout(function() {
-                    clearInterval(checkRedirect);
-                    window.close();
-                }, 5000);
-            }, 200);
         });
 
-        // Handle cancel button...
-        const cancelForm = document.querySelector('form[method="POST"]:has(input[name="_method"][value="DELETE"])');
-        if (cancelForm) {
-            cancelForm.addEventListener('submit', function(e) {
-                setTimeout(function() {
-                    window.close();
-                }, 200);
-            });
-        }
+        denyForm.addEventListener('submit', function() {
+            button.disabled = true;
+            denyButton.disabled = true;
+        });
     });
 </script>
 </body>

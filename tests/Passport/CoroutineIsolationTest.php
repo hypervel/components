@@ -14,6 +14,7 @@ use Hypervel\Passport\Client;
 use Hypervel\Passport\Contracts\AuthorizationViewResponse;
 use Hypervel\Passport\Contracts\ServerSettingsResolver;
 use Hypervel\Passport\Database\Factories\SigningKeyFactory;
+use Hypervel\Passport\Events\AuthorizationUserResolved;
 use Hypervel\Passport\Http\Controllers\AuthorizationController;
 use Hypervel\Passport\Http\Middleware\CreateFreshApiToken;
 use Hypervel\Passport\Passport;
@@ -24,6 +25,7 @@ use Hypervel\Passport\ServerSettings;
 use Hypervel\Session\ArraySessionHandler;
 use Hypervel\Session\Middleware\StartSession;
 use Hypervel\Session\Store;
+use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Passport\Fixtures\User;
 use Nyholm\Psr7\Response as PsrResponse;
@@ -144,14 +146,12 @@ class CoroutineIsolationTest extends TestCase
             'name' => 'Client', 'revoked' => false, 'secret' => 'secret',
             'grant_types' => ['authorization_code'], 'redirect_uris' => ['https://client.example/callback'],
         ]);
-        Passport::authorizationAttributesUsing(static function (): array {
+        Event::listen(AuthorizationUserResolved::class, static function (): void {
             usleep(5000);
-
-            return [];
         });
         Passport::authorizationView(static fn (array $parameters): array => [
             'user' => $parameters['user']->getAuthIdentifier(),
-            'provider' => $parameters['request']->session()->get('authAttributes.provider'),
+            'provider' => $parameters['request']->session()->get('passport.authorizations.' . $parameters['authToken'] . '.provider'),
         ]);
         $controller = $this->app->make(AuthorizationController::class);
         $authorize = function (string $guard, int $userId) use ($controller, $client): array {
@@ -213,7 +213,12 @@ class CoroutineIsolationTest extends TestCase
              */
             public function resolve(string $identifier): ServerSettings
             {
-                return new ServerSettings([$this->key], scopes: [$identifier => $identifier], issuer: 'https://' . $identifier);
+                return new ServerSettings(
+                    [$this->key],
+                    scopes: [$identifier => $identifier],
+                    issuer: 'https://' . $identifier,
+                    resources: ['https://' . $identifier . '/api' => $identifier],
+                );
             }
         });
         $factory = $this->app->make(ServerFactory::class);
@@ -222,6 +227,9 @@ class CoroutineIsolationTest extends TestCase
             $server = $factory->authorizationServer();
             usleep(5000);
             $this->assertSame($server, $factory->authorizationServer());
+            $this->assertTrue(Passport::hasResource('https://' . $host . '/api'));
+            $other = $host === 'first.example' ? 'second.example' : 'first.example';
+            $this->assertFalse(Passport::hasResource('https://' . $other . '/api'));
 
             return [$factory->settings()->issuer, Passport::scopeIds(), $server];
         };

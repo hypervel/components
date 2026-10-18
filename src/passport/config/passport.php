@@ -34,6 +34,68 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Pending Authorizations
+    |--------------------------------------------------------------------------
+    |
+    | Each browser session may hold several authorization requests while users
+    | log in or review permissions. Requests expire after the given number
+    | of seconds. The oldest request is removed when the limit is reached.
+    |
+    */
+
+    'authorization' => [
+        'lifetime' => 600,
+        'max_pending' => 10,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Pushed Authorization Requests
+    |--------------------------------------------------------------------------
+    |
+    | Clients may submit authorization parameters directly and receive a short-
+    | lived, single-use reference for the browser. This lifetime is in seconds.
+    | Schedule passport:purge to remove unused references after they expire.
+    |
+    */
+
+    'par' => [
+        'lifetime' => (int) env('PASSPORT_PAR_LIFETIME', 90),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Dynamic Client Registration
+    |--------------------------------------------------------------------------
+    |
+    | When dynamic registration is enabled, anonymous clients may request only
+    | these scopes. Privileged provisioning requires an access token with
+    | the explicit passport:register scope; browser sessions do not qualify.
+    |
+    */
+
+    'registration' => [
+        'scopes' => [],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Proof-Bound Access Tokens
+    |--------------------------------------------------------------------------
+    |
+    | DPoP binds credentials to a client's public key. Proof verification and
+    | replay tracking apply only to DPoP requests. Disabling replay tracking
+    | permits repeated use of captured proofs during their short lifetime.
+    |
+    */
+
+    'dpop' => [
+        'enabled' => (bool) env('PASSPORT_DPOP_ENABLED', false),
+        'replay_protection' => (bool) env('PASSPORT_DPOP_REPLAY_PROTECTION', true),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Encryption Keys
     |--------------------------------------------------------------------------
     |
@@ -80,7 +142,11 @@ return [
     | Authorization Server Settings
     |--------------------------------------------------------------------------
     |
-    | An issuer adds an "iss" claim to access tokens; null leaves it out.
+    | An HTTPS issuer enables discovery, identifies authorization responses
+    | and access tokens, and is the audience for JWT client assertions. It
+    | cannot contain user information, a query or a fragment. Leave it
+    | null for local HTTP development.
+    |
     | The server cache size limits how many resolved settings sets each
     | worker retains, including their parsed keys and OAuth servers.
     |
@@ -89,6 +155,42 @@ return [
     'issuer' => env('PASSPORT_ISSUER'),
 
     'server_cache_size' => (int) env('PASSPORT_SERVER_CACHE_SIZE', 1000),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Assertion and Proof Replay Protection
+    |--------------------------------------------------------------------------
+    |
+    | JWT client assertions and replay-protected DPoP proofs require a shared
+    | Redis or database cache store. Null uses the default store. Redis must
+    | use noeviction; replay entries must remain until they expire.
+    |
+    | A database store cannot share an active application transaction. Use a
+    | separate cache connection when your application wraps requests in
+    | transactions, or choose Redis to avoid a database write per proof.
+    |
+    */
+
+    'replay' => [
+        'store' => env('PASSPORT_REPLAY_STORE'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Remote Client Keys
+    |--------------------------------------------------------------------------
+    |
+    | Remote public keys use the store selected below for Passport's cache.
+    | The lifetime and minimum refresh interval are expressed in seconds.
+    | A new key identifier may trigger an early refresh, at most once per
+    | interval, so invalid assertions cannot cause unlimited downloads.
+    |
+    */
+
+    'client_keys' => [
+        'ttl' => (int) env('PASSPORT_CLIENT_KEYS_TTL', 3600),
+        'refresh_interval' => (int) env('PASSPORT_CLIENT_KEYS_REFRESH_INTERVAL', 60),
+    ],
 
     /*
     |--------------------------------------------------------------------------

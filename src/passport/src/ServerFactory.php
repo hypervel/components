@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Passport;
 
 use DateInterval;
+use Defuse\Crypto\Crypto;
 use Defuse\Crypto\Encoding;
 use Defuse\Crypto\Key;
 use Hypervel\Context\CoroutineContext;
@@ -17,11 +18,13 @@ use Hypervel\Passport\Bridge\AuthCodeGrant;
 use Hypervel\Passport\Bridge\AuthorizationServer;
 use Hypervel\Passport\Bridge\BearerRequestFactory;
 use Hypervel\Passport\Bridge\BearerTokenValidator;
+use Hypervel\Passport\Bridge\ClientCredentialsGrant;
 use Hypervel\Passport\Bridge\DeviceCodeGrant;
 use Hypervel\Passport\Bridge\DeviceCodeRepository;
 use Hypervel\Passport\Bridge\ParsedKey;
 use Hypervel\Passport\Bridge\PersonalAccessBearerTokenResponse;
 use Hypervel\Passport\Bridge\PersonalAccessGrant;
+use Hypervel\Passport\Bridge\RefreshTokenGrant;
 use Hypervel\Passport\Bridge\RefreshTokenRepository;
 use Hypervel\Passport\Bridge\SigningCryptKey;
 use Hypervel\Passport\Bridge\TokenIssuance;
@@ -32,12 +35,12 @@ use Hypervel\Support\CarbonImmutable;
 use InvalidArgumentException;
 use League\OAuth2\Server\CryptKey;
 use League\OAuth2\Server\Exception\OAuthServerException;
-use League\OAuth2\Server\Grant\ClientCredentialsGrant;
-use League\OAuth2\Server\Grant\RefreshTokenGrant;
 use League\OAuth2\Server\ResourceServer;
 use League\OAuth2\Server\ResponseTypes\ResponseTypeInterface;
 use LogicException;
 use Psr\Http\Message\ServerRequestInterface;
+use SensitiveParameter;
+use Throwable;
 
 class ServerFactory
 {
@@ -59,6 +62,8 @@ class ServerFactory
 
     protected ?string $cookieSigningKey = null;
 
+    protected int $hashSeed;
+
     /**
      * Create the worker's server and key cache.
      */
@@ -68,6 +73,7 @@ class ServerFactory
         protected Encrypter $encrypter,
         protected BearerRequestFactory $bearerRequests,
     ) {
+        $this->hashSeed = random_int(1, PHP_INT_MAX);
     }
 
     /**
@@ -87,7 +93,8 @@ class ServerFactory
         $server = $this->makeAuthorizationServer($key);
         $server->enableGrantType($this->makeAuthCodeGrant($settings), $settings->tokensExpireIn ?? Passport::tokensExpireIn());
         $server->enableGrantType($this->makeRefreshTokenGrant($settings), $settings->tokensExpireIn ?? Passport::tokensExpireIn());
-        $server->enableGrantType(new ClientCredentialsGrant, $settings->clientCredentialsTokensExpireIn ?? Passport::clientCredentialsTokensExpireIn());
+        $server->enableGrantType(new ClientCredentialsGrant, $settings->clientCredentialsTokensExpireIn
+            ?? Passport::$clientCredentialsTokensExpireIn ?? $settings->tokensExpireIn ?? Passport::tokensExpireIn());
 
         // Implicit and password grants are omitted; use authorization code with PKCE.
         if (Passport::$deviceCodeGrantEnabled && $this->app->make(Router::class)->has('passport.device')) {
@@ -157,6 +164,18 @@ class ServerFactory
         $this->initializeEncryptionKeys();
 
         return $this->cookieSigningKey;
+    }
+
+    /**
+     * Decrypt a grant credential with the same key used during issuance.
+     *
+     * @internal shared with token management; callers validate the payload's credential type
+     */
+    public function decryptToken(#[SensitiveParameter] string $token): string
+    {
+        $this->initializeEncryptionKeys();
+
+        return Crypto::decrypt($token, $this->encryptionKey);
     }
 
     /**
@@ -242,7 +261,7 @@ class ServerFactory
             $this->app->make(Bridge\ScopeRepository::class),
             $key,
             $this->encryptionKey,
-            $responseType ?? Passport::$authorizationServerResponseType,
+            $responseType ?? Passport::$authorizationServerResponseType ?? new Bridge\BearerTokenResponse,
             $this,
             $personalAccess,
         ), function (AuthorizationServer $server): void {
@@ -273,7 +292,7 @@ class ServerFactory
             $entry->resourceServer = new Bridge\ResourceServer(
                 $repository,
                 new SigningCryptKey($publicKey),
-                new BearerTokenValidator($repository, $entry->verificationKeys),
+                $this->tokenValidator(),
                 $this,
             );
         }
@@ -282,12 +301,27 @@ class ServerFactory
     }
 
     /**
+     * Get the token verifier shared by resource requests and credential management.
+     *
+     * @internal does not perform request-specific proof or authorization checks
+     */
+    public function tokenValidator(): BearerTokenValidator
+    {
+        $entry = $this->entry();
+
+        return $entry->tokenValidator ??= new BearerTokenValidator(
+            $this->app->make(Bridge\AccessTokenRepository::class),
+            $entry->verificationKeys,
+        );
+    }
+
+    /**
      * Share bearer validation across the current request's guards and middleware.
      */
     public function validateAuthenticatedRequest(Request $request, bool $cache = true): ServerRequestInterface
     {
         $server = $this->resourceServer();
-        $fingerprint = $cache ? hash('xxh128', $request->headers->get('Authorization') ?? '') : '';
+        $fingerprint = $cache ? $this->authenticationFingerprint($request) : '';
 
         if ($cache && ($cached = CoroutineContext::get(self::BEARER_CONTEXT_KEY)) !== null
             && $cached['request'] === $request && $cached['server'] === $server && $cached['fingerprint'] === $fingerprint) {
@@ -317,6 +351,42 @@ class ServerFactory
         }
 
         return $result;
+    }
+
+    /**
+     * Get an already verified authentication failure without validating the credential again.
+     *
+     * @internal used when rendering a resource authentication challenge
+     */
+    public function authenticationError(Request $request): ?OAuthServerException
+    {
+        $cached = CoroutineContext::get(self::BEARER_CONTEXT_KEY);
+
+        if ($cached === null || $cached['request'] !== $request || ! $cached['result'] instanceof OAuthServerException
+            || $cached['fingerprint'] !== $this->authenticationFingerprint($request)
+            || $cached['server'] !== $this->resourceServer()) {
+            return null;
+        }
+
+        return $cached['result'];
+    }
+
+    /**
+     * Identify the request inputs shared by authentication caches.
+     *
+     * @internal used by the guard and resource-server request cache
+     */
+    public function authenticationFingerprint(Request $request): string
+    {
+        $authorization = $request->headers->get('Authorization') ?? '';
+        $credentials = BearerRequestFactory::credentials($authorization);
+        $inputs = ($credentials['scheme'] ?? null) === 'DPoP'
+            ? serialize([
+                $authorization, $request->headers->all('DPoP'), $request->getMethod(), $request->getUri(),
+            ])
+            : $authorization;
+
+        return hash('xxh128', $inputs, options: ['seed' => $this->hashSeed]);
     }
 
     /**
@@ -366,16 +436,42 @@ class ServerFactory
         $now = CarbonImmutable::now()->getTimestamp();
 
         if ($this->defaultEntry === null || $now >= $this->nextKeyRefresh) {
-            $keys = $this->app->make(SigningKeyRepository::class)->serverKeys();
-            $identifiers = array_map(static fn (StoredServerKey $key): string => $key->id, $keys);
+            $previous = $this->defaultEntry;
+            $refreshInterval = $this->config->integer('passport.key_refresh_interval');
+            $deadline = $now + $refreshInterval;
+            // Claim the warm refresh before database I/O lets another request enter.
+            $this->nextKeyRefresh = $deadline;
 
-            if ($this->defaultEntry === null || $identifiers !== $this->storedKeyIds) {
-                $issuer = $this->config->get('passport.issuer');
-                $this->defaultEntry = $this->makeEntry(new ServerSettings($keys, issuer: $issuer === '' ? null : $issuer));
-                $this->storedKeyIds = $identifiers;
+            try {
+                $keys = $this->app->make(SigningKeyRepository::class)->serverKeys();
+
+                // A slower load must not restore keys removed by a newer completed load.
+                if ($this->defaultEntry !== $previous
+                    || ($previous !== null && $this->nextKeyRefresh !== $deadline)) {
+                    return $this->defaultEntry;
+                }
+
+                $identifiers = array_map(static fn (StoredServerKey $key): string => $key->id, $keys);
+
+                if ($previous === null || $identifiers !== $this->storedKeyIds) {
+                    $issuer = $this->config->get('passport.issuer');
+                    $this->defaultEntry = $this->makeEntry(new ServerSettings(
+                        $keys,
+                        issuer: $issuer === '' ? null : $issuer,
+                        // Bound HTTP staleness for both scheduled activation and emergency revocation.
+                        metadataCacheLifetime: min($refreshInterval, $this->config->integer('passport.key_activation_delay') - $refreshInterval),
+                    ));
+                    $this->storedKeyIds = $identifiers;
+                }
+
+                $this->nextKeyRefresh = $deadline;
+            } catch (Throwable $exception) {
+                if ($this->defaultEntry === $previous && $this->nextKeyRefresh === $deadline) {
+                    $this->nextKeyRefresh = 0;
+                }
+
+                throw $exception;
             }
-
-            $this->nextKeyRefresh = $now + $this->config->integer('passport.key_refresh_interval');
         }
 
         return $this->defaultEntry;

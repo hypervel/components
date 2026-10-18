@@ -110,7 +110,7 @@ class PassportServiceProviderTest extends PassportTestCase
     }
 
     #[DataProvider('invalidConfiguration')]
-    public function testInvalidCacheAndRotationSettingsAreRejected(array $settings, string $message): void
+    public function testInvalidSettingsAreRejectedAtStartup(array $settings, string $message): void
     {
         config($settings);
 
@@ -120,12 +120,31 @@ class PassportServiceProviderTest extends PassportTestCase
     }
 
     /**
-     * Provide settings that cannot maintain cache or key-publication guarantees.
+     * Provide invalid issuer, cache and key-publication settings.
      */
     public static function invalidConfiguration(): iterable
     {
+        yield 'insecure issuer' => [
+            ['passport.issuer' => 'http://passport-app.test'], 'Passport issuers must be absolute HTTPS URLs',
+        ];
         yield 'unbounded settings cache' => [
             ['passport.server_cache_size' => 0], 'Passport server cache size must be a positive integer.',
+        ];
+        yield 'disabled client key retention' => [
+            ['passport.client_keys.ttl' => 0], 'Passport client key cache TTL and refresh interval must be positive integers.',
+        ];
+        yield 'negative client key refresh interval' => [
+            ['passport.client_keys.refresh_interval' => -1], 'Passport client key cache TTL and refresh interval must be positive integers.',
+        ];
+        yield 'client keys expire before refresh is allowed' => [
+            ['passport.client_keys.ttl' => 30, 'passport.client_keys.refresh_interval' => 60],
+            'Passport client key cache TTL must be at least the refresh interval.',
+        ];
+        yield 'anonymous wildcard scope' => [
+            ['passport.registration.scopes' => ['*']], 'Passport anonymous registration scopes cannot include wildcard or provisioning scopes.',
+        ];
+        yield 'anonymous provisioning scope' => [
+            ['passport.registration.scopes' => ['passport:register']], 'Passport anonymous registration scopes cannot include wildcard or provisioning scopes.',
         ];
         yield 'activation before refresh' => [
             ['passport.key_store' => 'database', 'passport.key_activation_delay' => 60],

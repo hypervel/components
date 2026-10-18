@@ -11,6 +11,7 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\NonCopyableContext;
 use Hypervel\Contracts\Container\Transient;
 use Hypervel\Database\Connection;
+use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Passport\AuthCode;
 use Hypervel\Passport\DeviceCode;
@@ -44,6 +45,23 @@ class TokenIssuance implements NonCopyableContext, Transient
     public ?Token $accessToken = null;
 
     public ?string $tokenName = null;
+
+    public ?string $dpopJkt = null;
+
+    /** @var null|list<string> */
+    public ?array $approvedScopes = null;
+
+    /** @var null|list<string> */
+    public ?array $refreshTokenScopes = null;
+
+    /** @var null|list<string> */
+    public ?array $requestedResources = null;
+
+    /** @var null|array<string, list<string>> */
+    public ?array $resources = null;
+
+    /** @var list<string> */
+    public array $audience = [];
 
     protected ?Connection $connection = null;
 
@@ -134,6 +152,10 @@ class TokenIssuance implements NonCopyableContext, Transient
     public function setGrant(AuthCode|DeviceCode|RefreshToken|null $grant): void
     {
         $this->grant = $grant;
+
+        if ($this->tokenRequest) {
+            $this->resources = $grant?->resources;
+        }
     }
 
     /**
@@ -169,9 +191,14 @@ class TokenIssuance implements NonCopyableContext, Transient
      */
     public function attributes(): array
     {
-        return $this->tokenRequest && $this->grant !== null
-            ? $this->grant->only(['provider', ...Passport::$inheritedGrantAttributes])
+        $attributes = $this->tokenRequest && $this->grant !== null
+            ? $this->grant->only(['provider', 'consent_id', ...Passport::$inheritedGrantAttributes])
             : $this->authorizationAttributes;
+
+        // Protocol authorization belongs to each credential's repository, not extension inheritance.
+        unset($attributes['resources'], $attributes['audience'], $attributes['dpop_jkt']);
+
+        return $attributes;
     }
 
     /**
@@ -318,15 +345,13 @@ class TokenIssuance implements NonCopyableContext, Transient
     }
 
     /**
-     * Revoke a replayed refresh grant and every access token still linked to it.
+     * Revoke a refresh grant and every access token still linked to it.
      */
     public static function revokeRefreshTokenFamily(string $familyId): void
     {
         $family = Passport::refreshTokenFamily();
         $connection = $family->getConnection();
-        self::ensureRedemptionAllowed($connection);
-
-        $connection->transaction(static function () use ($family, $familyId, $connection): void {
+        $connection->transaction(static function () use ($family, $familyId): void {
             $record = $family->newQuery()->whereKey($familyId)->lockForUpdate()->first();
 
             if ($record === null || $record->revoked_at !== null) {
@@ -335,33 +360,44 @@ class TokenIssuance implements NonCopyableContext, Transient
 
             $family->newQuery()->whereKey($familyId)->update(['revoked_at' => CarbonImmutable::now()]);
             $refresh = Passport::refreshToken();
+            // A caller's older snapshot must not hide successors committed while the family lock was waiting.
             $refresh->newQuery()->where('family_id', $familyId)
-                ->select([$refresh->getKeyName(), 'access_token_id'])->useWritePdo()->toBase()
-                ->chunkById(self::REVOCATION_BATCH_SIZE, static function (Collection $rows) use ($refresh, $connection): void {
+                ->select([$refresh->getKeyName(), 'access_token_id'])->lockForUpdate()->toBase()
+                ->chunkById(self::REVOCATION_BATCH_SIZE, static function (Collection $rows) use ($refresh): void {
                     $refresh->newQuery()->whereKey($rows->pluck($refresh->getKeyName())->all())
                         ->where('revoked', false)->update(['revoked' => true]);
-                    $token = Passport::token();
-                    $ids = $token->newQuery()->whereKey($rows->pluck('access_token_id')->all())
-                        ->where('revoked', false)->useWritePdo()->pluck($token->getKeyName())->all();
-
-                    if ($ids === []) {
-                        return;
-                    }
-
-                    $token->newQuery()->whereKey($ids)->update(['revoked' => true]);
-
-                    foreach ($ids as $id) {
-                        $token::clearTokenCache($id);
-                    }
-
-                    $connection->afterCommitOrNow(static function () use ($ids): void {
-                        if (Event::hasListeners(AccessTokenRevoked::class)) {
-                            foreach ($ids as $id) {
-                                Event::dispatch(new AccessTokenRevoked($id));
-                            }
-                        }
-                    });
+                    self::revokeAccessTokens(Passport::token()->newQuery()->whereKey($rows->pluck('access_token_id')->all()));
                 }, $refresh->getKeyName());
         });
+    }
+
+    /**
+     * Revoke selected access tokens within the caller's credential transaction.
+     *
+     * @param Builder<Token> $query
+     */
+    public static function revokeAccessTokens(Builder $query): void
+    {
+        $token = $query->getModel();
+        $connection = $token->getConnection();
+
+        // A locking read sees exchanges committed while revocation waited, even under MySQL REPEATABLE READ.
+        $query->select($token->getQualifiedKeyName())->where('revoked', false)->lockForUpdate()->toBase()
+            ->chunkById(self::REVOCATION_BATCH_SIZE, static function (Collection $rows) use ($token, $connection): void {
+                $ids = $rows->pluck($token->getKeyName())->all();
+                $token->newQuery()->whereKey($ids)->update(['revoked' => true]);
+
+                foreach ($ids as $id) {
+                    $token::clearTokenCache($id);
+                }
+
+                $connection->afterCommitOrNow(static function () use ($ids): void {
+                    if (Event::hasListeners(AccessTokenRevoked::class)) {
+                        foreach ($ids as $id) {
+                            Event::dispatch(new AccessTokenRevoked($id));
+                        }
+                    }
+                });
+            }, $token->getKeyName());
     }
 }

@@ -29,10 +29,9 @@ class OAuthRegisterController
      */
     public function __invoke(Request $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
-            'client_name' => ['nullable', 'string', 'min:1', 'max:255'],
-            'name' => ['nullable', 'string', 'min:1', 'max:255'],
-            'redirect_uris' => ['required', 'array', 'min:1'],
+        // Redirect errors take precedence, including errors in individual list members.
+        $redirectValidator = Validator::make($request->only('redirect_uris'), [
+            'redirect_uris' => ['required', 'array', 'list', 'min:1'],
             'redirect_uris.*' => ['bail', 'required', 'string', function (string $attribute, string $value, Closure $fail): void {
                 if (! $this->isValidRedirectUri($value)) {
                     $fail($attribute . ' is not a valid URL.');
@@ -44,7 +43,8 @@ class OAuthRegisterController
                     return;
                 }
 
-                if (in_array('*', config()->array('mcp.redirect_domains'), true)) {
+                if (in_array('*', config()->array('mcp.redirect_domains'), true)
+                    && (parse_url($value, PHP_URL_SCHEME) === 'https' || $this->isLocalhostUrl($value))) {
                     return;
                 }
 
@@ -59,28 +59,30 @@ class OAuthRegisterController
                     $fail($attribute . ' is not a permitted redirect domain.');
                 }
             }],
+        ])->stopOnFirstFailure();
+
+        if ($redirectValidator->fails()) {
+            return response()->json([
+                'error' => 'invalid_redirect_uri',
+                'error_description' => $redirectValidator->errors()->first(),
+            ], 400, ['Cache-Control' => 'no-store', 'Pragma' => 'no-cache']);
+        }
+
+        $validator = Validator::make($request->except('redirect_uris'), [
+            'client_name' => ['nullable', 'string', 'min:1', 'max:255'],
+            'name' => ['nullable', 'string', 'min:1', 'max:255'],
             'logo_uri' => ['nullable', 'string', 'url:http,https', 'max:2048'],
             'client_uri' => ['nullable', 'string', 'url:http,https', 'max:2048'],
-        ]);
+        ])->stopOnFirstFailure();
 
         if ($validator->fails()) {
-            $errors = $validator->errors();
-            $redirectError = $errors->first('redirect_uris*');
-
             return response()->json([
-                'error' => $redirectError !== '' ? 'invalid_redirect_uri' : 'invalid_client_metadata',
-                'error_description' => $redirectError !== '' ? $redirectError : $errors->first(),
-            ], 400);
+                'error' => 'invalid_client_metadata',
+                'error_description' => $validator->errors()->first(),
+            ], 400, ['Cache-Control' => 'no-store', 'Pragma' => 'no-cache']);
         }
 
-        $validated = $validator->validated();
-
-        if (! class_exists(ClientRepository::class)) {
-            return response()->json([
-                'error' => 'server_error',
-                'error_description' => 'OAuth support (Passport) is not installed.',
-            ], 500);
-        }
+        $validated = $redirectValidator->validated() + $validator->validated();
 
         $clients = Container::getInstance()->make(ClientRepository::class);
 
@@ -110,32 +112,31 @@ class OAuthRegisterController
             return response()->json([
                 'error' => 'server_error',
                 'error_description' => 'The client could not be registered.',
-            ], 500);
+            ], 500, ['Cache-Control' => 'no-store', 'Pragma' => 'no-cache']);
         }
 
         return response()->json([
             'client_id' => (string) $client->id,
+            'client_name' => $client->name,
             'grant_types' => $client->grant_types,
             'response_types' => ['code'],
             'redirect_uris' => $client->redirect_uris,
-            'scope' => Registrar::OAUTH_SCOPE,
+            ...($client->scopes === null ? [] : ['scope' => implode(' ', $client->scopes)]),
             'token_endpoint_auth_method' => 'none',
             ...$metadata,
-        ], 201);
+        ], 201, ['Cache-Control' => 'no-store', 'Pragma' => 'no-cache']);
     }
 
     /**
-     * Grant the MCP scope when the client restricts its scopes.
+     * Grant the MCP scope within the anonymous registration policy.
      */
     protected function grantMcpScope(Client $client): void
     {
-        $scopes = $client->refresh()->getAttribute('scopes');
+        $scopes = $client->refresh()->scopes ?? config()->array('passport.registration.scopes');
+        // Model defaults must not grant anonymous clients wildcard or provisioning authority.
+        $scopes = array_values(array_diff(array_unique([...$scopes, Registrar::OAUTH_SCOPE]), ['*', Passport::REGISTRATION_SCOPE]));
 
-        if (! is_array($scopes) || in_array(Registrar::OAUTH_SCOPE, $scopes, true)) {
-            return;
-        }
-
-        if (! $client->forceFill(['scopes' => [...$scopes, Registrar::OAUTH_SCOPE]])->save()) {
+        if (! $client->forceFill(['scopes' => $scopes])->save()) {
             throw new RuntimeException('The client scopes could not be saved.');
         }
     }

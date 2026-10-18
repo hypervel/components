@@ -10,6 +10,8 @@ use Hypervel\Passport\AccessToken;
 use Hypervel\Passport\Contracts\OAuthenticatable;
 use Hypervel\Passport\Contracts\ScopeAuthorizable;
 use Hypervel\Passport\Exceptions\AuthenticationException;
+use Hypervel\Passport\Exceptions\MissingScopeException;
+use Hypervel\Passport\Http\AuthenticationChallenge;
 use Hypervel\Passport\ServerFactory;
 use League\OAuth2\Server\Exception\OAuthServerException;
 use Symfony\Component\HttpFoundation\Response;
@@ -45,9 +47,23 @@ abstract class ValidateToken
      */
     public function handle(Request $request, Closure $next, string ...$params): Response
     {
-        $token = $this->validateToken($request);
+        try {
+            $token = $this->validateToken($request);
 
-        $this->validate($token, ...$params);
+            $this->validate($token, ...$params);
+        } catch (AuthenticationException|MissingScopeException $exception) {
+            $scopes = null;
+
+            if ($exception instanceof MissingScopeException) {
+                $granted = ($token ?? null) instanceof AccessToken ? $token->oauth_scopes : [];
+                // A replacement token must retain the scopes that already satisfied earlier middleware.
+                $scopes = array_values(array_unique([...$granted, ...$params]));
+            }
+
+            app(AuthenticationChallenge::class)->forException($request, $exception, $scopes);
+
+            throw $exception;
+        }
 
         return $next($request);
     }
@@ -82,6 +98,8 @@ abstract class ValidateToken
 
     /**
      * Validate the given access token.
+     *
+     * @throws AuthenticationException|MissingScopeException
      */
     abstract protected function validate(ScopeAuthorizable $token, string ...$params): void;
 }

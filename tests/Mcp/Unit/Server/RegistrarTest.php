@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Mcp\Unit\Server;
 
+use Closure;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Eloquent\Model;
@@ -11,14 +12,20 @@ use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Http\Request;
 use Hypervel\Mcp\Server\Http\Controllers\OAuthRegisterController;
 use Hypervel\Mcp\Server\Registrar;
+use Hypervel\Passport\Client;
 use Hypervel\Passport\ClientRepository;
+use Hypervel\Passport\Database\Factories\SigningKeyFactory;
 use Hypervel\Passport\Passport;
 use Hypervel\Passport\PassportServiceProvider;
+use Hypervel\Passport\ProtectedResource;
+use Hypervel\Passport\ServerFactory;
 use Hypervel\RateLimiter\Limit;
 use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\Routing\Route as RoutingRoute;
 use Hypervel\Routing\RouteCollection;
 use Hypervel\Support\Facades\Route;
+use Hypervel\Support\Facades\URL;
+use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Tests\Mcp\Fixtures\CustomPassportClient;
 use Hypervel\Tests\Mcp\Fixtures\ExampleServer;
 use Hypervel\Tests\Mcp\Fixtures\PassportClient;
@@ -28,6 +35,7 @@ use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use Swoole\Coroutine\CanceledException;
+use Symfony\Component\HttpFoundation\Response;
 
 class RegistrarTest extends TestCase
 {
@@ -48,6 +56,18 @@ class RegistrarTest extends TestCase
         $app->make('config')->set('database.default', 'clients');
         $app->make('config')->set('database.connections.clients', ['driver' => 'sqlite', 'database' => ':memory:']);
         $app->make('config')->set('passport.connection', 'clients');
+        $app->make('config')->set('passport.issuer', 'https://localhost');
+        $keys = (new SigningKeyFactory)->definition();
+        $app->make('config')->set('passport.private_key', $keys['private_key']);
+        $app->make('config')->set('passport.public_key', $keys['public_key']);
+    }
+
+    /**
+     * Configure request-scoped defaults for parameterized registration routes.
+     */
+    protected function withRegistrationContext(Application $app): void
+    {
+        $app->make('config')->set('passport.middleware', [RegistrationContextMiddleware::class]);
     }
 
     /**
@@ -65,19 +85,19 @@ class RegistrarTest extends TestCase
      */
     protected function setUpInCoroutine(): void
     {
-        $this->createOauthClientsTable(withScopesColumn: false);
+        $this->createOauthClientsTable();
     }
 
     /**
      * Create the client columns used by the current registration case.
      */
-    private function createOauthClientsTable(bool $withScopesColumn, ?string $scopesDefault = null, array $metadataColumns = []): void
+    private function createOauthClientsTable(?string $scopesDefault = null, array $metadataColumns = []): void
     {
         $model = Passport::client();
         $schema = $model->getConnection()->getSchemaBuilder();
 
         $schema->dropIfExists($model->getTable());
-        $schema->create($model->getTable(), function (Blueprint $table) use ($withScopesColumn, $scopesDefault, $metadataColumns): void {
+        $schema->create($model->getTable(), function (Blueprint $table) use ($scopesDefault, $metadataColumns): void {
             $table->string('id')->primary();
             $table->string('name');
             $table->nullableMorphs('owner');
@@ -89,9 +109,9 @@ class RegistrarTest extends TestCase
                 $table->text($column)->nullable();
             }
 
-            if ($withScopesColumn && $scopesDefault !== null) {
+            if ($scopesDefault !== null) {
                 $table->jsonb('scopes')->default($scopesDefault);
-            } elseif ($withScopesColumn) {
+            } else {
                 $table->jsonb('scopes')->nullable();
             }
         });
@@ -137,7 +157,7 @@ class RegistrarTest extends TestCase
     private function prepareOauthRegistration(array $metadataColumns = ['logo_uri', 'client_uri'], string $clientModel = PassportClient::class): object
     {
         Passport::useClientModel($clientModel);
-        $this->createOauthClientsTable(withScopesColumn: false, metadataColumns: $metadataColumns);
+        $this->createOauthClientsTable(metadataColumns: $metadataColumns);
 
         $repository = $this->databaseClientRepository();
         app()->instance(ClientRepository::class, $repository);
@@ -210,20 +230,20 @@ class RegistrarTest extends TestCase
         // Get the registered routes
         $routes = Route::getRoutes();
         $hasProtectedResource = false;
-        $hasAuthServer = false;
+        $hasRegisterRoute = false;
 
         foreach ($routes as $route) {
             if ($route->getName() === 'mcp.oauth.protected-resource') {
                 $hasProtectedResource = true;
             }
 
-            if ($route->getName() === 'mcp.oauth.authorization-server') {
-                $hasAuthServer = true;
+            if ($route->getName() === 'passport.clients.register') {
+                $hasRegisterRoute = true;
             }
         }
 
         $this->assertTrue($hasProtectedResource);
-        $this->assertTrue($hasAuthServer);
+        $this->assertTrue($hasRegisterRoute);
     }
 
     public function testRegistersOauthRoutesWithCustomPrefix(): void
@@ -235,7 +255,6 @@ class RegistrarTest extends TestCase
         // Get the registered routes
         $routes = Route::getRoutes();
         $hasProtectedResource = false;
-        $hasAuthServer = false;
         $hasRegisterRoute = false;
 
         foreach ($routes as $route) {
@@ -243,49 +262,20 @@ class RegistrarTest extends TestCase
                 $hasProtectedResource = true;
             }
 
-            if ($route->getName() === 'mcp.oauth.authorization-server') {
-                $hasAuthServer = true;
-            }
-
-            if ($route->uri() === 'custom-oauth/register') {
+            if ($route->getName() === 'passport.clients.register' && $route->uri() === 'custom-oauth/register') {
                 $hasRegisterRoute = true;
             }
         }
 
         $this->assertTrue($hasProtectedResource);
-        $this->assertTrue($hasAuthServer);
         $this->assertTrue($hasRegisterRoute);
     }
 
-    public function testDoesNotOverrideAnExistingExactOauthAuthorizationServerRoute(): void
-    {
-        Route::get('/.well-known/oauth-authorization-server', fn () => response()->json(['existing' => true]));
-        Route::get('/oauth/authorize')->name('passport.authorizations.authorize');
-        Route::post('/oauth/token')->name('passport.token');
-
-        $registrar = new Registrar;
-        $registrar->oauthRoutes();
-
-        $response = $this->getJson('/.well-known/oauth-authorization-server');
-
-        $response->assertStatus(200);
-        $response->assertJson(['existing' => true]);
-
-        $nestedResponse = $this->getJson('/.well-known/oauth-authorization-server/mcp/weather');
-
-        $nestedResponse->assertStatus(200);
-        $nestedResponse->assertJson([
-            'issuer' => url('/'),
-            'registration_endpoint' => url('oauth/register'),
-            'scopes_supported' => ['mcp:use'],
-        ]);
-    }
+    // REMOVED: MCP authorization-server route preservation; Passport owns that discovery endpoint.
 
     public function testDoesNotOverrideAnExistingExactOauthProtectedResourceRoute(): void
     {
         Route::get('/.well-known/oauth-protected-resource', fn () => response()->json(['existing' => true]));
-        Route::get('/oauth/authorize')->name('passport.authorizations.authorize');
-        Route::post('/oauth/token')->name('passport.token');
 
         $registrar = new Registrar;
         $registrar->oauthRoutes();
@@ -300,7 +290,7 @@ class RegistrarTest extends TestCase
         $nestedResponse->assertStatus(200);
         $nestedResponse->assertJson([
             'resource' => url('/mcp/weather'),
-            'authorization_servers' => [url('/')],
+            'authorization_servers' => ['https://localhost'],
             'scopes_supported' => ['mcp:use'],
         ]);
     }
@@ -324,6 +314,9 @@ class RegistrarTest extends TestCase
     {
         Route::setRoutes(new RouteCollection);
         config(['mcp.authorization_server' => 'https://auth.example.com']);
+        $servers = m::mock(ServerFactory::class);
+        $servers->shouldNotReceive('settings');
+        $this->app->instance(ServerFactory::class, $servers);
         (new Registrar)->oauthRoutes(registration: false);
 
         $this->getJson('/.well-known/oauth-authorization-server')->assertNotFound();
@@ -380,11 +373,13 @@ class RegistrarTest extends TestCase
         $response = $this->postJson('/oauth/register', [
             'client_name' => 'Test Client',
             'redirect_uris' => ['http://localhost:3000/callback'],
+            'third_party' => false,
         ]);
 
-        $response->assertStatus(201);
+        $response->assertStatus(201)->assertHeader('Cache-Control', 'no-store, private');
         $response->assertJson([
             'client_id' => 'test-client-id',
+            'client_name' => 'Test Client',
             'grant_types' => ['authorization_code'],
             'response_types' => ['code'],
             'redirect_uris' => ['http://localhost:3000/callback'],
@@ -402,14 +397,14 @@ class RegistrarTest extends TestCase
     #[TestWith(['logo_uri'])]
     public function testRollsBackRegistrationWhenAnObserverCancelsSaving(string $attribute): void
     {
-        $this->createOauthClientsTable(withScopesColumn: true, scopesDefault: '[]', metadataColumns: ['logo_uri']);
+        $this->createOauthClientsTable(scopesDefault: '[]', metadataColumns: ['logo_uri']);
         PassportClient::updating(fn (PassportClient $client): bool => ! $client->isDirty($attribute));
         (new Registrar)->oauthRoutes();
 
         $this->postJson('/oauth/register', [
             'redirect_uris' => ['https://example.com/callback'],
             'logo_uri' => 'https://example.com/logo.png',
-        ])->assertStatus(500)->assertJsonPath('error', 'server_error');
+        ])->assertStatus(500)->assertJsonPath('error', 'server_error')->assertHeader('Cache-Control', 'no-store, private');
 
         $this->assertSame(0, Passport::client()->newQuery()->count());
     }
@@ -536,12 +531,14 @@ class RegistrarTest extends TestCase
         }
     }
 
-    public function testRejectsNonStringRedirectUrisBeforeCreatingAClient(): void
+    #[TestWith([[42, 'https://example.com/callback']])]
+    #[TestWith([['https://example.com/callback', 42]])]
+    public function testRejectsNonStringRedirectUrisBeforeCreatingAClient(array $redirects): void
     {
         $this->prepareOauthRegistration();
 
         $this->postJson('/oauth/register', [
-            'redirect_uris' => [42],
+            'redirect_uris' => $redirects,
         ])->assertBadRequest()->assertJson(['error' => 'invalid_redirect_uri']);
 
         $this->assertDatabaseCount('oauth_clients', 0);
@@ -574,7 +571,7 @@ class RegistrarTest extends TestCase
     }
 
     #[DataProvider('authorizeMetadata')]
-    public function testRendersClientMetadataOnTheAuthorizeView(array $metadataColumns, array $attributes, array $expected, array $missing): void
+    public function testRendersClientMetadataOnTheAuthorizeView(array $metadataColumns, array $attributes, array $expected, array $missing, string $redirectUri = 'https://callback.example/return', string $display = 'callback.example'): void
     {
         $this->withoutVite();
         $this->prepareOauthRegistration(metadataColumns: $metadataColumns);
@@ -589,11 +586,19 @@ class RegistrarTest extends TestCase
             'client' => $client->fresh(),
             'user' => (object) ['email' => 'user@example.com'],
             'scopes' => [],
+            'resources' => [new ProtectedResource('https://api.example/<resource>', '<Resource>')],
+            'redirectUri' => $redirectUri,
             'authToken' => 'token',
             'appearance' => 'light',
         ])->render();
 
         Model::preventAccessingMissingAttributes(false);
+
+        $this->assertStringContainsString($display, $html);
+        $this->assertStringContainsString('&lt;Resource&gt; (https://api.example/&lt;resource&gt;)', $html);
+        $this->assertStringNotContainsString('window.close', $html);
+        $this->assertStringNotContainsString('name="state"', $html);
+        $this->assertStringNotContainsString('name="client_id"', $html);
 
         foreach ($expected as $fragment) {
             $this->assertStringContainsString($fragment, $html);
@@ -622,6 +627,9 @@ class RegistrarTest extends TestCase
                 ['h-12 w-12 text-primary'],
                 ['<img', '<a href='],
             ],
+            'native callback' => [
+                [], [], [], [], 'cursor://client.example/callback?label=<x>', 'cursor://client.example/callback?label=&lt;x&gt;',
+            ],
         ];
     }
 
@@ -639,7 +647,7 @@ class RegistrarTest extends TestCase
 
     public function testPersistsTheAdvertisedMcpScopeWhenPassportClientsAreScopeRestrictedByDefault(): void
     {
-        $this->createOauthClientsTable(withScopesColumn: true, scopesDefault: '[]');
+        $this->createOauthClientsTable(scopesDefault: '[]');
         $clientRepository = $this->databaseClientRepository();
         $registrar = new Registrar;
         $registrar->oauthRoutes();
@@ -657,10 +665,10 @@ class RegistrarTest extends TestCase
         $this->assertSame(['mcp:use'], $clientRepository->client->fresh()?->scopes);
     }
 
-    public function testPreservesScopesGrantedAtCreationWhenPersistingTheMcpScope(): void
+    public function testPreservesCustomScopesAndRemovesDuplicatesAndProvisioningAuthorityWhenAddingTheMcpScope(): void
     {
-        $this->createOauthClientsTable(withScopesColumn: true);
-        $clientRepository = $this->databaseClientRepository(initialScopes: ['custom:scope']);
+        $this->createOauthClientsTable();
+        $clientRepository = $this->databaseClientRepository(initialScopes: ['*', 'custom:scope', 'passport:register', 'custom:scope']);
         $registrar = new Registrar;
         $registrar->oauthRoutes();
 
@@ -673,12 +681,13 @@ class RegistrarTest extends TestCase
 
         $response->assertStatus(201);
 
+        $response->assertJsonPath('scope', 'custom:scope mcp:use');
         $this->assertSame(['custom:scope', 'mcp:use'], $clientRepository->client->fresh()?->scopes);
     }
 
     public function testDoesNotDuplicateTheMcpScopeWhenItWasAlreadyGrantedAtCreation(): void
     {
-        $this->createOauthClientsTable(withScopesColumn: true);
+        $this->createOauthClientsTable();
         $clientRepository = $this->databaseClientRepository(initialScopes: ['mcp:use']);
         $registrar = new Registrar;
         $registrar->oauthRoutes();
@@ -695,9 +704,10 @@ class RegistrarTest extends TestCase
         $this->assertSame(['mcp:use'], $clientRepository->client->fresh()?->scopes);
     }
 
-    public function testLeavesPassportClientsUnrestrictedWhenTheScopesValueIsNull(): void
+    public function testAppliesTheAnonymousScopeAllowanceWhenTheScopesValueIsNull(): void
     {
-        $this->createOauthClientsTable(withScopesColumn: true);
+        config(['passport.registration.scopes' => ['read']]);
+        $this->createOauthClientsTable();
         $clientRepository = $this->databaseClientRepository();
         $registrar = new Registrar;
         $registrar->oauthRoutes();
@@ -710,29 +720,45 @@ class RegistrarTest extends TestCase
         ]);
 
         $response->assertStatus(201);
-        $response->assertJson(['scope' => 'mcp:use']);
+        $response->assertJson(['scope' => 'read mcp:use']);
 
-        $this->assertNull($clientRepository->client->fresh()?->scopes);
+        $this->assertSame(['read', 'mcp:use'], $clientRepository->client->fresh()?->scopes);
     }
 
-    public function testLeavesPassportClientsUnrestrictedWhenClientScopesAreNotEnabled(): void
+    // REMOVED: Missing scopes-column registration; explicit client ceilings require the current Passport schema.
+
+    #[TestWith([null])]
+    #[TestWith([[]])]
+    public function testCustomScopePoliciesReturnTheirEffectiveCeiling(?array $scopes): void
     {
-        $this->createOauthClientsTable(withScopesColumn: false);
-        $clientRepository = $this->databaseClientRepository();
-        $registrar = new Registrar;
-        $registrar->oauthRoutes();
+        $this->app->instance(OAuthRegisterController::class, new class($scopes) extends OAuthRegisterController {
+            /**
+             * Set the application's deliberate scope policy.
+             */
+            public function __construct(private ?array $scopes)
+            {
+            }
 
-        $this->app->instance(ClientRepository::class, $clientRepository);
+            /**
+             * Apply the application's replacement policy.
+             */
+            protected function grantMcpScope(Client $client): void
+            {
+                $client->forceFill(['scopes' => $this->scopes])->save();
+            }
+        });
+        (new Registrar)->oauthRoutes();
+        $response = $this->postJson('/oauth/register', ['redirect_uris' => ['https://client.example/callback']])->assertCreated();
 
-        $response = $this->postJson('/oauth/register', [
-            'client_name' => 'Test Client',
-            'redirect_uris' => ['http://localhost:3000/callback'],
-        ]);
+        if ($scopes === null) {
+            $response->assertJsonMissingPath('scope');
+        } else {
+            $response->assertJsonPath('scope', '');
+        }
 
-        $response->assertStatus(201);
-        $response->assertJson(['scope' => 'mcp:use']);
-
-        $this->assertArrayNotHasKey('scopes', $clientRepository->client->fresh()?->getAttributes());
+        $client = Passport::client()->sole();
+        $this->assertSame($scopes, $client->scopes);
+        $this->assertTrue($client->third_party);
     }
 
     public function testFallsBackToTheRedirectHostWhenNoClientNameIsProvided(): void
@@ -759,7 +785,7 @@ class RegistrarTest extends TestCase
             'redirect_uris' => ['https://example.com/callback'],
         ]);
 
-        $response->assertStatus(400);
+        $response->assertStatus(400)->assertHeader('Cache-Control', 'no-store, private');
         $response->assertJson([
             'error' => 'invalid_client_metadata',
         ]);
@@ -982,12 +1008,22 @@ class RegistrarTest extends TestCase
         $response->assertStatus(400);
     }
 
+    #[TestWith(['https://client.example/callback', ['*'], 201])]
+    #[TestWith(['http://client.example/callback', ['*'], 400])]
+    #[TestWith(['http://client.example/callback', ['*', 'http://client.example'], 201])]
+    #[TestWith(['http://localhost:12345/callback', ['*'], 201])]
+    #[TestWith(['http://127.0.0.1:12345/callback', ['*'], 201])]
+    #[TestWith(['http://[::1]:12345/callback', ['*'], 201])]
+    public function testWildcardCallbacksRequireHttpsOrLoopbackUnlessExplicitlyAllowed(string $uri, array $domains, int $status): void
+    {
+        config(['mcp.redirect_domains' => $domains]);
+        (new Registrar)->oauthRoutes();
+
+        $this->postJson('/oauth/register', ['redirect_uris' => [$uri]])->assertStatus($status);
+    }
+
     public function testHandlesOauthDiscoveryWithMultiSegmentPaths(): void
     {
-        // Fake Passport's routes so the oauthRoutes() helper can resolve them.
-        Route::get('/oauth/authorize')->name('passport.authorizations.authorize');
-        Route::post('/oauth/token')->name('passport.token');
-
         $registrar = new Registrar;
         $registrar->oauthRoutes();
 
@@ -997,40 +1033,15 @@ class RegistrarTest extends TestCase
         $response->assertStatus(200);
         $response->assertJson([
             'resource' => url('/mcp/weather'),
-            'authorization_servers' => [url('/')],
+            'authorization_servers' => ['https://localhost'],
             'scopes_supported' => ['mcp:use'],
         ]);
 
-        // Test authorization server endpoint with multi-segment path
-        $response = $this->getJson('/.well-known/oauth-authorization-server/mcp/weather');
-
-        $response->assertStatus(200);
-        $response->assertJsonStructure([
-            'issuer',
-            'authorization_endpoint',
-            'token_endpoint',
-            'registration_endpoint',
-            'response_types_supported',
-            'code_challenge_methods_supported',
-            'scopes_supported',
-            'grant_types_supported',
-        ]);
-        $response->assertJson([
-            'issuer' => url('/'),
-            'scopes_supported' => ['mcp:use'],
-            'response_types_supported' => ['code'],
-            'code_challenge_methods_supported' => ['S256'],
-            'grant_types_supported' => ['authorization_code', 'refresh_token'],
-            'token_endpoint_auth_methods_supported' => ['none', 'client_secret_basic', 'client_secret_post'],
-        ]);
+        // REMOVED: Arbitrary nested authorization-server aliases; discovery follows Passport's issuer path.
     }
 
     public function testHandlesOauthDiscoveryWithSingleSegmentPaths(): void
     {
-        // Fake Passport's routes so the oauthRoutes() helper can resolve them.
-        Route::get('/oauth/authorize')->name('passport.authorizations.authorize');
-        Route::post('/oauth/token')->name('passport.token');
-
         $registrar = new Registrar;
         $registrar->oauthRoutes();
 
@@ -1040,24 +1051,15 @@ class RegistrarTest extends TestCase
         $response->assertStatus(200);
         $response->assertJson([
             'resource' => url('/mcp'),
-            'authorization_servers' => [url('/')],
+            'authorization_servers' => ['https://localhost'],
             'scopes_supported' => ['mcp:use'],
         ]);
 
-        $response = $this->getJson('/.well-known/oauth-authorization-server/mcp');
-
-        $response->assertStatus(200);
-        $response->assertJson([
-            'issuer' => url('/'),
-        ]);
+        // REMOVED: MCP-path authorization-server alias; Passport checks the configured issuer.
     }
 
     public function testHandlesOauthDiscoveryWithNoPath(): void
     {
-        // Fake Passport's routes so the oauthRoutes() helper can resolve them.
-        Route::get('/oauth/authorize')->name('passport.authorizations.authorize');
-        Route::post('/oauth/token')->name('passport.token');
-
         $registrar = new Registrar;
         $registrar->oauthRoutes();
 
@@ -1067,54 +1069,38 @@ class RegistrarTest extends TestCase
         $response->assertStatus(200);
         $response->assertJson([
             'resource' => url('/'),
-            'authorization_servers' => [url('/')],
+            'authorization_servers' => ['https://localhost'],
             'scopes_supported' => ['mcp:use'],
         ]);
 
-        $response = $this->getJson('/.well-known/oauth-authorization-server');
+        $response = $this->getJson('https://localhost/.well-known/oauth-authorization-server');
 
         $response->assertStatus(200);
         $response->assertJson([
-            'issuer' => url('/'),
+            'issuer' => 'https://localhost',
         ]);
     }
 
-    public function testUsesConfiguredAuthorizationServerForAuthorizationServersField(): void
+    #[TestWith(['https://auth.example.com', 'https://auth.example.com'])]
+    #[TestWith([null, 'https://localhost'])]
+    #[TestWith(['', 'https://localhost'])]
+    public function testUsesConfiguredAuthorizationServerForAuthorizationServersField(?string $configured, string $expected): void
     {
-        Route::get('/oauth/authorize')->name('passport.authorizations.authorize');
-        Route::post('/oauth/token')->name('passport.token');
-
         $registrar = new Registrar;
         $registrar->oauthRoutes();
 
-        config()->set('mcp.authorization_server', 'https://auth.example.com');
+        config()->set('mcp.authorization_server', $configured);
 
         $response = $this->getJson('/.well-known/oauth-protected-resource/mcp');
 
         $response->assertStatus(200);
         $response->assertJson([
             'resource' => url('/mcp'),
-            'authorization_servers' => ['https://auth.example.com'],
+            'authorization_servers' => [$expected],
         ]);
     }
 
-    public function testUsesConfiguredAuthorizationServerAsIssuerInAuthorizationServerMetadata(): void
-    {
-        Route::get('/oauth/authorize')->name('passport.authorizations.authorize');
-        Route::post('/oauth/token')->name('passport.token');
-
-        $registrar = new Registrar;
-        $registrar->oauthRoutes();
-
-        config()->set('mcp.authorization_server', 'https://auth.example.com');
-
-        $response = $this->getJson('/.well-known/oauth-authorization-server');
-
-        $response->assertStatus(200);
-        $response->assertJson([
-            'issuer' => 'https://auth.example.com',
-        ]);
-    }
+    // REMOVED: MCP configuration overriding local AS metadata; Passport owns its issuer.
 
     #[DataProvider('customSchemeRedirects')]
     public function testAcceptsCustomSchemeRedirectUrisWhenTheSchemeIsConfigured(string $uri): void
@@ -1232,64 +1218,67 @@ class RegistrarTest extends TestCase
         ])->assertNotFound();
     }
 
-    #[DataProvider('authorizationMetadataUris')]
-    public function testOmitsTheRegistrationEndpointFromTheMetadataWhenRegistrationIsDisabled(string $uri): void
+    public function testOmitsTheRegistrationEndpointFromTheMetadataWhenRegistrationIsDisabled(): void
     {
-        Route::get('/oauth/authorize')->name('passport.authorizations.authorize');
-        Route::post('/oauth/token')->name('passport.token');
-
         (new Registrar)->oauthRoutes(registration: false);
 
-        $response = $this->getJson($uri);
+        $response = $this->getJson('https://localhost/.well-known/oauth-authorization-server');
 
         $response->assertStatus(200);
         $response->assertJsonMissingPath('registration_endpoint');
         $response->assertJson([
-            'issuer' => url('/'),
-            'authorization_endpoint' => url('/oauth/authorize'),
-            'token_endpoint' => url('/oauth/token'),
+            'issuer' => 'https://localhost',
+            'authorization_endpoint' => 'https://localhost/oauth/authorize',
+            'token_endpoint' => 'https://localhost/oauth/token',
             'scopes_supported' => ['mcp:use'],
-            'token_endpoint_auth_methods_supported' => ['none', 'client_secret_basic', 'client_secret_post'],
+            'token_endpoint_auth_methods_supported' => ['none', 'client_secret_basic', 'client_secret_post', 'private_key_jwt'],
         ]);
-    }
-
-    /**
-     * Return authorization metadata discovery paths.
-     */
-    public static function authorizationMetadataUris(): array
-    {
-        return [
-            ['/.well-known/oauth-authorization-server'],
-            ['/.well-known/oauth-authorization-server/mcp/weather'],
-        ];
     }
 
     public function testAdvertisesTheRegistrationEndpointUnderACustomPrefix(): void
     {
-        Route::get('/oauth/authorize')->name('passport.authorizations.authorize');
-        Route::post('/oauth/token')->name('passport.token');
-
         (new Registrar)->oauthRoutes('custom-oauth');
 
-        $this->getJson('/.well-known/oauth-authorization-server')
+        $this->getJson('https://localhost/.well-known/oauth-authorization-server')
             ->assertOk()
-            ->assertJsonPath('registration_endpoint', url('custom-oauth/register'));
+            ->assertJsonPath('registration_endpoint', 'https://localhost/custom-oauth/register');
+    }
+
+    #[DefineEnvironment('withRegistrationContext')]
+    public function testParameterizedRegistrationUsesPassportMiddlewareAndUrlDefaults(): void
+    {
+        Route::prefix('servers/{server}')->group(static function (): void {
+            (new Registrar)->oauthRoutes();
+        });
+
+        $this->getJson('https://localhost/.well-known/oauth-authorization-server')->assertOk()
+            ->assertJsonPath('registration_endpoint', 'https://localhost/servers/calendar/oauth/register');
+        $this->postJson('https://localhost/servers/calendar/oauth/register', [
+            'redirect_uris' => ['http://localhost:3000/callback'],
+        ])->assertCreated()->assertHeader('X-Registration-Context', 'calendar');
+    }
+
+    public function testRejectsAnObjectOfRedirectUris(): void
+    {
+        (new Registrar)->oauthRoutes();
+
+        $this->postJson('/oauth/register', [
+            'redirect_uris' => ['callback' => 'http://localhost:3000/callback'],
+        ])->assertBadRequest()->assertJsonPath('error', 'invalid_redirect_uri');
+        $this->assertSame(0, Passport::client()->newQuery()->count());
     }
 
     public function testAdvertisesACustomRegistrationRouteWhenRegistrationIsDisabled(): void
     {
-        Route::get('/oauth/authorize')->name('passport.authorizations.authorize');
-        Route::post('/oauth/token')->name('passport.token');
-
         (new Registrar)->oauthRoutes(registration: false);
 
         Route::post('/clients/register', OAuthRegisterController::class)
             ->middleware('throttle:60,1')
-            ->name('mcp.oauth.register');
+            ->name('passport.clients.register');
 
-        $this->getJson('/.well-known/oauth-authorization-server')
+        $this->getJson('https://localhost/.well-known/oauth-authorization-server')
             ->assertStatus(200)
-            ->assertJsonPath('registration_endpoint', url('clients/register'));
+            ->assertJsonPath('registration_endpoint', 'https://localhost/clients/register');
     }
 
     #[DataProvider('allowedRootRedirects')]
@@ -1341,5 +1330,21 @@ class RegistrarTest extends TestCase
             'custom scheme' => ['cursor://extension/callback#fragment', []],
             'empty fragment' => ['https://example.com/callback#', ['https://example.com']],
         ];
+    }
+}
+
+class RegistrationContextMiddleware
+{
+    /**
+     * Supply route defaults and expose the selected request context.
+     */
+    public function handle(Request $request, Closure $next): Response
+    {
+        $server = $request->route('server', 'calendar');
+        URL::defaults(['server' => $server]);
+        $response = $next($request);
+        $response->headers->set('X-Registration-Context', $server);
+
+        return $response;
     }
 }

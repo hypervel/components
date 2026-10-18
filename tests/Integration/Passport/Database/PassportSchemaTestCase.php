@@ -8,6 +8,7 @@ use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Passport\Client;
 use Hypervel\Passport\ClientRepository;
+use Hypervel\Passport\Consent;
 use Hypervel\Passport\Passport;
 use Hypervel\Passport\PassportServiceProvider;
 use Hypervel\Passport\SigningKey;
@@ -85,14 +86,19 @@ abstract class PassportSchemaTestCase extends TestCase
 
         foreach ([
             'oauth_clients' => ['grant_types', 'redirect_uris'],
-            'oauth_auth_codes' => ['scopes'],
-            'oauth_access_tokens' => ['scopes'],
-            'oauth_device_codes' => ['scopes'],
+            'oauth_auth_codes' => ['scopes', 'resources'],
+            'oauth_access_tokens' => ['scopes', 'audience'],
+            'oauth_device_codes' => ['scopes', 'resources'],
+            'oauth_refresh_tokens' => ['resources'],
+            'oauth_consents' => ['scopes', 'permissions'],
         ] as $table => $columns) {
             foreach ($columns as $column) {
                 $this->assertSame($jsonType, Schema::getColumnType($table, $column));
             }
         }
+
+        $consent = Consent::factory()->create(['scopes' => null]);
+        $this->assertNull($consent->fresh()->scopes);
 
         $this->assertTrue(Schema::hasIndex('oauth_access_tokens', ['user_id', 'provider', 'client_id']));
         $this->assertTrue(Schema::hasIndex('oauth_access_tokens', ['client_id']));

@@ -37,6 +37,7 @@ use League\OAuth2\Server\ResourceServer;
 use League\OAuth2\Server\ResponseTypes\BearerTokenResponse;
 use Nyholm\Psr7\Response;
 use Nyholm\Psr7\ServerRequest;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class ServerDelegationTest extends TestCase
 {
@@ -122,6 +123,25 @@ class ServerDelegationTest extends TestCase
 
         $this->expectException(OAuthServerException::class);
         $consumer->resource->validateAuthenticatedRequest($request);
+    }
+
+    #[TestWith([false, false, 900])]
+    #[TestWith([true, false, 600])]
+    #[TestWith([true, true, 300])]
+    public function testMachineTokenLifetimeUsesTheSelectedServerUnlessExplicitlyConfigured(bool $globalOverride, bool $serverOverride, int $seconds): void
+    {
+        if ($globalOverride) {
+            Passport::clientCredentialsTokensExpireIn(new DateInterval('PT10M'));
+        }
+
+        $this->settings->settings['first'] = new ServerSettings(
+            [new ServerKey(self::$keys[0]['public'], self::$keys[0]['private'])],
+            tokensExpireIn: new DateInterval('PT15M'),
+            clientCredentialsTokensExpireIn: $serverOverride ? new DateInterval('PT5M') : null,
+        );
+        $body = $this->issue($this->app->make(ServerFactory::class)->authorizationServer());
+
+        $this->assertEqualsWithDelta($seconds, $body['expires_in'], 2);
     }
 
     public function testHeldAuthorizationServerFollowsAKeyActivation(): void
@@ -241,7 +261,7 @@ class ServerDelegationTest extends TestCase
 
         $response = $consumer->authorization->respondToDeviceAuthorizationRequest(
             (new ServerRequest('POST', 'https://second.example/oauth/device/code'))->withParsedBody([
-                'client_id' => $this->client->id, 'scope' => 'second',
+                'client_id' => $this->client->id, 'client_secret' => $this->client->plainSecret, 'scope' => 'second',
             ]),
             new Response,
         );

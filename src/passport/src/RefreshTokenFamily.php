@@ -11,6 +11,7 @@ use Hypervel\Database\Eloquent\Relations\HasMany;
 
 /**
  * @property string $id
+ * @property null|string $consent_id
  * @property null|CarbonInterface $revoked_at
  * @property null|CarbonInterface $created_at
  * @property null|CarbonInterface $updated_at

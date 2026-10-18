@@ -9,6 +9,7 @@ use Hypervel\Passport\DeviceCode as DeviceCodeModel;
 use Hypervel\Passport\Passport;
 use Hypervel\Support\Facades\Date;
 use League\OAuth2\Server\Entities\DeviceCodeEntityInterface;
+use League\OAuth2\Server\Entities\ScopeEntityInterface;
 use League\OAuth2\Server\Exception\OAuthServerException;
 use League\OAuth2\Server\Exception\UniqueTokenIdentifierConstraintViolationException;
 use League\OAuth2\Server\Repositories\DeviceCodeRepositoryInterface;
@@ -45,6 +46,12 @@ class DeviceCodeRepository implements DeviceCodeRepositoryInterface
                 ->update([
                     ...($issuance?->attributes() ?? []),
                     'user_id' => $deviceCodeEntity->getUserIdentifier(),
+                    'resources' => $issuance?->resources,
+                    // League's device entity cannot replace its original scope set after partial approval.
+                    'scopes' => $issuance->approvedScopes ?? array_map(
+                        static fn (ScopeEntityInterface $scope): string => $scope->getIdentifier(),
+                        $deviceCodeEntity->getScopes(),
+                    ),
                     'user_approved_at' => $deviceCodeEntity->getUserApproved() ? Date::now() : null,
                 ]);
 
@@ -63,6 +70,7 @@ class DeviceCodeRepository implements DeviceCodeRepositoryInterface
                 'client_id' => $deviceCodeEntity->getClient()->getIdentifier(),
                 'user_code' => $deviceCodeEntity->getUserCode(),
                 'scopes' => $deviceCodeEntity->getScopes(),
+                'resources' => TokenIssuance::current()?->resources,
                 'revoked' => false,
                 'user_approved_at' => null,
                 'last_polled_at' => null,
@@ -191,7 +199,7 @@ class DeviceCodeRepository implements DeviceCodeRepositoryInterface
      */
     protected function fromDeviceCodeModel(DeviceCodeModel $model): DeviceCodeEntityInterface
     {
-        return new DeviceCode(
+        $entity = new DeviceCode(
             $model->getKey(),
             $model->user_id === null ? null : (string) $model->user_id,
             $model->client_id,
@@ -200,5 +208,8 @@ class DeviceCodeRepository implements DeviceCodeRepositoryInterface
             $model->last_polled_at?->toDateTimeImmutable(),
             $model->expires_at?->toDateTimeImmutable()
         );
+        $entity->resources = $model->resources;
+
+        return $entity;
     }
 }

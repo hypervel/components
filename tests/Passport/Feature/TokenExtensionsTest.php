@@ -9,15 +9,17 @@ use DateInterval;
 use DateTimeImmutable;
 use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Database\Schema\Blueprint;
-use Hypervel\Http\Request;
 use Hypervel\Passport\Bridge\AccessToken;
+use Hypervel\Passport\Bridge\BearerTokenResponse;
 use Hypervel\Passport\Bridge\RsaSigner;
 use Hypervel\Passport\Client;
 use Hypervel\Passport\Database\Factories\ClientFactory;
 use Hypervel\Passport\Events\AccessTokenCreated;
 use Hypervel\Passport\Events\AccessTokenRevoked;
+use Hypervel\Passport\Events\AuthorizationUserResolved;
 use Hypervel\Passport\Events\RefreshTokenCreated;
 use Hypervel\Passport\Passport;
+use Hypervel\Passport\RefreshToken;
 use Hypervel\Passport\ServerFactory;
 use Hypervel\Passport\Token;
 use Hypervel\Support\Facades\DB;
@@ -33,7 +35,7 @@ use Lcobucci\JWT\Encoding\JoseEncoder;
 use Lcobucci\JWT\Signer\Key\InMemory;
 use Lcobucci\JWT\Token\Parser;
 use League\OAuth2\Server\Entities\AccessTokenEntityInterface;
-use League\OAuth2\Server\ResponseTypes\BearerTokenResponse;
+use League\OAuth2\Server\ResponseTypes\BearerTokenResponse as LeagueBearerTokenResponse;
 use LogicException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
@@ -64,11 +66,13 @@ class TokenExtensionsTest extends PassportTestCase
         Passport::tokensCan(['read' => 'Read', 'offline_access' => 'Renew access']);
         Passport::authorizationView(fn (array $parameters): array => $parameters);
         Passport::deviceAuthorizationView(fn (array $parameters): array => $parameters);
-        Passport::authorizationAttributesUsing(fn (Request $request): array => [
-            'organization_id' => 'organization-1',
-            'nonce' => $request->query('nonce'),
-            'auth_time' => time(),
-        ]);
+        Event::listen(AuthorizationUserResolved::class, static function (AuthorizationUserResolved $event): void {
+            $event->attributes = [
+                'organization_id' => 'organization-1',
+                'nonce' => $event->parameters['nonce'] ?? null,
+                'auth_time' => time(),
+            ];
+        });
         Passport::inheritGrantAttributes(['organization_id', 'nonce', 'auth_time']);
         Passport::accessTokenClaimsUsing(fn (Token $token): array => ['organization_id' => $token->organization_id]);
     }
@@ -98,6 +102,7 @@ class TokenExtensionsTest extends PassportTestCase
         });
 
         $response = $this->post('/oauth/token', $request)->assertOk()->json();
+        $this->assertSame('read offline_access', $response['scope']);
         $this->assertSame([$device ? 'oauth_device_codes' : 'oauth_auth_codes'], $grantReads);
         $parser = new Parser(new JoseEncoder);
         $accessToken = $parser->parse($response['access_token']);
@@ -560,6 +565,7 @@ class TokenExtensionsTest extends PassportTestCase
         if ($device) {
             $code = $this->post('/oauth/device/code', [
                 'client_id' => $client->getKey(),
+                'client_secret' => $client->plainSecret,
                 'scope' => 'read offline_access',
             ])->assertOk()->json();
             $authToken = $this->get('/oauth/device/authorize?' . http_build_query([
@@ -578,7 +584,7 @@ class TokenExtensionsTest extends PassportTestCase
             'scope' => 'read offline_access',
             'nonce' => 'original-nonce',
         ]))->assertOk()->json('authToken');
-        $response = $this->post('/oauth/authorize', ['auth_token' => $authToken])->assertRedirect();
+        $response = $this->post('/oauth/authorize/consent', ['auth_token' => $authToken])->assertRedirect();
         parse_str(parse_url($response->headers->get('Location'), PHP_URL_QUERY), $parameters);
 
         return [...$request, 'grant_type' => 'authorization_code', 'redirect_uri' => $redirect, 'code' => $parameters['code']];
@@ -599,8 +605,7 @@ class ExtensionTokenResponse extends BearerTokenResponse
      */
     protected function getExtraParams(AccessTokenEntityInterface $accessToken): array
     {
-        /** @var AccessToken $accessToken */
-        $token = $accessToken->getToken();
+        $token = $this->getToken();
         $lifetime = new DateInterval('PT10M');
         $key = $this->servers->signingKey($lifetime);
         $configuration = Configuration::forAsymmetricSigner(new RsaSigner, $key->getParsedKey(), InMemory::plainText('unused'));
@@ -615,15 +620,15 @@ class ExtensionTokenResponse extends BearerTokenResponse
             ->withClaim('auth_time', $token->auth_time)
             ->withClaim('at_hash', rtrim(strtr(base64_encode(substr(hash('sha256', $accessToken->toString(), true), 0, 16)), '+/', '-_'), '='));
 
-        if (request()->input('grant_type') !== 'refresh_token') {
+        if (! $this->getGrant() instanceof RefreshToken) {
             $builder = $builder->withClaim('nonce', $token->nonce);
         }
 
-        return ['id_token' => $builder->getToken($configuration->signer(), $configuration->signingKey())->toString()];
+        return [...parent::getExtraParams($accessToken), 'id_token' => $builder->getToken($configuration->signer(), $configuration->signingKey())->toString()];
     }
 }
 
-class FailingExtensionTokenResponse extends BearerTokenResponse
+class FailingExtensionTokenResponse extends LeagueBearerTokenResponse
 {
     /**
      * Share the failure control across League's response clones.

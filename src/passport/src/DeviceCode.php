@@ -12,8 +12,10 @@ use Hypervel\Database\Eloquent\Model;
  * @property null|int|string $user_id
  * @property null|string $provider
  * @property string $client_id
+ * @property null|string $consent_id
  * @property string $user_code
  * @property array $scopes
+ * @property null|array<string, list<string>> $resources
  * @property bool $revoked
  * @property null|CarbonInterface $user_approved_at
  * @property null|CarbonInterface $last_polled_at
@@ -55,6 +57,7 @@ class DeviceCode extends Model
      */
     protected array $casts = [
         'scopes' => 'array',
+        'resources' => 'array',
         'revoked' => 'bool',
         'user_approved_at' => 'datetime',
         'last_polled_at' => 'datetime',

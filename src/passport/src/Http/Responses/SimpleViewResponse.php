@@ -7,13 +7,14 @@ namespace Hypervel\Passport\Http\Responses;
 use Closure;
 use Hypervel\Contracts\Container\Transient;
 use Hypervel\Http\Request;
+use Hypervel\Passport\Contracts\AccountSelectionViewResponse;
 use Hypervel\Passport\Contracts\AuthorizationViewResponse;
 use Hypervel\Passport\Contracts\DeviceAuthorizationViewResponse;
 use Hypervel\Passport\Contracts\DeviceUserCodeViewResponse;
 use Hypervel\Routing\Router;
 use Symfony\Component\HttpFoundation\Response;
 
-class SimpleViewResponse implements AuthorizationViewResponse, DeviceAuthorizationViewResponse, DeviceUserCodeViewResponse, Transient
+class SimpleViewResponse implements AuthorizationViewResponse, AccountSelectionViewResponse, DeviceAuthorizationViewResponse, DeviceUserCodeViewResponse, Transient
 {
     /**
      * An array of arguments that may be passed to the view response and used in the view.

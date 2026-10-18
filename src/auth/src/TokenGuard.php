@@ -25,6 +25,11 @@ class TokenGuard implements Guard
     private static object $nullUserSentinel;
 
     /**
+     * The seed for request credential context keys.
+     */
+    protected int $hashSeed;
+
+    /**
      * Create a new authentication guard.
      *
      * @param string $name the name of the guard for Context keying
@@ -41,6 +46,7 @@ class TokenGuard implements Guard
         protected bool $hash = false,
     ) {
         $this->provider = $provider;
+        $this->hashSeed = random_int(1, PHP_INT_MAX);
     }
 
     /**
@@ -198,7 +204,7 @@ class TokenGuard implements Guard
             return "__auth.guards.{$this->name}.user.default";
         }
 
-        return "__auth.guards.{$this->name}.user." . hash('xxh128', $token);
+        return "__auth.guards.{$this->name}.user." . hash('xxh128', $token, options: ['seed' => $this->hashSeed]);
     }
 
     /**

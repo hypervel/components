@@ -4,15 +4,21 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Passport\Feature;
 
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\RequestContext;
 use Hypervel\Database\Eloquent\Concerns\HasUuids;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Foundation\Auth\User as Authenticatable;
 use Hypervel\Http\Request;
+use Hypervel\Passport\Contracts\ServerSettingsResolver;
 use Hypervel\Passport\Database\Factories\ClientFactory;
 use Hypervel\Passport\Http\Middleware\CheckToken;
 use Hypervel\Passport\Http\Middleware\EnsureClientIsResourceOwner;
 use Hypervel\Passport\Passport;
+use Hypervel\Passport\PersonalAccessTokenFactory;
+use Hypervel\Passport\ServerFactory;
+use Hypervel\Passport\ServerKey;
+use Hypervel\Passport\ServerSettings;
 use Hypervel\Passport\TransientToken;
 use Hypervel\Sanctum\HasApiTokens as HasSanctumTokens;
 use Hypervel\Sanctum\PersonalAccessToken;
@@ -21,8 +27,12 @@ use Hypervel\Support\Facades\Exceptions;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\Concerns\WithHypervelMigrations;
+use Hypervel\Tests\Passport\Fixtures\JsonWebKeyPair;
 use Hypervel\Tests\Passport\Fixtures\User;
 use Hypervel\Tests\Passport\Fixtures\UserFactory;
+use League\OAuth2\Server\Exception\OAuthServerException;
+use League\OAuth2\Server\ResourceServer;
+use Mockery as m;
 use PHPUnit\Framework\Attributes\TestWith;
 
 class TokenGuardTest extends PassportTestCase
@@ -114,6 +124,48 @@ class TokenGuardTest extends PassportTestCase
             ]);
     }
 
+    public function testGuardMemosFollowServerChangesOnTheSameRequest(): void
+    {
+        $user = UserFactory::new()->create();
+        $client = ClientFactory::new()->asPersonalAccessTokenClient()->create();
+        $result = $user->createToken('test');
+        $servers = $this->app->make(ServerFactory::class);
+        $otherKey = JsonWebKeyPair::generate('RS256');
+        $otherPublicKey = openssl_pkey_get_details(openssl_pkey_get_private($otherKey->privateKey))['key'];
+        $identifier = 'first';
+        $resolver = m::mock(ServerSettingsResolver::class);
+        $resolver->shouldReceive('current')->andReturnUsing(static function () use (&$identifier): string {
+            return $identifier;
+        });
+        $resolver->shouldReceive('resolve')->with('first')->once()->andReturn(new ServerSettings($servers->fileKeys()));
+        $resolver->shouldReceive('resolve')->with('second')->once()->andReturn(new ServerSettings(['other' => new ServerKey($otherPublicKey)]));
+        $this->app->instance(ServerSettingsResolver::class, $resolver);
+        $request = Request::create('/guard');
+        $request->headers->set('Authorization', 'Bearer ' . $result->accessToken);
+        RequestContext::set($request);
+        $guard = auth('passport');
+
+        $this->assertSame($user->id, $guard->user()->getKey());
+        $this->assertSame($client->id, $guard->client()->getKey());
+        $this->assertTrue($guard->hasUser());
+
+        $identifier = 'second';
+        $this->assertFalse($guard->hasUser());
+        $this->assertNull($guard->user());
+        $this->assertNull($guard->client());
+
+        $identifier = 'first';
+        $this->assertSame($user->id, $guard->user()->getKey());
+        $this->assertSame($client->id, $guard->client()->getKey());
+
+        $override = m::mock(ResourceServer::class);
+        $override->shouldReceive('validateAuthenticatedRequest')->once()->andThrow(OAuthServerException::accessDenied());
+        CoroutineContext::set(ServerFactory::RESOURCE_SERVER_CONTEXT_KEY, $override);
+        $this->assertFalse($guard->hasUser());
+        $this->assertNull($guard->user());
+        $this->assertNull($guard->client());
+    }
+
     public function testNothingIsReturnedWhenOauthThrowsException(): void
     {
         Exceptions::fake();
@@ -176,7 +228,7 @@ class TokenGuardTest extends PassportTestCase
         ]);
         $user = UserFactory::new()->create();
         ClientFactory::new()->asPersonalAccessTokenClient()->create(['provider' => null]);
-        $result = $user->createToken('user token');
+        $result = app(PersonalAccessTokenFactory::class)->make($user->getAuthIdentifier(), 'user token', [], 'users');
 
         Route::get('/admins', fn (Request $request) => $request->user()->getKey())->middleware('auth:passport-admins');
         Route::get('/either', fn (Request $request) => $request->user()->getKey())->middleware('auth:passport-admins,passport');

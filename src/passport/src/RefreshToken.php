@@ -13,6 +13,9 @@ use Hypervel\Database\Eloquent\Relations\BelongsTo;
  * @property string $access_token_id
  * @property null|string $provider
  * @property string $family_id
+ * @property null|string $consent_id
+ * @property null|array<string, list<string>> $resources
+ * @property null|string $dpop_jkt
  * @property bool $revoked
  * @property null|CarbonInterface $expires_at
  */
@@ -46,6 +49,7 @@ class RefreshToken extends Model
      * @var array<string, string>
      */
     protected array $casts = [
+        'resources' => 'array',
         'revoked' => 'bool',
         'expires_at' => 'datetime',
     ];

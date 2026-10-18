@@ -4,25 +4,37 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Passport\Database;
 
+use Closure;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Events\QueryExecuted;
+use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Engine\Channel;
 use Hypervel\Foundation\Testing\DatabaseTruncation;
+use Hypervel\Http\Request;
 use Hypervel\Passport\AuthCode;
+use Hypervel\Passport\AuthorizationFinalizer;
 use Hypervel\Passport\Bridge\TokenIssuance;
 use Hypervel\Passport\Bridge\User;
 use Hypervel\Passport\Client;
+use Hypervel\Passport\Consent;
+use Hypervel\Passport\ConsentRepository;
 use Hypervel\Passport\Database\Factories\ClientFactory;
 use Hypervel\Passport\Database\Factories\SigningKeyFactory;
 use Hypervel\Passport\DeviceCode;
+use Hypervel\Passport\Enums\AuthorizationApproval;
 use Hypervel\Passport\PassportServiceProvider;
+use Hypervel\Passport\PushedAuthorizationRequest;
+use Hypervel\Passport\PushedAuthorizationRequestRepository;
 use Hypervel\Passport\RefreshToken;
 use Hypervel\Passport\RefreshTokenFamily;
+use Hypervel\Passport\ReplayCache;
 use Hypervel\Passport\ServerFactory;
 use Hypervel\Passport\Token;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\Attributes\ResetRefreshDatabaseState;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Passport\Fixtures\User as AuthenticatableUser;
 use League\OAuth2\Server\Exception\OAuthServerException;
 use Nyholm\Psr7\Response;
 use Nyholm\Psr7\ServerRequest;
@@ -71,9 +83,286 @@ abstract class GrantConcurrencyTestCase extends TestCase
             '2016_06_01_000004_create_oauth_clients_table.php',
             '2016_06_01_000006_create_oauth_refresh_token_families_table.php',
             '2024_06_01_000001_create_oauth_device_codes_table.php',
+            '2026_10_17_000001_create_oauth_consents_table.php',
+            '2026_10_17_000002_create_oauth_pushed_authorization_requests_table.php',
         ] as $migration) {
             (require dirname(__DIR__, 4) . '/src/passport/database/migrations/' . $migration)->up();
         }
+    }
+
+    public function testConcurrentReplayClaimsAcceptOnlyOneRequest(): void
+    {
+        $schema = DB::connection()->getSchemaBuilder();
+        $schema->create('passport_replays', static function (Blueprint $table): void {
+            $table->string('key')->primary();
+            $table->text('value');
+            $table->integer('expiration');
+        });
+        config([
+            'passport.replay.store' => 'passport-replay',
+            'cache.stores.passport-replay' => [
+                'driver' => 'database',
+                'connection' => config('database.default'),
+                'table' => 'passport_replays',
+                'prefix' => '',
+            ],
+        ]);
+        $ready = new Channel(2);
+        $release = new Channel(2);
+        $waiting = true;
+
+        // Both requests must miss before either writes its claim.
+        DB::listen(function (QueryExecuted $query) use ($ready, $release, &$waiting): void {
+            if ($waiting && str_starts_with($query->sql, 'select') && str_contains($query->sql, 'passport_replays')) {
+                $ready->push(true);
+                $this->assertTrue($release->pop(5));
+            }
+        });
+        $replays = $this->app->make(ReplayCache::class);
+        $expiresAt = time() + 300;
+        $claim = static fn (): bool => $replays->consume('client:assertion', $expiresAt);
+
+        try {
+            [$first, $second] = parallel([
+                $claim,
+                $claim,
+                function () use ($ready, $release): void {
+                    try {
+                        $this->assertTrue($ready->pop(5));
+                        $this->assertTrue($ready->pop(5));
+                    } finally {
+                        $release->push(true);
+                        $release->push(true);
+                    }
+                },
+            ]);
+            $waiting = false;
+
+            $this->assertEqualsCanonicalizing([true, false], [$first, $second]);
+            $this->assertFalse($claim());
+            $this->assertSame(1, DB::table('passport_replays')->count());
+        } finally {
+            $waiting = false;
+            $schema->drop('passport_replays');
+        }
+    }
+
+    public function testConcurrentPushedRequestConsumptionAcceptsOnlyOneBrowser(): void
+    {
+        $client = ClientFactory::new()->create();
+        $uri = 'urn:ietf:params:oauth:request_uri:test-reference';
+        PushedAuthorizationRequest::create([
+            'id' => hash('sha256', $uri), 'client_id' => $client->id,
+            'parameters' => ['client_id' => $client->id, 'response_type' => 'code'],
+            'scopes' => [], 'redirect_uri' => $client->redirect_uris[0], 'expires_at' => now()->addMinute(),
+        ]);
+        $repository = $this->app->make(PushedAuthorizationRequestRepository::class);
+
+        try {
+            $repository->consume($uri, 'not-a-uuid');
+            $this->fail('A malformed client identifier must not consume the reference.');
+        } catch (OAuthServerException $exception) {
+            $this->assertSame('invalid_request_uri', $exception->getErrorType());
+        }
+
+        $ready = new Channel(2);
+        $release = new Channel(2);
+        $waiting = true;
+        DB::listen(function (QueryExecuted $query) use ($ready, $release, &$waiting): void {
+            if ($waiting && str_starts_with($query->sql, 'select') && str_contains($query->sql, 'oauth_pushed_authorization_requests')) {
+                $ready->push(true);
+                $this->assertTrue($release->pop(5));
+            }
+        });
+        $consume = static function () use ($repository, $uri, $client): string {
+            try {
+                $repository->consume($uri, $client->id);
+
+                return 'accepted';
+            } catch (OAuthServerException $exception) {
+                return $exception->getErrorType();
+            }
+        };
+
+        try {
+            [$first, $second] = parallel([
+                $consume,
+                $consume,
+                function () use ($ready, $release): void {
+                    try {
+                        $this->assertTrue($ready->pop(5));
+                        $this->assertTrue($ready->pop(5));
+                    } finally {
+                        $release->push(true);
+                        $release->push(true);
+                    }
+                },
+            ]);
+        } finally {
+            $waiting = false;
+        }
+
+        $this->assertEqualsCanonicalizing(['accepted', 'invalid_request_uri'], [$first, $second]);
+        $this->assertSame(0, PushedAuthorizationRequest::count());
+    }
+
+    #[TestWith([2, false])]
+    #[TestWith([3, false])]
+    #[TestWith([3, true])]
+    public function testConcurrentApprovalsCreateOneConsentWithoutLosingChoices(int $approvals, bool $outerTransaction): void
+    {
+        $client = ClientFactory::new()->create();
+        $repository = $this->app->make(ConsentRepository::class);
+        $servers = $this->app->make(ServerFactory::class);
+        $ready = new Channel($approvals);
+        $release = new Channel($approvals);
+        $remaining = $approvals;
+        Consent::creating(function () use ($ready, $release, &$remaining): void {
+            if ($remaining > 0) {
+                --$remaining;
+                $ready->push(true);
+                $this->assertTrue($release->pop(5));
+            }
+        });
+        $approve = static function (string $scope) use ($repository, $client, $servers, $outerTransaction): string {
+            $issue = static fn (): string => TokenIssuance::run($servers, static function () use ($repository, $client, $scope): string {
+                $consent = $repository->lockForUser($client->id, 'users', 1);
+                $selection = ['scopes' => [$scope], 'permissions' => []];
+                $repository->remember($consent, $selection, $selection, null);
+
+                return $consent->id;
+            });
+
+            // Competing approvals can each invalidate a caller's snapshot after an initial gap-lock deadlock.
+            return $outerTransaction ? DB::transaction($issue, 5) : $issue();
+        };
+        $scopes = array_slice(['read', 'write', 'delete'], 0, $approvals);
+        $tasks = array_map(static fn (string $scope): Closure => static fn (): string => $approve($scope), $scopes);
+        $tasks[] = function () use ($ready, $release, $approvals): void {
+            try {
+                for ($i = 0; $i < $approvals; ++$i) {
+                    $this->assertTrue($ready->pop(5));
+                }
+            } finally {
+                for ($i = 0; $i < $approvals; ++$i) {
+                    $release->push(true);
+                }
+            }
+        };
+        $results = parallel($tasks);
+        array_pop($results);
+
+        $this->assertCount(1, array_unique($results));
+        $this->assertEqualsCanonicalizing($scopes, Consent::sole()->scopes);
+    }
+
+    public function testApprovalCreatesANewConsentWhenRevokedAfterTheInitialLookup(): void
+    {
+        $consent = Consent::factory()->create(['scopes' => ['old']]);
+        $ready = new Channel(1);
+        $release = new Channel(1);
+        $firstRead = true;
+        Consent::retrieved(function (Consent $record) use ($consent, $ready, $release, &$firstRead): void {
+            if ($firstRead && $record->id === $consent->id) {
+                $firstRead = false;
+                $ready->push(true);
+                $this->assertTrue($release->pop(5));
+            }
+        });
+        $repository = $this->app->make(ConsentRepository::class);
+        $servers = $this->app->make(ServerFactory::class);
+
+        [$id] = parallel([
+            static fn (): string => TokenIssuance::run($servers, static function () use ($consent, $repository): string {
+                $current = $repository->lockForUser($consent->client_id, $consent->provider, $consent->user_id);
+                $selection = ['scopes' => ['read'], 'permissions' => []];
+                $repository->remember($current, $selection, $selection, null);
+
+                return $current->id;
+            }),
+            function () use ($consent, $ready, $release): void {
+                try {
+                    $this->assertTrue($ready->pop(5));
+                    $consent->revoke();
+                } finally {
+                    $release->push(true);
+                }
+            },
+        ]);
+
+        $this->assertNotSame($consent->id, $id);
+        $this->assertSame($id, Consent::sole()->id);
+        $this->assertSame(['read'], Consent::sole()->scopes);
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testRememberedApprovalSerializesWithConsentRevocation(bool $revokeFirst): void
+    {
+        $client = ClientFactory::new()->create();
+        $consent = Consent::factory()->create(['client_id' => $client->id, 'user_id' => 1]);
+        $this->assertTrue($consent->covers([], []));
+        $server = $this->app->make(ServerFactory::class)->authorizationServer();
+        $authorization = $server->validateAuthorizationRequest(
+            (new ServerRequest('GET', 'https://example.test/oauth/authorize'))->withQueryParams([
+                'client_id' => $client->id, 'response_type' => 'code', 'redirect_uri' => $client->redirect_uris[0],
+            ]),
+        );
+        $authorization->setUser(new User('1'));
+        $authorization->setAuthorizationApproved(true);
+        $ready = new Channel(1);
+        $started = new Channel(1);
+        $pause = function () use ($ready, $started): void {
+            $ready->push(true);
+            $this->assertTrue($started->pop(5));
+            usleep(10000);
+        };
+
+        if ($revokeFirst) {
+            Consent::deleted($pause);
+        } else {
+            AuthCode::created($pause);
+        }
+
+        [$response] = parallel([
+            function () use ($revokeFirst, $ready, $started, $authorization, $server) {
+                if ($revokeFirst) {
+                    $this->assertTrue($ready->pop(5));
+                    $started->push(true);
+                }
+
+                return $this->app->make(AuthorizationFinalizer::class)->approve(
+                    Request::create('/oauth/authorize'),
+                    $authorization,
+                    [
+                        'scopes' => [], 'permissions' => [], 'remember_consent_for' => null,
+                        'provider' => 'users', 'guard' => 'web', 'attributes' => [],
+                        'parameters' => [], 'grant_type' => 'authorization_code',
+                    ],
+                    (new AuthenticatableUser)->forceFill(['id' => 1]),
+                    AuthorizationApproval::Remembered,
+                    fn () => $server->completeAuthorizationRequest($authorization, new Response),
+                );
+            },
+            function () use ($consent, $revokeFirst, $ready, $started): void {
+                if (! $revokeFirst) {
+                    $this->assertTrue($ready->pop(5));
+                    $started->push(true);
+                }
+
+                $consent->revoke();
+            },
+        ]);
+
+        if ($revokeFirst) {
+            $this->assertNull($response);
+            $this->assertSame(0, AuthCode::count());
+        } else {
+            $this->assertSame(302, $response->getStatusCode());
+            $this->assertTrue(AuthCode::sole()->revoked);
+        }
+
+        $this->assertSame(0, Consent::count());
     }
 
     #[TestWith(['authorization_code'])]
@@ -161,9 +450,19 @@ abstract class GrantConcurrencyTestCase extends TestCase
         [$response] = parallel([
             fn (): array => $this->exchange($request),
             function () use ($ready, $started, $family): void {
-                $this->assertTrue($ready->pop(5));
-                $started->push(true);
-                TokenIssuance::revokeRefreshTokenFamily($family->getKey());
+                $firstAttempt = true;
+                DB::transaction(function () use ($ready, $started, $family, &$firstAttempt): void {
+                    // An earlier caller read must not hide the successor from family revocation.
+                    Token::count();
+
+                    if ($firstAttempt) {
+                        $firstAttempt = false;
+                        $this->assertTrue($ready->pop(5));
+                        $started->push(true);
+                    }
+
+                    TokenIssuance::revokeRefreshTokenFamily($family->getKey());
+                }, 2);
             },
         ]);
 
@@ -173,6 +472,76 @@ abstract class GrantConcurrencyTestCase extends TestCase
         $this->assertNotNull($family->fresh()->revoked_at);
         $this->assertFalse(Token::where('revoked', false)->exists());
         $this->assertFalse(RefreshToken::where('revoked', false)->exists());
+    }
+
+    #[TestWith(['authorization_code', false])]
+    #[TestWith(['device_code', false])]
+    #[TestWith(['refresh_token', false])]
+    #[TestWith(['authorization_code', true])]
+    #[TestWith(['device_code', true])]
+    #[TestWith(['refresh_token', true])]
+    public function testConsentRevocationSerializesWithCredentialExchange(string $grant, bool $revokeFirst): void
+    {
+        $client = $grant === 'device_code'
+            ? ClientFactory::new()->asDeviceCodeClient()->create()
+            : ClientFactory::new()->create();
+        $consent = Consent::factory()->create(['client_id' => $client->id, 'user_id' => 1]);
+        $request = $this->grantRequest($client, $grant, $consent);
+        $ready = new Channel(1);
+        $started = new Channel(1);
+        $pause = function () use ($ready, $started): void {
+            $ready->push(true);
+            $this->assertTrue($started->pop(5));
+            usleep(10000);
+        };
+
+        if ($revokeFirst) {
+            Consent::deleted($pause);
+        } else {
+            Token::created($pause);
+        }
+
+        [$response] = parallel([
+            function () use ($request, $revokeFirst, $ready, $started): array {
+                if ($revokeFirst) {
+                    $this->assertTrue($ready->pop(5));
+                    $started->push(true);
+                }
+
+                try {
+                    return $this->exchange($request);
+                } catch (OAuthServerException $exception) {
+                    return ['error' => $exception->getErrorType()];
+                }
+            },
+            function () use ($consent, $revokeFirst, $ready, $started): void {
+                $firstAttempt = true;
+                DB::transaction(function () use ($consent, $revokeFirst, $ready, $started, &$firstAttempt): void {
+                    // MySQL locking reads bypass this older snapshot; MariaDB may reject it and require a retry.
+                    Token::count();
+
+                    if (! $revokeFirst && $firstAttempt) {
+                        $firstAttempt = false;
+                        $this->assertTrue($ready->pop(5));
+                        $started->push(true);
+                    }
+
+                    $consent->revoke();
+                }, 2);
+            },
+        ]);
+
+        if ($revokeFirst) {
+            $this->assertSame(['error' => 'invalid_grant'], $response);
+        } else {
+            $this->assertArrayHasKey('access_token', $response);
+        }
+
+        $this->assertSame(($grant === 'refresh_token' ? 1 : 0) + ($revokeFirst ? 0 : 1), Token::count());
+        $this->assertSame(0, Consent::count());
+        $this->assertFalse(Token::where('revoked', false)->exists());
+        $this->assertFalse(RefreshToken::where('revoked', false)->exists());
+        $this->assertFalse(RefreshTokenFamily::whereNull('revoked_at')->exists());
     }
 
     public function testDeviceUserCodeCollisionIsRetriedInsideACallerTransaction(): void
@@ -202,6 +571,7 @@ abstract class GrantConcurrencyTestCase extends TestCase
         $response = $this->app->make(ServerFactory::class)->authorizationServer()->respondToDeviceAuthorizationRequest(
             (new ServerRequest('POST', 'https://example.test/oauth/device/code'))->withParsedBody([
                 'client_id' => $client->getKey(),
+                'client_secret' => $client->plainSecret,
             ]),
             new Response,
         );
@@ -234,7 +604,7 @@ abstract class GrantConcurrencyTestCase extends TestCase
      *
      * @return array<string, mixed>
      */
-    protected function grantRequest(Client $client, string $grant): array
+    protected function grantRequest(Client $client, string $grant, ?Consent $consent = null): array
     {
         $servers = $this->app->make(ServerFactory::class);
         $server = $servers->authorizationServer();
@@ -242,13 +612,13 @@ abstract class GrantConcurrencyTestCase extends TestCase
 
         if ($grant === 'device_code') {
             $response = $server->respondToDeviceAuthorizationRequest(
-                (new ServerRequest('POST', 'https://example.test/oauth/device/code'))->withParsedBody([
-                    'client_id' => $client->getKey(),
-                ]),
+                (new ServerRequest('POST', 'https://example.test/oauth/device/code'))->withParsedBody($credentials),
                 new Response,
             );
             $code = json_decode((string) $response->getBody(), true)['device_code'];
-            TokenIssuance::run($servers, fn () => $server->completeDeviceAuthorizationRequest($code, '1', true), ['provider' => 'users']);
+            TokenIssuance::run($servers, fn () => $server->completeDeviceAuthorizationRequest($code, '1', true), [
+                'provider' => 'users', 'consent_id' => $consent?->id,
+            ]);
 
             return [...$credentials, 'grant_type' => 'urn:ietf:params:oauth:grant-type:device_code', 'device_code' => $code];
         }
@@ -265,7 +635,7 @@ abstract class GrantConcurrencyTestCase extends TestCase
         $response = TokenIssuance::run(
             $servers,
             fn () => $server->completeAuthorizationRequest($authorization, new Response),
-            ['provider' => 'users'],
+            ['provider' => 'users', 'consent_id' => $consent?->id],
         );
         parse_str(parse_url($response->getHeaderLine('Location'), PHP_URL_QUERY), $parameters);
         $request = [...$credentials, 'grant_type' => 'authorization_code', 'redirect_uri' => $redirect, 'code' => $parameters['code']];

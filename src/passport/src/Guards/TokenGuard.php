@@ -20,9 +20,11 @@ use Hypervel\Cookie\CookieValuePrefix;
 use Hypervel\Cookie\Middleware\EncryptCookies;
 use Hypervel\Http\Request;
 use Hypervel\Passport\AccessToken;
+use Hypervel\Passport\Bridge\BearerRequestFactory;
 use Hypervel\Passport\Client;
 use Hypervel\Passport\ClientRepository;
 use Hypervel\Passport\Contracts\OAuthenticatable;
+use Hypervel\Passport\Http\AuthenticationChallenge;
 use Hypervel\Passport\Passport;
 use Hypervel\Passport\PassportUserProvider;
 use Hypervel\Passport\ServerFactory;
@@ -31,7 +33,6 @@ use Hypervel\Support\Traits\Macroable;
 use League\OAuth2\Server\Exception\OAuthServerException;
 use Psr\Http\Message\ServerRequestInterface;
 use SensitiveParameter;
-use stdClass;
 
 class TokenGuard implements Guard
 {
@@ -48,9 +49,9 @@ class TokenGuard implements Guard
     protected ?UserProvider $provider = null;
 
     /**
-     * Sentinel for a completed authentication lookup with no result.
+     * The seed for request credential context keys.
      */
-    private static object $nullSentinel;
+    protected int $hashSeed;
 
     /**
      * Create a new token guard instance.
@@ -64,6 +65,7 @@ class TokenGuard implements Guard
         protected Container $app,
     ) {
         $this->provider = $provider;
+        $this->hashSeed = random_int(1, PHP_INT_MAX);
     }
 
     /**
@@ -83,19 +85,24 @@ class TokenGuard implements Guard
 
         $request = $this->app->make('request');
         $contextKey = $this->getContextKey($request, 'user');
-        self::$nullSentinel ??= new stdClass;
+        $hasAccessToken = $this->hasAccessToken($request);
+        $server = $hasAccessToken ? $this->servers->resourceServer() : null;
 
-        if (($cached = RequestContext::getValue($contextKey)) !== null) {
-            return $cached === self::$nullSentinel ? null : $cached;
+        if (($cached = RequestContext::getValue($contextKey)) !== null && $cached['server'] === $server) {
+            return $cached['result'];
         }
 
         $user = match (true) {
-            (bool) $request->bearerToken() => $this->authenticateViaBearerToken($request),
+            $hasAccessToken => $this->authenticateViaBearerToken($request),
             (bool) $request->cookie(Passport::cookie()) => $this->authenticateViaCookie($request),
             default => null,
         };
 
-        RequestContext::setValue($contextKey, $user ?? self::$nullSentinel);
+        RequestContext::setValue($contextKey, ['server' => $server, 'result' => $user]);
+
+        if ($user === null) {
+            $this->app->make(AuthenticationChallenge::class)->forGuard($request, $this->name);
+        }
 
         return $user;
     }
@@ -110,7 +117,7 @@ class TokenGuard implements Guard
         $request = $credentials['request'];
 
         return match (true) {
-            (bool) $request->bearerToken() => $this->authenticateViaBearerToken($request, false) !== null,
+            $this->hasAccessToken($request) => $this->authenticateViaBearerToken($request, false) !== null,
             (bool) $request->cookie(Passport::cookie()) => $this->authenticateViaCookie($request) !== null,
             default => false,
         };
@@ -131,20 +138,20 @@ class TokenGuard implements Guard
 
         $request = $this->app->make('request');
 
-        if (! $request->bearerToken()) {
+        if (! $this->hasAccessToken($request)) {
             return null;
         }
 
         $contextKey = $this->getContextKey($request, 'client');
-        self::$nullSentinel ??= new stdClass;
+        $server = $this->servers->resourceServer();
 
-        if (($cached = RequestContext::getValue($contextKey)) !== null) {
-            return $cached === self::$nullSentinel ? null : $cached;
+        if (($cached = RequestContext::getValue($contextKey)) !== null && $cached['server'] === $server) {
+            return $cached['result'];
         }
 
         $psr = $this->getPsrRequestViaBearerToken($request);
         $client = $psr ? $this->clients->findActive($psr->getAttribute('oauth_client_id')) : null;
-        RequestContext::setValue($contextKey, $client ?? self::$nullSentinel);
+        RequestContext::setValue($contextKey, ['server' => $server, 'result' => $client]);
 
         return $client;
     }
@@ -160,11 +167,19 @@ class TokenGuard implements Guard
 
         $request = $this->app->make('request');
 
-        if (! $request->bearerToken() || ! $psr = $this->getPsrRequestViaBearerToken($request)) {
+        if (! $this->hasAccessToken($request) || ! $psr = $this->getPsrRequestViaBearerToken($request)) {
             return null;
         }
 
         return AccessToken::fromPsrRequest($psr);
+    }
+
+    /**
+     * Determine whether the request supplies a Bearer or DPoP credential.
+     */
+    protected function hasAccessToken(Request $request): bool
+    {
+        return BearerRequestFactory::credentials($request->headers->get('Authorization') ?? '') !== null;
     }
 
     /**
@@ -367,10 +382,11 @@ class TokenGuard implements Guard
             return false;
         }
 
-        self::$nullSentinel ??= new stdClass;
-        $user = RequestContext::getValue($this->getContextKey($this->app->make('request'), 'user'));
+        $request = $this->app->make('request');
+        $cached = RequestContext::getValue($this->getContextKey($request, 'user'));
 
-        return $user !== null && $user !== self::$nullSentinel;
+        return $cached !== null && $cached['result'] !== null
+            && $cached['server'] === ($this->hasAccessToken($request) ? $this->servers->resourceServer() : null);
     }
 
     /**
@@ -428,17 +444,17 @@ class TokenGuard implements Guard
      */
     protected function getContextKey(Request $request, string $type): string
     {
-        $credentials = $request->bearerToken();
-
-        if (! $credentials) {
-            $credentials = serialize([
-                $request->cookie(Passport::cookie()),
-                $request->header('X-CSRF-TOKEN'),
-                $request->header('X-XSRF-TOKEN'),
-            ]);
+        if ($this->hasAccessToken($request)) {
+            return "__auth.guards.{$this->name}.{$type}." . $this->servers->authenticationFingerprint($request);
         }
 
-        return "__auth.guards.{$this->name}.{$type}." . hash('xxh128', $credentials);
+        $credentials = serialize([
+            $request->cookie(Passport::cookie()),
+            $request->header('X-CSRF-TOKEN'),
+            $request->header('X-XSRF-TOKEN'),
+        ]);
+
+        return "__auth.guards.{$this->name}.{$type}." . hash('xxh128', $credentials, options: ['seed' => $this->hashSeed]);
     }
 
     /**

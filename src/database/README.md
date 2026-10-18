@@ -7,6 +7,7 @@ Documentation: https://hypervel.org/docs/database
 
 ## Differences From Laravel
 
+- `DB::transaction()` throws if its closure manually ends the transaction it owns. Let `transaction()` manage completion, or use the manual transaction API separately. Balanced nested transactions remain supported; see [database transactions](https://hypervel.org/docs/database#database-transactions).
 - SQLite requires 3.32.0 or later rather than Laravel's 3.26.0 minimum, so framework code assumes the newer default limit of 32,766 bindings per statement.
 - Outgoing framework HTTP requests return idle database sessions to their pools. Code using temporary tables, session locks or retained raw PDOs across these calls must use `withPinnedSession()`; ordinary queries and active transactions keep their behavior. See [releasing and pinning connections](https://hypervel.org/docs/database#releasing-and-pinning-connections).
 - MySQL and MariaDB connections require `strict` or `modes` in their configuration instead of implicitly inheriting the server's SQL mode, so SQL literals can be escaped correctly.

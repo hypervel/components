@@ -33,7 +33,8 @@ class RefreshTokenRepository implements RefreshTokenRepositoryInterface
     {
         $issuance = TokenIssuance::current();
 
-        if (! Passport::$revokeRefreshTokenAfterUse && $issuance?->client !== null && ! $issuance->client->isConfidential()) {
+        if (! Passport::$revokeRefreshTokenAfterUse && $issuance?->client !== null
+            && ! $issuance->client->isConfidential() && $issuance->dpopJkt === null) {
             return null;
         }
 
@@ -61,12 +62,17 @@ class RefreshTokenRepository implements RefreshTokenRepositoryInterface
 
         $persist = function () use ($issuance, $token, $refreshTokenEntity): void {
             $attributes = $issuance?->attributes() ?? [];
+            $binding = $issuance?->grant instanceof RefreshTokenModel ? $issuance->grant->dpop_jkt : null;
+
+            if ($binding === null && $issuance?->client !== null && ! $issuance->client->isConfidential()) {
+                $binding = $issuance->dpopJkt;
+            }
 
             if ($issuance?->grant instanceof RefreshTokenModel) {
                 $familyId = $issuance->grant->family_id;
             } else {
                 $family = Passport::refreshTokenFamily()->forceFill(
-                    array_intersect_key($attributes, array_flip(Passport::$inheritedGrantAttributes))
+                    array_intersect_key($attributes, array_flip(['consent_id', ...Passport::$inheritedGrantAttributes]))
                 );
                 $this->saveToken($family);
                 $familyId = $family->getKey();
@@ -77,6 +83,8 @@ class RefreshTokenRepository implements RefreshTokenRepositoryInterface
                 'id' => $id = $refreshTokenEntity->getIdentifier(),
                 'access_token_id' => $accessTokenId = $refreshTokenEntity->getAccessToken()->getIdentifier(),
                 'family_id' => $familyId,
+                'resources' => $issuance?->resources,
+                'dpop_jkt' => $binding,
                 'revoked' => false,
                 'expires_at' => $refreshTokenEntity->getExpiryDateTime(),
             ]);
@@ -134,7 +142,14 @@ class RefreshTokenRepository implements RefreshTokenRepositoryInterface
             return true;
         }
 
-        if (! Passport::$revokeRefreshTokenAfterUse && $issuance?->client !== null && ! $issuance->client->isConfidential()) {
+        // Prove ownership before replay detection can revoke the family. Bindings belong
+        // to individual refresh tokens so an upgrade cannot disable theft detection for an older token.
+        if ($record->dpop_jkt !== null && $record->dpop_jkt !== $issuance?->dpopJkt) {
+            throw OAuthServerException::invalidGrant();
+        }
+
+        if (! Passport::$revokeRefreshTokenAfterUse && $issuance?->client !== null
+            && ! $issuance->client->isConfidential() && $record->dpop_jkt === null) {
             return true;
         }
 

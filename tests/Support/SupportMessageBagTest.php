@@ -405,6 +405,18 @@ class SupportMessageBagTest extends TestCase
         $this->assertFalse($container->isNotEmpty());
     }
 
+    public function testAnyIgnoresEmptyListsAndFindsKeyedMessages(): void
+    {
+        $container = new MessageBag(['empty' => []]);
+        $this->assertFalse($container->any());
+        $this->assertCount(0, $container);
+
+        $container->merge(['field' => ['required' => 'A value is required.']]);
+        $this->assertTrue($container->any());
+        $this->assertTrue($container->has('field'));
+        $this->assertCount(1, $container);
+    }
+
     public function testToString(): void
     {
         $container = new MessageBag;

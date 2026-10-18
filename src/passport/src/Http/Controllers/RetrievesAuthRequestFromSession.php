@@ -6,10 +6,10 @@ namespace Hypervel\Passport\Http\Controllers;
 
 use Exception;
 use Hypervel\Http\Request;
+use Hypervel\Passport\Bridge\User;
 use Hypervel\Passport\Exceptions\InvalidAuthTokenException;
-use League\OAuth2\Server\Exception\OAuthServerException;
-use League\OAuth2\Server\RedirectUriValidators\RedirectUriValidator;
 use League\OAuth2\Server\RequestTypes\AuthorizationRequestInterface;
+use Psr\Http\Message\ServerRequestInterface;
 
 trait RetrievesAuthRequestFromSession
 {
@@ -21,40 +21,26 @@ trait RetrievesAuthRequestFromSession
      */
     protected function getAuthRequestFromSession(Request $request): AuthorizationRequestInterface
     {
-        if ($request->isNotFilled('auth_token')
-            || $request->session()->pull('authToken') !== $request->input('auth_token')) {
-            $request->session()->forget(['authToken', 'authRequest', 'authAttributes']);
+        $pending = $this->getPendingAuthorization($request);
 
-            throw InvalidAuthTokenException::different();
+        try {
+            if ($pending['grant_type'] !== 'authorization_code' || $pending['stage'] !== 'consent') {
+                throw InvalidAuthTokenException::different();
+            }
+
+            $this->ensureApprovingUser($pending);
+            // Resolve the current PSR request here to preserve this Laravel trait's method signature.
+            $authRequest = $this->authorizations->resolve($pending, app(ServerRequestInterface::class));
+            $this->getClientForApproval(
+                $authRequest->getClient()->getIdentifier(),
+                $authRequest->getGrantTypeId(),
+                $authRequest->getScopes(),
+            );
+            $authRequest->setUser(new User($pending['user_id']));
+
+            return $authRequest;
+        } finally {
+            $this->pending->pull($request, $request->input('auth_token'));
         }
-
-        $authRequest = $request->session()->pull('authRequest')
-            ?? throw new Exception('Authorization request was not present in the session.');
-
-        $authRequest = unserialize($authRequest, ['allowed_classes' => [
-            \League\OAuth2\Server\RequestTypes\AuthorizationRequest::class,
-            \Hypervel\Passport\Bridge\Client::class,
-            \Hypervel\Passport\Bridge\Scope::class,
-            \Hypervel\Passport\Bridge\User::class,
-        ]]);
-
-        $this->ensureApprovingUser($request, $authRequest->getUser()?->getIdentifier());
-        $client = $this->getClientForApproval(
-            $authRequest->getClient()->getIdentifier(),
-            $authRequest->getGrantTypeId(),
-            $authRequest->getScopes()
-        );
-        $redirectUri = $authRequest->getRedirectUri();
-
-        if ($redirectUri === null) {
-            $originalUris = $authRequest->getClient()->getRedirectUri();
-            $redirectUri = is_array($originalUris) ? $originalUris[0] : $originalUris;
-        }
-
-        if (! (new RedirectUriValidator($client->redirect_uris))->validateRedirectUri($redirectUri)) {
-            throw OAuthServerException::invalidRequest('redirect_uri');
-        }
-
-        return $authRequest;
     }
 }

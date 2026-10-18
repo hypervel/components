@@ -38,4 +38,17 @@ class AddWwwAuthenticateHeaderTest extends TestCase
     {
         return ['OAuth' => [true], 'Sanctum' => [false]];
     }
+
+    public function testChallengeUsesMatchingRouteParametersWithoutLeakingOtherParameters(): void
+    {
+        Route::domain('{server}.example.com')->group(function (): void {
+            Route::get('/.well-known/oauth-protected-resource/{path}', fn (): Response => new Response)
+                ->where('path', '.*')->name('mcp.oauth.protected-resource.nested');
+            Route::post('/mcp/{tool}', fn (): Response => new Response('Unauthorized', 401))
+                ->middleware(AddWwwAuthenticateHeader::class);
+        });
+
+        $this->post('https://calendar.example.com/mcp/events')->assertUnauthorized()
+            ->assertHeader('WWW-Authenticate', 'Bearer realm="mcp", resource_metadata="https://calendar.example.com/.well-known/oauth-protected-resource/mcp/events"');
+    }
 }

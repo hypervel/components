@@ -515,6 +515,8 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
         // Login listeners may read the new user; setUser() still fires Authenticated after Login.
         CoroutineContext::set($this->userContextKey, $user);
         $this->setContextState('loggedOut', false);
+        // An explicit login in a recalled session is fresh authentication for Login listeners.
+        $this->setContextState('viaRemember', false);
 
         // If we have an event dispatcher instance set we will fire an event so that
         // any listeners will hook into the authentication events and run actions

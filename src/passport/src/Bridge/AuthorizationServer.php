@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Passport\Bridge;
 
 use Defuse\Crypto\Key;
+use Hypervel\Passport\Http\RequestParameters;
+use Hypervel\Passport\ResourceRepository;
 use Hypervel\Passport\ServerFactory;
 use League\OAuth2\Server\AuthorizationServer as LeagueAuthorizationServer;
 use League\OAuth2\Server\CryptKeyInterface;
+use League\OAuth2\Server\Exception\OAuthServerException;
 use League\OAuth2\Server\Repositories\AccessTokenRepositoryInterface;
 use League\OAuth2\Server\Repositories\ClientRepositoryInterface;
 use League\OAuth2\Server\Repositories\ScopeRepositoryInterface;
@@ -50,7 +53,25 @@ class AuthorizationServer extends LeagueAuthorizationServer
      */
     protected function validateAuthorization(ServerRequestInterface $request): AuthorizationRequestInterface
     {
-        return parent::validateAuthorizationRequest($request);
+        try {
+            return parent::validateAuthorizationRequest($request);
+        } catch (OAuthServerException $exception) {
+            if ($exception->getErrorType() !== 'unsupported_grant_type') {
+                throw $exception;
+            }
+
+            // @TODO Remove when League fixes authorization dispatch: https://github.com/thephpleague/oauth2-server/issues/1216
+            if (! isset($request->getQueryParams()['client_id'])) {
+                throw OAuthServerException::invalidRequest('client_id');
+            }
+
+            throw new OAuthServerException(
+                'The authorization server does not support the requested response type.',
+                2,
+                'unsupported_response_type',
+                400,
+            );
+        }
     }
 
     /**
@@ -86,7 +107,7 @@ class AuthorizationServer extends LeagueAuthorizationServer
      */
     protected function issueDeviceAuthorization(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
-        return parent::respondToDeviceAuthorizationRequest($request, $response);
+        return parent::respondToDeviceAuthorizationRequest($this->prepareRequest($request), $response);
     }
 
     /**
@@ -128,7 +149,20 @@ class AuthorizationServer extends LeagueAuthorizationServer
      */
     protected function issueAccessTokenResponse(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
-        return parent::respondToAccessTokenRequest($request, $response);
+        return parent::respondToAccessTokenRequest($this->prepareRequest($request), $response);
+    }
+
+    /**
+     * Normalize protocol fields and capture the operation's requested resources.
+     */
+    protected function prepareRequest(ServerRequestInterface $request): ServerRequestInterface
+    {
+        $parameters = RequestParameters::fromPsrRequest($request);
+        TokenIssuance::current()->requestedResources = array_key_exists('resource', $parameters)
+            ? app(ResourceRepository::class)->validate($parameters['resource'])
+            : null;
+
+        return $request->withParsedBody($parameters);
     }
 
     /**

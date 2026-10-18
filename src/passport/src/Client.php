@@ -11,6 +11,7 @@ use Hypervel\Database\Eloquent\Concerns\HasUuids;
 use Hypervel\Database\Eloquent\Factories\Factory;
 use Hypervel\Database\Eloquent\Factories\HasFactory;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\HasMany;
 use Hypervel\Database\Eloquent\Relations\MorphTo;
 use Hypervel\Passport\Database\Factories\ClientFactory;
 use SensitiveParameter;
@@ -26,6 +27,13 @@ use SensitiveParameter;
  * @property array $redirect_uris
  * @property array $grant_types
  * @property null|array $scopes
+ * @property null|string $token_endpoint_auth_method
+ * @property null|string $token_endpoint_auth_signing_alg
+ * @property null|array $jwks
+ * @property null|string $jwks_uri
+ * @property bool $dpop_bound_access_tokens
+ * @property bool $require_pushed_authorization_requests
+ * @property string $application_type
  * @property bool $revoked
  * @property null|CarbonInterface $created_at
  * @property null|CarbonInterface $updated_at
@@ -68,6 +76,9 @@ class Client extends Model
         'grant_types' => 'array',
         'scopes' => 'array',
         'redirect_uris' => 'array',
+        'jwks' => 'array',
+        'dpop_bound_access_tokens' => 'bool',
+        'require_pushed_authorization_requests' => 'bool',
         'revoked' => 'bool',
         'third_party' => 'bool',
     ];
@@ -115,6 +126,18 @@ class Client extends Model
     // The deprecated authCodes() relation is omitted.
 
     /**
+     * Get the authorizations granted to the client.
+     *
+     * @return HasMany<Consent, $this>
+     */
+    public function consents(): HasMany
+    {
+        $consent = Passport::consent();
+
+        return new HasMany($consent->newQuery(), $this, $consent->qualifyColumn('client_id'), $this->getKeyName());
+    }
+
+    /**
      * Get all of the tokens that belong to the client.
      *
      * @return TokenRelation<$this>
@@ -160,7 +183,7 @@ class Client extends Model
     public function firstParty(): bool
     {
         // Dynamically registered clients have no owner but are not trusted application clients.
-        return $this->owner_id === null && ! $this->third_party;
+        return $this->owner_id === null && ! ($this->third_party ?? false);
     }
 
     /**
@@ -190,10 +213,22 @@ class Client extends Model
     }
 
     /**
+     * Determine whether the client accepts users from the given provider.
+     */
+    public function supportsProvider(?string $provider): bool
+    {
+        return $this->provider === null || $this->provider === $provider;
+    }
+
+    /**
      * Determine if the client is a confidential client.
      */
     public function confidential(): bool
     {
+        if (($method = $this->getAttributes()['token_endpoint_auth_method'] ?? null) !== null) {
+            return $method !== 'none';
+        }
+
         return ! empty($this->getAttributes()['secret'] ?? null);
     }
 
