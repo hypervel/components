@@ -158,6 +158,60 @@ class AuthorizationInteractionTest extends PassportTestCase
         $this->assertDatabaseCount('oauth_auth_codes', 1);
     }
 
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testAccountSelectionPrecedesFreshConfirmation(bool $switch): void
+    {
+        $client = ClientFactory::new()->create();
+        $this->actingAs($user = UserFactory::new()->create(), 'web');
+        $token = $this->get('/oauth/authorize?' . http_build_query([
+            'client_id' => $client->id, 'response_type' => 'code', 'prompt' => 'login select_account',
+        ]))->assertOk()->assertJsonPath('user.id', $user->id)->json('authToken');
+
+        if ($switch) {
+            $resume = $this->post('/oauth/authorize/account/switch', ['auth_token' => $token])->assertRedirect()->headers->get('Location');
+            $user = UserFactory::new()->create();
+            Route::post('/fresh-login', static function () use ($user) {
+                Auth::guard('web')->login($user);
+
+                return response()->noContent();
+            })->middleware('web');
+            $this->post('/fresh-login')->assertNoContent();
+            $token = $this->get($resume)->assertOk()->assertJsonPath('user.id', $user->id)->json('authToken');
+        }
+
+        $resume = $this->post('/oauth/authorize/account/continue', ['auth_token' => $token])->assertRedirect()->headers->get('Location');
+
+        if (! $switch) {
+            $this->get($resume)->assertRedirectToRoute('password.confirm');
+            $this->withSession([PasswordConfirmation::sessionKey('web') => now()->getTimestamp()]);
+        }
+
+        $this->get($resume)->assertOk()->assertJsonPath('authToken', $token);
+        $this->post('/oauth/authorize/consent', ['auth_token' => $token])->assertRedirect();
+        $this->assertDatabaseHas('oauth_auth_codes', ['user_id' => $user->id]);
+    }
+
+    #[TestWith(['login', 'confirm'])]
+    #[TestWith(['select_account', 'account'])]
+    public function testAnOlderConsentFormCannotSkipANewInteraction(string $prompt, string $stage): void
+    {
+        $client = ClientFactory::new()->create();
+        $this->actingAs(UserFactory::new()->create(), 'web');
+        $token = $this->get('/oauth/authorize?' . http_build_query([
+            'client_id' => $client->id, 'response_type' => 'code',
+        ]))->assertOk()->json('authToken');
+        Event::listen(AuthorizationRequestValidated::class, static function (AuthorizationRequestValidated $event) use ($prompt): void {
+            $event->prompts[] = $prompt;
+        });
+        $this->get('/oauth/authorize/resume/' . $token)
+            ->assertSessionHas('passport.authorizations.' . $token . '.stage', $stage);
+
+        $this->post('/oauth/authorize/consent', ['auth_token' => $token])->assertForbidden()
+            ->assertSessionMissing('passport.authorizations.' . $token);
+        $this->assertDatabaseCount('oauth_auth_codes', 0);
+    }
+
     public function testAccountSwitchSignsOutAndPreservesTheOriginalExpiry(): void
     {
         $this->freezeTime();

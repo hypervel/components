@@ -271,6 +271,14 @@ class AuthorizationController
         $pending['provider'] = $this->getApprovingProvider();
         $authRequest->setUser(new User($pending['user_id']));
 
+        if (in_array('select_account', $prompts, true) && ! ($pending['account_selected'] ?? false)) {
+            $authorization = $this->saveAuthorization($request, $authorization, [...$pending, 'stage' => 'account']);
+
+            return app(AccountSelectionViewResponse::class)->withParameters([
+                'client' => $client, 'user' => $user, 'request' => $request, 'authToken' => $authorization,
+            ])->toResponse($request);
+        }
+
         if (in_array('login', $prompts, true) && ! ($pending['login_confirmed'] ?? false)) {
             if ($silent) {
                 throw OAuthServerException::loginRequired($authRequest);
@@ -297,14 +305,6 @@ class AuthorizationController
                     'returnUrl' => route('passport.authorizations.resume', ['authorization' => $authorization]),
                 ])->toResponse($request);
             }
-        }
-
-        if (in_array('select_account', $prompts, true) && ! ($pending['account_selected'] ?? false)) {
-            $authorization = $this->saveAuthorization($request, $authorization, [...$pending, 'stage' => 'account']);
-
-            return app(AccountSelectionViewResponse::class)->withParameters([
-                'client' => $client, 'user' => $user, 'request' => $request, 'authToken' => $authorization,
-            ])->toResponse($request);
         }
 
         $scopes = $this->parseScopes($authRequest);
