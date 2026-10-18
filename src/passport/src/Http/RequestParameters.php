@@ -27,7 +27,7 @@ class RequestParameters
             }
         }
 
-        return (array) $request->getParsedBody();
+        return static::normalize((array) $request->getParsedBody());
     }
 
     /**
@@ -59,7 +59,7 @@ class RequestParameters
         }
 
         // Constructed HTTP requests can carry parsed input without a raw query or body.
-        $parameters = $query ? $request->query->all() : $request->request->all();
+        $parameters = static::normalize($query ? $request->query->all() : $request->request->all());
 
         foreach ($parameters as $name => $value) {
             if ($name === 'resource' && is_array($value) && array_is_list($value)) {
@@ -70,8 +70,6 @@ class RequestParameters
                 }
             } elseif (is_string($value) || is_numeric($value)) {
                 $parameters[$name] = $name === 'resource' ? [(string) $value] : (string) $value;
-            } elseif ($value === null) {
-                unset($parameters[$name]);
             } else {
                 throw OAuthServerException::invalidRequest((string) $name);
             }
@@ -102,12 +100,45 @@ class RequestParameters
             $name = urldecode($name);
             $value = urldecode($value);
 
+            if (! mb_check_encoding($name, 'UTF-8')) {
+                throw OAuthServerException::invalidRequest('request', 'OAuth parameters must use UTF-8.');
+            }
+
             if ($name === 'resource') {
                 $parameters[$name][] = $value;
             } elseif (array_key_exists($name, $parameters) || str_contains($name, '[') || str_contains($name, ']')) {
                 throw OAuthServerException::invalidRequest($name);
             } else {
                 $parameters[$name] = $value;
+            }
+        }
+
+        return static::normalize($parameters);
+    }
+
+    /**
+     * Validate protocol text and omit empty values after duplicate detection.
+     *
+     * @template TValue
+     * @param array<array-key, TValue> $parameters
+     * @return array<array-key, TValue>
+     */
+    protected static function normalize(array $parameters): array
+    {
+        foreach ($parameters as $name => $value) {
+            if (! mb_check_encoding((string) $name, 'UTF-8')
+                || (is_string($value) && ! mb_check_encoding($value, 'UTF-8'))
+                || ($name === 'resource' && is_array($value) && ! mb_check_encoding($value, 'UTF-8'))) {
+                throw OAuthServerException::invalidRequest('request', 'OAuth parameters must use UTF-8.');
+            }
+
+            if ($name === 'resource' && is_array($value) && array_is_list($value)) {
+                $parameters[$name] = $value = array_values(array_filter($value, static fn (mixed $resource): bool => $resource !== ''));
+            }
+
+            // RFC 6749 treats an empty parameter as omitted, without trimming meaningful text.
+            if ($value === '' || $value === null || ($name === 'resource' && $value === [])) {
+                unset($parameters[$name]);
             }
         }
 

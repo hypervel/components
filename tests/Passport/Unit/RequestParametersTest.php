@@ -8,6 +8,7 @@ use Hypervel\Http\Request;
 use Hypervel\Passport\Http\RequestParameters;
 use Hypervel\Tests\TestCase;
 use League\OAuth2\Server\Exception\OAuthServerException;
+use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\Attributes\TestWith;
 
 class RequestParametersTest extends TestCase
@@ -30,6 +31,9 @@ class RequestParametersTest extends TestCase
     #[TestWith(['client_id=a&client%5fid=b'])]
     #[TestWith(['scope=read&scope=write'])]
     #[TestWith(['client_id[]=a'])]
+    #[TestWith(['state=&state=x'])]
+    #[TestWith(['state=%FF'])]
+    #[TestWith(['%FF=value'])]
     public function testInvalidParameterShapesAreRejected(string $encoded): void
     {
         $this->expectException(OAuthServerException::class);
@@ -60,5 +64,35 @@ class RequestParametersTest extends TestCase
         $this->assertSame([
             'client_id' => 'client', 'resource' => ['https://api.example/a'],
         ], RequestParameters::fromRequest($request));
+    }
+
+    public function testEmptyParametersAreOmittedWithoutTrimmingStateOrDroppingZero(): void
+    {
+        $parameters = ['response_mode' => '', 'request_uri' => '', 'dpop_jkt' => '', 'state' => ' 0 ', 'zero' => '0', 'resource' => ['', 'https://api.example/a', '']];
+        $expected = ['state' => ' 0 ', 'zero' => '0', 'resource' => ['https://api.example/a']];
+
+        $this->assertSame($expected, RequestParameters::parse(RequestParameters::toQuery($parameters)));
+        $this->assertSame($expected, RequestParameters::fromRequest(Request::create('/oauth/authorize', 'POST', $parameters)));
+        $this->assertSame($expected, RequestParameters::fromPsrRequest((new ServerRequest('POST', '/oauth/token'))->withParsedBody($parameters)));
+        $this->assertSame([], RequestParameters::parse('resource=&resource='));
+    }
+
+    #[TestWith([['state' => "\xff"]])]
+    #[TestWith([["\xff" => 'value']])]
+    #[TestWith([['resource' => ["\xff"]]])]
+    public function testParsedParametersRejectInvalidUtf8WithASerializableError(array $parameters): void
+    {
+        foreach ([
+            static fn (): array => RequestParameters::fromRequest(Request::create('/oauth/authorize', 'POST', $parameters)),
+            static fn (): array => RequestParameters::fromPsrRequest((new ServerRequest('POST', '/oauth/token'))->withParsedBody($parameters)),
+        ] as $parse) {
+            try {
+                $parse();
+                $this->fail('Invalid protocol text must be rejected.');
+            } catch (OAuthServerException $exception) {
+                $this->assertSame('invalid_request', $exception->getErrorType());
+                $this->assertIsString(json_encode($exception->getPayload(), JSON_THROW_ON_ERROR));
+            }
+        }
     }
 }
