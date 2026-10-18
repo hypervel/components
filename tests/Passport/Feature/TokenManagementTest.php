@@ -82,6 +82,9 @@ class TokenManagementTest extends PassportTestCase
         Passport::authorizeIntrospectionUsing(fn (Client $client, Token $token): bool => $client->id === $other->id && $token->can('read'));
         $this->form('introspect', $other, ['token' => $credentials['access_token']])->assertJsonPath('active', true);
         $this->form('introspect', $other, ['token' => $credentials['refresh_token']])->assertExactJson(['active' => false]);
+        Passport::authorizeIntrospectionUsing(static fn (): bool => false);
+        $this->form('introspect', $other, ['token' => $credentials['access_token']])->assertExactJson(['active' => false]);
+        Passport::authorizeIntrospectionUsing(static fn (): bool => true);
         $owner->revoke();
         $this->form('introspect', $other, ['token' => $credentials['access_token']])->assertExactJson(['active' => false]);
     }
