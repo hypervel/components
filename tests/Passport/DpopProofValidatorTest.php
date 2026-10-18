@@ -52,7 +52,7 @@ class DpopProofValidatorTest extends TestCase
         [$request, $thumbprint] = $this->proof(['htu' => 'HTTPS://AUTH.EXAMPLE:443/a/../oauth/%74oken?ignored=1#ignored'], algorithm: $algorithm);
         $replays = m::mock(ReplayCache::class);
         $replays->shouldReceive('consume')->once()->with(m::on(static fn (string $identifier): bool => json_decode($identifier, true) === [
-            'dpop', $thumbprint, 'POST', 'https://auth.example/oauth/token', hash('sha256', 'proof'),
+            'dpop', $thumbprint, 'https://auth.example/oauth/token', hash('sha256', 'proof'),
         ]), Date::now()->getTimestamp() + 120)->andReturnTrue();
 
         $this->assertSame($thumbprint, $this->validator($replays)->validate($request));
@@ -197,7 +197,8 @@ class DpopProofValidatorTest extends TestCase
     #[TestWith([false, null, false])]
     #[TestWith([false, true, true])]
     #[TestWith([true, false, false])]
-    public function testReplayPolicyUsesTheServerOverrideAndSkipsTheStoreWhenDisabled(bool $configured, ?bool $override, bool $protected): void
+    #[TestWith([true, null, true, 'GET'])]
+    public function testReplayPolicyUsesTheServerOverrideAndSkipsTheStoreWhenDisabled(bool $configured, ?bool $override, bool $protected, string $method = 'POST'): void
     {
         $now = $this->freezeSecond()->getTimestamp();
         config(['passport.dpop.replay_protection' => $configured]);
@@ -214,8 +215,13 @@ class DpopProofValidatorTest extends TestCase
         }
 
         $validator = $this->validator($this->app->make(ReplayCache::class), new ServerSettings([], dpopReplayProtection: $override));
-        [$request, $thumbprint] = $this->proof();
+        [$request, $thumbprint] = $this->proof(algorithm: 'RS256');
         $this->assertSame($thumbprint, $validator->validate($request));
+
+        if ($method !== 'POST') {
+            [$request] = $this->proof(['htm' => $method], algorithm: 'RS256');
+            $request = $request->withMethod($method);
+        }
 
         try {
             $this->assertSame($thumbprint, $validator->validate($request));

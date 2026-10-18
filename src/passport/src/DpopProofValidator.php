@@ -110,8 +110,9 @@ class DpopProofValidator
             throw $this->invalidProof();
         }
 
+        // Replay tracking covers the same URI across HTTP methods, as recommended by RFC 9449.
         if ($replayProtection && ! $this->replays->consume(
-            json_encode(['dpop', $actualThumbprint, $method, $uri, hash('sha256', $claims->jti)], JSON_THROW_ON_ERROR),
+            json_encode(['dpop', $actualThumbprint, $uri, hash('sha256', $claims->jti)], JSON_THROW_ON_ERROR),
             (int) ceil($claims->iat + self::PROOF_LIFETIME + $leeway),
         )) {
             throw $this->invalidProof('The DPoP proof has already been used.');
