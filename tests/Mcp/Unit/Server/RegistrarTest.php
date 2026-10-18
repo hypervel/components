@@ -651,7 +651,7 @@ class RegistrarTest extends TestCase
         $this->assertSame(['mcp:use'], $clientRepository->client->fresh()?->scopes);
     }
 
-    public function testPreservesScopesGrantedAtCreationWhenPersistingTheMcpScope(): void
+    public function testPreservesCustomScopesAndRemovesDuplicatesAndProvisioningAuthorityWhenAddingTheMcpScope(): void
     {
         $this->createOauthClientsTable();
         $clientRepository = $this->databaseClientRepository(initialScopes: ['*', 'custom:scope', 'passport:register', 'custom:scope']);

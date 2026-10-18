@@ -126,7 +126,7 @@ class OAuthRegisterController
     {
         $scopes = $client->refresh()->scopes ?? config()->array('passport.registration.scopes');
         // Model defaults must not grant anonymous clients wildcard or provisioning authority.
-        $scopes = array_values(array_diff(array_unique([...$scopes, Registrar::OAUTH_SCOPE]), ['*', 'passport:register']));
+        $scopes = array_values(array_diff(array_unique([...$scopes, Registrar::OAUTH_SCOPE]), ['*', Passport::REGISTRATION_SCOPE]));
 
         if (! $client->forceFill(['scopes' => $scopes])->save()) {
             throw new RuntimeException('The client scopes could not be saved.');
