@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Passport\Feature;
 use Firebase\JWT\JWT;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Passport\ApiTokenCookieFactory;
 use Hypervel\Passport\Bridge\ParsedKey;
 use Hypervel\Passport\Client;
 use Hypervel\Passport\Database\Factories\ClientFactory;
@@ -165,10 +166,42 @@ class ClientRegistrationTest extends PassportTestCase
         $this->assertDatabaseCount('oauth_clients', 0);
     }
 
-    public function testBrowserAuthenticationDoesNotGrantProvisioningAuthority(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testBrowserAuthenticationDoesNotGrantProvisioningAuthority(bool $cookie): void
     {
-        $this->actingAs(UserFactory::new()->create(), 'web')
-            ->postJson('/oauth/register', ['grant_types' => ['client_credentials']])
+        $user = UserFactory::new()->create();
+
+        if ($cookie) {
+            Passport::withoutCookieEncryption();
+            $token = app(ApiTokenCookieFactory::class)->make($user->id, 'csrf', 'passport');
+            $this->withCredentials()->withUnencryptedCookie(Passport::cookie(), $token->getValue())
+                ->withHeader('X-CSRF-TOKEN', 'csrf');
+        } else {
+            $this->actingAs($user, 'web');
+        }
+
+        $this->postJson('/oauth/register', ['grant_types' => ['client_credentials']])
+            ->assertBadRequest()->assertJsonPath('error', 'invalid_client_metadata');
+        $this->assertDatabaseCount('oauth_clients', 0);
+    }
+
+    #[TestWith([[42, 'https://client.example/callback']])]
+    #[TestWith([['https://client.example/callback', 42]])]
+    public function testRegistrationRejectsNonStringRedirectMembers(array $redirects): void
+    {
+        $this->postJson('/oauth/register', ['redirect_uris' => $redirects])
+            ->assertBadRequest()->assertJsonPath('error', 'invalid_client_metadata');
+        $this->assertDatabaseCount('oauth_clients', 0);
+    }
+
+    #[TestWith(['{"redirect_uris":', 'application/json'])]
+    #[TestWith(['[]', 'application/json'])]
+    #[TestWith(['"metadata"', 'application/json'])]
+    #[TestWith(['redirect_uris[]=https://client.example/callback', 'application/x-www-form-urlencoded'])]
+    public function testRegistrationRequiresAJsonObject(string $body, string $contentType): void
+    {
+        $this->call('POST', '/oauth/register', server: ['CONTENT_TYPE' => $contentType], content: $body)
             ->assertBadRequest()->assertJsonPath('error', 'invalid_client_metadata');
         $this->assertDatabaseCount('oauth_clients', 0);
     }

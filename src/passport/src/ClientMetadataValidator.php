@@ -64,7 +64,7 @@ class ClientMetadataValidator
             'dpop_bound_access_tokens' => ['sometimes', 'boolean:strict'],
             'require_pushed_authorization_requests' => ['sometimes', 'boolean:strict'],
         ];
-        $validator = $this->validation->make($metadata, $rules);
+        $validator = $this->validation->make($metadata, $rules)->stopOnFirstFailure();
 
         if ($validator->fails()) {
             throw InvalidClientMetadataException::invalidClientMetadata($validator->errors()->first());

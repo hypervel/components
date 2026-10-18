@@ -21,6 +21,7 @@ use Hypervel\Passport\ServerFactory;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Str;
+use JsonException;
 use League\OAuth2\Server\Exception\OAuthServerException;
 use RuntimeException;
 use Throwable;
@@ -49,7 +50,17 @@ class ClientRegistrationController
         return $this->withErrorHandling(function () use ($request): JsonResponse {
             try {
                 $token = $this->provisioningToken($request);
-                $metadata = $this->metadata->validate($request->json()->all(), token: $token);
+                try {
+                    $submitted = json_decode($request->getContent(), true, flags: JSON_THROW_ON_ERROR);
+                } catch (JsonException) {
+                    throw InvalidClientMetadataException::invalidClientMetadata('The registration body must be a JSON object.');
+                }
+
+                if (! is_array($submitted) || ! str_starts_with(ltrim($request->getContent()), '{')) {
+                    throw InvalidClientMetadataException::invalidClientMetadata('The registration body must be a JSON object.');
+                }
+
+                $metadata = $this->metadata->validate($submitted, token: $token);
                 $scopes = $metadata['scope'] === '' ? [] : explode(' ', $metadata['scope']);
 
                 if ($token === null && (array_diff($metadata['grant_types'], ['authorization_code', 'refresh_token']) !== []
@@ -107,7 +118,7 @@ class ClientRegistrationController
         try {
             $validated = $this->servers->validateAuthenticatedRequest($request);
         } catch (OAuthServerException $exception) {
-            throw $this->bearerChallenge($request, 'invalid_token', $exception);
+            throw $this->bearerChallenge($request, $exception->getErrorType() === 'invalid_dpop_proof' ? 'invalid_dpop_proof' : 'invalid_token', $exception);
         }
 
         $token = AccessToken::fromPsrRequest($validated);
