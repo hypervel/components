@@ -631,14 +631,6 @@ class PdoConnection extends Connection
     }
 
     /**
-     * Invalidate the state remembered for the current physical session.
-     */
-    protected function invalidateCurrentSessionState(): void
-    {
-        $this->invalidateSessionState($this->resolvePdo());
-    }
-
-    /**
      * Mark the current write session's state as unknown.
      *
      * @internal

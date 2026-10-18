@@ -36,12 +36,18 @@ trait ManagesTransactions
 
         for ($currentAttempt = 1; $currentAttempt <= $attempts; ++$currentAttempt) {
             $this->beginTransaction();
+            $transactionLevel = $this->transactions;
 
             // We'll simply execute the given callback within a try / catch block and if we
             // catch any exception we can rollback this transaction so that none of this
             // gets actually persisted to a database or stored in a permanent fashion.
             try {
                 $callbackResult = $callback($this);
+
+                // A caught nested cleanup failure can destroy the enclosing transaction and its writes.
+                if ($this->transactions < $transactionLevel) {
+                    throw new RuntimeException('The transaction ended before its callback completed.');
+                }
 
                 if ($this->transactions === 1) {
                     $this->fireConnectionEvent('committing');
@@ -118,33 +124,15 @@ trait ManagesTransactions
      */
     protected function handleTransactionException(Throwable $e, int $currentAttempt, int $maxAttempts): void
     {
-        // On a deadlock, MySQL rolls back the entire transaction so we can't just
-        // retry the query. We have to throw this exception all the way out and
-        // let the developer handle it in another way. We will decrement too.
+        // Roll back failed nested work before propagating it to the outer retry boundary.
+        // If the server already discarded its savepoints, rollback disconnects the unusable session.
         if ($this->causedByConcurrencyError($e)
             && $this->transactions > 1) {
-            $this->invalidateCurrentSessionState();
-
-            --$this->transactions;
-
-            $exception = new DeadlockException(
+            $e = new DeadlockException(
                 $e->getMessage(),
                 $e->getCode(),
                 $e
             );
-
-            try {
-                $this->transactionsManager?->rollback(
-                    $this->getName() ?? '',
-                    $this->transactions
-                );
-            } catch (CanceledException $cancellation) {
-                throw $cancellation;
-            } catch (Throwable) {
-                // Preserve the transaction failure.
-            }
-
-            throw $exception;
         }
 
         // If there was an exception we will rollback this transaction and then we
@@ -164,7 +152,9 @@ trait ManagesTransactions
             $cleanedUp = false;
         }
 
+        // Only retry after all failed work is closed; a callback may leave manual transaction levels open.
         if ($cleanedUp
+            && $this->transactions === 0
             && $this->causedByConcurrencyError($e)
             && $currentAttempt < $maxAttempts) {
             return;

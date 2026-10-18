@@ -8,6 +8,7 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\BinaryParameter;
 use Hypervel\Database\Connection;
 use Hypervel\Database\DatabaseTransactionsManager;
+use Hypervel\Database\DeadlockException;
 use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Database\Events\StatementPrepared;
 use Hypervel\Database\MariaDbConnection;
@@ -960,6 +961,82 @@ class DatabasePdoConnectionTest extends TestCase
         $this->assertNull($connection->getRawPdo());
         $this->assertFalse($pdo->inTransaction());
         $this->assertSame(0, $pdo->query('select count(*) from records')->fetchColumn());
+    }
+
+    public function testManagedTransactionRejectsACaughtSavepointRollbackFailure(): void
+    {
+        $pdo = new PDO('sqlite::memory:');
+        $connection = new SQLiteConnection($pdo);
+        $connection->setTransactionManager(new DatabaseTransactionsManager);
+        $pdo->exec('create table records (value integer)');
+        $committed = false;
+        $failure = null;
+
+        try {
+            $connection->transaction(function () use ($connection, $pdo, &$committed): void {
+                $connection->table('records')->insert(['value' => 1]);
+                $connection->afterCommit(static function () use (&$committed): void {
+                    $committed = true;
+                });
+                $connection->beginTransaction();
+                $pdo->exec('RELEASE SAVEPOINT trans2');
+
+                try {
+                    $connection->rollBack(1);
+                } catch (PDOException $exception) {
+                    $this->assertStringContainsString('no such savepoint: trans2', $exception->getMessage());
+                }
+            });
+        } catch (RuntimeException $exception) {
+            $failure = $exception;
+        }
+
+        $this->assertInstanceOf(RuntimeException::class, $failure);
+        $this->assertSame('The transaction ended before its callback completed.', $failure->getMessage());
+        $this->assertFalse($committed);
+        $this->assertSame(0, $pdo->query('select count(*) from records')->fetchColumn());
+    }
+
+    public function testManagedTransactionDoesNotRetryInsideUnfinishedCallbackWork(): void
+    {
+        $connection = new SQLiteConnection(new PDO('sqlite::memory:'));
+        $failure = new PDOException('database is locked');
+        $attempts = 0;
+        $caught = null;
+
+        try {
+            $connection->transaction(static function () use ($connection, $failure, &$attempts): void {
+                $connection->beginTransaction();
+
+                if (++$attempts === 1) {
+                    throw $failure;
+                }
+
+                $connection->commit();
+            }, 2);
+        } catch (DeadlockException $exception) {
+            $caught = $exception;
+        } finally {
+            $connection->rollBack(0);
+        }
+
+        $this->assertSame(1, $attempts);
+        $this->assertInstanceOf(DeadlockException::class, $caught);
+        $this->assertSame($failure, $caught->getPrevious());
+    }
+
+    #[TestWith(['commit'])]
+    #[TestWith(['rollBack'])]
+    public function testManagedTransactionRejectsManuallyEndingItsOwnTransaction(string $operation): void
+    {
+        $connection = new SQLiteConnection(new PDO('sqlite::memory:'));
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('The transaction ended before its callback completed.');
+
+        $connection->transaction(static function () use ($connection, $operation): void {
+            $connection->{$operation}();
+        });
     }
 
     #[TestWith([false])]

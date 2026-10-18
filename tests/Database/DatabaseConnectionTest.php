@@ -380,7 +380,7 @@ class DatabaseConnectionTest extends TestCase
         $this->assertSame('analytics::write', $writeConnection->getNameWithReadWriteType());
     }
 
-    public function testNeutralNestedConcurrencyFailureInvalidatesOnceWithoutRollingBackTheDriver(): void
+    public function testNeutralNestedConcurrencyFailureRollsBackOnlyTheSavepoint(): void
     {
         $connection = new NeutralTransactionConnectionForTest(
             'analytics',
@@ -402,9 +402,9 @@ class DatabaseConnectionTest extends TestCase
             $this->assertSame($failure, $exception->getPrevious());
         }
 
-        $this->assertSame(1, $connection->invalidateCalls);
-        $this->assertSame(0, $connection->rollBackCalls);
+        $this->assertSame(1, $connection->rollBackCalls);
         $this->assertSame(1, $connection->transactionLevel());
+        $this->assertTrue($connection->inTransaction());
 
         $connection->rollBack();
     }
@@ -3037,8 +3037,6 @@ class NeutralConnectionForTest extends Connection
 
 class NeutralTransactionConnectionForTest extends NeutralConnectionForTest
 {
-    public int $invalidateCalls = 0;
-
     public int $rollBackCalls = 0;
 
     public bool $physicalTransaction = false;
@@ -3046,11 +3044,6 @@ class NeutralTransactionConnectionForTest extends NeutralConnectionForTest
     public function inTransaction(): bool
     {
         return $this->physicalTransaction;
-    }
-
-    protected function invalidateCurrentSessionState(): void
-    {
-        ++$this->invalidateCalls;
     }
 
     protected function executeBeginTransactionStatement(): void
@@ -3070,6 +3063,6 @@ class NeutralTransactionConnectionForTest extends NeutralConnectionForTest
     protected function performRollBack(int $toLevel): void
     {
         ++$this->rollBackCalls;
-        $this->physicalTransaction = false;
+        $this->physicalTransaction = $toLevel > 0;
     }
 }

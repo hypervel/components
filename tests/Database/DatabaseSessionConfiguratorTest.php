@@ -775,26 +775,32 @@ class DatabaseSessionConfiguratorTest extends TestCase
         $this->assertFalse(TestSessionConnection::sessionStateIsUnknownForTest($pdo));
     }
 
-    public function testNestedDriverOwnedRollbackInvalidatesWithoutIssuingAnotherRollback(): void
+    public function testNestedDriverOwnedRollbackDiscardsTheUnusableSession(): void
     {
         $configurator = $this->configurator();
         PdoConnection::configureSessionUsing($configurator);
-        $pdo = new TrackingPdo;
+        $pdo = $this->pdo();
         $connection = $this->connection($pdo);
-        $connection->getPdo();
-        $connection->setTransactionLevelForTest(2);
+        $connection->beginTransaction();
         $exception = new QueryException('test', 'select 1', [], new Exception('Deadlock found when trying to get lock'));
 
         try {
-            $connection->handleTransactionExceptionForTest($exception);
+            $connection->transaction(static function () use ($pdo, $exception): never {
+                // Simulate a server-side deadlock that discards the whole transaction and its savepoints.
+                $pdo->rollBack();
+
+                throw $exception;
+            });
             $this->fail('Expected deadlock exception was not thrown.');
         } catch (DeadlockException $caught) {
             $this->assertSame($exception, $caught->getPrevious());
         }
 
-        $this->assertSame(0, $pdo->rollbackCalls);
+        $this->assertSame(0, $connection->transactionLevel());
+        $this->assertNull($connection->getRawPdo());
+        $this->assertFalse($pdo->inTransaction());
         $this->assertSame([], TestSessionConnection::appliedStatesForTest($pdo));
-        $this->assertFalse(TestSessionConnection::sessionStateIsUnknownForTest($pdo));
+        $this->assertTrue(TestSessionConnection::sessionStateIsUnknownForTest($pdo));
     }
 
     public function testNonLostCommitFailureMarksThePhysicalSessionUnknown(): void
@@ -1039,16 +1045,6 @@ class TestSessionConnection extends PdoConnection
     {
         return static::$physicalSessionStates[$pdo]->appliedStates ?? [];
     }
-
-    public function setTransactionLevelForTest(int $level): void
-    {
-        $this->transactions = $level;
-    }
-
-    public function handleTransactionExceptionForTest(Throwable $exception): void
-    {
-        $this->handleTransactionException($exception, 1, 1);
-    }
 }
 
 class CommitRetryPdo extends PDO
@@ -1095,22 +1091,6 @@ class CommitRetryPdo extends PDO
     {
         ++$this->rollbackCalls;
         $this->transactionActive = false;
-
-        return true;
-    }
-}
-
-class TrackingPdo extends PDO
-{
-    public int $rollbackCalls = 0;
-
-    public function __construct()
-    {
-    }
-
-    public function rollBack(): bool
-    {
-        ++$this->rollbackCalls;
 
         return true;
     }
