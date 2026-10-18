@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Integration\Database;
 
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Connection;
+use Hypervel\Database\DeadlockException;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Engine\Channel;
 use Hypervel\Foundation\Testing\DatabaseTruncation;
@@ -49,6 +50,52 @@ class NestedTransactionRetryTest extends TestCase
             $table->unsignedInteger('worker')->primary();
             $table->unsignedInteger('attempt');
         });
+    }
+
+    #[RequiresDatabase('pgsql')]
+    public function testCaughtNestedLockFailureRollsBackOnlyNestedWork(): void
+    {
+        DB::table('retry_records')->insert(['id' => 0, 'value' => 0]);
+        $ready = new Channel(1);
+        $release = new Channel(1);
+        $committed = [];
+
+        parallel([
+            fn () => DB::transaction(function () use ($ready, $release): void {
+                DB::table('retry_records')->where('id', 0)->lockForUpdate()->first();
+                $ready->push(true);
+                $this->assertTrue($release->pop(5));
+            }),
+            function () use ($ready, $release, &$committed): void {
+                try {
+                    $this->assertTrue($ready->pop(5));
+                    DB::transaction(function (Connection $connection) use (&$committed): void {
+                        $connection->table('retry_records')->insert(['id' => 1, 'value' => 1]);
+                        $connection->afterCommit(static function () use (&$committed): void {
+                            $committed[] = 'outer';
+                        });
+
+                        try {
+                            $connection->transaction(function () use ($connection, &$committed): void {
+                                $connection->table('retry_records')->insert(['id' => 2, 'value' => 2]);
+                                $connection->afterCommit(static function () use (&$committed): void {
+                                    $committed[] = 'nested';
+                                });
+                                $connection->table('retry_records')->where('id', 0)->lock('for update nowait')->first();
+                            });
+                            $this->fail('The competing transaction must hold the row lock.');
+                        } catch (DeadlockException $exception) {
+                            $this->assertSame('55P03', $exception->getCode());
+                        }
+                    });
+                } finally {
+                    $release->push(true);
+                }
+            },
+        ]);
+
+        $this->assertSame([0, 1], DB::table('retry_records')->orderBy('id')->pluck('id')->all());
+        $this->assertSame(['outer'], $committed);
     }
 
     public function testOnlyTheOuterTransactionRetriesAfterAManualSavepointRollback(): void
