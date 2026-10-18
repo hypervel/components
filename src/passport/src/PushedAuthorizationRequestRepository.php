@@ -25,6 +25,14 @@ class PushedAuthorizationRequestRepository
     }
 
     /**
+     * Determine whether a URI belongs to the pushed request namespace.
+     */
+    public function isPushedRequestUri(string $uri): bool
+    {
+        return str_starts_with($uri, self::URI_PREFIX);
+    }
+
+    /**
      * Store validated parameters without retaining client authentication credentials.
      *
      * @param array<string, list<string>|string> $parameters

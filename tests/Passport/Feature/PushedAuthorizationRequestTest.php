@@ -202,6 +202,33 @@ class PushedAuthorizationRequestTest extends PassportTestCase
             ->assertBadRequest()->assertJsonPath('error', 'invalid_request_uri');
     }
 
+    #[TestWith([false, false])]
+    #[TestWith([true, false])]
+    #[TestWith([false, true])]
+    public function testUnsupportedRequestUrisUseOnlyValidatedCallbacks(bool $invalidCallback, bool $requiresPar): void
+    {
+        $client = ClientFactory::new()->create(['require_pushed_authorization_requests' => $requiresPar]);
+        $response = $this->get('/oauth/authorize?' . http_build_query([
+            'client_id' => $client->id,
+            'redirect_uri' => $invalidCallback ? 'https://other.example/callback' : $client->redirect_uris[0],
+            'response_type' => 'code',
+            'request_uri' => 'https://client.example/request.jwt',
+            'state' => ' original state ',
+        ]));
+
+        if ($invalidCallback) {
+            $response->assertUnauthorized()->assertHeaderMissing('Location')->assertJsonPath('error', 'invalid_client');
+        } else {
+            $response->assertRedirect();
+            $this->assertStringStartsWith($client->redirect_uris[0] . '?', $response->headers->get('Location'));
+            parse_str(parse_url($response->headers->get('Location'), PHP_URL_QUERY), $parameters);
+            $this->assertSame($requiresPar ? 'invalid_request' : 'request_uri_not_supported', $parameters['error']);
+            $this->assertSame(' original state ', $parameters['state']);
+        }
+
+        $response->assertSessionMissing('passport.authorizations');
+    }
+
     #[TestWith([[]])]
     #[TestWith([['read']])]
     public function testEffectiveDefaultScopesRemainFrozen(array $ceiling): void
