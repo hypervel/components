@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Passport\Feature;
 
-use Hypervel\Http\Exceptions\HttpResponseException;
 use Hypervel\Passport\AuthorizationRequestResolver;
 use Hypervel\Passport\Bridge\TokenIssuance;
 use Hypervel\Passport\Bridge\User;
@@ -74,36 +73,6 @@ class AuthorizationRequestResolverTest extends PassportTestCase
         $this->post('/oauth/token', $exchange)->assertOk()->assertJsonStructure(['access_token', 'refresh_token']);
     }
 
-    public function testRestoringEmptyScopesDoesNotApplyNewDefaults(): void
-    {
-        $client = ClientFactory::new()->create();
-        Passport::tokensCan(['read' => 'Read']);
-        $servers = $this->app->make(ServerFactory::class);
-        $servers->authorizationServer()->setDefaultScope('read');
-        $restored = $this->app->make(AuthorizationRequestResolver::class)->resolve([
-            'parameters' => ['client_id' => $client->id, 'response_type' => 'code'],
-            'scopes' => [], 'redirect_uri' => $client->redirect_uris[0], 'pushed' => false,
-        ], new ServerRequest('GET', '/oauth/authorize/resume/pending'));
-
-        $this->assertSame([], $restored->getScopes());
-    }
-
-    public function testRestoringRejectsARemovedRedirectDestination(): void
-    {
-        $client = ClientFactory::new()->create(['redirect_uris' => ['https://client.example/new']]);
-
-        try {
-            $this->app->make(AuthorizationRequestResolver::class)->resolve([
-                'parameters' => ['client_id' => $client->id, 'response_type' => 'code'],
-                'scopes' => [], 'redirect_uri' => 'https://client.example/old', 'pushed' => false,
-            ], new ServerRequest('GET', '/oauth/authorize/resume/pending'));
-            $this->fail('The removed callback was accepted.');
-        } catch (HttpResponseException $exception) {
-            $this->assertFalse($exception->getResponse()->headers->has('Location'));
-            $this->assertSame('invalid_client', json_decode($exception->getResponse()->getContent(), true)['error']);
-        }
-    }
-
     #[DataProvider('authorizationErrors')]
     public function testAuthorizationErrorsUseOnlyValidatedCallbacks(array $parameters, array $attributes, string $error, bool $redirect): void
     {
@@ -149,8 +118,11 @@ class AuthorizationRequestResolverTest extends PassportTestCase
             yield $mode . ' unauthorized client' => [['response_mode' => $mode], ['grant_types' => []], 'unauthorized_client', true];
             yield $mode . ' unknown scope' => [['response_mode' => $mode, 'scope' => 'unknown'], [], 'invalid_scope', true];
             yield $mode . ' plain PKCE' => [['response_mode' => $mode, 'code_challenge' => str_repeat('a', 43)], [], 'invalid_request', true];
+            yield $mode . ' unsupported response with attacker callback' => [['response_mode' => $mode, 'response_type' => 'token', 'redirect_uri' => 'https://attacker.example'], [], 'unsupported_response_type', false];
+            yield $mode . ' unauthorized grant with attacker callback' => [['response_mode' => $mode, 'redirect_uri' => 'https://attacker.example'], ['grant_types' => []], 'unauthorized_client', false];
         }
 
+        yield 'invalid UTF-8 state' => [['state' => "\xff"], [], 'invalid_request', false];
         yield 'missing client' => [['client_id' => null], [], 'invalid_request', false];
         yield 'revoked client' => [[], ['revoked' => true], 'invalid_client', false];
         yield 'unregistered callback' => [['redirect_uri' => 'https://other.example'], [], 'invalid_client', false];

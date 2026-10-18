@@ -146,6 +146,7 @@ class PushedAuthorizationRequestTest extends PassportTestCase
     #[TestWith(['response_mode', 'fragment', 'invalid_request', 400])]
     #[TestWith(['prompt', 'none login', 'invalid_request', 400])]
     #[TestWith(['resource', 'https://unknown.example', 'invalid_target', 400])]
+    #[TestWith(['state', "\xff", 'invalid_request', 400])]
     public function testInvalidPushesReturnJsonWithoutRedirecting(string $name, string $value, string $error, int $status): void
     {
         $client = ClientFactory::new()->create(['scopes' => ['read']]);
