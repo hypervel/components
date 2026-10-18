@@ -4796,6 +4796,51 @@ class ValidationValidatorTest extends TestCase
         ], $validator->errors()->toArray());
     }
 
+    public function testDistinctCountsRespectEachRulesComparisonAndResetBetweenPasses(): void
+    {
+        $validator = new Validator($this->getArrayTranslator(), [
+            'values' => ['01', '1', '01', 'name'],
+        ], [
+            'values.*' => ['distinct:strict'],
+            'values.1' => ['distinct'],
+        ]);
+
+        $this->assertEqualsCanonicalizing(['values.0', 'values.1', 'values.2'], $validator->errors()->keys());
+        $this->assertFalse($validator->validateDistinct('values.3', '01', ['strict']));
+        $this->assertTrue($validator->validateDistinct('values.0', 'missing', ['strict']));
+
+        $validator->setData(['values' => ['01', '2', 'name', 'other']]);
+        $this->assertTrue($validator->passes());
+        $validator->setData(['values' => ['same', 'same']]);
+        $this->assertFalse($validator->passes());
+        $this->assertEqualsCanonicalizing(['values.0', 'values.1'], $validator->errors()->keys());
+    }
+
+    public function testDistinctCountsPreserveStrictValueTypesAndLooseComparisons(): void
+    {
+        $object = new stdClass;
+        $values = ['one', 'two', 1, '1', true, null, 0.0, -0.0, NAN, NAN, 1.000000000000001, 1.000000000000002, $object, $object, new stdClass, [], []];
+        $validator = new Validator($this->getArrayTranslator(), ['values' => $values], ['values.*' => 'distinct:strict']);
+
+        foreach ($values as $index => $value) {
+            $this->assertSame(
+                ! in_array($index, [6, 7, 12, 13, 15, 16], true),
+                $validator->validateDistinct("values.{$index}", $value, ['strict']),
+                "Unexpected strict comparison for index {$index}."
+            );
+        }
+
+        $this->assertFalse($validator->validateDistinct('values.*', null, ['strict']));
+
+        $validator = new Validator($this->getArrayTranslator(), ['values' => [1, 2, 2]], ['values.*' => 'distinct']);
+        $this->assertSame(['values.1', 'values.2'], $validator->errors()->keys());
+        $this->assertFalse($validator->validateDistinct('values.0', '2', []));
+        $this->assertTrue($validator->validateDistinct('values.0', NAN, []));
+
+        $validator = new Validator($this->getArrayTranslator(), ['values' => [NAN, true]], ['values.*' => 'distinct']);
+        $this->assertFalse($validator->validateDistinct('values.0', NAN, []));
+    }
+
     public function testFirstDeclaredOverlappingWildcardDefinesDistinctScope(): void
     {
         $validator = new Validator($this->getArrayTranslator(), [

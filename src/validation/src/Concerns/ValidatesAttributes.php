@@ -879,7 +879,46 @@ trait ValidatesAttributes
      */
     public function validateDistinct(string $attribute, mixed $value, mixed $parameters): bool
     {
-        $data = Arr::except($this->getDistinctValues($attribute), $attribute);
+        $values = $this->getDistinctValues($attribute);
+
+        if (is_float($value) && is_nan($value) && in_array('strict', $parameters, true)) {
+            return true;
+        }
+
+        if (! is_string($value) || ! in_array('ignore_case', $parameters, true)) {
+            $primary = $this->getPrimaryAttribute($attribute);
+
+            if (! array_key_exists($primary, $this->distinctValueCounts)) {
+                $counts = [];
+                $looseType = $values === [] ? null : gettype(reset($values));
+                $looseType = in_array($looseType, ['string', 'integer'], true) ? $looseType : null;
+
+                foreach ($values as $other) {
+                    if (($looseType === 'string' && (! is_string($other) || is_numeric($other)))
+                        || ($looseType === 'integer' && ! is_int($other))) {
+                        $looseType = null;
+                    }
+
+                    if (($key = $this->getDistinctValueKey($other)) !== null) {
+                        $counts[$key] = ($counts[$key] ?? 0) + 1;
+                    }
+                }
+
+                $this->distinctValueCounts[$primary] = ['counts' => $counts, 'looseType' => $looseType];
+            }
+
+            $cached = $this->distinctValueCounts[$primary];
+            $key = $this->getDistinctValueKey($value);
+
+            // Mixed loose equality is not transitive, so only homogeneous ints and nonnumeric strings can use counts.
+            if ($key !== null && (in_array('strict', $parameters, true) || $cached['looseType'] === gettype($value))) {
+                $self = array_key_exists($attribute, $values) && $values[$attribute] === $value;
+
+                return ($cached['counts'][$key] ?? 0) <= (int) $self;
+            }
+        }
+
+        $data = Arr::except($values, $attribute);
 
         if (in_array('ignore_case', $parameters, true) && is_string($value)) {
             foreach ($data as $key => $other) {
@@ -892,6 +931,24 @@ trait ValidatesAttributes
         }
 
         return ! in_array($value, array_values($data), in_array('strict', $parameters, true));
+    }
+
+    /**
+     * Identify values whose strict equality can be counted without comparing every sibling.
+     */
+    protected function getDistinctValueKey(mixed $value): ?string
+    {
+        return match (gettype($value)) {
+            'string' => 's' . $value,
+            'integer' => 'i' . $value,
+            'boolean' => $value ? 'b1' : 'b0',
+            'NULL' => 'n',
+            // Binary floats preserve precision; PHP considers the two signed zeros equal.
+            'double' => is_nan($value) ? null : 'f' . pack('e', $value === 0.0 ? 0.0 : $value),
+            'object' => 'o' . spl_object_id($value),
+            'array' => $value === [] ? 'a' : null,
+            default => null,
+        };
     }
 
     /**
