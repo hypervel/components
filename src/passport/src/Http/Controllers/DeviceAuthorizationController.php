@@ -48,9 +48,7 @@ class DeviceAuthorizationController
             return to_route('passport.device');
         }
 
-        $deviceCode = $this->deviceCodes->getDeviceCodeEntityByUserCode(
-            strtoupper(str_replace('-', '', $userCode))
-        );
+        $deviceCode = $this->deviceCodes->getDeviceCodeEntityByUserCode($userCode);
 
         $client = $deviceCode ? $this->clients->findActive($deviceCode->getClient()->getIdentifier()) : null;
 
