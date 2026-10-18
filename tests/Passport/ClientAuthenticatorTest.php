@@ -8,6 +8,7 @@ use Firebase\JWT\JWT;
 use GuzzleHttp\Psr7\ServerRequest;
 use Hypervel\Config\Repository;
 use Hypervel\Contracts\Cache\Factory;
+use Hypervel\Http\Client\Destinations\DestinationPolicyException;
 use Hypervel\Passport\Bridge\ParsedKey;
 use Hypervel\Passport\Client;
 use Hypervel\Passport\ClientAuthenticator;
@@ -165,7 +166,7 @@ class ClientAuthenticatorTest extends TestCase
         [$client, $privateKey] = $this->assertionClient();
 
         $this->expectException(OAuthServerException::class);
-        $this->authenticator($client, issuer: null)->authenticate($this->assertionRequest($privateKey));
+        $this->authenticator($client, issuer: null)->authenticate($this->assertionRequest($privateKey, ['aud' => null]));
     }
 
     #[TestWith([300, true])]
@@ -280,6 +281,17 @@ class ClientAuthenticatorTest extends TestCase
         }
 
         Http::assertSentCount(1);
+    }
+
+    public function testServerDestinationPolicyErrorsAreNotHiddenAsInvalidCredentials(): void
+    {
+        [$client, $privateKey] = $this->assertionClient();
+        $failure = new DestinationPolicyException('The HTTP transport cannot enforce the destination policy.');
+        $keys = m::mock(ClientKeyRepository::class);
+        $keys->shouldReceive('find')->once()->andThrow($failure);
+
+        $this->expectExceptionObject($failure);
+        $this->authenticator($client, keys: $keys)->authenticate($this->assertionRequest($privateKey));
     }
 
     /**

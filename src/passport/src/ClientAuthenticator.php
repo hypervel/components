@@ -6,7 +6,9 @@ namespace Hypervel\Passport;
 
 use DomainException;
 use Hypervel\Contracts\Cache\LockTimeoutException;
-use Hypervel\Http\Client\HttpClientException;
+use Hypervel\Http\Client\ConnectionException;
+use Hypervel\Http\Client\Destinations\DisallowedDestinationException;
+use Hypervel\Http\Client\RequestException;
 use Hypervel\Passport\Exceptions\UnsupportedKeyException;
 use Hypervel\Support\Facades\Date;
 use InvalidArgumentException;
@@ -231,7 +233,7 @@ class ClientAuthenticator
             $error->setPayload(['error' => 'invalid_client', 'error_description' => $exception->getMessage()]);
 
             throw $error;
-        } catch (DomainException|InvalidArgumentException|UnexpectedValueException|HttpClientException|JsonException|LockTimeoutException) {
+        } catch (DomainException|InvalidArgumentException|UnexpectedValueException|ConnectionException|RequestException|DisallowedDestinationException|JsonException|LockTimeoutException) {
             throw OAuthServerException::invalidClient($request);
         }
 
