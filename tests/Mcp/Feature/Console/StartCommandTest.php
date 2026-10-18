@@ -211,7 +211,7 @@ class StartCommandTest extends TestCase
     public function testReturnsOAuthAuthenticateHeaderWhenOAuthRoutesAreEnabledAndResponseIs401(): void
     {
         // Enable OAuth routes which registers the 'mcp.oauth.protected-resource' route
-        app(Registrar::class)->oauthRoutes();
+        app(Registrar::class)->oauthRoutes(registration: false);
 
         // Create a test route that returns 401 to trigger the middleware
         Route::post('test-oauth-401', fn () => response()->json(['error' => 'unauthorized'], 401))->middleware([AddWwwAuthenticateHeader::class]);
@@ -228,7 +228,7 @@ class StartCommandTest extends TestCase
 
     public function testReturnsOAuthAuthenticateHeaderForNestedMcpPaths(): void
     {
-        app(Registrar::class)->oauthRoutes();
+        app(Registrar::class)->oauthRoutes(registration: false);
 
         Route::post('mcp/nested/test-oauth-401', fn () => response()->json(['error' => 'unauthorized'], 401))
             ->middleware([AddWwwAuthenticateHeader::class]);
@@ -262,7 +262,7 @@ class StartCommandTest extends TestCase
 
     public function testDoesNotAddAuthenticateHeaderWhenResponseIsNot401(): void
     {
-        app(Registrar::class)->oauthRoutes();
+        app(Registrar::class)->oauthRoutes(registration: false);
 
         $response = $this->postJson('test-mcp', $message = listToolsMessage(), mcpHeaders($message));
 

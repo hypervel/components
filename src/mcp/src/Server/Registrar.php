@@ -189,7 +189,7 @@ class Registrar
         if ($registration && class_exists(Passport::class)) {
             Router::post($oauthPrefix . '/register', OAuthRegisterController::class)
                 ->name('passport.clients.register')
-                ->middleware('throttle:passport');
+                ->middleware([...config()->array('passport.middleware'), 'throttle:passport']);
         }
     }
 
