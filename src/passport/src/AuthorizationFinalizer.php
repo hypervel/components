@@ -159,6 +159,10 @@ class AuthorizationFinalizer
 
         foreach ($permissions as $namespace => $values) {
             if ($namespace === 'resources') {
+                if ($values === null || $values === '') {
+                    $values = $permissions['resources'] = [];
+                }
+
                 if (! is_array($values) || array_diff_key($values, $presented['permissions']['resources']) !== []) {
                     throw OAuthServerException::invalidRequest('permissions');
                 }

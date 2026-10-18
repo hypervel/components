@@ -120,11 +120,15 @@ class ResourceIndicatorsTest extends PassportTestCase
         $this->assertTrue($consent->fresh()->covers([], ['resources' => [self::SECOND => []]]));
     }
 
-    public function testRemovingEveryTargetDeniesAuthorization(): void
+    #[TestWith([[]])]
+    #[TestWith([['resources' => []]])]
+    #[TestWith([['resources' => '']])]
+    #[TestWith([['resources' => null]])]
+    public function testRemovingEveryTargetDeniesAuthorization(array $permissions): void
     {
         $client = ClientFactory::new()->create();
         $presentation = $this->presentation($client, [self::FIRST]);
-        $response = $this->post('/oauth/authorize/consent', ['auth_token' => $presentation['authToken'], 'permissions' => []])->assertRedirect();
+        $response = $this->post('/oauth/authorize/consent', ['auth_token' => $presentation['authToken'], 'permissions' => $permissions])->assertRedirect();
         parse_str(parse_url($response->headers->get('Location'), PHP_URL_QUERY), $parameters);
         $this->assertSame('access_denied', $parameters['error']);
         $this->assertDatabaseCount('oauth_auth_codes', 0);
