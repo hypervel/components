@@ -166,6 +166,29 @@ class PushedAuthorizationRequestTest extends PassportTestCase
         $this->assertDatabaseCount('oauth_pushed_authorization_requests', 0);
     }
 
+    public function testInspectionPreservesTheReferenceAndRequiresItsClientAndLifetime(): void
+    {
+        $client = ClientFactory::new()->create();
+        $uri = $this->push($client, ['scope' => 'read', 'state' => ' original '])->assertCreated()->json('request_uri');
+        $repository = $this->app->make(PushedAuthorizationRequestRepository::class);
+
+        $record = $repository->find($uri, $client->id);
+        $this->assertSame(' original ', $record->parameters['state']);
+        $this->assertSame(['read'], $record->scopes);
+        $this->assertSame($client->redirect_uris[0], $record->redirect_uri);
+        $this->assertNull($repository->find($uri, 'not-a-uuid'));
+        $this->assertNull($repository->find('unknown-reference', $client->id));
+        $this->assertDatabaseCount('oauth_pushed_authorization_requests', 1);
+
+        $this->assertSame($record->id, $repository->consume($uri, $client->id)->id);
+        $this->assertNull($repository->find($uri, $client->id));
+
+        $uri = $this->push($client)->assertCreated()->json('request_uri');
+        $this->travel(90)->seconds();
+        $this->assertNull($repository->find($uri, $client->id));
+        $this->assertDatabaseCount('oauth_pushed_authorization_requests', 1);
+    }
+
     public function testWrongClientsCannotConsumeReferencesAndExpiryIsEnforced(): void
     {
         $client = ClientFactory::new()->create();

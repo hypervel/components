@@ -50,6 +50,20 @@ class PushedAuthorizationRequestRepository
     }
 
     /**
+     * Find an unexpired reference for its client without consuming it.
+     */
+    public function find(string $uri, string $clientId): ?PushedAuthorizationRequest
+    {
+        $authorization = Passport::pushedAuthorizationRequest()->newQuery()->useWritePdo()
+            ->whereKey(hash('sha256', $uri))
+            ->where('expires_at', '>', Date::now())
+            ->first();
+
+        // Compare opaque input before binding it to a native UUID column.
+        return $authorization?->client_id === $clientId ? $authorization : null;
+    }
+
+    /**
      * Consume an unexpired reference for its client before creating browser state.
      */
     public function consume(string $uri, string $clientId): PushedAuthorizationRequest
@@ -61,12 +75,10 @@ class PushedAuthorizationRequestRepository
             throw new LogicException('Pushed authorization request consumption cannot run inside an application transaction.');
         }
 
-        $query = $model->newQuery()->useWritePdo()->whereKey(hash('sha256', $uri));
-        $authorization = (clone $query)->where('expires_at', '>', Date::now())->first();
+        $authorization = $this->find($uri, $clientId);
 
-        // Compare opaque input before binding it to a native UUID column.
-        if ($authorization === null || $authorization->client_id !== $clientId
-            || $query->where('client_id', $clientId)->where('expires_at', '>', Date::now())->delete() !== 1) {
+        if ($authorization === null || $model->newQuery()->whereKey($authorization->getKey())
+            ->where('client_id', $clientId)->where('expires_at', '>', Date::now())->delete() !== 1) {
             throw new OAuthServerException('The pushed authorization request is invalid or expired.', 9, 'invalid_request_uri', 400);
         }
 
