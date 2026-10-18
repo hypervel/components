@@ -588,7 +588,9 @@ class InstallCommandTest extends TestCase
         };
 
         $application = m::mock(Application::class);
-        $outputStyle = m::mock(OutputStyle::class);
+        $consoleInput = new ArrayInput($input);
+        $output = new NullOutput;
+        $outputStyle = new OutputStyle($consoleInput, $output);
         $components = m::mock(Factory::class);
 
         $this->filesystem->ensureDirectoryExists($this->path('workbench'));
@@ -601,12 +603,11 @@ class InstallCommandTest extends TestCase
         $application->shouldReceive('basePath')->with('.env.example')->andReturn($this->path('.env.example'));
         $application->shouldReceive('runningUnitTests')->andReturn(true);
         $application->shouldReceive('call')->with([$command, 'handle'])->andReturnUsing(fn (array $callback): int => $callback[0]->handle($this->filesystem, m::mock(Composer::class)));
-        $outputStyle->shouldReceive('newLinesWritten')->andReturn(1);
         $components->shouldReceive('task')->zeroOrMoreTimes();
 
         $expectations($components);
 
-        $status = $command->run(new ArrayInput($input), new NullOutput);
+        $status = $command->run($consoleInput, $output);
 
         $this->assertSame(InstallCommand::SUCCESS, $status);
     }

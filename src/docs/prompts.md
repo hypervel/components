@@ -32,6 +32,7 @@
 - [Terminal Considerations](#terminal-considerations)
 - [Unsupported Environments and Fallbacks](#fallbacks)
 - [Testing](#testing)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -1610,6 +1611,8 @@ $stream->close();
 
 The `append` method adds text to the stream, rendering it with a gradual fade-in effect. When all content has been streamed, call the `close` method to finalize the output and restore the cursor.
 
+Console style tags such as `<info>` in streamed text are displayed as written rather than interpreted.
+
 <a name="terminal-title"></a>
 ## Terminal Title
 
@@ -1773,3 +1776,8 @@ public function test_report_generation(): void
         ->assertExitCode(0);
 }
 ```
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Prompts began as a port of [Laravel Prompts](https://github.com/laravel/prompts) and has been adapted for Hypervel's framework architecture and coroutine runtime.

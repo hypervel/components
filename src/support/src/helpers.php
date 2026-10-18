@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Carbon\CarbonInterval;
 use Hypervel\Contracts\Support\DeferringDisplayableValue;
 use Hypervel\Contracts\Support\Htmlable;
+use Hypervel\Database\ConnectionResolver;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Env;
@@ -347,10 +348,15 @@ if (! function_exists('retry')) {
 
                 if ($sleepMilliseconds) {
                     $duration = value($sleepMilliseconds, $attempts, $e);
-
-                    Sleep::usleep((int) ($duration instanceof CarbonInterval
+                    $microseconds = (int) ($duration instanceof CarbonInterval
                         ? $duration->totalMicroseconds
-                        : $duration * 1000));
+                        : $duration * 1000);
+
+                    if ($microseconds > 0) {
+                        ConnectionResolver::releaseIdleConnections();
+                    }
+
+                    Sleep::usleep($microseconds);
                 }
             }
         }

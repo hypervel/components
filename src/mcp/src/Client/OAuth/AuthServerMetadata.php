@@ -1,0 +1,51 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Mcp\Client\OAuth;
+
+use Hypervel\Mcp\Client\Exceptions\OAuthException;
+
+class AuthServerMetadata
+{
+    /**
+     * Create authorization server metadata.
+     *
+     * @param array<int, string> $codeChallengeMethodsSupported
+     * @param array<int, string> $tokenEndpointAuthMethodsSupported
+     */
+    public function __construct(
+        public string $issuer,
+        public string $authorizationEndpoint,
+        public string $tokenEndpoint,
+        public ?string $registrationEndpoint = null,
+        public array $codeChallengeMethodsSupported = [],
+        public bool $authorizationResponseIssParameterSupported = false,
+        public array $tokenEndpointAuthMethodsSupported = [],
+        public bool $clientIdMetadataDocumentSupported = false,
+    ) {
+    }
+
+    /**
+     * Create metadata from an authorization server document.
+     *
+     * @param array<string, mixed> $data
+     */
+    public static function fromArray(array $data): self
+    {
+        if (empty($data['authorization_endpoint']) || empty($data['token_endpoint'])) {
+            throw new OAuthException('Authorization server metadata is missing required endpoints.');
+        }
+
+        return new self(
+            issuer: (string) ($data['issuer'] ?? ''),
+            authorizationEndpoint: (string) $data['authorization_endpoint'],
+            tokenEndpoint: (string) $data['token_endpoint'],
+            registrationEndpoint: isset($data['registration_endpoint']) ? (string) $data['registration_endpoint'] : null,
+            codeChallengeMethodsSupported: array_values(array_map(strval(...), (array) ($data['code_challenge_methods_supported'] ?? []))),
+            authorizationResponseIssParameterSupported: (bool) ($data['authorization_response_iss_parameter_supported'] ?? false),
+            tokenEndpointAuthMethodsSupported: array_values(array_map(strval(...), (array) ($data['token_endpoint_auth_methods_supported'] ?? []))),
+            clientIdMetadataDocumentSupported: (bool) ($data['client_id_metadata_document_supported'] ?? false),
+        );
+    }
+}

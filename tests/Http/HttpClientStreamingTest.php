@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Http;
 
 use Closure;
-use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Exception\TransferException;
 use GuzzleHttp\Handler\StreamHandler;
+use GuzzleHttp\Psr7\Exception\TimeoutException;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Http\Client\ConnectionException;
 use Hypervel\Http\Client\CurlStreamingHandler;
@@ -49,6 +49,7 @@ class HttpClientStreamingTest extends TestCase
     {
         return [
             'default handler unavailable' => ['default', 1, 'Streaming responses require allow_url_fopen when using the default HTTP handler.'],
+            'pinned handler unavailable' => ['pinned', 1, 'Streaming responses require allow_url_fopen when using the default HTTP handler.'],
             'caller owns the handler' => ['handler', 0, 'custom handler'],
             'caller owns the client' => ['client', 0, 'custom client'],
             'caller owns the stack' => ['stack', 0, 'custom stack'],
@@ -106,9 +107,9 @@ class HttpClientStreamingTest extends TestCase
 
     public function testConcurrentPhpStreamsReleaseTheirResponseHeaders(): void
     {
-        // @TODO: Update the version gate when Swoole releases the response-header ownership fix.
-        if (SWOOLE_VERSION_ID <= 60203) {
-            $this->markTestSkipped('Swoole 6.2.3 and earlier do not isolate PHP response-header ownership between coroutines.');
+        // @TODO: Update the version gate when https://github.com/swoole/swoole-src/issues/6307 is fixed and released.
+        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
+            $this->markTestSkipped('Swoole 6.3.0 RC1 and earlier do not isolate PHP response-header ownership between coroutines.');
         }
 
         $process = new Process([PHP_BINARY, __DIR__ . '/Fixtures/concurrent-stream-headers.php']);
@@ -125,11 +126,6 @@ class HttpClientStreamingTest extends TestCase
 
     public function testConcurrentFallbackRequestsKeepIndependentDeadlines(): void
     {
-        // @TODO: Update this version gate once https://github.com/guzzle/guzzle/pull/3934 ships.
-        if (ClientInterface::MAJOR_VERSION >= 8) {
-            $this->markTestSkipped('Guzzle 8 stores concurrent StreamHandler request deadlines on the shared handler.');
-        }
-
         $process = new Process([PHP_BINARY, __DIR__ . '/Fixtures/concurrent-stream-deadlines.php']);
         $process->setTimeout(10);
         $process->run();
@@ -140,9 +136,6 @@ class HttpClientStreamingTest extends TestCase
 
     public function testFallbackJsonLinesArriveBeforeTheNextChunk(): void
     {
-        // @TODO: Enable this test for versions containing https://github.com/guzzle/guzzle/pull/3936.
-        $this->markTestSkipped('Guzzle holds later chunked response data until the read buffer fills or times out.');
-
         // Without native cURL hooks, the default handler uses PHP streams.
         $this->withStreamingServer('chunked', function (string $address): void {
             $response = (new Factory)->withOptions(['stream' => true, 'read_timeout' => 3])
@@ -170,10 +163,6 @@ class HttpClientStreamingTest extends TestCase
     #[DataProvider('streamingTransports')]
     public function testBufferedFirstRecordArrivesBeforeTheNextServerWrite(bool $native, string $mode): void
     {
-        if (! $native && SWOOLE_VERSION_ID <= 60203) {
-            $this->markTestSkipped('Swoole 6.2.3 and earlier lack the buffered-read fix: https://github.com/swoole/swoole-src/pull/6235.');
-        }
-
         $this->withStreamingServer($mode, function (string $address) use ($native, $mode): void {
             $received = new Channel(1);
             try {
@@ -200,7 +189,7 @@ class HttpClientStreamingTest extends TestCase
                         }
                     },
                     'release' => function () use ($address, $received): mixed {
-                        $first = $received->pop(1);
+                        $first = $received->pop(3);
                         $this->releaseServer($address);
 
                         return $first;
@@ -382,90 +371,92 @@ class HttpClientStreamingTest extends TestCase
     #[DataProvider('connectionRoutes')]
     public function testNamedStreamsReuseConnectionsWithoutSharingCredentialsOrCookies(bool $proxy): void
     {
-        $process = new Process([PHP_BINARY, dirname(__DIR__) . '/HttpServer/Fixtures/disconnect-server.php', '', 'process']);
-        $process->setTimeout(10);
-        $process->start();
-        $processId = $process->getPid();
-
-        try {
-            $deadline = microtime(true) + 3;
-
-            while (! str_contains($process->getOutput(), 'READY ') && $process->isRunning() && microtime(true) < $deadline) {
-                usleep(10000);
-            }
-
-            $this->assertSame(1, preg_match('/READY (\d+)/', $process->getOutput(), $matches), $process->getErrorOutput());
-            $endpoint = 'http://127.0.0.1:' . $matches[1];
+        $this->withIdentityServer(function (int $port) use ($proxy): void {
+            $endpoint = 'http://127.0.0.1:' . $port;
             $url = ($proxy ? 'http://provider.invalid' : $endpoint) . '/identity';
-            $failure = null;
+            $factory = (new Factory)->registerConnection('provider');
+            $connections = [];
+            $tokens = ['first-account', 'second-account', 'first-account', null, 'second-account'];
 
-            run(function () use ($url, $endpoint, $proxy, &$failure): void {
-                try {
-                    $factory = (new Factory)->registerConnection('provider');
-                    $connections = [];
-                    $tokens = ['first-account', 'second-account', 'first-account', null, 'second-account'];
-
-                    for ($index = 3; $index <= CurlStreamingHandler::MAX_IDLE_CONNECTIONS; ++$index) {
-                        $tokens[] = 'account-' . $index;
-                    }
-
-                    $tokens[] = 'account-' . CurlStreamingHandler::MAX_IDLE_CONNECTIONS;
-                    $tokens[] = 'first-account';
-
-                    foreach ($tokens as $token) {
-                        $request = $factory->connection('provider')->withOptions(['stream' => true]);
-
-                        if ($proxy) {
-                            $request->withOptions([
-                                'proxy' => $endpoint,
-                                'curl' => [
-                                    CURLOPT_HTTPPROXYTUNNEL => true,
-                                    CURLOPT_PROXYHEADER => $token === null ? [] : ['Proxy-Authorization: Bearer ' . $token],
-                                ],
-                            ]);
-                        }
-
-                        if ($token !== null) {
-                            $request->withToken($token);
-                        }
-
-                        $response = $request->get($url);
-
-                        try {
-                            $identity = $response->json();
-                            $connections[] = $identity['connection'];
-                            $this->assertSame($token === null ? null : 'Bearer ' . $token, $identity['authorization']);
-                            $this->assertSame($proxy && $token !== null ? 'Bearer ' . $token : null, $identity['proxy_authorization']);
-                            $this->assertNull($identity['cookie']);
-                        } finally {
-                            $response->close();
-                        }
-                    }
-
-                    $this->assertCount($proxy ? CurlStreamingHandler::MAX_IDLE_CONNECTIONS + 2 : 1, array_unique($connections));
-                    $this->assertSame($connections[0], $connections[2]);
-                    $this->assertSame($connections[1], $connections[4]);
-                    $this->assertSame($connections[count($connections) - 3], $connections[count($connections) - 2]);
-
-                    if ($proxy) {
-                        $this->assertNotSame($connections[0], end($connections), 'The least recently used identity was not evicted.');
-                    }
-                } catch (Throwable $exception) {
-                    $failure = $exception;
-                }
-            }, SWOOLE_HOOK_ALL);
-
-            if ($failure !== null) {
-                throw $failure;
+            for ($index = 3; $index <= CurlStreamingHandler::MAX_IDLE_CONNECTIONS; ++$index) {
+                $tokens[] = 'account-' . $index;
             }
-        } finally {
-            posix_kill(-$processId, SIGKILL);
-            $process->stop(0);
-        }
+
+            $tokens[] = 'account-' . CurlStreamingHandler::MAX_IDLE_CONNECTIONS;
+            $tokens[] = 'first-account';
+
+            foreach ($tokens as $token) {
+                $request = $factory->connection('provider')->withOptions(['stream' => true]);
+
+                if ($proxy) {
+                    $request->withOptions([
+                        'proxy' => $endpoint,
+                        'curl' => [
+                            CURLOPT_HTTPPROXYTUNNEL => true,
+                            CURLOPT_PROXYHEADER => $token === null ? [] : ['Proxy-Authorization: Bearer ' . $token],
+                        ],
+                    ]);
+                }
+
+                if ($token !== null) {
+                    $request->withToken($token);
+                }
+
+                $response = $request->get($url);
+
+                try {
+                    $identity = $response->json();
+                    $connections[] = $identity['connection'];
+                    $this->assertSame($token === null ? null : 'Bearer ' . $token, $identity['authorization']);
+                    $this->assertSame($proxy && $token !== null ? 'Bearer ' . $token : null, $identity['proxy_authorization']);
+                    $this->assertNull($identity['cookie']);
+                } finally {
+                    $response->close();
+                }
+            }
+
+            $this->assertCount($proxy ? CurlStreamingHandler::MAX_IDLE_CONNECTIONS + 2 : 1, array_unique($connections));
+            $this->assertSame($connections[0], $connections[2]);
+            $this->assertSame($connections[1], $connections[4]);
+            $this->assertSame($connections[count($connections) - 3], $connections[count($connections) - 2]);
+
+            if ($proxy) {
+                $this->assertNotSame($connections[0], end($connections), 'The least recently used identity was not evicted.');
+            }
+        });
+    }
+
+    #[DataProvider('connectionRoutes')]
+    public function testNamedStreamsReuseConnectionsAcrossAlternatingOrigins(bool $proxy): void
+    {
+        $this->withIdentityServer(function (int $port) use ($proxy): void {
+            $factory = (new Factory)->registerConnection('provider');
+            $connections = [];
+
+            foreach (['first.test', 'second.test', 'first.test', 'second.test'] as $host) {
+                $response = $factory->connection('provider')->withOptions([
+                    'stream' => true,
+                    'proxy' => $proxy ? 'http://127.0.0.1:' . $port : '',
+                    'curl' => $proxy ? [] : [CURLOPT_CONNECT_TO => ["{$host}:{$port}:127.0.0.1:{$port}"]],
+                ])->get("http://{$host}:{$port}/identity");
+
+                try {
+                    $identity = $response->json();
+                    $this->assertIsInt($identity['connection']);
+                    $connections[] = $identity['connection'];
+                } finally {
+                    $response->close();
+                }
+            }
+
+            $this->assertCount($proxy ? 1 : 2, array_unique($connections));
+            $this->assertSame($connections[0], $connections[2]);
+            $this->assertSame($connections[1], $connections[3]);
+        });
     }
 
     /**
-     * Provide direct requests and connection-authenticated proxy tunnels.
+     * Provide direct and proxied requests.
      */
     public static function connectionRoutes(): array
     {
@@ -522,7 +513,7 @@ class HttpClientStreamingTest extends TestCase
         $this->withStreamingServer('silent-headers', function (string $address): void {
             try {
                 $this->expectException(ConnectionException::class);
-                $this->expectExceptionMessage('The streaming request timed out before response headers.');
+                $this->expectExceptionMessageIs('The streaming request timed out before response headers.');
 
                 (new Factory)->timeout(0)->withOptions(['stream' => true, 'read_timeout' => 0.2])->get('http://' . $address);
             } finally {
@@ -549,7 +540,7 @@ class HttpClientStreamingTest extends TestCase
     {
         $this->withStreamingServer('trickle-headers', function (string $address): void {
             $this->expectException(ConnectionException::class);
-            $this->expectExceptionMessage('The streaming request timed out before response headers.');
+            $this->expectExceptionMessageIs('The streaming request timed out before response headers.');
 
             (new Factory)->timeout(0.4)->withOptions(['stream' => true, 'read_timeout' => 0.4])->get('http://' . $address);
         });
@@ -558,10 +549,6 @@ class HttpClientStreamingTest extends TestCase
     #[DataProvider('idleTimeoutTransports')]
     public function testIdleStreamingReadTimeoutRaisesTheStreamReadError(bool $native): void
     {
-        if (! $native && SWOOLE_VERSION_ID <= 60203) {
-            $this->markTestSkipped('Swoole 6.2.3 and earlier lack the read-timeout fix: https://github.com/swoole/swoole-src/pull/6236.');
-        }
-
         $this->withStreamingServer('delayed', function (string $address) use ($native): void {
             $finished = new Channel(1);
             try {
@@ -588,7 +575,13 @@ class HttpClientStreamingTest extends TestCase
                 ]);
 
                 $this->assertInstanceOf(RuntimeException::class, $results['reader']);
-                $this->assertSame($native ? 'The streaming response read timed out.' : 'Unable to read from stream', $results['reader']->getMessage());
+
+                if ($native) {
+                    $this->assertSame('The streaming response read timed out.', $results['reader']->getMessage());
+                } else {
+                    $this->assertInstanceOf(TimeoutException::class, $results['reader']);
+                    $this->assertSame('Unable to read from stream: timed out', $results['reader']->getMessage());
+                }
             } finally {
                 $finished->close();
             }
@@ -601,6 +594,44 @@ class HttpClientStreamingTest extends TestCase
     public static function idleTimeoutTransports(): array
     {
         return [[true], [false]];
+    }
+
+    /**
+     * Run a hooked client against the connection identity server.
+     */
+    protected function withIdentityServer(Closure $callback): void
+    {
+        $process = new Process([PHP_BINARY, dirname(__DIR__) . '/HttpServer/Fixtures/disconnect-server.php', '', 'process']);
+        $process->setTimeout(10);
+        $process->start();
+        $processId = $process->getPid();
+
+        try {
+            $deadline = microtime(true) + 3;
+
+            while (! str_contains($process->getOutput(), 'READY ') && $process->isRunning() && microtime(true) < $deadline) {
+                usleep(10000);
+            }
+
+            $this->assertSame(1, preg_match('/READY (\d+)/', $process->getOutput(), $matches), $process->getErrorOutput());
+            $port = (int) $matches[1];
+            $failure = null;
+
+            run(function () use ($callback, $port, &$failure): void {
+                try {
+                    $callback($port);
+                } catch (Throwable $exception) {
+                    $failure = $exception;
+                }
+            }, SWOOLE_HOOK_ALL);
+
+            if ($failure !== null) {
+                throw $failure;
+            }
+        } finally {
+            posix_kill(-$processId, SIGKILL);
+            $process->stop(0);
+        }
     }
 
     /**

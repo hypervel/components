@@ -17,6 +17,7 @@ use Hypervel\Inertia\Inertia;
 use Hypervel\Inertia\MergeProp;
 use Hypervel\Inertia\OnceProp;
 use Hypervel\Inertia\OptionalProp;
+use Hypervel\Inertia\Response as InertiaResponse;
 use Hypervel\Inertia\ResponseFactory;
 use Hypervel\Inertia\ScrollMetadata;
 use Hypervel\Inertia\ScrollProp;
@@ -559,7 +560,7 @@ class ResponseFactoryTest extends TestCase
         config()->set('inertia.pages.ensure_pages_exist', false);
 
         $response = (new ResponseFactory)->render('foo');
-        $this->assertInstanceOf(\Hypervel\Inertia\Response::class, $response);
+        $this->assertInstanceOf(InertiaResponse::class, $response);
     }
 
     public function testWillNotThrowExceptionIfPageExistenceSettingIsOmitted(): void
@@ -571,7 +572,7 @@ class ResponseFactoryTest extends TestCase
 
         $response = (new ResponseFactory)->render('foo');
 
-        $this->assertInstanceOf(\Hypervel\Inertia\Response::class, $response);
+        $this->assertInstanceOf(InertiaResponse::class, $response);
     }
 
     public function testCanResolveComponentNameBeforeRendering(): void
@@ -625,7 +626,7 @@ class ResponseFactoryTest extends TestCase
     public function testRenderAcceptsBackedEnum(): void
     {
         $response = (new ResponseFactory)->render(StringBackedEnum::UsersIndex);
-        $this->assertInstanceOf(\Hypervel\Inertia\Response::class, $response);
+        $this->assertInstanceOf(InertiaResponse::class, $response);
 
         /** @phpstan-ignore-next-line */
         $getComponent = fn () => $this->component;
@@ -635,7 +636,7 @@ class ResponseFactoryTest extends TestCase
     public function testRenderAcceptsUnitEnum(): void
     {
         $response = (new ResponseFactory)->render(UnitEnum::Index);
-        $this->assertInstanceOf(\Hypervel\Inertia\Response::class, $response);
+        $this->assertInstanceOf(InertiaResponse::class, $response);
 
         /** @phpstan-ignore-next-line */
         $getComponent = fn () => $this->component;
@@ -784,6 +785,93 @@ class ResponseFactoryTest extends TestCase
 
         // Flash data should not persist in session after being included in response
         $this->assertNull(session('inertia.flash_data'));
+    }
+
+    public function testBigIntegersInFlashDataAreWrappedWhenEnabled(): void
+    {
+        config(['inertia.preserve_big_integers' => true]);
+
+        Route::middleware([StartSession::class, ExampleMiddleware::class])->post('/flash-big-integer', function (): InertiaResponse {
+            return Inertia::flash('id', 900719925474099988)
+                ->flash('safe', 42)
+                ->render('User/Edit');
+        });
+
+        $response = $this->post('/flash-big-integer', [], ['X-Inertia' => 'true']);
+
+        $response->assertSuccessful();
+        $response->assertJson([
+            'flash' => [
+                'id' => ['$bigint' => '900719925474099988'],
+                'safe' => 42,
+            ],
+        ]);
+    }
+
+    public function testBigIntegersInFlashDataAreUntouchedWhenDisabled(): void
+    {
+        config(['inertia.preserve_big_integers' => false]);
+
+        Route::middleware([StartSession::class, ExampleMiddleware::class])->post('/flash-big-integer', function (): InertiaResponse {
+            return Inertia::flash('id', 900719925474099988)->render('User/Edit');
+        });
+
+        $response = $this->post('/flash-big-integer', [], ['X-Inertia' => 'true']);
+
+        $response->assertSuccessful();
+        $response->assertJson(['flash' => ['id' => 900719925474099988]]);
+    }
+
+    public function testBigIntegersCanBePreservedForASingleResponse(): void
+    {
+        config(['inertia.preserve_big_integers' => false]);
+
+        Route::middleware([StartSession::class, ExampleMiddleware::class])->get('/one-page', function (): InertiaResponse {
+            return Inertia::render('User/Edit', ['id' => 900719925474099988])->preserveBigIntegers();
+        });
+
+        $response = $this->get('/one-page', ['X-Inertia' => 'true']);
+
+        $response->assertJson([
+            'props' => ['id' => ['$bigint' => '900719925474099988']],
+            'preserveBigIntegers' => true,
+        ]);
+    }
+
+    public function testASingleResponseCanOptOutOfPreservingBigIntegers(): void
+    {
+        config(['inertia.preserve_big_integers' => true]);
+
+        Route::middleware([StartSession::class, ExampleMiddleware::class])->get('/opted-out', function (): InertiaResponse {
+            return Inertia::render('User/Edit', ['id' => 900719925474099988])->preserveBigIntegers(false);
+        });
+
+        $response = $this->get('/opted-out', ['X-Inertia' => 'true']);
+
+        $response->assertJson(['props' => ['id' => 900719925474099988]]);
+        $response->assertJsonMissingPath('preserveBigIntegers');
+    }
+
+    public function testTheInitialPageTellsTheClientWhenBigIntegersMayBeWrapped(): void
+    {
+        config(['inertia.preserve_big_integers' => true]);
+
+        Route::middleware([StartSession::class, ExampleMiddleware::class])->get('/root', function (): InertiaResponse {
+            return Inertia::render('User/Edit', ['id' => 900719925474099988]);
+        });
+
+        $this->get('/root')->assertSee('"preserveBigIntegers":true', false);
+    }
+
+    public function testTheInitialPageIsUnmarkedWhenBigIntegersAreDisabled(): void
+    {
+        config(['inertia.preserve_big_integers' => false]);
+
+        Route::middleware([StartSession::class, ExampleMiddleware::class])->get('/root', function (): InertiaResponse {
+            return Inertia::render('User/Edit', ['id' => 900719925474099988]);
+        });
+
+        $this->get('/root')->assertDontSee('preserveBigIntegers', false);
     }
 
     public function testRenderWithoutFlashDoesNotIncludeFlashKey(): void

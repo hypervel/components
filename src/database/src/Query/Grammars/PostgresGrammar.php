@@ -11,6 +11,7 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Override;
+use RuntimeException;
 
 class PostgresGrammar extends Grammar
 {
@@ -366,7 +367,7 @@ class PostgresGrammar extends Grammar
      */
     public function compileUpdate(Builder $query, array $values): string
     {
-        if (isset($query->joins) || isset($query->limit)) {
+        if (isset($query->joins) || isset($query->limit) || $query->offset > 0) {
             return $this->compileUpdateWithJoinsOrLimit($query, $values);
         }
 
@@ -441,6 +442,10 @@ class PostgresGrammar extends Grammar
      */
     public function compileUpdateFrom(Builder $query, array $values): string
     {
+        if ($query->limit !== null || $query->offset > 0) {
+            throw new RuntimeException('PostgreSQL does not support limits or offsets in updateFrom statements.');
+        }
+
         $table = $this->wrapTable($query->from);
 
         // Each one of the columns in the update statements needs to be wrapped in the
@@ -554,7 +559,7 @@ class PostgresGrammar extends Grammar
      */
     public function compileDelete(Builder $query): string
     {
-        if (isset($query->joins) || isset($query->limit)) {
+        if (isset($query->joins) || isset($query->limit) || $query->offset > 0) {
             return $this->compileDeleteWithJoinsOrLimit($query);
         }
 

@@ -4,26 +4,45 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sentry;
 
+use Hypervel\Ai\AiManager;
+use Hypervel\Ai\AiServiceProvider;
+use Hypervel\Ai\Contracts\ConversationStore;
+use Hypervel\Ai\Events\EmbeddingsGenerated;
+use Hypervel\Ai\Events\GeneratingEmbeddings;
+use Hypervel\Ai\Prompts\EmbeddingsPrompt;
+use Hypervel\Ai\Responses\Data\Meta;
+use Hypervel\Ai\Responses\Data\Usage;
+use Hypervel\Ai\Responses\EmbeddingsResponse;
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Events\TransactionBeginning;
-use Hypervel\Sentry\Features\CacheFeature;
+use Hypervel\Sentry\Features\Ai\AiTracingScope;
 use Hypervel\Sentry\Integration;
 use Hypervel\Sentry\Tracing\EventHandler as TracingEventHandler;
+use Hypervel\Tests\Ai\Fixtures\Agents\RememberingAssistantAgent;
+use Hypervel\Tests\Ai\Fixtures\FakeConversationStore;
 use Mockery as m;
 use Sentry\SentrySdk;
+use Sentry\Tracing\SpanStatus;
 use Sentry\Tracing\TransactionContext;
 use Swoole\Coroutine\Channel;
 
-/**
- * Verify that per-request mutable state is isolated between concurrent coroutines.
- *
- * Verifies that instance properties and static properties used for per-request
- * mutable state are properly isolated between concurrent coroutines.
- */
-class CoroutineSafetyTest extends SentryTestCase
+use function Hypervel\Coroutine\parallel;
+
+class CoroutineSafetyTest extends TestCase
 {
+    protected array $defaultSetupConfig = ['sentry.traces_sample_rate' => 1.0];
+
+    /**
+     * Load AI for tracing ownership checks.
+     */
+    protected function getPackageProviders(Application $app): array
+    {
+        return [...parent::getPackageProviders($app), AiServiceProvider::class];
+    }
+
     public function testIntegrationTransactionNameIsIsolatedPerCoroutine(): void
     {
         // Set transaction name in parent coroutine
@@ -42,7 +61,7 @@ class CoroutineSafetyTest extends SentryTestCase
             $channel->push(true);
         });
 
-        $channel->pop(1.0);
+        $this->assertTrue($channel->pop(1.0));
 
         // Parent should still have its own transaction name
         $this->assertSame('/parent-route', Integration::getTransaction());
@@ -88,36 +107,77 @@ class CoroutineSafetyTest extends SentryTestCase
         $this->assertCount(1, CoroutineContext::get($parentStackKey, []));
     }
 
-    public function testTracksPushedScopesAndSpansTraitIsIsolatedPerCoroutine(): void
+    public function testConcurrentRememberingAgentsKeepTheirConversationSelections(): void
     {
-        // The trait uses Context keys namespaced by class name.
-        // Verify that different coroutines get independent stacks.
-        $featureClass = 'Hypervel\Sentry\Features\CacheFeature';
-        $scopeKey = CacheFeature::SPANS_CONTEXT_PREFIX . $featureClass . '.scope_count';
-        $currentSpansKey = CacheFeature::SPANS_CONTEXT_PREFIX . $featureClass . '.current_spans';
+        $this->app->instance(ConversationStore::class, new FakeConversationStore);
+        RememberingAssistantAgent::fake(function (string $prompt): string {
+            usleep(5000);
 
-        // Simulate pushing scope/span state in parent
-        CoroutineContext::set($scopeKey, 3);
-        CoroutineContext::set($currentSpansKey, ['span1', 'span2', 'span3']);
-
-        $childScopeCount = null;
-        $childSpanCount = null;
-        $channel = new Channel(1);
-
-        Coroutine::create(function () use ($scopeKey, $currentSpansKey, &$childScopeCount, &$childSpanCount, $channel) {
-            $childScopeCount = CoroutineContext::get($scopeKey, 0);
-            $childSpanCount = count(CoroutineContext::get($currentSpansKey, []));
-            $channel->push(true);
+            return $prompt;
         });
+        $transaction = $this->startTransaction();
+        Integration::setConversationId('parent');
+        $parentScope = AiTracingScope::current();
 
-        $channel->pop(1.0);
+        $selections = parallel([
+            function (): string {
+                (new RememberingAssistantAgent)->continue('first')->prompt('First', provider: 'openai');
 
-        // Child should have fresh (empty) state
-        $this->assertSame(0, $childScopeCount);
-        $this->assertSame(0, $childSpanCount);
+                return AiTracingScope::current()->conversation->conversationId;
+            },
+            function (): string {
+                (new RememberingAssistantAgent)->continue('second')->prompt('Second', provider: 'openai');
 
-        // Parent should be unaffected
-        $this->assertSame(3, CoroutineContext::get($scopeKey, 0));
-        $this->assertCount(3, CoroutineContext::get($currentSpansKey, []));
+                return AiTracingScope::current()->conversation->conversationId;
+            },
+        ]);
+
+        $this->assertSame(['first', 'second'], $selections);
+        $this->assertSame('parent', $parentScope->conversation->conversationId);
+        $this->assertSame($transaction, SentrySdk::getCurrentHub()->getSpan());
+        $conversationIds = [];
+        foreach ($transaction->getSpanRecorder()->getSpans() as $span) {
+            if ($span->getOp() === 'gen_ai.invoke_agent') {
+                $conversationIds[] = $span->getData()['gen_ai.conversation.id'];
+                $this->assertEquals($transaction->getSpanId(), $span->getParentSpanId());
+                $this->assertNotNull($span->getEndTimestamp());
+            }
+        }
+        $this->assertEqualsCanonicalizing(['first', 'second'], $conversationIds);
+    }
+
+    public function testChildEvictionRestoresTheCapturedParentScopeWithoutReplacingItsOwnSpan(): void
+    {
+        $transaction = $this->startTransaction();
+        $provider = $this->app->make(AiManager::class)->embeddingProvider('openai');
+        $prompt = new EmbeddingsPrompt(['text'], 1, $provider, 'embedding-model');
+        $response = new EmbeddingsResponse([[0.5]], new Usage(1), new Meta('openai', 'embedding-model'));
+        $this->dispatchHypervelEvent(new GeneratingEmbeddings('parent', $provider, $prompt->model, $prompt));
+        $parentSpan = SentrySdk::getCurrentHub()->getSpan();
+        $parentScope = AiTracingScope::sentryScope();
+        $observed = [];
+
+        $child = Coroutine::create(function () use ($provider, $prompt, $response, $parentScope, &$observed): void {
+            for ($index = 0; $index < 100; ++$index) {
+                $this->dispatchHypervelEvent(new GeneratingEmbeddings('child-' . $index, $provider, $prompt->model, $prompt));
+            }
+            $observed = [SentrySdk::getCurrentHub()->getSpan(), $parentScope->getSpan()];
+
+            for ($index = 99; $index >= 0; --$index) {
+                $this->dispatchHypervelEvent(new EmbeddingsGenerated('child-' . $index, $provider, $prompt->model, $prompt, $response));
+            }
+        });
+        Coroutine::join([$child]);
+
+        $this->assertNotSame($transaction, $observed[0]);
+        $this->assertNotSame($parentSpan, $observed[0]);
+        $this->assertSame($transaction, $observed[1]);
+        $this->assertEquals(SpanStatus::deadlineExceeded(), $parentSpan->getStatus());
+        $finishedAt = $parentSpan->getEndTimestamp();
+        $this->assertNotNull($finishedAt);
+        $this->dispatchHypervelEvent(new EmbeddingsGenerated('parent', $provider, $prompt->model, $prompt, $response));
+        $this->assertSame($finishedAt, $parentSpan->getEndTimestamp());
+        $this->assertEquals(SpanStatus::deadlineExceeded(), $parentSpan->getStatus());
+        $this->assertSame($transaction, SentrySdk::getCurrentHub()->getSpan());
     }
 }

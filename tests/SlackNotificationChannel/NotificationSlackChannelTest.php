@@ -27,7 +27,7 @@ class NotificationSlackChannelTest extends TestCase
 
         $slackChannel = new SlackWebhookChannel($guzzleHttp);
 
-        $guzzleHttp->shouldReceive('post')->andReturnUsing(function (string $argUrl, array $argPayload) use ($payload) {
+        $guzzleHttp->shouldReceive('post')->andReturnUsing(function (string $argUrl, array $argPayload) use ($payload): Response {
             $this->assertSame('url', $argUrl);
             $this->assertEquals($payload, $argPayload);
 
@@ -37,6 +37,9 @@ class NotificationSlackChannelTest extends TestCase
         $slackChannel->send(new SlackChannelTestNotifiable('url'), $notification);
     }
 
+    /**
+     * Provide legacy notifications and their webhook payloads.
+     */
     public static function payloadDataProvider(): array
     {
         return [
@@ -51,6 +54,9 @@ class NotificationSlackChannelTest extends TestCase
     {
         $guzzleHttp = m::mock(Client::class);
         $notification = new class extends Notification {
+            /**
+             * Get the Slack representation of the notification.
+             */
             public function toSlack(mixed $notifiable): SlackMessage
             {
                 return (new SlackMessage)->text('Modern content');
@@ -131,6 +137,20 @@ class NotificationSlackChannelTest extends TestCase
         ], $payload['json']['attachments'][0]);
     }
 
+    public function testAttachmentFieldTitlesThatNamePhpFunctionsAreNotCalled(): void
+    {
+        $message = (new LegacySlackMessage)->content('Content')->attachment(function (SlackAttachment $attachment): void {
+            $attachment->field('Date', '2026-10-08')->field('Count', '3');
+        });
+
+        $payload = (new SlackWebhookChannel(new Client))->buildJsonPayload($message);
+
+        $this->assertSame([
+            ['title' => 'Date', 'value' => '2026-10-08', 'short' => true],
+            ['title' => 'Count', 'value' => '3', 'short' => true],
+        ], $payload['json']['attachments'][0]['fields']);
+    }
+
     public function testDisabledWebhookDoesNotRequireASlackMessageMethod(): void
     {
         $http = m::mock(Client::class);
@@ -153,6 +173,9 @@ class NotificationSlackChannelTest extends TestCase
         $this->assertSame(['X-Notification' => 'slack'], $payload['headers']);
     }
 
+    /**
+     * Get a notification with an emoji icon and its payload.
+     */
     protected static function getPayloadWithIcon(): array
     {
         return [
@@ -190,6 +213,9 @@ class NotificationSlackChannelTest extends TestCase
         ];
     }
 
+    /**
+     * Get a notification with an image icon and its payload.
+     */
     protected static function getPayloadWithImageIcon(): array
     {
         return [
@@ -224,6 +250,9 @@ class NotificationSlackChannelTest extends TestCase
         ];
     }
 
+    /**
+     * Get a notification without optional fields and its payload.
+     */
     protected static function getPayloadWithoutOptionalFields(): array
     {
         return [
@@ -250,6 +279,9 @@ class NotificationSlackChannelTest extends TestCase
         ];
     }
 
+    /**
+     * Get a notification using the attachment field builder and its payload.
+     */
     protected static function getPayloadWithAttachmentFieldBuilder(): array
     {
         return [
@@ -285,13 +317,16 @@ class NotificationSlackChannelTest extends TestCase
 
 class NotificationSlackChannelTestNotification extends Notification
 {
+    /**
+     * Get the Slack representation of the notification.
+     */
     public function toSlack(mixed $notifiable): LegacySlackMessage
     {
         return (new LegacySlackMessage)
             ->from('Ghostbot', ':ghost:')
             ->to('#ghost-talk')
             ->content('Content')
-            ->attachment(function (SlackAttachment $attachment) {
+            ->attachment(function (SlackAttachment $attachment): void {
                 $timestamp = CarbonImmutable::createFromTimestamp(1234567890);
                 $attachment->title('Hypervel', 'https://hypervel.org')
                     ->content('Attachment Content')
@@ -310,6 +345,9 @@ class NotificationSlackChannelTestNotification extends Notification
 
 class NotificationSlackChannelTestNotificationWithImageIcon extends Notification
 {
+    /**
+     * Get the Slack representation of the notification.
+     */
     public function toSlack(mixed $notifiable): LegacySlackMessage
     {
         return (new LegacySlackMessage)
@@ -317,7 +355,7 @@ class NotificationSlackChannelTestNotificationWithImageIcon extends Notification
             ->image('http://example.com/image.png')
             ->to('#ghost-talk')
             ->content('Content')
-            ->attachment(function (SlackAttachment $attachment) {
+            ->attachment(function (SlackAttachment $attachment): void {
                 $timestamp = CarbonImmutable::createFromTimestamp(1234567890);
                 $attachment->title('Hypervel', 'https://hypervel.org')
                     ->content('Attachment Content')
@@ -335,11 +373,14 @@ class NotificationSlackChannelTestNotificationWithImageIcon extends Notification
 
 class NotificationSlackChannelWithoutOptionalFieldsTestNotification extends Notification
 {
+    /**
+     * Get the Slack representation of the notification.
+     */
     public function toSlack(mixed $notifiable): LegacySlackMessage
     {
         return (new LegacySlackMessage)
             ->content('Content')
-            ->attachment(function (SlackAttachment $attachment) {
+            ->attachment(function (SlackAttachment $attachment): void {
                 $attachment->title('Hypervel', 'https://hypervel.org')
                     ->content('Attachment Content')
                     ->fields([
@@ -351,16 +392,19 @@ class NotificationSlackChannelWithoutOptionalFieldsTestNotification extends Noti
 
 class NotificationSlackChannelWithAttachmentFieldBuilderTestNotification extends Notification
 {
+    /**
+     * Get the Slack representation of the notification.
+     */
     public function toSlack(mixed $notifiable): LegacySlackMessage
     {
         return (new LegacySlackMessage)
             ->content('Content')
-            ->attachment(function (SlackAttachment $attachment) {
+            ->attachment(function (SlackAttachment $attachment): void {
                 $attachment->title('Hypervel', 'https://hypervel.org')
                     ->content('Attachment Content')
                     ->field('Project', 'Hypervel')
                     ->callbackId('attachment_callbackid')
-                    ->field(function (SlackAttachmentField $attachmentField) {
+                    ->field(function (SlackAttachmentField $attachmentField): void {
                         $attachmentField
                             ->title('Special powers')
                             ->content('Zonda')

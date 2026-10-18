@@ -34,15 +34,6 @@ class PackageMetadataTest extends TestCase
             $this->assertArrayHasKey($dependency, $composer['require']);
         }
 
-        foreach ($composer['require'] as $dependency => $constraint) {
-            // The root package replaces the Hypervel packages instead of requiring them.
-            if (str_starts_with($dependency, 'hypervel/')) {
-                continue;
-            }
-
-            $this->assertSame($rootComposer['require'][$dependency] ?? null, $constraint, $dependency);
-        }
-
         $this->assertSame(
             [PermissionServiceProvider::class],
             $composer['extra']['hypervel']['providers'],

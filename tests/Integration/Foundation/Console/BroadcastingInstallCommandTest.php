@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Foundation\Console;
 
+use Composer\InstalledVersions;
 use Dotenv\Dotenv;
 use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
@@ -18,6 +19,7 @@ use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionClass;
+use ReflectionProperty;
 use RuntimeException;
 use Symfony\Component\Console\Application as ConsoleApplication;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
@@ -425,9 +427,11 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
         $this->createdFiles[] = $this->app->resourcePath('js/echo.js');
 
         // --reverb WITHOUT --without-reverb: triggers the Reverb install prompt.
-        $this->artisan('install:broadcasting', ['--reverb' => true, '--without-node' => true])
-            ->expectsConfirmation('Would you like to install Hypervel Reverb?', 'yes')
-            ->assertSuccessful();
+        $this->withoutInstalledReverb(function (): void {
+            $this->artisan('install:broadcasting', ['--reverb' => true, '--without-node' => true])
+                ->expectsConfirmation('Would you like to install Hypervel Reverb?', 'yes')
+                ->assertSuccessful();
+        });
 
         // Verify composer require was called for reverb.
         $reverbCalls = array_filter(TestableBroadcastingInstallCommand::$composerRequireCalls, function (array $call): bool {
@@ -437,9 +441,9 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
 
         // Verify reverb:install was run via the Process facade.
         Process::assertRan(function (PendingProcess $process): bool {
-            $command = implode(' ', (array) $process->command);
-
-            return str_contains($command, 'reverb:install');
+            return is_array($process->command)
+                && array_slice($process->command, 2) === ['reverb:install', ...($process->tty ? [] : ['--no-interaction'])]
+                && $process->timeout === null;
         });
     }
 
@@ -743,7 +747,7 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
         $tester->setInputs(['yes']);
 
         try {
-            $tester->execute(['--reverb' => true, '--without-node' => true]);
+            $this->withoutInstalledReverb(fn () => $tester->execute(['--reverb' => true, '--without-node' => true]));
             $this->fail('Expected Reverb installation to fail.');
         } catch (ProcessFailedException) {
         }
@@ -960,7 +964,7 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
         $tester->setInputs(['yes', 'yes']);
 
         try {
-            $tester->execute(['--reverb' => true, '--pretend' => true, '--composer' => $composer]);
+            $this->withoutInstalledReverb(fn () => $tester->execute(['--reverb' => true, '--pretend' => true, '--composer' => $composer]));
         } finally {
             $files->deleteDirectory($directory);
         }
@@ -1006,6 +1010,28 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
             'packages' => ['symfony/mercure:^0.8', 'hypervel-test/missing', 'hypervel-test/constrained:^1.0'],
             'pretend' => true,
         ]], TestableBroadcastingInstallCommand::$composerRequireCalls);
+    }
+
+    /**
+     * Exercise installation without the aggregate package's Reverb replacement.
+     */
+    private function withoutInstalledReverb(callable $callback): void
+    {
+        $installed = require dirname(__DIR__, 4) . '/vendor/composer/installed.php';
+        $reloaded = $installed;
+        unset($reloaded['versions']['hypervel/reverb']);
+        $canGetVendors = new ReflectionProperty(InstalledVersions::class, 'canGetVendors');
+        $previousCanGetVendors = $canGetVendors->getValue();
+
+        $canGetVendors->setValue(null, false);
+        InstalledVersions::reload($reloaded);
+
+        try {
+            $callback();
+        } finally {
+            InstalledVersions::reload($installed);
+            $canGetVendors->setValue(null, $previousCanGetVendors);
+        }
     }
 
     /**

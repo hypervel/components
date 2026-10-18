@@ -33,7 +33,6 @@
     },
     "require": {
         "php": "^8.4",
-        "guzzlehttp/promises": "^2.5.2 || ^3.0.2",
         "symfony/console": "^8.1.2",
         "symfony/http-foundation": "^8.1",
         "symfony/process": "^8.1",
@@ -44,6 +43,7 @@
         "hypervel/contracts": "^0.4",
         "hypervel/filesystem": "^0.4",
         "hypervel/foundation": "^0.4",
+        "hypervel/guzzle-promises": "^3.1",
         "hypervel/http": "^0.4",
         "hypervel/macroable": "^0.4",
         "hypervel/pagination": "^0.4",

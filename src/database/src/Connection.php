@@ -815,7 +815,7 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
         }
 
         $query = $this->pretending === true
-            ? $this->queryGrammar->substituteBindingsIntoRawSql($query, $bindings)
+            ? $this->queryGrammar->substituteBindingsIntoRawSql($query, $this->prepareBindings($bindings))
             : $query;
 
         if ($this->loggingQueries) {
@@ -1361,13 +1361,6 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
         }
 
         return $this->latestReadWriteTypeRetrieved = 'write';
-    }
-
-    /**
-     * Invalidate the state remembered for the current physical session.
-     */
-    protected function invalidateCurrentSessionState(): void
-    {
     }
 
     /**

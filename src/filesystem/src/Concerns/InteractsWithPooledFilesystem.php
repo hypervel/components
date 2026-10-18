@@ -9,15 +9,19 @@ use Closure;
 use DateTimeInterface;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Filesystem\Filesystem as FilesystemContract;
+use Hypervel\Database\ConnectionResolver;
 use Hypervel\Filesystem\AwsS3V3Adapter;
 use Hypervel\Filesystem\FileResponseBuilder;
+use Hypervel\Filesystem\FilesystemAdapter;
 use Hypervel\Filesystem\FilesystemOperatorAdapter;
 use Hypervel\Filesystem\GoogleCloudStorageAdapter;
+use Hypervel\Filesystem\LeasedStream;
 use Hypervel\Http\File;
 use Hypervel\Http\Request;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Image\Image;
 use Hypervel\Image\ImageException;
+use Hypervel\ObjectPool\Lease;
 use Hypervel\Support\Traits\Conditionable;
 use League\Flysystem\FilesystemOperator;
 use Psr\Http\Message\StreamInterface;
@@ -624,11 +628,52 @@ trait InteractsWithPooledFilesystem
     abstract protected function invoke(string $method, array $parameters): mixed;
 
     /**
-     * Open a stream that retains its lease until closure.
+     * Return idle database sessions before operations that can contact a provider.
+     */
+    protected function releaseIdleConnectionsFor(string $method): void
+    {
+        // These methods only format paths or check capabilities; URL generation can sign requests or call the provider.
+        if (! in_array($method, ['path', 'providesTemporaryUrls', 'providesTemporaryUploadUrls'], true)) {
+            ConnectionResolver::releaseIdleConnections();
+        }
+    }
+
+    /**
+     * Open a stream that retains any required lease until closure.
      *
      * @return null|resource
      */
     abstract protected function leasedStream(Closure $operation): mixed;
+
+    /**
+     * Release buffered reads immediately and retain the lease for live streams.
+     *
+     * @param null|resource $stream
+     * @return null|resource
+     */
+    protected function releaseOrWrapStream(mixed $stream, Lease $lease): mixed
+    {
+        if (! is_resource($stream)) {
+            $lease->release();
+
+            return $stream;
+        }
+
+        $metadata = stream_get_meta_data($stream);
+
+        // Range wrappers are marked at construction; other decorators can report
+        // a temporary buffer while still reading from a live connection.
+        if (in_array($metadata['stream_type'], ['TEMP', 'MEMORY'], true)
+            || ($metadata['stream_type'] === 'user-space'
+                && (stream_context_get_options($stream)['hypervel'][FilesystemAdapter::BUFFERED_STREAM_CONTEXT_OPTION] ?? false) === true)
+        ) {
+            $lease->release();
+
+            return $stream;
+        }
+
+        return LeasedStream::wrap($stream, $lease);
+    }
 
     /**
      * Run a callback with an accessor result from a borrowed filesystem.

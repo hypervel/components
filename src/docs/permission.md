@@ -948,9 +948,10 @@ class ArticleController
 <a name="passport-client-credentials"></a>
 ### Passport Client Credentials
 
-The middleware can authorize Passport client-credentials clients when no authenticated user exists:
+The middleware can authorize [Passport client-credentials clients](/docs/{{version}}/passport#client-credentials-grant) when no authenticated user exists. To enable this integration, update your `config/permission.php` configuration file:
 
 ```php
+// config/permission.php
 'use_passport_client_credentials' => true,
 ```
 
@@ -959,19 +960,42 @@ The Passport client model must implement Hypervel's `Authorizable` contract and 
 ```php
 use Hypervel\Contracts\Auth\Access\Authorizable as AuthorizableContract;
 use Hypervel\Foundation\Auth\Access\Authorizable;
+use Hypervel\Passport\Client as BaseClient;
 use Hypervel\Permission\Traits\HasRoles;
 
-// Extend the client model class provided by your Passport package.
 class Client extends BaseClient implements AuthorizableContract
 {
     use Authorizable;
     use HasRoles;
 
-    protected string $guard_name = 'api';
+    protected string $guard_name = 'passport';
 }
 ```
 
-The client's `$guard_name` property or `guardName` method should return the name of your Passport guard. Set the client model in Passport, then protect client-credentials routes with this package's middleware. When the request has a bearer token and no authenticated user, the role, permission, and role-or-permission middleware authorize the client of the first guard using the `passport` driver.
+The client's `$guard_name` property or `guardName` method should return the name of your Passport guard. Register your client model in the `boot` method of your application's `AppServiceProvider`:
+
+```php
+use App\Models\Client;
+use Hypervel\Passport\Passport;
+
+Passport::useClientModel(Client::class);
+```
+
+Passport clients use UUID keys. To give them roles or permissions, every model that receives Permission roles or permissions, including your users, must use UUID keys. Change the assignment tables' morph columns to `uuid` as described in [UUID and ULID Keys](#uuid-and-ulid-keys). If your users receive roles or permissions and use integer keys, authorize machine clients with Passport token scopes through `EnsureClientIsResourceOwner::using(...)` instead of this integration.
+
+Protect machine-to-machine routes with Passport's `EnsureClientIsResourceOwner` middleware followed by the role, permission, or role-or-permission middleware:
+
+```php
+use Hypervel\Passport\Http\Middleware\EnsureClientIsResourceOwner;
+use Hypervel\Support\Facades\Route;
+
+Route::get('/posts', [PostController::class, 'index'])->middleware([
+    EnsureClientIsResourceOwner::class,
+    'permission:read-posts,passport',
+]);
+```
+
+Do not add `auth:passport` to these routes; client-credentials tokens have no authenticated user. When no user is authenticated, Permission checks the client of the first guard using the `passport` driver. This fallback accepts the client of any valid bearer token, including a user token whose user no longer resolves. Assign client roles and permissions only to client-credentials clients, and keep `EnsureClientIsResourceOwner` on machine-to-machine routes.
 
 <a name="blade-directives"></a>
 ## Blade Directives
@@ -1376,7 +1400,7 @@ The package's models and methods add the partition condition, write the partitio
 
 Lower-level database APIs skip some or all of this. When you use the query builder directly, save a generic pivot, call `toBase`, `getQuery`, or `newQueryWithoutScopes`, remove the partition scope, truncate a table, insert from a select, or force delete through a query, you must add the partition condition or value yourself, use a transaction where needed, and reset the cache of each affected partition.
 
-Eloquent's `insert`, `insertOrIgnore`, `insertGetId`, and `upsert` methods do not create models, so they skip the partition checks. Query `update`, `increment`, and `decrement` calls keep the partition condition but skip cache clearing, and must not change the partition column. Reset the current partition's cache after any of these writes.
+Eloquent's `insert`, `insertOrIgnore`, `insertGetId`, `upsert`, `fillAndInsert`, `fillAndInsertOrIgnore`, and `fillAndInsertGetId` methods bypass model saves, so they skip the partition checks. Query `update`, `increment`, and `decrement` calls keep the partition condition but skip cache clearing, and must not change the partition column. Reset the current partition's cache after any of these writes.
 
 <a name="teams"></a>
 ## Teams
@@ -1735,6 +1759,8 @@ $table->uuid($modelMorphKey);
 ```
 
 You may also rename the morph key column, for example to `model_uuid`, using the `column_names.model_morph_key` configuration value.
+
+All models receiving assignments must use the same key type as these morph columns. A string morph column does not support mixing integer user IDs and UUID client IDs: PostgreSQL rejects the resulting column comparisons, and MySQL and MariaDB may lose indexed lookups when comparing integers to strings.
 
 If your role or permission models use UUIDs, [extend the package's models](#custom-models) and add the `HasUuids` trait:
 

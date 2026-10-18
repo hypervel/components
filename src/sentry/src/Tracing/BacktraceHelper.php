@@ -26,7 +26,7 @@ class BacktraceHelper
     private FrameBuilder $frameBuilder;
 
     /**
-     * Constructor.
+     * Create a new backtrace helper instance.
      *
      * @param Options $options The SDK client options
      * @param RepresentationSerializerInterface $representationSerializer The representation serializer
@@ -67,7 +67,7 @@ class BacktraceHelper
     }
 
     /**
-     * Takes a frame and if it's a compiled view path returns the original view path.
+     * Take a frame and, if it's a compiled view path, return the original view path.
      */
     public function getOriginalViewPathForFrameOfCompiledViewPath(Frame $frame): ?string
     {
@@ -84,13 +84,14 @@ class BacktraceHelper
 
         $viewFileContents = @file_get_contents($absoluteFilePath);
 
+        // If for some reason the file does not exist, skip resolving
         if ($viewFileContents === false) {
             return null;
         }
 
         preg_match('/PATH (?<originalPath>.*?) ENDPATH/', $viewFileContents, $matches);
 
-        // No path comment found in the file, must be a very old Laravel version
+        // No path comment found in the file
         if (empty($matches['originalPath'])) {
             return null;
         }
@@ -99,7 +100,7 @@ class BacktraceHelper
     }
 
     /**
-     * Removes from the given file path the specified prefixes.
+     * Remove the specified prefixes from the given file path.
      *
      * @param string $filePath The path to the file
      */

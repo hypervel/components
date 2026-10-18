@@ -17,13 +17,18 @@ trait ResolvesEventOrigin
         return app();
     }
 
-    protected function resolveEventOrigin(): ?array
+    /**
+     * Resolve the code location of the first application frame of the event.
+     *
+     * @param null|array $backtrace a backtrace captured earlier, for an event whose origin is no longer on the stack
+     */
+    protected function resolveEventOrigin(?array $backtrace = null): ?array
     {
         $backtraceHelper = $this->makeBacktraceHelper();
 
         // We limit the backtrace to 20 frames to prevent too much overhead and we'd reasonable expect the origin to be within the first 20 frames
         $firstAppFrame = $backtraceHelper->findFirstInAppFrameForBacktrace(
-            debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 20)
+            $backtrace ?? debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 20)
         );
 
         if ($firstAppFrame === null) {
@@ -41,6 +46,9 @@ trait ResolvesEventOrigin
         ];
     }
 
+    /**
+     * Resolve the code location of the event as a "file:line" string.
+     */
     protected function resolveEventOriginAsString(): ?string
     {
         $origin = $this->resolveEventOrigin();
@@ -52,6 +60,9 @@ trait ResolvesEventOrigin
         return "{$origin['code.filepath']}:{$origin['code.lineno']}";
     }
 
+    /**
+     * Resolve the backtrace helper from the container.
+     */
     private function makeBacktraceHelper(): BacktraceHelper
     {
         return $this->container()->make(BacktraceHelper::class);

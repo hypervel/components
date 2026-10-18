@@ -4,11 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sentry;
 
+use GuzzleHttp\Client;
+use GuzzleHttp\Handler\MockHandler;
+use GuzzleHttp\Psr7\Response as PsrResponse;
+use Hypervel\Config\Repository;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Http\Kernel;
-use Hypervel\Di\Aop\AspectCollector;
+use Hypervel\Filesystem\Filesystem;
+use Hypervel\Foundation\Application;
+use Hypervel\Foundation\Configuration\ConfigMutationTracker;
 use Hypervel\Http\Request;
-use Hypervel\Sentry\Aspects\GuzzleHttpClientAspect;
 use Hypervel\Sentry\Facade;
 use Hypervel\Sentry\Features\Feature;
 use Hypervel\Sentry\Http\FlushEventsMiddleware;
@@ -16,11 +21,17 @@ use Hypervel\Sentry\Http\SetRequestIpMiddleware;
 use Hypervel\Sentry\Hub;
 use Hypervel\Sentry\SentryConfig;
 use Hypervel\Sentry\SentryServiceProvider;
+use Hypervel\Sentry\Tracing\BacktraceHelper;
 use Hypervel\Sentry\Tracing\Middleware as TracingMiddleware;
 use Hypervel\Support\Facades\Artisan;
+use Hypervel\Testing\ParallelTesting;
+use Hypervel\Tests\Di\Fixtures\ProxySources;
 use LogicException;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Depends;
 use Psr\Log\LoggerInterface;
+use ReflectionClass;
 use RuntimeException;
 use Sentry\ClientInterface;
 use Sentry\Event;
@@ -33,11 +44,27 @@ use Sentry\Transport\Result;
 use Sentry\Transport\ResultStatus;
 use Symfony\Component\HttpFoundation\Response;
 
-class ServiceProviderTest extends SentryTestCase
+class ServiceProviderTest extends TestCase
 {
+    private ?string $proxyFile = null;
+
     protected array $setupConfig = [
         'sentry.error_types' => E_ALL ^ E_DEPRECATED ^ E_USER_DEPRECATED,
     ];
+
+    /**
+     * Remove the temporary proxy file from the Testbench application.
+     */
+    protected function tearDown(): void
+    {
+        try {
+            if ($this->proxyFile !== null) {
+                (new Filesystem)->delete($this->proxyFile);
+            }
+        } finally {
+            parent::tearDown();
+        }
+    }
 
     public function testIsBound(): void
     {
@@ -56,11 +83,13 @@ class ServiceProviderTest extends SentryTestCase
         $this->app->register(ConflictingSentryServiceProvider::class);
     }
 
+    #[Depends('testIsBound')]
     public function testEnvironment(): void
     {
         $this->assertEquals('testing', app('sentry')->getClient()->getOptions()->getEnvironment());
     }
 
+    #[Depends('testIsBound')]
     public function testDsnWasSetFromConfig(): void
     {
         $options = app('sentry')->getClient()->getOptions();
@@ -89,6 +118,7 @@ class ServiceProviderTest extends SentryTestCase
         $this->assertSame('preserved', $event->getTags()['configured_before_client'] ?? null);
     }
 
+    #[Depends('testIsBound')]
     public function testErrorTypesWasSetFromConfig(): void
     {
         $this->assertEquals(
@@ -97,6 +127,12 @@ class ServiceProviderTest extends SentryTestCase
         );
     }
 
+    public function testConsoleProcessesKeepTheConfiguredConnectionSharing(): void
+    {
+        $this->assertTrue($this->getSentryClientFromContainer()->getOptions()->isShareHandleEnabled());
+    }
+
+    #[Depends('testIsBound')]
     public function testArtisanCommandsAreRegistered(): void
     {
         $this->assertArrayHasKey('sentry:test', Artisan::all());
@@ -176,11 +212,10 @@ class ServiceProviderTest extends SentryTestCase
             ->registerMiddlewareForTest();
     }
 
-    public function testRequestIpMiddlewareIsRegisteredWhenPiiIsEnabled(): void
+    #[DataProvider('userInfoCollectionProvider')]
+    public function testRequestIpMiddlewareIsRegisteredOnlyWhenUserInfoIsCollected(array $config, bool $registered): void
     {
-        $this->resetApplicationWithConfig([
-            'sentry.send_default_pii' => true,
-        ]);
+        $this->resetApplicationWithConfig($config);
         $kernel = m::mock(Kernel::class);
         $kernel->shouldReceive('prependMiddleware')
             ->once()
@@ -192,15 +227,35 @@ class ServiceProviderTest extends SentryTestCase
             ->with(FlushEventsMiddleware::class)
             ->ordered()
             ->andReturnSelf();
-        $kernel->shouldReceive('pushMiddleware')
-            ->once()
-            ->with(SetRequestIpMiddleware::class)
-            ->ordered()
-            ->andReturnSelf();
+
+        if ($registered) {
+            $kernel->shouldReceive('pushMiddleware')
+                ->once()
+                ->with(SetRequestIpMiddleware::class)
+                ->ordered()
+                ->andReturnSelf();
+        } else {
+            $kernel->shouldNotReceive('pushMiddleware');
+        }
+
         $this->app->instance(Kernel::class, $kernel);
 
         (new InspectableSentryServiceProvider($this->app))
             ->registerMiddlewareForTest();
+    }
+
+    /**
+     * Provide user info collection settings and whether the request IP middleware is registered.
+     *
+     * @return array<string, array{array<string, mixed>, bool}>
+     */
+    public static function userInfoCollectionProvider(): array
+    {
+        return [
+            'send default pii' => [['sentry.send_default_pii' => true], true],
+            'data collection defaults' => [['sentry.send_default_pii' => false, 'sentry.data_collection' => []], true],
+            'user info disabled' => [['sentry.send_default_pii' => true, 'sentry.data_collection' => ['user_info' => false]], false],
+        ];
     }
 
     public function testLegacyAndZeroRateTracingOptionsKeepFeatureSpansEnabled(): void
@@ -263,7 +318,7 @@ class ServiceProviderTest extends SentryTestCase
         $this->assertTrue($config['tracing']['custom']);
     }
 
-    public function testSpotlightUrlRegistersTheGuzzleAspect(): void
+    public function testSpotlightUrlInstrumentsGuzzleRequests(): void
     {
         $this->resetApplicationWithConfig([
             'sentry.dsn' => null,
@@ -271,7 +326,81 @@ class ServiceProviderTest extends SentryTestCase
             'sentry_test.override_dsn' => true,
         ]);
 
-        $this->assertNotEmpty(AspectCollector::getRule(GuzzleHttpClientAspect::class));
+        $handler = new MockHandler([new PsrResponse]);
+        (new Client(['handler' => $handler]))->get('https://example.com');
+
+        $this->assertTrue($handler->getLastRequest()->hasHeader('sentry-trace'));
+    }
+
+    public function testGeneratedProxiesOfExcludedSourcesAreNotInApp(): void
+    {
+        $repositoryPath = dirname(__DIR__, 2);
+        $proxyFile = $this->createProxyFile();
+        $sourceFile = (new ReflectionClass(SentryServiceProvider::class))->getFileName();
+
+        ProxySources::with([$proxyFile => $sourceFile], function () use ($repositoryPath, $proxyFile): void {
+            $this->resetApplicationWithConfig([
+                'sentry.in_app_exclude' => [$repositoryPath . '/src', $repositoryPath . '/vendor'],
+            ]);
+
+            $this->assertSame(__FILE__, $this->firstInAppFrameFileAfterProxyFrame($proxyFile));
+        });
+    }
+
+    public function testGeneratedProxiesAreClassifiedAgainstSymlinkedExclusions(): void
+    {
+        $directory = ParallelTesting::tempDir('SentryServiceProviderTest');
+        $filesystem = new Filesystem;
+        $filesystem->deleteDirectory($directory);
+        $filesystem->ensureDirectoryExists($directory);
+        $repositoryLink = $directory . '/repository';
+        symlink(dirname(__DIR__, 2), $repositoryLink);
+        $proxyFile = $this->createProxyFile();
+        $sourceFile = (new ReflectionClass(SentryServiceProvider::class))->getFileName();
+
+        try {
+            ProxySources::with([$proxyFile => $sourceFile], function () use ($repositoryLink, $proxyFile): void {
+                $this->resetApplicationWithConfig([
+                    'sentry.in_app_exclude' => [$repositoryLink . '/src', $repositoryLink . '/vendor'],
+                ]);
+
+                $this->assertSame(__FILE__, $this->firstInAppFrameFileAfterProxyFrame($proxyFile));
+            });
+        } finally {
+            unlink($repositoryLink);
+            $filesystem->deleteDirectory($directory);
+        }
+    }
+
+    public function testInAppIncludeCoveringGeneratedProxiesKeepsThemInApp(): void
+    {
+        $repositoryPath = dirname(__DIR__, 2);
+        $proxyFile = $this->createProxyFile();
+        $sourceFile = (new ReflectionClass(SentryServiceProvider::class))->getFileName();
+
+        ProxySources::with([$proxyFile => $sourceFile], function () use ($repositoryPath, $proxyFile): void {
+            $this->resetApplicationWithConfig([
+                'sentry.in_app_exclude' => [$repositoryPath . '/src', $repositoryPath . '/vendor'],
+                'sentry.in_app_include' => [dirname($proxyFile)],
+            ]);
+
+            $this->assertSame($proxyFile, $this->firstInAppFrameFileAfterProxyFrame($proxyFile));
+        });
+    }
+
+    public function testGeneratedProxiesOfIncludedSourcesStayInAppUnderABroadExclusion(): void
+    {
+        $proxyFile = $this->createProxyFile();
+        $sourceFile = (new ReflectionClass(SentryServiceProvider::class))->getFileName();
+
+        ProxySources::with([$proxyFile => $sourceFile], function () use ($proxyFile, $sourceFile): void {
+            $this->resetApplicationWithConfig([
+                'sentry.in_app_exclude' => [base_path()],
+                'sentry.in_app_include' => [dirname($sourceFile)],
+            ]);
+
+            $this->assertSame($proxyFile, $this->firstInAppFrameFileAfterProxyFrame($proxyFile));
+        });
     }
 
     public function testFeatureFailureIsLoggedWithoutOverwritingItsInstanceOrSkippingBoot(): void
@@ -304,6 +433,36 @@ class ServiceProviderTest extends SentryTestCase
         $this->assertTrue($feature->booted);
     }
 
+    public function testLogChannelsAreComputedAgainAgainstTheRebuiltConfiguration(): void
+    {
+        $explicitChannel = ['driver' => 'sentry', 'level' => 'error'];
+        $masterConfig = new Repository([
+            'custom-sentry' => ['logs_channel_level' => 'debug'],
+            'logging' => ['channels' => ['sentry' => $explicitChannel]],
+        ]);
+        $tracker = new ConfigMutationTracker;
+        $tracker->observe($masterConfig);
+        $app = m::mock(Application::class)->makePartial();
+        $app->shouldReceive('configurationIsCached')->andReturnFalse();
+        $app->shouldReceive('make')->with('config')->andReturn($masterConfig);
+        $app->shouldReceive('make')->with(ConfigMutationTracker::class)->andReturn($tracker);
+
+        (new CustomRootInspectableSentryServiceProvider($app))->registerLogChannelsForTest();
+
+        $this->assertSame($explicitChannel, $masterConfig->get('logging.channels.sentry'));
+        $this->assertSame(['driver' => 'sentry_logs', 'level' => 'debug'], $masterConfig->get('logging.channels.sentry_logs'));
+
+        // A worker whose environment changed the level computes the channel from it, keeping the application's channel.
+        $workerConfig = new Repository([
+            'custom-sentry' => ['logs_channel_level' => 'warning'],
+            'logging' => ['channels' => ['sentry' => $explicitChannel]],
+        ]);
+        $tracker->replay($workerConfig);
+
+        $this->assertSame($explicitChannel, $workerConfig->get('logging.channels.sentry'));
+        $this->assertSame(['driver' => 'sentry_logs', 'level' => 'warning'], $workerConfig->get('logging.channels.sentry_logs'));
+    }
+
     public function testTracingMiddlewareHonorsDisabledAfterResponseContinuation(): void
     {
         $tracingConfig = config()->array('sentry.tracing');
@@ -321,6 +480,31 @@ class ServiceProviderTest extends SentryTestCase
         $middleware->terminate($request, $response);
 
         $this->assertSentryTransactionCount(1);
+    }
+
+    /**
+     * Create a temporary proxy file inside the application.
+     */
+    private function createProxyFile(): string
+    {
+        $this->proxyFile = base_path('bootstrap/cache/sentry-source.proxy.php');
+        (new Filesystem)->put($this->proxyFile, '<?php');
+
+        return realpath($this->proxyFile);
+    }
+
+    /**
+     * Get the first in-app file of a backtrace that starts inside the proxy.
+     */
+    private function firstInAppFrameFileAfterProxyFrame(string $proxyFile): ?string
+    {
+        $frame = $this->app->make(BacktraceHelper::class)->findFirstInAppFrameForBacktrace([
+            ['file' => $proxyFile, 'line' => 1, 'class' => SentryServiceProvider::class, 'function' => 'boot'],
+            ['file' => __FILE__, 'line' => __LINE__, 'class' => SentryServiceProvider::class, 'function' => 'register'],
+            ['class' => self::class, 'function' => __FUNCTION__],
+        ]);
+
+        return $frame?->getAbsoluteFilePath();
     }
 }
 
@@ -357,6 +541,19 @@ class InspectableSentryServiceProvider extends SentryServiceProvider
     {
         $this->bootFeatures($this->isActive());
     }
+
+    /**
+     * Register the log channels for inspection.
+     */
+    public function registerLogChannelsForTest(): void
+    {
+        $this->registerLogChannels();
+    }
+}
+
+class CustomRootInspectableSentryServiceProvider extends InspectableSentryServiceProvider
+{
+    public static string $abstract = 'custom-sentry';
 }
 
 class ConflictingSentryServiceProvider extends SentryServiceProvider
@@ -366,6 +563,9 @@ class ConflictingSentryServiceProvider extends SentryServiceProvider
 
 class InspectableSentryFeature extends Feature
 {
+    /**
+     * Indicate if the feature is applicable to the current environment.
+     */
     public function isApplicable(): bool
     {
         return true;
@@ -394,16 +594,25 @@ class FailingRegistrationSentryFeature extends Feature
 
     public bool $booted = false;
 
+    /**
+     * Indicate if the feature is applicable to the current environment.
+     */
     public function isApplicable(): bool
     {
         return true;
     }
 
+    /**
+     * Register the feature in the environment.
+     */
     public function register(): void
     {
         throw $this->exception;
     }
 
+    /**
+     * Set up the feature in the environment.
+     */
     public function onBoot(): void
     {
         $this->booted = true;

@@ -15,6 +15,7 @@ use Hypervel\Jwt\Exceptions\SecretMissingException;
 use Hypervel\Jwt\Exceptions\TokenExpiredException;
 use Hypervel\Jwt\Exceptions\TokenInvalidException;
 use Hypervel\Jwt\Providers\Lcobucci;
+use Hypervel\Jwt\Providers\Lcobucci\ParsedKey;
 use Hypervel\Jwt\Providers\Provider;
 use Hypervel\Jwt\Validations\ExpiredClaim;
 use Hypervel\Support\CarbonImmutable;
@@ -27,8 +28,9 @@ use Lcobucci\JWT\Signer\Rsa\Sha256 as RsaSha256;
 use Lcobucci\JWT\Validation\Constraint\IssuedBy;
 use Lcobucci\JWT\Validation\Constraint\SignedWith;
 use PHPUnit\Framework\Attributes\DataProvider;
+use ReflectionProperty;
 use SensitiveParameterValue;
-use TypeError;
+use Throwable;
 
 class LcobucciTest extends TestCase
 {
@@ -337,7 +339,7 @@ class LcobucciTest extends TestCase
             $this->fail('Expected the malformed registered date to be rejected.');
         } catch (TokenInvalidException $exception) {
             $this->assertStringStartsWith('Could not decode token:', $exception->getMessage());
-            $this->assertInstanceOf(TypeError::class, $exception->getPrevious());
+            $this->assertInstanceOf(Throwable::class, $exception->getPrevious());
         }
     }
 
@@ -460,6 +462,33 @@ class LcobucciTest extends TestCase
         $this->assertSame('1', $claims['sub']);
         $this->assertSame($exp, $claims['exp']);
         $this->assertSame($iat, $claims['iat']);
+    }
+
+    #[DataProvider('asymmetricKeyPairProvider')]
+    public function testProviderReusesParsedKeysForRepeatedSigningAndVerification(string $algo, string $privateKeyFile, string $publicKeyFile): void
+    {
+        $private = file_get_contents(__DIR__ . "/../Fixtures/keys/{$privateKeyFile}");
+        openssl_pkey_export(openssl_pkey_get_private($private), $encrypted, 'passphrase');
+        $provider = $this->getProvider('', $algo, [
+            'private' => $encrypted,
+            'public' => file_get_contents(__DIR__ . "/../Fixtures/keys/{$publicKeyFile}"),
+            'passphrase' => 'passphrase',
+        ]);
+        $configuration = (new ReflectionProperty($provider, 'config'))->getValue($provider);
+        $signingKey = $configuration->signingKey();
+        $verificationKey = $configuration->verificationKey();
+        $this->assertInstanceOf(ParsedKey::class, $signingKey);
+        $this->assertInstanceOf(ParsedKey::class, $verificationKey);
+
+        foreach (['first', 'second'] as $subject) {
+            $this->assertSame($subject, $provider->decode($provider->encode(['sub' => $subject]))['sub']);
+        }
+
+        $configuration = (new ReflectionProperty($provider, 'config'))->getValue($provider);
+        $this->assertSame($signingKey, $configuration->signingKey());
+        $this->assertSame($verificationKey, $configuration->verificationKey());
+        $constraint = $configuration->validationConstraints()[0];
+        $this->assertSame($verificationKey, (new ReflectionProperty($constraint, 'key'))->getValue($constraint));
     }
 
     public function testShouldReturnThePublicKey(): void

@@ -34,6 +34,7 @@
     - [Registering the Driver](#registering-the-driver)
 - [Console Commands](#console-commands)
 - [Events](#events)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -210,7 +211,7 @@ use Hypervel\Cache\SwooleStore;
 
 The available eviction policy constants are `EVICTION_POLICY_LRU`, `EVICTION_POLICY_LFU`, `EVICTION_POLICY_TTL`, and `EVICTION_POLICY_NOEVICTION`.
 
-The `eviction_interval` option controls how often stale records are pruned and memory-pressure eviction runs. The `interval_refresh_interval` option controls how often registered interval caches are checked and refreshed by the elected Swoole worker.
+The `eviction_interval` option controls how often stale records are pruned and memory-pressure eviction runs. The `interval_refresh_interval` option controls how often registered interval caches are checked and refreshed by the first Swoole worker.
 
 The table itself is configured in the `swoole_tables` section of your `config/cache.php` file:
 
@@ -225,6 +226,22 @@ The table itself is configured in the `swoole_tables` section of your `config/ca
 ```
 
 When a Swoole store is used in a cache stack, `bytes` must be large enough for the serialized stack record, including its value and expiration data. Hypervel throws an exception when a record is too large instead of silently skipping the Swoole layer.
+
+<a name="cache-intervals"></a>
+#### Cache Intervals
+
+In addition to the typical methods provided by Hypervel's cache system, the Swoole cache driver features interval based caches. These caches are automatically refreshed at the specified interval and should be registered within the `boot` method of one of your application's service providers. For example, the following cache will be refreshed every sixty seconds:
+
+```php
+use Hypervel\Support\Facades\Cache;
+use Hypervel\Support\Facades\DB;
+
+Cache::store('swoole')->interval('order-count', function () {
+    return DB::table('orders')->count();
+}, seconds: 60);
+```
+
+The closure is serialized and run by the first server worker, so it may only capture serializable values.
 
 <a name="building-cache-stacks"></a>
 ### Building Cache Stacks
@@ -1260,3 +1277,8 @@ To increase performance, you may disable cache events by setting the `events` co
 ```
 
 The failover store disables ordinary events on its outer repository by default because its backing repositories already dispatch them. The `CacheFailedOver` event is still dispatched when a backing store fails.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Cache began as a port of [Laravel Cache](https://github.com/illuminate/cache) and has been adapted for Hypervel's framework architecture and coroutine runtime.

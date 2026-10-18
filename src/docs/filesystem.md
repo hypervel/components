@@ -28,6 +28,7 @@
 - [Directories](#directories)
 - [Testing](#testing)
 - [Custom Filesystems](#custom-filesystems)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -232,6 +233,8 @@ The `s3` and `gcs` drivers pool their SDK clients by default. The bucket-specifi
 
 Pool identity is derived from the exact normalized configuration passed to the SDK client constructor. Equivalent client configurations converge automatically, including repeated `Storage::build()` calls. These configurations must use the same pool options; a mismatch throws immediately instead of silently reusing the first configuration's settings. Different credentials, regions, endpoints, or client options produce different pools.
 
+The `ftp` and `sftp` drivers keep an open connection inside each disk, so Hypervel pools these disks whole. Each operation borrows a disk with its own connection, so concurrent requests never share one.
+
 You may configure a pool using the disk's `pool` option:
 
 ```php
@@ -249,7 +252,7 @@ You may configure a pool using the disk's `pool` option:
 ],
 ```
 
-`min_retained_objects` is an idle-trimming floor; it does not eagerly create clients. `max_lifetime` expires clients by absolute age, while `max_idle_time` trims individual idle clients. `pool_idle_timeout` removes an entirely unused pool after 300 seconds by default. Set any of these three optional durations to `null` to disable it. If all clients are in use and no capacity becomes available before `wait_timeout`, a `RuntimeException` is thrown.
+`min_retained_objects` is an idle-trimming floor; it does not eagerly create clients. `max_lifetime` expires clients by absolute age, while `max_idle_time` trims individual idle clients. `pool_idle_timeout` removes an entirely unused pool after 300 seconds by default. Set any of these three optional durations to `null` to disable it. If all clients are in use and no capacity becomes available before `wait_timeout`, a `RuntimeException` is thrown. Each worker has its own pools, so an FTP or SFTP disk may open up to `max_objects` connections in every worker; keep that total within your server's connection limit.
 
 An explicit pool name may be useful when multiple configurations intentionally identify the same operational resource:
 
@@ -302,7 +305,7 @@ $files = Storage::disk($name)->withDriver(function (FilesystemOperator $driver) 
 });
 ```
 
-`Storage::forgetDisk()` only removes the manager's cached disk wrapper; an equivalent wrapper can continue using the shared pool. `Storage::purge()` removes the wrapper and closes its current pool, deriving the same pool identity even when the named disk has not been resolved yet or is composed from nested scoped disks. Other disks converging on that pool transparently create a fresh one on their next operation. Streams returned by `readStream()` or `readStreamRange()` retain their client lease until the stream is closed or destroyed.
+`Storage::forgetDisk()` only removes the manager's cached disk wrapper; an equivalent wrapper can continue using the shared pool. `Storage::purge()` removes the wrapper and closes its current pool, deriving the same pool identity even when the named disk has not been resolved yet or is composed from nested scoped disks. Other disks converging on that pool transparently create a fresh one on their next operation. A stream returned by `readStream()` or `readStreamRange()` that still reads from its connection keeps that connection out of the pool until the stream is closed or destroyed. Fully buffered reads, including FTP and SFTP downloads, return the connection to the pool before you consume the stream.
 
 S3 and Google Cloud Storage streams are read lazily by default, which keeps memory usage bounded and makes data available before the entire file has downloaded. This applies to `readStream()` and `readStreamRange()`; methods such as `get()` retain their normal behavior. Streaming requests close their HTTP connection after the read, so applications that open many small streams may prefer connection reuse and set the disk's `stream_reads` option to `false`.
 
@@ -800,7 +803,7 @@ Storage::disk('local')->moveToDisk(
 );
 ```
 
-Transfers from pooled disks, including S3 and Google Cloud Storage, buffer the source before writing to the destination so the source's pool slot is available during the write. Buffering keeps up to 2 MB in memory per transfer, then uses PHP's system temporary directory; allow enough temporary disk space for large files and concurrent transfers. Local sources stream directly.
+Transfers from pooled disks, including S3 and Google Cloud Storage, buffer live source streams before writing to the destination so the source's pool slot is available during the write. Already buffered sources, including FTP and SFTP downloads, are reused without another copy. Buffering keeps up to 2 MB in memory per transfer, then uses PHP's system temporary directory; allow enough temporary disk space for large files and concurrent transfers. Local sources stream directly.
 
 <a name="automatic-streaming"></a>
 ### Automatic Streaming
@@ -1226,8 +1229,13 @@ Storage::extend('dropbox', function (Application $app, array $config, ?string $n
 
 The closure must return an instance of `Hypervel\Filesystem\FilesystemAdapter`. The `$config` variable contains the values defined in `config/filesystems.php` for the specified disk. You may omit the third argument when your driver does not need the disk name.
 
-The optional `poolable` argument determines whether Hypervel should wrap the custom driver in an object pool. This value is `false` by default. You should set it to `true` for custom drivers that hold state that should not be shared across concurrent requests, such as cloud storage SDK clients. A poolable driver's `pool` option configures that pool, so it is left out of `$config`; other drivers receive it like any other option.
+The optional `poolable` argument determines whether Hypervel should wrap the custom driver in an object pool. This value is `false` by default. You should set it to `true` for custom drivers that hold state that should not be shared across concurrent requests, such as cloud storage SDK clients. A poolable driver's `pool` option configures that pool, so it is left out of `$config`. Other drivers receive it like any other option, which lets a driver that wraps another disk pass it on to `Storage::build()`.
 
 Custom whole-driver pools include the logical disk name in their construction fingerprint. If the name does not affect your custom driver and several named disks may safely share one pool, configure the same `pool.fingerprint` for each disk. A shared `pool.name` may also choose the pool's identity, but it does not replace the shared fingerprint.
 
 Once you have created and registered the extension's service provider, you may use the `dropbox` driver in your `config/filesystems.php` configuration file.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Filesystem began as a port of [Laravel Filesystem](https://github.com/illuminate/filesystem) and has been adapted for Hypervel's framework architecture and coroutine runtime.

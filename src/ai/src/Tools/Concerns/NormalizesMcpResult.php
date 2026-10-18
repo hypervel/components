@@ -1,0 +1,28 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Ai\Tools\Concerns;
+
+trait NormalizesMcpResult
+{
+    /**
+     * Format an MCP error payload into tool output.
+     */
+    protected function errorMessage(string $text): string
+    {
+        return $text === ''
+            ? 'MCP tool error.'
+            : 'MCP tool error: ' . $text;
+    }
+
+    /**
+     * Encode structured MCP content as JSON.
+     *
+     * @param array<string, mixed> $content
+     */
+    protected function json(array $content): string
+    {
+        return json_encode($content, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR);
+    }
+}

@@ -9,6 +9,9 @@ use Sentry\Tracing\Span;
 
 trait WorksWithSpans
 {
+    /**
+     * Get the current span if it is sampled.
+     */
     protected function getParentSpanIfSampled(): ?Span
     {
         $parentSpan = SentrySdk::getCurrentHub()->getSpan();
@@ -21,7 +24,11 @@ trait WorksWithSpans
         return $parentSpan;
     }
 
-    /** @param callable(Span $parentSpan): void $callback */
+    /**
+     * Call the callback with the current span if it is sampled.
+     *
+     * @param callable(Span $parentSpan): void $callback
+     */
     protected function withParentSpanIfSampled(callable $callback): void
     {
         $parentSpan = $this->getParentSpanIfSampled();

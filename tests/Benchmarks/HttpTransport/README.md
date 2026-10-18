@@ -1,6 +1,8 @@
 # HTTP transport benchmark
 
-This developer harness compares the public HTTP client against a separate local HTTPS origin. TLS verification stays enabled. It measures cold startup and repeated bursts, named connection reuse, unnamed streams, buffered requests, incremental event delivery and slow consumers. It is not a CI performance test or a prediction of remote provider throughput.
+This developer harness compares the public HTTP client against a separate local HTTPS origin. TLS verification stays enabled. It measures cold startup and repeated bursts, named and default transport reuse, buffered requests, incremental event delivery and slow consumers. It is not a CI performance test or a prediction of remote provider throughput.
+
+See [recorded measurements](results.md) for the native receive-buffer comparison.
 
 Run only in an owner-confirmed idle window. Use independently installed baseline and modified worktrees with identical dependencies, PHP settings, opcache, JIT and GC. Copy this harness into an older checkout when necessary; do not change its production source.
 
@@ -34,13 +36,13 @@ Useful scenarios:
 | Paced events | Defaults: 32 events of 128 bytes, 1 ms between events, 5 ms between bursts |
 | Unpaced response | `--pace-us=0` |
 | Serial warm reuse | `--concurrency=1 --pace-us=0` |
-| Operation-owned transport | `--unnamed` |
+| Default transport | `--unnamed` |
 | Ordinary buffered request | `--buffered` |
 | Slow consumer, 1 MiB per response | `--chunks=256 --bytes=4096 --pace-us=0 --consumer-us=1000` |
 | Sustained high concurrency | `--concurrency=128 --requests=512 --samples=10` |
 
 The default reader is `Response::lines()`. On older StreamHandler implementations it can withhold paced events until the response finishes. Compare that API behavior directly, but do not describe its lower CPU as equivalent incremental delivery. `--bytewise` reproduces the byte-at-a-time reader used by applications to avoid that batching; compare baseline bytewise delivery with current `lines()` separately. The origin emits complete ASCII SSE records, and the harness checks their count and length.
 
-Reports include start-to-first-event and complete-request p50/p95, client CPU, throughput, actual peak client and origin requests, and distinct/new connection IDs assigned by the origin at accept time. Named streaming transfers can retain 32 idle transports, so larger bursts still create new connections; this does not cap active requests. Buffered requests use Guzzle's separate idle easy-handle cache, whose synchronous default is three handles, not three physical connections. Per-request credentials change to exercise transport reuse without retaining a single credential identity.
+Reports include start-to-first-event and complete-request p50/p95, client CPU, throughput, actual peak client and origin requests, and distinct/new connection IDs assigned by the origin at accept time. Both named and default streaming transports can retain 32 idle connections, so larger bursts still create new connections; this does not cap active requests. Buffered requests retain up to 256 idle easy handles by default, controlled by `max_idle_handles`. The `--unnamed` mode remains useful when comparing older checkouts where default requests did not share a transport. Handle counts are not physical connection counts. Per-request credentials change to exercise transport reuse without retaining a single credential identity.
 
 Linux `/proc` supplies current RSS and open descriptors before and after each sample and after explicit handler cleanup. On the measured Linux build, each idle streaming transport retains three descriptors: a connection socket and both ends of a wakeup pipe. Include this cost when comparing retention bounds and sizing worker descriptor limits. Heap peaks and GC counts cover the client. The latency arrays and cumulative set of observed connection IDs also consume memory; account for that bookkeeping when comparing samples rather than treating total process memory as transport-only allocation. No collection runs inside the measured request loop. Keep raw reports outside the repository, and do not turn timing values into test assertions.

@@ -10,14 +10,23 @@ use Hypervel\Notifications\Slack\SlackMessage;
 
 class SlackChannelTestNotification extends Notification
 {
+    /**
+     * The callback that builds the Slack message.
+     */
     private Closure $callback;
 
+    /**
+     * Create a notification with the given message callback.
+     */
     public function __construct(?Closure $callback = null)
     {
-        $this->callback = $callback ?? function () {
+        $this->callback = $callback ?? function (): void {
         };
     }
 
+    /**
+     * Get the Slack representation of the notification.
+     */
     public function toSlack(mixed $notifiable): SlackMessage
     {
         return tap(new SlackMessage, $this->callback);

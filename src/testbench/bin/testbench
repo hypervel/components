@@ -35,7 +35,7 @@ $workingPath = realpath($workingPath) ?: $workingPath;
 
 define('TESTBENCH_WORKING_PATH', $workingPath);
 
-// Bootstrap Swoole environment (sets BASE_PATH, SWOOLE_HOOK_FLAGS, loads config)
+// Bootstrap the Testbench environment (sets BASE_PATH, loads config)
 Hypervel\Testbench\Bootstrapper::bootstrap();
 
 $config = Hypervel\Testbench\Bootstrapper::getConfiguration()

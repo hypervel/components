@@ -674,18 +674,19 @@ class ConfiguresPromptsTest extends TestCase
         $application = m::mock(Application::class);
         $command->setHypervel($application);
 
-        $outputStyle = m::mock(OutputStyle::class);
+        $input = new ArrayInput([]);
+        $output = new NullOutput;
+        $outputStyle = new OutputStyle($input, $output);
         $application->expects('make')->withArgs(fn (string $abstract): bool => $abstract === OutputStyle::class)->andReturn($outputStyle);
         $factory = m::mock(Factory::class);
         $application->expects('make')->withArgs(fn (string $abstract): bool => $abstract === Factory::class)->andReturn($factory);
         $application->shouldReceive('bound')->andReturn(false);
         $application->shouldReceive('runningUnitTests')->andReturn($runningUnitTests);
         $application->expects('call')->with([$command, 'handle'])->andReturnUsing(fn (callable $callback): mixed => call_user_func($callback));
-        $outputStyle->shouldReceive('newLinesWritten')->andReturn(1);
 
         $expectations($factory);
 
-        return $command->run(new ArrayInput([]), new NullOutput);
+        return $command->run($input, $output);
     }
 }
 

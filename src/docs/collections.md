@@ -10,6 +10,7 @@
     - [Creating Lazy Collections](#creating-lazy-collections)
     - [The Enumerable Contract](#the-enumerable-contract)
     - [Lazy Collection Methods](#lazy-collection-methods)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -4732,3 +4733,8 @@ if ($lock->get()) {
     }
 }
 ```
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Collections began as a port of [Laravel Collections](https://github.com/illuminate/collections) and has been adapted for Hypervel's framework architecture and coroutine runtime.

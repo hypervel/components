@@ -38,6 +38,7 @@
     - [Soft Deleting](#soft-deleting)
     - [Customizing Engine Searches](#customizing-engine-searches)
 - [Custom Engines](#custom-engines)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -352,7 +353,7 @@ Registering a callback replaces the previously registered callback for that life
 ### Database Engine
 
 > [!WARNING]
-> The database engine currently supports MySQL and PostgreSQL, both of which provide support for fast, full-text column indexing.
+> Full-text searching requires MySQL, MariaDB, or PostgreSQL. SQLite supports the database engine's `LIKE` queries.
 
 The `database` engine uses MySQL / PostgreSQL full-text indexes and `LIKE` clauses to search your existing database directly. For many applications, this is the simplest and most practical way to add search — no external service or additional infrastructure required.
 
@@ -362,7 +363,48 @@ To use the database engine, set the `SCOUT_DRIVER` environment variable to `data
 SCOUT_DRIVER=database
 ```
 
-Once configured, you may [define your searchable data](#configuring-searchable-data) and start [executing search queries](#searching) against your models. Unlike third-party engines, the database engine requires no separate indexing step — it searches your database tables directly.
+Once configured, you may [define your searchable data](#configuring-searchable-data) and start [executing search queries](#searching) against your models. Unlike third-party engines, ordinary text searching with the database engine requires no separate indexing step — it searches your database tables directly.
+
+<a name="database-semantic-and-hybrid-search"></a>
+#### Semantic and Hybrid Search
+
+The database engine supports semantic and hybrid search when using PostgreSQL with the `pgvector` extension. To get started, add a nullable vector column and a full-text index to your model's table. The vector column must be nullable because Scout stores the embedding after the model has been persisted:
+
+```php
+Schema::ensureVectorExtensionExists();
+
+Schema::table('articles', function (Blueprint $table) {
+    // ...
+
+    $table->vector('embedding', dimensions: 1536)->nullable();
+    $table->vectorIndex('embedding');
+    $table->fullText(['title', 'body']);
+});
+```
+
+Next, define a `toSearchableEmbedding` method on the model. This method may return the source text that Scout should embed or a precomputed embedding array. Scout stores embeddings in the `embedding` column by default; to use another column, define a `searchableEmbeddingColumn` method on the model. Configure the AI SDK's default embedding provider and model to produce vectors matching the column's dimensions. The database engine uses these defaults for both stored and search embeddings it generates.
+
+> [!WARNING]
+> Database hybrid search loads up to 1,000 text matches and 1,000 semantic matches before ranking and paginating them. Select only the columns you need, including the model's primary key, to avoid transferring large embedding values. The same projection also helps semantic searches. This reduces data transfer and model size; it does not reduce the number of candidate models or disable their eager-loaded relationships.
+
+```php
+use Hypervel\Database\Eloquent\Builder;
+
+$articles = Article::search('renewable energy storage')
+    ->hybrid()
+    ->query(fn (Builder $query) => $query->select(['articles.id', 'articles.title']))
+    ->paginate(20);
+```
+
+Hybrid pagination is limited to the first 1,000 ranked results. Semantic search supports pagination beyond this window, but approximate vector indexes can return fewer matches than requested. For HNSW indexes, pgvector 0.8 or later supports [iterative scanning](https://github.com/pgvector/pgvector#iterative-index-scans), which searches further when needed. You may enable it in your PostgreSQL connection's [server options](/docs/{{version}}/database#postgresql-server-options):
+
+```php
+'server_options' => [
+    'hnsw.iterative_scan' => 'strict_order',
+],
+```
+
+Searching further requires more database work and remains subject to pgvector's scan and memory limits; it does not guarantee that every matching row will be returned. Semantic `paginate()` also counts all rows satisfying the similarity filter, which can require scanning the table and can exceed the results available through an approximate index. Use `simplePaginate()` when you don't need a total count.
 
 #### Customizing Database Searching Strategies
 
@@ -668,21 +710,7 @@ To use semantic or hybrid search with Meilisearch, configure an embedder in the 
 ],
 ```
 
-The model's `toSearchableEmbedding` method should return the record's precomputed embedding, which Scout adds to the indexed document. After updating the configuration, run the `scout:sync-index-settings` command:
-
-```php
-/**
- * Get the embedding for the model.
- *
- * @return array<int, float>
- */
-public function toSearchableEmbedding(): array
-{
-    return $this->embedding;
-}
-```
-
-Scout does not generate embeddings, so provide each semantic or hybrid search's [query embedding](#semantic-search) using the `vector` search option.
+The model's `toSearchableEmbedding` method may return source text, which Scout embeds using the [Hypervel AI SDK](/docs/{{version}}/ai-sdk), or a precomputed embedding array. After updating the configuration, run the `scout:sync-index-settings` command.
 
 Alternatively, you may use Meilisearch's native embeddings by setting the embedding `driver` to `meilisearch`. In this mode, Meilisearch generates document and query embeddings using the configured embedder, so the `dimensions` option and `toSearchableEmbedding` method are not required:
 
@@ -805,7 +833,7 @@ User::class => [
 <a name="typesense-embeddings"></a>
 #### Embeddings
 
-To enable semantic and hybrid search, define an `embedding` setting and vector field in the model's Typesense configuration:
+To enable semantic and hybrid search, define an `embedding` setting and vector field in the model's Typesense configuration. By default, Scout uses the [Hypervel AI SDK](/docs/{{version}}/ai-sdk) to generate embeddings:
 
 ```php
 use App\Models\Article;
@@ -827,12 +855,12 @@ use App\Models\Article;
 ],
 ```
 
-Your model's `toSearchableEmbedding` method should return the record's precomputed embedding array. Scout does not generate embeddings, so provide each semantic or hybrid search's [query embedding](#semantic-search) using the `vector` search option:
+Your model's `toSearchableEmbedding` method should return the source text that Scout should embed or a precomputed embedding array:
 
 ```php
-public function toSearchableEmbedding(): array
+public function toSearchableEmbedding(): string|array
 {
-    return $this->embedding;
+    return $this->title.' '.$this->content;
 }
 ```
 
@@ -906,7 +934,34 @@ use App\Models\Article;
 
 The numeric values assigned to `searchable-attributes` are relative BM25 weights. In the example above, matches in the article title contribute three times the score of matches in the body.
 
-To enable semantic and hybrid search, use Turbopuffer's native embeddings. Set the embedding `driver` to `turbopuffer` and configure an `embed` schema on the searchable source attribute:
+To enable semantic and hybrid search, add an `embedding` setting and vector schema to the model's configuration:
+
+```php
+'turbopuffer' => [
+    // ...
+    'model-settings' => [
+        Article::class => [
+            'searchable-attributes' => [
+                'title' => 3,
+                'body' => 1,
+            ],
+            'embedding' => [
+                'attribute' => 'embedding',
+                'dimensions' => 1536,
+            ],
+            'schema' => [
+                'title' => ['type' => 'string', 'full_text_search' => true],
+                'body' => ['type' => 'string', 'full_text_search' => true],
+                'embedding' => ['type' => '[1536]f32', 'ann' => true],
+            ],
+        ],
+    ],
+],
+```
+
+Your model's `toSearchableEmbedding` method should return the source text that Scout should embed or a precomputed embedding array. Scout generates source-text embeddings using the [Hypervel AI SDK](/docs/{{version}}/ai-sdk).
+
+Alternatively, you may use Turbopuffer's native embeddings without installing the Hypervel AI SDK or defining a `toSearchableEmbedding` method. Set the embedding driver to `turbopuffer` and configure an `embed` schema on the searchable source attribute:
 
 ```php
 'embedding' => [
@@ -929,21 +984,7 @@ To enable semantic and hybrid search, use Turbopuffer's native embeddings. Set t
 
 The source attribute must be included in the model's `toSearchableArray` output.
 
-You may also index precomputed embeddings by adding an `embedding` setting and vector schema to the model's configuration, then returning the embedding array from the model's `toSearchableEmbedding` method:
-
-```php
-'embedding' => [
-    'attribute' => 'embedding',
-    'dimensions' => 1536,
-],
-
-'schema' => [
-    // ...
-    'embedding' => ['type' => '[1536]f32', 'ann' => true],
-],
-```
-
-Since Scout does not generate query embeddings, search precomputed embeddings by passing a Turbopuffer `rank_by` expression to the `options` method rather than using the `semantic` and `hybrid` methods:
+To search with a precomputed query vector, pass a Turbopuffer `rank_by` expression to the `options` method:
 
 ```php
 $articles = Article::search()
@@ -1003,6 +1044,8 @@ php artisan scout:flush "App\Models\Post"
 ```
 
 By default, `scout:import` processes chunks in parallel using up to 50 concurrent coroutines. You may tune this by setting `command_concurrency` in your `config/scout.php` file or via the `SCOUT_COMMAND_CONCURRENCY` environment variable.
+
+When the database engine stores embeddings, `scout:import` also limits concurrency to the imported models' connection pool, keeping one connection free for reading chunks. If that pool has only one connection, chunks are imported one at a time. This can mean fewer concurrent embedding requests than `command_concurrency` allows, but it keeps the import from exhausting its own pool. The limit doesn't cover other connections used by your hooks.
 
 <a name="modifying-the-import-query"></a>
 #### Modifying the Import Query
@@ -1392,7 +1435,15 @@ When using a third-party engine, this callback is invoked after the relevant mod
 <a name="semantic-search"></a>
 ### Semantic Search
 
-The Meilisearch, Typesense, and Turbopuffer engines support semantic search, which matches records based on the meaning of a query. Scout does not generate embeddings, so semantic and hybrid searches use [Meilisearch's](#meilisearch-semantic-and-hybrid-search), [Typesense's](#typesense-embeddings), or [Turbopuffer's](#turbopuffer-configuration) native embeddings, or a precomputed query vector on Meilisearch and Typesense.
+The database, Meilisearch, Typesense, and Turbopuffer engines support semantic search, which matches records based on the meaning of a query. The [database engine](#database-semantic-and-hybrid-search) requires PostgreSQL with pgvector. When Scout generates embeddings, semantic and hybrid searches require the [Hypervel AI SDK](/docs/{{version}}/ai-sdk). [Meilisearch's](#meilisearch-semantic-and-hybrid-search), [Typesense's](#typesense-embeddings), and [Turbopuffer's](#turbopuffer-configuration) native embeddings and their supported precomputed query vectors do not require the AI SDK.
+
+Install the SDK and configure its embedding provider before using generated embeddings:
+
+```shell
+composer require hypervel/ai
+```
+
+Scout enables caching for generated embeddings even when `ai.caching.embeddings.cache` is disabled. The cache store, duration, and individual-input caching follow the AI SDK's [embedding cache configuration](/docs/{{version}}/ai-sdk#caching-embeddings). For Meilisearch, Typesense, and Turbopuffer, you may set `provider` and `model` in a model's `embedding` configuration to override the SDK's defaults.
 
 After configuring embeddings for the selected engine, invoke the `semantic` method on a search query:
 
@@ -1402,7 +1453,7 @@ $articles = Article::search('staying cool in the summer')
     ->get();
 ```
 
-When the engine searches precomputed embeddings, provide the query's embedding using the `vector` option:
+When using Meilisearch or Typesense, you may provide the query's embedding using the `vector` option:
 
 ```php
 $articles = Article::search('staying cool in the summer')
@@ -1411,7 +1462,7 @@ $articles = Article::search('staying cool in the summer')
     ->get();
 ```
 
-When using Meilisearch or Typesense, you may provide a minimum similarity threshold between `0` and `1`. Turbopuffer does not support similarity thresholds and ignores this argument:
+When using the database engine, Meilisearch, or Typesense, you may provide a minimum similarity threshold between `0` and `1`. Turbopuffer does not support similarity thresholds and ignores this argument:
 
 ```php
 $articles = Article::search('renewable energy storage')
@@ -1580,3 +1631,8 @@ Once your engine has been registered, you may specify it as your default Scout `
 ```php
 'driver' => 'mysql',
 ```
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Scout began as a port of [Laravel Scout](https://github.com/laravel/scout) and has been adapted for Hypervel's framework architecture and coroutine runtime.

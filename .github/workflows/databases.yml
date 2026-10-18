@@ -28,7 +28,7 @@ jobs:
           --health-retries 5
 
     container:
-      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.2.2
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
 
     strategy:
       fail-fast: false
@@ -83,7 +83,7 @@ jobs:
           --health-retries 5
 
     container:
-      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.2.2
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
 
     strategy:
       fail-fast: false
@@ -138,7 +138,7 @@ jobs:
           --health-retries 5
 
     container:
-      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.2.2
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
 
     strategy:
       fail-fast: false
@@ -192,7 +192,7 @@ jobs:
           --health-retries 5
 
     container:
-      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.2.2
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
 
     strategy:
       fail-fast: false
@@ -246,7 +246,7 @@ jobs:
           --health-retries 5
 
     container:
-      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.2.2
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
 
     strategy:
       fail-fast: false
@@ -300,7 +300,7 @@ jobs:
           --health-retries 5
 
     container:
-      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.2.2
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
 
     strategy:
       fail-fast: false
@@ -343,7 +343,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:17
+        image: pgvector/pgvector:0.8.7-pg17
         env:
           POSTGRES_PASSWORD: password
           POSTGRES_DB: testing
@@ -354,7 +354,7 @@ jobs:
           --health-retries 5
 
     container:
-      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.2.2
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
 
     strategy:
       fail-fast: false
@@ -397,7 +397,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:18
+        image: pgvector/pgvector:0.8.7-pg18
         env:
           POSTGRES_PASSWORD: password
           POSTGRES_DB: testing
@@ -408,7 +408,7 @@ jobs:
           --health-retries 5
 
     container:
-      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.2.2
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
 
     strategy:
       fail-fast: false
@@ -450,7 +450,7 @@ jobs:
     timeout-minutes: 10
 
     container:
-      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.2.2
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
 
     strategy:
       fail-fast: false

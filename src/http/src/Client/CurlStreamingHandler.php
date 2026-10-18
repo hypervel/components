@@ -26,7 +26,6 @@ use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Swoole\Runtime;
 use Throwable;
-use WeakReference;
 
 /**
  * Deliver streaming responses without sharing an active cURL multi handle.
@@ -122,8 +121,8 @@ class CurlStreamingHandler
                         // The chunk is accepted; stop native reads at the buffer's high-water mark.
                         $paused = true;
 
-                        /** @var WeakReference<CurlHandle> $handle Assigned before the transfer starts. */
-                        if (curl_pause($handle->get(), CURLPAUSE_RECV) !== CURLE_OK) {
+                        /** @var CurlHandle $handle Assigned before the transfer starts. */
+                        if (curl_pause($handle, CURLPAUSE_RECV) !== CURLE_OK) {
                             throw new RuntimeException('Unable to pause the streaming response.');
                         }
                     }
@@ -137,8 +136,7 @@ class CurlStreamingHandler
             // Streaming timeout ends at headers; body waits use read_timeout.
             $transferOptions['timeout'] = 0;
             $easy = $this->factory->create($request, $transferOptions);
-            // Guzzle 7 may discard a handle without clearing its callbacks; avoid a cycle.
-            $handle = WeakReference::create($easy->handle);
+            $handle = $easy->handle;
 
             try {
                 $connection = $this->acquire($easy);
@@ -169,21 +167,27 @@ class CurlStreamingHandler
     }
 
     /**
-     * Obtain an exclusive transport without sharing another proxy's tunnel.
+     * Obtain an exclusive transport for the request's route without sharing another proxy's tunnel.
      */
     protected function acquire(EasyHandle $easy): CurlStreamingConnection
     {
+        $uri = $easy->request->getUri();
+        // Forward proxies can reuse one connection across HTTP origins.
+        $route = $easy->effectiveProxy !== null && $uri->getScheme() === 'http'
+            ? 'proxy:' . hash('xxh128', $easy->effectiveProxy)
+            : $uri->getScheme() . '://' . $uri->getHost() . ':' . ($uri->getPort() ?? ($uri->getScheme() === 'https' ? 443 : 80));
+
         for ($index = count($this->idleConnections) - 1; $index >= 0; --$index) {
             $connection = $this->idleConnections[$index];
 
-            if ($connection->proxyTunnelSignature === $easy->proxyTunnelSignature) {
+            if ($connection->route === $route && $connection->proxyTunnelSignature === $easy->proxyTunnelSignature) {
                 array_splice($this->idleConnections, $index, 1);
 
                 return $connection;
             }
         }
 
-        return new CurlStreamingConnection($easy->proxyTunnelSignature);
+        return new CurlStreamingConnection($route, $easy->proxyTunnelSignature);
     }
 
     /**

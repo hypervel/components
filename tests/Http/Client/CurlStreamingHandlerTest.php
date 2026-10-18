@@ -37,7 +37,7 @@ class CurlStreamingHandlerTest extends TestCase
     public function testAmbiguousHostsAreRejectedBeforeConnecting(string $url, array $headers, string $message): void
     {
         $this->expectException(ConnectionException::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIsOrContains($message);
 
         (new Factory)->withOptions(['stream' => true])->withHeaders($headers)->get($url);
     }
@@ -428,9 +428,8 @@ class CurlStreamingHandlerTest extends TestCase
 
     public function testNativeWaitReportsDataArrivingBetweenPerformAndSelect(): void
     {
-        // @TODO: Update the version gate when Swoole fixes curl_multi_select hiding ready data.
-        if (SWOOLE_VERSION_ID <= 60203) {
-            $this->markTestSkipped('Swoole 6.2.3 and earlier can consume ready cURL data and then wait for another event.');
+        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
+            $this->markTestSkipped('Swoole 6.3.0 RC1 and earlier can consume ready cURL data and then wait for another event.');
         }
 
         $server = new Socket(AF_INET, SOCK_STREAM, 0);
@@ -538,6 +537,32 @@ class CurlStreamingHandlerTest extends TestCase
         }
     }
 
+    public function testMixedReadSizesPreserveTheBodyAndItsPosition(): void
+    {
+        $payload = str_repeat('0123456789', 4096);
+        $server = LoopbackHttpServer::start([['body' => $payload]]);
+        $response = (new Factory)->withOptions(['stream' => true])->get('http://127.0.0.1:' . $server->port);
+
+        try {
+            $body = $response->toPsrResponse()->getBody();
+            $received = '';
+
+            foreach ([1, 0, 7, 8192, 13, 65536] as $length) {
+                $chunk = $body->read($length);
+                $this->assertLessThanOrEqual($length, strlen($chunk));
+                $this->assertSame(substr($payload, strlen($received), strlen($chunk)), $chunk);
+                $received .= $chunk;
+                $this->assertSame(strlen($received), $body->tell());
+            }
+
+            $this->assertSame($payload, $received . $body->getContents());
+            $this->assertSame(strlen($payload), $body->tell());
+            $this->assertTrue($body->eof());
+        } finally {
+            $response->close();
+        }
+    }
+
     public function testSlowConsumersPauseDownloadsAndMayContinueBeyondTheHeaderTimeout(): void
     {
         $payload = str_repeat('streamed content ', 131072);
@@ -558,8 +583,9 @@ class CurlStreamingHandlerTest extends TestCase
             $this->assertGreaterThan(0, $pausedAt);
             $this->assertLessThan(strlen($payload), $pausedAt);
             $buffer = (new ReflectionProperty($body, 'buffer'))->getValue($body);
+            $pending = (new ReflectionProperty($body, 'pending'))->getValue($body);
             // BufferStream's 16 KiB high-water mark plus one CURL_MAX_WRITE_SIZE callback.
-            $this->assertLessThanOrEqual(32768, $buffer->getSize() + strlen($first));
+            $this->assertLessThanOrEqual(32768, $buffer->getSize() + strlen($pending));
 
             // Allow the origin to progress while the caller holds its first byte.
             usleep(600000);

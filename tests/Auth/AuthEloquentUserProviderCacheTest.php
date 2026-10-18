@@ -915,6 +915,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
             ->once()
             ->with(
                 $repository,
+                m::type(Closure::class),
                 $key,
                 300,
                 m::type(Closure::class),
@@ -923,6 +924,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
             )
             ->andReturnUsing(function (
                 CacheRepository $cache,
+                Closure $source,
                 string $receivedKey,
                 int $ttl,
                 Closure $read,
@@ -938,8 +940,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
     }
 
     /**
-     * Provider configured so that createModel() must never be called
-     * (cache-hit / cache-disabled paths).
+     * Create a provider that must not construct a source model.
      */
     protected function providerWithoutDbFetch(): EloquentUserProvider&MockObject
     {

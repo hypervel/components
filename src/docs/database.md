@@ -22,6 +22,7 @@
     - [Custom Database Clients](#custom-database-clients)
 - [Inspecting Your Databases](#inspecting-your-databases)
 - [Monitoring Your Databases](#monitoring-your-databases)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -33,9 +34,11 @@ Almost every modern web application interacts with a database. Hypervel makes in
 - MariaDB 10.3+ ([Version Policy](https://mariadb.org/about/#maintenance-policy))
 - MySQL 5.7+ ([Version Policy](https://en.wikipedia.org/wiki/MySQL#Release_history))
 - PostgreSQL 10.0+ ([Version Policy](https://www.postgresql.org/support/versioning/))
-- SQLite 3.26.0+
+- SQLite 3.32.0+
 
 </div>
+
+SQLite and PostgreSQL connections require Swoole to be built with that database's support (`--enable-swoole-sqlite` or `--enable-swoole-pgsql`), so queries run without blocking other coroutines. MySQL and MariaDB connections require the PDO MySQL extension to use PHP's default mysqlnd driver. See the [installation requirements](/docs/{{version}}/installation#requirements).
 
 <a name="configuration"></a>
 ### Configuration
@@ -288,7 +291,25 @@ When you need a direct connection for migrations or schema operations, configure
 
 A request may spend much longer waiting for an external service than running database queries. Holding a database session throughout that wait prevents other requests from using it, even though the database has no work to do.
 
-Hypervel's [HTTP client](/docs/{{version}}/http-client) automatically returns the current execution's idle database sessions to their pools before sending an outgoing request, including retries and redirects. This happens after request callbacks, so connections used by those callbacks can also be released. The S3 filesystem driver, the SQS queue driver and the SES mail transport do the same before each AWS command, before credentials are fetched. The next database operation borrows a session automatically. Existing connection objects, builders, query logs and sticky reads remain valid. No database connection is opened merely to release it.
+Hypervel automatically returns the current execution's idle database sessions to their pools at these boundaries:
+
+- Before outgoing [HTTP client](/docs/{{version}}/http-client) requests, including retries and redirects, after request callbacks.
+- Before sending [mail](/docs/{{version}}/mail), after the message is built and `MessageSending` listeners have run.
+- Before Pusher, Ably and Mercure [broadcasts](/docs/{{version}}/broadcasting).
+- Before requests from [Scout's](/docs/{{version}}/scout) default Algolia, Meilisearch and Typesense HTTP clients. This automatic release is not added to a custom Typesense `client` supplied in `client-settings`.
+- During `scout:import`, after each chunk finishes and before the command waits for the remaining chunks.
+- Before sleeping while waiting for a cache lock, a cache or Redis funnel, or a Redis throttle.
+- Before Saloon waits for a rate limit, a request delay or a retry delay.
+- Before the `retry` helper sleeps between attempts, including HTTP client retry delays.
+- Before the [Concurrency](/docs/{{version}}/concurrency) coroutine driver starts its tasks, and before a [Saloon pool](/docs/{{version}}/saloon#concurrent-requests) admits or waits for requests.
+- Before running or waiting for a [process](/docs/{{version}}/processes), and before stopping one with a positive grace period.
+- Before [filesystem](/docs/{{version}}/filesystem) operations on built-in S3, GCS, FTP and SFTP disks, and custom disks registered with `poolable: true`, except path formatting and temporary-URL capability checks.
+- Before requests from [Socialite's](/docs/{{version}}/socialite) default HTTP client and the default [Slack webhook](/docs/{{version}}/notifications#slack-notifications) client.
+- Before borrowing a pooled SQS or Beanstalkd queue connection.
+- Before each command from the S3, SQS and SES clients Hypervel creates, including commands sent inside a pooled disk's or queue's borrow callback. This happens before credentials are fetched.
+- Before starting a [gRPC](/docs/{{version}}/grpc) call or retry attempt, and before waiting for a retry delay.
+
+The next database operation borrows a session automatically. Existing connection objects, builders, query logs and sticky reads remain valid. No database connection is opened merely to release it.
 
 Registered [session configurators](#configuring-database-session-state) apply the current execution's settings before a borrowed PDO is used, updating the physical session only when its desired state changes. Ordinary database queries need no changes to take advantage of early release.
 
@@ -310,15 +331,25 @@ $responses = parallel([
 ]);
 ```
 
-Automatic release occurs before sending a request, not on every read of a streamed response. If your stream consumer performs database work between chunks, you may call `releaseIdleConnections()` before waiting for more data. Faked HTTP requests do not release connections. If you provide your own Guzzle client using `setClient`, call `DB::releaseIdleConnections()` yourself before sending requests. AWS SDK clients you create yourself can release before each command with the same middleware Hypervel's drivers use:
+HTTP client release occurs before sending a request, not on every read of a streamed response. If your stream consumer performs database work between chunks, you may call `releaseIdleConnections()` before waiting for more data. Faked HTTP requests do not release connections. If you provide your own Guzzle client using `setClient`, call `DB::releaseIdleConnections()` yourself before sending requests.
+
+Process waits release idle sessions when the wait begins. If an output callback performs database work, it may call `DB::releaseIdleConnections()` before returning to wait for more output.
+
+The same applies to filesystem and gRPC streams: opening a stream releases idle sessions, but reading each chunk or message does not. Consumers and raw-access callbacks that query the database may release their sessions before further external work. Commands from an S3 disk's client already release before each command, including inside raw-access callbacks.
+
+Socialite clients configured with a custom Guzzle `handler` or supplied through `setHttpClient()`, injected SQS clients, and unpooled custom filesystem drivers control their own transports. Call `DB::releaseIdleConnections()` before their external waits when needed. AWS SDK clients you create yourself can release before each command the same way Hypervel's clients do:
 
 ```php
+use Aws\Middleware;
 use Aws\Sqs\SqsClient;
-use Hypervel\Support\Aws\ReleaseIdleDatabaseConnections;
+use Hypervel\Support\Facades\DB;
 
 $client = new SqsClient($config);
 
-$client->getHandlerList()->appendInit(new ReleaseIdleDatabaseConnections);
+$client->getHandlerList()->prependInit(
+    Middleware::tap(fn () => DB::releaseIdleConnections()),
+    'release_idle_database_connections',
+);
 ```
 
 Active queries, transactions, open cursors and `Schema::withoutForeignKeyConstraints` callbacks retain their sessions automatically. This includes transactions started directly through PDO or SQL, on either the read or write connection. In particular, an HTTP call inside `DB::transaction()` keeps the transaction's connection. Completed `chunk` or `lazy` query batches may release between batches.
@@ -804,6 +835,8 @@ DB::transaction(function () {
 });
 ```
 
+The `transaction` method commits or rolls back the transaction it starts, so don't call `commit` or `rollBack` for that transaction inside the closure. If you do, an exception is thrown when the closure returns. You may nest `transaction` calls, or pair your own `beginTransaction` with `commit` or `rollBack` inside the closure. If a nested failure ends the outer transaction, such as a MySQL deadlock, the outer `transaction` call throws even when the closure catches the nested exception.
+
 <a name="handling-concurrency-errors"></a>
 #### Handling Concurrency Errors
 
@@ -990,3 +1023,8 @@ public function boot(): void
     });
 }
 ```
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Database began as a port of [Laravel Database](https://github.com/illuminate/database) and has been adapted for Hypervel's framework architecture and coroutine runtime.

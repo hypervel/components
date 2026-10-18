@@ -10,7 +10,7 @@ use LogicException;
 
 class HeaderBlockTest extends TestCase
 {
-    public function testArrayable(): void
+    public function testItIsArrayable(): void
     {
         $block = new HeaderBlock('Budget Performance');
 
@@ -23,7 +23,7 @@ class HeaderBlockTest extends TestCase
         ], $block->toArray());
     }
 
-    public function testBlockIdCantExceedOneFiveZeroCharacters(): void
+    public function testTheTextHeadingCannotExceed150Characters(): void
     {
         $blockA = new HeaderBlock(str_repeat('a', 151));
         $blockB = new HeaderBlock(str_repeat('b', 150));
@@ -45,7 +45,7 @@ class HeaderBlockTest extends TestCase
         ], $blockB->toArray());
     }
 
-    public function testCanManuallySpecifyBlockIdField(): void
+    public function testItCanManuallySpecifyTheBlockIdField(): void
     {
         $block = new HeaderBlock('Budget Performance');
         $block->id('header1');
@@ -65,7 +65,7 @@ class HeaderBlockTest extends TestCase
         $this->assertSame('0', (new HeaderBlock('Header'))->id('0')->toArray()['block_id']);
     }
 
-    public function testBlockIdCantExceedTwoFiveFiveCharacters(): void
+    public function testTheBlockIdFieldCannotExceed255Characters(): void
     {
         $this->expectException(LogicException::class);
         $this->expectExceptionMessageIs('Maximum length for the block_id field is 255 characters.');

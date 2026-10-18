@@ -7,6 +7,7 @@
     - [Task Timeouts](#task-timeouts)
 - [Choosing a Driver](#choosing-a-driver)
 - [Deferring Concurrent Tasks](#deferring-concurrent-tasks)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -148,3 +149,8 @@ Concurrency::defer([
 ```
 
 For cleanup that should run when a single coroutine exits, use `Hypervel\Coroutine\Coroutine::defer()` instead.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Concurrency began as a port of [Laravel Concurrency](https://github.com/illuminate/concurrency) and has been adapted for Hypervel's framework architecture and coroutine runtime.

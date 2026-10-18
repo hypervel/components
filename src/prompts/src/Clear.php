@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Prompts;
 
+use Hypervel\Prompts\Support\Utils;
+
 class Clear extends Prompt
 {
     /**
@@ -14,7 +16,9 @@ class Clear extends Prompt
         // Fill the previous newline count so subsequent prompts won't add padding.
         static::output()->write(PHP_EOL . PHP_EOL);
 
-        $this->writeDirectly($this->renderTheme());
+        $frame = $this->renderTheme();
+
+        $this->writeDirectly(static::output()->isDecorated() ? $frame : Utils::stripTerminalControls($frame));
 
         return true;
     }

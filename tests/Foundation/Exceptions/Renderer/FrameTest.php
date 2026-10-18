@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Exceptions\Renderer;
 
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Exceptions\Renderer\Frame;
+use Hypervel\Testing\ParallelTesting;
+use Hypervel\Tests\Di\Fixtures\ProxySources;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -12,6 +15,33 @@ use Symfony\Component\ErrorHandler\Exception\FlattenException;
 
 class FrameTest extends TestCase
 {
+    protected string $directory;
+
+    /**
+     * Prepare an isolated proxy directory.
+     */
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->directory = ParallelTesting::tempDir('FrameTest');
+        $files = new Filesystem;
+        $files->deleteDirectory($this->directory);
+        $files->ensureDirectoryExists($this->directory);
+    }
+
+    /**
+     * Remove temporary proxy files.
+     */
+    protected function tearDown(): void
+    {
+        try {
+            (new Filesystem)->deleteDirectory($this->directory);
+        } finally {
+            parent::tearDown();
+        }
+    }
+
     #[DataProvider('unixFileDataProvider')]
     public function testItNormalizesFilePathOnUnix(array $frameData, string $basePath, string $expected): void
     {
@@ -85,4 +115,17 @@ class FrameTest extends TestCase
 
     // REMOVED: test_it_determines_if_frame_is_from_vendor_on_windows - Swoole doesn't run on Windows
     // REMOVED: windowsIsFromVendorDataProvider - Swoole doesn't run on Windows
+
+    public function testGeneratedProxyFramesAreClassifiedByTheirSourceFile(): void
+    {
+        $proxyFile = $this->directory . '/Frame.proxy.php';
+        (new Filesystem)->put($proxyFile, '<?php');
+
+        ProxySources::with([$proxyFile => __FILE__], function () use ($proxyFile): void {
+            $frame = new Frame(m::mock(FlattenException::class), [], ['file' => $proxyFile, 'line' => 10], $this->directory);
+
+            $this->assertTrue($frame->isFromVendor());
+            $this->assertSame(basename($proxyFile), $frame->file());
+        });
+    }
 }

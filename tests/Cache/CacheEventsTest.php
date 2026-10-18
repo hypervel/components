@@ -259,20 +259,40 @@ class CacheEventsTest extends TestCase
         $this->assertSame($exception, $events[1]->exception);
     }
 
-    public function testPutFalseResultDispatchesFailureEventWithoutException(): void
-    {
+    #[DataProvider('falseWriteOperations')]
+    public function testFalseWriteResultDispatchesFailureEventsWithoutException(
+        string $method,
+        array $arguments,
+        array $eventClasses,
+        array $keys,
+    ): void {
         $store = m::mock(Store::class);
-        $store->expects('put')->with('foo', 'bar', 60)->andReturnFalse();
+        $store->expects($method)->with(...$arguments)->andReturnFalse();
         $events = [];
         $repository = new Repository($store, ['store' => 'array']);
         $repository->setEventDispatcher($this->getCapturingDispatcher($events));
 
-        $this->assertFalse($repository->put('foo', 'bar', 60));
-        $this->assertSame(
-            [WritingKey::class, KeyWriteFailed::class],
-            array_map(get_class(...), $events),
-        );
-        $this->assertNull($events[1]->exception);
+        $this->assertFalse($repository->{$method}(...$arguments));
+        $this->assertSame($eventClasses, array_map(get_class(...), $events));
+
+        $failures = array_slice($events, 1);
+        $this->assertSame($keys, array_map(static fn (KeyWriteFailed $event): string => $event->key, $failures));
+
+        foreach ($failures as $failure) {
+            $this->assertNull($failure->exception);
+        }
+    }
+
+    /**
+     * Provide cache writes that report failure without throwing.
+     */
+    public static function falseWriteOperations(): array
+    {
+        return [
+            'put' => ['put', ['foo', 'bar', 60], [WritingKey::class, KeyWriteFailed::class], ['foo']],
+            'put many' => ['putMany', [['foo' => 'bar', 'baz' => 'qux'], 60], [WritingManyKeys::class, KeyWriteFailed::class, KeyWriteFailed::class], ['foo', 'baz']],
+            'forever' => ['forever', ['foo', 'bar'], [WritingKey::class, KeyWriteFailed::class], ['foo']],
+        ];
     }
 
     public function testPutManyDispatchesFailureEventsWhenTheStoreThrows(): void

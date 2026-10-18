@@ -6,8 +6,13 @@ namespace Hypervel\Tests\Filesystem;
 
 use BadMethodCallException;
 use Closure;
+use GuzzleHttp\Psr7\CachingStream;
+use GuzzleHttp\Psr7\LimitStream;
+use GuzzleHttp\Psr7\PumpStream;
+use GuzzleHttp\Psr7\StreamWrapper;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Filesystem\Filesystem as FilesystemContract;
+use Hypervel\Database\Pool\PoolManager as DatabasePoolManager;
 use Hypervel\Filesystem\FilesystemAdapter;
 use Hypervel\Filesystem\FilesystemPoolProxy;
 use Hypervel\Http\IterableStreamedResponse;
@@ -17,13 +22,17 @@ use Hypervel\Image\ImageException;
 use Hypervel\ObjectPool\PoolDefinition;
 use Hypervel\ObjectPool\PoolManager;
 use Hypervel\ObjectPool\PoolOptions;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
 use League\Flysystem\Filesystem;
+use League\Flysystem\FilesystemOperator;
 use League\Flysystem\Local\LocalFilesystemAdapter;
 use League\Flysystem\UnableToReadFile;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
@@ -61,6 +70,46 @@ class FilesystemPoolProxyTest extends TestCase
         $filesystem->deleteDirectory(basename($this->tempDir));
 
         parent::tearDown();
+    }
+
+    #[WithConfig('database.connections.filesystem_release', [
+        'driver' => 'sqlite',
+        'database' => ':memory:',
+        'pool' => ['testing_enabled' => true, 'max_connections' => 1],
+    ])]
+    #[TestWith(['url'])]
+    #[TestWith(['readStream'])]
+    #[TestWith(['withDriver'])]
+    public function testRemoteOperationsReleaseIdleDatabaseSessionsButPathFormattingDoesNot(string $operation): void
+    {
+        $this->driver->write('file.txt', 'contents');
+        $adapter = m::mock(FilesystemAdapter::class, [$this->driver, $this->adapter, ['root' => $this->tempDir]])->makePartial();
+        if ($operation === 'url') {
+            $adapter->shouldReceive('url')->once()->with('file.txt')->andReturn('https://storage.example/file.txt');
+        }
+        $proxy = $this->proxy(static fn (): FilesystemAdapter => $adapter);
+        $connection = DB::connection('filesystem_release');
+        $connection->selectOne('select 1');
+        $pool = $this->app->make(DatabasePoolManager::class)->pool('filesystem_release');
+
+        $this->assertSame($this->tempDir . '/file.txt', $proxy->path('file.txt'));
+        $this->assertSame(1, $pool->getBorrowedCount());
+
+        $result = $operation === 'withDriver'
+            ? $proxy->withDriver(static fn (FilesystemOperator $driver): string => $driver->read('file.txt'))
+            : $proxy->{$operation}('file.txt');
+
+        try {
+            $this->assertSame(0, $pool->getBorrowedCount());
+            $this->assertSame(
+                $operation === 'url' ? 'https://storage.example/file.txt' : 'contents',
+                is_resource($result) ? stream_get_contents($result) : $result,
+            );
+        } finally {
+            if (is_resource($result)) {
+                fclose($result);
+            }
+        }
     }
 
     public function testSynchronousOperationsUseAndReleaseAWholeDriver(): void
@@ -238,6 +287,73 @@ class FilesystemPoolProxyTest extends TestCase
 
         $this->assertSame(0, $this->pools->get('filesystem:driver')->getBorrowedCount());
         $this->assertSame(1, $releaseCalls);
+    }
+
+    #[DataProvider('bufferedReadProvider')]
+    public function testBufferedReadsReleaseTheWholeDriverImmediately(string $uri, ?int $start, ?int $end, string $expected): void
+    {
+        $driver = m::mock(FilesystemOperator::class);
+        $driver->shouldReceive('readStream')->once()->with('file.txt')->andReturnUsing(static function () use ($uri): mixed {
+            $stream = fopen($uri, 'w+b');
+            fwrite($stream, '0123456789');
+            rewind($stream);
+
+            return $stream;
+        });
+        $proxy = $this->proxy(fn (): FilesystemAdapter => new FilesystemAdapter($driver, $this->adapter));
+        $stream = $start === null
+            ? $proxy->readStream('file.txt')
+            : $proxy->readStreamRange('file.txt', $start, $end);
+
+        try {
+            $this->assertSame(0, $this->pools->get('filesystem:driver')->getBorrowedCount());
+            $this->assertSame(1, $this->pools->get('filesystem:driver')->getIdleCount());
+            $this->assertSame(0, ftell($stream));
+            $this->assertSame(strlen($expected), fstat($stream)['size']);
+            $this->assertSame($expected, stream_get_contents($stream));
+            rewind($stream);
+            $this->assertSame($expected, stream_get_contents($stream));
+        } finally {
+            fclose($stream);
+        }
+    }
+
+    /**
+     * Provide buffered streams and byte ranges.
+     *
+     * @return array<string, array{string, ?int, ?int, string}>
+     */
+    public static function bufferedReadProvider(): array
+    {
+        return [
+            'temporary stream' => ['php://temp', null, null, '0123456789'],
+            'memory stream' => ['php://memory', null, null, '0123456789'],
+            'range spilled to disk' => ['php://temp/maxmemory:1', 3, 5, '345'],
+        ];
+    }
+
+    public function testCachedLiveRangeKeepsTheWholeDriverBorrowedUntilClose(): void
+    {
+        $reads = 0;
+        $source = new PumpStream(static function (int $length) use (&$reads): string|false {
+            return ++$reads === 1 ? 'remote bytes' : false;
+        });
+        $range = StreamWrapper::getResource(new LimitStream(new CachingStream($source), 3));
+        $driver = m::mock(FilesystemOperator::class);
+        $driver->shouldReceive('readStream')->once()->with('file.txt')->andReturn($range);
+        $proxy = $this->proxy(fn (): FilesystemAdapter => new FilesystemAdapter($driver, $this->adapter));
+        $stream = $proxy->readStream('file.txt');
+
+        try {
+            $this->assertSame(0, $reads);
+            $this->assertSame(1, $this->pools->get('filesystem:driver')->getBorrowedCount());
+            $this->assertSame('rem', stream_get_contents($stream));
+            $this->assertSame(1, $reads);
+        } finally {
+            fclose($stream);
+        }
+
+        $this->assertSame(0, $this->pools->get('filesystem:driver')->getBorrowedCount());
     }
 
     public function testOperatorReadsPropagateFailuresAndReleaseTheWholeDriver(): void

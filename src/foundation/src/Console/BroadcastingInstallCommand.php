@@ -19,8 +19,6 @@ use function Hypervel\Prompts\note;
 use function Hypervel\Prompts\password;
 use function Hypervel\Prompts\select;
 use function Hypervel\Prompts\text;
-use function Hypervel\Support\artisan_binary;
-use function Hypervel\Support\php_binary;
 
 #[AsCommand(name: 'install:broadcasting')]
 class BroadcastingInstallCommand extends Command
@@ -444,11 +442,7 @@ class BroadcastingInstallCommand extends Command
             return;
         }
 
-        Process::run([
-            php_binary(),
-            artisan_binary(),
-            'reverb:install',
-        ])->throw();
+        $this->runInstallationCommand(['reverb:install']);
 
         $this->components->info('Reverb installed successfully.');
     }

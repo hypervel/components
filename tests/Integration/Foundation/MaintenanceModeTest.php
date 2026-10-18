@@ -22,6 +22,7 @@ use Hypervel\Foundation\Http\MaintenanceModeBypassCookie;
 use Hypervel\Foundation\Http\Middleware\PreventRequestsDuringMaintenance;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Event;
+use Hypervel\Support\Facades\Exceptions;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
@@ -325,6 +326,19 @@ class MaintenanceModeTest extends TestCase
         ])->get('/test');
 
         $response->assertStatus(503);
+    }
+
+    public function testArrayBypassCookieDoesNotCauseAnError(): void
+    {
+        Exceptions::fake();
+        file_put_contents(storage_path('framework/down'), json_encode(['secret' => 'foo']));
+        Route::get('/test', fn (): string => 'Hello World')->middleware(PreventRequestsDuringMaintenance::class);
+
+        $this->withUnencryptedCookies(['hypervel_maintenance' => ['x' => '1']])
+            ->get('/test')
+            ->assertServiceUnavailable();
+
+        Exceptions::assertNothingReported();
     }
 
     public function testCanCreateBypassCookies(): void

@@ -53,7 +53,9 @@ class ThemesTestPrompt extends Prompt
      */
     public function renderForTest(): string
     {
-        return $this->renderTheme();
+        $this->writeFrame($this->renderTheme());
+
+        return static::content();
     }
 }
 

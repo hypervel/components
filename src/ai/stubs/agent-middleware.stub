@@ -1,0 +1,23 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ namespace }};
+
+use Closure;
+use Hypervel\Ai\Gateway\StepResponse;
+use Hypervel\Ai\Gateway\StepResult;
+use Hypervel\Ai\PendingStep;
+
+class {{ class }}
+{
+    /**
+     * Handle the pending generation step.
+     */
+    public function handle(PendingStep $step, Closure $next): StepResult
+    {
+        return $next($step)->then(function (StepResponse $response): void {
+            // ...
+        });
+    }
+}

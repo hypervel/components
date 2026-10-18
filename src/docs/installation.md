@@ -31,6 +31,7 @@ The Hypervel framework has a few system requirements:
 
 - PHP >= 8.4
 - Composer
+- cURL PHP Extension
 - Fileinfo PHP Extension
 - Filter PHP Extension
 - Hash PHP Extension
@@ -42,20 +43,25 @@ The Hypervel framework has a few system requirements:
 - PDO PHP Extension
 - POSIX PHP Extension
 - Session PHP Extension
-- Swoole PHP Extension >= 6.2.2
+- Swoole PHP Extension >= 6.3.0RC1
 - Tokenizer PHP Extension
 
 </div>
 
-If your application uses Redis for cache, queues, sessions, or broadcasting, you should also install the Redis PHP extension 6.1 or higher.
+> [!WARNING]
+> Hypervel supports only the official [Swoole](https://github.com/swoole/swoole-src) extension. Forks such as OpenSwoole aren't supported. The Hypervel team actively contributes enhancements and fixes to Swoole, and Hypervel depends on several of those changes.
+
+If your application uses Redis for cache, queues, sessions, or broadcasting, you should also install the Redis PHP extension 6.1 or higher. If it uses MySQL or MariaDB, the PDO MySQL extension must use PHP's mysqlnd driver, which is the default.
 
 You may install Swoole using [PIE](https://github.com/php/pie):
 
 ```shell
-pie install swoole/swoole
+pie install "swoole/swoole:^6.3.0@RC" --enable-openssl --enable-swoole-curl --enable-swoole-sqlite --enable-swoole-pgsql
 ```
 
-If you develop on macOS, you may also install Swoole via Homebrew. Replace `8.4` with your installed PHP version:
+Swoole must be built with OpenSSL and native cURL support. The SQLite and PostgreSQL options are required to use those databases. Each option needs the matching development library (OpenSSL, libcurl, SQLite, or libpq) when Swoole is compiled.
+
+Once the Homebrew formula provides a Swoole version that meets the requirement above, macOS developers may install Swoole via Homebrew instead. The formula already includes the required build options. Replace `8.4` with your installed PHP version:
 
 ```shell
 brew tap shivammathur/extensions
@@ -68,7 +74,7 @@ You should also ensure that `swoole.use_shortname` is disabled in your `php.ini`
 swoole.use_shortname=Off
 ```
 
-Hypervel will not start while Swoole short function names are enabled. Disabling them ensures Hypervel's namespaced coroutine helpers and exception handling work correctly.
+Hypervel will not start while Swoole short function names are enabled. Disabling them ensures Hypervel's namespaced coroutine helpers and exception handling work correctly. Hypervel also will not start if Swoole was built without OpenSSL or native cURL support, and SQLite or PostgreSQL connections fail if Swoole was built without support for that database.
 
 <a name="incompatible-extensions"></a>
 #### Incompatible Extensions
@@ -254,7 +260,7 @@ How you want to use Hypervel will also dictate the next steps on your journey. T
 <a name="hypervel-the-fullstack-framework"></a>
 ### Hypervel the Full Stack Framework
 
-Hypervel may serve as a full stack framework. By "full stack" framework we mean that you are going to use Hypervel to route requests to your application and render your frontend via [Blade templates](/docs/{{version}}/blade) or a single-page application hybrid technology like [Inertia](https://inertiajs.com). This is the most common way to use the Hypervel framework, and, in our opinion, the most productive way to use Hypervel.
+Hypervel may serve as a full stack framework. By "full stack" framework we mean that you are going to use Hypervel to route requests to your application and render your frontend via [Blade templates](/docs/{{version}}/blade) or a single-page application hybrid technology like [Inertia](/docs/{{version}}/inertia). This is the most common way to use the Hypervel framework, and, in our opinion, the most productive way to use Hypervel.
 
 If this is how you plan to use Hypervel, you may want to check out our documentation on [frontend development](/docs/{{version}}/frontend), [routing](/docs/{{version}}/routing), [views](/docs/{{version}}/views), or the [Eloquent ORM](/docs/{{version}}/eloquent). Hypervel includes first-class support for Blade and Inertia, and our React starter kit provides a fast path to a full-stack Inertia application.
 

@@ -20,7 +20,9 @@ use Hypervel\Support\Defer\DeferredCallback;
 use Hypervel\Support\Defer\DeferredCallbackCollection;
 use Hypervel\Support\Facades\Concurrency as ConcurrencyFacade;
 use Hypervel\Support\Facades\Context;
+use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\Attributes\UsesVendor;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Concurrency\Fixtures\ConcurrentProcessExceptionFixtures;
 use Hypervel\Tests\Concurrency\Fixtures\ExceptionWithFalseyParam;
@@ -68,6 +70,24 @@ class ConcurrencyTest extends TestCase
         $this->assertArrayHasKey('second', $results);
         $this->assertSame(2, $results['first']);
         $this->assertSame(4, $results['second']);
+    }
+
+    #[WithConfig('database.connections.concurrent', [
+        'driver' => 'sqlite',
+        'database' => ':memory:',
+        'pool' => ['testing_enabled' => true, 'max_connections' => 1, 'wait_timeout' => 0.1],
+    ])]
+    public function testRunReleasesTheParentsIdleSessionBeforeStartingChildren(): void
+    {
+        $connection = DB::connection('concurrent');
+        $connection->selectOne('select 1');
+
+        $results = $this->coroutineDriver->run([
+            static fn (): int => DB::connection('concurrent')->selectOne('select 2 as value')->value,
+        ]);
+
+        $this->assertSame([2], $results);
+        $this->assertSame(3, $connection->selectOne('select 3 as value')->value);
     }
 
     public function testRunPreservesOrderRegardlessOfCompletionTime(): void

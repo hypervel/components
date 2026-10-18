@@ -26,13 +26,18 @@
     - [Scheduling](#scheduling)
     - [Maintenance Mode](#maintenance-mode)
     - [HTTP Client and Concurrency](#http-client-and-concurrency)
+    - [Streamed Responses](#streamed-responses)
+    - [AI SDK](#ai-sdk)
+    - [MCP](#mcp)
     - [Saloon](#saloon)
     - [Broadcasting](#broadcasting)
     - [JSON:API Resources](#jsonapi-resources)
     - [CSRF Protection](#csrf-protection)
     - [Fortify](#fortify)
+    - [Passport](#passport)
     - [JWT Authentication](#jwt-authentication)
     - [Scout](#scout)
+    - [Sentry](#sentry)
     - [Socialite](#socialite)
     - [JSON Schema](#json-schema)
     - [Validation](#validation)
@@ -512,11 +517,56 @@ Maintenance views prepared with `down --render` are served by running Hypervel w
 
 For concurrent HTTP requests, replace Laravel's `Http::pool` and `Http::batch` patterns with Hypervel's coroutine helpers, typically `parallel` from `Hypervel\Coroutine`. See the [HTTP client documentation](/docs/{{version}}/http-client#concurrent-requests) for examples.
 
-Create and finish pending Guzzle operations within one coroutine; share completed results instead of pending promises or active multi-handlers. Hypervel enforces this for Guzzle's mutable promises and cURL multi-handlers. Register SDK clients lazily in service providers so their classes load after proxy generation. See [Guzzle promises](/docs/{{version}}/http-client#guzzle-promises) and [proxy generation](/docs/{{version}}/aop#proxy-generation).
+Hypervel installs `hypervel/guzzle`, a Guzzle 8 fork that replaces `guzzlehttp/guzzle`, and `hypervel/guzzle-promises`, which replaces `guzzlehttp/promises`. Widen or remove direct `guzzlehttp/guzzle ^7`, `guzzlehttp/promises ^2` and `guzzlehttp/psr7 ^2` requirements; SDKs must support Guzzle 8, promises 3 and PSR-7 3. Create and finish pending Guzzle operations within one coroutine, then share completed results. See [Guzzle promises](/docs/{{version}}/http-client#guzzle-promises).
 
 `withNtlmAuth()` and Saloon's NTLM authenticator are not provided. Integrations requiring NTLM must supply their own authentication implementation.
 
 Hypervel's `Concurrency` facade provides `coroutine`, `process`, and `sync` drivers. Laravel's `fork` driver is not available because coroutines are Hypervel's native lightweight execution model. Use the default `coroutine` driver for normal concurrent application work and reserve `process` for work that requires operating system process isolation. See the [concurrency documentation](/docs/{{version}}/concurrency#choosing-a-driver).
+
+<a name="streamed-responses"></a>
+### Streamed Responses
+
+`connection_aborted()` does not report Swoole client disconnects. Replace loops that rely on it with a generator callback passed to `response()->stream()`, or an `IterableStreamedResponse`. See [Canceling Disconnected Streams](/docs/{{version}}/responses#canceling-disconnected-streams) to also cancel production during a wait.
+
+<a name="ai-sdk"></a>
+### AI SDK
+
+Agent and stream-event `broadcast` calls send immediately by default; pass `now: false` where you relied on queued delivery. See [broadcasting](/docs/{{version}}/ai-sdk#broadcasting).
+
+Agent broadcasts also batch adjacent text/reasoning deltas by default. Each batch retains the first delta's ID and timestamp; the response's original events remain unchanged. Clients that depend on individual provider chunks, match broadcasts one-for-one against response events, or order their own broadcasts against those deltas should set `ai.broadcasting.batching.enabled` to `false` or adapt to [batched delivery](/docs/{{version}}/ai-sdk#broadcast-batching).
+
+Agent overrides of `Promptable::getProvidersAndModels()` must return an ordered list of provider/model pairs, such as `[['openai', 'gpt-4o']]`, instead of `['openai' => 'gpt-4o']`. The provider may also be a `Provider` object, preserving its credentials. Failover lists retain repeated entries as separate attempts. See [failover](/docs/{{version}}/ai-sdk#failover).
+
+Remote attachments share the HTTP client's destination checks instead of `UntrustedUrl`'s protected `validate`, `resolve`, and `isBlocked` helpers and hostname-blocklist constants. Adapt subclasses that override them. URLs with embedded credentials are rejected; fetch authenticated files explicitly before attaching them. Configure `ai.remote_files.max_size` if your downloads exceed the default 32 MiB limit. See [remote attachments](/docs/{{version}}/ai-sdk#remote-attachments).
+
+Skill definitions in `resources/skills` are cached across requests. If your application changes them at runtime, use a closure or an uncached directory, or set `ai.skills.cached_paths` to `[]`. See [skills](/docs/{{version}}/ai-sdk#skills).
+
+Existing conversation data needs a schema migration. Compare column types and indexes with Hypervel's migration, add the approval claim and replay columns, and resolve messages whose conversations no longer exist before adding the foreign key. See [migrating conversation data](/docs/{{version}}/ai-sdk#migrating-conversation-data).
+
+Custom conversation stores must implement `ClaimsPendingApprovals` to resume stored approvals. Move overrides of the removed `ResumesToolApprovals::storeApprovalResultRecorderFor()` into your store's `ClaimsPendingApprovals::recordApprovalResult()` method. In `RememberConversation` subclasses, replace `openTurn()` overrides with `rememberTurn(): StoredTurn`. See [custom conversation stores](/docs/{{version}}/ai-sdk#custom-conversation-stores).
+
+<a name="mcp"></a>
+### MCP
+
+For direct browser clients from another origin, add their origins to `mcp.allowed_origins`; `app.url` is allowed automatically. See [allowed origins](/docs/{{version}}/mcp#allowed-origins).
+
+Local OAuth discovery is served by Passport's `passport.metadata` route, using its explicitly configured HTTPS issuer. Replace references to `mcp.oauth.register` with `passport.clients.register`; MCP no longer defines authorization-server metadata routes. Choose one registration endpoint, using `Mcp::oauthRoutes(registration: false)` with native Passport registration or an external server. Register MCP resource identifiers in Passport and enforce both audience and `mcp:use` on the MCP routes. See [OAuth setup](/docs/{{version}}/mcp#oauth).
+
+Republish `mcp-views` or update your published `mcp/authorize.blade.php` to display the callback destination and requested resources and remove window-closing timers that can interrupt callback delivery. See [authorization view setup](/docs/{{version}}/mcp#oauth).
+
+MCP's anonymous client registrations receive explicit scope allowances from `passport.registration.scopes` plus `mcp:use`. Use Hypervel's full Passport schema when importing client data; see [Passport](#passport). The wildcard redirect allowance accepts HTTPS and HTTP loopback callbacks; remote HTTP callbacks require explicit administrator configuration. See [registration policy](/docs/{{version}}/mcp#oauth).
+
+OAuth clients check resolved destinations before sending, including when HTTP responses are faked. Explicitly allow private DNS destinations and substitute DNS for invented test hostnames; see [OAuth destinations](/docs/{{version}}/mcp#oauth-destinations) and [OAuth tests](/docs/{{version}}/mcp#testing-oauth). The Inspector also keeps HTTPS verification enabled; configure `NODE_EXTRA_CA_CERTS` for locally issued certificates.
+
+If an OAuth client relies on Laravel's implicit `mcp:use` scope and the remote server does not advertise it, configure `withOAuth(scope: 'mcp:use')` explicitly. Hypervel otherwise uses the remote server's advertised scopes; see [OAuth scopes](/docs/{{version}}/mcp#client-oauth-scopes).
+
+Use `redirect()->signedRoute()` when forwarding `resource_metadata` or `scope` to an MCP client's connect route. Unsigned hints are rejected to prevent credential disclosure through substituted discovery metadata; see [authorization challenges](/docs/{{version}}/mcp#client-oauth-scopes).
+
+Modern HTTP streams cancel on client disconnect. Review handlers that perform side effects while streaming and ensure their cleanup runs on cancellation; legacy streams still finish. See [streaming responses](/docs/{{version}}/mcp#streaming-responses).
+
+Reformat `LastModified` attribute values as complete date-times with seconds and a timezone, such as `2025-01-12T15:00:58Z`. Other ISO 8601 representations accepted by Laravel are rejected to keep responses compatible with TypeScript-SDK clients. See [resource annotations](/docs/{{version}}/mcp#resource-annotations).
+
+If subclasses redeclare protected properties, use `mixed` for `JsonRpcException::$data` and `?Hypervel\Mcp\Client\Transport\StdioInput` for the client `StdioTransport::$input`. Error data preserves all JSON values, and stdio uses a live input queue so notifications can be sent without waiting for the next request.
 
 <a name="saloon"></a>
 ### Saloon
@@ -549,10 +599,37 @@ User models that use Fortify's `TwoFactorAuthenticatable` trait must also implem
 
 Fortify ignores Laravel's `fortify.passwords` setting. Declare the password reset broker with the guard's `passwords` key in `config/auth.php` instead. See [password resets](/docs/{{version}}/fortify#password-resets). Laravel's deprecated `Laravel\Fortify\Rules\Password` rule is not available; use `Hypervel\Validation\Rules\Password`.
 
+<a name="passport"></a>
+### Passport
+
+Replace `laravel/passport` with `hypervel/passport` and the `Laravel\Passport` namespace with `Hypervel\Passport`. Hypervel ships a `passport` guard; `actingAs()` and `actingAsClient()` default to it, and personal access clients without a provider use its provider. Use `auth:passport` with this guard. Other guard names remain supported.
+
+The implicit and password grants are not available. Use authorization code with PKCE, the device grant, or Sanctum for first-party authentication. PKCE clients must use `S256`. Replace deprecated JSON API routes and repository helpers with application-owned routes using model relations and `ClientRepository::create*Client()`. Replace `clients()` with `oauthApps()` and revoke clients with `Client::revoke()`.
+
+Use Hypervel's migrations: clients use UUIDs, JSON columns use each database's supported JSON type, tokens record their user provider, and refresh tokens belong to a refresh-token family. Only guards using a token's provider accept it, and a client's configured provider restricts who may authorize it. Regenerate confidential client secrets, which now use SHA-256. Reissue Laravel access tokens, including personal access tokens: Hypervel requires a separate `client_id` claim and reserves `aud` for the token's audience. Custom token issuers and consumers must preserve that distinction. Laravel-issued authorization codes and refresh tokens cannot be decrypted, so users must authorize again. The API cookie is named `hypervel_token`. See [resource indicators](/docs/{{version}}/passport#resource-indicators).
+
+Remembered approvals use the `oauth_consents` table instead of being inferred from active tokens. Use `$user->oauthConsents()` to manage them: `forget()` requires consent next time without revoking credentials, while `revoke()` revokes the authorization and deletes its approval. If several authentication providers use the same user model, override `getProviderName()` explicitly; ambiguous provider inference now throws.
+
+Consent forms still use the named `passport.authorizations.approve` and `passport.authorizations.deny` routes, but their URL is `/oauth/authorize/consent`. Update hardcoded URLs and submit `auth_token` with a CSRF token; protocol parameters are retained in the session. POST `/oauth/authorize` now accepts protocol authorization requests. Use server-side sessions with a shared session blocking store for one-time decisions and independent browser tabs.
+
+`prompt=login` requests fresh confirmation without logging the user out. Provide a `password.confirm` route, such as Fortify's confirmation flow, or bind `Hypervel\Passport\Contracts\ReauthenticationResponse` for your application's confirmation UI. Custom flows record successful confirmation with `$request->session()->passwordConfirmed($guard)`. Account switching is a separate explicit interaction. See [authorization interactions](/docs/{{version}}/passport#requesting-tokens-redirecting-for-authorization).
+
+Clients must serialize refresh requests: reusing a refresh token revokes its grant. Rotation can only be disabled for confidential clients or public clients using [DPoP-bound refresh tokens](/docs/{{version}}/passport#proof-bound-tokens). Keep the token endpoint outside application transactions, including transaction-per-request middleware. Credential, consent, pushed-authorization-request and database signing-key models must share a connection; clients and users may use separate connections.
+
+Confidential device clients must authenticate when requesting a device code, as well as when polling the token endpoint. Include their client secret or use their registered authentication method. See [the device authorization grant](/docs/{{version}}/passport#device-authorization-grant).
+
+Missing authentication for a confidential client returns `invalid_client` with HTTP 401, rather than `invalid_request` with HTTP 400. Update client error handling that distinguishes these responses.
+
+Import Laravel data into Hypervel's schema using its migrations, rather than adding only selected columns to the Laravel tables. Client authentication, registration and credential storage require Hypervel's full schema. Set `third_party` to `true` for externally registered clients so `firstParty()` does not classify them as trusted merely because they have no owner. See [installation](/docs/{{version}}/passport#installation) and [consent](/docs/{{version}}/passport#approving-the-request).
+
+Restart the server and other long-running processes after changing file or environment signing keys. `server:reload` is not sufficient. See [signing-key rotation](/docs/{{version}}/passport#rotating-signing-keys).
+
+Custom guards, controllers, middleware and cookie-factory subclasses must match Hypervel's constructor and protected method signatures. In particular, guards read `RequestContext` instead of accepting `setRequest()`, `CreateFreshApiToken` passes its guard explicitly, and server-building methods live on `ServerFactory`. Consult the package's [API differences](https://github.com/hypervel/passport#differences-from-laravel) and [Passport documentation](/docs/{{version}}/passport) when porting extensions.
+
 <a name="jwt-authentication"></a>
 ### JWT Authentication
 
-Applications using `tymon/jwt-auth` or `php-open-source-saver/jwt-auth` can switch to `hypervel/jwt`. Publish its `config/jwt.php` file and copy your values into it instead of reusing the old file, since some options have been renamed or removed. Replace the `JWTAuth` and `JWTFactory` facades with guard methods such as `fromUser` and `payload`, which returns the claims as an array. Set options such as subject locking and the blacklist in configuration instead of calling setters at runtime. Replace the `jwt.auth` middleware with `auth:api`, remove `jwt.check` from routes that allow guests, and replace `jwt.refresh` and `jwt.renew` with a [refresh endpoint](/docs/{{version}}/jwt#refreshing-tokens).
+Applications using `tymon/jwt-auth` or `php-open-source-saver/jwt-auth` can switch to `hypervel/jwt`. Publish its `config/jwt.php` file and copy your values into it instead of reusing the old file, since some options have been renamed or removed. Replace the `JWTAuth` and `JWTFactory` facades with guard methods such as `fromUser` and `payload`, which returns the claims as an array. Set options such as subject locking and the blacklist in configuration instead of calling setters at runtime. Hypervel already ships a `jwt` guard, so you do not need the usual `api` guard entry. Replace the `jwt.auth` middleware with `auth:jwt`, remove `jwt.check` from routes that allow guests, and replace `jwt.refresh` and `jwt.renew` with a [refresh endpoint](/docs/{{version}}/jwt#refreshing-tokens).
 
 Only the `Authorization` header is read by default. If clients send tokens in the query string, request body, or a cookie, add the matching parser to the `parser` option. See [token sources](/docs/{{version}}/jwt#token-sources).
 
@@ -563,7 +640,10 @@ Rotate `JWT_SECRET` or your key pair when you switch, so clients sign in again. 
 
 Hypervel compiles integer and float values passed to Scout's Algolia `where`, `whereIn`, and `whereNotIn` methods as numeric comparisons. Numeric-looking strings remain facet values. When porting an Algolia index, ensure the indexed attribute type matches the PHP value type used by these filters.
 
-Scout cannot generate embeddings with the Laravel AI SDK, and its database engine does not support semantic or hybrid search. Models whose `toSearchableEmbedding` method returns text must return precomputed embedding arrays or switch to the engine's native embeddings. See [semantic search](/docs/{{version}}/scout#semantic-search).
+<a name="sentry"></a>
+### Sentry
+
+Applications using `sentry/sentry-laravel` can switch to `hypervel/sentry` and replace the `Sentry\Laravel\` namespace with `Hypervel\Sentry\`. Hypervel's Sentry configuration reads the DSN from `SENTRY_HYPERVEL_DSN`, falling back to `SENTRY_DSN`, so rename `SENTRY_LARAVEL_DSN` in your environment files; otherwise, Sentry stays disabled. Likewise, replace `SENTRY_LOGS_LEVEL` with `SENTRY_LOG_LEVEL`. See the [Sentry documentation](/docs/{{version}}/sentry).
 
 <a name="socialite"></a>
 ### Socialite
@@ -658,6 +738,8 @@ Hypervel's `Filesystem::hash()` method uses `xxh128` by default. Pass `md5` expl
 
 Custom filesystem contract implementations must also provide `fileExists()` and `directoryExists()`. The existing `exists()` method continues to accept either a file or a directory. See [retrieving files](/docs/{{version}}/filesystem#retrieving-files).
 
+S3, Google Cloud Storage, FTP, SFTP, and poolable custom disks are pooled, so they do not hand out objects that outlive an operation. Replace `getAdapter()` and `getDriver()` with `withAdapter()` and `withDriver()`, and an S3 or Google Cloud Storage disk's `getClient()` with `withClient()`; each callback receives the borrowed object. Methods a pooled disk does not support throw instead of forwarding to the driver. See [driver pools](/docs/{{version}}/filesystem#driver-pools).
+
 Unlike Laravel, Hypervel honors `read-only` on scoped disk records. Remove that option from any scoped disk that must accept writes.
 
 Rename any configured disk called `ondemand`; Hypervel reserves that name for [on-demand disk fakes](/docs/{{version}}/filesystem#on-demand-disks).
@@ -681,11 +763,15 @@ MySQL and MariaDB connection configs must specify `strict` or `modes`; they cann
 
 SQLite JSON-path updates replace assigned objects and retain JSON null. Review any reliance on Laravel's object merging or null-key deletion when [updating JSON columns](/docs/{{version}}/queries#updating-json-columns).
 
+Review pagination on update and delete queries. SQLite and PostgreSQL honor offsets, including without a limit. MySQL and MariaDB reject write offsets and limits on joined updates, and PostgreSQL rejects limits or offsets on `updateFrom`, instead of silently ignoring them. For these unsupported forms, select the intended primary keys first and write those rows explicitly.
+
 Database connections are persistent, pooled worker resources. Define every connection in `config/database.php` before the application boots. Dynamic connection creation through `DB::build()` and `DB::connectUsing()` is not supported. Review pool sizing and any database session state against the [database documentation](/docs/{{version}}/database#connection-pooling).
 
 To use a custom query grammar on every connection, register a connection subclass with `Connection::resolverFor()` that overrides `getDefaultQueryGrammar()`. On connections that support early release, `setQueryGrammar()` changes only the current coroutine's connection, and `ConnectionEstablished` runs only when a new database session opens, so neither applies a grammar to every caller. See [extending database connections](/docs/{{version}}/database#extending-database-connections).
 
-Outgoing framework HTTP requests release idle database sessions automatically. Wrap code that depends on the same session across an HTTP call, such as temporary tables, session locks or retained raw PDOs, in `DB::withPinnedSession()`. Active transactions remain pinned automatically. See [releasing and pinning connections](/docs/{{version}}/database#releasing-and-pinning-connections).
+Framework operations release idle database sessions at the boundaries listed in [releasing and pinning connections](/docs/{{version}}/database#releasing-and-pinning-connections). Wrap code that depends on the same session across those boundaries, such as temporary tables, session locks or retained raw PDOs, in `DB::withPinnedSession()`. Active transactions remain pinned automatically.
+
+Do not manually commit or roll back the transaction owned by a `DB::transaction()` closure; Hypervel throws when that closure returns. Let `transaction()` manage completion, or use the [manual transaction API](/docs/{{version}}/database#manually-using-transactions) separately. Balanced nested transactions remain supported.
 
 When a package constructs `DatabaseStore`, `DatabaseSessionHandler`, `DatabaseQueue`, or `DatabaseBatchRepository` directly, pass the database connection resolver and configured connection name instead of retaining a resolved connection. Framework-configured drivers already use this form.
 

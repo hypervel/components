@@ -400,6 +400,37 @@ class BootstrapperTest extends TestCase
     }
 
     #[Test]
+    public function itLinksPackageDependenciesWhenTheSkeletonHasNoVendorDirectory(): void
+    {
+        $packagePath = $this->temporaryDirectory('package-dependencies');
+        $sourcePath = $this->temporaryDirectory('skeleton-without-vendor');
+        $runtimePath = null;
+
+        mkdir($packagePath . '/vendor/dependency', 0777, true);
+        mkdir($sourcePath . '/config', 0777, true);
+        file_put_contents($packagePath . '/vendor/dependency/file.php', 'dependency');
+        file_put_contents($sourcePath . '/config/app.php', 'config');
+
+        try {
+            $this->withRuntimeCopyEnvironment('bootstrapper-package-vendor', false, function () use ($sourcePath, $packagePath, &$runtimePath): void {
+                $runtimePath = $this->createRuntimeCopy($sourcePath, $packagePath);
+
+                $this->assertTrue(is_link($runtimePath . '/vendor'));
+                $this->assertSame(realpath($packagePath . '/vendor'), realpath($runtimePath . '/vendor'));
+                $this->assertFileExists($runtimePath . '/vendor/dependency/file.php');
+                $this->assertFalse(is_link($runtimePath . '/config'));
+                $this->assertSame('config', file_get_contents($runtimePath . '/config/app.php'));
+            });
+
+            $this->assertFileDoesNotExist($sourcePath . '/vendor');
+        } finally {
+            $this->deleteDirectory($runtimePath);
+            $this->deleteDirectory($sourcePath);
+            $this->deleteDirectory($packagePath);
+        }
+    }
+
+    #[Test]
     public function itCopiesThePackageEnvironmentFileIntoTheRuntimeCopy(): void
     {
         $packagePath = $this->temporaryDirectory('package-env');

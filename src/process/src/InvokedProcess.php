@@ -6,11 +6,14 @@ namespace Hypervel\Process;
 
 use Hypervel\Contracts\Process\InvokedProcess as InvokedProcessContract;
 use Hypervel\Contracts\Process\ProcessResult as ProcessResultContract;
+use Hypervel\Database\ConnectionResolver;
 use Hypervel\Process\Concerns\GuardsProcessOutput;
 use Hypervel\Process\Exceptions\ProcessTimedOutException;
 use Hypervel\Support\Traits\Macroable;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Process\Exception\ProcessTimedOutException as SymfonyTimeoutException;
 use Symfony\Component\Process\Process;
+use Throwable;
 
 class InvokedProcess implements InvokedProcessContract
 {
@@ -57,7 +60,24 @@ class InvokedProcess implements InvokedProcessContract
      */
     public function stop(float $timeout = 10, ?int $signal = null): ?int
     {
-        return $this->process->stop($timeout, $signal);
+        try {
+            if ($timeout > 0 && $this->process->isRunning()) {
+                ConnectionResolver::releaseIdleConnections();
+            }
+
+            return $this->process->stop($timeout, $signal);
+        } catch (Throwable $exception) {
+            try {
+                // A failed release or interrupted wait must not leave the child running.
+                $this->process->stop(0, $signal);
+            } catch (Throwable $cleanupException) {
+                if ($cleanupException instanceof CanceledException && ! $exception instanceof CanceledException) {
+                    throw $cleanupException;
+                }
+            }
+
+            throw $exception;
+        }
     }
 
     /**
@@ -121,6 +141,8 @@ class InvokedProcess implements InvokedProcessContract
      */
     public function wait(?callable $output = null): ProcessResultContract
     {
+        ConnectionResolver::releaseIdleConnections();
+
         try {
             $this->process->wait($this->guardProcessOutput($this->process, $output));
 
@@ -140,6 +162,8 @@ class InvokedProcess implements InvokedProcessContract
         if ($output === null) {
             return $this->wait();
         }
+
+        ConnectionResolver::releaseIdleConnections();
 
         try {
             $this->process->waitUntil($this->guardProcessOutput($this->process, $output));

@@ -25,21 +25,25 @@ class ApiInstallCommand extends Command
     protected ?string $signature = 'install:api
                     {--composer=global : Absolute path to the Composer binary which should be used to install packages}
                     {--force : Overwrite any existing API routes file}
+                    {--passport : Install Hypervel Passport instead of Hypervel Sanctum}
                     {--without-migration-prompt : Do not prompt to run pending migrations}';
-
-    // Laravel's --passport option is omitted while Passport remains unported (docs/todo.md).
 
     /**
      * The console command description.
      */
-    protected string $description = 'Create an API routes file and install Hypervel Sanctum';
+    protected string $description = 'Create an API routes file and install Hypervel Sanctum or Hypervel Passport';
 
     /**
      * Execute the console command.
      */
     public function handle(): void
     {
-        $this->installSanctum();
+        if ($this->option('passport')) {
+            $this->installPassport();
+        } else {
+            $this->installSanctum();
+        }
+
         $files = $this->hypervel->make(Filesystem::class);
         $apiRoutesPath = $this->hypervel->basePath('routes/api.php');
 
@@ -61,20 +65,35 @@ class ApiInstallCommand extends Command
                 $mode = octdec($permissions);
             }
 
-            $files->replace($apiRoutesPath, $files->get(__DIR__ . '/stubs/api-routes.stub'), $mode);
+            $routes = $files->get(__DIR__ . '/stubs/api-routes.stub');
+
+            if ($this->option('passport')) {
+                $routes = str_replace('auth:sanctum', 'auth:passport', $routes);
+            }
+
+            $files->replace($apiRoutesPath, $routes, $mode);
 
             $this->uncommentApiRoutesFile();
 
             $this->components->info('Published API routes file.');
         }
 
-        if (! $this->option('without-migration-prompt')) {
-            if ($this->confirm('One new database migration has been published. Would you like to run all pending database migrations?', true)) {
-                $this->call('migrate');
-            }
-        }
+        if ($this->option('passport')) {
+            $this->runInstallationCommand([
+                'passport:install',
+                ...($this->option('without-migration-prompt') ? ['--without-migration-prompt'] : []),
+            ]);
 
-        $this->components->info('API scaffolding installed. Please add the [Hypervel\Sanctum\HasApiTokens] trait to your User model.');
+            $this->components->info('API scaffolding installed. Please add the [Hypervel\Passport\HasApiTokens] trait and [Hypervel\Passport\Contracts\OAuthenticatable] interface to your User model.');
+        } else {
+            if (! $this->option('without-migration-prompt')) {
+                if ($this->confirm('One new database migration has been published. Would you like to run all pending database migrations?', true)) {
+                    $this->call('migrate');
+                }
+            }
+
+            $this->components->info('API scaffolding installed. Please add the [Hypervel\Sanctum\HasApiTokens] trait to your User model.');
+        }
     }
 
     /**
@@ -146,5 +165,15 @@ class ApiInstallCommand extends Command
                 'Hypervel\Sanctum\SanctumServiceProvider',
             ])->throw();
         }
+    }
+
+    /**
+     * Install Hypervel Passport into the application.
+     */
+    protected function installPassport(): void
+    {
+        $this->requireComposerPackages((string) $this->option('composer'), [
+            'hypervel/passport:^0.4',
+        ]);
     }
 }

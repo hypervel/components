@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Prompts;
 use Hypervel\Prompts\Output\BufferedConsoleOutput;
 use Hypervel\Prompts\Prompt;
 use Hypervel\Prompts\Stream;
+use Hypervel\Prompts\Support\Utils;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionProperty;
@@ -17,6 +18,27 @@ use function Hypervel\Prompts\stream;
 
 class StreamTest extends TestCase
 {
+    public function testDecoratedStreamKeepsMarkupLiteralAndAnsiStylesAligned(): void
+    {
+        Prompt::fake();
+        Prompt::terminal()->shouldReceive('cols')->andReturn(120); // @phpstan-ignore-line
+        $stream = new Stream;
+
+        try {
+            $stream->append("\e[31m<info>Literal</info>\e[0m \\<fg=black;bg=black>Hidden");
+        } finally {
+            $stream->close();
+        }
+
+        $this->assertSame(
+            '<info>Literal</info> \<fg=black;bg=black>Hidden',
+            Utils::stripTerminalControls(implode('', $stream->lines())),
+        );
+        $this->assertStringContainsString("\e[31m<info>Literal</info>\e[0m", Prompt::content());
+        $this->assertStringContainsString('\<fg=black;bg=black>Hidden', Prompt::content());
+        $this->assertStringNotContainsString("\e[30;40m", Prompt::content());
+    }
+
     public function testUndecoratedStreamWritesExactChunksWithoutTerminalWork(): void
     {
         Prompt::fake();

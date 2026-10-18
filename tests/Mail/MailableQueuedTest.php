@@ -21,6 +21,7 @@ use Hypervel\View\Factory;
 use Laravel\SerializableClosure\SerializableClosure;
 use Mockery as m;
 use Symfony\Component\Mailer\Transport\TransportInterface;
+use Throwable;
 
 class MailableQueuedTest extends TestCase
 {
@@ -68,6 +69,25 @@ class MailableQueuedTest extends TestCase
         $queueFake->assertPushed(SendQueuedMailable::class, function (SendQueuedMailable $job) use ($mailable): bool {
             return $job->mailable === $mailable;
         });
+    }
+
+    public function testManualFailureWithoutAnExceptionReachesTheMailable(): void
+    {
+        $mailable = new class extends Mailable {
+            public array $failures = [];
+
+            /**
+             * Record the failed mailable.
+             */
+            public function failed(?Throwable $exception): void
+            {
+                $this->failures[] = $exception;
+            }
+        };
+
+        (new SendQueuedMailable($mailable))->failed(null);
+
+        $this->assertSame([null], $mailable->failures);
     }
 
     public function testQueuedMailableWithAttachmentFromDiskSent(): void

@@ -105,7 +105,7 @@ class SendQueuedMailable
     /**
      * Call the failed method on the mailable instance.
      */
-    public function failed(Throwable $e): void
+    public function failed(?Throwable $e): void
     {
         if (method_exists($this->mailable, 'failed')) {
             $this->mailable->failed($e);

@@ -10,6 +10,7 @@
 - [Registering Aspects](#registering-aspects)
 - [Proxy Generation](#proxy-generation)
 - [Testing Aspects](#testing-aspects)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -163,8 +164,6 @@ public function process(ProceedingJoinPoint $proceedingJoinPoint): mixed
 }
 ```
 
-This pattern is used by Hypervel's Sentry and Telescope integrations to instrument Guzzle requests.
-
 <a name="aspect-priority"></a>
 ### Aspect Priority
 
@@ -217,7 +216,7 @@ $this->aspects(ProfileReports::class, TraceHttpRequests::class);
 ```
 
 > [!WARNING]
-> Aspects must be registered during `register`, before the target classes are loaded. Runtime registration cannot retroactively apply aspects to classes that have already been loaded or proxied.
+> Aspects must be registered during `register`, before the target classes are loaded. Registration closes after the application's proxy generation step. Registering an aspect during `boot` or later throws an exception.
 
 <a name="proxy-generation"></a>
 ## Proxy Generation
@@ -226,7 +225,7 @@ Hypervel generates AOP proxy classes automatically during application bootstrap.
 
 Target classes must not be loaded before proxy generation. Bind factories in your providers' `register` methods and create their instances during `boot` or later. Hypervel reports an error if a target was loaded too early, or if an already-loaded proxy cannot apply the current method rules. Restart workers after changing aspect rules.
 
-If no aspects have been registered, proxy generation does nothing. Existing proxies are reused only while their content fingerprint still matches the source path and contents, aspect rules, registered AST visitors, generator implementation, PHP parser, and PHP version. Changes to any of those inputs regenerate the affected proxy during the next application bootstrap.
+If no aspects have been registered, no proxy files are generated, but registration still closes. Existing proxies are reused only while their content fingerprint still matches the source path and contents, aspect rules, registered AST visitors, generator implementation, PHP parser, and PHP version. Changes to any of those inputs regenerate the affected proxy during the next application bootstrap.
 
 Each targeted source file must declare exactly one named class, interface, trait, or enum. Nested anonymous classes are supported, but multiple named class-like declarations should be split into separate files before applying an aspect. Methods that return by reference cannot be intercepted because the aspect pipeline returns values rather than reference identities.
 
@@ -247,7 +246,7 @@ php artisan about
 
 In full application or Testbench tests, target classes may already be proxied during application bootstrap. In that case, call the target method normally and the proxy will intercept the call automatically.
 
-The shared PHPUnit extension prepares the framework's Guzzle proxies before test discovery, without enabling optional Sentry or Telescope instrumentation. Application providers still determine which aspects run. For application-defined aspects, register them before first loading their targets, usually through a Testbench application provider.
+Application providers determine which aspects run. Register application-defined aspects before first loading their targets, usually through a Testbench application provider.
 
 For focused tests where the target object is not already proxied, use the `Hypervel\Foundation\Testing\Concerns\InteractsWithAop` trait. This trait can run a method through the registered aspect pipeline without relying on generated proxy files:
 
@@ -268,6 +267,7 @@ class ProfileReportsTest extends TestCase
 
     public function test_it_runs_the_aspect(): void
     {
+        AspectCollector::unseal();
         AspectCollector::setAround(ProfileReports::class, [
             ReportService::class . '::generate',
         ]);
@@ -283,4 +283,11 @@ class ProfileReportsTest extends TestCase
 }
 ```
 
+The `unseal` method reopens registration for this test while keeping the application's existing aspects. It does not change classes that have already been loaded, so only use it in tests. Aspects registered by a test are removed before the next test runs.
+
 The `callWithAspects` method expects an object that has not already been proxied. If the object is already proxied, call the method normally instead.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel AOP began as a port of [Hyperf DI](https://github.com/hyperf/di) and has been adapted for Hypervel's framework architecture and coroutine runtime.

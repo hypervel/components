@@ -115,6 +115,7 @@ if ($databasePath === false) {
 }
 
 $application = null;
+$failure = null;
 
 try {
     $application = Application::create(options: ['load_environment_variables' => false]);
@@ -140,7 +141,6 @@ try {
     $http = $httpUrl === null ? null : (new Factory)->registerConnection('benchmark');
     $pool = $application->make(PoolManager::class)->pool('benchmark');
     $reports = [];
-    $failure = null;
 
     run(function () use ($database, $http, $httpUrl, $httpCertificate, $pool, $settings, $release, $transaction, $poolMetrics, &$reports, &$failure): void {
         try {
@@ -295,6 +295,8 @@ try {
         'settings' => $settings + ['release' => $release, 'transaction' => $transaction, 'pool-metrics' => $poolMetrics, 'http-url' => $httpUrl, 'http-ca' => $httpCertificate],
         'samples' => $reports,
     ], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR), PHP_EOL;
+} catch (Throwable $exception) {
+    $failure = $exception;
 } finally {
     try {
         $application?->make(PoolManager::class)->purgeAll();
@@ -302,4 +304,9 @@ try {
     } finally {
         unlink($databasePath);
     }
+}
+
+if ($failure !== null) {
+    fwrite(STDERR, (string) $failure . PHP_EOL);
+    exit(1);
 }

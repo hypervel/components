@@ -6,6 +6,7 @@ namespace Hypervel\Prompts\Themes\Default;
 
 use Hypervel\Prompts\Concerns\HasSpinner;
 use Hypervel\Prompts\Task;
+use Symfony\Component\Console\Formatter\OutputFormatter;
 
 class TaskRenderer extends Renderer
 {
@@ -61,7 +62,7 @@ class TaskRenderer extends Renderer
         $logs = array_slice($task->logs, -$task->limit);
 
         foreach ($logs as $log) {
-            $this->line(' ' . $this->dim($log));
+            $this->line(' ' . $this->dim(OutputFormatter::escape($log)));
         }
 
         $remaining = $task->limit - count($task->logs);

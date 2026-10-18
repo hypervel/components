@@ -4,15 +4,18 @@ declare(strict_types=1);
 
 namespace Hypervel\Http\Client\Guzzle;
 
+use GuzzleHttp\Promise\PromiseInterface;
+use GuzzleHttp\Promise\ScopedTaskQueueInterface;
 use GuzzleHttp\Promise\TaskQueue;
 use GuzzleHttp\Promise\TaskQueueInterface;
 use GuzzleHttp\Promise\Utils;
 use Hypervel\Engine\Coroutine;
 
 /**
- * Drain each coroutine's callbacks independently, preserving the original queue outside coroutines.
+ * Drain each coroutine's callbacks independently and cancel unfinished work at exit,
+ * preserving the original queue outside coroutines.
  */
-class CoroutineTaskQueue implements TaskQueueInterface
+class CoroutineTaskQueue implements ScopedTaskQueueInterface
 {
     /**
      * Retain the existing non-coroutine queue and its shutdown behavior.
@@ -57,6 +60,14 @@ class CoroutineTaskQueue implements TaskQueueInterface
     public function run(): void
     {
         $this->current()->run();
+    }
+
+    /**
+     * Retain pending transport work until its completion callbacks run.
+     */
+    public function track(PromiseInterface $promise): void
+    {
+        CoroutineState::forCurrent()->track($promise);
     }
 
     /**

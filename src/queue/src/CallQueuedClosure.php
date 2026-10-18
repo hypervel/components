@@ -76,7 +76,7 @@ class CallQueuedClosure implements ShouldQueue
     /**
      * Handle a job failure.
      */
-    public function failed(Throwable $e): void
+    public function failed(?Throwable $e): void
     {
         foreach ($this->failureCallbacks as $callback) {
             $callback($e);

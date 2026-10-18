@@ -1,0 +1,286 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Ai\Feature\Providers\Anthropic;
+
+use Closure;
+use Hypervel\Ai\Attributes\CacheInstructions;
+use Hypervel\Ai\Attributes\CacheToolDefinitions;
+use Hypervel\Ai\Gateway\StepResult;
+use Hypervel\Ai\PendingStep;
+use Hypervel\Ai\Providers\Tools\ToolSearch;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Facades\Http;
+use Hypervel\Tests\Ai\Fixtures\Agents\PromptCacheAgent;
+use Hypervel\Tests\Ai\Fixtures\Agents\PromptCacheStructuredAgent;
+use Hypervel\Tests\Ai\Fixtures\AnthropicHelpers;
+use Hypervel\Tests\Ai\Fixtures\Tools\FixedNumberGenerator;
+use Hypervel\Tests\Ai\TestCase;
+use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\DataProvider;
+
+class PromptCacheTest extends TestCase
+{
+    use AnthropicHelpers;
+
+    public function testCacheInstructionsAttributeConvertsInstructionsToACachedBlock(): void
+    {
+        Http::fake(['api.anthropic.com/*' => $this->fakeTextResponse()]);
+
+        (new #[CacheInstructions] class(withTools: false) extends PromptCacheAgent {})->prompt('Hi', provider: 'anthropic');
+
+        Http::assertSent(function ($request): bool {
+            $body = $request->data();
+
+            return $body['system'] === [[
+                'type' => 'text',
+                'text' => 'You are a helpful assistant that generates numbers.',
+                'cache_control' => ['type' => 'ephemeral'],
+            ]];
+        });
+    }
+
+    #[DataProvider('toolSearchModes')]
+    public function testCacheToolDefinitionsAttributeStampsTheLastTool(bool $deferred): void
+    {
+        Http::fake(['api.anthropic.com/*' => $this->fakeTextResponse()]);
+
+        $agent = new #[CacheToolDefinitions] class extends PromptCacheAgent {};
+
+        if ($deferred) {
+            $agent->withTools([new ToolSearch([new FixedNumberGenerator])]);
+        }
+
+        $agent->prompt('Hi', provider: 'anthropic');
+
+        Http::assertSent(function ($request): bool {
+            $body = $request->data();
+
+            $eligible = array_filter($body['tools'], fn (array $tool): bool => ! ($tool['defer_loading'] ?? false));
+            $deferredTools = array_filter($body['tools'], fn (array $tool): bool => $tool['defer_loading'] ?? false);
+
+            return $body['system'] === 'You are a helpful assistant that generates numbers.'
+                && Arr::last($eligible)['cache_control'] === ['type' => 'ephemeral']
+                && array_all($deferredTools, fn (array $tool): bool => ! isset($tool['cache_control']));
+        });
+    }
+
+    /**
+     * Cover ordinary tools and a trailing deferred search catalog.
+     */
+    public static function toolSearchModes(): array
+    {
+        return [[false], [true]];
+    }
+
+    public function testBothTargetsMayBeCachedTogether(): void
+    {
+        Http::fake(['api.anthropic.com/*' => $this->fakeTextResponse()]);
+
+        (new #[CacheInstructions] #[CacheToolDefinitions] class extends PromptCacheAgent {})->prompt('Hi', provider: 'anthropic');
+
+        Http::assertSent(function ($request): bool {
+            $body = $request->data();
+
+            return isset($body['system'][0]['cache_control'])
+                && Arr::last($body['tools'])['cache_control'] === ['type' => 'ephemeral'];
+        });
+    }
+
+    public function testTheSyntheticStructuredOutputToolReceivesTheBreakpoint(): void
+    {
+        config(['ai.providers.anthropic' => [
+            ...config('ai.providers.anthropic'),
+            'use_native_structured_output' => false,
+        ]]);
+
+        Http::fake([
+            'api.anthropic.com/*' => $this->fakeSyntheticStructuredResponse(['symbol' => 'Fe']),
+        ]);
+
+        (new PromptCacheStructuredAgent)->prompt('Iron', provider: 'anthropic');
+
+        Http::assertSent(function ($request): bool {
+            $body = $request->data();
+
+            return Arr::last($body['tools'])['name'] === 'output_structured_data'
+                && Arr::last($body['tools'])['cache_control'] === ['type' => 'ephemeral'];
+        });
+    }
+
+    public function testAnAgentWithoutCacheAttributesLeavesThePayloadUntouched(): void
+    {
+        Http::fake(['api.anthropic.com/*' => $this->fakeTextResponse()]);
+
+        (new PromptCacheAgent)->prompt('Hi', provider: 'anthropic');
+
+        Http::assertSent(function ($request): bool {
+            $body = $request->data();
+
+            return is_string($body['system'])
+                && ! array_key_exists('cache_control', Arr::last($body['tools']));
+        });
+    }
+
+    public function testProviderOptionsStillMergeAlongsideCacheAttributes(): void
+    {
+        Http::fake(['api.anthropic.com/*' => $this->fakeTextResponse()]);
+
+        (new #[CacheInstructions] class(options: ['thinking' => ['type' => 'enabled', 'budget_tokens' => 10000]]) extends PromptCacheAgent {})
+            ->prompt('Hi', provider: 'anthropic');
+
+        Http::assertSent(function ($request): bool {
+            $body = $request->data();
+
+            return $body['thinking']['budget_tokens'] === 10000
+                && isset($body['system'][0]['cache_control']);
+        });
+    }
+
+    public function testATargetMayRequestTheExtendedTtl(): void
+    {
+        Http::fake(['api.anthropic.com/*' => $this->fakeTextResponse()]);
+
+        (new #[CacheInstructions('5m')] #[CacheToolDefinitions('1h')] class extends PromptCacheAgent {})->prompt('Hi', provider: 'anthropic');
+
+        Http::assertSent(function ($request): bool {
+            $body = $request->data();
+
+            return $body['system'][0]['cache_control'] === ['type' => 'ephemeral', 'ttl' => '5m']
+                && Arr::last($body['tools'])['cache_control'] === ['type' => 'ephemeral', 'ttl' => '1h'];
+        });
+    }
+
+    public function testAnOmittedTtlUsesTheProviderDefault(): void
+    {
+        Http::fake(['api.anthropic.com/*' => $this->fakeTextResponse()]);
+
+        (new #[CacheInstructions] class extends PromptCacheAgent {})->prompt('Hi', provider: 'anthropic');
+
+        Http::assertSent(fn ($request): bool => $request->data()['system'][0]['cache_control'] === ['type' => 'ephemeral']);
+    }
+
+    public function testALongerInstructionsTtlRequiresTheToolsCacheToUseTheSameTtl(): void
+    {
+        Http::preventStrayRequests();
+
+        $this->expectException(InvalidArgumentException::class);
+        (new #[CacheInstructions('1h')] #[CacheToolDefinitions('5m')] class extends PromptCacheAgent {})->prompt('Hi', provider: 'anthropic');
+    }
+
+    public function testALongerAutomaticCacheTtlRequiresExplicitBreakpointsToUseTheSameTtl(): void
+    {
+        Http::preventStrayRequests();
+
+        $this->expectException(InvalidArgumentException::class);
+        (new #[CacheInstructions] class(options: ['cache_control' => ['type' => 'ephemeral', 'ttl' => '1h']]) extends PromptCacheAgent {})->prompt('Hi', provider: 'anthropic');
+    }
+
+    #[DataProvider('absentCacheTargets')]
+    public function testCacheOrderIgnoresTargetsAbsentFromTheRequest(bool $withInstructions, bool $withTools, bool $automatic): void
+    {
+        Http::fake(['api.anthropic.com/*' => $this->fakeTextResponse()]);
+
+        (new #[CacheInstructions('1h')] #[CacheToolDefinitions] class extends PromptCacheAgent {})
+            ->withMiddleware([function (PendingStep $step, Closure $next) use ($withInstructions, $withTools, $automatic): StepResult {
+                if (! $withInstructions) {
+                    $step = $step->withInstructions(null);
+                }
+
+                if (! $withTools) {
+                    $step = $step->withTools([]);
+                }
+
+                if ($automatic) {
+                    $step = $step->withProviderOptions(['cache_control' => ['type' => 'ephemeral', 'ttl' => '1h']]);
+                }
+
+                return $next($step);
+            }])->prompt('Hi', provider: 'anthropic');
+
+        Http::assertSent(function ($request) use ($withInstructions, $withTools, $automatic): bool {
+            $body = $request->data();
+
+            if ($withInstructions) {
+                $this->assertSame(['type' => 'ephemeral', 'ttl' => '1h'], $body['system'][0]['cache_control']);
+            } else {
+                $this->assertArrayNotHasKey('system', $body);
+            }
+
+            if ($withTools) {
+                $this->assertSame(['type' => 'ephemeral'], Arr::last($body['tools'])['cache_control']);
+            } else {
+                $this->assertArrayNotHasKey('tools', $body);
+            }
+
+            if ($automatic) {
+                $this->assertSame(['type' => 'ephemeral', 'ttl' => '1h'], $body['cache_control']);
+            }
+
+            return true;
+        });
+    }
+
+    /**
+     * Cover cache attributes whose targets are removed by step middleware.
+     */
+    public static function absentCacheTargets(): array
+    {
+        return [
+            'instructions only' => [true, false, false],
+            'tools only' => [false, true, false],
+            'automatic only' => [false, false, true],
+        ];
+    }
+
+    public function testBreakpointsSurviveProviderOptionsThatOverrideTheSameKeys(): void
+    {
+        Http::fake(['api.anthropic.com/*' => $this->fakeTextResponse()]);
+
+        (new #[CacheInstructions] #[CacheToolDefinitions] class(options: ['system' => 'Overridden instructions.', 'tools' => [['name' => 'custom', 'description' => '', 'input_schema' => ['type' => 'object']]]]) extends PromptCacheAgent {})->prompt('Hi', provider: 'anthropic');
+
+        Http::assertSent(function ($request): bool {
+            $body = $request->data();
+
+            return $body['system'] === [[
+                'type' => 'text',
+                'text' => 'Overridden instructions.',
+                'cache_control' => ['type' => 'ephemeral'],
+            ]]
+                && Arr::last($body['tools'])['name'] === 'custom'
+                && Arr::last($body['tools'])['cache_control'] === ['type' => 'ephemeral'];
+        });
+    }
+
+    public function testTheToolsTargetIsANoOpWhenTheRequestCarriesNoTools(): void
+    {
+        Http::fake(['api.anthropic.com/*' => $this->fakeTextResponse()]);
+
+        (new PromptCacheStructuredAgent)->prompt('Iron', provider: 'anthropic');
+
+        Http::assertSent(fn ($request): bool => ! array_key_exists('tools', $request->data()));
+    }
+
+    public function testTheStreamingPathStampsTheSameBreakpoints(): void
+    {
+        Http::fake([
+            'api.anthropic.com/*' => Http::response($this->ssePayload([
+                $this->messageStart(),
+                $this->contentBlockStart(0, ['type' => 'text', 'text' => '']),
+                $this->contentBlockDelta(0, ['type' => 'text_delta', 'text' => 'Hi']),
+                $this->contentBlockStop(0),
+                $this->messageDelta('end_turn', 5),
+            ]), 200, ['Content-Type' => 'text/event-stream']),
+        ]);
+
+        $this->collectStreamEvents(new #[CacheInstructions] #[CacheToolDefinitions] class extends PromptCacheAgent {});
+
+        Http::assertSent(function ($request): bool {
+            $body = $request->data();
+
+            return isset($body['system'][0]['cache_control'])
+                && Arr::last($body['tools'])['cache_control'] === ['type' => 'ephemeral'];
+        });
+    }
+}

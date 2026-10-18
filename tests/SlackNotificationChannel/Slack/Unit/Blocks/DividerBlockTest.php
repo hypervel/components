@@ -10,7 +10,7 @@ use LogicException;
 
 class DividerBlockTest extends TestCase
 {
-    public function testArrayable(): void
+    public function testItIsArrayable(): void
     {
         $block = new DividerBlock;
 
@@ -19,7 +19,7 @@ class DividerBlockTest extends TestCase
         ], $block->toArray());
     }
 
-    public function testCanManuallySpecifyBlockIdField(): void
+    public function testItCanManuallySpecifyTheBlockIdField(): void
     {
         $block = new DividerBlock;
         $block->id('divider1');
@@ -35,7 +35,7 @@ class DividerBlockTest extends TestCase
         $this->assertSame('0', (new DividerBlock)->id('0')->toArray()['block_id']);
     }
 
-    public function testBlockIdCantExceedTwoFiveFiveCharacters(): void
+    public function testTheBlockIdFieldCannotExceed255Characters(): void
     {
         $this->expectException(LogicException::class);
         $this->expectExceptionMessageIs('Maximum length for the block_id field is 255 characters.');

@@ -26,6 +26,24 @@ class SQLiteGrammar extends Grammar
     ];
 
     /**
+     * Compile an offset, supplying SQLite's unbounded limit when needed.
+     */
+    protected function compileOffset(Builder $query, int $offset): string
+    {
+        return ($query->limit === null ? 'limit -1 ' : '')
+            . parent::compileOffset($query, $offset);
+    }
+
+    /**
+     * Compile a union offset independently of the first select's limit.
+     */
+    protected function compileUnionOffset(Builder $query, int $offset): string
+    {
+        return ($query->unionLimit === null ? 'limit -1 ' : '')
+            . parent::compileOffset($query, $offset);
+    }
+
+    /**
      * Compile the lock into SQL.
      */
     protected function compileLock(Builder $query, bool|string $value): string
@@ -197,7 +215,7 @@ class SQLiteGrammar extends Grammar
      */
     public function compileUpdate(Builder $query, array $values): string
     {
-        if (isset($query->joins) || isset($query->limit)) {
+        if (isset($query->joins) || isset($query->limit) || $query->offset > 0) {
             return $this->compileUpdateWithJoinsOrLimit($query, $values);
         }
 
@@ -339,7 +357,7 @@ class SQLiteGrammar extends Grammar
      */
     public function compileDelete(Builder $query): string
     {
-        if (isset($query->joins) || isset($query->limit)) {
+        if (isset($query->joins) || isset($query->limit) || $query->offset > 0) {
             return $this->compileDeleteWithJoinsOrLimit($query);
         }
 

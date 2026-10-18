@@ -25,6 +25,7 @@
 - [Container Events](#container-events)
     - [Rebinding](#rebinding)
 - [PSR-11](#psr-11)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -1027,3 +1028,8 @@ Route::get('/', function (ContainerInterface $container) {
 ```
 
 `get()` is a PSR-11 wrapper around `make()` — it honors all the same caching rules. An exception is thrown if the given identifier can't be resolved. The exception will be an instance of `Psr\Container\NotFoundExceptionInterface` if the identifier was never bound. If the identifier was bound but was unable to be resolved, an instance of `Psr\Container\ContainerExceptionInterface` will be thrown.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Container began as a port of [Laravel Container](https://github.com/illuminate/container) and has been adapted for Hypervel's framework architecture and coroutine runtime.

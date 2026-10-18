@@ -318,7 +318,7 @@ class NotificationTransportSerializationTest extends TestCase
             $this->assertSame([], $restored->getMetadata());
             $this->assertNull($restored->getSize());
             $this->expectException(RuntimeException::class);
-            $this->expectExceptionMessage('Stream is detached');
+            $this->expectExceptionMessageIs('Stream is detached');
             $restored->getContents();
         } finally {
             if (is_resource($resource)) {
@@ -364,7 +364,7 @@ class NotificationTransportSerializationTest extends TestCase
 
         try {
             $this->expectException(LogicException::class);
-            $this->expectExceptionMessage('Cannot serialize notification transport bodies outside writable memory buffers.');
+            $this->expectExceptionMessageIs('Cannot serialize notification transport bodies outside writable memory buffers.');
             serialize($event);
         } finally {
             $this->assertSame($position, $stream->tell());

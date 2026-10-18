@@ -7,17 +7,17 @@ namespace Hypervel\Tests\Sentry\Features;
 use Hypervel\Console\Command;
 use Hypervel\Console\Events\AfterExecute;
 use Hypervel\Console\Events\BeforeHandle;
-use Hypervel\Tests\Sentry\SentryTestCase;
+use Hypervel\Tests\Sentry\TestCase;
 use Symfony\Component\Console\Input\ArgvInput;
 
-class ConsoleIntegrationNonCoroutineTest extends SentryTestCase
+class ConsoleIntegrationNonCoroutineTest extends TestCase
 {
     protected bool $runTestsInCoroutine = false;
 
     public function testCommandScopeIsBalancedOutsideACoroutine(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry' => $this->sentryConfigWith(['breadcrumbs.command_info' => false]),
+            'sentry.breadcrumbs.command_info' => false,
         ]);
         $scope = $this->getCurrentSentryScope();
         $command = new NonCoroutineConsoleIntegrationCommand;
@@ -33,7 +33,7 @@ class ConsoleIntegrationNonCoroutineTest extends SentryTestCase
     public function testUnnamedCommandCompletionDoesNotPopItsParentScopeOutsideACoroutine(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry' => $this->sentryConfigWith(['breadcrumbs.command_info' => false]),
+            'sentry.breadcrumbs.command_info' => false,
         ]);
         $baselineScope = $this->getCurrentSentryScope();
         $outer = new NonCoroutineConsoleIntegrationCommand;
@@ -59,6 +59,9 @@ class NonCoroutineConsoleIntegrationCommand extends Command
 
     protected bool $coroutine = false;
 
+    /**
+     * Execute the console command.
+     */
     public function handle(): void
     {
     }
@@ -68,6 +71,9 @@ class NonCoroutineUnnamedConsoleIntegrationCommand extends Command
 {
     protected bool $coroutine = false;
 
+    /**
+     * Execute the console command.
+     */
     public function handle(): void
     {
     }

@@ -41,6 +41,6 @@ class UsersSelectElement extends SelectElement
         return array_filter(array_merge([
             'type' => 'users_select',
             'initial_user' => $this->initialUser,
-        ], parent::toArray()), fn ($value): bool => $value !== null);
+        ], parent::toArray()), fn (mixed $value): bool => $value !== null);
     }
 }

@@ -23,10 +23,10 @@ jobs:
       matrix:
         php: ["8.4", "8.5"]
 
-    name: PHP ${{ matrix.php }} (Swoole 6.2.2)
+    name: PHP ${{ matrix.php }} (Swoole 6.3.0 RC1)
 
     container:
-      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.2.2
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
 
     steps:
       - name: Checkout code
@@ -71,51 +71,22 @@ jobs:
           OTEL_SDK_DISABLED: true
         run: vendor/bin/testbench package:test --parallel
 
-  guzzle_7_compatibility:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    if: "!contains(github.event.head_commit.message, '[skip ci]') && !contains(github.event.head_commit.message, '[ci skip]')"
-    name: Guzzle 7 and promises 2
+      - name: Install AI demo dependencies
+        working-directory: dogfood/ai
+        run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
 
-    container:
-      image: ghcr.io/hypervel/components-ci:php8.4-swoole6.2.2
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Log trigger context
-        uses: ./.github/actions/log-trigger-context
-
-      - name: Cache Composer dependencies
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: /root/.composer/cache
-          key: composer-guzzle7-${{ hashFiles('composer.json') }}
-          restore-keys: composer-guzzle7-
-
-      - name: Install the supported Guzzle 7 dependency family
-        run: |
-          COMPOSER_MEMORY_LIMIT=-1 composer update --prefer-dist -n -o \
-            --with 'guzzlehttp/guzzle:^7.15.2' \
-            --with 'guzzlehttp/promises:^2.5.2' \
-            --with 'guzzlehttp/psr7:^2.13'
-
-      - name: Run ownership and affected consumer tests
-        run: >-
-          vendor/bin/paratest -c phpunit.xml.dist
-          --filter '(Guzzle|PusherClientTest|AwsCredentialConsumerTest|SerializedCredentialProvider|HttpClientTest|HttpConnectionTest|HttpClientDestinationPolicyTest|CurlStreamingHandlerTest|HttpClientStreamingTest|AfterEachTestExtensionTest|GenerateProxiesTest|ServiceProviderDiTest)'
+      - name: Run AI demo suite
+        working-directory: dogfood/ai
+        run: vendor/bin/testbench package:test --no-progress
 
   wayfinder_tests:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     if: "!contains(github.event.head_commit.message, '[skip ci]') && !contains(github.event.head_commit.message, '[ci skip]')"
-    name: Wayfinder
+    name: JavaScript
 
     container:
-      image: ghcr.io/hypervel/components-ci:php8.4-swoole6.2.2
+      image: ghcr.io/hypervel/components-ci:php8.4-swoole6.3.0-rc1
 
     steps:
       - name: Checkout code
@@ -137,17 +108,20 @@ jobs:
         run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
 
       - name: Install pnpm
         run: |
           corepack enable
-          corepack prepare pnpm@10.24.0 --activate
+          corepack prepare pnpm@12.10.1 --activate
 
       - name: Install Node dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Run MCP browser SDK tests
+        run: pnpm test:mcp
 
       - name: Run Wayfinder tests
         run: pnpm test:wayfinder

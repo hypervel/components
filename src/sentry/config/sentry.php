@@ -2,18 +2,16 @@
 
 declare(strict_types=1);
 
-use Hypervel\Sentry\Features\CacheFeature;
+use Hypervel\Sentry\Features\AiIntegration;
+use Hypervel\Sentry\Features\CacheIntegration;
+use Hypervel\Sentry\Features\ClassificationIntegration;
 use Hypervel\Sentry\Features\ConsoleIntegration;
-use Hypervel\Sentry\Features\ConsoleSchedulingFeature;
-use Hypervel\Sentry\Features\LogFeature;
-use Hypervel\Sentry\Features\NotificationsFeature;
-use Hypervel\Sentry\Features\QueueFeature;
-use Hypervel\Sentry\Features\RedisFeature;
+use Hypervel\Sentry\Features\ConsoleSchedulingIntegration;
+use Hypervel\Sentry\Features\HttpClientIntegration;
+use Hypervel\Sentry\Features\LogIntegration;
+use Hypervel\Sentry\Features\NotificationsIntegration;
+use Hypervel\Sentry\Features\QueueIntegration;
 use Hypervel\Sentry\Features\Storage\Integration as StorageIntegration;
-use Hypervel\Validation\ValidationException;
-use Sentry\Integration\EnvironmentIntegration;
-use Sentry\Integration\FrameContextifierIntegration;
-use Sentry\Integration\TransactionIntegration;
 
 /*
  * Sentry Hypervel SDK configuration file.
@@ -54,6 +52,8 @@ return [
     // @see: https://docs.sentry.io/platforms/php/guides/laravel/configuration/options/#traces_sample_rate
     'traces_sample_rate' => $tracesSampleRate === null ? null : (float) $tracesSampleRate,
 
+    // Profiles can include work from other requests running at the same time in the same worker,
+    // whether profiling is enabled here or by a `profiles_sampler` callback.
     // @see: https://docs.sentry.io/platforms/php/guides/laravel/configuration/options/#profiles_sample_rate
     'profiles_sample_rate' => $profilesSampleRate === null ? null : (float) $profilesSampleRate,
 
@@ -69,27 +69,30 @@ return [
     // @see: https://docs.sentry.io/platforms/php/guides/laravel/configuration/options/#log_flush_threshold
     'log_flush_threshold' => $logFlushThreshold === null ? null : (int) $logFlushThreshold,
 
-    // The minimum log level sent to Sentry through the `sentry_logs` logging channel.
+    // The minimum log level that will be sent to Sentry as logs using the `sentry_logs` logging channel
     'logs_channel_level' => env('SENTRY_LOG_LEVEL', env('LOG_LEVEL', 'debug')),
 
     // @see: https://docs.sentry.io/platforms/php/guides/laravel/configuration/options/#send_default_pii
     'send_default_pii' => (bool) env('SENTRY_SEND_DEFAULT_PII', false),
+
+    // Configures which data is collected automatically, `null` keeps collecting data based on `send_default_pii`
+    'data_collection' => null,
 
     // @see: https://docs.sentry.io/platforms/php/guides/laravel/configuration/options/#ignore_exceptions
     // 'ignore_exceptions' => [],
 
     // @see: https://docs.sentry.io/platforms/php/guides/laravel/configuration/options/#ignore_transactions
     'ignore_transactions' => [
-        // Ignore the conventional health route path
+        // Ignore Hypervel's default health URL
         '/up',
     ],
 
     // Breadcrumb specific configuration
     'breadcrumbs' => [
-        // Capture log messages as breadcrumbs
+        // Capture Hypervel logs as breadcrumbs
         'logs' => (bool) env('SENTRY_BREADCRUMBS_LOGS_ENABLED', true),
 
-        // Capture cache events (hits, writes etc.) as breadcrumbs.
+        // Capture Hypervel cache events (hits, writes etc.) as breadcrumbs.
         // When Sentry is active, this enables repository events for every configured cache store.
         'cache' => (bool) env('SENTRY_BREADCRUMBS_CACHE_ENABLED', true),
 
@@ -99,7 +102,7 @@ return [
         // Capture SQL queries as breadcrumbs
         'sql_queries' => (bool) env('SENTRY_BREADCRUMBS_SQL_QUERIES_ENABLED', true),
 
-        // Capture SQL query bindings (parameters) in SQL query breadcrumbs
+        // Capture SQL query bindings (parameters) in SQL query breadcrumbs, ignored when `data_collection` is set
         'sql_bindings' => (bool) env('SENTRY_BREADCRUMBS_SQL_BINDINGS_ENABLED', false),
 
         // Capture SQL transactions (begin, commit, rollbacks) as breadcrumbs
@@ -129,7 +132,7 @@ return [
         // Capture SQL queries as spans
         'sql_queries' => (bool) env('SENTRY_TRACE_SQL_QUERIES_ENABLED', true),
 
-        // Capture SQL query bindings (parameters) in SQL query spans
+        // Capture SQL query bindings (parameters) in SQL query spans, ignored when `data_collection` is set
         'sql_bindings' => (bool) env('SENTRY_TRACE_SQL_BINDINGS_ENABLED', false),
 
         // Capture where the SQL query originated from on the SQL query spans
@@ -144,7 +147,13 @@ return [
         // Capture HTTP client requests as spans
         'http_client_requests' => (bool) env('SENTRY_TRACE_HTTP_CLIENT_REQUESTS_ENABLED', true),
 
-        // Capture cache events (hits, writes etc.) as spans.
+        // Capture where the HTTP client request originated from on the HTTP client request spans
+        'http_client_requests_origin' => (bool) env('SENTRY_TRACE_HTTP_CLIENT_REQUESTS_ORIGIN_ENABLED', true),
+
+        // Define a threshold in milliseconds for HTTP client requests to resolve their origin
+        'http_client_requests_origin_threshold_ms' => (int) env('SENTRY_TRACE_HTTP_CLIENT_REQUESTS_ORIGIN_THRESHOLD_MS', 250),
+
+        // Capture Hypervel cache events (hits, writes etc.) as spans.
         // When Sentry is active, this enables repository events for every configured cache store.
         'cache' => (bool) env('SENTRY_TRACE_CACHE_ENABLED', true),
 
@@ -163,8 +172,26 @@ return [
         // Enable tracing for requests without a matching route (404's)
         'missing_routes' => (bool) env('SENTRY_TRACE_MISSING_ROUTES_ENABLED', false),
 
-        // Continue the trace through after-response work before finishing the transaction
+        // Continue tracing through after-response work, such as jobs dispatched with `dispatch(...)->afterResponse()`
         'continue_after_response' => (bool) env('SENTRY_TRACE_CONTINUE_AFTER_RESPONSE', true),
+
+        // Capture AI agent interactions as spans (requires hypervel/ai)
+        'gen_ai' => (bool) env('SENTRY_TRACE_GEN_AI_ENABLED', true),
+
+        // Capture AI invoke_agent spans
+        'gen_ai_invoke_agent' => (bool) env('SENTRY_TRACE_GEN_AI_INVOKE_AGENT_ENABLED', true),
+
+        // Capture AI chat spans
+        'gen_ai_chat' => (bool) env('SENTRY_TRACE_GEN_AI_CHAT_ENABLED', true),
+
+        // Capture AI execute_tool spans
+        'gen_ai_execute_tool' => (bool) env('SENTRY_TRACE_GEN_AI_EXECUTE_TOOL_ENABLED', true),
+
+        // Capture AI embeddings spans
+        'gen_ai_embeddings' => (bool) env('SENTRY_TRACE_GEN_AI_EMBEDDINGS_ENABLED', true),
+
+        // Capture AI evaluate spans for classifications (requires hypervel/ai)
+        'gen_ai_evaluate' => (bool) env('SENTRY_TRACE_GEN_AI_EVALUATE_ENABLED', true),
     ],
 
     /*
@@ -172,34 +199,28 @@ return [
     | Hypervel-Specific Configuration
     |--------------------------------------------------------------------------
     |
-    | The following options are specific to Hypervel and are not present in the
-    | upstream sentry-laravel package. They configure Swoole-specific behavior
-    | such as the async transport pool and feature registration.
+    | These options configure additional SDK integrations, the features that
+    | instrument your application, and the transport pool that sends events
+    | to Sentry asynchronously.
     |
     */
 
     // Additional SDK integrations to register (resolved from the container)
-    'integrations' => [
-        TransactionIntegration::class,
-        FrameContextifierIntegration::class,
-        EnvironmentIntegration::class,
-    ],
+    'integrations' => [],
 
-    // Feature classes to register (Hypervel loads from config, upstream hardcodes in service provider)
+    // The features that instrument the application. Remove a feature to skip it entirely,
+    // or add your own class that extends `Hypervel\Sentry\Features\Feature`.
     'features' => [
-        CacheFeature::class,
-        QueueFeature::class,
-        NotificationsFeature::class,
-        LogFeature::class,
+        LogIntegration::class,
+        CacheIntegration::class,
+        QueueIntegration::class,
         ConsoleIntegration::class,
-        ConsoleSchedulingFeature::class,
-        RedisFeature::class,
         StorageIntegration::class,
-    ],
-
-    // Exceptions that should not be reported to Sentry
-    'ignore_exceptions' => [
-        ValidationException::class,
+        HttpClientIntegration::class,
+        NotificationsIntegration::class,
+        ConsoleSchedulingIntegration::class,
+        AiIntegration::class,
+        ClassificationIntegration::class,
     ],
 
     // HTTP timeout for the Sentry SDK transport (seconds)

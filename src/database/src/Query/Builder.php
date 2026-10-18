@@ -21,6 +21,7 @@ use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\MultipleRecordsFoundException;
+use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Database\RecordsNotFoundException;
@@ -37,6 +38,7 @@ use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
 use JsonException;
 use LogicException;
+use PDO;
 use RuntimeException;
 use SortDirection;
 use stdClass;
@@ -2684,7 +2686,7 @@ class Builder implements BuilderContract
     /**
      * Alias to set the "offset" value of the query.
      */
-    public function skip(int $value): static
+    public function skip(?int $value): static
     {
         return $this->offset($value);
     }
@@ -2704,7 +2706,7 @@ class Builder implements BuilderContract
     /**
      * Alias to set the "limit" value of the query.
      */
-    public function take(int $value): static
+    public function take(?int $value): static
     {
         return $this->limit($value);
     }
@@ -3374,21 +3376,36 @@ class Builder implements BuilderContract
     public function pluckWithColumn(ExpressionContract|string $column, ?string $key = null): array
     {
         return $this->withoutFetchUsing(function () use ($column, $key) {
+            $fetchColumn = false;
+
             // First, we will need to select the results of the query accounting for the
             // given columns / key. Once we have the results, we will be able to take
             // the results and get the exact data that was requested for the query.
             $queryResult = $this->onceWithColumns(
                 is_null($key) || $key === $column ? [$column] : [$column, $key],
-                function () {
-                    return $this->processor->processSelect(
-                        $this,
-                        $this->runSelect()
-                    );
+                function () use ($column, $key, &$fetchColumn) {
+                    // PDO-only fetch modes require the projection finalized by callbacks.
+                    $this->applyBeforeQueryCallbacks();
+                    $fetchColumn = $this->connection instanceof PdoConnection
+                        && is_string($column) && $key === null && $this->columns === [$column];
+
+                    if ($fetchColumn) {
+                        $this->fetchUsingOverride = [PDO::FETCH_COLUMN];
+                    }
+
+                    $results = $this->runSelect();
+                    $this->fetchUsingOverride = [];
+
+                    return $this->processor->processSelect($this, $results);
                 }
             );
 
             if (empty($queryResult)) {
                 return [new Collection, null];
+            }
+
+            if ($fetchColumn) {
+                return [$this->applyAfterQueryCallbacks(new Collection($queryResult)), $this->stripTableForPluck($column)];
             }
 
             // If the columns are qualified with a table or have an alias, we cannot use

@@ -6,6 +6,7 @@ namespace Hypervel\Process;
 
 use Closure;
 use InvalidArgumentException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 /**
@@ -74,8 +75,10 @@ class Pool
             try {
                 // Keep partial construction transactional instead of abandoning already-started children.
                 (new InvokedProcessPool($invokedProcesses))->stop(0);
-            } catch (Throwable) {
-                // Preserve the process creation failure.
+            } catch (Throwable $cleanupException) {
+                if ($cleanupException instanceof CanceledException && ! $exception instanceof CanceledException) {
+                    throw $cleanupException;
+                }
             }
 
             throw $exception;

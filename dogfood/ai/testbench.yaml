@@ -1,0 +1,34 @@
+hypervel: '@testbench'
+
+env:
+  OTEL_SDK_DISABLED: true
+
+providers:
+  # - Workbench\App\Providers\WorkbenchServiceProvider
+
+migrations:
+  - workbench/database/migrations
+  - vendor/hypervel/components/src/ai/database/migrations
+
+seeders:
+  - Workbench\Database\Seeders\DatabaseSeeder
+
+workbench:
+  start: '/'
+  install: true
+  health: false
+  discovers:
+    config: true
+    web: true
+    api: true
+    commands: true
+    components: false
+    factories: true
+    views: false
+  sync:
+    - from: workbench/storage
+      to: storage
+      reverse: false
+    - from: workbench/public
+      to: public
+      reverse: false

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Auth;
 
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Auth\UserProvider;
@@ -24,6 +25,11 @@ class TokenGuard implements Guard
     private static object $nullUserSentinel;
 
     /**
+     * The seed for request credential context keys.
+     */
+    protected int $hashSeed;
+
+    /**
      * Create a new authentication guard.
      *
      * @param string $name the name of the guard for Context keying
@@ -40,15 +46,15 @@ class TokenGuard implements Guard
         protected bool $hash = false,
     ) {
         $this->provider = $provider;
+        $this->hashSeed = random_int(1, PHP_INT_MAX);
     }
 
     /**
      * Get the currently authenticated user.
      *
-     * Uses coroutine Context to cache the resolved user per-request,
-     * keyed by token fingerprint so different tokens don't collide.
-     * A sentinel value caches "no user found" so repeated calls
-     * don't trigger redundant provider lookups.
+     * RequestContext keeps resolved users local to the coroutine and clears them
+     * when its request changes. Token fingerprints separate credentials, and a
+     * sentinel caches "no user found" to avoid redundant provider lookups.
      */
     public function user(): ?AuthenticatableContract
     {
@@ -63,7 +69,7 @@ class TokenGuard implements Guard
 
         $token = $this->getTokenForRequest();
         $contextKey = $this->getContextKeyForToken($token);
-        $cached = CoroutineContext::get($contextKey);
+        $cached = RequestContext::getValue($contextKey);
 
         if ($cached === self::$nullUserSentinel) {
             return null;
@@ -81,7 +87,7 @@ class TokenGuard implements Guard
             ]);
         }
 
-        CoroutineContext::set($contextKey, $user ?? self::$nullUserSentinel);
+        RequestContext::setValue($contextKey, $user ?? self::$nullUserSentinel);
 
         return $user;
     }
@@ -143,7 +149,7 @@ class TokenGuard implements Guard
             return true;
         }
 
-        $cached = CoroutineContext::get($this->getContextKeyForToken($this->getTokenForRequest()));
+        $cached = RequestContext::getValue($this->getContextKeyForToken($this->getTokenForRequest()));
 
         return $cached !== null && $cached !== self::$nullUserSentinel;
     }
@@ -164,7 +170,7 @@ class TokenGuard implements Guard
     public function forgetUser(): static
     {
         CoroutineContext::forget($this->getExplicitUserContextKey());
-        CoroutineContext::forget($this->getContextKeyForToken($this->getTokenForRequest()));
+        RequestContext::forgetValue($this->getContextKeyForToken($this->getTokenForRequest()));
 
         return $this;
     }
@@ -198,7 +204,7 @@ class TokenGuard implements Guard
             return "__auth.guards.{$this->name}.user.default";
         }
 
-        return "__auth.guards.{$this->name}.user." . hash('xxh128', $token);
+        return "__auth.guards.{$this->name}.user." . hash('xxh128', $token, options: ['seed' => $this->hashSeed]);
     }
 
     /**

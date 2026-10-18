@@ -17,6 +17,7 @@
 - [Image Drivers](#image-drivers)
     - [Custom Image Drivers](#custom-image-drivers)
     - [Custom Transformations](#custom-transformations)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -531,3 +532,8 @@ $image = $request->image('avatar')
     ->transform(new Pixelate(12))
     ->store('avatars');
 ```
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Image began as a port of [Laravel Image](https://github.com/illuminate/image) and has been adapted for Hypervel's framework architecture and coroutine runtime.

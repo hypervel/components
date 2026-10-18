@@ -155,6 +155,13 @@ trait Searchable
             return;
         }
 
+        if (Scout::isImporting() && ! CoroutineContext::has(self::SCOUT_RUNNER_CONTEXT_KEY)) {
+            $model = $models->first();
+            CoroutineContext::set(self::SCOUT_RUNNER_CONTEXT_KEY, new ConcurrentImportRunner(
+                $model->searchableUsing()->importConcurrency($model, config()->integer('scout.command_concurrency'))
+            ));
+        }
+
         static::dispatchSearchableJob(function () use ($models): void {
             $this->syncMakeSearchable($models);
         });
@@ -446,6 +453,14 @@ trait Searchable
     public function indexableAs(): string
     {
         return $this->searchableAs();
+    }
+
+    /**
+     * Get the database column that stores the searchable embedding.
+     */
+    public function searchableEmbeddingColumn(): string
+    {
+        return 'embedding';
     }
 
     /**

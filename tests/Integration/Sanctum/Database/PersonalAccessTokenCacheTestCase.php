@@ -165,6 +165,13 @@ abstract class PersonalAccessTokenCacheTestCase extends DatabaseTestCase
         $token = $this->createToken($owner, 'secret');
 
         $this->assertSame('Original', $this->findTokenable($token, 'secret')?->name);
+        $cache = $this->app->make('cache')->store(self::CACHE_STORE);
+        $morphType = $owner->getMorphClass();
+        $id = (string) $owner->getKey();
+        $identity = strlen($morphType) . ":{$morphType}|" . strlen($id) . ":{$id}";
+        $cacheKey = config()->string('sanctum.cache.prefix') . ':tokenable:' . hash('xxh128', $identity);
+        $cached = $cache->get($cacheKey);
+        $this->assertNotNull($cached);
 
         $ownerConnection = DB::connection('sanctum_owner');
         $tokenConnection = DB::connection('sanctum_tokens');
@@ -173,6 +180,8 @@ abstract class PersonalAccessTokenCacheTestCase extends DatabaseTestCase
 
         try {
             $owner->forceFill(['name' => 'Rolled back'])->save();
+            $this->assertSame('Rolled back', $this->findTokenable($token, 'secret')?->name);
+            $this->assertEquals($cached, $cache->get($cacheKey));
             $ownerConnection->rollBack();
         } finally {
             if ($ownerConnection->transactionLevel() > 0) {
@@ -180,6 +189,7 @@ abstract class PersonalAccessTokenCacheTestCase extends DatabaseTestCase
             }
         }
 
+        $this->assertEquals($cached, $cache->get($cacheKey));
         $this->assertSame('Original', $this->findTokenable($token, 'secret')?->name);
 
         $owner = SanctumDatabaseSecondaryUser::query()->findOrFail($owner->getKey());
@@ -191,7 +201,8 @@ abstract class PersonalAccessTokenCacheTestCase extends DatabaseTestCase
 
             $tokenConnection->commit();
 
-            $this->assertSame('Original', $this->findTokenable($token, 'secret')?->name);
+            $this->assertSame('Committed', $this->findTokenable($token, 'secret')?->name);
+            $this->assertEquals($cached, $cache->get($cacheKey));
 
             $ownerConnection->commit();
         } finally {
@@ -204,6 +215,7 @@ abstract class PersonalAccessTokenCacheTestCase extends DatabaseTestCase
             }
         }
 
+        $this->assertNull($cache->get($cacheKey));
         $this->assertSame('Committed', $this->findTokenable($token, 'secret')?->name);
     }
 

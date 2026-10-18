@@ -34,6 +34,8 @@ class SentryConfig
         'sql_origin_threshold_ms' => 100,
         'views' => true,
         'http_client_requests' => true,
+        'http_client_requests_origin' => true,
+        'http_client_requests_origin_threshold_ms' => 250,
         'cache' => true,
         'storage' => true,
         'redis_commands' => false,
@@ -41,6 +43,12 @@ class SentryConfig
         'notifications' => true,
         'missing_routes' => false,
         'continue_after_response' => true,
+        'gen_ai' => true,
+        'gen_ai_invoke_agent' => true,
+        'gen_ai_chat' => true,
+        'gen_ai_execute_tool' => true,
+        'gen_ai_embeddings' => true,
+        'gen_ai_evaluate' => true,
     ];
 
     /**

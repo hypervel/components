@@ -47,7 +47,7 @@ class ContextBlock implements BlockContract
      */
     public function image(string $imageUrl, ?string $altText = null): ImageElement
     {
-        return tap(new ImageElement($imageUrl, $altText), function (ImageElement $element) {
+        return tap(new ImageElement($imageUrl, $altText), function (ImageElement $element): void {
             $this->elements[] = $element;
         });
     }
@@ -57,7 +57,7 @@ class ContextBlock implements BlockContract
      */
     public function text(string $text): TextObject
     {
-        return tap(new TextObject($text), function (TextObject $element) {
+        return tap(new TextObject($text), function (TextObject $element): void {
             $this->elements[] = $element;
         });
     }
@@ -85,7 +85,7 @@ class ContextBlock implements BlockContract
 
         return array_merge([
             'type' => 'context',
-            'elements' => array_map(fn (Arrayable $element) => $element->toArray(), $this->elements),
+            'elements' => array_map(fn (Arrayable $element): array => $element->toArray(), $this->elements),
         ], $optionalFields);
     }
 }

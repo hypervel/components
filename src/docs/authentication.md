@@ -35,6 +35,7 @@
 - [Automatic Password Rehashing](#automatic-password-rehashing)
 - [Social Authentication](/docs/{{version}}/socialite)
 - [Events](#events)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -89,14 +90,11 @@ As discussed in this documentation, you can interact with these authentication s
 <a name="hypervels-api-authentication-services"></a>
 #### Hypervel's API Authentication Services
 
-Hypervel provides optional packages to assist you in managing API tokens and authenticating requests made with API tokens, including [Sanctum](/docs/{{version}}/sanctum) and [JWT authentication](/docs/{{version}}/jwt). Please note that these libraries and Hypervel's built-in cookie based authentication libraries are not mutually exclusive. These libraries primarily focus on API token authentication while the built-in authentication services focus on cookie based browser authentication. Many applications will use both Hypervel's built-in cookie based authentication services and one of Hypervel's API authentication packages.
+Hypervel provides optional packages to assist you in managing API tokens and authenticating requests made with API tokens, including [Passport](/docs/{{version}}/passport), [Sanctum](/docs/{{version}}/sanctum) and [JWT authentication](/docs/{{version}}/jwt). Please note that these libraries and Hypervel's built-in cookie based authentication libraries are not mutually exclusive. These libraries primarily focus on API token authentication while the built-in authentication services focus on cookie based browser authentication. Many applications will use both Hypervel's built-in cookie based authentication services and one of Hypervel's API authentication packages.
 
 **Passport**
 
 Passport is an OAuth2 authentication provider, offering a variety of OAuth2 "grant types" which allow you to issue various types of tokens. In general, this is a robust and complex package for API authentication. However, most applications do not require the complex features offered by the OAuth2 spec, which can be confusing for both users and developers. In addition, developers have been historically confused about how to authenticate SPA applications or mobile applications using OAuth2 authentication providers like Passport.
-
-> [!NOTE]
-> Hypervel's port of Passport is coming soon.
 
 **Sanctum**
 
@@ -113,11 +111,11 @@ Hypervel Sanctum is a hybrid web / API authentication package that can manage yo
 
 In summary, if your application will be accessed using a browser and you are building a monolithic Hypervel application, your application will use Hypervel's built-in authentication services.
 
-Next, if your application offers an API that will be consumed by third parties, you will choose between [Sanctum](/docs/{{version}}/sanctum), [JWT authentication](/docs/{{version}}/jwt), or an OAuth2 server to provide API token authentication for your application. In general, Sanctum should be preferred when possible since it is a simple, complete solution for API authentication, SPA authentication, and mobile authentication, including support for "scopes" or "abilities".
+Next, if your application offers an API that will be consumed by third parties, you will choose between [Passport](/docs/{{version}}/passport), [Sanctum](/docs/{{version}}/sanctum), or [JWT authentication](/docs/{{version}}/jwt) to provide API token authentication for your application. In general, Sanctum should be preferred when possible since it is a simple, complete solution for API authentication, SPA authentication, and mobile authentication, including support for "scopes" or "abilities".
 
 If you are building a single-page application (SPA) that will be powered by a Hypervel backend, you should use [Hypervel Sanctum](/docs/{{version}}/sanctum). When using Sanctum, you will need to [manually implement your own backend authentication routes](#authenticating-users) or use [Hypervel Fortify](/docs/{{version}}/fortify) as a headless authentication backend service that provides routes and controllers for features such as registration, password reset, email verification, and more.
 
-An OAuth2 server may be chosen when your application absolutely needs all of the features provided by the OAuth2 specification.
+Choose Passport when your application needs an OAuth2 server, such as when third-party applications need access to your users' data.
 
 JWT authentication may be chosen when your application wants stateless signed bearer tokens without storing each issued token in the database.
 
@@ -313,9 +311,9 @@ Auth::clearUserCache($admin->getAuthIdentifier(), guard: 'admin');
 
 `clearUserCache` accepts the same identifier as `retrieveById`, which is normally the user's primary key. When the guard argument is omitted, the current default guard is used.
 
-Manual invalidation follows the provider model's database connection. When called inside a transaction, the cache entry remains unchanged until the outer transaction commits and is left in place if the transaction rolls back. Code that needs the uncommitted value should continue using the model or query result it already owns instead of reading through the shared authentication cache.
+Manual invalidation follows the provider model's database connection. When called inside a transaction, the cache entry remains unchanged until the outer transaction commits and is left in place if the transaction rolls back. Calls to the Eloquent provider's `retrieveById` method inside a transaction on that connection bypass the shared cache and read the database, including the transaction's own changes.
 
-Invalidation waits for any in-flight cache fill on the same user. When a transaction scheduled the invalidation and its lock cannot be acquired, the cache lock timeout is thrown from the commit after the database write has committed, rather than leaving the stale user cached.
+Invalidation waits for any in-flight cache fill on the same user. When a transaction scheduled the invalidation and its lock cannot be acquired, the cache lock timeout is thrown from the commit after the database write has committed. The stale cache entry may remain until it is cleared or expires.
 
 If `withQuery()` eager-loads relations, the first uncached lookup stores that graph. Declare every application relation and custom container class so later cache hits restore the complete shape.
 
@@ -1175,3 +1173,8 @@ Hypervel dispatches a variety of [events](/docs/{{version}}/events) during the a
 | `Hypervel\Auth\Events\PasswordResetLinkSent` |
 
 </div>
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Auth began as a port of [Laravel Auth](https://github.com/illuminate/auth) and has been adapted for Hypervel's framework architecture and coroutine runtime.

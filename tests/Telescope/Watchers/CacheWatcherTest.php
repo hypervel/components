@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
+use Hypervel\Contracts\Cache\Factory;
 use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\Watchers\CacheWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
-use ReflectionClass;
 
 #[WithConfig('telescope.watchers', [
     CacheWatcher::class => [
@@ -26,22 +26,6 @@ use ReflectionClass;
 ])]
 class CacheWatcherTest extends FeatureTestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        CacheWatcher::enableCacheEvents($this->app);
-    }
-
-    public function testFlushStateDisablesCacheEvents(): void
-    {
-        $this->assertTrue($this->eventsAreEnabled());
-
-        CacheWatcher::flushState();
-
-        $this->assertFalse($this->eventsAreEnabled());
-    }
-
     public function testCacheWatcherRegistersMissedEntries(): void
     {
         $this->app->make(Repository::class)->get('empty-key');
@@ -147,8 +131,24 @@ class CacheWatcherTest extends FeatureTestCase
         $this->assertSame('laravel', $entry->content['value']);
     }
 
-    private function eventsAreEnabled(): bool
+    #[WithConfig('cache.stores.failover', ['driver' => 'failover', 'stores' => ['array']])]
+    public function testCacheWatcherRecordsFailoverStoreOperationsOnce(): void
     {
-        return (new ReflectionClass(CacheWatcher::class))->getStaticPropertyValue('eventsEnabled');
+        // The failover repository leaves its events to the store it uses.
+        $this->app->make(Factory::class)->store('failover')->get('failover-key');
+
+        $entries = $this->loadTelescopeEntries();
+
+        $this->assertCount(1, $entries);
+        $this->assertSame('missed', $entries->first()->content['type']);
+        $this->assertSame('failover-key', $entries->first()->content['key']);
+    }
+
+    #[WithConfig('cache.stores.quiet', ['driver' => 'array', 'events' => false])]
+    public function testCacheWatcherLeavesStoresWithoutEventsUnrecorded(): void
+    {
+        $this->app->make(Factory::class)->store('quiet')->put('quiet-key', 'laravel', 1);
+
+        $this->assertCount(0, $this->loadTelescopeEntries());
     }
 }

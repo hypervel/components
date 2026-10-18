@@ -25,6 +25,26 @@ trait HasPermissionPartition
      */
     protected function performInsert(Builder $query): bool
     {
+        $this->setPermissionPartitionForInsert();
+
+        return parent::performInsert($query);
+    }
+
+    /**
+     * Populate the permission partition before an insert that ignores unique conflicts.
+     */
+    protected function performInsertOrIgnore(Builder $query, array|string|null $uniqueBy): bool
+    {
+        $this->setPermissionPartitionForInsert();
+
+        return parent::performInsertOrIgnore($query, $uniqueBy);
+    }
+
+    /**
+     * Stamp the current partition before either model insertion path runs its listeners.
+     */
+    protected function setPermissionPartitionForInsert(): void
+    {
         $partition = $this->permissionPartitionRegistrar()->resolvePartition();
 
         if ($partition) {
@@ -34,8 +54,6 @@ trait HasPermissionPartition
 
             $this->setAttribute($partition->column, $partition->value);
         }
-
-        return parent::performInsert($query);
     }
 
     /**
@@ -67,15 +85,15 @@ trait HasPermissionPartition
             return $query;
         }
 
-        $original = $this->getRawOriginal($partition->column);
+        $original = $this->permissionPartitionRegistrar()->partitionFromRecord($this)->value;
 
         if (! $partition->matches($original)) {
             throw PermissionPartitionViolation::forModel($this, $partition, $original);
         }
 
-        if ($this->isDirty($partition->column)) {
-            $attributes = $this->getAttributes();
+        $attributes = $this->getAttributes();
 
+        if (! $partition->matches($attributes[$partition->column] ?? null)) {
             throw PermissionPartitionViolation::forImmutablePartition(
                 $this,
                 $partition,

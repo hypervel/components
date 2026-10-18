@@ -5,14 +5,17 @@ declare(strict_types=1);
 namespace Hypervel\Testbench;
 
 use Closure;
+use Hypervel\Container\Container;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Testing\DatabaseMigrations;
 use Hypervel\Foundation\Testing\DatabaseTransactions;
 use Hypervel\Foundation\Testing\DatabaseTruncation;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Foundation\Testing\TestCase as BaseTestCase;
+use Hypervel\Support\Facades\Facade;
 use Hypervel\Testbench\Attributes\ResetRefreshDatabaseState;
 use Hypervel\Testbench\Attributes\WithMigration;
 use ReflectionMethod;
@@ -125,12 +128,15 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
     /**
      * Set up database-related testing traits.
      *
-     * Wraps migration traits in setUpDatabaseRequirements() so that
-     * testbench attributes (RequiresDatabase, WithMigration)
-     * are processed before migrations run.
+     * Start Workbench before processing database attributes, so its migrations
+     * and seeders are registered before the database is migrated, refreshed or truncated.
      */
     protected function setUpDatabaseTraits(array $uses): void
     {
+        if (isset($uses[Concerns\WithWorkbench::class])) {
+            $this->setUpWithWorkbench(); // @phpstan-ignore method.notFound
+        }
+
         // Reset before database attributes register paths against retained schema state.
         $this->prepareDatabaseTruncationForMethod($uses);
 
@@ -162,6 +168,16 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
     }
 
     /**
+     * Skip Workbench's convention hook because it runs before database setup.
+     *
+     * @param class-string $use
+     */
+    protected function setUpTheTestEnvironmentTraitToBeIgnored(string $use): bool
+    {
+        return $use === Concerns\WithWorkbench::class;
+    }
+
+    /**
      * Isolate method-specific migration sets from the retained truncation schema.
      */
     protected function prepareDatabaseTruncationForMethod(array $uses): void
@@ -189,7 +205,22 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
      */
     protected function refreshApplication(): void
     {
-        $this->app = $this->createApplication();
+        try {
+            $this->app = $this->createApplication();
+        } catch (Throwable $exception) {
+            // Failed creation flushes the replacement. Restore the previous container
+            // and facades so framework teardown can run.
+            if ($this->app !== null) {
+                /** @var Application $application */
+                $application = $this->app;
+
+                Container::setInstance($application);
+                Facade::clearResolvedInstances();
+                Facade::setFacadeApplication($application);
+            }
+
+            throw $exception;
+        }
 
         // Setup routes after application is created (providers are booted).
         $this->setUpApplicationRoutes($this->app);

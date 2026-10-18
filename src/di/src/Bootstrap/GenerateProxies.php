@@ -23,12 +23,21 @@ use ReflectionClass;
  *
  * Runs after all service providers have been registered (so all
  * aspects() calls have executed) and before boot() (so no targeted
- * classes have been instantiated yet). No-ops when no aspects are
- * registered.
+ * classes have been instantiated yet). Closes aspect and class map registration
+ * even when no proxies need to be generated.
  */
 class GenerateProxies
 {
     protected static ?ClassLoader $proxyLoader = null;
+
+    /**
+     * The canonical source file of each generated proxy, keyed by canonical proxy file path.
+     *
+     * Entries are kept across bootstraps because already-loaded proxy classes stay in use.
+     *
+     * @var array<string, string>
+     */
+    protected static array $proxySources = [];
 
     /**
      * Bootstrap the AOP proxy generation.
@@ -38,6 +47,9 @@ class GenerateProxies
         if (AspectCollector::hasAspects()) {
             $this->generate($app->bootstrapPath('cache/aop'));
         }
+
+        AspectCollector::seal();
+        ClassMapManager::seal();
     }
 
     /**
@@ -82,6 +94,23 @@ class GenerateProxies
         }
 
         ClassMapManager::applyProxies($proxies);
+
+        foreach ($proxies as $class => $proxyFile) {
+            static::$proxySources[realpath($proxyFile)] = realpath($classMap[$class]);
+        }
+    }
+
+    /**
+     * Get the canonical source file of each generated proxy, keyed by canonical proxy file path.
+     *
+     * Stack frames report the proxy file, so code that classifies frames by path
+     * (such as application versus vendor code) should classify the source instead.
+     *
+     * @return array<string, string>
+     */
+    public static function proxySources(): array
+    {
+        return static::$proxySources;
     }
 
     /**
@@ -183,9 +212,10 @@ class GenerateProxies
      */
     public static function flushState(): void
     {
-        // Only isolated loader tests may unregister this loader. Normal after-test
-        // cleanup must retain the framework proxies prepared before test discovery.
+        // Only isolated loader tests may unregister this loader. Proxy classes
+        // loaded by earlier tests stay in use for the rest of the process.
         static::$proxyLoader?->unregister();
         static::$proxyLoader = null;
+        static::$proxySources = [];
     }
 }

@@ -9,6 +9,7 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Scout\Attributes\SearchUsingFullText;
 use Hypervel\Scout\Attributes\SearchUsingPrefix;
 use Hypervel\Scout\Engines\DatabaseEngine;
+use Hypervel\Scout\Exceptions\NotSupportedException;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Tests\Scout\Fixtures\Models\PrefixSearchableModel;
 use Hypervel\Tests\Scout\Fixtures\Models\SearchableModel;
@@ -45,6 +46,16 @@ class DatabaseEngineTest extends ScoutTestCase
         $results = SearchableModel::search('')->get();
 
         $this->assertCount(3, $results);
+    }
+
+    public function testSemanticSearchRequiresPostgresAndEmbeddingSource(): void
+    {
+        $this->expectException(NotSupportedException::class);
+        $this->expectExceptionMessage((new SearchableModel)->getConnection()->getDriverName() === 'pgsql'
+            ? 'Database semantic search requires the model to define a [toSearchableEmbedding] method.'
+            : 'Database semantic search requires PostgreSQL with pgvector.');
+
+        SearchableModel::search('Taylor')->semantic()->get();
     }
 
     public function testHybridSearchFallsBackToNormalTextSearchWhenVectorsAreNotSupported(): void

@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Console;
 
+use Hypervel\Support\Facades\Process as ProcessFacade;
 use Symfony\Component\Process\Process;
 
+use function Hypervel\Support\artisan_binary;
 use function Hypervel\Support\php_binary;
 
 trait InteractsWithComposerPackages
@@ -36,6 +38,26 @@ trait InteractsWithComposerPackages
             ->mustRun(function (string $type, string $output): void {
                 $this->output->write($output);
             });
+    }
+
+    /**
+     * Run a newly installed Artisan command in a fresh application process.
+     *
+     * @param array<int, string> $arguments
+     */
+    protected function runInstallationCommand(array $arguments): void
+    {
+        $process = ProcessFacade::forever()->path($this->hypervel->basePath());
+        $interactive = $this->input->isInteractive() && $process->supportsTty();
+
+        $process->tty($interactive)->run([
+            php_binary(),
+            artisan_binary(),
+            ...$arguments,
+            ...($interactive ? [] : ['--no-interaction']),
+        ], function (string $type, string $output): void {
+            $this->output->write($output);
+        })->throw();
     }
 
     /**

@@ -19,6 +19,7 @@
     - [Refreshing Access Tokens](#refreshing-access-tokens)
     - [Stateless Authentication](#stateless-authentication)
 - [Testing](#testing)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -587,3 +588,8 @@ Socialite::fake('github', function () {
 ```
 
 The fake replaces the `Hypervel\Socialite\Contracts\Factory` binding used by the facade. Code that resolves `Hypervel\Socialite\SocialiteManager` directly continues to use the real manager, so application code should depend on the factory contract when it needs an injectable Socialite manager.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Socialite began as a port of [Laravel Socialite](https://github.com/laravel/socialite) and has been adapted for Hypervel's framework architecture and coroutine runtime.

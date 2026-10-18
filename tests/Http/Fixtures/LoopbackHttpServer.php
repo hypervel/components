@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Http\Fixtures;
 
+use Closure;
 use RuntimeException;
 use Swoole\Coroutine;
 use Swoole\Coroutine\Channel;
@@ -25,8 +26,10 @@ class LoopbackHttpServer
      *
      * Each accepted connection reads one request and receives the next scripted
      * response; the listener closes after the last one or after two idle seconds.
+     * A closure receives the client socket after the request is read. It runs in
+     * the listener coroutine, so report results through channels rather than asserting there.
      *
-     * @param list<array{status?: int, headers?: array<string, string>, body?: string, delay?: float}> $responses
+     * @param list<array{status?: int, headers?: array<string, string>, body?: string, delay?: float}|Closure(Socket): void> $responses
      */
     public static function start(array $responses = [[]]): self
     {
@@ -52,6 +55,12 @@ class LoopbackHttpServer
 
                     try {
                         $requests->push(self::receiveRequest($client));
+
+                        if ($response instanceof Closure) {
+                            $response($client);
+
+                            continue;
+                        }
 
                         if (($response['delay'] ?? 0.0) > 0.0) {
                             Coroutine::sleep($response['delay']);

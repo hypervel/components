@@ -25,7 +25,7 @@ jobs:
 
     # Hash field expiration coverage requires phpredis 6.3.0+ for HSETEX support.
     container:
-      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.2.2
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
 
     strategy:
       fail-fast: false
@@ -83,7 +83,7 @@ jobs:
     # also exercises near-minimum behavior while redis_8 tracks current Redis 8,
     # so a Cluster-only failure may be topology-specific or version-specific.
     container:
-      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.2.2
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
 
     strategy:
       fail-fast: false
@@ -257,7 +257,7 @@ jobs:
 
     # Hash field expiration coverage requires phpredis 6.3.0+ for HSETEX support.
     container:
-      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.2.2
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
 
     strategy:
       fail-fast: false

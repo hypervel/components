@@ -8,6 +8,7 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Pagination\LengthAwarePaginator;
 use Hypervel\Database\MultipleRecordsFoundException;
 use Hypervel\Database\Query\Expression;
+use Hypervel\Database\QueryException;
 use Hypervel\Database\RecordsNotFoundException;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\CarbonImmutable;
@@ -799,6 +800,7 @@ class QueryBuilderTest extends DatabaseTestCase
 
         $this->assertSame([null, '', '0', 'later'], $query->get()->all());
         $this->assertSame([null, '', '0', 'later'], $query->cursor()->all());
+        $this->assertSame([null, '', '0', 'later'], DB::table('fetch_values')->orderBy('id')->pluck('value')->all());
         $this->assertSame('later', DB::table('fetch_values')->select('value')->fetchUsing(PDO::FETCH_COLUMN)->find(4));
 
         $fallbackCalled = false;
@@ -845,6 +847,8 @@ class QueryBuilderTest extends DatabaseTestCase
         $callbackCalls = 0;
         $query = DB::table('posts')->orderBy('id')->beforeQuery(function ($query) use (&$callbackCalls) {
             ++$callbackCalls;
+            $this->assertSame(['title'], $query->columns);
+            $query->select(['id', 'title']);
             $query->fetchUsing(PDO::FETCH_COLUMN);
         });
 
@@ -916,6 +920,21 @@ class QueryBuilderTest extends DatabaseTestCase
         }
 
         $this->assertNull($query->columns);
+
+        $query = DB::table('missing_posts')->fetchUsing(PDO::FETCH_ASSOC);
+
+        try {
+            $query->pluck('title');
+            $this->fail('Expected the select to fail.');
+        } catch (QueryException $exception) {
+            $this->assertStringContainsString('missing_posts', $exception->getSql());
+        }
+
+        $this->assertNull($query->columns);
+        $this->assertSame(
+            [['title' => 'Foo Post'], ['title' => 'Bar Post']],
+            $query->from('posts')->select('title')->orderBy('id')->get()->all()
+        );
     }
 
     /**

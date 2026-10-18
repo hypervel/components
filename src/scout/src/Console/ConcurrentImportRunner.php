@@ -6,18 +6,19 @@ namespace Hypervel\Scout\Console;
 
 use Hypervel\Coroutine\Exceptions\ChildCancellationException;
 use Hypervel\Coroutine\WaitConcurrent;
+use Hypervel\Database\ConnectionResolver;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class ConcurrentImportRunner
 {
-    protected WaitConcurrent $concurrent;
+    protected ?WaitConcurrent $concurrent;
 
     protected ?Throwable $failure = null;
 
     public function __construct(int $limit)
     {
-        $this->concurrent = new WaitConcurrent($limit);
+        $this->concurrent = $limit === 0 ? null : new WaitConcurrent($limit);
     }
 
     /**
@@ -25,15 +26,26 @@ class ConcurrentImportRunner
      */
     public function create(callable $operation): void
     {
+        if ($this->concurrent === null) {
+            $operation();
+
+            return;
+        }
+
         $this->throwIfFailed();
 
-        $this->concurrent->create(function () use ($operation): void {
+        $this->concurrent->fork(function () use ($operation): void {
             if ($this->failure !== null) {
                 return;
             }
 
             try {
-                $operation();
+                try {
+                    $operation();
+                } finally {
+                    // Return idle sessions before another child can take this concurrency slot.
+                    ConnectionResolver::releaseIdleConnections();
+                }
             } catch (CanceledException $exception) {
                 $this->failure ??= new ChildCancellationException(
                     'A child coroutine running a Scout import was canceled while its owner remained active.',
@@ -42,7 +54,7 @@ class ConcurrentImportRunner
             } catch (Throwable $exception) {
                 $this->failure ??= $exception;
             }
-        });
+        }, [ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY]);
 
         $this->throwIfFailed();
     }
@@ -52,6 +64,23 @@ class ConcurrentImportRunner
      */
     public function wait(): void
     {
+        if ($this->concurrent === null) {
+            return;
+        }
+
+        try {
+            // Keep the parent's session while producing chunks, but not while joining children.
+            ConnectionResolver::releaseIdleConnections();
+        } catch (CanceledException $exception) {
+            $this->concurrent->cancel();
+
+            throw $exception;
+        } catch (Throwable $exception) {
+            $this->concurrent->wait();
+
+            throw $exception;
+        }
+
         $this->concurrent->wait();
 
         $this->throwIfFailed();

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Mail;
 
+use Aws\Middleware;
 use Aws\SesV2\SesV2Client;
 use Closure;
 use Hypervel\Config\Repository;
@@ -14,6 +15,7 @@ use Hypervel\Contracts\Mail\Mailer as MailerContract;
 use Hypervel\Contracts\ObjectPool\Factory as PoolFactory;
 use Hypervel\Contracts\Queue\Factory as QueueFactory;
 use Hypervel\Contracts\View\Factory as ViewFactory;
+use Hypervel\Database\ConnectionResolver;
 use Hypervel\Log\LogManager;
 use Hypervel\Mail\Transport\ArrayTransport;
 use Hypervel\Mail\Transport\CloudflareTransport;
@@ -22,7 +24,6 @@ use Hypervel\Mail\Transport\ResendTransport;
 use Hypervel\Mail\Transport\SesV2Transport;
 use Hypervel\ObjectPool\Concerns\HasPoolProxy;
 use Hypervel\Support\Arr;
-use Hypervel\Support\Aws\ReleaseIdleDatabaseConnections;
 use Hypervel\Support\Aws\SerializedCredentialProvider;
 use Hypervel\Support\ConfigurationUrlParser;
 use Hypervel\Support\Str;
@@ -488,7 +489,10 @@ class MailManager implements FactoryContract
         }
 
         $client = new SesV2Client($config);
-        $client->getHandlerList()->appendInit(new ReleaseIdleDatabaseConnections);
+        $client->getHandlerList()->prependInit(
+            Middleware::tap(ConnectionResolver::releaseIdleConnections(...)),
+            'release_idle_database_connections',
+        );
 
         return new SesV2Transport($client, $config['options'] ?? []);
     }

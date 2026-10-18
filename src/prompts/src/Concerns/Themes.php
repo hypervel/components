@@ -23,7 +23,6 @@ use Hypervel\Prompts\SelectPrompt;
 use Hypervel\Prompts\Spinner;
 use Hypervel\Prompts\Stream;
 use Hypervel\Prompts\SuggestPrompt;
-use Hypervel\Prompts\Support\Utils;
 use Hypervel\Prompts\Table;
 use Hypervel\Prompts\Task;
 use Hypervel\Prompts\TextareaPrompt;
@@ -156,7 +155,7 @@ trait Themes
             throw new InvalidArgumentException("Prompt renderer for [{$class}] not found.");
         }
 
-        return new $renderer($this);
+        return new $renderer($this, static::output()->getFormatter());
     }
 
     /**
@@ -165,9 +164,8 @@ trait Themes
     protected function renderTheme(): string
     {
         $renderer = $this->getRenderer();
-        $frame = $renderer($this);
 
-        return static::output()->isDecorated() ? $frame : Utils::stripEscapeSequences($frame);
+        return $renderer($this);
     }
 
     /**

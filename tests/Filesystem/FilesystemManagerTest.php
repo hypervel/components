@@ -829,7 +829,7 @@ class FilesystemManagerTest extends TestCase
 
     public function testReadThroughPromotionCancellationClosesOwnedStreams(): void
     {
-        $streamCount = count(get_resources('stream'));
+        $initialStreamIds = array_keys(get_resources('stream'));
         $source = fopen('php://temp', 'w+b');
         fwrite($source, 'contents');
         rewind($source);
@@ -856,7 +856,10 @@ class FilesystemManagerTest extends TestCase
             $this->assertFalse(is_resource($source));
             $this->assertNotNull($temporary);
             $this->assertFalse(is_resource($temporary));
-            $this->assertCount($streamCount, get_resources('stream'));
+            $this->assertCount(
+                0,
+                array_diff_key(get_resources('stream'), array_fill_keys($initialStreamIds, true)),
+            );
         } finally {
             if (is_resource($source)) {
                 fclose($source);
@@ -1210,6 +1213,24 @@ class FilesystemManagerTest extends TestCase
         Container::setInstance($container);
 
         $this->assertInstanceOf(FilesystemPoolProxy::class, $filesystem->disk('local'));
+    }
+
+    #[TestWith(['ftp'])]
+    #[TestWith(['sftp'])]
+    public function testConnectionHoldingDisksArePooledWhole(string $driver): void
+    {
+        // Each adapter keeps one connection, which concurrent coroutines must not share.
+        $filesystem = new FilesystemManager($this->getContainer([
+            'disks' => [
+                'remote' => [
+                    'driver' => $driver,
+                    'host' => 'files.example.com',
+                    'username' => 'hypervel',
+                ],
+            ],
+        ]));
+
+        $this->assertInstanceOf(FilesystemPoolProxy::class, $filesystem->disk('remote'));
     }
 
     public function testS3DisksWithTheSameClientConfigShareOneClientPoolAcrossBuckets(): void

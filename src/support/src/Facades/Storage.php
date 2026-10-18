@@ -89,6 +89,8 @@ use function Hypervel\Support\enum_value;
  * @method static array|string temporaryUploadUrl(string $path, \DateTimeInterface $expiration, array $options = [])
  * @method static string temporaryUrl(string $path, \DateTimeInterface $expiration, array $options = [])
  * @method static string url(string $path)
+ * @method static mixed withAdapter(\Closure $callback)
+ * @method static mixed withDriver(\Closure $callback)
  * @method static void createDirectory(string $location, array $config = [])
  * @method static int fileSize(string $path)
  * @method static bool has(string $location)
@@ -99,9 +101,7 @@ use function Hypervel\Support\enum_value;
  * @method static \League\Flysystem\FilesystemOperator getOperator()
  * @method static string getPoolName()
  * @method static bool invalidatePool()
- * @method static mixed withAdapter(\Closure $callback)
  * @method static mixed withClient(\Closure $callback)
- * @method static mixed withDriver(\Closure $callback)
  *
  * @see \Hypervel\Filesystem\FilesystemManager
  */

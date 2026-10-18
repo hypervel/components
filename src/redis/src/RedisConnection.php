@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Redis;
 
 use BadMethodCallException;
-use Closure;
 use ErrorException;
 use Generator;
 use Hypervel\ConnectionPool\Connection as BaseConnection;
@@ -15,10 +14,7 @@ use Hypervel\Contracts\ConnectionPool\ConnectionPool;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
-use Hypervel\Coroutine\Coroutine as FrameworkCoroutine;
-use Hypervel\Engine\Channel;
-use Hypervel\Engine\Coroutine;
-use Hypervel\Engine\Exceptions\CoroutineCreateException;
+use Hypervel\Coroutine\Waiter;
 use Hypervel\Redis\Exceptions\InvalidRedisOptionException;
 use Hypervel\Redis\Exceptions\LuaScriptException;
 use Hypervel\Redis\Operations\FlushByPattern;
@@ -717,63 +713,26 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
             return false;
         }
 
-        $result = new Channel(1);
-        $started = null;
-        $callable = function () use ($result): void {
-            try {
-                $result->push($this->pingForHeartbeat(), 0.0);
-            } catch (CanceledException) {
-            }
-        };
-        $wrapper = static function (Closure $run) use (&$started): void {
-            $started = Coroutine::id();
-            $run();
-        };
-
         try {
-            FrameworkCoroutine::createOwned($callable, $wrapper);
+            // The pool must not close the socket while canceled heartbeat cleanup is still running.
+            $healthy = (new Waiter)->wait(
+                fn (): bool => $this->pingForHeartbeat(),
+                $timeout,
+                waitForChildTermination: true,
+            );
         } catch (CanceledException $exception) {
-            $this->cancelHeartbeatCoroutine($started);
-
             throw $exception;
-        } catch (CoroutineCreateException) {
+        } catch (Throwable) {
             return false;
         }
 
-        try {
-            $healthy = $result->pop($timeout);
-        } catch (CanceledException $exception) {
-            $this->cancelHeartbeatCoroutine($started);
-
-            throw $exception;
-        }
-
-        if ($healthy === false && $result->isCanceled()) {
-            $exception = new CanceledException('Waiting for a Redis heartbeat was canceled.');
-            $this->cancelHeartbeatCoroutine($started);
-
-            throw $exception;
-        }
-
-        if ($healthy !== true) {
-            $this->cancelHeartbeatCoroutine($started);
-
+        if (! $healthy) {
             return false;
         }
 
         $this->lastUseTime = hrtime(true) / 1e9;
 
         return true;
-    }
-
-    /**
-     * Cancel a live heartbeat coroutine.
-     */
-    private function cancelHeartbeatCoroutine(?int $coroutineId): void
-    {
-        if (is_int($coroutineId) && Coroutine::exists($coroutineId)) {
-            Coroutine::cancelById($coroutineId, throwException: true);
-        }
     }
 
     /**

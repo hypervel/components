@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Process;
 
 use Carbon\CarbonInterval;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Process\InvokedProcess as InvokedProcessContract;
 use Hypervel\Contracts\Process\ProcessResult;
+use Hypervel\Database\Pool\ConnectionLease;
+use Hypervel\Process\Concerns\GuardsProcessOutput;
 use Hypervel\Process\Exceptions\ProcessFailedException;
 use Hypervel\Process\Exceptions\ProcessIdleTimedOutException;
 use Hypervel\Process\Exceptions\ProcessTimedOutException;
@@ -20,11 +23,15 @@ use Hypervel\Process\Pool;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
+use Mockery as m;
 use OutOfBoundsException;
 use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Symfony\Component\Process\Exception\ProcessTimedOutException as SymfonyTimeoutException;
+use Symfony\Component\Process\InputStream;
 use Symfony\Component\Process\Process as SymfonyProcess;
 use Throwable;
 
@@ -118,7 +125,9 @@ class ProcessTest extends TestCase
         $pool->wait();
     }
 
-    public function testProcessPoolRollsBackProcessesStartedBeforeCreationFailure(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testProcessPoolRollsBackProcessesStartedBeforeCreationFailure(bool $cleanupIsCanceled): void
     {
         $factory = new class extends Factory {
             /** @var list<PendingProcess> */
@@ -129,10 +138,30 @@ class ProcessTest extends TestCase
                 return array_shift($this->pendingProcesses);
             }
         };
-        $startedProcess = new FakeInvokedProcess(
-            'first',
-            (new FakeProcessDescription)->runsFor(iterations: 10)
-        );
+        $cleanupFailure = $cleanupIsCanceled ? new CanceledException('Rollback canceled.') : null;
+        $startedProcess = new class($cleanupFailure) extends FakeInvokedProcess {
+            /**
+             * Create a started child with optional cleanup cancellation.
+             */
+            public function __construct(private ?CanceledException $failure)
+            {
+                parent::__construct('first', (new FakeProcessDescription)->runsFor(iterations: 10));
+            }
+
+            /**
+             * Stop the child before raising its configured cleanup failure.
+             */
+            public function stop(float $timeout = 10, ?int $signal = null): ?int
+            {
+                $result = parent::stop($timeout, $signal);
+
+                if ($this->failure !== null) {
+                    throw $this->failure;
+                }
+
+                return $result;
+            }
+        };
         $creationFailure = new RuntimeException('Unable to start the second process.');
         $factory->pendingProcesses = [
             new class($factory, $startedProcess) extends PendingProcess {
@@ -166,23 +195,27 @@ class ProcessTest extends TestCase
             })->start();
 
             $this->fail('The pool creation failure was not thrown.');
-        } catch (RuntimeException $exception) {
-            $this->assertSame($creationFailure, $exception);
+        } catch (Throwable $exception) {
+            $this->assertSame($cleanupFailure ?? $creationFailure, $exception);
         }
 
         $this->assertFalse($startedProcess->running());
     }
 
-    public function testProcessPoolWaitStopsEverySiblingAndPreservesTheWaitFailure(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testProcessPoolWaitStopsEverySiblingAndPreservesCancellationPrecedence(bool $cleanupIsCanceled): void
     {
         $waitFailure = new RuntimeException('Unable to wait for the first process.');
-        $cleanupFailure = new RuntimeException('Unable to stop the first process.');
+        $cleanupFailure = $cleanupIsCanceled
+            ? new CanceledException('Stopping the first process was canceled.')
+            : new RuntimeException('Unable to stop the first process.');
         $failingProcess = new class($waitFailure, $cleanupFailure) extends FakeInvokedProcess {
             public bool $stopAttempted = false;
 
             public function __construct(
                 protected RuntimeException $waitFailure,
-                protected RuntimeException $cleanupFailure
+                protected Throwable $cleanupFailure
             ) {
                 parent::__construct('first', (new FakeProcessDescription)->runsFor(iterations: 10));
             }
@@ -221,8 +254,8 @@ class ProcessTest extends TestCase
             $pool->wait();
 
             $this->fail('The pool wait failure was not thrown.');
-        } catch (RuntimeException $exception) {
-            $this->assertSame($waitFailure, $exception);
+        } catch (Throwable $exception) {
+            $this->assertSame($cleanupIsCanceled ? $cleanupFailure : $waitFailure, $exception);
         }
 
         $this->assertTrue($failingProcess->stopAttempted);
@@ -230,13 +263,16 @@ class ProcessTest extends TestCase
         $this->assertFalse($siblingProcess->running());
     }
 
-    public function testProcessPoolStopContinuesAfterARunningCheckFailure(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testProcessPoolStopContinuesAfterARunningCheckFailure(bool $cleanupIsCanceled): void
     {
         $runningFailure = new RuntimeException('Unable to inspect the first process.');
-        $failingProcess = new class($runningFailure) extends FakeInvokedProcess {
+        $cleanupFailure = $cleanupIsCanceled ? new CanceledException('Stopping the process was canceled.') : null;
+        $failingProcess = new class($runningFailure, $cleanupFailure) extends FakeInvokedProcess {
             public bool $stopAttempted = false;
 
-            public function __construct(protected RuntimeException $failure)
+            public function __construct(protected RuntimeException $failure, private ?CanceledException $cleanupFailure)
             {
                 parent::__construct('first', (new FakeProcessDescription)->runsFor(iterations: 10));
             }
@@ -250,7 +286,13 @@ class ProcessTest extends TestCase
             {
                 $this->stopAttempted = true;
 
-                return parent::stop($timeout, $signal);
+                $result = parent::stop($timeout, $signal);
+
+                if ($this->cleanupFailure !== null) {
+                    throw $this->cleanupFailure;
+                }
+
+                return $result;
             }
         };
         $siblingProcess = new class extends FakeInvokedProcess {
@@ -274,8 +316,8 @@ class ProcessTest extends TestCase
             $pool->stop(0);
 
             $this->fail('The running check failure was not thrown.');
-        } catch (RuntimeException $exception) {
-            $this->assertSame($runningFailure, $exception);
+        } catch (Throwable $exception) {
+            $this->assertSame($cleanupFailure ?? $runningFailure, $exception);
         }
 
         $this->assertTrue($failingProcess->stopAttempted);
@@ -508,6 +550,122 @@ class ProcessTest extends TestCase
         } finally {
             $this->reapProcess($processId, $process);
         }
+    }
+
+    #[TestWith([true])]
+    #[TestWith([false])]
+    public function testStopStillTerminatesTheProcessWhenDatabaseReleaseFails(bool $releaseIsCanceled): void
+    {
+        $failure = $releaseIsCanceled
+            ? new CanceledException('Database release canceled.')
+            : new RuntimeException('Database release failed.');
+        $cleanupFailure = $releaseIsCanceled
+            ? new RuntimeException('Cleanup failed.')
+            : new CanceledException('Cleanup canceled.');
+        $lease = m::mock(ConnectionLease::class);
+        $lease->shouldReceive('releaseIfIdle')->once()->andThrow($failure);
+        CoroutineContext::set('__process.test.lease', $lease);
+        $process = m::mock(SymfonyProcess::class);
+        $process->shouldReceive('isRunning')->once()->andReturnTrue();
+        $process->shouldReceive('stop')->once()->with(0, 15)->andThrow($cleanupFailure);
+        $caught = null;
+
+        try {
+            (new InvokedProcess($process))->stop(5, 15);
+        } catch (CanceledException $exception) {
+            $caught = $exception;
+        } finally {
+            CoroutineContext::forget('__process.test.lease');
+        }
+
+        $this->assertSame($releaseIsCanceled ? $failure : $cleanupFailure, $caught);
+    }
+
+    #[TestWith([0.0])]
+    #[TestWith([10.0])]
+    public function testInterruptedStopFinishesEmergencyCleanup(float $timeout): void
+    {
+        $cancellation = new CanceledException('Stop canceled.');
+        $process = m::mock(SymfonyProcess::class);
+        if ($timeout > 0) {
+            $process->shouldReceive('isRunning')->once()->andReturnTrue();
+        }
+        $process->shouldReceive('stop')->once()->with($timeout, 15)->ordered()->andThrow($cancellation);
+        $process->shouldReceive('stop')->once()->with(0, 15)->ordered()->andReturn(0);
+        $caught = null;
+
+        try {
+            (new InvokedProcess($process))->stop($timeout, 15);
+        } catch (CanceledException $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($cancellation, $caught);
+    }
+
+    #[TestWith(['run'])]
+    #[TestWith(['start'])]
+    public function testPendingProcessStopsTheChildWhenExecutionFailsBeforeHandoff(string $method): void
+    {
+        $failure = $method === 'run'
+            ? new CanceledException('Run canceled.')
+            : new RuntimeException('Input iterator failed.');
+        $process = m::mock(SymfonyProcess::class);
+        $process->shouldReceive('getCommandline')->once()->andReturn('test-command');
+        $process->shouldReceive($method)->once()->with(null)->andThrow($failure);
+        $process->shouldReceive('stop')->once()->with(0, null)->andReturn(0);
+        $pending = new class(new Factory, $process) extends PendingProcess {
+            /**
+             * Create a pending process with a controlled execution failure.
+             */
+            public function __construct(Factory $factory, private SymfonyProcess $process)
+            {
+                parent::__construct($factory);
+            }
+
+            /**
+             * Return the controlled process.
+             */
+            protected function toSymfonyProcess(array|string|null $command): SymfonyProcess
+            {
+                return $this->process;
+            }
+        };
+        $caught = null;
+
+        try {
+            $pending->{$method}('test-command');
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($failure, $caught);
+    }
+
+    public function testOutputGuardPreservesCancellationDuringEmergencyStop(): void
+    {
+        $failure = new RuntimeException('Output callback failed.');
+        $cancellation = new CanceledException('Emergency stop canceled.');
+        $process = m::mock(SymfonyProcess::class);
+        $process->shouldReceive('stop')->once()->with(0, null)->ordered()->andThrow($cancellation);
+        $process->shouldReceive('stop')->once()->with(0, null)->ordered()->andReturn(0);
+        $guard = new class {
+            use GuardsProcessOutput {
+                guardProcessOutput as public;
+            }
+        };
+        $callback = $guard->guardProcessOutput($process, static function () use ($failure): never {
+            throw $failure;
+        });
+        $caught = null;
+
+        try {
+            $callback(SymfonyProcess::OUT, 'output');
+        } catch (CanceledException $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($cancellation, $caught);
     }
 
     public function testBasicProcessFake(): void
@@ -827,6 +985,21 @@ class ProcessTest extends TestCase
         $factory->fake(['cat me' => new RuntimeException('fake exception message')]);
 
         $factory->run('cat me');
+    }
+
+    public function testFakeSymfonyTimeoutsAreConvertedToFrameworkTimeouts(): void
+    {
+        $factory = new Factory;
+        $timeout = new SymfonyTimeoutException(new SymfonyProcess(['unused'], timeout: 3), SymfonyTimeoutException::TYPE_GENERAL);
+        $factory->fake(['unused' => $timeout]);
+
+        try {
+            $factory->run('unused');
+            $this->fail('The fake timeout must be converted.');
+        } catch (ProcessTimedOutException $exception) {
+            $this->assertSame($timeout, $exception->getPrevious());
+            $this->assertSame(3.0, $exception->exceededTimeout());
+        }
     }
 
     public function testFakeProcessesCanThrow(): void
@@ -1197,6 +1370,45 @@ class ProcessTest extends TestCase
         $result = (new Factory)->input('0')->run('cat');
 
         $this->assertSame('0', $result->output());
+    }
+
+    #[RequiresOperatingSystem('Linux|Darwin')]
+    public function testChildStandardInputReadAllowsOtherCoroutinesToRun(): void
+    {
+        // @TODO: Remove this skip once Swoole hooks standard streams inherited as sockets at process startup.
+        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
+            $this->markTestSkipped('Swoole leaves socket-backed standard input outside its coroutine hooks.');
+        }
+
+        // Swoole's hooked proc_open gives the child socket-backed standard input.
+        $input = new InputStream;
+        $input->write('Test ');
+        $output = '';
+        $process = null;
+
+        try {
+            $process = (new Factory)->input($input)->timeout(5)->start(
+                [PHP_BINARY, __DIR__ . '/Fixtures/read-stdin-in-coroutine.php'],
+                static function (string $type, string $buffer) use ($input, &$output): void {
+                    if ($type === 'out') {
+                        $output .= $buffer;
+                    }
+
+                    if (! $input->isClosed() && str_contains($output, "ready\n")) {
+                        $input->write("message\n");
+                        $input->close();
+                    }
+                },
+            );
+
+            $result = $process->wait();
+
+            $this->assertTrue($result->successful(), $result->errorOutput());
+            $this->assertSame("ready\nTest message\n", $result->output());
+        } finally {
+            $input->close();
+            $process?->stop(0);
+        }
     }
 
     #[RequiresOperatingSystem('Linux|Darwin')]

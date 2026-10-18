@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
+use GuzzleHttp\Client;
+use GuzzleHttp\Exception\ResponseException;
 use GuzzleHttp\Promise\Create;
+use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\TransferStats;
 use Hypervel\Contracts\Foundation\Application;
-use Hypervel\Di\Aop\ProceedingJoinPoint;
 use Hypervel\Http\Client\PendingRequest;
-use Hypervel\Http\Client\Request;
 use Hypervel\Support\Json;
 use Hypervel\Support\Str;
 use Hypervel\Telescope\IncomingEntry;
@@ -24,109 +25,93 @@ use function Hypervel\Support\enum_value;
 
 class ClientRequestWatcher extends Watcher
 {
+    private const string MIDDLEWARE_NAME = 'telescope';
+
     protected const int DEFAULT_REQUEST_SIZE_LIMIT = 64;
 
     /**
      * Register the watcher.
      *
-     * Interception is handled by GuzzleHttpClientAspect via AOP.
+     * Boot-only. The middleware persists for the worker lifetime and affects every Guzzle client.
      */
     public function register(Application $app): void
     {
+        Client::pushGlobalMiddleware($this->recordRequests(...), self::MIDDLEWARE_NAME);
     }
 
     /**
-     * Record a Guzzle request intercepted via AOP.
+     * Record each completed Guzzle request.
      */
-    public function recordRequest(ProceedingJoinPoint $proceedingJoinPoint): mixed
+    protected function recordRequests(callable $handler): callable
     {
-        if (! Telescope::$started
-            || ! Telescope::hasWatcher(self::class)
-            || ! Telescope::isRecording()) {
-            return $proceedingJoinPoint->process();
-        }
+        return function (RequestInterface $request, array $options) use ($handler): PromiseInterface {
+            if (! Telescope::isRecording()
+                || ($options['telescope_enabled'] ?? null) === false
+                || $this->shouldIgnoreHost($request->getUri()->getHost())
+            ) {
+                return $handler($request, $options);
+            }
 
-        $options = $proceedingJoinPoint->arguments['keys']['options'];
-        $guzzleConfig = (fn () => $this->config ?? [])->call($proceedingJoinPoint->getInstance());
+            $customTags = array_map(
+                fn ($tag) => $tag instanceof UnitEnum ? (string) enum_value($tag) : $tag,
+                $options['telescope_tags'] ?? [],
+            );
 
-        if (($options['telescope_enabled'] ?? null) === false
-            || ($guzzleConfig['telescope_enabled'] ?? null) === false
-        ) {
-            return $proceedingJoinPoint->process();
-        }
+            // Guzzle applies the request options and middleware after this point and calls on_stats once
+            // per redirect, so keep the last prepared request and record once when the transfer settles.
+            $stats = null;
+            $callerOnStats = $options['on_stats'] ?? null;
+            $options['on_stats'] = static function (TransferStats $transferStats) use (&$stats, $callerOnStats): void {
+                $stats = $transferStats;
 
-        /** @var RequestInterface $request */
-        $request = $proceedingJoinPoint->arguments['keys']['request'];
-        $host = $request->getUri()->getHost();
-
-        if ($this->shouldIgnoreHost($host)) {
-            return $proceedingJoinPoint->process();
-        }
-
-        $customTags = array_map(
-            fn ($tag) => $tag instanceof UnitEnum ? (string) enum_value($tag) : $tag,
-            $options['telescope_tags'] ?? [],
-        );
-        $recorded = false;
-
-        $onStats = $options['on_stats'] ?? null;
-        $proceedingJoinPoint->arguments['keys']['options']['on_stats'] = function (TransferStats $stats) use ($onStats, $options, $customTags, &$recorded): void {
-            try {
-                $recorded = true;
-
-                $content = $this->buildRequestData(
-                    $stats->getRequest(),
-                    $stats,
-                    $options
-                );
-
-                if ($response = $stats->getResponse()) {
-                    $content = array_merge(
-                        $content,
-                        $this->getResponse($response)
-                    );
+                if ($callerOnStats !== null) {
+                    $callerOnStats($transferStats);
                 }
+            };
 
-                Telescope::recordClientRequest(
-                    IncomingEntry::make($content)
-                        ->tags(array_merge(
-                            [$stats->getRequest()->getUri()->getHost()],
-                            $customTags
-                        ))
-                );
-            } catch (Throwable) {
-                // Prevent recording from interrupting the request.
-            }
+            return $handler($request, $options)->then(
+                function (ResponseInterface $response) use ($request, $options, $customTags, &$stats): ResponseInterface {
+                    $this->recordTransfer($request, $stats, $response, $options, $customTags);
 
-            if (is_callable($onStats)) {
-                $onStats($stats);
-            }
+                    return $response;
+                },
+                function (mixed $reason) use ($request, $options, $customTags, &$stats): PromiseInterface {
+                    $this->recordTransfer($request, $stats, $reason instanceof ResponseException ? $reason->getResponse() : null, $options, $customTags);
+
+                    return Create::rejectionFor($reason);
+                }
+            );
         };
+    }
 
-        $promise = $proceedingJoinPoint->process();
+    /**
+     * Record a settled transfer.
+     *
+     * The last transfer stats hold the prepared request of the final redirect, including the
+     * request options and middleware changes; the entry request is used when there are none.
+     */
+    protected function recordTransfer(RequestInterface $request, ?TransferStats $stats, ?ResponseInterface $response, array $options, array $customTags): void
+    {
+        $request = $stats?->getRequest() ?? $request;
+        $content = [
+            'method' => $request->getMethod(),
+            'uri' => $this->hideQueryParameters((string) $request->getUri()),
+            'headers' => $this->headers($request->getHeaders()),
+            'payload' => $this->buildPayload($request, $options),
+        ];
 
-        return $promise->then(null, function ($reason) use ($request, $options, $customTags, &$recorded) {
-            if (! $recorded) {
-                try {
-                    Telescope::recordClientRequest(
-                        IncomingEntry::make([
-                            'method' => $request->getMethod(),
-                            'uri' => (string) $request->getUri(),
-                            'headers' => $this->headers($request->getHeaders()),
-                            'payload' => $this->buildPayload($request, $options),
-                        ])
-                            ->tags(array_merge(
-                                [$request->getUri()->getHost()],
-                                $customTags
-                            ))
-                    );
-                } catch (Throwable) {
-                    // Prevent recording from interrupting the request.
-                }
-            }
+        if ($response !== null) {
+            $content = array_merge($content, $this->getResponse($response));
+        }
 
-            return Create::rejectionFor($reason);
-        });
+        if ($stats?->getTransferTime() !== null) {
+            $content['duration'] = floor($stats->getTransferTime() * 1000);
+        }
+
+        Telescope::recordClientRequest(
+            IncomingEntry::make($content)
+                ->tags(array_merge([$request->getUri()->getHost()], $customTags))
+        );
     }
 
     /**
@@ -135,20 +120,6 @@ class ClientRequestWatcher extends Watcher
     protected function shouldIgnoreHost(string $host): bool
     {
         return in_array($host, $this->options['ignore_hosts'] ?? [], true);
-    }
-
-    /**
-     * Build the request data array for a completed transfer.
-     */
-    protected function buildRequestData(RequestInterface $request, TransferStats $stats, array $options): array
-    {
-        return [
-            'method' => $request->getMethod(),
-            'uri' => (string) $request->getUri(),
-            'headers' => $this->headers($request->getHeaders()),
-            'payload' => $this->buildPayload($request, $options),
-            'duration' => floor($stats->getTransferTime() * 1000),
-        ];
     }
 
     /**
@@ -356,7 +327,7 @@ class ClientRequestWatcher extends Watcher
         try {
             $statusCode = $response->getStatusCode();
             if ($statusCode >= 300 && $statusCode < 400) {
-                return 'Redirected to ' . $response->getHeaderLine('Location');
+                return 'Redirected to ' . $this->hideQueryParameters($response->getHeaderLine('Location'));
             }
 
             $sizeLimit = ($this->options['response_size_limit'] ?? 64) * 1024;
@@ -423,9 +394,23 @@ class ClientRequestWatcher extends Watcher
 
         $headers = array_combine($headerNames, $headerValues);
 
+        foreach (['location', 'referer'] as $header) {
+            if (isset($headers[$header])) {
+                $headers[$header] = $this->hideQueryParameters($headers[$header]);
+            }
+        }
+
         return $this->hideParameters(
             $headers,
             Telescope::$hiddenRequestHeaders
         );
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        Client::removeGlobalMiddleware(self::MIDDLEWARE_NAME);
     }
 }

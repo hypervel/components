@@ -43,6 +43,7 @@ use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Facade;
 use Hypervel\Support\Testing\Fakes\NotificationFake;
 use Hypervel\Telescope\Watchers\DumpWatcher;
+use Hypervel\Testing\ParallelRunner;
 use Hypervel\Testing\PHPUnit\AfterEachTestCleanup;
 use Hypervel\Testing\PHPUnit\AfterEachTestSubscriber;
 use Hypervel\Tests\TestCase;
@@ -247,6 +248,31 @@ class AfterEachTestSubscriberTest extends TestCase
         } finally {
             ValidationData::flushState();
         }
+    }
+
+    public function testFrameworkCleanupFlushesParallelRunnerResolvers(): void
+    {
+        $applicationResolver = static fn () => null;
+        $runnerResolver = static fn () => null;
+
+        ParallelRunner::resolveApplicationUsing($applicationResolver);
+        ParallelRunner::resolveRunnerUsing($runnerResolver);
+
+        $applicationResolverProperty = new ReflectionProperty(ParallelRunner::class, 'applicationResolver');
+        $runnerResolverProperty = new ReflectionProperty(ParallelRunner::class, 'runnerResolver');
+
+        $this->assertSame($applicationResolver, $applicationResolverProperty->getValue());
+        $this->assertSame($runnerResolver, $runnerResolverProperty->getValue());
+
+        (new class extends AfterEachTestSubscriber {
+            public function flushFrameworkStateForTest(): void
+            {
+                $this->flushFrameworkState();
+            }
+        })->flushFrameworkStateForTest();
+
+        $this->assertNull($applicationResolverProperty->getValue());
+        $this->assertNull($runnerResolverProperty->getValue());
     }
 
     public function testFrameworkCleanupFlushesSerializableClosureGlobals(): void

@@ -70,6 +70,7 @@ use Psr\Http\Message\StreamInterface;
 use RuntimeException;
 use stdClass;
 use Swoole\Coroutine\CanceledException;
+use Swoole\Coroutine\Socket;
 use Symfony\Component\VarDumper\VarDumper;
 use Throwable;
 use WeakReference;
@@ -612,12 +613,31 @@ class HttpClientTest extends TestCase
         $this->assertSame(1, $response->bodyCallCount);
     }
 
+    public function testConnectionFailureDoesNotExposeQueryCredentials(): void
+    {
+        $failure = null;
+
+        run(function () use (&$failure): void {
+            // Reserve a local port without listening so the connection is refused.
+            $socket = new Socket(AF_INET, SOCK_STREAM, 0);
+
+            try {
+                $this->assertTrue($socket->bind('127.0.0.1', 0));
+                $url = 'http://127.0.0.1:' . $socket->getsockname()['port'] . '/profile?access_token=private-token';
+                $this->factory->timeout(1)->get($url);
+            } catch (Throwable $exception) {
+                $failure = $exception;
+            } finally {
+                $socket->close();
+            }
+        });
+
+        $this->assertInstanceOf(ConnectionException::class, $failure);
+        $this->assertStringNotContainsString('private-token', $failure->getMessage());
+    }
+
     public function testNetworkExceptionIsConvertedToConnectionException(): void
     {
-        if (! class_exists(NetworkException::class)) {
-            $this->markTestSkipped('NetworkException requires guzzlehttp/guzzle ^8.0.');
-        }
-
         $this->expectExceptionObject(new ConnectionException('Network error'));
 
         $pendingRequest = new PendingRequest;
@@ -637,10 +657,6 @@ class HttpClientTest extends TestCase
 
     public function testAsyncNetworkExceptionIsConvertedAndRecordedOnce(): void
     {
-        if (! class_exists(NetworkException::class)) {
-            $this->markTestSkipped('NetworkException requires guzzlehttp/guzzle ^8.0.');
-        }
-
         $exception = new NetworkException('Network error', new GuzzleRequest('GET', 'https://network-error.hypervel.example'));
         $this->factory->fake(['*' => Create::rejectionFor($exception)]);
 
@@ -657,9 +673,7 @@ class HttpClientTest extends TestCase
     {
         $request = new GuzzleRequest('GET', 'https://response-error.hypervel.example');
         $response = new Psr7Response(500, [], 'Incomplete response');
-        $exception = class_exists(ResponseException::class)
-            ? new ResponseException('Response failed', $request, $response)
-            : new GuzzleRequestException('Response failed', $request, $response);
+        $exception = new ResponseException('Response failed', $request, $response);
         $this->factory->fake(['*' => Create::rejectionFor($exception)]);
 
         if ($async) {
@@ -3522,13 +3536,12 @@ class HttpClientTest extends TestCase
         $seen = null;
 
         $this->factory->sink($stream)->withOptions([
-            // Guzzle 8 also passes the request, as its transports do.
-            'on_headers' => function (ResponseInterface $response, ?RequestInterface $request = null) use ($stream, &$seen): void {
-                $seen = [$response->getStatusCode(), $response->getHeaderLine('X-Fake'), $request === null ? null : (string) $request->getUri(), $stream->getSize()];
+            'on_headers' => function (ResponseInterface $response, RequestInterface $request) use ($stream, &$seen): void {
+                $seen = [$response->getStatusCode(), $response->getHeaderLine('X-Fake'), (string) $request->getUri(), $stream->getSize()];
             },
         ])->get('https://example.com');
 
-        $this->assertSame([201, 'yes', class_exists(ResponseException::class) ? 'https://example.com' : null, 0], $seen);
+        $this->assertSame([201, 'yes', 'https://example.com', 0], $seen);
         $this->assertSame('abc123', (string) $stream);
     }
 
@@ -5601,9 +5614,7 @@ class HttpClientTest extends TestCase
             $request = new GuzzleRequest('GET', 'https://timeout.hypervel.example');
             $response = new Psr7Response(301);
 
-            throw class_exists(ResponseException::class)
-                ? new ResponseException($message, $request, $response)
-                : new GuzzleRequestException($message, $request, $response);
+            throw new ResponseException($message, $request, $response);
         });
 
         $pendingRequest->get('https://timeout.hypervel.example');

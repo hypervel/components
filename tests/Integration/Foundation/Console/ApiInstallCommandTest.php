@@ -13,6 +13,7 @@ use Hypervel\Support\Facades\Process;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Testing\Fixtures\CleanupActions;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionClass;
 use RuntimeException;
 use Symfony\Component\Console\Application as ConsoleApplication;
@@ -188,6 +189,60 @@ class ApiInstallCommandTest extends \Hypervel\Testbench\TestCase
 
         $this->assertCount(1, TestableApiInstallCommand::$composerRequireCalls);
         $this->assertSame(['hypervel/sanctum:^0.4'], TestableApiInstallCommand::$composerRequireCalls[0]['packages']);
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testInstallsPassportAndPublishesRoutesUsingItsGuard(bool $withoutMigrationPrompt): void
+    {
+        Process::fake();
+        $apiRoutesPath = $this->app->basePath('routes/api.php');
+        $this->createdFiles[] = $apiRoutesPath;
+
+        $this->artisan('install:api', ['--passport' => true, '--without-migration-prompt' => $withoutMigrationPrompt])
+            ->expectsOutputToContain('API scaffolding installed. Please add the [Hypervel\Passport\HasApiTokens] trait and [Hypervel\Passport\Contracts\OAuthenticatable] interface to your User model.')
+            ->assertSuccessful();
+
+        $this->assertSame([
+            ['composer' => 'global', 'packages' => ['hypervel/passport:^0.4']],
+        ], TestableApiInstallCommand::$composerRequireCalls);
+        $this->assertStringContainsString("->middleware('auth:passport')", file_get_contents($apiRoutesPath));
+        Process::assertRanInOrder([
+            static fn (PendingProcess $process): bool => is_array($process->command)
+                && array_slice($process->command, 2) === [
+                    'passport:install', ...($withoutMigrationPrompt ? ['--without-migration-prompt'] : []),
+                    ...($process->tty ? [] : ['--no-interaction']),
+                ]
+                && $process->timeout === null,
+        ]);
+    }
+
+    #[TestWith([0])]
+    #[TestWith([17])]
+    public function testPassportInstallerStreamsChildOutputAndPreservesFailure(int $exitCode): void
+    {
+        $files = new Filesystem;
+        $artisan = $this->app->basePath('artisan');
+        $original = $files->get($artisan);
+        $this->createdFiles[] = $this->app->basePath('routes/api.php');
+        $tester = $this->commandTester(new TestableApiInstallCommand);
+        $files->put($artisan, '<?php fwrite(STDOUT, implode(" ", $argv)); fwrite(STDERR, "child diagnostic"); exit(' . $exitCode . ');');
+
+        try {
+            try {
+                $tester->execute(['--passport' => true, '--without-migration-prompt' => true], ['interactive' => false]);
+                $this->assertSame(0, $exitCode);
+            } catch (ProcessFailedException $exception) {
+                $this->assertSame($exitCode, $exception->result->exitCode());
+            }
+
+            $output = $tester->getDisplay();
+            $this->assertStringContainsString('passport:install --without-migration-prompt --no-interaction', $output);
+            $this->assertStringContainsString('child diagnostic', $output);
+            $this->assertSame($exitCode === 0, str_contains($output, 'API scaffolding installed.'));
+        } finally {
+            $files->put($artisan, $original);
+        }
     }
 
     public function testPublishesSanctumMigrationWhenMissing(): void

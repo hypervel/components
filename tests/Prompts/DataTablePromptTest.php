@@ -6,16 +6,39 @@ namespace Hypervel\Tests\Prompts;
 
 use Hypervel\Prompts\DataTablePrompt;
 use Hypervel\Prompts\Key;
+use Hypervel\Prompts\Output\BufferedConsoleOutput;
 use Hypervel\Prompts\Prompt;
 use Hypervel\Prompts\Support\Utils;
 use Hypervel\Prompts\Themes\Default\DataTableRenderer;
 use Hypervel\Tests\TestCase;
 use ReflectionMethod;
+use Symfony\Component\Console\Formatter\OutputFormatterStyle;
 
 use function Hypervel\Prompts\datatable;
 
 class DataTablePromptTest extends TestCase
 {
+    public function testCustomStyledCellsAreMeasuredAndTruncatedAsVisibleText(): void
+    {
+        Prompt::fake([Key::ENTER]);
+        Prompt::terminal()->shouldReceive('cols')->andReturn(30); // @phpstan-ignore-line
+        $output = new BufferedConsoleOutput(decorated: true);
+        $output->getFormatter()->setStyle('warning', new OutputFormatterStyle('yellow'));
+        Prompt::setOutput($output);
+
+        $prompt = new DataTablePrompt(headers: ['Name'], rows: [['<warning>OK'], ['</info><warning>' . str_repeat('A', 40) . '</warning>']], scroll: 2);
+        $this->assertSame(['columns' => 1, 'widths' => [40]], $prompt->naturalColumnMetrics());
+        $prompt->prompt();
+
+        $content = Prompt::content();
+        $visible = Utils::stripTerminalControls($content);
+        $this->assertStringContainsString('OK', $visible);
+        $this->assertMatchesRegularExpression('/A+…/', $visible);
+        $this->assertStringNotContainsString('<warning', $content);
+        $this->assertStringNotContainsString('</warning', $content);
+        $this->assertStringContainsString("\e[33m", $content);
+    }
+
     public function testHelperRendersEmptyTableInActiveAndCancelStates(): void
     {
         Prompt::fake([Key::CTRL_C]);

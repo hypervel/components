@@ -14,11 +14,11 @@ final class Version
 
     public const string SDK_VERSION = Application::VERSION;
 
-    public static function getSdkIdentifier(): string
-    {
-        return self::SDK_IDENTIFIER;
-    }
-
+    /**
+     * Get the installed version of the hypervel/sentry package.
+     *
+     * Split installs may run a package version that differs from the framework version.
+     */
     public static function getSdkVersion(): string
     {
         return Container::getInstance()->make(PackageManifest::class)->version('hypervel/sentry')

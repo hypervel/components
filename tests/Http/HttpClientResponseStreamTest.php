@@ -70,6 +70,27 @@ class HttpClientResponseStreamTest extends TestCase
         $this->assertSame(['one', 'two'], iterator_to_array($response->lines()));
     }
 
+    public function testEmptyReadsBeforeEofDoNotSplitRecords(): void
+    {
+        $stream = new class(Utils::streamFor("{\"id\":1}\n{\"id\":2}"), 2) extends HttpResponseChunkedReadStream {
+            /**
+             * Pause once partway through the first record.
+             */
+            public function read(int $length): string
+            {
+                if ($this->reads === 1) {
+                    ++$this->reads;
+
+                    return '';
+                }
+
+                return parent::read($length);
+            }
+        };
+
+        $this->assertSame([['id' => 1], ['id' => 2]], iterator_to_array((new Response(new PsrResponse(body: $stream)))->jsonLines()));
+    }
+
     public function testJsonLinesDecodeObjectsAndScalarsAndSkipWhitespace(): void
     {
         $response = new Response(new PsrResponse(body: " \t\r\n{\"id\":1}\n\n[2]\nnull\nfalse\n0\n\"text\""));

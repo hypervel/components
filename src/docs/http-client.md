@@ -14,6 +14,7 @@
     - [Guzzle Middleware](#guzzle-middleware)
     - [Request Callbacks](#request-callbacks)
     - [Guzzle Options](#guzzle-options)
+        - [Proxies](#proxies)
     - [Telescope Recording](#telescope-recording)
     - [OpenTelemetry Tracing](#opentelemetry-tracing)
 - [Concurrent Requests](#concurrent-requests)
@@ -40,8 +41,6 @@
 ## Introduction
 
 Hypervel provides an expressive, minimal API around the [Guzzle HTTP client](http://docs.guzzlephp.org/en/stable/), allowing you to quickly make outgoing HTTP requests to communicate with other web applications. Hypervel's wrapper around Guzzle is focused on its most common use cases and a wonderful developer experience.
-
-The HTTP client supports Guzzle 7 and 8.
 
 Before sending a real request, Hypervel returns the current execution's idle database sessions to their pools. Transactions and explicitly pinned sessions remain held. Code that needs the same database session across an HTTP call may use `DB::withPinnedSession()`. See [releasing and pinning database connections](/docs/{{version}}/database#releasing-and-pinning-connections).
 
@@ -187,11 +186,11 @@ Inside a Swoole coroutine with native cURL hooks enabled, the HTTP client receiv
 
 For streaming requests, `timeout` bounds the wait for response headers. After headers arrive, a long-running stream may continue beyond that timeout. The `read_timeout` option limits idle gaps during headers and body reads, defaults to 60 seconds, and accepts `0` to wait without an idle limit. `connect_timeout` continues to limit connection establishment. Closing a response or canceling its consuming coroutine releases its active transfer.
 
-If cURL negotiates authentication for a streamed request, such as digest authentication with Guzzle 7 or the `CURLOPT_HTTPAUTH` and `CURLOPT_PROXYAUTH` cURL options, the response is returned when its first body bytes arrive or the transfer completes. The `timeout` option also covers that wait.
+If cURL negotiates authentication for a streamed request through the `CURLOPT_HTTPAUTH` or `CURLOPT_PROXYAUTH` cURL options, the response is returned when its first body bytes arrive or the transfer completes. The `timeout` option also covers that wait.
 
 For streamed responses, `on_stats` runs when the response is returned. The `on_trailers` callback runs once the transfer has completed, after `on_headers`. Small responses may already be complete when returned; for longer responses, trailers arrive as the body is consumed.
 
-Outside a hooked coroutine, or when you provide `stream_context` or a custom `stream_factory`, the client uses Guzzle's PHP-stream handler. This fallback requires `allow_url_fopen`, cannot use cURL destination pins or required transport sharing, and retains Guzzle's timeout behavior. In Guzzle 7, an omitted `read_timeout` uses the stream context or PHP socket timeout. Custom handlers and clients remain responsible for their own streaming support; faked responses do not need a transport.
+Outside a hooked coroutine, or when you provide `stream_context` or a custom `stream_factory`, the client uses Guzzle's PHP-stream handler. This fallback requires `allow_url_fopen`, cannot use cURL destination pins or required transport sharing, and retains Guzzle's timeout behavior. Custom handlers and clients remain responsible for their own streaming support; faked responses do not need a transport.
 
 <a name="request-data"></a>
 ### Request Data
@@ -724,10 +723,27 @@ $response = Http::withoutGlobalConfiguration(
 
 The callback affects only the current coroutine. For parallel requests, call `withoutGlobalConfiguration` inside each task.
 
+<a name="proxies"></a>
+#### Proxies
+
+To send outgoing requests through a proxy, configure the `proxy` option using `Http::globalOptions` during application boot. Requests made through the HTTP client will inherit this configuration:
+
+```php
+Http::globalOptions([
+    'proxy' => 'http://egress-proxy.internal:8080',
+]);
+```
+
+Alternatively, Guzzle reads the `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` environment variables. `NO_PROXY` lists destinations that should be reached directly. These are outgoing proxies, separate from the reverse proxies that forward incoming requests to your application.
+
+If your application downloads URLs supplied by users, the proxy must reject loopback, private, link-local, and reserved IPv4 and IPv6 destinations after resolving their hostnames and connect to the address it checked. Blocking hostnames is not enough, because a public hostname can resolve to a private address. A filtering proxy such as [Smokescreen](https://github.com/stripe/smokescreen) provides destination filtering; an unrestricted forwarding proxy does not.
+
+Requests using `withDestinationPolicy` reject a proxy configured for their scheme. Select their proxy through the policy instead, as described in [Egress Proxies](#egress-proxies).
+
 <a name="telescope-recording"></a>
 ### Telescope Recording
 
-If your application uses [Telescope](/docs/{{version}}/telescope), HTTP client requests are automatically recorded by the HTTP client watcher. You may exclude an individual request from being recorded by chaining the `withoutTelescope` method:
+If your application uses [Telescope](/docs/{{version}}/telescope), HTTP client requests are automatically recorded by the HTTP client watcher. The watcher also records third-party SDKs that use Guzzle; see [HTTP client watcher](/docs/{{version}}/telescope#http-client-watcher) for credential masking and direct Guzzle options. You may exclude an individual request from being recorded by chaining the `withoutTelescope` method:
 
 ```php
 $response = Http::withoutTelescope()->get('http://example.com');
@@ -965,29 +981,31 @@ defer(function () {
 <a name="guzzle-promises"></a>
 ### Guzzle Promises
 
-When using Guzzle's asynchronous APIs directly, create and finish each operation in the same coroutine. This keeps its callbacks, request context, and database transactions together. For example, create the client and wait for its response inside each parallel task:
+When using Guzzle's asynchronous APIs directly, create and finish each operation in the same coroutine. This keeps its callbacks, request context, and database transactions together. The default client may be shared across coroutines:
 
 ```php
 use GuzzleHttp\Client;
 
 use function Hypervel\Coroutine\parallel;
 
+$client = new Client;
+
 $responses = parallel([
-    fn () => (new Client)->getAsync('https://example.com/users')->wait(),
-    fn () => (new Client)->getAsync('https://example.com/orders')->wait(),
+    fn () => $client->getAsync('https://example.com/users')->wait(),
+    fn () => $client->getAsync('https://example.com/orders')->wait(),
 ]);
 ```
 
-Hypervel throws a `Hypervel\Http\Exceptions\CoroutineOwnershipException` if another coroutine tries to use a pending Guzzle promise or drive a cURL multi-handler with active work. Completed results may be shared. When a coroutine exits, Hypervel cancels its unfinished native transfers and runs its queued callbacks in that same coroutine, allowing cancellation to reach dependent promises. Finish any work you need before returning from the coroutine.
+Guzzle throws a `LogicException` if another coroutine tries to use a pending promise or drive a cURL multi-handler with active work. Completed results may be shared. When a coroutine exits, Hypervel cancels its unfinished native transfers and runs its queued callbacks in that same coroutine, allowing cancellation to reach dependent promises. Finish any work you need before returning from the coroutine.
 
-These checks apply to Guzzle's mutable promises and cURL multi-handlers, including those used by third-party SDKs. Custom transports and other promise implementations remain responsible for their own coroutine safety. When supplying a custom handler, keep each active multi-handler within one coroutine. Once all its transfers finish, it may be reused by another coroutine.
+Hypervel installs `hypervel/guzzle` in place of `guzzlehttp/guzzle` and `hypervel/guzzle-promises` in place of `guzzlehttp/promises`, so these checks also cover third-party SDKs using Guzzle. Custom transports and other promise implementations remain responsible for their own coroutine safety. When supplying a custom handler, keep each active multi-handler within one coroutine. Once all its transfers finish, it may be reused by another coroutine.
 
 <a name="connections"></a>
 ## Connections
 
-Hypervel's HTTP client supports named connection presets for services your application calls frequently. Synchronous requests on a registered connection share one low-level Guzzle transport handler, which retains reusable cURL handles and keep-alive connection state. Every pending request still receives a fresh Guzzle client and middleware stack, so request-specific middleware, callbacks, and options never become frozen onto the first request. Asynchronous requests use isolated handlers because a worker-lived cURL multi-handler cannot be driven safely by concurrent coroutines. These handlers still use the connection's registered transport sharing and multiplexing settings.
+Hypervel's HTTP client reuses connections for both synchronous and asynchronous requests. Requests without a connection share one transport, and each named connection has its own. Every pending request still receives a fresh Guzzle client, middleware stack, and cookie jar, so request-specific middleware, callbacks, and options stay with that request.
 
-For streamed responses, each named connection keeps up to 32 idle connections per worker for reuse. Connections are opened as needed; this does not limit how many requests can run at once.
+Asynchronous requests borrow a cURL multi-handler for their coroutine while it has work. Once idle, the handler returns to a pool so another coroutine can reuse its connections. Each transport retains up to 64 idle multi-handlers by default. For streamed responses, each transport keeps up to 32 idle connections per worker. These limits apply to idle resources, not concurrent requests; connections are opened as needed.
 
 To register a connection, typically in the `boot` method of your application's `AppServiceProvider`, call the `registerConnection` method:
 
@@ -1016,10 +1034,13 @@ The second argument is a request-option preset. It accepts normal Guzzle request
 - `pool` is rejected. HTTP clients are not object-pooled.
 - `max_host_connections` and `max_total_connections` are rejected. Use bounded coroutine fan-out or the rate limiter instead.
 - `transport_sharing` configures the connection's shared and isolated handlers. It accepts Guzzle's `TransportSharing` modes and is never passed into request options.
-- `max_idle_handles` sets how many idle cURL handles the connection's synchronous buffered transport keeps for its next requests (256 by default; 0 keeps none). Each handle holds its own keep-alive connections, allowing requests from concurrent coroutines to reuse them. It does not limit concurrent requests or open sockets: handles in use are additional, and Guzzle's persistent transport sharing keeps connections in its share instead. Streamed responses use the separate retention limit described above.
+- `max_idle_handles` sets how many idle cURL easy handles each buffered handler keeps (256 for the synchronous handler and 50 per asynchronous multi-handler by default; 0 keeps none). Synchronous easy handles keep their own connections; asynchronous ones use their multi-handler's connection cache. This is not a limit on concurrent requests or open sockets. Streamed responses use the separate retention limit described above.
+- `max_idle_multi_handlers` sets how many idle asynchronous multi-handlers the connection retains (64 by default; 0 keeps none). Active handlers are additional. Increase this when recurring bursts benefit from more warm connections, or decrease it to retain fewer idle resources.
 - `multiplex` remains a request option. The `Multiplexing::NONE` mode also configures the connection handler so its guarantee applies to every request using that handler.
 
-The dedicated connection-cap options are rejected at every option layer. `pool`, `handler`, `cookies`, `transport_sharing`, and `max_idle_handles` are also rejected from global options, per-call connection overrides, fluent `withOptions()` calls, and raw `send()` options. This keeps cookie and handler ownership consistent regardless of which option layer supplied a value.
+The dedicated connection-cap options are rejected at every option layer. `pool`, `handler`, `cookies`, `transport_sharing`, `max_idle_handles`, and `max_idle_multi_handlers` are also rejected from global options, per-call connection overrides, fluent `withOptions()` calls, and raw `send()` options. This keeps cookie and handler ownership consistent regardless of which option layer supplied a value.
+
+Requests with raw `CURLOPT_RESOLVE` DNS pins use an isolated transport so their pins cannot affect later requests. Connections that require persistent transport sharing can't send these requests, and `PERSISTENT_PREFER` falls back to handler-level sharing.
 
 Once registered, select a connection for a request by chaining the `connection` method:
 
@@ -1041,7 +1062,7 @@ Http::connection('github', [])->get('https://example.com');
 
 `setHandler()` replaces only the low-level handler beneath that request's fresh middleware stack; its global, connection, and fluent options still apply. `setClient()` gives the caller complete ownership of the client and bypasses the connection preset. Global and fluent request options still apply to the request sent through that client.
 
-Each pending request constructs one cookie jar and reuses it only across that request's redirects and retry attempts. Concurrent requests never share cookies. Requests made without `connection()` use their own default low-level handler and the same per-request cookie behavior.
+Each pending request constructs one cookie jar and reuses it only across that request's redirects and retry attempts. Concurrent requests never share cookies, including requests made without `connection()`.
 
 Calling `registerConnection()` or `setConnectionConfig()` again invalidates the connection's cached low-level handler. Subsequent requests lazily create a handler from the new configuration, while in-flight requests safely finish on their existing handler reference.
 
@@ -1100,14 +1121,16 @@ class EgressProxyPolicy extends PublicDestinationPolicy
 }
 ```
 
-A proxy URL without a port uses its scheme's default port: 80 for `http` and 443 for `https`. The policy then checks and pins the proxy's address instead of the destination's. Since proxies usually run on private addresses, allow the proxy's address using `allowedNetworks` or `allowsAddress`. Destinations written as IP addresses are still checked, but hostnames are resolved by the proxy, so the proxy itself must refuse private destinations. A filtering egress proxy such as [Smokescreen](https://github.com/stripe/smokescreen) does this.
+A proxy URL without a port uses its scheme's default port: 80 for `http` and 443 for `https`. The policy then checks and pins the proxy's address instead of the destination's. Since proxies usually run on private addresses, allow the proxy's address using `allowedNetworks` or `allowsAddress`. Destinations written as IP addresses are still checked, but hostnames are resolved by the proxy, which must enforce the [destination filtering requirements](#proxies).
+
+Each request through a proxy given by hostname, including each redirect, uses an isolated transport so an older connection cannot bypass the newly approved proxy address. Connections that require persistent transport sharing can't send these requests, and `PERSISTENT_PREFER` falls back to handler-level sharing. A proxy given by IP address has only that address, so requests through it reuse connections. Direct policy requests reuse connections when the approved addresses match.
 
 If the proxy cannot be resolved or refuses the connection, a `Hypervel\Http\Client\Destinations\ProxyConnectionException` is thrown. It extends `ConnectionException`, and lets you tell a failure of your own egress path apart from a failure of the destination.
 
 <a name="destination-policy-limitations"></a>
 ### Limitations
 
-Pinning relies on Guzzle's cURL transport and libcurl 7.75 or newer. Streaming is supported inside a Swoole coroutine with native cURL hooks enabled. Restricted requests may not use the PHP-stream fallback, set their own `proxy` or raw `curl` options, or use a custom handler from the `setHandler` method; such requests throw a `DisallowedDestinationException`. To write a large response directly to a file, use the `sink` method.
+Pinning relies on Guzzle's cURL transport and libcurl 7.75 or newer. Streaming is supported inside a Swoole coroutine with native cURL hooks enabled. Restricted requests may not use the PHP-stream fallback, set raw `curl` options, or use a custom handler from the `setHandler` method. A proxy configured for the request's scheme is also rejected, including through global options or `HTTP_PROXY` / `HTTPS_PROXY`; select it through the policy instead. These requests throw a `DisallowedDestinationException`. `NO_PROXY` on its own does not prevent restricted requests. Other environment proxy fallbacks, such as `all_proxy`, do not override the policy's route. To write a large response directly to a file, use the `sink` method.
 
 If the installed cURL transport lacks a required capability, a `Hypervel\Http\Client\Destinations\DestinationPolicyException` is thrown. These failures are never retried, and your retry callback is not called, because another attempt cannot change the installed transport.
 

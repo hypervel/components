@@ -6,6 +6,7 @@ namespace Hypervel\Prompts\Themes\Default;
 
 use Hypervel\Prompts\Output\BufferedConsoleOutput;
 use Hypervel\Prompts\Table;
+use Symfony\Component\Console\Formatter\OutputFormatter;
 use Symfony\Component\Console\Helper\Table as SymfonyTable;
 use Symfony\Component\Console\Helper\TableStyle;
 
@@ -23,7 +24,7 @@ class TableRenderer extends Renderer
             ->setCellRowFormat('<fg=default>%s</>')
             ->setCrossingChars('┼', '<fg=gray>┌', '┬', '┐', '┤', '┘</>', '┴', '└', '├');
 
-        $buffered = new BufferedConsoleOutput;
+        $buffered = new BufferedConsoleOutput(decorated: true, formatter: $this->formatter());
 
         (new SymfonyTable($buffered))
             ->setHeaders($table->headers)
@@ -32,7 +33,8 @@ class TableRenderer extends Renderer
             ->render();
 
         foreach (explode(PHP_EOL, trim($buffered->content(), PHP_EOL)) as $line) {
-            $this->line(' ' . $line);
+            // The buffer has already interpreted markup; keep literal tags literal on the outer write.
+            $this->line(' ' . OutputFormatter::escape($line));
         }
 
         return (string) $this;

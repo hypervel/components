@@ -785,4 +785,4 @@ The subscriber supports `subscribe`, `unsubscribe`, `psubscribe`, `punsubscribe`
 <a name="credits"></a>
 ## Credits
 
-Hypervel Redis began as a port of [Hyperf Redis](https://github.com/hyperf/hyperf/tree/master/src/redis) and has been adapted for Hypervel's framework architecture and coroutine runtime.
+Hypervel Redis is based on [Laravel Redis](https://github.com/illuminate/redis) and has been adapted for Hypervel's framework architecture and coroutine runtime.

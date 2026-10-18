@@ -1,0 +1,47 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ namespace }};
+
+use Hypervel\Ai\Contracts\Agent;
+use Hypervel\Ai\Contracts\Conversational;
+use Hypervel\Ai\Contracts\HasTools;
+use Hypervel\Ai\Contracts\Tool;
+use Hypervel\Ai\Messages\Message;
+use Hypervel\Ai\Promptable;
+use Hypervel\Ai\Providers\Tools\ProviderTool;
+use Stringable;
+
+class {{ class }} implements Agent, Conversational, HasTools
+{
+    use Promptable;
+
+    /**
+     * Get the instructions that the agent should follow.
+     */
+    public function instructions(): Stringable|string
+    {
+        return 'You are a helpful assistant.';
+    }
+
+    /**
+     * Get the list of messages comprising the conversation so far.
+     *
+     * @return Message[]
+     */
+    public function messages(): iterable
+    {
+        return [];
+    }
+
+    /**
+     * Get the tools available to the agent.
+     *
+     * @return list<Agent|Tool|ProviderTool>
+     */
+    public function tools(): iterable
+    {
+        return [];
+    }
+}

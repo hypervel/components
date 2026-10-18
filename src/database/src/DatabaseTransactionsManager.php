@@ -77,8 +77,10 @@ class DatabaseTransactionsManager
             $state->current[$connection] = $currentForConnection->parent;
         }
 
-        if (! $this->afterCommitCallbacksShouldBeExecuted($newTransactionLevel)
-            && $newTransactionLevel !== 0) {
+        // The testing manager's level-one rule must still wait for an unwrapped application transaction.
+        if ($newTransactionLevel !== 0
+            && (! $this->afterCommitCallbacksShouldBeExecuted($newTransactionLevel)
+                || $this->hasApplicableTransaction($connection))) {
             return new Collection;
         }
 
@@ -312,6 +314,14 @@ class DatabaseTransactionsManager
         if ($current = $this->latestApplicableTransaction($connection)) {
             $current->addCallbackForRollback($callback);
         }
+    }
+
+    /**
+     * Determine whether a callback would wait for an open transaction.
+     */
+    public function hasApplicableTransaction(?string $connection = null): bool
+    {
+        return $this->latestApplicableTransaction($connection) !== null;
     }
 
     /**

@@ -13,6 +13,7 @@ use Hypervel\Http\UploadedFile;
 use Hypervel\HttpServer\Events\RequestHandled;
 use Hypervel\HttpServer\Events\RequestReceived;
 use Hypervel\HttpServer\Events\RequestTerminated;
+use Hypervel\HttpServer\Events\ResponseSent;
 use Hypervel\HttpServer\Server as HttpServer;
 use Hypervel\Routing\Router;
 use Hypervel\Server\Event;
@@ -58,6 +59,8 @@ $config->set('server.settings.' . Constant::OPTION_WORKER_NUM, 1);
 $config->set('server.settings.' . Constant::OPTION_OPEN_HTTP2_PROTOCOL, true);
 $config->set('server.settings.' . Constant::OPTION_ENABLE_STATIC_HANDLER, false);
 $config->set('server.settings.' . Constant::OPTION_HTTP_COMPRESSION, false);
+$config->set('server.settings.' . Constant::OPTION_PACKAGE_MAX_LENGTH, 64 * 1024);
+$config->set('server.settings.' . Constant::OPTION_UPLOAD_MAX_FILESIZE, 1024 * 1024);
 
 $app->make(KernelContract::class)->pushMiddleware(HttpServerIntegrationMiddleware::class);
 
@@ -123,6 +126,18 @@ $events->listen(RequestTerminated::class, function (RequestTerminated $event) us
             : null,
     ];
 });
+$events->listen(ResponseSent::class, function (ResponseSent $event) use ($state): void {
+    $token = $event->request?->query('token');
+
+    if ($event->request?->getPathInfo() !== '/response-header'
+        || ! is_string($token)
+        || $token === ''
+    ) {
+        return;
+    }
+
+    $state->responseHeaders[$token] = bin2hex($event->response->headers->get('X-Test'));
+});
 
 $filesystem = new Filesystem;
 $filesystem->ensureDirectoryExists(storage_path('app/private'));
@@ -135,7 +150,7 @@ Storage::disk('local')->put('http-server-storage.txt', 'storage response body');
 $router = $app->make(Router::class);
 $router->get('/up', fn (): string => 'up');
 $router->get('/', fn (Request $request): string => $request->getRequestUri());
-$router->match(['GET', 'POST'], '/inspect', function (Request $request): JsonResponse {
+$router->match(['GET', 'POST', 'PUT', 'PATCH', 'DELETE'], '/inspect', function (Request $request): JsonResponse {
     $file = $request->file('upload');
 
     return new JsonResponse([
@@ -144,6 +159,7 @@ $router->match(['GET', 'POST'], '/inspect', function (Request $request): JsonRes
         'query' => $request->query->all(),
         'request' => $request->request->all(),
         'json' => $request->json()->all(),
+        'content' => $request->getContent(),
         'header' => $request->header('X-Integration'),
         'file' => $file instanceof UploadedFile ? [
             'name' => $file->getClientOriginalName(),
@@ -153,11 +169,23 @@ $router->match(['GET', 'POST'], '/inspect', function (Request $request): JsonRes
         ] : null,
     ]);
 });
+$router->match(['QUERY'], '/query', fn (Request $request): JsonResponse => new JsonResponse([
+    'method' => $request->getMethod(),
+    'query' => $request->query->all(),
+    'request' => $request->request->all(),
+    'content' => $request->getContent(),
+]));
 $router->get('/context', function (Request $request): string {
     usleep(20_000);
 
     return (string) $request->query('value');
 });
+$router->get('/pipeline/first', function (): string {
+    usleep(20_000);
+
+    return 'first response';
+});
+$router->get('/pipeline/second', fn (): string => 'second response');
 $router->get('/cookies', function (): Response {
     $response = new Response('cookies');
     $response->headers->setCookie(
@@ -165,6 +193,24 @@ $router->get('/cookies', function (): Response {
     );
 
     return $response;
+});
+$router->get('/response-header', function (): Response {
+    // Build the value at runtime so it has the same refcounted storage as application header values.
+    $value = implode('', ['value', "\t "]);
+
+    return new Response('response header', headers: ['X-Test' => $value]);
+});
+$router->get('/response-header-state', function (Request $request) use ($state): JsonResponse {
+    $token = $request->query('token');
+
+    if (! is_string($token) || $token === '') {
+        return new JsonResponse([]);
+    }
+
+    $value = $state->responseHeaders[$token] ?? null;
+    unset($state->responseHeaders[$token]);
+
+    return new JsonResponse(['value' => $value]);
 });
 $router->get('/callback-stream', fn (): Response => response()->stream(function (): void {
     echo 'callback-';
@@ -252,6 +298,11 @@ class HttpServerIntegrationState
     public bool $streamReleased = false;
 
     public ?string $deletePath = null;
+
+    /**
+     * @var array<string, string>
+     */
+    public array $responseHeaders = [];
 
     /**
      * @var array<string, array<string, mixed>>

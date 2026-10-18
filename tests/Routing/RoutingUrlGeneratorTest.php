@@ -50,6 +50,58 @@ class RoutingUrlGeneratorTest extends RoutingTestCase
         $this->assertSame('https://www.foo.com/foo/bar', $url->to('foo/bar'));
     }
 
+    public function testCachedOriginFollowsRequestReplacementAndExplicitReset(): void
+    {
+        $request = Request::create('http://first.example/');
+        RequestContext::set($request);
+        $url = new UrlGenerator(new RouteCollection, $request);
+        $this->assertSame('http://first.example/path', $url->to('path'));
+
+        $replacement = Request::create('https://second.example/');
+        RequestContext::set($replacement);
+        $this->assertSame('https://second.example/path', $url->to('path'));
+
+        $replacement->headers->set('Host', 'third.example');
+        $replacement->server->set('HTTPS', 'off');
+        $url->setRequest($replacement);
+        $this->assertSame('http://third.example/path', $url->to('path'));
+    }
+
+    public function testCopiedContextDoesNotReuseAnotherRequestsCachedOrigin(): void
+    {
+        $request = Request::create('http://parent.example/');
+        RequestContext::set($request);
+        $url = new UrlGenerator(new RouteCollection, $request);
+        $this->assertSame('http://parent.example/path', $url->to('path'));
+        $generate = function (string $origin) use ($url): string {
+            RequestContext::set(Request::create($origin));
+            $this->assertSame($origin . '/path', $url->to('path'));
+            usleep(5000);
+
+            return $url->to('path');
+        };
+
+        $this->assertSame(['https://first.example/path', 'http://second.example/path'], parallel([
+            fn (): string => $generate('https://first.example'),
+            fn (): string => $generate('http://second.example'),
+        ], copyContext: true));
+        $this->assertSame('http://parent.example/path', $url->to('path'));
+    }
+
+    public function testForcedSchemeDoesNotEnterAnotherGeneratorsRequestCache(): void
+    {
+        $request = Request::create('http://example.com/');
+        RequestContext::set($request);
+        $first = new UrlGenerator(new RouteCollection, $request);
+        $second = new UrlGenerator(new RouteCollection, $request);
+        $first->forceScheme('https');
+
+        $this->assertSame('https://example.com/path', $first->to('path'));
+        $this->assertSame('http://example.com/path', $second->to('path'));
+        $first->forceScheme(null);
+        $this->assertSame('http://example.com/path', $first->to('path'));
+    }
+
     public function testQueryGeneration(): void
     {
         $url = new UrlGenerator(

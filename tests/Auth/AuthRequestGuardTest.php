@@ -173,9 +173,9 @@ class AuthRequestGuardTest extends TestCase
         // First call sees request1
         $guard->user();
 
-        // Replace request and clear cached user
+        // A replacement request must run its own authentication callback.
         RequestContext::set($request2);
-        $guard->forgetUser();
+        $this->assertFalse($guard->hasUser());
 
         // Second call should see request2
         $guard->user();

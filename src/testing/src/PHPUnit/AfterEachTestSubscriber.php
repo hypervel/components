@@ -106,9 +106,8 @@ class AfterEachTestSubscriber implements FinishedSubscriber
      */
     protected function flushFrameworkState(): void
     {
-        // Cancel while ownership aspects and the owning context still exist.
+        // Cancel while the owning context still exists.
         \Hypervel\Http\Client\Guzzle\CoroutineState::current()?->cancel();
-        \Hypervel\Http\Client\Guzzle\CoroutineOwnership::flushState();
         $queue = \GuzzleHttp\Promise\Utils::queue();
         if ($queue instanceof \Hypervel\Http\Client\Guzzle\CoroutineTaskQueue) {
             $queue->resetOutside();
@@ -305,7 +304,10 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Support\Testing\Fakes\NotificationFake::flushState();
         \Hypervel\Support\Uri::flushState();
         \Hypervel\Testing\Fluent\AssertableJson::flushState();
-        \Hypervel\Testing\ParallelRunner::flushState();
+        // Serial test suites may not have the optional ParaTest dependency installed.
+        if (class_exists(\Hypervel\Testing\ParallelRunner::class, false)) {
+            \Hypervel\Testing\ParallelRunner::flushState();
+        }
         \Hypervel\Testing\PendingCommand::flushState();
         \Hypervel\Testing\TestComponent::flushState();
         \Hypervel\Testing\TestResponse::flushState();
@@ -329,14 +331,17 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\WebSocketServer\Collector\FdCollector::flushState();
         \Hypervel\WebSocketServer\Context::flushState();
 
+        $this->flushAiState();
         $this->flushDataState();
         $this->flushFortifyState();
         $this->flushHorizonState();
         $this->flushImageState();
         $this->flushInertiaState();
         $this->flushJwtState();
+        $this->flushMcpState();
         $this->flushNestedSetState();
         $this->flushPasskeysState();
+        $this->flushPassportState();
         $this->flushPermissionState();
         $this->flushReverbState();
         $this->flushSaloonState();
@@ -346,6 +351,16 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         $this->flushTelescopeState();
         $this->flushTestbenchState();
         $this->flushWayfinderState();
+    }
+
+    /**
+     * Flush AI state.
+     */
+    protected function flushAiState(): void
+    {
+        $this->callIfExists(\Hypervel\Ai\Files\UntrustedUrl::class, 'flushState');
+        $this->callIfExists(\Hypervel\Ai\Tools\LoadSkill::class, 'flushState');
+        $this->callIfExists(\Hypervel\Ai\Tools\Request::class, 'flushMacros');
     }
 
     /**
@@ -410,6 +425,22 @@ class AfterEachTestSubscriber implements FinishedSubscriber
     }
 
     /**
+     * Flush MCP state.
+     */
+    protected function flushMcpState(): void
+    {
+        $this->callIfExists(\Hypervel\Mcp\Server::class, 'flushState');
+        $this->callIfExists(\Hypervel\Mcp\Server\Primitive::class, 'flushState');
+        $this->callIfExists(\Hypervel\Mcp\Request::class, 'flushMacros');
+        $this->callIfExists(\Hypervel\Mcp\Response::class, 'flushMacros');
+        $this->callIfExists(\Hypervel\Mcp\ResponseFactory::class, 'flushMacros');
+        $this->callIfExists(\Hypervel\Mcp\Client\ClientManager::class, 'flushMacros');
+        $this->callIfExists(\Hypervel\Mcp\Server\Registrar::class, 'flushMacros');
+        $this->callIfExists(\Hypervel\Mcp\Server\Testing\TestResponse::class, 'flushMacros');
+        $this->callIfExists(\Hypervel\Mcp\Server\Testing\TestListResponse::class, 'flushMacros');
+    }
+
+    /**
      * Flush Nested Set state.
      */
     protected function flushNestedSetState(): void
@@ -425,6 +456,15 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         $this->callIfExists(\Hypervel\Passkeys\Passkeys::class, 'flushState');
         $this->callIfExists(\Hypervel\Passkeys\Support\Aaguids::class, 'flushState');
         $this->callIfExists(\Hypervel\Passkeys\Support\WebAuthn::class, 'flushState');
+    }
+
+    /**
+     * Flush Passport state.
+     */
+    protected function flushPassportState(): void
+    {
+        $this->callIfExists(\Hypervel\Passport\Passport::class, 'flushState');
+        $this->callIfExists(\Hypervel\Passport\Guards\TokenGuard::class, 'flushState');
     }
 
     /**
@@ -480,10 +520,9 @@ class AfterEachTestSubscriber implements FinishedSubscriber
      */
     protected function flushSentryState(): void
     {
+        $this->callIfExists(\Hypervel\Sentry\Features\HttpClientIntegration::class, 'flushState');
         $this->callIfExists(\Sentry\SentrySdk::class, 'setRuntimeContextStorage', null);
         $this->callIfExists(\Sentry\SentrySdk::class, 'init');
-        $this->callIfExists(\Hypervel\Sentry\Http\HypervelRequestFetcher::class, 'flushState');
-        $this->callIfExists(\Hypervel\Sentry\Tracing\Middleware::class, 'flushState');
     }
 
     /**
@@ -492,7 +531,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
     protected function flushTelescopeState(): void
     {
         $this->callIfExists(\Hypervel\Telescope\Telescope::class, 'flushState');
-        $this->callIfExists(\Hypervel\Telescope\Watchers\CacheWatcher::class, 'flushState');
+        $this->callIfExists(\Hypervel\Telescope\Watchers\ClientRequestWatcher::class, 'flushState');
         $this->callIfExists(\Hypervel\Telescope\Watchers\DumpWatcher::class, 'flushState');
         $this->callIfExists(\Hypervel\Telescope\Watchers\RedisWatcher::class, 'flushState');
     }

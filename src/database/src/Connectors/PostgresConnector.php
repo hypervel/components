@@ -6,6 +6,7 @@ namespace Hypervel\Database\Connectors;
 
 use Hypervel\Database\Concerns\ParsesSearchPath;
 use PDO;
+use RuntimeException;
 
 class PostgresConnector extends Connector implements ConnectorInterface
 {
@@ -33,6 +34,10 @@ class PostgresConnector extends Connector implements ConnectorInterface
      */
     public function connect(array $config): PDO
     {
+        if (! defined('SWOOLE_HOOK_PDO_PGSQL')) {
+            throw new RuntimeException('PostgreSQL connections require Swoole built with PostgreSQL support. Rebuild it with --enable-swoole-pgsql.');
+        }
+
         return $this->createConnection(
             $this->getDsn($config),
             $config,

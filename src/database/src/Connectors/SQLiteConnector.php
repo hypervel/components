@@ -10,6 +10,7 @@ use Hypervel\Database\SQLiteDatabase;
 use Hypervel\Database\SQLiteDatabaseDoesNotExistException;
 use InvalidArgumentException;
 use PDO;
+use RuntimeException;
 
 class SQLiteConnector extends Connector implements ConnectorInterface
 {
@@ -18,6 +19,10 @@ class SQLiteConnector extends Connector implements ConnectorInterface
      */
     public function connect(array $config): PDO
     {
+        if (! defined('SWOOLE_HOOK_PDO_SQLITE')) {
+            throw new RuntimeException('SQLite connections require Swoole built with SQLite support. Rebuild it with --enable-swoole-sqlite.');
+        }
+
         if (isset($config['lock_timeout'])) {
             throw new InvalidArgumentException('SQLite connections use [busy_timeout] instead of [lock_timeout].');
         }

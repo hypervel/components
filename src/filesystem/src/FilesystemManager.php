@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Filesystem;
 
+use Aws\Middleware;
 use Aws\S3\S3Client;
 use Closure;
 use Google\Cloud\Storage\StorageClient as GcsClient;
@@ -14,10 +15,10 @@ use Hypervel\Contracts\Filesystem\Factory as FactoryContract;
 use Hypervel\Contracts\Filesystem\Filesystem;
 use Hypervel\Contracts\ObjectPool\Factory as PoolFactory;
 use Hypervel\Contracts\ObjectPool\InvalidatesPool;
+use Hypervel\Database\ConnectionResolver;
 use Hypervel\ObjectPool\Concerns\HasPoolProxy;
 use Hypervel\ObjectPool\PoolDefinition;
 use Hypervel\Support\Arr;
-use Hypervel\Support\Aws\ReleaseIdleDatabaseConnections;
 use Hypervel\Support\Aws\SerializedCredentialProvider;
 use Hypervel\Support\RebindsCallbacksToSelf;
 use Hypervel\Support\Str;
@@ -106,7 +107,7 @@ class FilesystemManager implements FactoryContract
     /**
      * The array of drivers which will be wrapped as pool proxies.
      */
-    protected array $poolableDrivers = ['s3', 'gcs'];
+    protected array $poolableDrivers = ['s3', 'gcs', 'ftp', 'sftp'];
 
     /**
      * Create a new filesystem manager instance.
@@ -568,7 +569,10 @@ class FilesystemManager implements FactoryContract
         }
 
         $client = new S3Client($clientConfig);
-        $client->getHandlerList()->appendInit(new ReleaseIdleDatabaseConnections);
+        $client->getHandlerList()->prependInit(
+            Middleware::tap(ConnectionResolver::releaseIdleConnections(...)),
+            'release_idle_database_connections',
+        );
 
         return $client;
     }

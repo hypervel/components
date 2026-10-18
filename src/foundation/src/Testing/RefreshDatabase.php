@@ -244,24 +244,7 @@ trait RefreshDatabase
             $transactionsManager = new DatabaseTransactionsManager($connections)
         );
 
-        foreach ($connections as $name) {
-            $connection = $database->connection($name);
-
-            // Set the testing transaction manager on the connection
-            $connection->setTransactionManager($transactionsManager);
-
-            $dispatcher = $connection->getEventDispatcher();
-
-            $connection->unsetEventDispatcher();
-
-            try {
-                $connection->beginTransaction();
-            } finally {
-                if ($dispatcher !== null) {
-                    $connection->setEventDispatcher($dispatcher);
-                }
-            }
-        }
+        $transactionsManager->beginTransactions($database);
     }
 
     /**

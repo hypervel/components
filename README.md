@@ -13,7 +13,7 @@
 >
 > Hypervel 0.4 is not ready for use yet. APIs, behavior, configuration, and package internals may change unexpectedly while the rewrite is still in progress.
 >
-> The published documentation at [hypervel.org/docs](https://hypervel.org/docs) currently covers Hypervel 0.3. If you are experimenting with this branch, use the [in-progress 0.4 documentation](https://github.com/hypervel/components/tree/0.4/src/docs). If you are coming from Laravel, begin with the [porting guide](https://github.com/hypervel/components/blob/0.4/src/docs/porting-from-laravel.md).
+> If you are experimenting with this branch, use the [in-progress 0.4 documentation](https://github.com/hypervel/components/tree/0.4/src/docs). If you are coming from Laravel, begin with the [porting guide](https://github.com/hypervel/components/blob/0.4/src/docs/porting-from-laravel.md).
 >
 > Please do not use this branch for projects until a beta release is tagged. If you are experimenting or testing the rewrite, bug reports and feedback are very welcome.
 
@@ -22,9 +22,9 @@
 > [!NOTE]
 > This repository contains the core components of the Hypervel framework. If you want to create a Hypervel application, visit the [Hypervel application repository](https://github.com/hypervel/hypervel).
 
-Hypervel is a modern, opinionated PHP framework built for Swoole. It runs applications in long-lived workers and uses coroutines to handle many requests, jobs, and connections concurrently.
+Hypervel is a modern, asynchronous PHP framework built for high performance and scalability.
 
-When one coroutine is waiting on a database query, cache lookup, queue operation, file access, or HTTP request, the worker can keep serving other requests and jobs instead of sitting idle. You write ordinary sequential code, and the runtime yields to other work while yours waits.
+Hypervel runs applications in long-lived Swoole workers, using coroutines to handle requests, background jobs, and network operations concurrently. While one coroutine waits for a database query, HTTP response, or other I/O, the worker can continue other work. This concurrency model runs throughout the framework, letting you write familiar sequential PHP while taking advantage of concurrent execution.
 
 Hypervel is built for traditional web applications, APIs, microservices, real-time services, background workers, and other applications that spend meaningful time waiting on external systems.
 
@@ -53,13 +53,29 @@ Moving an existing Laravel application or package to Hypervel is a deliberate po
 
 ## Project Direction
 
-Hypervel will continue to track and port Laravel features where they fit, while building features designed for Hypervel's runtime. The dedicated [rate limiter](https://github.com/hypervel/components/blob/0.4/src/docs/rate-limiting.md), [dual-mode Redis cache tags](https://github.com/hypervel/components/blob/0.4/src/docs/cache.md#redis-tag-modes), [layered cache stores](https://github.com/hypervel/components/blob/0.4/src/docs/cache.md#building-cache-stacks), and [Redis session system with user-session management](https://github.com/hypervel/components/blob/0.4/src/docs/session.md#managing-user-sessions) are examples of that direction.
+Hypervel will continue to track and port Laravel features where they fit, while building features designed for Hypervel's runtime. Examples include:
 
-First-party ClickHouse support and built-in integration with [SonicStack](https://sonicstack.io) are also planned. SonicStack is Hypervel's deployment platform and is how we plan to fund ongoing framework development.
+- [Native WebSocket support](https://github.com/hypervel/components/blob/0.4/src/docs/websockets.md), integrated with Hypervel's routing, middleware, dependency injection, and events.
+- [Reverb powered by Swoole's built-in WebSocket server](https://github.com/hypervel/components/blob/0.4/src/docs/reverb.md), running alongside your application with no separate deployment and scaling across multiple workers.
+- [gRPC client and server support](https://github.com/hypervel/components/blob/0.4/src/docs/grpc.md).
+- [OpenTelemetry integration](https://github.com/hypervel/components/blob/0.4/src/docs/opentelemetry.md) for metrics, traces, and logs.
+- [API integrations and SDKs](https://github.com/hypervel/components/blob/0.4/src/docs/saloon.md), built on Hypervel's HTTP client with coroutine concurrency, caching, rate limiting, and Telescope support.
+- [Typed data objects](https://github.com/hypervel/components/blob/0.4/src/docs/data-objects.md) integrated with request validation, Eloquent, HTTP responses, and contextual dependency injection.
+- [Role and permission management](https://github.com/hypervel/components/blob/0.4/src/docs/permission.md) integrated with Hypervel's authorization system, with explicit allow and deny permissions and tenant partitioning.
+- Authentication caching for [user lookups](https://github.com/hypervel/components/blob/0.4/src/docs/authentication.md#user-lookup-cache), [Sanctum tokens](https://github.com/hypervel/components/blob/0.4/src/docs/sanctum.md#token-caching), and [Passport tokens and clients](https://github.com/hypervel/components/blob/0.4/src/docs/passport.md#token-and-client-caching).
+- A [Redis session system with user-session management](https://github.com/hypervel/components/blob/0.4/src/docs/session.md#managing-user-sessions).
+- A dedicated [rate limiter](https://github.com/hypervel/components/blob/0.4/src/docs/rate-limiting.md).
+- [Layered cache stores](https://github.com/hypervel/components/blob/0.4/src/docs/cache.md#building-cache-stacks).
+- [Dual-mode Redis cache tags](https://github.com/hypervel/components/blob/0.4/src/docs/cache.md#redis-tag-modes).
+- Persistent [database](https://github.com/hypervel/components/blob/0.4/src/docs/database.md#connection-pooling) and [Redis](https://github.com/hypervel/components/blob/0.4/src/docs/redis.md#connection-pooling) connection pools.
+- [Object pooling](https://github.com/hypervel/components/blob/0.4/src/docs/pools.md#object-pools) for reusable SDK clients and other expensive objects.
+- [Aspect-oriented programming (AOP)](https://github.com/hypervel/components/blob/0.4/src/docs/aop.md) for intercepting method calls without modifying the target classes.
+
+Built-in integration with [SonicStack](https://sonicstack.io) is also planned. SonicStack is Hypervel's deployment platform and is how we plan to fund ongoing framework development.
 
 ## Requirements
 
-Hypervel 0.4 requires PHP 8.4 or later and Swoole 6.2.2 or later. Hypervel's Redis integrations use the PhpRedis extension 6.1 or later; Predis is not supported.
+Hypervel 0.4 requires PHP 8.4 or later and the official Swoole extension 6.3.0 or later. Hypervel's Redis integrations use the PhpRedis extension 6.1 or later; Predis is not supported.
 
 See the [installation documentation](https://github.com/hypervel/components/blob/0.4/src/docs/installation.md#requirements) for the complete list of required PHP extensions and setup instructions.
 
@@ -69,7 +85,7 @@ This monorepo contains Hypervel's core framework components and first-party pack
 
 ## Documentation
 
-The complete Hypervel documentation is available at [hypervel.org/docs](https://hypervel.org/docs).
+The in-progress Hypervel 0.4 documentation is available [here](https://github.com/hypervel/components/tree/0.4/src/docs).
 
 Hypervel's documentation follows the structure and style of Laravel's documentation, and portions are adapted from it. Our thanks to the Laravel community.
 

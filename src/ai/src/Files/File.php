@@ -1,0 +1,166 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Ai\Files;
+
+use Closure;
+use Hypervel\Ai\Contracts\Files\HasName;
+use Hypervel\Ai\Contracts\HasProviderOptions;
+use Hypervel\Ai\Enums\Lab;
+use InvalidArgumentException;
+use Laravel\SerializableClosure\SerializableClosure;
+
+abstract class File implements HasName, HasProviderOptions
+{
+    public ?string $name = null;
+
+    public ?string $mime = null;
+
+    /** @var array<string, string>|SerializableClosure */
+    protected array|SerializableClosure $headers = [];
+
+    /** @var array<string, mixed>|SerializableClosure */
+    protected array|SerializableClosure $providerOptions = [];
+
+    /**
+     * Reconstruct a file instance from its array representation.
+     */
+    public static function fromArray(array $data): ?File
+    {
+        $type = $data['type'] ?? null;
+
+        if (! is_string($type)) {
+            return null;
+        }
+
+        $file = match ($type) {
+            'base64-image' => new Base64Image(self::value($data, 'base64', $type), $data['mime'] ?? null),
+            'local-image' => new LocalImage(self::value($data, 'path', $type), $data['mime'] ?? null),
+            'stored-image' => new StoredImage(self::value($data, 'path', $type), $data['disk'] ?? null),
+            'remote-image' => new RemoteImage(self::value($data, 'url', $type), $data['mime'] ?? null),
+            'provider-image' => new ProviderImage(self::value($data, 'id', $type)),
+            'base64-document' => new Base64Document(self::value($data, 'base64', $type), $data['mime'] ?? null),
+            'local-document' => new LocalDocument(self::value($data, 'path', $type), $data['mime'] ?? null),
+            'stored-document' => new StoredDocument(self::value($data, 'path', $type), $data['disk'] ?? null),
+            'remote-document' => new RemoteDocument(self::value($data, 'url', $type), $data['mime'] ?? null),
+            'provider-document' => new ProviderDocument(self::value($data, 'id', $type)),
+            's3-document' => new S3Document(self::value($data, 'url', $type), $data['bucket_owner'] ?? null, $data['mime'] ?? null),
+            'base64-audio' => new Base64Audio(self::value($data, 'base64', $type), $data['mime'] ?? null),
+            'local-audio' => new LocalAudio(self::value($data, 'path', $type), $data['mime'] ?? null),
+            'stored-audio' => new StoredAudio(self::value($data, 'path', $type), $data['disk'] ?? null),
+            'remote-audio' => new RemoteAudio(self::value($data, 'url', $type), $data['mime'] ?? null),
+            'base64-video' => new Base64Video(self::value($data, 'base64', $type), $data['mime'] ?? null),
+            'local-video' => new LocalVideo(self::value($data, 'path', $type), $data['mime'] ?? null),
+            'stored-video' => new StoredVideo(self::value($data, 'path', $type), $data['disk'] ?? null),
+            'remote-video' => new RemoteVideo(self::value($data, 'url', $type), $data['mime'] ?? null),
+            default => null,
+        };
+
+        if ($file !== null && array_key_exists('name', $data)) {
+            $file->as($data['name']);
+        }
+
+        return $file;
+    }
+
+    /**
+     * Get a required value from the file representation.
+     */
+    protected static function value(array $data, string $key, string $type): string
+    {
+        if (! isset($data[$key])) {
+            throw new InvalidArgumentException("Cannot reconstruct [{$type}] attachment because [{$key}] is missing or invalid.");
+        }
+
+        return $data[$key];
+    }
+
+    /**
+     * Get the displayable name of the file.
+     */
+    public function name(): ?string
+    {
+        return $this->name;
+    }
+
+    /**
+     * Set the displayable name of the file.
+     */
+    public function as(?string $name): static
+    {
+        $this->name = $name;
+
+        return $this;
+    }
+
+    /**
+     * Specify HTTP headers for the file upload. Closures may only capture serializable values.
+     *
+     * @param array<string, string>|Closure(Lab|string): ?array<string, string> $headers
+     */
+    public function withHeaders(array|Closure $headers): static
+    {
+        $this->headers = $headers instanceof Closure
+            ? new SerializableClosure($headers)
+            : $headers;
+
+        return $this;
+    }
+
+    /**
+     * Specify provider-specific options for the file upload. Closures may only capture serializable values.
+     *
+     * @param array<string, mixed>|Closure(Lab|string): ?array<string, mixed> $options
+     */
+    public function withProviderOptions(array|Closure $options): static
+    {
+        $this->providerOptions = $options instanceof Closure
+            ? new SerializableClosure($options)
+            : $options;
+
+        return $this;
+    }
+
+    /**
+     * Get the provider-specific options for the file upload.
+     *
+     * @return array<string, mixed>
+     */
+    public function providerOptions(Lab|string $provider): array
+    {
+        return $this->providerOptions instanceof SerializableClosure
+            ? ($this->providerOptions)($provider) ?: []
+            : $this->providerOptions;
+    }
+
+    /**
+     * Get the HTTP headers for the file upload.
+     *
+     * @return array<string, string>
+     */
+    public function headers(Lab|string $provider): array
+    {
+        return $this->headers instanceof SerializableClosure
+            ? ($this->headers)($provider) ?: []
+            : $this->headers;
+    }
+
+    /**
+     * Get the file's MIME type.
+     */
+    public function mimeType(): ?string
+    {
+        return $this->mime;
+    }
+
+    /**
+     * Set the file's MIME type.
+     */
+    public function withMimeType(string $mimeType): static
+    {
+        $this->mime = $mimeType;
+
+        return $this;
+    }
+}

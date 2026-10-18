@@ -18,9 +18,15 @@ use Hypervel\Tests\SlackNotificationChannel\Slack\Fixtures\SlackChannelTestNotif
 
 abstract class TestCase extends BaseTestCase
 {
-    protected SlackChannel $slackChannel;
-
+    /**
+     * The HTTP client factory.
+     */
     protected Factory $http;
+
+    /**
+     * The Slack Web API channel.
+     */
+    protected SlackChannel $slackChannel;
 
     /**
      * Get the package providers.
@@ -64,7 +70,8 @@ abstract class TestCase extends BaseTestCase
             return $request->url() === 'https://slack.com/api/chat.postMessage'
                 && $request->method() === 'POST'
                 && $request->data() === $payload
-                && $request->hasHeader('Authorization', "Bearer {$token}");
+                && $request->hasHeader('Authorization', "Bearer {$token}")
+                && $request->hasHeader('Content-Type', 'application/json');
         });
     }
 }

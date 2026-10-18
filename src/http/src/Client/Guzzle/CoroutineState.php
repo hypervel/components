@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Http\Client\Guzzle;
 
-use GuzzleHttp\Promise\Promise;
+use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\Promise\TaskQueue;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\NonCopyableContext;
 use Hypervel\Coroutine\Coroutine;
+use Throwable;
 
 /**
  * Keep transfers and their cancellation callbacks within their owning coroutine.
@@ -19,8 +20,8 @@ class CoroutineState implements NonCopyableContext
 
     public readonly TaskQueue $queue;
 
-    /** @var array<int, Promise> */
-    protected array $transfers = [];
+    /** @var array<int, PromiseInterface> */
+    protected array $promises = [];
 
     /**
      * Create a queue whose lifetime follows its coroutine rather than the process.
@@ -57,45 +58,49 @@ class CoroutineState implements NonCopyableContext
     }
 
     /**
-     * Retain a pending transfer in its owner's context.
+     * Retain pending transport work in its owner's context until it settles.
      */
-    public function add(Promise $transfer): void
+    public function track(PromiseInterface $promise): void
     {
-        $this->transfers[spl_object_id($transfer)] = $transfer;
+        $identifier = spl_object_id($promise);
+        $this->promises[$identifier] = $promise;
+        $release = function () use ($identifier): void {
+            unset($this->promises[$identifier]);
+        };
+
+        $promise->then($release, $release);
     }
 
     /**
-     * Release a settled transfer.
-     */
-    public function forget(Promise $transfer): void
-    {
-        unset($this->transfers[spl_object_id($transfer)]);
-    }
-
-    /**
-     * Cancel unfinished transfers.
+     * Cancel unfinished transport work.
      */
     public function cancel(): void
     {
-        foreach ($this->transfers as $identifier => $transfer) {
-            unset($this->transfers[$identifier]);
-            $transfer->cancel();
+        foreach ($this->promises as $identifier => $promise) {
+            unset($this->promises[$identifier]);
+            $promise->cancel();
         }
     }
 
     /**
-     * Propagate cancellation before releasing the owner's queue and transfers.
+     * Finish cancellation and queued callbacks before reporting cleanup failures.
      */
     public function finish(): void
     {
-        try {
-            do {
-                $this->cancel();
-                $this->queue->run();
-            } while ($this->transfers !== [] || ! $this->queue->isEmpty());
-        } finally {
-            // Release native transfers if queue processing exits early.
+        $failure = null;
+
+        do {
             $this->cancel();
+
+            try {
+                $this->queue->run();
+            } catch (Throwable $exception) {
+                $failure ??= $exception;
+            }
+        } while ($this->promises !== [] || ! $this->queue->isEmpty());
+
+        if ($failure !== null) {
+            throw $failure;
         }
     }
 }

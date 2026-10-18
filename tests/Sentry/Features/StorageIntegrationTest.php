@@ -4,15 +4,20 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sentry\Features;
 
+use Aws\Credentials\Credentials;
 use DateTimeImmutable;
+use GuzzleHttp\Promise\Create;
+use GuzzleHttp\Promise\PromiseInterface;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\ObjectPool\Factory as PoolFactory;
 use Hypervel\Filesystem\AwsS3V3Adapter;
+use Hypervel\Filesystem\ClientPooledFilesystem;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Filesystem\FilesystemAdapter;
 use Hypervel\Filesystem\FilesystemManager;
 use Hypervel\Filesystem\FilesystemPoolProxy;
 use Hypervel\Filesystem\ScopedFilesystemProxy;
+use Hypervel\ObjectPool\PoolFingerprint;
 use Hypervel\Sentry\Features\Storage\DecoratedFilesystem;
 use Hypervel\Sentry\Features\Storage\Integration;
 use Hypervel\Sentry\Features\Storage\SentryFilesystem;
@@ -21,7 +26,7 @@ use Hypervel\Sentry\Features\Storage\SentryS3V3Adapter;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\Facades\Storage;
 use Hypervel\Testing\ParallelTesting;
-use Hypervel\Tests\Sentry\SentryTestCase;
+use Hypervel\Tests\Sentry\TestCase;
 use InvalidArgumentException;
 use League\Flysystem\Filesystem as Flysystem;
 use League\Flysystem\Local\LocalFilesystemAdapter;
@@ -29,8 +34,9 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionClass;
 use ReflectionMethod;
+use Sentry\Tracing\Span;
 
-class StorageIntegrationTest extends SentryTestCase
+class StorageIntegrationTest extends TestCase
 {
     protected array $defaultSetupConfig = [
         'sentry.traces_sample_rate' => 1.0,
@@ -198,7 +204,7 @@ class StorageIntegrationTest extends SentryTestCase
         $this->assertIsString($disk->mimeType('foo.txt'));
 
         $operations = array_map(
-            static fn ($span): ?string => $span->getOp(),
+            static fn (Span $span): ?string => $span->getOp(),
             $transaction->getSpanRecorder()->getSpans(),
         );
 
@@ -246,7 +252,7 @@ class StorageIntegrationTest extends SentryTestCase
                 'file.directoryExists',
                 'file.directoryExists',
                 'file.exists',
-            ], array_map(static fn ($span): ?string => $span->getOp(), $spans));
+            ], array_map(static fn (Span $span): ?string => $span->getOp(), $spans));
             $this->assertSame(['path' => 'file.txt', 'disk' => 'plain'], $spans[0]->getData());
         } finally {
             $files->deleteDirectory($root);
@@ -347,6 +353,8 @@ class StorageIntegrationTest extends SentryTestCase
                     'serveUsing',
                     'unless',
                     'when',
+                    'withAdapter',
+                    'withDriver',
                 ],
             ],
             'S3 adapter' => [
@@ -385,7 +393,7 @@ class StorageIntegrationTest extends SentryTestCase
         $this->assertContains(
             'file.mimeType',
             array_map(
-                static fn ($span): ?string => $span->getOp(),
+                static fn (Span $span): ?string => $span->getOp(),
                 $transaction->getSpanRecorder()->getSpans(),
             ),
         );
@@ -410,7 +418,7 @@ class StorageIntegrationTest extends SentryTestCase
         fclose($stream);
 
         $operations = array_map(
-            static fn ($span): ?string => $span->getOp(),
+            static fn (Span $span): ?string => $span->getOp(),
             $transaction->getSpanRecorder()->getSpans(),
         );
 
@@ -485,6 +493,35 @@ class StorageIntegrationTest extends SentryTestCase
         $manager->purge('pooled');
 
         $this->assertFalse($pools->has($pooled->getPoolName()));
+    }
+
+    public function testDecoratedCloudDisksKeepTheirPoolSettings(): void
+    {
+        $this->resetApplicationWithConfig([
+            'filesystems.disks' => Integration::configureDisks([
+                's3' => [
+                    'driver' => 's3',
+                    'region' => 'us-east-1',
+                    'bucket' => 'bucket',
+                    // A credential provider cannot define pool identity, so the disk declares its fingerprint
+                    'credentials' => static fn (): PromiseInterface => Create::promiseFor(new Credentials('key', 'secret')),
+                    'pool' => [
+                        'name' => 'decorated-s3',
+                        'fingerprint' => 'decorated-s3-credentials',
+                        'max_objects' => 3,
+                    ],
+                ],
+            ]),
+        ]);
+
+        $disk = Storage::disk('s3');
+
+        $this->assertInstanceOf(DecoratedFilesystem::class, $disk);
+        $pooled = $disk->getFilesystem();
+        $this->assertInstanceOf(ClientPooledFilesystem::class, $pooled);
+        $this->assertSame(FilesystemManager::class . ':named:decorated-s3', $pooled->getDefinition()->identity);
+        $this->assertSame(PoolFingerprint::fromExplicit('decorated-s3-credentials'), $pooled->getDefinition()->fingerprint);
+        $this->assertSame(3, $pooled->getDefinition()->options->maxObjects);
     }
 
     public function testCreatesBreadcrumbsFor(): void
@@ -662,8 +699,10 @@ class StorageIntegrationTest extends SentryTestCase
         $this->assertFalse(Storage::disk('local')->exists('missing'));
     }
 
-    public function testAnonymousDiskRequiresStoredLogicalName(): void
+    public function testThrowsIfDiskConfigurationDoesntSpecifyDiskName(): void
     {
+        // Named disks receive their name from the filesystem manager, so only a disk built
+        // from configuration alone still needs the `sentry_disk_name` key.
         $this->expectExceptionMessageIs('Missing `sentry_disk_name` config key for `sentry` filesystem driver.');
 
         Storage::build([

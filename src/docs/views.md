@@ -15,6 +15,7 @@
     - [View Creators](#view-creators)
 - [Testing Views](#testing-views)
 - [Optimizing Views](#optimizing-views)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -47,7 +48,7 @@ Route::get('/', function () {
 <a name="writing-views-in-react-svelte-or-vue"></a>
 ### Writing Views in React / Svelte / Vue
 
-Instead of writing their frontend templates in PHP via Blade, many developers have begun to prefer to write their templates using React, Svelte, or Vue. Hypervel makes this painless thanks to [Inertia](https://inertiajs.com/), a library that makes it a cinch to tie your React / Svelte / Vue frontend to your Hypervel backend without the typical complexities of building an SPA.
+Instead of writing their frontend templates in PHP via Blade, many developers have begun to prefer to write their templates using React, Svelte, or Vue. Hypervel makes this painless thanks to [Inertia](/docs/{{version}}/inertia), a library that makes it a cinch to tie your React / Svelte / Vue frontend to your Hypervel backend without the typical complexities of building an SPA.
 
 Our [React application starter kit](/docs/{{version}}/starter-kits) gives you a great starting point for your next Hypervel application powered by Inertia.
 
@@ -374,3 +375,8 @@ php artisan view:clear
 ```
 
 When editing views while application workers are running, you should run this command so the workers compile the updated views the next time they are rendered.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel View began as a port of [Laravel View](https://github.com/illuminate/view) and has been adapted for Hypervel's framework architecture and coroutine runtime.

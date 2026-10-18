@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Http;
 use Closure;
 use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Promise\Create;
+use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\Psr7\Response as Psr7Response;
 use GuzzleHttp\TransferStats;
 use Hypervel\Events\Dispatcher;
@@ -24,8 +25,14 @@ use Hypervel\Tests\Http\Fixtures\FakeDestinationPolicy;
 use Hypervel\Tests\Http\Fixtures\LoopbackHttpServer;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
+use Psr\Http\Message\RequestInterface;
 use ReflectionProperty;
+use Swoole\Coroutine;
+use Swoole\Coroutine\Http\Server;
 use Swoole\Coroutine\Socket;
+use Swoole\Http\Request as ServerRequest;
+use Swoole\Http\Response as ServerResponse;
 use Throwable;
 
 class HttpClientDestinationPolicyTest extends TestCase
@@ -144,6 +151,118 @@ class HttpClientDestinationPolicyTest extends TestCase
         return [[false], [true]];
     }
 
+    #[TestWith([false, false, false])]
+    #[TestWith([false, true, false])]
+    #[TestWith([true, false, false])]
+    #[TestWith([true, true, false])]
+    #[TestWith([false, false, true])]
+    public function testProxyRequestsCannotReuseAConnectionToAPreviouslyApprovedAddress(bool $named, bool $async, bool $stream): void
+    {
+        $first = new Server('127.0.0.1', 0, false, false);
+        $second = new Server('127.0.0.2', $first->port, false, false);
+        $factory = $this->factory()->registerConnection('api');
+
+        $first->handle('/', static function (ServerRequest $request, ServerResponse $response): void {
+            $response->end('first');
+        });
+        $second->handle('/', static function (ServerRequest $request, ServerResponse $response): void {
+            $response->end('second');
+        });
+        Coroutine::create(fn (): bool => $first->start());
+        Coroutine::create(fn (): bool => $second->start());
+
+        try {
+            $bodies = [];
+
+            foreach (['127.0.0.1', '127.0.0.2'] as $address) {
+                $policy = new FakeDestinationPolicy(
+                    ['proxy.invalid' => [$address]],
+                    allowedNetworks: ['127.0.0.0/8'],
+                    proxy: "http://proxy.invalid:{$first->port}",
+                );
+                $request = $named ? $factory->connection('api') : $factory->createPendingRequest();
+                $response = $request->withDestinationPolicy($policy)->async($async)
+                    ->withOptions(['stream' => $stream, 'version' => '1.1'])
+                    ->timeout(2)->get('http://target.invalid/');
+                $bodies[] = ($async ? $response->wait() : $response)->body();
+            }
+
+            $this->assertSame(['first', 'second'], $bodies);
+        } finally {
+            $factory->forgetConnectionHandlers();
+            $first->shutdown();
+            $second->shutdown();
+        }
+    }
+
+    #[DataProvider('sendModes')]
+    public function testLiteralProxyRequestsReuseTheProxyConnection(bool $async): void
+    {
+        $proxy = new Server('127.0.0.1', 0, false, false);
+        $factory = $this->factory();
+
+        $proxy->handle('/', static function (ServerRequest $request, ServerResponse $response): void {
+            $response->end((string) $request->server['remote_port']);
+        });
+        Coroutine::create(fn (): bool => $proxy->start());
+
+        try {
+            $policy = new FakeDestinationPolicy(allowedNetworks: ['127.0.0.0/8'], proxy: "http://127.0.0.1:{$proxy->port}");
+            $ports = [];
+
+            for ($attempt = 0; $attempt < 2; ++$attempt) {
+                $response = $factory->withDestinationPolicy($policy)->async($async)
+                    ->withOptions(['version' => '1.1'])
+                    ->timeout(2)->get('http://target.invalid/');
+                $ports[] = ($async ? $response->wait() : $response)->body();
+            }
+
+            $this->assertCount(1, array_unique($ports));
+        } finally {
+            $factory->forgetConnectionHandlers();
+            $proxy->shutdown();
+        }
+    }
+
+    #[DataProvider('nonRoutingProxyEnvironments')]
+    public function testNoProxyEnvironmentDoesNotRejectADirectRequest(string $httpsProxy): void
+    {
+        $environment = [
+            'HTTP_PROXY' => '',
+            'HTTPS_PROXY' => $httpsProxy,
+            'NO_PROXY' => 'destination.invalid',
+        ];
+        $original = array_intersect_key($_SERVER, $environment);
+        $_SERVER = array_replace($_SERVER, $environment);
+
+        try {
+            $server = LoopbackHttpServer::start();
+            $response = $this->factory()
+                ->withDestinationPolicy($this->loopbackPolicy('destination.invalid'))
+                ->get("http://destination.invalid:{$server->port}/probe");
+
+            $this->assertSame('OK', $response->body());
+            $this->assertStringStartsWith('GET /probe HTTP/1.1', $server->request());
+        } finally {
+            foreach ($environment as $key => $value) {
+                unset($_SERVER[$key]);
+            }
+
+            $_SERVER = array_replace($_SERVER, $original);
+        }
+    }
+
+    /**
+     * Provide environment defaults that configure no proxy for an HTTP request.
+     */
+    public static function nonRoutingProxyEnvironments(): array
+    {
+        return [
+            'bypass only' => [''],
+            'proxy for a different scheme' => ['http://proxy.invalid:8080'],
+        ];
+    }
+
     /**
      * @param Closure(PendingRequest): PendingRequest $configure
      */
@@ -181,7 +300,7 @@ class HttpClientDestinationPolicyTest extends TestCase
         ];
         yield 'caller proxy' => [
             static fn (PendingRequest $request): PendingRequest => $request->withOptions(['proxy' => 'http://proxy.example:8080']),
-            'Destination-restricted requests cannot set the [proxy] option; select proxies in the destination policy.',
+            'Destination-restricted requests cannot use a proxy configured for this scheme; select proxies in the destination policy.',
         ];
         yield 'raw cURL options' => [
             static fn (PendingRequest $request): PendingRequest => $request->withOptions(['curl' => [CURLOPT_TCP_KEEPALIVE => 1]]),
@@ -202,6 +321,96 @@ class HttpClientDestinationPolicyTest extends TestCase
             ->withDestinationPolicy($policy)
             ->timeout(0.5)
             ->get("http://destination.invalid:{$server->port}/");
+    }
+
+    public function testPreSendResolutionAppliesPinsAndDeductsFromEffectiveTimeouts(): void
+    {
+        $policy = new FakeDestinationPolicy(['destination.invalid' => ['93.184.216.34']]);
+        $request = $this->factory()->globalOptions(['timeout' => 5])
+            ->connectTimeout(2);
+
+        $destination = $request->resolveDestination($policy, 'https://destination.invalid./token');
+        $options = $request->getOptions();
+
+        $this->assertSame([2.0], $policy->timeouts);
+        $this->assertSame('https://destination.invalid/token', (string) $destination->uri);
+        $this->assertSame([CURLOPT_RESOLVE => ['destination.invalid:443:93.184.216.34']], $options['curl']);
+        $this->assertGreaterThan(0, $options['connect_timeout']);
+        $this->assertLessThan(2, $options['connect_timeout']);
+        $this->assertLessThan(5, $options['timeout']);
+        $this->assertEqualsWithDelta(3, $options['timeout'] - $options['connect_timeout'], 0.000001);
+    }
+
+    public function testPreSendResolutionUsesThePolicySelectedProxy(): void
+    {
+        $proxy = LoopbackHttpServer::start();
+        $proxyUrl = "http://proxy.invalid:{$proxy->port}";
+        $policy = new FakeDestinationPolicy(
+            ['proxy.invalid' => ['127.0.0.1']],
+            allowedNetworks: ['127.0.0.1'],
+            proxy: $proxyUrl,
+        );
+        $request = $this->factory()->globalOptions(['proxy' => 'http://other-proxy.invalid:8080'])
+            ->withoutRedirecting();
+
+        $destination = $request->resolveDestination($policy, 'http://target.invalid/probe');
+
+        $this->assertSame($proxyUrl, $request->getOptions()['proxy']);
+        $this->assertSame([
+            CURLOPT_RESOLVE => ["proxy.invalid:{$proxy->port}:127.0.0.1"],
+        ], $request->getOptions()['curl']);
+
+        $this->assertSame('OK', $request->get((string) $destination->uri)->body());
+        $this->assertStringStartsWith('GET http://target.invalid/probe HTTP/1.1', (string) $proxy->request());
+        $this->assertSame(['proxy.invalid'], $policy->resolvedHosts);
+    }
+
+    #[TestWith([false, false, 'resolution'])]
+    #[TestWith([true, false, 'resolution'])]
+    #[TestWith([false, false, 'options'])]
+    #[TestWith([true, false, 'options'])]
+    #[TestWith([false, true, 'options'])]
+    #[TestWith([true, true, 'options'])]
+    #[TestWith([false, false, 'middleware'])]
+    public function testRequestPinsDoNotAffectLaterRequests(bool $named, bool $async, string $source): void
+    {
+        $server = LoopbackHttpServer::start([[], []]);
+        $factory = $this->factory()->registerConnection('api');
+        $request = $named ? $factory->connection('api') : $factory->createPendingRequest();
+        $url = "http://destination.invalid:{$server->port}/pinned";
+        $pins = [CURLOPT_RESOLVE => ["destination.invalid:{$server->port}:127.0.0.1"]];
+
+        if ($source === 'resolution') {
+            $destination = $request->withoutRedirecting()->resolveDestination(
+                $this->loopbackPolicy('destination.invalid'),
+                $url,
+            );
+            $url = (string) $destination->uri;
+        } elseif ($source === 'middleware') {
+            $request->withMiddleware(static fn (callable $handler): Closure => static function (RequestInterface $request, array $options) use ($handler, $pins): PromiseInterface {
+                $options['curl'] = $pins;
+
+                return $handler($request, $options);
+            });
+        } else {
+            $request->withOptions(['curl' => $pins]);
+        }
+
+        $response = $request->async($async)->get($url);
+        $this->assertSame('OK', ($async ? $response->wait() : $response)->body());
+
+        $later = ($named ? $factory->connection('api') : $factory->createPendingRequest())
+            ->async($async)->timeout(2);
+
+        if ($async) {
+            $this->assertInstanceOf(ConnectionException::class, $later->get("http://destination.invalid:{$server->port}/unpinned")->wait());
+
+            return;
+        }
+
+        $this->expectException(ConnectionException::class);
+
+        $later->get("http://destination.invalid:{$server->port}/unpinned");
     }
 
     public function testBoundsResolutionByTheSmallestPositiveLimit(): void

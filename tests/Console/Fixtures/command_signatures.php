@@ -1327,7 +1327,17 @@ return [
                 'default' => false,
                 'description' => 'Overwrite any existing API routes file',
             ],
-            // REMOVED: Passport installation coverage belongs to the unported package tracked in docs/todo.md.
+            [
+                'name' => 'passport',
+                'shortcut' => null,
+                'negatable' => false,
+                'valueRequired' => false,
+                'valueOptional' => false,
+                'isArray' => false,
+                'acceptValue' => false,
+                'default' => false,
+                'description' => 'Install Hypervel Passport instead of Hypervel Sanctum',
+            ],
             [
                 'name' => 'without-migration-prompt',
                 'shortcut' => null,

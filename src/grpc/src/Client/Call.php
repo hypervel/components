@@ -6,6 +6,7 @@ namespace Hypervel\Grpc\Client;
 
 use Closure;
 use Google\Protobuf\Internal\Message;
+use Hypervel\Database\ConnectionResolver;
 use Hypervel\Engine\Channel;
 use Hypervel\Grpc\Compression;
 use Hypervel\Grpc\Exceptions\ProtocolException;
@@ -646,6 +647,8 @@ abstract class Call
                 // The channel lets logical call cancellation wake this wait. Sleep cannot
                 // be interrupted without cancelling the coroutine that owns the retry.
                 $retryDelayChannel = $this->retryDelayChannel ??= new Channel(1);
+
+                ConnectionResolver::releaseIdleConnections();
 
                 if (! $retryDelayChannel->pop($delay) && $retryDelayChannel->isCanceled()) {
                     throw new CanceledException('Waiting to retry the gRPC call was canceled.');

@@ -89,6 +89,9 @@
     - [API Resources](/docs/{{version}}/eloquent-resources)
     - [Serialization](/docs/{{version}}/eloquent-serialization)
     - [Factories](/docs/{{version}}/eloquent-factories)
+- ## AI
+    - [AI SDK](/docs/{{version}}/ai-sdk)
+    - [MCP](/docs/{{version}}/mcp)
 - ## Testing
     - [Getting Started](/docs/{{version}}/testing)
     - [HTTP Tests](/docs/{{version}}/http-tests)
@@ -100,8 +103,10 @@
     - [Fortify](/docs/{{version}}/fortify)
     - [gRPC](/docs/{{version}}/grpc)
     - [Horizon](/docs/{{version}}/horizon)
+    - [Inertia](/docs/{{version}}/inertia)
     - [Nested Set](/docs/{{version}}/nested-set)
     - [OpenTelemetry](/docs/{{version}}/opentelemetry)
+    - [Passport](/docs/{{version}}/passport)
     - [Precognition](/docs/{{version}}/precognition)
     - [Prompts](/docs/{{version}}/prompts)
     - [Reverb](/docs/{{version}}/reverb)

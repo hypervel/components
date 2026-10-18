@@ -221,6 +221,7 @@ class Deserializer
 
         if ($nullable
             && count($branches) === 1
+            && ! array_key_exists('anyOf', $branches[0][0])
             && ! $this->hasBranchOnlyEnumExcludingNull($schema, $branches[0][0])) {
             return null;
         }

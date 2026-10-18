@@ -35,6 +35,7 @@
     - [Skipping CORS Handling](#skipping-cors-handling)
     - [Dynamic CORS Configuration](#dynamic-cors-configuration)
 - [Route Caching](#route-caching)
+- [Credits](#credits)
 
 <a name="basic-routing"></a>
 ## Basic Routing
@@ -112,9 +113,6 @@ Route::query($uri, $callback);
 ```
 
 The `query` method registers a route for HTTP `QUERY` requests. Like `GET`, a `QUERY` request only reads data, but it sends its query in the request body, which suits searches that are too large or complex to fit in a URL.
-
-> [!WARNING]
-> Swoole 6.2.2 rejects HTTP `QUERY` requests sent over HTTP/1.1 with a `400` response before they reach your application. Sending `QUERY` requests requires HTTP/2 on the connection to Hypervel, including the connection from any reverse proxy.
 
 Sometimes you may need to register a route that responds to multiple HTTP verbs. You may do so using the `match` method. Or, you may even register a route that responds to all HTTP verbs using the `any` method:
 
@@ -1208,3 +1206,8 @@ You may use the `route:clear` command to clear the route cache:
 ```shell
 php artisan route:clear
 ```
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Routing began as a port of [Laravel Routing](https://github.com/illuminate/routing) and has been adapted for Hypervel's framework architecture and coroutine runtime.

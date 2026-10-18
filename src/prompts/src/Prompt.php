@@ -10,7 +10,9 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Prompts\Exceptions\FormRevertedException;
 use Hypervel\Prompts\Output\ConsoleOutput;
 use Hypervel\Prompts\Support\Result;
+use Hypervel\Prompts\Support\Utils;
 use RuntimeException;
+use Symfony\Component\Console\Formatter\OutputFormatter;
 use Symfony\Component\Console\Output\OutputInterface;
 use Throwable;
 
@@ -173,7 +175,7 @@ abstract class Prompt
                 static::terminal()->setTty('-icanon -isig -echo');
             } catch (Throwable $e) {
                 try {
-                    static::output()->writeln("<comment>{$e->getMessage()}</comment>");
+                    static::output()->writeln('<comment>' . OutputFormatter::escape($e->getMessage()) . '</comment>');
                 } catch (Throwable) {
                     throw $e;
                 }
@@ -418,7 +420,7 @@ abstract class Prompt
         }
 
         if ($this->state === 'initial') {
-            static::output()->write($frame);
+            $this->writeFrame($frame);
 
             $this->state = 'active';
             $this->prevFrame = $frame;
@@ -433,9 +435,28 @@ abstract class Prompt
         $this->moveCursorToColumn(1);
         $this->moveCursorUp(min($terminalHeight, $previousFrameHeight) - 1);
         $this->eraseDown();
-        $this->output()->write(implode(PHP_EOL, $renderableLines));
+        $this->writeFrame(implode(PHP_EOL, $renderableLines));
 
         $this->prevFrame = $frame;
+    }
+
+    /**
+     * Write a rendered frame using the output's decoration setting.
+     */
+    protected function writeFrame(string $frame): void
+    {
+        $output = static::output();
+
+        if ($output->isDecorated()) {
+            $output->write($frame);
+
+            return;
+        }
+
+        // Formatting restores escaped backslashes that may terminate control sequences.
+        $frame = Utils::stripTerminalControls($output->getFormatter()->format($frame));
+
+        $output->write($frame, false, OutputInterface::OUTPUT_RAW);
     }
 
     /**

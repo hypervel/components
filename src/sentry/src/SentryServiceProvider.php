@@ -8,28 +8,30 @@ use ArrayObject;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Console\Events\ScheduledTaskStarting;
 use Hypervel\Context\CoroutineContext;
-use Hypervel\Contracts\Container\BindingResolutionException;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Http\Kernel as HttpKernelInterface;
 use Hypervel\Contracts\View\Engine;
 use Hypervel\Contracts\View\View;
+use Hypervel\Core\Events\BeforeWorkerStart;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Di\Bootstrap\GenerateProxies;
 use Hypervel\Foundation\Console\AboutCommand;
 use Hypervel\Http\Request;
 use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Routing\Contracts\CallableDispatcher;
 use Hypervel\Routing\Contracts\ControllerDispatcher;
-use Hypervel\Sentry\Aspects\GuzzleHttpClientAspect;
 use Hypervel\Sentry\Console\AboutCommandIntegration;
 use Hypervel\Sentry\Console\PublishCommand;
 use Hypervel\Sentry\Console\TestCommand;
+use Hypervel\Sentry\Features\Ai\AiTracingScope;
 use Hypervel\Sentry\Features\Feature;
 use Hypervel\Sentry\Http\FlushEventsMiddleware;
 use Hypervel\Sentry\Http\HypervelRequestFetcher;
 use Hypervel\Sentry\Http\SetRequestIpMiddleware;
-use Hypervel\Sentry\Integration\ContextIntegration;
 use Hypervel\Sentry\Integration\ExceptionContextIntegration;
+use Hypervel\Sentry\Integration\HypervelContextIntegration;
 use Hypervel\Sentry\State\CoroutineRuntimeContextStorage;
 use Hypervel\Sentry\State\RuntimeContextBoundary;
 use Hypervel\Sentry\Tracing\BacktraceHelper;
@@ -40,6 +42,7 @@ use Hypervel\Sentry\Tracing\Routing\TracingControllerDispatcherTracing;
 use Hypervel\Sentry\Tracing\ViewEngineDecorator;
 use Hypervel\Sentry\Transport\HttpPoolTransport;
 use Hypervel\Sentry\Transport\HttpTransportPool;
+use Hypervel\ServerProcess\Events\BeforeProcessHandle;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\View\Engines\EngineResolver;
 use Hypervel\View\Factory as ViewFactory;
@@ -51,9 +54,11 @@ use LogicException;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Sentry\ClientBuilder;
+use Sentry\DataCollection\DataCollectionPolicy;
 use Sentry\Integration as SdkIntegration;
 use Sentry\Integration\IntegrationInterface;
 use Sentry\Logger\DebugFileLogger;
+use Sentry\Options;
 use Sentry\SentrySdk;
 use Sentry\Serializer\RepresentationSerializer;
 use Sentry\State\HubInterface;
@@ -64,10 +69,10 @@ use Throwable;
 class SentryServiceProvider extends ServiceProvider
 {
     /**
-     * Configuration options that are Hypervel-specific and should not be sent to the base PHP SDK.
+     * List of configuration options that are Hypervel specific and should not be sent to the base PHP SDK.
      */
     protected const array HYPERVEL_SPECIFIC_OPTIONS = [
-        // These settings are Hypervel-specific and the PHP SDK will throw errors if it receives them
+        // We do not want these settings to hit the PHP SDK because they are Hypervel specific and the PHP SDK will throw errors
         'tracing',
         'breadcrumbs',
         'features',
@@ -79,7 +84,7 @@ class SentryServiceProvider extends ServiceProvider
     ];
 
     /**
-     * Options that should be resolved from the container instead of being passed directly to the SDK.
+     * List of options that should be resolved from the container instead of being passed directly to the SDK.
      */
     protected const array OPTIONS_TO_RESOLVE_FROM_CONTAINER = [
         'logger',
@@ -95,10 +100,34 @@ class SentryServiceProvider extends ServiceProvider
     public static string $abstract = 'sentry';
 
     /**
+     * Indicates if this process is a server process that may still fork workers and processes.
+     */
+    protected bool $serverMayFork = false;
+
+    /**
+     * The client options whose connection sharing is suspended until a forked worker or process starts.
+     *
+     * @var list<Options>
+     */
+    protected array $optionsAwaitingFork = [];
+
+    /**
      * Boot the service provider.
      */
     public function boot(): void
     {
+        if ($this->serverMayFork) {
+            $this->app->make('events')->listen([BeforeWorkerStart::class, BeforeProcessHandle::class], function (): void {
+                $this->serverMayFork = false;
+
+                foreach ($this->optionsAwaitingFork as $options) {
+                    $options->setEnableShareHandle(true);
+                }
+
+                $this->optionsAwaitingFork = [];
+            });
+        }
+
         $active = $this->isActive();
         $runtimeContextStorage = $active
             ? $this->app->make(CoroutineRuntimeContextStorage::class)
@@ -153,12 +182,12 @@ class SentryServiceProvider extends ServiceProvider
         $configRoot = static::$abstract;
         $this->app->singleton(
             SentryConfig::class,
-            fn () => new SentryConfig($this->app->make(ConfigRepository::class), $configRoot),
+            fn (): SentryConfig => new SentryConfig($this->app->make(ConfigRepository::class), $configRoot),
         );
 
         $this->mergeConfigFrom(__DIR__ . '/../config/sentry.php', static::$abstract);
 
-        $this->app->singleton(DebugFileLogger::class, function () {
+        $this->app->singleton(DebugFileLogger::class, function (): DebugFileLogger {
             return new DebugFileLogger(storage_path('logs/sentry.log'));
         });
 
@@ -167,10 +196,6 @@ class SentryServiceProvider extends ServiceProvider
         $this->registerFeatures();
 
         $this->registerLogChannels();
-
-        if ($this->isActive()) {
-            $this->aspects(GuzzleHttpClientAspect::class);
-        }
     }
 
     /**
@@ -181,7 +206,7 @@ class SentryServiceProvider extends ServiceProvider
         $configRoot = static::$abstract;
 
         // ClientBuilder — fresh per resolution so each Hub gets a properly configured builder
-        $this->app->bind(ClientBuilder::class, function () use ($configRoot) {
+        $this->app->bind(ClientBuilder::class, function () use ($configRoot): ClientBuilder {
             $basePath = base_path();
             $userConfig = $this->getUserConfig();
 
@@ -200,7 +225,7 @@ class SentryServiceProvider extends ServiceProvider
                 $userConfig
             );
 
-            // Default to the application environment when not explicitly configured
+            // When we get no environment from the (user) configuration we default to the Hypervel environment
             if (empty($options['environment'])) {
                 $options['environment'] = $this->app->environment();
             }
@@ -213,24 +238,46 @@ class SentryServiceProvider extends ServiceProvider
 
             $clientBuilder = ClientBuilder::create($options);
 
-            $clientBuilder->setSdkIdentifier(Version::getSdkIdentifier());
+            $this->classifyProxyFiles($clientBuilder->getOptions());
+
+            // Set the Hypervel SDK identifier and version
+            $clientBuilder->setSdkIdentifier(Version::SDK_IDENTIFIER);
             $clientBuilder->setSdkVersion(Version::getSdkVersion());
 
-            // Set the pooled transport for async sending via Swoole coroutines
-            $poolConfig = $this->app->make('config')->array("{$configRoot}.pool");
-            $transport = new HttpPoolTransport(
-                new HttpTransportPool(
-                    $clientBuilder->getOptions(),
-                    $this->sentryPoolOptions($poolConfig),
-                )
-            );
-            $clientBuilder->setTransport($transport);
+            // Make the pooled transport the default transport option for async sending via Swoole coroutines,
+            // so a transport configured in the options or set on the builder takes precedence as in the SDK
+            $sentryOptions = $clientBuilder->getOptions();
+
+            if ($sentryOptions->getTransport() === null) {
+                $poolConfig = $this->app->make('config')->array("{$configRoot}.pool");
+
+                $sentryOptions->setTransport(new HttpPoolTransport(
+                    new HttpTransportPool($clientBuilder, $this->sentryPoolOptions($poolConfig)),
+                    $sentryOptions,
+                ));
+            }
 
             return $clientBuilder;
         });
 
+        // The server process boots the application, then forks every worker and process. Connections it
+        // kept in the SDK's cURL share handle would be reused by all of them at once, so it sends without
+        // sharing until a forked process restores the setting. This runs after extenders, which may choose it.
+        $this->serverMayFork = ! $this->app->runningInConsole();
+
+        if ($this->serverMayFork) {
+            $this->app->afterResolving(ClientBuilder::class, function (ClientBuilder $clientBuilder): void {
+                $options = $clientBuilder->getOptions();
+
+                if ($this->serverMayFork && $options->isShareHandleEnabled()) {
+                    $options->setEnableShareHandle(false);
+                    $this->optionsAwaitingFork[] = $options;
+                }
+            });
+        }
+
         // HubInterface singleton — coroutine-scoped hub with full integration setup
-        $this->app->singleton(HubInterface::class, function () {
+        $this->app->singleton(HubInterface::class, function (): Hub {
             /** @var ClientBuilder $clientBuilder */
             $clientBuilder = $this->app->make(ClientBuilder::class);
 
@@ -247,8 +294,9 @@ class SentryServiceProvider extends ServiceProvider
 
             $options->setIntegrations(static function (array $integrations) use ($options, $userIntegrations, $userIntegrationOption): array {
                 if ($options->hasDefaultIntegrations()) {
-                    // Remove the default error and fatal exception listeners to let the framework handle those
-                    // through the exception handler and log channel integration
+                    // Remove the default error and fatal exception listeners to let Hypervel handle those
+                    // itself. These events still bubble up through the documented changes in the user's
+                    // `ExceptionHandler` of their application or through the log channel integration to Sentry
                     $integrations = array_filter($integrations, static function (IntegrationInterface $integration): bool {
                         if ($integration instanceof SdkIntegration\ErrorListenerIntegration) {
                             return false;
@@ -262,8 +310,9 @@ class SentryServiceProvider extends ServiceProvider
                             return false;
                         }
 
-                        // Remove the default request integration so it can be re-added with
-                        // a Hypervel-specific request fetcher that reads from coroutine context.
+                        // We also remove the default request integration so it can be re-added
+                        // after with a Hypervel specific request fetcher. This way we can resolve
+                        // the request from Hypervel instead of constructing it from the global state
                         if ($integration instanceof SdkIntegration\RequestIntegration) {
                             return false;
                         }
@@ -280,7 +329,7 @@ class SentryServiceProvider extends ServiceProvider
                     $integrations,
                     [
                         new Integration,
-                        new ContextIntegration,
+                        new HypervelContextIntegration,
                         new ExceptionContextIntegration,
                     ],
                     $userIntegrations
@@ -293,6 +342,9 @@ class SentryServiceProvider extends ServiceProvider
                 return $integrations;
             });
 
+            // Exception handler configuration through withExceptions(..) might run before the real Sentry hub
+            // is instantiated. By copying the scope here we can preserve data that was set on the Scope before
+            // this function was executed.
             $hub = new Hub($clientBuilder->getClient(), $this->cloneCurrentHubScope());
 
             SentrySdk::setCurrentHub($hub);
@@ -302,7 +354,7 @@ class SentryServiceProvider extends ServiceProvider
 
         $this->app->alias(HubInterface::class, static::$abstract);
 
-        $this->app->singleton(BacktraceHelper::class, function () {
+        $this->app->singleton(BacktraceHelper::class, function (): BacktraceHelper {
             $sentry = $this->app->make(HubInterface::class);
 
             $options = $sentry->getClient()->getOptions();
@@ -329,6 +381,67 @@ class SentryServiceProvider extends ServiceProvider
         });
 
         return $clonedScope;
+    }
+
+    /**
+     * Classify generated AOP proxy files like the source files they replace.
+     *
+     * Proxies are generated under the bootstrap cache path, so a proxied vendor class would
+     * otherwise count as application code in stack traces and span origins. An explicit include
+     * that covers a proxy still wins, because the SDK applies includes over excludes.
+     */
+    private function classifyProxyFiles(Options $options): void
+    {
+        $excludedPaths = $options->getInAppExcludedPaths();
+        $includedPaths = $options->getInAppIncludedPaths();
+        $proxyExclusions = $proxyInclusions = [];
+
+        foreach (GenerateProxies::proxySources() as $proxyFile => $sourceFile) {
+            $sourceIsInApp = $this->isInAppFile($sourceFile, $excludedPaths, $includedPaths);
+
+            if ($sourceIsInApp === $this->isInAppFile($proxyFile, $excludedPaths, $includedPaths)) {
+                continue;
+            }
+
+            if ($sourceIsInApp) {
+                $proxyInclusions[] = $proxyFile;
+            } else {
+                $proxyExclusions[] = $proxyFile;
+            }
+        }
+
+        if ($proxyExclusions !== []) {
+            $options->setInAppExcludedPaths([...$excludedPaths, ...$proxyExclusions]);
+        }
+
+        if ($proxyInclusions !== []) {
+            $options->setInAppIncludedPaths([...$includedPaths, ...$proxyInclusions]);
+        }
+    }
+
+    /**
+     * Determine if the SDK treats the given canonical file path as application code.
+     *
+     * Mirrors the path rules of the SDK's FrameBuilder::isFrameInApp().
+     *
+     * @param string[] $excludedPaths
+     * @param string[] $includedPaths
+     */
+    private function isInAppFile(string $file, array $excludedPaths, array $includedPaths): bool
+    {
+        foreach ($includedPaths as $includedPath) {
+            if (str_starts_with($file, $includedPath)) {
+                return true;
+            }
+        }
+
+        foreach ($excludedPaths as $excludedPath) {
+            if (str_starts_with($file, $excludedPath)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -362,17 +475,13 @@ class SentryServiceProvider extends ServiceProvider
 
         $handler = new EventHandler($this->app, $userConfig);
 
-        try {
-            /** @var Dispatcher $dispatcher */
-            $dispatcher = $this->app->make('events');
+        /** @var Dispatcher $dispatcher */
+        $dispatcher = $this->app->make('events');
 
-            $handler->subscribe($dispatcher);
+        $handler->subscribe($dispatcher);
 
-            if ($userConfig['send_default_pii'] === true) {
-                $handler->subscribeAuthEvents($dispatcher);
-            }
-        } catch (BindingResolutionException) {
-            // If we cannot resolve the event dispatcher we also cannot listen to events
+        if (DataCollectionPolicy::fromHub($this->app->make(HubInterface::class))->shouldCollectUserInfo()) {
+            $handler->subscribeAuthEvents($dispatcher);
         }
     }
 
@@ -381,24 +490,20 @@ class SentryServiceProvider extends ServiceProvider
      */
     protected function registerRuntimeContextBoundaries(): void
     {
-        try {
-            /** @var Dispatcher $dispatcher */
-            $dispatcher = $this->app->make('events');
-            $listener = function (): void {
-                $this->app->make(RuntimeContextBoundary::class)->start();
-            };
+        /** @var Dispatcher $dispatcher */
+        $dispatcher = $this->app->make('events');
+        $listener = function (): void {
+            $this->app->make(RuntimeContextBoundary::class)->start();
+        };
 
-            foreach ([
-                JobProcessing::class,
-                ScheduledTaskStarting::class,
-                ConnectionOpening::class,
-                MessageReceived::class,
-                ConnectionClosing::class,
-            ] as $event) {
-                $dispatcher->listen($event, $listener);
-            }
-        } catch (BindingResolutionException) {
-            // If we cannot resolve the event dispatcher we also cannot listen to events
+        foreach ([
+            JobProcessing::class,
+            ScheduledTaskStarting::class,
+            ConnectionOpening::class,
+            MessageReceived::class,
+            ConnectionClosing::class,
+        ] as $event) {
+            $dispatcher->listen($event, $listener);
         }
     }
 
@@ -417,7 +522,7 @@ class SentryServiceProvider extends ServiceProvider
         $httpKernel->prependMiddleware(TracingMiddleware::class);
         $httpKernel->prependMiddleware(FlushEventsMiddleware::class);
 
-        if (SentrySdk::getCurrentHub()->getClient()?->getOptions()->shouldSendDefaultPii() === true) {
+        if (DataCollectionPolicy::fromHub(SentrySdk::getCurrentHub())->shouldCollectUserInfo()) {
             $httpKernel->pushMiddleware(SetRequestIpMiddleware::class);
         }
     }
@@ -433,7 +538,7 @@ class SentryServiceProvider extends ServiceProvider
         // Per-request state ($transaction, $appSpan, $didRouteMatch) is isolated between concurrent requests.
         $this->app->scoped(
             TracingMiddleware::class,
-            static fn () => new TracingMiddleware(
+            static fn (): TracingMiddleware => new TracingMiddleware(
                 $tracingConfig['continue_after_response'] === true,
                 $tracingConfig['missing_routes'] === true,
             ),
@@ -442,10 +547,6 @@ class SentryServiceProvider extends ServiceProvider
         if (SentrySdk::getCurrentHub()->getClient()?->getOptions()->isTracingEnabled() !== true) {
             return;
         }
-
-        $this->app->booted(function () {
-            TracingMiddleware::setBootedTimestamp();
-        });
 
         $this->bindTracingEvents($tracingConfig);
         $this->bindViewEngine($tracingConfig);
@@ -459,14 +560,10 @@ class SentryServiceProvider extends ServiceProvider
     {
         $handler = new TracingEventHandler($tracingConfig);
 
-        try {
-            /** @var Dispatcher $dispatcher */
-            $dispatcher = $this->app->make('events');
+        /** @var Dispatcher $dispatcher */
+        $dispatcher = $this->app->make('events');
 
-            $handler->subscribe($dispatcher);
-        } catch (BindingResolutionException) {
-            // If we cannot resolve the event dispatcher we also cannot listen to events
-        }
+        $handler->subscribe($dispatcher);
     }
 
     /**
@@ -494,20 +591,16 @@ class SentryServiceProvider extends ServiceProvider
 
         $viewEngineWrapper = function (EngineResolver $engineResolver): void {
             foreach (['file', 'php', 'blade'] as $engineName) {
-                try {
-                    $realEngine = $engineResolver->resolve($engineName);
+                $realEngine = $engineResolver->resolve($engineName);
 
-                    // Prevent double wrapping — causes issues in framework internals
-                    if ($realEngine instanceof ViewEngineDecorator) {
-                        continue;
-                    }
-
-                    $engineResolver->register($engineName, function () use ($realEngine) {
-                        return $this->wrapViewEngine($realEngine);
-                    });
-                } catch (InvalidArgumentException) {
-                    // Engine doesn't exist, skip it
+                // Prevent double wrapping, which would record every view render twice
+                if ($realEngine instanceof ViewEngineDecorator) {
+                    continue;
                 }
+
+                $engineResolver->register($engineName, function () use ($realEngine): Engine {
+                    return $this->wrapViewEngine($realEngine);
+                });
             }
         };
 
@@ -531,11 +624,11 @@ class SentryServiceProvider extends ServiceProvider
      */
     private function decorateRoutingDispatchers(): void
     {
-        $this->app->extend(CallableDispatcher::class, static function (CallableDispatcher $dispatcher) {
+        $this->app->extend(CallableDispatcher::class, static function (CallableDispatcher $dispatcher): TracingCallableDispatcherTracing {
             return new TracingCallableDispatcherTracing($dispatcher);
         });
 
-        $this->app->extend(ControllerDispatcher::class, static function (ControllerDispatcher $dispatcher) {
+        $this->app->extend(ControllerDispatcher::class, static function (ControllerDispatcher $dispatcher): TracingControllerDispatcherTracing {
             return new TracingControllerDispatcherTracing($dispatcher);
         });
     }
@@ -543,7 +636,7 @@ class SentryServiceProvider extends ServiceProvider
     /**
      * Register the coroutine context propagation hook.
      *
-     * Copy isolated Sentry scope and request values into child coroutines.
+     * Copy the Sentry scope stack into child coroutines and pass them the request for Sentry.
      */
     protected function registerCoroutineContextPropagation(
         CoroutineRuntimeContextStorage $runtimeContextStorage,
@@ -576,13 +669,27 @@ class SentryServiceProvider extends ServiceProvider
                 );
             }
 
-            /** @var ?Request $request */
-            $request = $context[Request::class]
-                ?? $parentContext[Request::class]
-                ?? null;
+            /** @var ?AiTracingScope $parentAiScope */
+            $parentAiScope = $parentContext[AiTracingScope::CONTEXT_KEY] ?? null;
 
-            if ($request !== null) {
-                $context[Request::class] = clone $request;
+            if ($parentAiScope !== null) {
+                $context[AiTracingScope::CONTEXT_KEY] = new AiTracingScope(
+                    $parentAiScope->state,
+                    $parentAiScope->conversation,
+                );
+            }
+
+            // Events in the child still carry the request, without Sentry changing the
+            // application request context the child sees.
+            if (! isset($context[HypervelRequestFetcher::REQUEST_CONTEXT_KEY])) {
+                /** @var ?Request $request */
+                $request = $parentContext[Request::class]
+                    ?? $parentContext[HypervelRequestFetcher::REQUEST_CONTEXT_KEY]
+                    ?? null;
+
+                if ($request !== null) {
+                    $context[HypervelRequestFetcher::REQUEST_CONTEXT_KEY] = $request;
+                }
             }
 
             if ($runtimeContextStorage->inheritFrom($context, $parentContext)) {
@@ -607,6 +714,7 @@ class SentryServiceProvider extends ServiceProvider
 
                 $featureInstance->register();
             } catch (Throwable $exception) {
+                // Ensure that features do not break the whole application
                 $this->reportFeatureFailure($feature, 'register', $exception);
             }
         }
@@ -628,6 +736,7 @@ class SentryServiceProvider extends ServiceProvider
                     ? $featureInstance->boot()
                     : $featureInstance->bootInactive();
             } catch (Throwable $exception) {
+                // Ensure that features do not break the whole application
                 $this->reportFeatureFailure(
                     $feature,
                     $active ? 'boot' : 'bootInactive',
@@ -657,23 +766,24 @@ class SentryServiceProvider extends ServiceProvider
      */
     protected function registerLogChannels(): void
     {
-        $config = $this->app->make(ConfigRepository::class);
         $configRoot = static::$abstract;
 
-        $logChannels = $config->array('logging.channels');
+        $this->configureUsing(static function (Repository $config) use ($configRoot): void {
+            $logChannels = $config->array('logging.channels');
 
-        if (! array_key_exists('sentry', $logChannels)) {
-            $config->set('logging.channels.sentry', [
-                'driver' => 'sentry',
-            ]);
-        }
+            if (! array_key_exists('sentry', $logChannels)) {
+                $config->set('logging.channels.sentry', [
+                    'driver' => 'sentry',
+                ]);
+            }
 
-        if (! array_key_exists('sentry_logs', $logChannels)) {
-            $config->set('logging.channels.sentry_logs', [
-                'driver' => 'sentry_logs',
-                'level' => $config->string("{$configRoot}.logs_channel_level"),
-            ]);
-        }
+            if (! array_key_exists('sentry_logs', $logChannels)) {
+                $config->set('logging.channels.sentry_logs', [
+                    'driver' => 'sentry_logs',
+                    'level' => $config->string("{$configRoot}.logs_channel_level"),
+                ]);
+            }
+        });
     }
 
     /**
@@ -692,8 +802,8 @@ class SentryServiceProvider extends ServiceProvider
     protected function registerCommands(): void
     {
         $this->commands([
-            PublishCommand::class,
             TestCommand::class,
+            PublishCommand::class,
         ]);
     }
 

@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Contracts\Filesystem\Cloud;
 use Hypervel\Contracts\ObjectPool\Factory;
 use Hypervel\Contracts\ObjectPool\InvalidatesPool;
+use Hypervel\Database\ConnectionResolver;
 use Hypervel\Filesystem\Concerns\InteractsWithPooledFilesystem;
 use Hypervel\ObjectPool\Lease;
 use Hypervel\ObjectPool\PoolDefinition;
@@ -64,6 +65,8 @@ class ClientPooledFilesystem implements Cloud, InvalidatesPool
      */
     protected function invoke(string $method, array $parameters): mixed
     {
+        $this->releaseIdleConnectionsFor($method);
+
         return $this->withStack(
             fn (FilesystemAdapter $stack): mixed => $stack->{$method}(...$parameters),
         );
@@ -147,13 +150,15 @@ class ClientPooledFilesystem implements Cloud, InvalidatesPool
     }
 
     /**
-     * Open a stream that owns its client lease until closure.
+     * Open a stream that retains its client lease while needed.
      *
      * @param Closure(FilesystemAdapter): mixed $operation
      * @return null|resource
      */
     protected function leasedStream(Closure $operation): mixed
     {
+        ConnectionResolver::releaseIdleConnections();
+
         [$lease, $stack] = $this->leaseStack();
 
         try {
@@ -162,13 +167,7 @@ class ClientPooledFilesystem implements Cloud, InvalidatesPool
             $lease->releaseAfterFailure($operationException);
         }
 
-        if (! is_resource($stream)) {
-            $lease->release();
-
-            return $stream;
-        }
-
-        return LeasedStream::wrap($stream, $lease);
+        return $this->releaseOrWrapStream($stream, $lease);
     }
 
     /**
@@ -176,6 +175,8 @@ class ClientPooledFilesystem implements Cloud, InvalidatesPool
      */
     protected function withBorrowedAccessor(string $accessor, Closure $callback): mixed
     {
+        ConnectionResolver::releaseIdleConnections();
+
         return $this->withBorrowed(
             fn (FilesystemAdapter $stack, object $client): mixed => $callback(
                 $accessor === 'getClient' ? $client : $stack->{$accessor}(),
