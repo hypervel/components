@@ -588,7 +588,9 @@ Listen for `Hypervel\Passport\Events\ClientMetadataValidated` to validate additi
 
 This event is dispatched by `ClientMetadataValidator`, including Passport's registration endpoint. MCP's specialized public-client registration does not use that validator or dispatch this event; choose the native endpoint when you need these extensions.
 
-Reject metadata by throwing `InvalidClientMetadataException::invalidClientMetadata($description)` or `invalidRedirectUri($description)`. The registration endpoint renders these as protocol errors. Application management code may use `ClientMetadataValidator::validate($metadata, $client)` to validate a complete metadata document and run the same extension listeners. This method returns protocol metadata; the application remains responsible for authorization and persistence, including mapping `client_name` to `name` and `scope` to the model's `scopes` array. Direct model writes bypass metadata validation.
+For additional browser callback fields, call the validator's `validateRedirectUri($uri, $applicationType)` method to reuse Passport's HTTPS and native-application URI rules. It validates the address without fetching it.
+
+Reject metadata by throwing `InvalidClientMetadataException::invalidClientMetadata($description)` or `invalidRedirectUri($description)`. The registration endpoint renders these as protocol errors. Application management code may use `ClientMetadataValidator::validate($metadata, $client)` to validate a complete metadata document and run the same extension listeners. This is a replacement document, not a partial update: omitted nullable key fields return `null` so removed keys and authentication algorithms are cleared when persisted. Extensions should likewise return defaults for all their fields, including null for removed optional metadata. Registration responses omit null effective values. The application remains responsible for authorization and persistence, including mapping `client_name` to `name` and `scope` to the model's `scopes` array. Direct model writes bypass metadata validation.
 
 <a name="pushed-authorization-requests"></a>
 ## Pushed Authorization Requests
