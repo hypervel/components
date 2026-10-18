@@ -14,6 +14,7 @@ use Hypervel\Passport\Exceptions\InvalidClientMetadataException;
 use Hypervel\Passport\Http\HttpsDestinationPolicy;
 use Hypervel\Validation\Rule;
 use InvalidArgumentException;
+use JsonException;
 use LogicException;
 use UnexpectedValueException;
 
@@ -205,7 +206,7 @@ class ClientMetadataValidator
             if (isset($metadata['jwks_uri'])) {
                 $this->destinations->validate($metadata['jwks_uri']);
             }
-        } catch (DomainException|InvalidArgumentException|UnexpectedValueException|HttpClientException $exception) {
+        } catch (DomainException|InvalidArgumentException|UnexpectedValueException|HttpClientException|JsonException $exception) {
             throw InvalidClientMetadataException::invalidClientMetadata($exception->getMessage());
         }
 

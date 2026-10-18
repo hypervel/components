@@ -58,8 +58,19 @@ class ClientRegistrationController
                 }
 
                 $client = $this->createClient($metadata, $scopes, $token, $request);
-                $result = [
-                    ...$metadata,
+                $result = [];
+
+                // Return registered values after model normalization, without exposing unrelated attributes.
+                foreach (array_keys($metadata) as $name) {
+                    $result[$name] = match ($name) {
+                        'client_name' => $client->name,
+                        'scope' => implode(' ', $client->scopes),
+                        'response_types' => in_array('authorization_code', $client->grant_types, true) ? ['code'] : [],
+                        default => $client->getAttribute($name),
+                    };
+                }
+
+                $result += [
                     'client_id' => $client->getKey(),
                     // Issuance does not depend on custom client models retaining Eloquent timestamps.
                     'client_id_issued_at' => Date::now()->getTimestamp(),
@@ -107,7 +118,7 @@ class ClientRegistrationController
         }
 
         // Wildcard scopes and browser cookies are not provisioning credentials.
-        if (! in_array('passport:register', $token->oauth_scopes, true)) {
+        if (! in_array(Passport::REGISTRATION_SCOPE, $token->oauth_scopes, true)) {
             throw $this->bearerChallenge($request, 'insufficient_scope');
         }
 
@@ -127,7 +138,7 @@ class ClientRegistrationController
             [
                 'Cache-Control' => 'no-store',
                 'Pragma' => 'no-cache',
-                'WWW-Authenticate' => $this->challenges->header($request, $error, $insufficientScope ? ['passport:register'] : []),
+                'WWW-Authenticate' => $this->challenges->header($request, $error, $insufficientScope ? [Passport::REGISTRATION_SCOPE] : []),
             ],
         ), $previous);
     }

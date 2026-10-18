@@ -136,6 +136,22 @@ class ClientRegistrationTest extends PassportTestCase
         $this->assertDatabaseCount('oauth_clients', 0);
     }
 
+    public function testInlineKeyMetadataWithAnOverflowingJsonNumberIsRejected(): void
+    {
+        config(['passport.issuer' => 'https://issuer.example']);
+        $key = ParsedKey::fromPublicKey((new SigningKeyFactory)->definition()['public_key'])->getJwk();
+        $metadata = json_encode([
+            'redirect_uris' => ['https://client.example/callback'],
+            'token_endpoint_auth_method' => 'private_key_jwt',
+            'jwks' => ['keys' => [$key]],
+        ], JSON_THROW_ON_ERROR);
+        $metadata = str_replace('"keys":', '"extension":1e999,"keys":', $metadata);
+
+        $this->call('POST', '/oauth/register', server: ['CONTENT_TYPE' => 'application/json'], content: $metadata)
+            ->assertBadRequest()->assertJsonPath('error', 'invalid_client_metadata');
+        $this->assertDatabaseCount('oauth_clients', 0);
+    }
+
     #[TestWith(['grant_types', ['client_credentials']])]
     #[TestWith(['grant_types', ['urn:ietf:params:oauth:grant-type:device_code']])]
     #[TestWith(['scope', 'write'])]
@@ -281,6 +297,10 @@ class ClientRegistrationTest extends PassportTestCase
     public function testExtensionsArePersistedAndReturnedAndMayRejectMetadata(): void
     {
         Schema::table('oauth_clients', static fn (Blueprint $table) => $table->string('display_color')->nullable());
+        Client::creating(static function (Client $client): void {
+            $client->name = 'Normalized client';
+            $client->display_color = 'BLUE';
+        });
         Event::listen(ClientMetadataValidated::class, static function (ClientMetadataValidated $event): void {
             if (($event->submitted['display_color'] ?? null) !== 'blue') {
                 throw InvalidClientMetadataException::invalidClientMetadata('The display color must be blue.');
@@ -292,8 +312,8 @@ class ClientRegistrationTest extends PassportTestCase
         try {
             $response = $this->postJson('/oauth/register', [
                 'redirect_uris' => ['https://client.example/callback'], 'display_color' => 'blue',
-            ])->assertCreated()->assertJsonPath('display_color', 'blue');
-            $this->assertDatabaseHas('oauth_clients', ['id' => $response->json('client_id'), 'display_color' => 'blue']);
+            ])->assertCreated()->assertJsonPath('display_color', 'BLUE')->assertJsonPath('client_name', 'Normalized client');
+            $this->assertDatabaseHas('oauth_clients', ['id' => $response->json('client_id'), 'display_color' => 'BLUE', 'name' => 'Normalized client']);
             $this->postJson('/oauth/register', [
                 'redirect_uris' => ['https://client.example/callback'], 'display_color' => 'red',
             ])->assertBadRequest()->assertJsonPath('error', 'invalid_client_metadata');
