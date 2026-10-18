@@ -46,6 +46,7 @@ abstract class CoroutineQueue extends SyncQueue
     public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
         $queue = $this->normalizeQueue($queue);
+        $payload = $this->createPayload($job, $queue, $data);
 
         if ($this->shouldDispatchAfterCommit($job)
             && $this->container->has('db.transactions')
@@ -56,16 +57,16 @@ abstract class CoroutineQueue extends SyncQueue
             $this->deferEnqueueAfterCommit(
                 $transactions,
                 $job,
-                static function (Queue $owner) use ($delay, $job, $data, $queue): int {
+                static function (Queue $owner) use ($delay, $job, $payload, $queue): int {
                     /** @var CoroutineQueue $owner */
-                    return $owner->scheduleJob($delay, $job, $data, $queue);
+                    return $owner->scheduleJob($delay, $job, $payload, $queue);
                 },
             );
 
             return null;
         }
 
-        return $this->scheduleJob($delay, $job, $data, $queue);
+        return $this->scheduleJob($delay, $job, $payload, $queue);
     }
 
     /**
@@ -82,15 +83,14 @@ abstract class CoroutineQueue extends SyncQueue
     }
 
     /**
-     * Create and schedule a delayed job.
+     * Schedule a delayed job with its dispatch-time payload.
      */
     protected function scheduleJob(
         DateInterval|DateTimeInterface|int $delay,
         object|string $job,
-        mixed $data,
+        string $payload,
         ?string $queue,
     ): int {
-        $payload = $this->createPayload($job, $queue, $data);
         $snapshot = is_object($job) ? DispatchLockContext::snapshot($job) : null;
         $timerId = $this->scheduleTimer($delay, $payload, $queue, $snapshot);
 

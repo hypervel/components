@@ -32,6 +32,7 @@ use Hypervel\Queue\Jobs\SyncJob;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Throwable;
 
@@ -312,7 +313,9 @@ class QueueBackgroundQueueTest extends TestCase
         $this->assertNull($background->bulk([new BackgroundQueueBulkDelayJob]));
     }
 
-    public function testLaterSnapshotsMutableJobBeforeTheTimerRuns(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testLaterSnapshotsMutableJobBeforeTheTimerRuns(bool $afterCommit): void
     {
         $scheduled = null;
         $timer = m::mock(Timer::class);
@@ -327,20 +330,33 @@ class QueueBackgroundQueueTest extends TestCase
 
         BackgroundQueueSnapshotHandler::$receivedValue = null;
         $data = (object) ['value' => 'before'];
-        $background = new BackgroundQueue(timer: $timer);
+        $background = new BackgroundQueue(dispatchAfterCommit: $afterCommit, timer: $timer);
         $background->setConnectionName('background');
-        $background->setContainer($this->getContainer());
+        $container = $this->getContainer();
+        $transactions = new DatabaseTransactionsManager;
+        $container->instance('db.transactions', $transactions);
+        $background->setContainer($container);
 
-        run(function () use ($background, $data, &$scheduled): void {
+        run(function () use ($background, $data, &$scheduled, $transactions, $afterCommit): void {
+            if ($afterCommit) {
+                $transactions->begin('background-test', 1);
+            }
+
             $background->later(5, BackgroundQueueSnapshotHandler::class, $data);
             $data->value = 'after';
+
+            if ($afterCommit) {
+                $this->assertNull($scheduled);
+                $transactions->commit('background-test', 1, 0);
+            }
+
             $scheduled();
         });
 
         $this->assertSame('before', BackgroundQueueSnapshotHandler::$receivedValue);
     }
 
-    public function testPushSnapshotsAfterCommitJobWhenTheTransactionCommits(): void
+    public function testPushSnapshotsAfterCommitJobAtDispatch(): void
     {
         $afterCommit = null;
         $container = $this->getContainer();
@@ -367,7 +383,7 @@ class QueueBackgroundQueueTest extends TestCase
             $data->value = 'after';
         });
 
-        $this->assertSame('at-commit', BackgroundQueueSnapshotHandler::$receivedValue);
+        $this->assertSame('before', BackgroundQueueSnapshotHandler::$receivedValue);
     }
 
     public function testLaterWithDateInterval(): void
