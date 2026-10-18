@@ -13,6 +13,7 @@ use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Engine\Channel;
 use Hypervel\Foundation\Bus\Dispatchable;
 use Hypervel\Foundation\Queue\Queueable;
@@ -24,6 +25,7 @@ use Hypervel\Queue\Queue;
 use Hypervel\Queue\SyncQueue;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 
 class ContextQueueTest extends TestCase
@@ -385,6 +387,31 @@ class ContextQueueTest extends TestCase
 
         $this->assertSame('e2e-test-123', ContextQueueTestJob::$receivedTraceId);
         $this->assertSame('e2e-secret', ContextQueueTestJob::$receivedSecret);
+    }
+
+    #[TestWith([true])]
+    #[TestWith([false])]
+    public function testAfterCommitSyncJobCapturesDispatchContextAndWaitsForCommit(bool $commit): void
+    {
+        ContextQueueTestJob::$receivedTraceId = null;
+        ContextQueueTestJob::$receivedSecret = null;
+        $transactions = new DatabaseTransactionsManager;
+        $this->app->instance('db.transactions', $transactions);
+        $transactions->begin('context-test', 1);
+        $context = Repository::getInstance()->add('trace_id', 'dispatch-context')->addHidden('secret', 'dispatch-secret');
+
+        $this->createSyncQueue()->push((new ContextQueueTestJob)->afterCommit());
+        $context->add('trace_id', 'commit-context')->addHidden('secret', 'commit-secret');
+        $this->assertNull(ContextQueueTestJob::$receivedTraceId);
+
+        if ($commit) {
+            $transactions->commit('context-test', 1, 0);
+        } else {
+            $transactions->rollback('context-test', 0);
+        }
+
+        $this->assertSame($commit ? 'dispatch-context' : null, ContextQueueTestJob::$receivedTraceId);
+        $this->assertSame($commit ? 'dispatch-secret' : null, ContextQueueTestJob::$receivedSecret);
     }
 
     public function testBackgroundJobPayloadCapturesParentLogContextBeforeSpawning(): void
