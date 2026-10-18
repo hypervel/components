@@ -14,6 +14,7 @@ use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Database\DatabaseTransactionRecord;
 use Hypervel\Database\DatabaseTransactionsManager;
+use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Queue\Events\QueueFailedOver;
 use Hypervel\Support\Collection;
 use RuntimeException;
@@ -294,6 +295,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
             return false;
         }
 
+        $context = ContextRepository::hasInstance() ? ContextRepository::getInstance()->replicate() : null;
         $pendingConnections = array_fill_keys($connections, true);
         $settled = false;
         $releaseLocks = $this->createJobRollbackCallback($job);
@@ -315,7 +317,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
 
         foreach ($connections as $connection) {
             $transactions->addCallback(
-                function () use (&$pendingConnections, &$settled, $connection, $method, $arguments, $job): void {
+                function () use (&$pendingConnections, &$settled, $connection, $method, $arguments, $job, $context): void {
                     if ($settled) {
                         return;
                     }
@@ -332,9 +334,19 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
                         DispatchLockContext::claim($job);
                     }
 
+                    // Child payload hooks run after commit but must see the dispatch-time log context.
+                    $previousContext = CoroutineContext::get(ContextRepository::CONTEXT_KEY);
+                    $context === null
+                        ? CoroutineContext::forget(ContextRepository::CONTEXT_KEY)
+                        : CoroutineContext::set(ContextRepository::CONTEXT_KEY, $context);
+
                     try {
                         $this->attemptOnAllConnections($method, $arguments, $job);
                     } finally {
+                        $previousContext === null
+                            ? CoroutineContext::forget(ContextRepository::CONTEXT_KEY)
+                            : CoroutineContext::set(ContextRepository::CONTEXT_KEY, $previousContext);
+
                         if (is_object($job)) {
                             DispatchLockContext::release($job);
                         }
