@@ -703,7 +703,7 @@ Passport remembers approval independently of issued tokens. A user does not need
 Passport::rememberConsentFor(now()->addDays(30));
 ```
 
-Reusing an approval does not extend its duration. To let users approve only some permissions, submit a `scopes` array containing their selected scope identifiers. Extensions may also provide named permission sets through the `permissions` view parameter; submit the selected values under the same names. Values not present in the original presentation are rejected. Omitting either field approves its entire presented set; send an empty array or an empty form value to approve none of that set. A `remember` value of `false` grants access without remembering the approval for the next authorization.
+Reusing an approval does not extend its duration. To let users approve only some permissions, submit a `scopes` array containing their selected scope identifiers. Extensions may also provide named permission sets through the `permissions` view parameter; submit the selected values under the same names. Values not present in the original presentation are rejected. Omitting either field approves its entire presented set; send an empty array or an empty form value to approve none of that set. A `remember` value of `false` grants access without remembering the approval for the next authorization. The latest remember choice applies to the user's approval for that client, including previously remembered permissions.
 
 When using checkboxes, place an empty hidden input before them so unchecking every scope submits an explicit empty selection:
 
