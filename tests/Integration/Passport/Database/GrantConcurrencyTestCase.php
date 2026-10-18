@@ -11,7 +11,9 @@ use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Engine\Channel;
 use Hypervel\Foundation\Testing\DatabaseTruncation;
+use Hypervel\Http\Request;
 use Hypervel\Passport\AuthCode;
+use Hypervel\Passport\AuthorizationFinalizer;
 use Hypervel\Passport\Bridge\TokenIssuance;
 use Hypervel\Passport\Bridge\User;
 use Hypervel\Passport\Client;
@@ -20,6 +22,7 @@ use Hypervel\Passport\ConsentRepository;
 use Hypervel\Passport\Database\Factories\ClientFactory;
 use Hypervel\Passport\Database\Factories\SigningKeyFactory;
 use Hypervel\Passport\DeviceCode;
+use Hypervel\Passport\Enums\AuthorizationApproval;
 use Hypervel\Passport\PassportServiceProvider;
 use Hypervel\Passport\PushedAuthorizationRequest;
 use Hypervel\Passport\PushedAuthorizationRequestRepository;
@@ -31,6 +34,7 @@ use Hypervel\Passport\Token;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\Attributes\ResetRefreshDatabaseState;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Passport\Fixtures\User as AuthenticatableUser;
 use League\OAuth2\Server\Exception\OAuthServerException;
 use Nyholm\Psr7\Response;
 use Nyholm\Psr7\ServerRequest;
@@ -289,6 +293,76 @@ abstract class GrantConcurrencyTestCase extends TestCase
         $this->assertNotSame($consent->id, $id);
         $this->assertSame($id, Consent::sole()->id);
         $this->assertSame(['read'], Consent::sole()->scopes);
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testRememberedApprovalSerializesWithConsentRevocation(bool $revokeFirst): void
+    {
+        $client = ClientFactory::new()->create();
+        $consent = Consent::factory()->create(['client_id' => $client->id, 'user_id' => 1]);
+        $this->assertTrue($consent->covers([], []));
+        $server = $this->app->make(ServerFactory::class)->authorizationServer();
+        $authorization = $server->validateAuthorizationRequest(
+            (new ServerRequest('GET', 'https://example.test/oauth/authorize'))->withQueryParams([
+                'client_id' => $client->id, 'response_type' => 'code', 'redirect_uri' => $client->redirect_uris[0],
+            ]),
+        );
+        $authorization->setUser(new User('1'));
+        $authorization->setAuthorizationApproved(true);
+        $ready = new Channel(1);
+        $started = new Channel(1);
+        $pause = function () use ($ready, $started): void {
+            $ready->push(true);
+            $this->assertTrue($started->pop(5));
+            usleep(10000);
+        };
+
+        if ($revokeFirst) {
+            Consent::deleted($pause);
+        } else {
+            AuthCode::created($pause);
+        }
+
+        [$response] = parallel([
+            function () use ($revokeFirst, $ready, $started, $authorization, $server) {
+                if ($revokeFirst) {
+                    $this->assertTrue($ready->pop(5));
+                    $started->push(true);
+                }
+
+                return $this->app->make(AuthorizationFinalizer::class)->approve(
+                    Request::create('/oauth/authorize'),
+                    $authorization,
+                    [
+                        'scopes' => [], 'permissions' => [], 'remember_consent_for' => null,
+                        'provider' => 'users', 'guard' => 'web', 'attributes' => [],
+                        'parameters' => [], 'grant_type' => 'authorization_code',
+                    ],
+                    (new AuthenticatableUser)->forceFill(['id' => 1]),
+                    AuthorizationApproval::Remembered,
+                    fn () => $server->completeAuthorizationRequest($authorization, new Response),
+                );
+            },
+            function () use ($consent, $revokeFirst, $ready, $started): void {
+                if (! $revokeFirst) {
+                    $this->assertTrue($ready->pop(5));
+                    $started->push(true);
+                }
+
+                $consent->revoke();
+            },
+        ]);
+
+        if ($revokeFirst) {
+            $this->assertNull($response);
+            $this->assertSame(0, AuthCode::count());
+        } else {
+            $this->assertSame(302, $response->getStatusCode());
+            $this->assertTrue(AuthCode::sole()->revoked);
+        }
+
+        $this->assertSame(0, Consent::count());
     }
 
     #[TestWith(['authorization_code'])]
