@@ -80,10 +80,12 @@ class ClientRegistrationTest extends PassportTestCase
         Client::creating(static function (Client $client) use ($timestamps): void {
             $client->timestamps = $timestamps;
         });
+        $key = ParsedKey::fromPublicKey((new SigningKeyFactory)->definition()['public_key'])->getJwk();
         $response = $this->postJson('/oauth/register', [
             'client_name' => 'Calendar', 'redirect_uris' => ['https://client.example/callback'], 'scope' => 'read',
             'owner_id' => 123, 'provider' => 'staff', 'secret' => 'injected', 'unknown' => 'ignored',
             'third_party' => false,
+            'jwks' => ['keys' => [$key]],
             'require_pushed_authorization_requests' => true,
         ])->assertCreated()->assertHeader('Cache-Control', 'no-store, private')
             ->assertJsonPath('token_endpoint_auth_method', 'client_secret_basic')
@@ -101,6 +103,7 @@ class ClientRegistrationTest extends PassportTestCase
         $this->assertSame(['read'], $client->scopes);
         $this->assertNull($client->owner_id);
         $this->assertNull($client->provider);
+        $this->assertNull($client->jwks);
         $this->assertTrue($client->third_party);
         $this->assertTrue($client->require_pushed_authorization_requests);
         $this->assertFalse($client->firstParty());
@@ -123,10 +126,11 @@ class ClientRegistrationTest extends PassportTestCase
         }
 
         $response = $this->postJson('/oauth/register', $metadata)->assertCreated()
+            ->assertJsonPath('scope', 'read')
             ->assertJsonMissingPath('client_secret')->assertJsonMissingPath('client_secret_expires_at');
         $client = Client::findOrFail($response->json('client_id'));
         $this->assertNull($client->secret);
-        $this->assertSame([], $client->scopes);
+        $this->assertSame(['read'], $client->scopes);
         $this->assertSame($method === 'private_key_jwt', $client->confidential());
     }
 
@@ -163,7 +167,11 @@ class ClientRegistrationTest extends PassportTestCase
         $authenticate('remote')->assertOk();
         $authenticate('inline')->assertUnauthorized()->assertJsonPath('error', 'invalid_client');
 
-        $update(['token_endpoint_auth_method' => 'client_secret_post']);
+        $update([
+            'token_endpoint_auth_method' => 'client_secret_post',
+            'jwks_uri' => 'https://keys.example/jwks',
+            'token_endpoint_auth_signing_alg' => 'RS256',
+        ]);
         $this->assertNull($client->jwks);
         $this->assertNull($client->jwks_uri);
         $this->assertNull($client->token_endpoint_auth_signing_alg);
