@@ -218,7 +218,9 @@ class DeviceAuthorizationGrantTest extends PassportTestCase
             ->assertRedirectToRoute('passport.device');
     }
 
-    public function testVerificationUrl(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testVerificationUrl(bool $lowercase): void
     {
         $client = ClientFactory::new()->asDeviceCodeClient()->create();
 
@@ -242,7 +244,7 @@ class DeviceAuthorizationGrantTest extends PassportTestCase
             ->assertRedirect('/oauth/device/authorize?user_code=' . $userCode)
             ->assertRedirectToRoute('passport.device.authorizations.authorize', ['user_code' => $userCode]);
 
-        $this->get('/oauth/device/authorize?user_code=' . Str::substrReplace($userCode, '-', 4, 0))
+        $this->get('/oauth/device/authorize?user_code=' . Str::substrReplace($lowercase ? strtolower($userCode) : $userCode, '-', 4, 0))
             ->assertOk()
             ->assertSessionHas('passport.authorizations')
             ->assertSessionHasNoErrors();

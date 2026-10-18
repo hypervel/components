@@ -49,7 +49,7 @@ class DeviceAuthorizationController
         }
 
         $deviceCode = $this->deviceCodes->getDeviceCodeEntityByUserCode(
-            str_replace('-', '', $userCode)
+            strtoupper(str_replace('-', '', $userCode))
         );
 
         $client = $deviceCode ? $this->clients->findActive($deviceCode->getClient()->getIdentifier()) : null;
