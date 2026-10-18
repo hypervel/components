@@ -814,6 +814,8 @@ Custom cache tag sets must declare `TagSet::reset(): bool` and `TagSet::flush():
 
 Custom guards used with `auth.session` must provide `hashPasswordForCookie()`; Hypervel does not fall back to raw password hashes when the method is missing. Guards extending `SessionGuard` already support it. See [session authentication](/docs/{{version}}/authentication#invalidating-sessions-on-other-devices).
 
+Password confirmation is guard-scoped. Replace direct writes to Laravel's `auth.password_confirmed_at` session key with `$request->session()->passwordConfirmed($guard)`, which records the correct key and dispatches the confirmation event. Middleware tests may seed `Hypervel\Auth\PasswordConfirmation::sessionKey($guard)`; tests that exercise confirmation listeners should call `passwordConfirmed`.
+
 Hypervel's persistent application session drivers are `file`, `cookie`, `database`, and `redis`. The non-persistent `array` and `null` drivers are available for testing. Redis sessions are stored directly in Redis and may select a named Redis connection using `SESSION_CONNECTION`.
 
 Laravel's Memcached, APC / APCu, DynamoDB, and generic cache-backed session configurations do not port. Hypervel does not provide Laravel's cache session handler or `SESSION_STORE` setting. Select one of Hypervel's session drivers and review its requirements in the [session documentation](/docs/{{version}}/session).
