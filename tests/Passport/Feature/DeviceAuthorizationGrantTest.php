@@ -58,16 +58,16 @@ class DeviceAuthorizationGrantTest extends PassportTestCase
         $this->assertSame('http://localhost/oauth/device?user_code=' . $json['user_code'], $json['verification_uri_complete']);
     }
 
-    #[TestWith([null, 'invalid_request', 400])]
-    #[TestWith(['wrong-secret', 'invalid_client', 401])]
-    public function testConfidentialDeviceInitiationRequiresValidCredentials(?string $secret, string $error, int $status): void
+    #[TestWith([null])]
+    #[TestWith(['wrong-secret'])]
+    public function testConfidentialDeviceInitiationRequiresValidCredentials(?string $secret): void
     {
         $client = ClientFactory::new()->asDeviceCodeClient()->create();
 
         $this->post('/oauth/device/code', [
             'client_id' => $client->getKey(),
             'client_secret' => $secret,
-        ])->assertStatus($status)->assertJsonPath('error', $error);
+        ])->assertUnauthorized()->assertJsonPath('error', 'invalid_client');
 
         $this->assertDatabaseCount('oauth_device_codes', 0);
     }

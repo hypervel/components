@@ -53,7 +53,9 @@ class ClientAuthenticatorTest extends TestCase
     #[TestWith(['client_secret_post', ['client_id' => 'client'], 'Basic Y2xpZW50OnNlY3JldA=='])]
     #[TestWith(['client_secret_basic', ['client_id' => 'other'], 'Basic Y2xpZW50OnNlY3JldA=='])]
     #[TestWith(['client_secret_post', ['client_id' => 'client'], 'Bearer token'])]
-    public function testRejectsIncorrectCredentialsOrARegisteredMethodMismatch(string $method, array $parameters, ?string $header): void
+    #[TestWith([null, ['client_id' => 'client'], null])]
+    #[TestWith([null, ['client_id' => 'client', 'client_secret' => ''], null])]
+    public function testRejectsIncorrectCredentialsOrARegisteredMethodMismatch(?string $method, array $parameters, ?string $header): void
     {
         $client = new Client(['id' => 'client', 'secret' => 'secret', 'token_endpoint_auth_method' => $method]);
         $request = (new ServerRequest('POST', '/token'))->withParsedBody($parameters);
@@ -72,10 +74,18 @@ class ClientAuthenticatorTest extends TestCase
         $request = (new ServerRequest('POST', '/token'))
             ->withHeader('Authorization', 'Basic ' . base64_encode('client:secret'))
             ->withParsedBody(['client_id' => 'client', 'client_secret' => 'secret']);
+        $clients = m::mock(ClientRepository::class);
+        $clients->shouldNotReceive('findActive');
+        $authenticator = new ClientAuthenticator(
+            $clients,
+            m::mock(ClientKeyRepository::class),
+            m::mock(ReplayCache::class),
+            m::mock(ServerFactory::class),
+        );
 
         $this->expectException(OAuthServerException::class);
         $this->expectExceptionMessage('invalid');
-        $this->authenticator(new Client(['id' => 'client']))->authenticate($request);
+        $authenticator->authenticate($request);
     }
 
     #[TestWith([null, false])]
@@ -93,8 +103,8 @@ class ClientAuthenticatorTest extends TestCase
             $this->assertFalse($confidential);
         } catch (OAuthServerException $exception) {
             $this->assertTrue($confidential);
-            $this->assertSame('invalid_request', $exception->getErrorType());
-            $this->assertStringContainsString('client_secret', $exception->getHint());
+            $this->assertSame('invalid_client', $exception->getErrorType());
+            $this->assertSame(401, $exception->getHttpStatusCode());
         }
     }
 

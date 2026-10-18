@@ -117,10 +117,6 @@ class ClientAuthenticator
             ? ($confidential ? ['client_secret_basic', 'client_secret_post'] : ['none'])
             : [$registered];
 
-        if ($registered === null && $method === 'none' && $confidential) {
-            throw OAuthServerException::invalidRequest('client_secret');
-        }
-
         if (! in_array($method, $allowed, true)
             || (in_array($method, ['client_secret_basic', 'client_secret_post'], true)
                 && ($secret === null || $secret === '' || ! $client->secretMatches($secret)))) {
