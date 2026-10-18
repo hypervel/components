@@ -109,7 +109,7 @@ class AuthorizationController
         $pending = [
             'parameters' => $parameters,
             'grant_type' => 'authorization_code',
-            'redirect_uri' => $authRequest->getRedirectUri() ?? (is_array($redirects) ? $redirects[0] : $redirects),
+            'redirect_uri' => $pushed->redirect_uri ?? $authRequest->getRedirectUri() ?? (is_array($redirects) ? $redirects[0] : $redirects),
             'scopes' => array_map(static fn (ScopeEntityInterface $scope): string => $scope->getIdentifier(), $authRequest->getScopes()),
             'guard' => $this->getApprovingGuardName(),
             'response_mode' => ($parameters['response_mode'] ?? null) === 'form_post' ? 'form_post' : 'query',

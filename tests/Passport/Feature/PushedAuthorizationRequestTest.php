@@ -85,13 +85,16 @@ class PushedAuthorizationRequestTest extends PassportTestCase
         $uri = $this->push($client, [
             'code_challenge' => JWT::urlsafeB64Encode(hash('sha256', $verifier, true)), 'code_challenge_method' => 'S256',
         ])->assertCreated()->json('request_uri');
+        $redirectUri = $client->redirect_uris[0];
+        $client->forceFill(['redirect_uris' => ['https://new.example/callback', $redirectUri]])->save();
         $resume = $this->get('/oauth/authorize?' . http_build_query(['client_id' => $client->id, 'request_uri' => $uri]))
             ->assertRedirect()->headers->get('Location');
         $this->assertStringNotContainsString('request_uri', $resume);
         $this->get($resume)->assertRedirectToRoute('login');
         $this->actingAs(UserFactory::new()->create(), 'web');
-        $token = $this->get($resume)->assertOk()->assertJsonPath('redirectUri', $client->redirect_uris[0])->json('authToken');
+        $token = $this->get($resume)->assertOk()->assertJsonPath('redirectUri', $redirectUri)->json('authToken');
         $location = $this->post('/oauth/authorize/consent', ['auth_token' => $token])->assertRedirect()->headers->get('Location');
+        $this->assertStringStartsWith($redirectUri . '?', $location);
         $this->assertDatabaseCount('oauth_auth_codes', 1);
         parse_str(parse_url($location, PHP_URL_QUERY), $parameters);
         $this->post('/oauth/token', [
