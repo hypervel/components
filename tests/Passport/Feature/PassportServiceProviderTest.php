@@ -136,6 +136,10 @@ class PassportServiceProviderTest extends PassportTestCase
         yield 'negative client key refresh interval' => [
             ['passport.client_keys.refresh_interval' => -1], 'Passport client key cache TTL and refresh interval must be positive integers.',
         ];
+        yield 'client keys expire before refresh is allowed' => [
+            ['passport.client_keys.ttl' => 30, 'passport.client_keys.refresh_interval' => 60],
+            'Passport client key cache TTL must be at least the refresh interval.',
+        ];
         yield 'anonymous wildcard scope' => [
             ['passport.registration.scopes' => ['*']], 'Passport anonymous registration scopes cannot include wildcard or provisioning scopes.',
         ];

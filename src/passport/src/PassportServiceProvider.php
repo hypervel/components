@@ -308,6 +308,10 @@ class PassportServiceProvider extends ServiceProvider
             throw new InvalidArgumentException('Passport client key cache TTL and refresh interval must be positive integers.');
         }
 
+        if ($config->integer('passport.client_keys.ttl') < $config->integer('passport.client_keys.refresh_interval')) {
+            throw new InvalidArgumentException('Passport client key cache TTL must be at least the refresh interval.');
+        }
+
         if (array_intersect($config->array('passport.registration.scopes'), ['*', Passport::REGISTRATION_SCOPE]) !== []) {
             throw new InvalidArgumentException('Passport anonymous registration scopes cannot include wildcard or provisioning scopes.');
         }
