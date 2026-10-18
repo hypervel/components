@@ -229,7 +229,8 @@ abstract class GrantConcurrencyTestCase extends TestCase
                 return $consent->id;
             });
 
-            return $outerTransaction ? DB::transaction($issue, 2) : $issue();
+            // Competing approvals can each invalidate a caller's snapshot after an initial gap-lock deadlock.
+            return $outerTransaction ? DB::transaction($issue, 5) : $issue();
         };
         $scopes = array_slice(['read', 'write', 'delete'], 0, $approvals);
         $tasks = array_map(static fn (string $scope): Closure => static fn (): string => $approve($scope), $scopes);
@@ -375,9 +376,19 @@ abstract class GrantConcurrencyTestCase extends TestCase
         [$response] = parallel([
             fn (): array => $this->exchange($request),
             function () use ($ready, $started, $family): void {
-                $this->assertTrue($ready->pop(5));
-                $started->push(true);
-                TokenIssuance::revokeRefreshTokenFamily($family->getKey());
+                $firstAttempt = true;
+                DB::transaction(function () use ($ready, $started, $family, &$firstAttempt): void {
+                    // An earlier caller read must not hide the successor from family revocation.
+                    Token::count();
+
+                    if ($firstAttempt) {
+                        $firstAttempt = false;
+                        $this->assertTrue($ready->pop(5));
+                        $started->push(true);
+                    }
+
+                    TokenIssuance::revokeRefreshTokenFamily($family->getKey());
+                }, 2);
             },
         ]);
 
@@ -429,17 +440,21 @@ abstract class GrantConcurrencyTestCase extends TestCase
                     return ['error' => $exception->getErrorType()];
                 }
             },
-            fn () => DB::transaction(function () use ($consent, $revokeFirst, $ready, $started): void {
-                // An existing MySQL snapshot must not hide the products of the exchange we wait for.
-                Token::count();
+            function () use ($consent, $revokeFirst, $ready, $started): void {
+                $firstAttempt = true;
+                DB::transaction(function () use ($consent, $revokeFirst, $ready, $started, &$firstAttempt): void {
+                    // MySQL locking reads bypass this older snapshot; MariaDB may reject it and require a retry.
+                    Token::count();
 
-                if (! $revokeFirst) {
-                    $this->assertTrue($ready->pop(5));
-                    $started->push(true);
-                }
+                    if (! $revokeFirst && $firstAttempt) {
+                        $firstAttempt = false;
+                        $this->assertTrue($ready->pop(5));
+                        $started->push(true);
+                    }
 
-                $consent->revoke();
-            }),
+                    $consent->revoke();
+                }, 2);
+            },
         ]);
 
         if ($revokeFirst) {

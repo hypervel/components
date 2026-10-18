@@ -360,8 +360,9 @@ class TokenIssuance implements NonCopyableContext, Transient
 
             $family->newQuery()->whereKey($familyId)->update(['revoked_at' => CarbonImmutable::now()]);
             $refresh = Passport::refreshToken();
+            // A caller's older snapshot must not hide successors committed while the family lock was waiting.
             $refresh->newQuery()->where('family_id', $familyId)
-                ->select([$refresh->getKeyName(), 'access_token_id'])->useWritePdo()->toBase()
+                ->select([$refresh->getKeyName(), 'access_token_id'])->lockForUpdate()->toBase()
                 ->chunkById(self::REVOCATION_BATCH_SIZE, static function (Collection $rows) use ($refresh): void {
                     $refresh->newQuery()->whereKey($rows->pluck($refresh->getKeyName())->all())
                         ->where('revoked', false)->update(['revoked' => true]);
