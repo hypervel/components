@@ -40,6 +40,7 @@ use League\OAuth2\Server\ResponseTypes\ResponseTypeInterface;
 use LogicException;
 use Psr\Http\Message\ServerRequestInterface;
 use SensitiveParameter;
+use Throwable;
 
 class ServerFactory
 {
@@ -92,7 +93,8 @@ class ServerFactory
         $server = $this->makeAuthorizationServer($key);
         $server->enableGrantType($this->makeAuthCodeGrant($settings), $settings->tokensExpireIn ?? Passport::tokensExpireIn());
         $server->enableGrantType($this->makeRefreshTokenGrant($settings), $settings->tokensExpireIn ?? Passport::tokensExpireIn());
-        $server->enableGrantType(new ClientCredentialsGrant, $settings->clientCredentialsTokensExpireIn ?? Passport::clientCredentialsTokensExpireIn());
+        $server->enableGrantType(new ClientCredentialsGrant, $settings->clientCredentialsTokensExpireIn
+            ?? Passport::$clientCredentialsTokensExpireIn ?? $settings->tokensExpireIn ?? Passport::tokensExpireIn());
 
         // Implicit and password grants are omitted; use authorization code with PKCE.
         if (Passport::$deviceCodeGrantEnabled && $this->app->make(Router::class)->has('passport.device')) {
@@ -352,6 +354,24 @@ class ServerFactory
     }
 
     /**
+     * Get an already verified authentication failure without validating the credential again.
+     *
+     * @internal used when rendering a resource authentication challenge
+     */
+    public function authenticationError(Request $request): ?OAuthServerException
+    {
+        $cached = CoroutineContext::get(self::BEARER_CONTEXT_KEY);
+
+        if ($cached === null || $cached['request'] !== $request || ! $cached['result'] instanceof OAuthServerException
+            || $cached['fingerprint'] !== $this->authenticationFingerprint($request)
+            || $cached['server'] !== $this->resourceServer()) {
+            return null;
+        }
+
+        return $cached['result'];
+    }
+
+    /**
      * Identify the request inputs shared by authentication caches.
      *
      * @internal used by the guard and resource-server request cache
@@ -416,22 +436,42 @@ class ServerFactory
         $now = CarbonImmutable::now()->getTimestamp();
 
         if ($this->defaultEntry === null || $now >= $this->nextKeyRefresh) {
-            $keys = $this->app->make(SigningKeyRepository::class)->serverKeys();
-            $identifiers = array_map(static fn (StoredServerKey $key): string => $key->id, $keys);
+            $previous = $this->defaultEntry;
+            $refreshInterval = $this->config->integer('passport.key_refresh_interval');
+            $deadline = $now + $refreshInterval;
+            // Claim the warm refresh before database I/O lets another request enter.
+            $this->nextKeyRefresh = $deadline;
 
-            if ($this->defaultEntry === null || $identifiers !== $this->storedKeyIds) {
-                $issuer = $this->config->get('passport.issuer');
-                $refreshInterval = $this->config->integer('passport.key_refresh_interval');
-                $this->defaultEntry = $this->makeEntry(new ServerSettings(
-                    $keys,
-                    issuer: $issuer === '' ? null : $issuer,
-                    // Bound HTTP staleness for both scheduled activation and emergency revocation.
-                    metadataCacheLifetime: min($refreshInterval, $this->config->integer('passport.key_activation_delay') - $refreshInterval),
-                ));
-                $this->storedKeyIds = $identifiers;
+            try {
+                $keys = $this->app->make(SigningKeyRepository::class)->serverKeys();
+
+                // A slower load must not restore keys removed by a newer completed load.
+                if ($this->defaultEntry !== $previous
+                    || ($previous !== null && $this->nextKeyRefresh !== $deadline)) {
+                    return $this->defaultEntry;
+                }
+
+                $identifiers = array_map(static fn (StoredServerKey $key): string => $key->id, $keys);
+
+                if ($previous === null || $identifiers !== $this->storedKeyIds) {
+                    $issuer = $this->config->get('passport.issuer');
+                    $this->defaultEntry = $this->makeEntry(new ServerSettings(
+                        $keys,
+                        issuer: $issuer === '' ? null : $issuer,
+                        // Bound HTTP staleness for both scheduled activation and emergency revocation.
+                        metadataCacheLifetime: min($refreshInterval, $this->config->integer('passport.key_activation_delay') - $refreshInterval),
+                    ));
+                    $this->storedKeyIds = $identifiers;
+                }
+
+                $this->nextKeyRefresh = $deadline;
+            } catch (Throwable $exception) {
+                if ($this->defaultEntry === $previous && $this->nextKeyRefresh === $deadline) {
+                    $this->nextKeyRefresh = 0;
+                }
+
+                throw $exception;
             }
-
-            $this->nextKeyRefresh = $now + $this->config->integer('passport.key_refresh_interval');
         }
 
         return $this->defaultEntry;
