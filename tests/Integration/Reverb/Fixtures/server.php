@@ -45,7 +45,7 @@ if (file_exists($dotenvPath . '/.env')) {
     Dotenv\Dotenv::createUnsafeImmutable($dotenvPath)->load();
 }
 
-// Set up BASE_PATH, SWOOLE_HOOK_FLAGS, etc.
+// Set up BASE_PATH and load the Testbench config.
 Bootstrapper::bootstrap();
 
 // The app must not think it's running in console — ServerStartCommand

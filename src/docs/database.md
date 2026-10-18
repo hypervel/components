@@ -38,6 +38,8 @@ Almost every modern web application interacts with a database. Hypervel makes in
 
 </div>
 
+SQLite and PostgreSQL connections require Swoole to be built with that database's support (`--enable-swoole-sqlite` or `--enable-swoole-pgsql`), so queries run without blocking other coroutines. MySQL and MariaDB connections require the PDO MySQL extension to use PHP's default mysqlnd driver. See the [installation requirements](/docs/{{version}}/installation#requirements).
+
 <a name="configuration"></a>
 ### Configuration
 

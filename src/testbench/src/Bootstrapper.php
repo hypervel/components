@@ -45,10 +45,6 @@ class Bootstrapper
 
         static::loadConfigFromYaml(static::resolveConfigurationPath($workingPath));
 
-        if (! defined('SWOOLE_HOOK_FLAGS')) {
-            define('SWOOLE_HOOK_FLAGS', SWOOLE_HOOK_ALL);
-        }
-
         if (defined('BASE_PATH')) {
             return;
         }

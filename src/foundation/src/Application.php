@@ -199,10 +199,23 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     protected function checkEnvironment(): void
     {
+        if (! extension_loaded('swoole')) {
+            throw new RuntimeException('Hypervel requires the Swoole extension. OpenSwoole is not supported.');
+        }
+
         if (filter_var(ini_get('swoole.use_shortname'), FILTER_VALIDATE_BOOLEAN)) {
             throw new RuntimeException(
                 'Swoole short function names must be disabled. Set swoole.use_shortname=Off in your php.ini.'
             );
+        }
+
+        if (! defined('SWOOLE_SSL')) {
+            throw new RuntimeException('Swoole must be built with OpenSSL support. Rebuild it with --enable-openssl.');
+        }
+
+        // @phpstan-ignore identical.alwaysFalse (SWOOLE_HOOK_ALL omits the native cURL hook when Swoole is built without cURL support.)
+        if ((SWOOLE_HOOK_ALL & SWOOLE_HOOK_NATIVE_CURL) === 0) {
+            throw new RuntimeException('Swoole must be built with native cURL support. Rebuild it with --enable-swoole-curl.');
         }
     }
 
