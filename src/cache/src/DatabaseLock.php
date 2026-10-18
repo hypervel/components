@@ -84,6 +84,20 @@ class DatabaseLock extends Lock implements RefreshableLock
     {
         $connection = $this->connection();
 
+        // Every SQLite write takes the database-wide write lock, even an insert that fails on the existing key or an
+        // update that matches nothing, so a live lock held by another owner is refused with a read instead.
+        if ($connection->getDriverName() === 'sqlite') {
+            $owner = $connection->table($this->table)
+                ->useWritePdo()
+                ->where('key', $this->name)
+                ->where('expiration', '>', $this->currentTime())
+                ->value('owner');
+
+            if ($owner !== null && $owner !== $this->owner) {
+                return false;
+            }
+        }
+
         try {
             $connection->table($this->table)->insert([
                 'key' => $this->name,
@@ -103,7 +117,7 @@ class DatabaseLock extends Lock implements RefreshableLock
                     'expiration' => $this->expiresAt(),
                 ]);
 
-            $acquired = $updated >= 1;
+            $acquired = $updated >= 1 || $this->ownsLockAfterUnchangedUpdate($connection);
         }
 
         if (count($this->lottery ?? []) === 2 && random_int(1, $this->lottery[1]) <= $this->lottery[0]) {
@@ -175,6 +189,29 @@ class DatabaseLock extends Lock implements RefreshableLock
     }
 
     /**
+     * Determine whether this owner holds the live lock after an update that changed no row.
+     *
+     * MySQL and MariaDB count only changed rows, so an owner writing the
+     * expiration its lock already has, such as within the second it was
+     * acquired, updates none. Other drivers count matched rows, so their
+     * zero means the lock is not this owner's.
+     */
+    protected function ownsLockAfterUnchangedUpdate(ConnectionInterface $connection): bool
+    {
+        if (! in_array($connection->getDriverName(), ['mysql', 'mariadb'], true)) {
+            return false;
+        }
+
+        // A locking read on the writer sees the latest committed row, not a replica or an enclosing transaction's older snapshot.
+        return $connection->table($this->table)
+            ->sharedLock()
+            ->where('key', $this->name)
+            ->where('owner', $this->owner)
+            ->where('expiration', '>', $this->currentTime())
+            ->exists();
+    }
+
+    /**
      * Get the UNIX timestamp indicating when the lock should expire.
      */
     protected function expiresAt(?int $seconds = null): int
@@ -201,7 +238,9 @@ class DatabaseLock extends Lock implements RefreshableLock
             throw new InvalidArgumentException('Refresh requires a positive TTL.');
         }
 
-        $updated = $this->connection()->table($this->table)
+        $connection = $this->connection();
+
+        $updated = $connection->table($this->table)
             ->where('key', $this->name)
             ->where('owner', $this->owner)
             ->where('expiration', '>', $this->currentTime())
@@ -209,7 +248,7 @@ class DatabaseLock extends Lock implements RefreshableLock
                 'expiration' => $this->expiresAt($seconds),
             ]);
 
-        return $updated >= 1;
+        return $updated >= 1 || $this->ownsLockAfterUnchangedUpdate($connection);
     }
 
     /**
