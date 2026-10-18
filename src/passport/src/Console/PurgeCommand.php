@@ -74,6 +74,7 @@ class PurgeCommand extends Command
         if ($expired) {
             // Short-lived request references have no credential replay evidence to retain.
             $this->purge(Passport::pushedAuthorizationRequest()->newQuery()->where('expires_at', '<=', $now));
+            $this->components->info('Purged expired pushed authorization requests.');
         }
 
         $this->components->info(sprintf('Purged %s.', implode(' and ', array_filter([

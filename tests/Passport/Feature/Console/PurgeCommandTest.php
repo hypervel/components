@@ -216,7 +216,11 @@ class PurgeCommandTest extends PassportTestCase
             ]);
         }
 
-        $this->artisan('passport:purge', $options)->assertSuccessful();
+        $command = $this->artisan('passport:purge', $options);
+        if (! isset($options['--revoked'])) {
+            $command->expectsOutputToContain('Purged expired pushed authorization requests.');
+        }
+        $command->assertSuccessful()->run();
         $this->assertDatabaseHas('oauth_pushed_authorization_requests', ['id' => hash('sha256', 'current')]);
         $this->assertSame(isset($options['--revoked']), Passport::pushedAuthorizationRequest()->newQuery()->whereKey(hash('sha256', 'expired'))->exists());
     }
