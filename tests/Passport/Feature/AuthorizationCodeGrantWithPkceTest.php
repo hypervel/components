@@ -104,14 +104,6 @@ class AuthorizationCodeGrantWithPkceTest extends PassportTestCase
 
         $refreshToken = $json['refresh_token'];
 
-        $this->post('/oauth/token', [
-            'grant_type' => 'authorization_code',
-            'client_id' => $client->getKey(),
-            'redirect_uri' => $redirect,
-            'code' => $params['code'],
-            'code_verifier' => $codeVerifier,
-        ])->assertBadRequest()->assertJsonPath('error', 'invalid_grant');
-
         $this->assertTrue(AuthCode::sole()->revoked);
         $this->assertSame(1, Token::count());
 
@@ -135,6 +127,21 @@ class AuthorizationCodeGrantWithPkceTest extends PassportTestCase
         $this->assertArrayHasKey('refresh_token', $newToken);
         $this->assertEqualsWithDelta(31536000, $newToken['expires_in'], 2);
         $this->assertSame('Bearer', $newToken['token_type']);
+
+        $this->post('/oauth/token', [
+            'grant_type' => 'authorization_code',
+            'client_id' => $client->getKey(),
+            'redirect_uri' => $redirect,
+            'code' => $params['code'],
+            'code_verifier' => $codeVerifier,
+        ])->assertBadRequest()->assertJsonPath('error', 'invalid_grant');
+
+        $this->withToken($newToken['access_token'])->getJson('/foo')->assertUnauthorized();
+        $this->post('/oauth/token', [
+            'grant_type' => 'refresh_token',
+            'client_id' => $client->getKey(),
+            'refresh_token' => $newToken['refresh_token'],
+        ])->assertBadRequest()->assertJsonPath('error', 'invalid_grant');
     }
 
     public function testRequireCodeChallenge(): void

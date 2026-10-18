@@ -52,19 +52,22 @@ class PurgeCommand extends Command
         $constraint = fn (Builder $query): Builder => $query
             ->when($revoked, fn () => $query->orWhere('revoked', true))
             ->when($expired, fn () => $query->orWhere('expires_at', '<', $expired));
+        $live = fn (Builder $query): Builder => $query
+            ->where('revoked', false)
+            ->where(fn (Builder $query): Builder => $query
+                ->whereNull('expires_at')
+                ->orWhere('expires_at', '>', $now));
 
         $this->purge(Passport::token()->newQuery()
             ->where($constraint)
-            ->whereDoesntHave('refreshToken', fn (Builder $query): Builder => $query
-                ->where('revoked', false)
-                ->where(fn (Builder $query): Builder => $query
-                    ->whereNull('expires_at')
-                    ->orWhere('expires_at', '>', $now))));
+            ->whereDoesntHave('refreshToken', $live));
 
-        $this->purge(Passport::authCode()->newQuery()->where($constraint));
+        // Used codes and refresh tokens remain replay evidence until their own expiry.
+        $this->purge(Passport::authCode()->newQuery()->where($constraint)->where('expires_at', '<=', $now));
 
-        // A used refresh token remains evidence of reuse until it expires.
-        $this->purge(Passport::refreshToken()->newQuery()->where($constraint)->where('expires_at', '<=', $now));
+        // Family revocation also needs expired refresh rows while their access tokens are still usable.
+        $this->purge(Passport::refreshToken()->newQuery()->where($constraint)->where('expires_at', '<=', $now)
+            ->whereDoesntHave('accessToken', $live));
         $this->purge(Passport::refreshTokenFamily()->newQuery()->whereDoesntHave('refreshTokens'));
 
         if (Passport::$deviceCodeGrantEnabled) {

@@ -18,6 +18,8 @@ return new class extends Migration {
             $table->string('provider')->nullable();
             $table->foreignUuid('client_id');
             $table->uuid('consent_id')->nullable()->index();
+            $table->char('access_token_id', 80)->nullable();
+            $table->uuid('family_id')->nullable();
             $table->jsonb('scopes')->nullable();
             $table->jsonb('resources')->nullable();
             $table->char('dpop_jkt', 43)->nullable();

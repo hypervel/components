@@ -44,6 +44,8 @@ class TokenIssuance implements NonCopyableContext, Transient
 
     public ?Token $accessToken = null;
 
+    public ?string $refreshTokenFamilyId = null;
+
     public ?string $tokenName = null;
 
     public ?string $dpopJkt = null;
@@ -204,7 +206,7 @@ class TokenIssuance implements NonCopyableContext, Transient
     /**
      * Reject redemption whose durable security writes could be rolled back by its caller.
      *
-     * Device polling timestamps and refresh-token replay revocations must survive OAuth error responses.
+     * Device polling timestamps and credential replay revocations must survive OAuth error responses.
      */
     public static function ensureRedemptionAllowed(Connection $connection): void
     {
@@ -241,17 +243,30 @@ class TokenIssuance implements NonCopyableContext, Transient
     /**
      * Claim a validated single-use grant before creating its successor tokens.
      */
-    public function claimGrant(): void
+    public function claimGrant(?string $accessTokenId = null): void
     {
         $this->begin();
         $grant = $this->grant ?? throw OAuthServerException::invalidGrant();
+        $attributes = ['revoked' => true];
 
-        if ($grant->newQuery()->whereKey($grant->getKey())->where('revoked', false)->update(['revoked' => true]) === 0) {
+        if ($grant instanceof AuthCode) {
+            // Reserve the family key in the same claim; a policy may omit refresh issuance entirely.
+            $attributes['access_token_id'] = $accessTokenId;
+            $attributes['family_id'] = $this->refreshTokenFamilyId = Passport::refreshTokenFamily()->newUniqueId();
+        }
+
+        if ($grant->newQuery()->whereKey($grant->getKey())->where('revoked', false)->update($attributes) === 0) {
             // End the failed issuance first so replay revocation commits independently of its rollback.
             $this->rollBack();
 
             if ($grant instanceof RefreshToken) {
                 self::revokeRefreshTokenFamily($grant->family_id);
+            } elseif ($grant instanceof AuthCode) {
+                $record = $grant->newQuery()->useWritePdo()->find($grant->getKey());
+
+                if ($record !== null) {
+                    self::revokeAuthCodeTokens($record);
+                }
             }
 
             throw OAuthServerException::invalidGrant();
@@ -341,6 +356,25 @@ class TokenIssuance implements NonCopyableContext, Transient
         $entry = $this->entry;
         $model->getConnection()->afterCommitOrNow(static function () use ($entry, $key, $seconds): void {
             $entry->retentionBounds[$key->id] = max($entry->retentionBounds[$key->id], $seconds);
+        });
+    }
+
+    /**
+     * Revoke the credentials issued by a reused authorization code.
+     */
+    public static function revokeAuthCodeTokens(AuthCode $code): void
+    {
+        if ($code->access_token_id === null) {
+            return;
+        }
+
+        $code->getConnection()->transaction(static function () use ($code): void {
+            if ($code->family_id !== null) {
+                self::revokeRefreshTokenFamily($code->family_id);
+            }
+
+            // Access-token-only grants have no family, and cleanup may remove an older refresh link.
+            self::revokeAccessTokens(Passport::token()->newQuery()->whereKey($code->access_token_id));
         });
     }
 

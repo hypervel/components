@@ -102,7 +102,6 @@ class TokenIssuanceTest extends TestCase
         try {
             TokenIssuance::run($this->servers, function () use ($code, $succeeds, $failure, &$events): void {
                 $this->assertFalse((new AuthCodeRepository)->isAuthCodeRevoked($code->id));
-                TokenIssuance::current()->claimGrant();
                 $this->app->make(AccessTokenRepository::class)->persistNewAccessToken($this->accessToken('access'));
                 $this->assertSame([], $events);
 
@@ -260,6 +259,37 @@ class TokenIssuanceTest extends TestCase
         });
 
         $this->assertNull(TokenIssuance::current());
+    }
+
+    public function testLostCodeClaimReadsTheWinnersLinksAfterRollingBackItsIssuance(): void
+    {
+        $code = $this->code();
+        $family = RefreshTokenFamily::create();
+        $token = Token::forceCreate(['id' => 'winning-access', 'client_id' => 'client', 'revoked' => false]);
+        $refresh = RefreshToken::forceCreate([
+            'id' => 'winning-refresh', 'access_token_id' => $token->id,
+            'family_id' => $family->id, 'revoked' => false,
+        ]);
+
+        try {
+            TokenIssuance::run($this->servers, function () use ($code, $family, $token): void {
+                TokenIssuance::current()->setGrant($code);
+                AuthCode::whereKey($code->id)->update([
+                    'revoked' => true, 'access_token_id' => $token->id, 'family_id' => $family->id,
+                ]);
+
+                $this->app->make(AccessTokenRepository::class)->persistNewAccessToken($this->accessToken('losing-access'));
+            }, tokenRequest: true);
+            $this->fail('The lost code claim must reject issuance.');
+        } catch (OAuthServerException $exception) {
+            $this->assertSame('invalid_grant', $exception->getErrorType());
+        }
+
+        $this->assertNotNull($family->fresh()->revoked_at);
+        $this->assertTrue($token->fresh()->revoked);
+        $this->assertTrue($refresh->fresh()->revoked);
+        $this->assertDatabaseMissing('oauth_access_tokens', ['id' => 'losing-access']);
+        $this->assertSame(0, DB::transactionLevel());
     }
 
     public function testLostRefreshClaimRevokesTheFamilyAfterRollingBackItsIssuance(): void
