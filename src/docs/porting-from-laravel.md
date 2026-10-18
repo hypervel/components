@@ -618,6 +618,8 @@ Clients must serialize refresh requests: reusing a refresh token revokes its gra
 
 Confidential device clients must authenticate when requesting a device code, as well as when polling the token endpoint. Include their client secret or use their registered authentication method. See [the device authorization grant](/docs/{{version}}/passport#device-authorization-grant).
 
+Missing authentication for a confidential client returns `invalid_client` with HTTP 401, rather than `invalid_request` with HTTP 400. Update client error handling that distinguishes these responses.
+
 Imported client tables also need the nullable JSONB `scopes` column and boolean `third_party` column, defaulting to `false`. Set `third_party` to `true` for externally registered clients so `firstParty()` does not classify them as trusted merely because they have no owner. See [consent](/docs/{{version}}/passport#approving-the-request).
 
 Restart the server and other long-running processes after changing file or environment signing keys. `server:reload` is not sufficient. See [signing-key rotation](/docs/{{version}}/passport#rotating-signing-keys).
@@ -768,6 +770,8 @@ Database connections are persistent, pooled worker resources. Define every conne
 To use a custom query grammar on every connection, register a connection subclass with `Connection::resolverFor()` that overrides `getDefaultQueryGrammar()`. On connections that support early release, `setQueryGrammar()` changes only the current coroutine's connection, and `ConnectionEstablished` runs only when a new database session opens, so neither applies a grammar to every caller. See [extending database connections](/docs/{{version}}/database#extending-database-connections).
 
 Framework operations release idle database sessions at the boundaries listed in [releasing and pinning connections](/docs/{{version}}/database#releasing-and-pinning-connections). Wrap code that depends on the same session across those boundaries, such as temporary tables, session locks or retained raw PDOs, in `DB::withPinnedSession()`. Active transactions remain pinned automatically.
+
+Do not manually commit or roll back the transaction owned by a `DB::transaction()` closure; Hypervel throws when that closure returns. Let `transaction()` manage completion, or use the [manual transaction API](/docs/{{version}}/database#manually-using-transactions) separately. Balanced nested transactions remain supported.
 
 When a package constructs `DatabaseStore`, `DatabaseSessionHandler`, `DatabaseQueue`, or `DatabaseBatchRepository` directly, pass the database connection resolver and configured connection name instead of retaining a resolved connection. Framework-configured drivers already use this form.
 
