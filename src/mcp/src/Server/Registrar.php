@@ -203,6 +203,7 @@ class Registrar
     protected static function protectedResourceMetadata(string $path): array
     {
         $issuer = config('mcp.authorization_server');
+        $issuer = $issuer === '' ? null : $issuer;
 
         if ($issuer === null && class_exists(Passport::class)) {
             $issuer = app(ServerFactory::class)->settings()->issuer;

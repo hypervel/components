@@ -60,7 +60,7 @@ return [
     |--------------------------------------------------------------------------
     |
     | Set this to an external OAuth server's issuer when it handles login.
-    | When null, protected-resource discovery uses the current Passport
+    | When null or empty, protected-resource discovery uses the current Passport
     | issuer. Configure that issuer in Passport for local OAuth servers.
     |
     */

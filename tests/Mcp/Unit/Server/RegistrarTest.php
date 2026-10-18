@@ -1081,19 +1081,22 @@ class RegistrarTest extends TestCase
         ]);
     }
 
-    public function testUsesConfiguredAuthorizationServerForAuthorizationServersField(): void
+    #[TestWith(['https://auth.example.com', 'https://auth.example.com'])]
+    #[TestWith([null, 'https://localhost'])]
+    #[TestWith(['', 'https://localhost'])]
+    public function testUsesConfiguredAuthorizationServerForAuthorizationServersField(?string $configured, string $expected): void
     {
         $registrar = new Registrar;
         $registrar->oauthRoutes();
 
-        config()->set('mcp.authorization_server', 'https://auth.example.com');
+        config()->set('mcp.authorization_server', $configured);
 
         $response = $this->getJson('/.well-known/oauth-protected-resource/mcp');
 
         $response->assertStatus(200);
         $response->assertJson([
             'resource' => url('/mcp'),
-            'authorization_servers' => ['https://auth.example.com'],
+            'authorization_servers' => [$expected],
         ]);
     }
 
