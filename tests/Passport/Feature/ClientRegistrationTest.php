@@ -14,9 +14,12 @@ use Hypervel\Passport\Database\Factories\ClientFactory;
 use Hypervel\Passport\Database\Factories\SigningKeyFactory;
 use Hypervel\Passport\Events\ClientMetadataValidated;
 use Hypervel\Passport\Exceptions\InvalidClientMetadataException;
+use Hypervel\Passport\Http\Controllers\ClientRegistrationController;
 use Hypervel\Passport\Passport;
 use Hypervel\Support\Facades\Event;
+use Hypervel\Support\Facades\Route;
 use Hypervel\Support\Facades\Schema;
+use Hypervel\Support\Facades\URL;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\Concerns\WithHypervelMigrations;
 use Hypervel\Tests\Passport\Fixtures\UserFactory;
@@ -228,6 +231,44 @@ class ClientRegistrationTest extends PassportTestCase
         ])->assertOk()->json('access_token');
 
         $response = $this->withToken($token)->postJson('/oauth/register', ['grant_types' => ['client_credentials']]);
+
+        if ($allowed) {
+            $response->assertCreated();
+        } else {
+            $response->assertUnauthorized()->assertJsonPath('error', 'invalid_token');
+        }
+
+        $this->assertDatabaseCount('oauth_clients', $allowed ? 2 : 1);
+    }
+
+    #[TestWith([null, true])]
+    #[TestWith(['http://localhost/custom/register', true])]
+    #[TestWith(['http://localhost/oauth/register', false])]
+    #[TestWith(['https://localhost/custom/register', true, true])]
+    public function testApplicationMountedRegistrationUsesItsActualAudience(?string $resource, bool $allowed, bool $forceHttps = false): void
+    {
+        if ($forceHttps) {
+            URL::forceHttps();
+        }
+
+        Route::post('/custom/register', [ClientRegistrationController::class, 'store'])->name('custom.register');
+        Passport::tokensCanAccess([
+            'http://localhost/custom/register' => 'Custom registration',
+            'http://localhost/oauth/register' => 'Default registration',
+            'https://localhost/custom/register' => 'HTTPS registration',
+        ]);
+        $client = ClientFactory::new()->asClientCredentials()->create();
+        $parameters = [
+            'grant_type' => 'client_credentials', 'client_id' => $client->id,
+            'client_secret' => $client->plainSecret, 'scope' => 'passport:register',
+        ];
+
+        if ($resource !== null) {
+            $parameters['resource'] = $resource;
+        }
+
+        $token = $this->post('/oauth/token', $parameters)->assertOk()->json('access_token');
+        $response = $this->withToken($token)->postJson('/custom/register', ['grant_types' => ['client_credentials']]);
 
         if ($allowed) {
             $response->assertCreated();

@@ -124,7 +124,7 @@ class ClientRegistrationController
         $token = AccessToken::fromPsrRequest($validated);
 
         if ($token->oauth_audiences !== [$token->oauth_client_id]
-            && ! in_array(route('passport.clients.register'), $token->oauth_audiences, true)) {
+            && ! in_array(url()->current(), $token->oauth_audiences, true)) {
             throw $this->bearerChallenge($request, 'invalid_token');
         }
 
