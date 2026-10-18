@@ -28,6 +28,7 @@ use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
+use Throwable;
 
 class ContextQueueTest extends TestCase
 {
@@ -452,6 +453,27 @@ class ContextQueueTest extends TestCase
         $this->assertSame($context, Repository::getInstance());
         $this->assertSame('commit-context', $context->get('trace_id'));
         $this->assertSame('commit-secret', $context->getHidden('secret'));
+    }
+
+    public function testBackgroundFailuresAreReportedWithJobContext(): void
+    {
+        $expected = ContextQueueFailingJob::$exception = new RuntimeException('Job failed.');
+        $reported = new Channel(1);
+        $queue = new BackgroundQueue;
+        $queue->setContainer($this->app);
+        $queue->setConnectionName('background');
+        $queue->setExceptionCallback(static function (Throwable $exception) use ($reported): void {
+            $context = Repository::getInstance();
+            $reported->push([$exception, $context->get('trace_id'), $context->getHidden('secret')]);
+        });
+
+        try {
+            $queue->push(new ContextQueueFailingJob);
+
+            $this->assertSame([$expected, 'job-context', 'job-secret'], $reported->pop(1));
+        } finally {
+            ContextQueueFailingJob::$exception = null;
+        }
     }
 
     public function testBackgroundJobPayloadCapturesParentLogContextBeforeSpawning(): void

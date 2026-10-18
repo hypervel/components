@@ -215,38 +215,46 @@ class SyncQueue extends Queue implements QueueContract
     {
         // JobProcessing hydrates the payload's context. Keep it through all job
         // events without replacing the context of the dispatching coroutine.
-        return $this->withLogContext(null, function () use ($payload, $queue): int {
-            $queueJob = $this->resolveJob($payload, $queue);
-            $canceled = false;
+        return $this->withLogContext(null, fn (): int => $this->processPayload($payload, $queue));
+    }
+
+    /**
+     * Process a serialized job payload and raise its lifecycle events.
+     *
+     * @throws Throwable
+     */
+    protected function processPayload(string $payload, ?string $queue = null): int
+    {
+        $queueJob = $this->resolveJob($payload, $queue);
+        $canceled = false;
+
+        try {
+            $this->raiseBeforeJobEvent($queueJob);
+
+            $queueJob->fire();
+
+            $this->raiseAfterJobEvent($queueJob);
+        } catch (CanceledException $exception) {
+            $canceled = true;
+
+            throw $exception;
+        } catch (Throwable $e) {
+            $exceptionOccurred = $e;
 
             try {
-                $this->raiseBeforeJobEvent($queueJob);
-
-                $queueJob->fire();
-
-                $this->raiseAfterJobEvent($queueJob);
+                $this->handleException($queueJob, $e);
             } catch (CanceledException $exception) {
                 $canceled = true;
 
                 throw $exception;
-            } catch (Throwable $e) {
-                $exceptionOccurred = $e;
-
-                try {
-                    $this->handleException($queueJob, $e);
-                } catch (CanceledException $exception) {
-                    $canceled = true;
-
-                    throw $exception;
-                }
-            } finally {
-                if (! $canceled) {
-                    $this->raiseJobAttemptedEvent($queueJob, $exceptionOccurred ?? null);
-                }
             }
+        } finally {
+            if (! $canceled) {
+                $this->raiseJobAttemptedEvent($queueJob, $exceptionOccurred ?? null);
+            }
+        }
 
-            return 0;
-        });
+        return 0;
     }
 
     /**
