@@ -121,7 +121,7 @@ class DpopProofValidatorTest extends TestCase
         $parts = explode('.', $proof);
         $signature = JWT::urlsafeB64Decode($parts[2]);
         $invalidSignature = match ($case) {
-            'signature' => str_repeat("\0", 64),
+            'signature' => str_repeat("\x01", 64),
             'empty-signature' => '',
             'short-signature' => 'x',
             'extra-byte' => $signature . 'x',

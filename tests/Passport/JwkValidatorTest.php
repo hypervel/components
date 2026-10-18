@@ -103,10 +103,17 @@ class JwkValidatorTest extends TestCase
 
     public function testEs256DoesNotAcceptAnotherCurve(): void
     {
-        $jwk = JsonWebKeyPair::generate()->jwk;
-        $jwk['crv'] = 'P-384';
+        $details = openssl_pkey_get_details(openssl_pkey_new([
+            'private_key_type' => OPENSSL_KEYTYPE_EC, 'curve_name' => 'secp384r1',
+        ]));
+        $jwk = [
+            'kty' => 'EC', 'crv' => 'P-384',
+            'x' => JWT::urlsafeB64Encode(str_pad($details['ec']['x'], 48, "\0", STR_PAD_LEFT)),
+            'y' => JWT::urlsafeB64Encode(str_pad($details['ec']['y'], 48, "\0", STR_PAD_LEFT)),
+        ];
 
         $this->expectException(UnexpectedValueException::class);
+        $this->expectExceptionMessage('does not permit the selected signature algorithm');
         (new JwkValidator)->validate($jwk, 'ES256');
     }
 }
