@@ -554,7 +554,7 @@ Local OAuth discovery is served by Passport's `passport.metadata` route, using i
 
 Republish `mcp-views` or update your published `mcp/authorize.blade.php` to display the callback destination and requested resources and remove window-closing timers that can interrupt callback delivery. See [authorization view setup](/docs/{{version}}/mcp#oauth).
 
-MCP's anonymous client registrations receive explicit scope allowances from `passport.registration.scopes` plus `mcp:use`. Imported client schemas need the nullable JSONB `scopes` column and boolean `third_party` column. The wildcard redirect allowance accepts HTTPS and HTTP loopback callbacks; remote HTTP callbacks require explicit administrator configuration. See [registration policy](/docs/{{version}}/mcp#oauth).
+MCP's anonymous client registrations receive explicit scope allowances from `passport.registration.scopes` plus `mcp:use`. Use Hypervel's full Passport schema when importing client data; see [Passport](#passport). The wildcard redirect allowance accepts HTTPS and HTTP loopback callbacks; remote HTTP callbacks require explicit administrator configuration. See [registration policy](/docs/{{version}}/mcp#oauth).
 
 OAuth clients check resolved destinations before sending, including when HTTP responses are faked. Explicitly allow private DNS destinations and substitute DNS for invented test hostnames; see [OAuth destinations](/docs/{{version}}/mcp#oauth-destinations) and [OAuth tests](/docs/{{version}}/mcp#testing-oauth). The Inspector also keeps HTTPS verification enabled; configure `NODE_EXTRA_CA_CERTS` for locally issued certificates.
 
@@ -620,7 +620,7 @@ Confidential device clients must authenticate when requesting a device code, as 
 
 Missing authentication for a confidential client returns `invalid_client` with HTTP 401, rather than `invalid_request` with HTTP 400. Update client error handling that distinguishes these responses.
 
-Imported client tables also need the nullable JSONB `scopes` column and boolean `third_party` column, defaulting to `false`. Set `third_party` to `true` for externally registered clients so `firstParty()` does not classify them as trusted merely because they have no owner. See [consent](/docs/{{version}}/passport#approving-the-request).
+Import Laravel data into Hypervel's schema using its migrations, rather than adding only selected columns to the Laravel tables. Client authentication, registration and credential storage require Hypervel's full schema. Set `third_party` to `true` for externally registered clients so `firstParty()` does not classify them as trusted merely because they have no owner. See [installation](/docs/{{version}}/passport#installation) and [consent](/docs/{{version}}/passport#approving-the-request).
 
 Restart the server and other long-running processes after changing file or environment signing keys. `server:reload` is not sufficient. See [signing-key rotation](/docs/{{version}}/passport#rotating-signing-keys).
 
