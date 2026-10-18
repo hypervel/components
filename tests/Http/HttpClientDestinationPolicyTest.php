@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Http;
 use Closure;
 use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Promise\Create;
+use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\Psr7\Response as Psr7Response;
 use GuzzleHttp\TransferStats;
 use Hypervel\Events\Dispatcher;
@@ -24,8 +25,14 @@ use Hypervel\Tests\Http\Fixtures\FakeDestinationPolicy;
 use Hypervel\Tests\Http\Fixtures\LoopbackHttpServer;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
+use Psr\Http\Message\RequestInterface;
 use ReflectionProperty;
+use Swoole\Coroutine;
+use Swoole\Coroutine\Http\Server;
 use Swoole\Coroutine\Socket;
+use Swoole\Http\Request as ServerRequest;
+use Swoole\Http\Response as ServerResponse;
 use Throwable;
 
 class HttpClientDestinationPolicyTest extends TestCase
@@ -142,6 +149,50 @@ class HttpClientDestinationPolicyTest extends TestCase
     public static function streamModes(): array
     {
         return [[false], [true]];
+    }
+
+    #[TestWith([false, false, false])]
+    #[TestWith([false, true, false])]
+    #[TestWith([true, false, false])]
+    #[TestWith([true, true, false])]
+    #[TestWith([false, false, true])]
+    public function testProxyRequestsCannotReuseAConnectionToAPreviouslyApprovedAddress(bool $named, bool $async, bool $stream): void
+    {
+        $first = new Server('127.0.0.1', 0, false, false);
+        $second = new Server('127.0.0.2', $first->port, false, false);
+        $factory = $this->factory()->registerConnection('api');
+
+        $first->handle('/', static function (ServerRequest $request, ServerResponse $response): void {
+            $response->end('first');
+        });
+        $second->handle('/', static function (ServerRequest $request, ServerResponse $response): void {
+            $response->end('second');
+        });
+        Coroutine::create(fn (): bool => $first->start());
+        Coroutine::create(fn (): bool => $second->start());
+
+        try {
+            $bodies = [];
+
+            foreach (['127.0.0.1', '127.0.0.2'] as $address) {
+                $policy = new FakeDestinationPolicy(
+                    ['proxy.invalid' => [$address]],
+                    allowedNetworks: ['127.0.0.0/8'],
+                    proxy: "http://proxy.invalid:{$first->port}",
+                );
+                $request = $named ? $factory->connection('api') : $factory->createPendingRequest();
+                $response = $request->withDestinationPolicy($policy)->async($async)
+                    ->withOptions(['stream' => $stream, 'version' => '1.1'])
+                    ->timeout(2)->get('http://target.invalid/');
+                $bodies[] = ($async ? $response->wait() : $response)->body();
+            }
+
+            $this->assertSame(['first', 'second'], $bodies);
+        } finally {
+            $factory->forgetConnectionHandlers();
+            $first->shutdown();
+            $second->shutdown();
+        }
     }
 
     #[DataProvider('nonRoutingProxyEnvironments')]
@@ -283,6 +334,54 @@ class HttpClientDestinationPolicyTest extends TestCase
         $this->assertSame('OK', $request->get((string) $destination->uri)->body());
         $this->assertStringStartsWith('GET http://target.invalid/probe HTTP/1.1', (string) $proxy->request());
         $this->assertSame(['proxy.invalid'], $policy->resolvedHosts);
+    }
+
+    #[TestWith([false, false, 'resolution'])]
+    #[TestWith([true, false, 'resolution'])]
+    #[TestWith([false, false, 'options'])]
+    #[TestWith([true, false, 'options'])]
+    #[TestWith([false, true, 'options'])]
+    #[TestWith([true, true, 'options'])]
+    #[TestWith([false, false, 'middleware'])]
+    public function testRequestPinsDoNotAffectLaterRequests(bool $named, bool $async, string $source): void
+    {
+        $server = LoopbackHttpServer::start([[], []]);
+        $factory = $this->factory()->registerConnection('api');
+        $request = $named ? $factory->connection('api') : $factory->createPendingRequest();
+        $url = "http://destination.invalid:{$server->port}/pinned";
+        $pins = [CURLOPT_RESOLVE => ["destination.invalid:{$server->port}:127.0.0.1"]];
+
+        if ($source === 'resolution') {
+            $destination = $request->withoutRedirecting()->resolveDestination(
+                $this->loopbackPolicy('destination.invalid'),
+                $url,
+            );
+            $url = (string) $destination->uri;
+        } elseif ($source === 'middleware') {
+            $request->withMiddleware(static fn (callable $handler): Closure => static function (RequestInterface $request, array $options) use ($handler, $pins): PromiseInterface {
+                $options['curl'] = $pins;
+
+                return $handler($request, $options);
+            });
+        } else {
+            $request->withOptions(['curl' => $pins]);
+        }
+
+        $response = $request->async($async)->get($url);
+        $this->assertSame('OK', ($async ? $response->wait() : $response)->body());
+
+        $later = ($named ? $factory->connection('api') : $factory->createPendingRequest())
+            ->async($async)->timeout(2);
+
+        if ($async) {
+            $this->assertInstanceOf(ConnectionException::class, $later->get("http://destination.invalid:{$server->port}/unpinned")->wait());
+
+            return;
+        }
+
+        $this->expectException(ConnectionException::class);
+
+        $later->get("http://destination.invalid:{$server->port}/unpinned");
     }
 
     public function testBoundsResolutionByTheSmallestPositiveLimit(): void

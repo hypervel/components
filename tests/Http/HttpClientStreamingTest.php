@@ -49,6 +49,7 @@ class HttpClientStreamingTest extends TestCase
     {
         return [
             'default handler unavailable' => ['default', 1, 'Streaming responses require allow_url_fopen when using the default HTTP handler.'],
+            'pinned handler unavailable' => ['pinned', 1, 'Streaming responses require allow_url_fopen when using the default HTTP handler.'],
             'caller owns the handler' => ['handler', 0, 'custom handler'],
             'caller owns the client' => ['client', 0, 'custom client'],
             'caller owns the stack' => ['stack', 0, 'custom stack'],
@@ -436,7 +437,7 @@ class HttpClientStreamingTest extends TestCase
                 $response = $factory->connection('provider')->withOptions([
                     'stream' => true,
                     'proxy' => $proxy ? 'http://127.0.0.1:' . $port : '',
-                    'curl' => [CURLOPT_RESOLVE => ["{$host}:{$port}:127.0.0.1"]],
+                    'curl' => $proxy ? [] : [CURLOPT_CONNECT_TO => ["{$host}:{$port}:127.0.0.1:{$port}"]],
                 ])->get("http://{$host}:{$port}/identity");
 
                 try {
