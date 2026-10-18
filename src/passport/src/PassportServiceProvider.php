@@ -304,7 +304,11 @@ class PassportServiceProvider extends ServiceProvider
             throw new InvalidArgumentException('Passport pushed authorization request lifetime must be a positive integer.');
         }
 
-        if (array_intersect($config->array('passport.registration.scopes'), ['*', 'passport:register']) !== []) {
+        if ($config->integer('passport.client_keys.ttl') <= 0 || $config->integer('passport.client_keys.refresh_interval') <= 0) {
+            throw new InvalidArgumentException('Passport client key cache TTL and refresh interval must be positive integers.');
+        }
+
+        if (array_intersect($config->array('passport.registration.scopes'), ['*', Passport::REGISTRATION_SCOPE]) !== []) {
             throw new InvalidArgumentException('Passport anonymous registration scopes cannot include wildcard or provisioning scopes.');
         }
 
