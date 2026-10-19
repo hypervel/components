@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Queue;
 use ArrayObject;
 use DateInterval;
 use DateTimeInterface;
+use ErrorException;
 use Exception;
 use Hypervel\Cache\Repository;
 use Hypervel\Cache\WorkerArrayStore;
@@ -1856,9 +1857,12 @@ class QueueWorkerTest extends TestCase
         yield 'query' => [self::queryException('select 1', [], 'server has gone away')];
         yield 'no reconnector' => [new LostConnectionException('Lost connection and no reconnector available.')];
         yield 'wrapped by the job' => [new RuntimeException('The import failed.', previous: self::queryException('select 1', [], 'server has gone away'))];
+        yield 'wrapped driver failure' => [new QueryException('test', 'select 1', [], new RuntimeException('The driver failed.', previous: new PDOException('server has gone away')))];
+        yield 'PDO warning' => [new QueryException('test', 'select 1', [], new ErrorException('PDO::query(): SQLSTATE[HY000]: General error: 2006 MySQL server has gone away', 0, E_WARNING))];
     }
 
-    public function testWorkerStopsForADatabaseFailureTheBoundDetectorRecognizes(): void
+    #[DataProvider('failuresRecognizedByBoundDetector')]
+    public function testWorkerStopsForADatabaseFailureTheBoundDetectorRecognizes(Throwable $cause): void
     {
         $this->container->instance(LostConnectionDetector::class, new class implements LostConnectionDetector {
             public function causedByLostConnection(Throwable $e): bool
@@ -1867,12 +1871,23 @@ class QueueWorkerTest extends TestCase
             }
         });
         $worker = $this->getWorker('default', ['queue' => [
-            new WorkerFakeJob(static fn (): never => throw self::queryException('select 1', [], 'the proxy closed the session')),
+            new WorkerFakeJob(static fn (): never => throw new QueryException('test', 'select 1', [], $cause)),
         ]]);
 
         $worker->daemon('default', 'queue', new WorkerOptions(stopWhenEmpty: true));
 
         $this->assertTrue($worker->lostConnection);
+    }
+
+    /**
+     * Provide database failures recognized by an application detector.
+     *
+     * @return iterable<string, array{Throwable}>
+     */
+    public static function failuresRecognizedByBoundDetector(): iterable
+    {
+        yield 'PDO driver' => [new PDOException('the proxy closed the session')];
+        yield 'custom driver' => [new RuntimeException('the proxy closed the session')];
     }
 
     #[DataProvider('failuresThatOnlyReadLikeALostConnection')]
@@ -1904,6 +1919,7 @@ class QueueWorkerTest extends TestCase
     {
         yield 'transport failure' => [new RuntimeException('cURL error 56: Recv failure: Connection reset by peer')];
         yield 'query binding' => [self::queryException('insert into logs (message) values (?)', ['Connection reset by peer'], 'SQLSTATE[23505]: Unique violation')];
+        yield 'nested query binding' => [new QueryException('test', 'select 1', [], self::queryException('insert into logs (message) values (?)', ['Connection reset by peer'], 'SQLSTATE[23505]: Unique violation'))];
     }
 
     public function testAPopFailureThatOnlyReadsLikeALostConnectionDoesNotStopTheWorker(): void

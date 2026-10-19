@@ -15,6 +15,11 @@ class LostConnectionDetector implements LostConnectionDetectorContract
      */
     public function causedByLostConnection(Throwable $e): bool
     {
+        // Query context includes application SQL and bindings, not just the failure message.
+        while ($e instanceof QueryException && $e->getPrevious() !== null) {
+            $e = $e->getPrevious();
+        }
+
         $message = $e->getMessage();
 
         return Str::contains($message, [

@@ -883,9 +883,8 @@ class Worker
             return;
         }
 
-        // Jobs and queue clients throw other exceptions whose messages can read like a lost connection,
-        // so only a database failure in the chain is classified. A query exception's message includes
-        // its SQL and bindings, so the driver exception beneath it is classified instead.
+        // Other transports can report similar errors. Classify database failures and their
+        // underlying causes, keeping SQL and bindings out of the default detector's decision.
         for ($exception = $e; $exception !== null; $exception = $exception->getPrevious()) {
             $failure = match (true) {
                 $exception instanceof QueryException => $exception->getPrevious(),
@@ -893,10 +892,8 @@ class Worker
                 default => null,
             };
 
-            if ($failure !== null) {
-                if ($this->causedByLostConnection($failure)) {
-                    $this->lostConnection = true;
-                }
+            if ($failure !== null && $this->causedByLostConnection($failure)) {
+                $this->lostConnection = true;
 
                 return;
             }
