@@ -2,6 +2,7 @@
 
 - [Introduction](#introduction)
     - [Configuration](#configuration)
+        - [PDO Error Mode](#pdo-error-mode)
         - [MySQL and MariaDB SQL Modes](#mysql-and-mariadb-sql-modes)
         - [Masking Bindings in Exception Messages](#masking-bindings-in-exception-messages)
         - [Lock Timeouts](#lock-timeouts)
@@ -12,6 +13,7 @@
         - [Releasing and Pinning Connections](#releasing-and-pinning-connections)
     - [Configuring Database Session State](#configuring-database-session-state)
     - [Extending Database Connections](#extending-database-connections)
+        - [Detecting Database Failures](#detecting-database-failures)
         - [Early Release for Custom Drivers](#early-release-for-custom-drivers)
     - [Static Analysis](#static-analysis)
 - [Running SQL Queries](#running-queries)
@@ -47,6 +49,15 @@ SQLite and PostgreSQL connections require Swoole to be built with that database'
 The configuration for Hypervel's database services is located in your application's `config/database.php` configuration file. In this file, you may define all of your database connections, as well as specify which connection should be used by default. Most of the configuration options within this file are driven by the values of your application's environment variables. Examples for most of Hypervel's supported database systems are provided in this file.
 
 By default, Hypervel's sample [environment configuration](/docs/{{version}}/configuration#environment-configuration) uses SQLite. However, you are free to modify your database configuration as needed for your local database.
+
+<a name="pdo-error-mode"></a>
+#### PDO Error Mode
+
+PDO connections require `PDO::ERRMODE_EXCEPTION`, which is already the default. Setting `PDO::ATTR_ERRMODE` to warning or silent mode in a connection's `options` array throws an `InvalidArgumentException` when connecting. Other PDO options remain configurable.
+
+Exception mode ensures that failed statements throw rather than returning false and allowing a transaction to commit incomplete work. Query failures retain Laravel-style `QueryException` wrapping, including the original exception, SQL, and bindings.
+
+Custom connectors and PDO instances supplied directly, including those returned by closures, must also use exception mode. Do not change the mode through a raw PDO handle. Hypervel validates its connector options when connecting; it does not recheck the mode on every query or when a supplied handle is used.
 
 <a name="mysql-and-mariadb-sql-modes"></a>
 #### MySQL and MariaDB SQL Modes
@@ -530,6 +541,50 @@ The native `DatabaseTruncation` testing trait delegates to `Schema\Builder::trun
 To add column modifiers, a `Schema\Blueprint` subclass may override the protected `newColumnDefinition(array $attributes)` method and return its own `ColumnDefinition` subclass. Declare `@extends Blueprint<YourColumnDefinition>` on the Blueprint subclass so static analysis recognizes the custom return type from inherited helpers such as `string`, `unsignedBigInteger`, and `timestamps`. Foreign-ID helpers retain their specialized definition and constraint methods. Column-list accessors continue to return base definitions because a Blueprint may contain several definition types.
 
 Custom query builders may declare their binding-slot names through the third `Query\Builder` template argument, after the result key and row types. Initialize the additional keys in the builder's `bindings` array; the existing binding methods validate those keys at runtime. The `newQuery`, `forNestedWhere`, and protected `cloneForPaginationCount` methods return `static`, retaining the concrete builder and its binding types. Overrides must preserve that return contract. The protected `forSubQuery` method returns a base query builder because a join's subquery belongs to its parent query, not the join itself.
+
+<a name="detecting-database-failures"></a>
+#### Detecting Database Failures
+
+The default lost-connection and concurrency detectors recognize PDO failures. The lost-connection detector also recognizes the framework's `LostConnectionException` and native mysqlnd protocol warnings, which can occur even in exception mode. An application or HTTP exception does not become a database failure merely because its message contains database error text.
+
+For a non-PDO driver, bind a detector that recognizes that driver's failures. Extend the default detector to preserve recovery for built-in databases. For example, if your driver reports lost sessions using a `ConnectionLostException`, your application detector could be:
+
+```php
+namespace App\Database;
+
+use Hypervel\Database\LostConnectionDetector as BaseLostConnectionDetector;
+use Hypervel\Database\QueryException;
+use Throwable;
+use Vendor\Database\ConnectionLostException;
+
+class LostConnectionDetector extends BaseLostConnectionDetector
+{
+    /**
+     * Determine if the exception represents a lost database connection.
+     */
+    public function causedByLostConnection(Throwable $e): bool
+    {
+        while ($e instanceof QueryException && $e->getPrevious() !== null) {
+            $e = $e->getPrevious();
+        }
+
+        return $e instanceof ConnectionLostException || parent::causedByLostConnection($e);
+    }
+}
+```
+
+Replace the example vendor exception with your driver's exception type. Register the detector in your service provider's `register` method:
+
+```php
+$this->app->singleton(
+    \Hypervel\Contracts\Database\LostConnectionDetector::class,
+    \App\Database\LostConnectionDetector::class,
+);
+```
+
+Use the same approach with `Hypervel\Contracts\Database\ConcurrencyErrorDetector` and the default `Hypervel\Database\ConcurrencyErrorDetector` for retryable concurrency failures. Detectors may receive a query exception or the failure it wraps, so unwrap query exceptions before checking your driver's exception. The SQL and bindings in a query exception are not evidence of a database failure.
+
+A connection's protected recovery methods can customize its own behavior, but shared consumers such as queue workers and cache locks use the bound detectors. Queue workers only consult the detector for database exceptions and their causes, not every exception thrown by a job.
 
 <a name="early-release-for-custom-drivers"></a>
 #### Early Release for Custom Drivers
