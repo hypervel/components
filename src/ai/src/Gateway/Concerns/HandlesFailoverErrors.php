@@ -11,6 +11,7 @@ use Hypervel\Ai\Exceptions\ProviderOverloadedException;
 use Hypervel\Ai\Exceptions\RateLimitedException;
 use Hypervel\Http\Client\ConnectionException;
 use Hypervel\Http\Client\RequestException;
+use Throwable;
 
 trait HandlesFailoverErrors
 {
@@ -25,7 +26,12 @@ trait HandlesFailoverErrors
     protected function withErrorHandling(string $providerName, Closure $callback): mixed
     {
         try {
-            return $callback();
+            return retry(
+                2,
+                $callback,
+                fn (int $attempt, Throwable $exception): int => $this->retryAfterSeconds($exception) * 1000,
+                fn (Throwable $exception): bool => $this->retryAfterSeconds($exception) !== null,
+            );
         } catch (ConnectionException $connectionException) {
             throw ProviderConnectionException::forProvider(
                 $providerName,
@@ -75,6 +81,26 @@ trait HandlesFailoverErrors
 
             throw $requestException;
         }
+    }
+
+    /**
+     * Get the short Retry-After delay of a rate limited or overloaded response, if it has one.
+     */
+    protected function retryAfterSeconds(Throwable $exception): ?int
+    {
+        if (! $exception instanceof RequestException) {
+            return null;
+        }
+
+        $status = $exception->response->status();
+
+        if ($status !== 429 && ! in_array($status, $this->overloadedStatusCodes(), true)) {
+            return null;
+        }
+
+        $retryAfter = $exception->response->header('Retry-After');
+
+        return ctype_digit($retryAfter) && (int) $retryAfter <= 10 ? (int) $retryAfter : null;
     }
 
     /**

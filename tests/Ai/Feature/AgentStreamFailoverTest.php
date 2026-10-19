@@ -21,6 +21,7 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Http;
+use Hypervel\Support\Sleep;
 use Hypervel\Support\Str;
 use Hypervel\Tests\Ai\Fixtures\Agents\AssistantAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\RememberingAssistantAgent;
@@ -63,6 +64,35 @@ class AgentStreamFailoverTest extends TestCase
         Event::assertDispatched(AgentFailedOver::class);
 
         Event::assertDispatched(AgentStreamed::class, fn (AgentStreamed $event): bool => $event->invocationId === $response->invocationId);
+    }
+
+    public function testStreamRetriesARateLimitedProviderAfterItsRetryAfterDelayBeforeFailingOver(): void
+    {
+        Event::fake();
+        Sleep::fake();
+
+        config([
+            'ai.providers.primary' => ['driver' => 'groq', 'key' => 'test-key'],
+            'ai.providers.backup' => ['driver' => 'groq', 'key' => 'test-key'],
+        ]);
+
+        Http::preventStrayRequests();
+
+        Http::fakeSequence()
+            ->push(status: 429, headers: ['Retry-After' => '1'])
+            ->push(fakeGroqStreamBodyForStreamFailover(), 200);
+
+        $response = (new AssistantAgent)->stream(
+            'Hello',
+            provider: ['primary', 'backup'],
+        );
+
+        foreach ($response as $_);
+
+        $this->assertSame('Hello', $response->text);
+
+        Sleep::assertSequence([Sleep::for(1)->seconds()]);
+        Event::assertNotDispatched(AgentFailedOver::class);
     }
 
     public function testStreamThrowsLastExceptionWhenAllProvidersFail(): void
