@@ -118,13 +118,18 @@ class MemoizedTaggedCacheTest extends TestCase
 
     public function testItCanForgetMultipleMemoizedValuesWithTags(): void
     {
-        Cache::tags(['foo'])->putMany(['first' => 'Tim', 'last' => 'MacDonald'], 60);
-        Cache::memo()->tags(['foo'])->get(['first', 'last']);
+        Cache::tags(['foo', 'bar'])->put('name.0', 'Tim', 60);
+        Cache::tags(['foo', 'bar'])->put('name.1', 'Taylor', 60);
 
-        $this->assertTrue(Cache::memo()->tags(['foo'])->forget(['first', 'last']));
+        $memoized = Cache::memo()->tags(['foo', 'bar'])->get(['name.0', 'name.1']);
+        $this->assertSame(['name.0' => 'Tim', 'name.1' => 'Taylor'], $memoized);
 
-        $this->assertSame(['first' => null, 'last' => null], Cache::memo()->tags(['foo'])->get(['first', 'last']));
-        $this->assertSame(['first' => null, 'last' => null], Cache::tags(['foo'])->get(['first', 'last']));
+        $this->assertTrue(Cache::memo()->tags(['foo', 'bar'])->forget(['name.0', 'name.1']));
+
+        $live = Cache::tags(['foo', 'bar'])->get(['name.0', 'name.1']);
+        $memoized = Cache::memo()->tags(['foo', 'bar'])->get(['name.0', 'name.1']);
+        $this->assertSame(['name.0' => null, 'name.1' => null], $live);
+        $this->assertSame(['name.0' => null, 'name.1' => null], $memoized);
     }
 
     public function testItCanIncrementAndDecrementMemoizedValuesWithTags(): void
