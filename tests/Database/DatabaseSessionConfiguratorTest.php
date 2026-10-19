@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Database\DatabaseSessionConfiguratorTest;
 
 use Closure;
 use Exception;
+use GuzzleHttp\Psr7\Response as PsrResponse;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Database\ConcurrencyErrorDetector as ConcurrencyErrorDetectorContract;
 use Hypervel\Database\Connection;
@@ -14,6 +15,8 @@ use Hypervel\Database\LostConnectionException;
 use Hypervel\Database\PdoConnection;
 use Hypervel\Database\QueryException;
 use Hypervel\Database\SessionConfigurator;
+use Hypervel\Http\Client\RequestException;
+use Hypervel\Http\Client\Response;
 use Hypervel\Tests\TestCase;
 use PDO;
 use PDOException;
@@ -706,13 +709,13 @@ class DatabaseSessionConfiguratorTest extends TestCase
         $this->assertNull(TestSessionConnection::physicalSessionStateCount());
     }
 
-    public function testDefaultConcurrencyErrorDetectorDoesNotRetryOrdinaryExceptions(): void
+    public function testDefaultConcurrencyErrorDetectorDoesNotRetryHttpFailures(): void
     {
         $this->assertFalse(Container::getInstance()->has(ConcurrencyErrorDetectorContract::class));
 
         $connection = $this->connection();
         $attempts = 0;
-        $exception = new RuntimeException('Ordinary application failure.');
+        $exception = new RequestException(new Response(new PsrResponse(500, [], 'database is locked')));
         $caught = null;
 
         try {
@@ -721,7 +724,7 @@ class DatabaseSessionConfiguratorTest extends TestCase
 
                 throw $exception;
             }, 2);
-        } catch (RuntimeException $throwable) {
+        } catch (RequestException $throwable) {
             $caught = $throwable;
         }
 
@@ -782,7 +785,7 @@ class DatabaseSessionConfiguratorTest extends TestCase
         $pdo = $this->pdo();
         $connection = $this->connection($pdo);
         $connection->beginTransaction();
-        $exception = new QueryException('test', 'select 1', [], new Exception('Deadlock found when trying to get lock'));
+        $exception = new QueryException('test', 'select 1', [], new PDOException('Deadlock found when trying to get lock'));
 
         try {
             $connection->transaction(static function () use ($pdo, $exception): never {

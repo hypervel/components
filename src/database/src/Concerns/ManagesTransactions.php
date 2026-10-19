@@ -153,9 +153,10 @@ trait ManagesTransactions
         }
 
         // Only retry after all failed work is closed; a callback may leave manual transaction levels open.
+        // Nested deadlocks already passed the driver's policy, which may not recognize our wrapper.
         if ($cleanedUp
             && $this->transactions === 0
-            && $this->causedByConcurrencyError($e)
+            && ($e instanceof DeadlockException || $this->causedByConcurrencyError($e))
             && $currentAttempt < $maxAttempts) {
             return;
         }
