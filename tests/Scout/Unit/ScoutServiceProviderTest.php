@@ -15,6 +15,7 @@ use Http\Client\Common\HttpMethodsClient;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Contracts\Telescope\TelescopeTag;
 use Hypervel\Database\Pool\PoolManager;
+use Hypervel\Foundation\Application as HypervelApplication;
 use Hypervel\Scout\Engines\MeilisearchRetryPolicy;
 use Hypervel\Scout\ScoutServiceProvider;
 use Hypervel\Support\ClassInvoker;
@@ -202,6 +203,16 @@ class ScoutServiceProviderTest extends TestCase
         $psr18 = (new ClassInvoker($adapter))->http;
 
         $this->assertInstanceOf(GuzzleClient::class, $psr18);
+    }
+
+    public function testMeilisearchClientIdentifiesScout(): void
+    {
+        $adapter = (new ClassInvoker($this->app->make(MeilisearchClient::class)))->http;
+
+        $this->assertStringStartsWith(
+            'Meilisearch Hypervel Scout (v' . HypervelApplication::VERSION . ');',
+            (new ClassInvoker($adapter))->headers['User-Agent'],
+        );
     }
 
     public function testAlgoliaClientIsRegistered(): void
