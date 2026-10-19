@@ -740,6 +740,20 @@ class SupportTestingQueueFakeTest extends TestCase
         $this->fake->assertPushedOn('foo', JobStub::class);
     }
 
+    public function testDelayedJobsAreNotPending(): void
+    {
+        $this->fake->push($this->job, '', 'foo');
+        $this->fake->later(10, new JobToFakeStub, '', 'foo');
+
+        $this->assertSame(2, $this->fake->size('foo'));
+        $this->assertSame(1, $this->fake->pendingSize('foo'));
+        $this->assertSame(1, $this->fake->delayedSize('foo'));
+        $this->assertSame(1, $this->fake->totalPendingSize());
+        $this->assertSame(2, $this->fake->totalSize());
+        $this->assertSame([JobStub::class], $this->fake->pendingJobs('foo')->pluck('name')->all());
+        $this->assertSame([JobToFakeStub::class], $this->fake->delayedJobs('foo')->pluck('name')->all());
+    }
+
     public function testPendingDelayedAndReservedJobsAreDisjoint(): void
     {
         $this->fake->push($this->job, '', 'foo');
@@ -757,6 +771,31 @@ class SupportTestingQueueFakeTest extends TestCase
         $this->fake->assertCount(2);
     }
 
+    public function testDelayedJobsAreOnlyRecordedOnce(): void
+    {
+        $this->fake->later(10, $this->job, '', 'foo');
+
+        [$pushed] = $this->fake->pushedJobs()[JobStub::class];
+
+        $this->assertSame([$pushed['uuid']], $this->fake->delayedJobs('foo')->pluck('uuid')->all());
+        $this->assertCount(1, $this->fake->pushed(JobStub::class));
+    }
+
+    public function testCreationTimeOfOldestPendingJobExcludesDelayedJobs(): void
+    {
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
+
+        $this->fake->later(10, $this->job, '', 'foo');
+
+        $this->assertNull($this->fake->creationTimeOfOldestPendingJob('foo'));
+
+        CarbonImmutable::setTestNow($later = $now->addMinutes(5));
+
+        $this->fake->push(new JobToFakeStub, '', 'foo');
+
+        $this->assertSame($later->getTimestamp(), $this->fake->creationTimeOfOldestPendingJob('foo'));
+    }
+
     public function testCreationTimeOfOldestPendingJob(): void
     {
         CarbonImmutable::setTestNow($now = CarbonImmutable::now());
@@ -770,22 +809,6 @@ class SupportTestingQueueFakeTest extends TestCase
         $this->fake->push(new JobToFakeStub, '', 'foo');
 
         $this->assertSame($now->getTimestamp(), $this->fake->creationTimeOfOldestPendingJob('foo'));
-    }
-
-    public function testDelayedJobsDoNotDetermineTheOldestPendingTime(): void
-    {
-        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
-
-        $this->fake->later(0, $this->job, '', 'foo');
-
-        CarbonImmutable::setTestNow($pendingAt = $now->addMinutes(5));
-
-        $this->fake->push(new JobToFakeStub, '', 'foo');
-
-        $this->assertSame(
-            $pendingAt->getTimestamp(),
-            $this->fake->creationTimeOfOldestPendingJob('foo'),
-        );
     }
 
     public function testReservedJobs(): void
