@@ -731,6 +731,46 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->disconnect($receiver);
     }
 
+    public function testCanHandleAClientWhisperWhenAnotherApplicationHasActiveConnections(): void
+    {
+        ['client' => $sender, 'socketId' => $senderSocketId] = $this->connect();
+        $this->subscribe($sender, $senderSocketId, 'private-whisper-channel');
+
+        ['client' => $receiver, 'socketId' => $receiverSocketId] = $this->connect();
+        $this->subscribe($receiver, $receiverSocketId, 'private-whisper-channel');
+
+        // A second per-worker application, since the shared fixture apps enforce connection limits.
+        $otherToken = 50000 + (int) env('TEST_TOKEN', 0);
+        $otherKey = "reverb-parallel-{$otherToken}";
+        ['client' => $otherApplication, 'socketId' => $otherApplicationSocketId] = $this->connect($otherKey);
+        $response = $this->subscribe(
+            $otherApplication,
+            $otherApplicationSocketId,
+            'private-whisper-channel',
+            key: $otherKey,
+            secret: "reverb-parallel-secret-{$otherToken}",
+        );
+        $this->assertSame('pusher_internal:subscription_succeeded', json_decode($response, associative: true)['event']);
+
+        $sender->push(json_encode([
+            'event' => 'client-typing',
+            'channel' => 'private-whisper-channel',
+            'data' => ['user' => 'Joe'],
+        ]));
+
+        $message = $this->recv($receiver);
+        $this->assertNotNull($message);
+
+        $data = json_decode($message, associative: true);
+        $this->assertSame('client-typing', $data['event']);
+        $this->assertSame('private-whisper-channel', $data['channel']);
+        $this->assertSame(['user' => 'Joe'], $data['data']);
+
+        $this->disconnect($sender);
+        $this->disconnect($receiver);
+        $this->disconnect($otherApplication);
+    }
+
     // ── Multiple channels ──────────────────────────────────────────────
 
     public function testCanSubscribeToMultipleChannels(): void

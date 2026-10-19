@@ -106,7 +106,11 @@ abstract class ReverbIntegrationTestCase extends TestCase
         string $socketId,
         string $channel,
         ?array $userData = null,
+        ?string $key = null,
+        ?string $secret = null,
     ): string {
+        $key ??= $this->appKey;
+        $secret ??= $this->appSecret;
         $data = ['channel' => $channel];
 
         $channelData = $userData !== null ? json_encode($userData) : null;
@@ -116,7 +120,7 @@ abstract class ReverbIntegrationTestCase extends TestCase
             if ($channelData !== null) {
                 $signature .= ":{$channelData}";
             }
-            $data['auth'] = $this->appKey . ':' . hash_hmac('sha256', $signature, $this->appSecret);
+            $data['auth'] = $key . ':' . hash_hmac('sha256', $signature, $secret);
         }
 
         if ($channelData !== null) {
