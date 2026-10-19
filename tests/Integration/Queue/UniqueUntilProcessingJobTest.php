@@ -17,6 +17,7 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Tests\Integration\Queue\QueueTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use RuntimeException;
 
 #[WithMigration]
 #[WithMigration('cache')]
@@ -75,6 +76,38 @@ class UniqueUntilProcessingJobTest extends QueueTestCase
         $this->assertNull(DB::table('cache_locks')->first());
     }
 
+    public function testShouldBeUniqueUntilProcessingReleasesLockWhenAttemptsAreExhaustedBeforeProcessing(): void
+    {
+        UniqueUntilProcessingJobThatExhaustsAttempts::dispatch();
+
+        $this->runQueueWorkerCommand(['--once' => true]);
+
+        $this->assertNotNull(DB::table('cache_locks')->first());
+
+        $this->runQueueWorkerCommand(['--once' => true]);
+
+        $this->assertDatabaseCount('jobs', 0);
+        $this->assertNull(DB::table('cache_locks')->first());
+
+        UniqueUntilProcessingJobThatExhaustsAttempts::dispatch();
+
+        $this->assertDatabaseCount('jobs', 1);
+    }
+
+    public function testFailedUniqueUntilProcessingJobDoesNotReleaseReplacementJobLock(): void
+    {
+        UniqueUntilProcessingJobThatDispatchesReplacementAndFails::dispatch();
+
+        $this->runQueueWorkerCommand(['--once' => true]);
+
+        $this->assertDatabaseCount('jobs', 1);
+        $this->assertNotNull(DB::table('cache_locks')->first());
+
+        UniqueUntilProcessingJobThatDispatchesReplacementAndFails::dispatch();
+
+        $this->assertDatabaseCount('jobs', 1);
+    }
+
     #[DataProvider('ownerlessCacheRepositories')]
     public function testJobWithoutQueueableReleasesItsLockWhenLaterAttemptIsProcessed(bool $customCache): void
     {
@@ -90,6 +123,22 @@ class UniqueUntilProcessingJobTest extends QueueTestCase
         $this->runQueueWorkerCommand(['--once' => true]);
 
         $this->assertTrue(UniqueUntilProcessingJobWithoutQueueable::$handled);
+        $this->assertNull(DB::table('cache_locks')->first());
+    }
+
+    #[DataProvider('ownerlessCacheRepositories')]
+    public function testJobWithoutQueueableReleasesItsLockWhenAttemptsAreExhaustedBeforeProcessing(bool $customCache): void
+    {
+        UniqueUntilProcessingJobWithoutQueueableThatExhaustsAttempts::dispatch($customCache);
+
+        $this->runQueueWorkerCommand(['--once' => true]);
+
+        $this->assertNotNull(DB::table('cache_locks')->first());
+
+        $this->runQueueWorkerCommand(['--once' => true]);
+
+        $this->assertFalse(UniqueUntilProcessingJobWithoutQueueableThatExhaustsAttempts::$handled);
+        $this->assertDatabaseCount('jobs', 0);
         $this->assertNull(DB::table('cache_locks')->first());
     }
 
@@ -175,6 +224,23 @@ class UniqueUntilProcessingJobThatReleasesOnce extends UniqueTestJobThatDoesNotR
     }
 }
 
+class UniqueUntilProcessingJobThatExhaustsAttempts extends UniqueUntilProcessingJobThatReleasesOnce
+{
+    public int $tries = 1;
+}
+
+class UniqueUntilProcessingJobThatDispatchesReplacementAndFails extends UniqueTestJobThatDoesNotRelease
+{
+    public int $tries = 1;
+
+    public function handle(): void
+    {
+        static::dispatch();
+
+        throw new RuntimeException('Failed after dispatching a replacement job.');
+    }
+}
+
 class UniqueUntilProcessingJobWithoutQueueable implements ShouldQueue, ShouldBeUniqueUntilProcessing
 {
     use Dispatchable;
@@ -223,4 +289,9 @@ class UniqueUntilProcessingJobWithoutQueueable implements ShouldQueue, ShouldBeU
     {
         static::$handled = true;
     }
+}
+
+class UniqueUntilProcessingJobWithoutQueueableThatExhaustsAttempts extends UniqueUntilProcessingJobWithoutQueueable
+{
+    public int $tries = 1;
 }
