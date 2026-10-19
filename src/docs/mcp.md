@@ -8,6 +8,7 @@
     - [Web Servers](#web-servers)
     - [Allowed Origins](#allowed-origins)
     - [Local Servers](#local-servers)
+    - [Protocol Versions](#protocol-versions)
     - [Cache Hints](#cache-hints)
 - [Tools](#tools)
     - [Creating Tools](#creating-tools)
@@ -202,6 +203,13 @@ Mcp::local('weather', WeatherServer::class);
 ```
 
 Once registered, you should not typically need to manually run the `mcp:start` Artisan command yourself. Instead, configure your MCP client (AI agent) to start the server or use the [MCP Inspector](#mcp-inspector).
+
+<a name="protocol-versions"></a>
+### Protocol Versions
+
+Hypervel MCP servers support revision `2026-07-28` of the Model Context Protocol, where clients call `server/discover` and include the protocol version with every request. Clients that open with the older `initialize` handshake are also supported, and receive `2025-11-25` or `2025-06-18`, whichever they request.
+
+MCP clients must support revision `2025-06-18` or newer. Clients that request `2025-03-26` or an earlier revision are offered `2025-11-25` instead, so clients limited to those revisions cannot connect. The [MCP client](#client) supports the same revisions when connecting to other servers.
 
 <a name="cache-hints"></a>
 ### Cache Hints

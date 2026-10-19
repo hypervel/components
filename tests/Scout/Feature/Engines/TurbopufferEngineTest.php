@@ -11,6 +11,7 @@ use Hypervel\Ai\Prompts\EmbeddingsPrompt;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Telescope\TelescopeTag;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Foundation\Application;
 use Hypervel\Http\Client\Request;
 use Hypervel\Http\Client\RequestException;
 use Hypervel\Scout\Builder;
@@ -100,6 +101,7 @@ class TurbopufferEngineTest extends TestCase
             return $request->method() === 'POST'
                 && $request->url() === 'https://turbopuffer.test/v2/namespaces/table'
                 && $request->hasHeader('Authorization', 'Bearer tpuf-test-key')
+                && $request->hasHeader('X-Hypervel-Scout', Application::VERSION)
                 && $request['upsert_rows'] === [['id' => 10, 'name' => 'Taylor']]
                 && $request['schema'] === [
                     'name' => ['type' => 'string', 'full_text_search' => true],

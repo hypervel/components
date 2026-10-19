@@ -76,4 +76,28 @@ class DecodesStructuredOutputTest extends TestCase
         $this->assertSame([], $this->decodeStructuredOutput('"just a string"'));
         $this->assertSame([], $this->decodeStructuredOutput('42'));
     }
+
+    public function testEscapesQuotesLeftUnescapedInsideObjectKeys(): void
+    {
+        $payload = '{"expected_attributes":{"Jutiklinė juosta ("Touch Bar")":"Yra","Ekrano įstrižainė":"16\""}}';
+
+        $this->assertSame([
+            'expected_attributes' => [
+                'Jutiklinė juosta ("Touch Bar")' => 'Yra',
+                'Ekrano įstrižainė' => '16"',
+            ],
+        ], $this->decodeStructuredOutput($payload));
+    }
+
+    public function testEscapesUnescapedKeyQuotesInsideArraysAndFencesWithoutTouchingValues(): void
+    {
+        $payload = "```json\n{\"items\": [{\"Écran 16\"\" : \"oui, \\\"mat\\\"\"}, {\"plain\": [\"a\", \"b\"]}]}\n```";
+
+        $this->assertSame([
+            'items' => [
+                ['Écran 16"' => 'oui, "mat"'],
+                ['plain' => ['a', 'b']],
+            ],
+        ], $this->decodeStructuredOutput($payload));
+    }
 }

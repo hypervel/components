@@ -241,6 +241,7 @@ class StreamingTest extends TestCase
             'nested code' => [['type' => 'error', 'error' => ['code' => 'server_error', 'message' => 'Server overloaded']], 'server_error'],
             'nested type' => [['type' => 'error', 'error' => ['type' => 'invalid_request_error', 'code' => null, 'message' => 'Server overloaded']], 'invalid_request_error'],
             'flat' => [['type' => 'error', 'code' => 'server_error', 'message' => 'Server overloaded'], 'server_error'],
+            'failed response' => [['type' => 'response.failed', 'response' => ['id' => 'resp_1', 'status' => 'failed', 'error' => ['code' => 'server_error', 'message' => 'Server overloaded']]], 'server_error'],
         ];
     }
 
@@ -272,7 +273,7 @@ class StreamingTest extends TestCase
         $this->assertSame('Generation failed', $error->message);
     }
 
-    public function testStreamEndingBeforeTheCompletionEventThrows(): void
+    public function testStreamingWithoutATerminalResponseThrows(): void
     {
         Http::fake(['api.openai.com/*' => Http::response(
             body: $this->ssePayload([
@@ -289,19 +290,44 @@ class StreamingTest extends TestCase
     }
 
     #[DataProvider('incompleteReasons')]
+    public function testStreamingIncompleteResponseKeepsUsageAndSkipsToolCalls(string $reason, FinishReason $expected): void
+    {
+        Http::fake([
+            'api.openai.com/*' => Http::response(
+                body: $this->ssePayload([
+                    $this->responseCreated(),
+                    $this->outputItemAdded('fc_1', 'call_1', 'FixedNumberGenerator'),
+                    $this->functionCallArgumentsDone('fc_1', '{}'),
+                    $this->responseIncomplete($reason, 42, 128, output: [
+                        ['type' => 'function_call', 'status' => 'completed', 'id' => 'fc_1', 'call_id' => 'call_1', 'name' => 'FixedNumberGenerator', 'arguments' => '{}'],
+                    ]),
+                ]),
+                status: 200,
+                headers: ['Content-Type' => 'text/event-stream'],
+            ),
+        ]);
+
+        $events = $this->collectStreamEvents(new ProviderOptionsWithToolsAgent);
+
+        $streamEnd = array_values(array_filter($events, fn (object $event): bool => $event instanceof StreamEnd))[0];
+
+        $this->assertSame($expected->value, $streamEnd->reason);
+        $this->assertSame(42, $streamEnd->usage->inputTokens);
+        $this->assertSame(128, $streamEnd->usage->outputTokens);
+
+        Http::assertSentCount(1);
+    }
+
+    #[DataProvider('incompleteReasons')]
     public function testIncompleteResponseRetainsItsTextUsageAndFinishReason(string $reason, FinishReason $expected): void
     {
-        $terminal = $this->responseCompleted(42, 10);
-        $terminal['type'] = 'response.incomplete';
-        $terminal['response']['status'] = 'incomplete';
-        $terminal['response']['incomplete_details'] = ['reason' => $reason];
         Http::fake([
             'api.openai.com/*' => Http::response(
                 body: $this->ssePayload([
                     $this->responseCreated(),
                     $this->outputTextDelta('Partial answer'),
                     $this->outputTextDone('Partial answer'),
-                    $terminal,
+                    $this->responseIncomplete($reason, 42, 10),
                 ]),
                 headers: ['Content-Type' => 'text/event-stream'],
             ),
@@ -321,8 +347,9 @@ class StreamingTest extends TestCase
     public static function incompleteReasons(): array
     {
         return [
-            'token limit' => ['max_output_tokens', FinishReason::Length],
-            'content filter' => ['content_filter', FinishReason::ContentFilter],
+            'output limit maps to Length' => ['max_output_tokens', FinishReason::Length],
+            'content filter maps to ContentFilter' => ['content_filter', FinishReason::ContentFilter],
+            'unknown reason maps to Unknown' => ['max_messages', FinishReason::Unknown],
         ];
     }
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Scout\Services\Turbopuffer;
 
 use Hypervel\Contracts\Telescope\TelescopeTag;
+use Hypervel\Foundation\Application;
 use Hypervel\Http\Client\ConnectionException;
 use Hypervel\Http\Client\Factory;
 use Hypervel\Http\Client\PendingRequest;
@@ -62,6 +63,7 @@ class TurbopufferClient
         $request = $this->http
             ->baseUrl(rtrim($baseUrl, '/'))
             ->withToken($this->config['api_key'] ?? '')
+            ->withHeaders(['X-Hypervel-Scout' => Application::VERSION])
             ->withTelescopeTags([TelescopeTag::Scout, TelescopeTag::Turbopuffer])
             ->acceptJson()
             ->asJson()

@@ -101,6 +101,19 @@ class DatabaseEloquentRouteBindingTest extends TestCase
         (new RouteBindingStringKeyModel)->resolveRouteBindingQuery($query, 'abc');
     }
 
+    // REMOVED: Laravel's testItDoesNotValidateNonIncrementingModelsWithTheDefaultKeyType.
+    // Integer keys stay validated without auto-increment; string keys declare keyType 'string'.
+
+    public function testItValidatesNonIncrementingModelsWithTheDefaultKeyType(): void
+    {
+        $query = m::mock(Builder::class);
+        $query->shouldNotReceive('where');
+
+        $this->expectException(ModelNotFoundException::class);
+
+        (new RouteBindingNonIncrementingKeyModel)->resolveRouteBindingQuery($query, '12abc');
+    }
+
     public function testItDoesNotValidateNullValuesForModelsWithStringKeys(): void
     {
         $query = m::mock(Builder::class);
@@ -207,6 +220,11 @@ class RouteBindingUlidKeyModel extends Model
 class RouteBindingStringKeyModel extends Model
 {
     protected string $keyType = 'string';
+}
+
+class RouteBindingNonIncrementingKeyModel extends Model
+{
+    public bool $incrementing = false;
 }
 
 class RouteBindingCustomExceptionModel extends Model

@@ -88,6 +88,14 @@ class PackageManifest extends FoundationPackageManifest
     }
 
     /**
+     * Get the manifest path.
+     */
+    public function getManifestPath(): ?string
+    {
+        return $this->manifestPath;
+    }
+
+    /**
      * Get the current package manifest.
      */
     #[Override]

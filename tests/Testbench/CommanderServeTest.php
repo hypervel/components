@@ -239,12 +239,19 @@ class CommanderServeTest extends TestCase
      */
     private function fetchFromServe(int $serverPort, string $path): array
     {
-        $body = (string) file_get_contents(
+        $stream = fopen(
             "http://127.0.0.1:{$serverPort}{$path}",
+            'r',
             context: stream_context_create(['http' => ['ignore_errors' => true, 'timeout' => 5]]),
         );
 
-        $responseHeaders = http_get_last_response_headers() ?? [];
+        try {
+            $body = (string) stream_get_contents($stream);
+            $responseHeaders = stream_get_meta_data($stream)['wrapper_data'];
+        } finally {
+            fclose($stream);
+        }
+
         $status = (int) (explode(' ', $responseHeaders[0] ?? '')[1] ?? 0);
         $headers = [];
 

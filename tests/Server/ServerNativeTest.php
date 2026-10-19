@@ -9,7 +9,6 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Core\Events\BeforeMainServerStart;
 use Hypervel\Core\Events\BeforeServerStart;
 use Hypervel\Server\Event;
-use Hypervel\Server\Exceptions\ServerException;
 use Hypervel\Server\Server;
 use Hypervel\Server\ServerConfig;
 use Hypervel\Server\ServerInterface;
@@ -18,6 +17,7 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use Psr\Log\LoggerInterface;
+use Swoole\Exception as SwooleException;
 
 class ServerNativeTest extends TestCase
 {
@@ -51,13 +51,6 @@ class ServerNativeTest extends TestCase
             m::mock(LoggerInterface::class),
             $dispatcher,
         );
-        $warnings = [];
-
-        set_error_handler(static function (int $severity, string $message) use (&$warnings): bool {
-            $warnings[] = $message;
-
-            return str_contains($message, 'invalid SNI_cert setting');
-        });
 
         try {
             $server->init(new ServerConfig([
@@ -86,18 +79,11 @@ class ServerNativeTest extends TestCase
                 ],
             ]));
 
-            $exception = null;
-        } catch (ServerException $exception) {
-        } finally {
-            restore_error_handler();
+            $this->fail('No exception was thrown.');
+        } catch (SwooleException $exception) {
+            $this->assertSame('invalid SNI_cert setting', $exception->getMessage());
         }
 
-        $this->assertInstanceOf(ServerException::class, $exception);
-        $this->assertSame('Failed to configure server [tls].', $exception->getMessage());
-        $this->assertTrue((bool) array_filter(
-            $warnings,
-            static fn (string $warning): bool => str_contains($warning, 'invalid SNI_cert setting'),
-        ));
         $this->assertSame(
             [BeforeMainServerStart::class, BeforeServerStart::class],
             array_map(static fn (object $event): string => $event::class, $events),

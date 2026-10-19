@@ -30,13 +30,13 @@ class GetFileUrl extends FilesystemTool
 
         $path = (string) $request->string('path');
 
-        if (! $this->fileExists($disk, $path)) {
-            return "File [{$path}] does not exist.";
-        }
-
         $minutes = $request->integer('expires_in_minutes');
 
         try {
+            if (! $this->fileExists($disk, $path)) {
+                return "File [{$path}] does not exist.";
+            }
+
             // URL methods are disk capabilities outside the base filesystem contract.
             return $minutes > 0
                 // @phpstan-ignore method.notFound

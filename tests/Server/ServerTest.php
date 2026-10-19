@@ -22,6 +22,7 @@ use Hypervel\Server\ResponseCancellation;
 use Hypervel\Server\Server;
 use Hypervel\Server\ServerConfig;
 use Hypervel\Server\ServerInterface;
+use Hypervel\Server\ServerManager;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -350,6 +351,37 @@ class ServerTest extends TestCase
         ]));
     }
 
+    public function testSecondaryServerSettingsFailureStopsConfigurationBeforeRegistration(): void
+    {
+        $secondary = m::mock(SwoolePort::class);
+        $secondary->expects('set')->with([])->andReturnFalse();
+        $secondary->shouldNotReceive('on');
+        $nativeServer = m::mock(SwooleServer::class);
+        $nativeServer->ports = [m::mock(SwoolePort::class)];
+        $nativeServer->expects('set')->with([])->andReturnTrue();
+        $nativeServer->expects('addlistener')->with('127.0.0.1', 8001, SWOOLE_SOCK_TCP)->andReturn($secondary);
+        $server = $this->server(m::mock(Container::class));
+        $server->createWith($nativeServer);
+
+        try {
+            $server->init(new ServerConfig([
+                'servers' => [
+                    ['name' => 'http', 'host' => '127.0.0.1', 'port' => 8000],
+                    ['name' => 'tcp', 'host' => '127.0.0.1', 'port' => 8001, 'callbacks' => [
+                        Event::ON_RECEIVE => static function (): void {
+                        },
+                    ]],
+                ],
+            ]));
+
+            $this->fail('No exception was thrown.');
+        } catch (ServerException $exception) {
+            $this->assertSame('Failed to configure server [tcp].', $exception->getMessage());
+        }
+
+        $this->assertFalse(ServerManager::has('tcp'));
+    }
+
     public function testEverySecondaryServerReceivesGlobalAndOnlyItsOwnSettings(): void
     {
         $mainPort = m::mock(SwoolePort::class);
@@ -369,14 +401,14 @@ class ServerTest extends TestCase
             'socket_buffer_size' => 4096,
             'http_compression' => false,
             'open_http_protocol' => false,
-        ]);
+        ])->andReturnTrue();
         $nativeServer->expects('addlistener')
             ->with('127.0.0.1', 8002, SWOOLE_SOCK_TCP)
             ->andReturn($secondSecondary);
         $secondSecondary->expects('set')->with([
             'socket_buffer_size' => 2048,
             'http_compression' => false,
-        ]);
+        ])->andReturnTrue();
         $server = $this->server(m::mock(Container::class));
         $server->createWith($nativeServer);
 

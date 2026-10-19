@@ -56,6 +56,7 @@ enum ProtocolVersion: string
      */
     public static function initializeSupported(): array
     {
+        // 2025-03-26 is intentionally not negotiated: its base protocol requires JSON-RPC batching, which the server does not support.
         return [
             self::V2025_11_25->value,
             self::V2025_06_18->value,

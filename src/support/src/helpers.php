@@ -313,7 +313,7 @@ if (! function_exists('retry')) {
      *
      * @param array<int, float|int>|int $times
      * @param callable(int): TValue $callback
-     * @param CarbonInterval|(Closure(int, Throwable): CarbonInterval|float|int)|float|int $sleepMilliseconds
+     * @param CarbonInterval|(Closure(int, Throwable): (CarbonInterval|float|int))|float|int $sleepMilliseconds
      * @param null|(callable(Throwable): bool) $when
      * @return TValue
      *

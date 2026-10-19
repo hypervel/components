@@ -62,15 +62,17 @@ class OpenAiStoreGateway implements StoreGateway
         $response = $this->withErrorHandling(
             $provider->name(),
             fn () => $this->client($provider)
-                ->post('vector_stores', array_filter([
+                ->post('vector_stores', [
                     'name' => $name,
-                    'metadata' => filled($description) ? ['description' => $description] : null,
-                    'file_ids' => $fileIds->values()->all(),
-                    'expires_after' => $expiresWhenIdleFor instanceof DateInterval ? [
-                        'anchor' => 'last_active_at',
-                        'days' => $this->intervalToDays($expiresWhenIdleFor),
-                    ] : null,
-                ]))
+                    ...array_filter([
+                        'metadata' => filled($description) ? ['description' => $description] : null,
+                        'file_ids' => $fileIds->values()->all(),
+                        'expires_after' => $expiresWhenIdleFor instanceof DateInterval ? [
+                            'anchor' => 'last_active_at',
+                            'days' => $this->intervalToDays($expiresWhenIdleFor),
+                        ] : null,
+                    ]),
+                ])
         );
 
         return $this->getStore($provider, $response->json('id'));

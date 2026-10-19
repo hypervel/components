@@ -10,6 +10,7 @@ use Hypervel\Ai\Concerns\InteractsWithApprovals;
 use Hypervel\Ai\Contracts\Agent;
 use Hypervel\Ai\Contracts\Approvable;
 use Hypervel\Ai\Contracts\CanActAsTool;
+use Hypervel\Ai\Contracts\HasStructuredOutput;
 use Hypervel\Ai\Contracts\Tool;
 use Hypervel\Ai\Streaming\Events\StreamEvent;
 use Hypervel\Contracts\Container\Transient;
@@ -74,6 +75,10 @@ class AgentTool implements Approvable, Tool, Transient
      */
     public function stream(Request $request): Generator
     {
+        if ($this->agent instanceof HasStructuredOutput) {
+            return $this->handle($request);
+        }
+
         try {
             $stream = $this->agent->stream((string) $request['task']);
 

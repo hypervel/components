@@ -22,6 +22,9 @@ class WithImmutableDatesTest extends TestCase
         $this->assertSame(CarbonImmutable::class, $date::class);
     }
 
+    // REMOVED: Orchestra's it_does_not_persist_immutable_date_after_test expects mutable dates after
+    // the attributed test. Hypervel's default date class is already CarbonImmutable.
+
     public function testItForcesImmutableDatesAfterAMutableApplicationOptOut(): void
     {
         Date::use(Carbon::class);

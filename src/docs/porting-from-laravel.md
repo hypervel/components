@@ -564,6 +564,8 @@ Use `redirect()->signedRoute()` when forwarding `resource_metadata` or `scope` t
 
 Modern HTTP streams cancel on client disconnect. Review handlers that perform side effects while streaming and ensure their cleanup runs on cancellation; legacy streams still finish. See [streaming responses](/docs/{{version}}/mcp#streaming-responses).
 
+MCP servers do not negotiate protocol revision `2025-03-26`. Clients limited to that revision cannot connect; use clients that support `2025-06-18` or newer. See [protocol versions](/docs/{{version}}/mcp#protocol-versions).
+
 Reformat `LastModified` attribute values as complete date-times with seconds and a timezone, such as `2025-01-12T15:00:58Z`. Other ISO 8601 representations accepted by Laravel are rejected to keep responses compatible with TypeScript-SDK clients. See [resource annotations](/docs/{{version}}/mcp#resource-annotations).
 
 If subclasses redeclare protected properties, use `mixed` for `JsonRpcException::$data` and `?Hypervel\Mcp\Client\Transport\StdioInput` for the client `StdioTransport::$input`. Error data preserves all JSON values, and stdio uses a live input queue so notifications can be sent without waiting for the next request.

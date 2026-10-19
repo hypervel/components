@@ -622,6 +622,21 @@ class CourierCommandTest extends TestCase
 }
 ```
 
+To test your package against compiled views, as an application would after running `view:cache`, use the `#[WithCachedViews]` attribute. Testbench compiles the application's views before the test and clears them afterwards:
+
+```php
+use Hypervel\Testbench\Attributes\WithCachedViews;
+
+class CourierViewTest extends TestCase
+{
+    #[WithCachedViews]
+    public function test_courier_views_render_when_cached(): void
+    {
+        // ...
+    }
+}
+```
+
 <a name="application-timezone"></a>
 ### Application Timezone
 

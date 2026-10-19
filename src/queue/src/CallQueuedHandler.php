@@ -75,7 +75,7 @@ class CallQueuedHandler
         }
 
         if (! $job->isReleased() && ! $this->commandShouldBeUniqueUntilProcessing($command)) {
-            $this->ensureUniqueJobLockIsReleased($command, $job);
+            $this->ensureUniqueJobLockIsReleased($command, job: $job);
         }
 
         if (! $job->hasFailed() && ! $job->isReleased()) {
@@ -124,12 +124,12 @@ class CallQueuedHandler
             ->through(array_merge(method_exists($command, 'middleware') ? $command->middleware() : [], $command->middleware ?? []))
             ->finally(function ($command) use ($job, &$lockReleased) {
                 if (! $lockReleased && $this->commandShouldBeUniqueUntilProcessing($command) && ! $job->isReleased() && $this->uniqueJobLockShouldBeReleased($job, $command)) { /* @phpstan-ignore booleanNot.alwaysTrue ($lockReleased is set in then() which runs before finally()) */
-                    $this->ensureUniqueJobLockIsReleased($command, $job);
+                    $this->ensureUniqueJobLockIsReleased($command, job: $job);
                 }
             })
             ->then(function ($command) use ($job, &$lockReleased) {
                 if ($this->commandShouldBeUniqueUntilProcessing($command) && $this->uniqueJobLockShouldBeReleased($job, $command)) {
-                    $this->ensureUniqueJobLockIsReleased($command, $job);
+                    $this->ensureUniqueJobLockIsReleased($command, job: $job);
 
                     $lockReleased = true;
                 }
@@ -231,11 +231,12 @@ class CallQueuedHandler
      *
      * @param null|Job $job the queued job carrying ownership for commands without Queueable state
      */
-    protected function ensureUniqueJobLockIsReleased(mixed $command, ?Job $job = null): void
+    protected function ensureUniqueJobLockIsReleased(mixed $command, bool $onlyOwned = false, ?Job $job = null): void
     {
         if ($this->commandShouldBeUnique($command)) {
             (new UniqueLock($this->container->make(Cache::class)))->release(
                 $command,
+                $onlyOwned,
                 $job === null ? '' : $this->getUniqueJobLockOwner($job, $command),
             );
         }
@@ -390,9 +391,11 @@ class CallQueuedHandler
             $command = $this->setJobInstanceIfNecessary($job, $command);
         }
 
-        if (! $this->commandShouldBeUniqueUntilProcessing($command)) {
-            $this->ensureUniqueJobLockIsReleased($command, $job);
-        }
+        $this->ensureUniqueJobLockIsReleased(
+            $command,
+            onlyOwned: $this->commandShouldBeUniqueUntilProcessing($command),
+            job: $job,
+        );
 
         if ($command instanceof __PHP_Incomplete_Class) {
             return;

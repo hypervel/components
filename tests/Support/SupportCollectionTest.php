@@ -2213,6 +2213,34 @@ class SupportCollectionTest extends TestCase
     }
 
     #[DataProvider('collectionClassProvider')]
+    public function testSortByDescWithCallableComparisons($collection): void
+    {
+        $data = new $collection([['id' => 1, 'name' => 'foo'], ['id' => 2, 'name' => 'bar'], ['id' => 2, 'name' => 'baz']]);
+
+        $data = $data->sortByDesc([
+            fn ($a, $b) => $a['id'] <=> $b['id'],
+            fn ($a, $b) => $a['name'] <=> $b['name'],
+        ]);
+
+        $this->assertEquals([['id' => 2, 'name' => 'baz'], ['id' => 2, 'name' => 'bar'], ['id' => 1, 'name' => 'foo']], array_values($data->all()));
+
+        $data = $data->sortBy([
+            [fn ($a, $b) => $a['id'] <=> $b['id'], 'desc'],
+            [fn ($a, $b) => $a['name'] <=> $b['name'], 'asc'],
+        ]);
+
+        $this->assertEquals([['id' => 2, 'name' => 'bar'], ['id' => 2, 'name' => 'baz'], ['id' => 1, 'name' => 'foo']], array_values($data->all()));
+    }
+
+    #[DataProvider('collectionClassProvider')]
+    public function testSortByDescReversesTheMinimumIntegerComparisonResult($collection): void
+    {
+        $data = (new $collection([PHP_INT_MIN, 0]))->sortByDesc([fn (int $a, int $b): int => $a - $b]);
+
+        $this->assertSame([0, PHP_INT_MIN], $data->values()->all());
+    }
+
+    #[DataProvider('collectionClassProvider')]
     public function testSortByAlwaysReturnsAssoc($collection): void
     {
         $data = new $collection(['a' => 'taylor', 'b' => 'dayle']);

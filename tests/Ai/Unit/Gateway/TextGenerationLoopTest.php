@@ -16,6 +16,7 @@ use Hypervel\Ai\Contracts\Approvable;
 use Hypervel\Ai\Contracts\CanActAsTool;
 use Hypervel\Ai\Contracts\ClaimsPendingApprovals;
 use Hypervel\Ai\Contracts\Gateway\StepTextGateway;
+use Hypervel\Ai\Contracts\HasStructuredOutput;
 use Hypervel\Ai\Contracts\Providers\SupportsToolSearch;
 use Hypervel\Ai\Contracts\Providers\SupportsWebSearch;
 use Hypervel\Ai\Contracts\Providers\TextProvider;
@@ -47,6 +48,7 @@ use Hypervel\Ai\Responses\Data\TextUsage;
 use Hypervel\Ai\Responses\Data\ToolCall;
 use Hypervel\Ai\Responses\Data\ToolResult as ToolResultData;
 use Hypervel\Ai\Responses\StreamableAgentResponse;
+use Hypervel\Ai\Responses\StructuredAgentResponse;
 use Hypervel\Ai\Streaming\Events\Error;
 use Hypervel\Ai\Streaming\Events\ReasoningDelta;
 use Hypervel\Ai\Streaming\Events\StreamEnd;
@@ -1418,6 +1420,48 @@ class TextGenerationLoopTest extends TestCase
 
         $this->assertSame('done', $response->text);
         $this->assertSame('synchronous result', $response->toolResults[0]->result);
+    }
+
+    public function testAStructuredSubAgentAnswersThroughARegularPromptInTheStreamedLoop(): void
+    {
+        $parent = null;
+
+        $agent = m::mock(Agent::class, CanActAsTool::class, HasStructuredOutput::class);
+        $agent->shouldReceive('name')->andReturn('research_agent');
+        $agent->shouldNotReceive('stream');
+        $agent->shouldReceive('prompt')->once()->andReturnUsing(function () use (&$parent): StructuredAgentResponse {
+            $parent = ParentInvocation::current();
+
+            return new StructuredAgentResponse(
+                'sub-invocation',
+                ['answer' => 42],
+                '{"answer":42}',
+                new TextUsage(3, 4),
+                new Meta('fake', 'sub-model'),
+            );
+        });
+
+        $invoked = [];
+
+        $dispatcher = new Dispatcher;
+
+        $dispatcher->listen(ToolInvoked::class, function (ToolInvoked $event) use (&$invoked): void {
+            $invoked[] = $event->result;
+        });
+
+        $toolCall = new ToolCall('call-sub-agent', 'research_agent', ['task' => 'Research'], 'call-sub-agent');
+
+        textGenerationLoopSubAgentStream([new AgentTool($agent)], [$toolCall], context: new RunContext(
+            'invocation-1',
+            m::mock(Agent::class),
+            textGenerationLoopProvider(),
+            'model',
+            $dispatcher,
+        ));
+
+        $this->assertSame('invocation-1', $parent[0]);
+        $this->assertNotNull($parent[1]);
+        $this->assertSame(['{"answer":42}'], $invoked);
     }
 
     public function testASubAgentIsNotExecutedOnTheFinalStreamedStep(): void

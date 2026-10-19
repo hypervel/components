@@ -206,9 +206,11 @@ trait ParsesTextResponses
     {
         // Completed output items do not make an interrupted response complete.
         if (($data['status'] ?? null) === 'incomplete') {
-            return ($data['incomplete_details']['reason'] ?? null) === 'content_filter'
-                ? FinishReason::ContentFilter
-                : FinishReason::Length;
+            return match ($data['incomplete_details']['reason'] ?? null) {
+                'max_output_tokens' => FinishReason::Length,
+                'content_filter' => FinishReason::ContentFilter,
+                default => FinishReason::Unknown,
+            };
         }
 
         $lastOutput = last($data['output'] ?? []);

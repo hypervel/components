@@ -90,6 +90,27 @@ class FilesystemToolsTest extends TestCase
         ];
     }
 
+    #[DataProvider('invalidSourcePaths')]
+    public function testInvalidSourcePathsBecomeToolResults(string $toolClass, string $result): void
+    {
+        $this->assertSame(
+            $result,
+            (new $toolClass('local'))->handle(new Request(['path' => '../report.txt', 'from' => '../report.txt', 'to' => 'copy.txt'])),
+        );
+    }
+
+    /**
+     * Provide tools whose source existence check rejects paths outside the disk root.
+     */
+    public static function invalidSourcePaths(): array
+    {
+        return [
+            'copy' => [CopyFile::class, 'Unable to copy [../report.txt] to [copy.txt]: Path traversal detected: ../report.txt'],
+            'move' => [MoveFile::class, 'Unable to move [../report.txt] to [copy.txt]: Path traversal detected: ../report.txt'],
+            'URL' => [GetFileUrl::class, 'Unable to generate a URL for [../report.txt]: Path traversal detected: ../report.txt'],
+        ];
+    }
+
     public function testListFilesReturnsFilesAndDirectoriesUnderAPath(): void
     {
         Storage::disk('local')->put('docs/a.txt', 'A');
@@ -280,7 +301,29 @@ class FilesystemToolsTest extends TestCase
     {
         $result = (new CopyFile('local'))->handle(new Request(['from' => 'missing.txt', 'to' => 'dst.txt']));
 
-        $this->assertSame('Unable to copy [missing.txt] to [dst.txt]. The source file may not exist.', $result);
+        $this->assertSame('File [missing.txt] does not exist.', $result);
+    }
+
+    public function testCopyFileDoesNotCopyDirectories(): void
+    {
+        Storage::disk('local')->makeDirectory('photos');
+
+        $result = (new CopyFile('local'))->handle(new Request(['from' => 'photos', 'to' => 'archive/photos']));
+
+        $this->assertSame('File [photos] does not exist.', $result);
+        Storage::disk('local')->assertExists('photos');
+        Storage::disk('local')->assertMissing('archive/photos');
+    }
+
+    public function testCopyFileReportsCopyFailures(): void
+    {
+        $disk = m::mock(Filesystem::class);
+        $disk->expects('fileExists')->with('a.txt')->andReturnTrue();
+        $disk->expects('copy')->with('a.txt', 'b.txt')->andReturnFalse();
+
+        $result = (new CopyFile($disk))->handle(new Request(['from' => 'a.txt', 'to' => 'b.txt']));
+
+        $this->assertSame('Unable to copy [a.txt] to [b.txt].', $result);
     }
 
     public function testMoveFileRelocatesAFile(): void

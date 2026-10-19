@@ -214,7 +214,7 @@ You may add custom HTTP headers to every outgoing request for the provider by de
 ],
 ```
 
-OpenAI-compatible providers support text generation, streaming, tools, structured output, image attachments, embeddings, and transcription. If your endpoint requires additional request body fields, provide them using [provider options](#provider-options).
+OpenAI-compatible providers support text generation, streaming, tools, structured output, image attachments, embeddings, transcription, and classification. If your endpoint requires additional request body fields, provide them using [provider options](#provider-options).
 
 For endpoints that require usage to be requested explicitly when streaming, add `'stream_options' => ['include_usage' => true]` to the provider's configuration.
 
@@ -257,6 +257,24 @@ Likewise, you must configure a default transcription model to use `Transcription
 
 > [!NOTE]
 > Groq and OpenRouter do not support diarization. Invoking `diarize` with either provider throws an exception. OpenAI-compatible providers send the `diarized_json` response format, which your endpoint must support.
+
+<a name="openai-compatible-classification"></a>
+#### OpenAI-Compatible Classification
+
+To use `Classification` with an OpenAI-compatible provider, configure a default classification model. Requests are sent to the endpoint's `/decisions` route in OpenAI's format, so your endpoint must support it:
+
+```php
+'local' => [
+    'driver' => 'openai-compatible',
+    'url' => env('LOCAL_AI_URL'),
+    'key' => env('LOCAL_AI_API_KEY'),
+    'models' => [
+        'classification' => [
+            'default' => 'local-classifier',
+        ],
+    ],
+],
+```
 
 <a name="on-demand-providers"></a>
 ### On-Demand Providers
@@ -357,7 +375,7 @@ The AI SDK supports a variety of providers across its features. The following ta
 | STT | OpenAI, OpenAI Compatible, ElevenLabs, Groq, Mistral, Gemini, OpenRouter |
 | Embeddings | OpenAI, OpenAI Compatible, Gemini, Azure, Bedrock, Cohere, Mistral, Jina, VoyageAI, Ollama, OpenRouter |
 | Reranking | Cohere, Jina, VoyageAI, Bedrock, OpenRouter |
-| Classification | TypeSafe, OpenAI, OpenRouter |
+| Classification | TypeSafe, OpenAI, OpenAI Compatible, OpenRouter |
 | Files | OpenAI, Anthropic, Gemini, Azure, OpenRouter |
 | Vector Stores | OpenAI, Gemini, Azure |
 
@@ -1972,7 +1990,7 @@ class RefundsAgent implements Agent, CanActAsTool, HasTools
 
 If a sub-agent does not implement `CanActAsTool`, Hypervel will use the agent's class basename as the tool name and a generic description that asks the parent agent to pass a clear, self-contained task description. Each sub-agent invocation runs in isolation and does not receive the parent agent's conversation history.
 
-When the parent agent is [streaming](#streaming), its sub-agents stream as well. As a sub-agent's text grows, the parent periodically emits `ToolResult` events containing the text produced so far. These events are marked as preliminary and are followed by the tool call's final result. Short responses may only produce the final result. You may skip preliminary events when iterating manually:
+When the parent agent is [streaming](#streaming), its sub-agents stream as well, except sub-agents with [structured output](#structured-output), which return their result once complete. As a sub-agent's text grows, the parent periodically emits `ToolResult` events containing the text produced so far. These events are marked as preliminary and are followed by the tool call's final result. Short responses may only produce the final result. You may skip preliminary events when iterating manually:
 
 ```php
 use Hypervel\Ai\Streaming\Events\ToolResult;
@@ -2052,7 +2070,7 @@ class LogPrompts
 }
 ```
 
-Middleware resolved from class names follows the normal container lifetime rules; shared middleware should be stateless. Middleware wraps each model step, not individual tool calls or child-agent runs. It can stop further model work by throwing, but does not interrupt a provider request that is already running.
+Middleware resolved from class names follows the normal container lifetime rules; shared middleware should be stateless. Middleware wraps each model step, not individual tool calls or child-agent runs. It can [end the run](#stopping-a-run) before the next model call, but does not interrupt a provider request that is already running.
 
 In addition to the `provider`, `model`, `instructions`, `messages`, and `tools` that are about to be sent, the step exposes the steps that have already completed, their combined usage, and the progress of the run:
 
@@ -2133,6 +2151,24 @@ $response = SalesCoach::make()
 ```
 
 You may pass middleware class names, instances, or closures. Middleware added this way remains on the agent instance for subsequent calls. A stream captures the added middleware when it is created, so adding more middleware afterwards does not change that stream.
+
+<a name="stopping-a-run"></a>
+#### Stopping a Run
+
+The `Stop` middleware ends a run before its next model call. Its `when` and `unless` methods accept a boolean or a closure that receives the pending step:
+
+```php
+use Hypervel\Ai\Middleware\Stop;
+use Hypervel\Ai\PendingStep;
+
+$response = SalesCoach::make()
+    ->withMiddleware([
+        Stop::when(fn (PendingStep $step) => $step->usage->totalTokens() > 50_000),
+    ])
+    ->prompt('Review this sales call.');
+```
+
+A stopped run returns the steps that completed before it stopped, and a remembered conversation keeps their messages. If no step completed, the response text is empty. A stopped stream ends with the `cancelled` finish reason.
 
 Queued agents and queued AI event listeners require serializable middleware, captured values, and tool instances stored on the agent. Queued prompt listeners also serialize all tools resolved through `withTools`, including declared tools retained by its closure form. For tools that contain closures, such as `SimilaritySearch`, declare them in `tools` and omit `withTools` when using queued prompt listeners.
 
@@ -3523,6 +3559,8 @@ $image = Image::of('A donut sitting on the kitchen counter')
 ```
 
 Failover only occurs when a `FailoverableException` is thrown — such as a rate limit (`RateLimitedException`), an overloaded or unavailable provider (`ProviderOverloadedException`), or insufficient credits (`InsufficientCreditsException`). Ordinary errors, like a validation or bad request error, will not trigger failover.
+
+When a rate limited or overloaded provider sends a `Retry-After` header of 10 seconds or less, the request waits that long and is retried once on the same provider before failing over.
 
 An agent does not fail over after a tool starts, since restarting the run could repeat its side effects. Streams also stop failing over once an event has reached the consumer. The original exception is reported, and remembering agents retain the steps and tool results completed before the failure.
 

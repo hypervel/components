@@ -31,11 +31,11 @@ class MoveFile extends FilesystemTool
         $from = (string) $request->string('from');
         $to = (string) $request->string('to');
 
-        if (! $this->fileExists($disk, $from)) {
-            return "File [{$from}] does not exist.";
-        }
-
         try {
+            if (! $this->fileExists($disk, $from)) {
+                return "File [{$from}] does not exist.";
+            }
+
             $moved = $disk->move($from, $to);
         } catch (CanceledException $exception) {
             throw $exception;

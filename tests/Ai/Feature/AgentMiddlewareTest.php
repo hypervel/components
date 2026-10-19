@@ -27,9 +27,11 @@ use Hypervel\Ai\Messages\AssistantMessage;
 use Hypervel\Ai\Messages\Message;
 use Hypervel\Ai\Messages\ToolResultMessage;
 use Hypervel\Ai\Messages\UserMessage;
+use Hypervel\Ai\Middleware\Stop;
 use Hypervel\Ai\PendingStep;
 use Hypervel\Ai\Promptable;
 use Hypervel\Ai\Providers\Tools\WebSearch;
+use Hypervel\Ai\Responses\AgentResponse;
 use Hypervel\Ai\Responses\Data\FinishReason;
 use Hypervel\Ai\Responses\Data\Meta;
 use Hypervel\Ai\Responses\Data\TextUsage;
@@ -55,6 +57,7 @@ use Hypervel\Support\Facades\Queue;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Ai\Fixtures\Agents\AssistantAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\RememberingAssistantAgent;
+use Hypervel\Tests\Ai\Fixtures\Agents\StructuredAgent;
 use Hypervel\Tests\Ai\Fixtures\CapturingStepGateway;
 use Hypervel\Tests\Ai\Fixtures\FakeConversationStore;
 use Hypervel\Tests\Ai\Fixtures\Tools\FixedNumberGenerator;
@@ -290,6 +293,137 @@ class AgentMiddlewareTest extends TestCase
         $this->assertSame('Cached reasoning', $response->reasoning);
         $this->assertEquals([$citation], $response->citations->all());
         $this->assertSame($events[4]->messageId, $events[7]->messageId);
+    }
+
+    public function testAStopMiddlewareEndsTheRunBeforeTheNextModelCall(): void
+    {
+        AssistantAgent::fake([
+            new ToolCall('call_1', 'FixedNumberGenerator', []),
+            new ToolCall('call_2', 'FixedNumberGenerator', []),
+            'Fake response',
+        ]);
+
+        $response = (new AssistantAgent)
+            ->withTools([new FixedNumberGenerator])
+            ->withMiddleware([Stop::when(fn (PendingStep $step): bool => $step->number === 1)])
+            ->prompt('Test prompt');
+
+        $this->assertCount(1, $response->steps);
+        $this->assertCount(1, $response->toolResults);
+        $this->assertSame('', $response->text);
+    }
+
+    public function testAStopMiddlewareEndsAStreamWithACancelledFinishReason(): void
+    {
+        AssistantAgent::fake([
+            new ToolCall('call_1', 'FixedNumberGenerator', []),
+            'Fake response',
+        ]);
+
+        $response = (new AssistantAgent)
+            ->withTools([new FixedNumberGenerator])
+            ->withMiddleware([Stop::unless(fn (PendingStep $step): bool => $step->isFirstStep())])
+            ->stream('Test prompt');
+
+        $events = iterator_to_array($response, false);
+        $end = end($events);
+
+        $this->assertInstanceOf(StreamEnd::class, $end);
+        $this->assertSame(FinishReason::Cancelled->value, $end->reason);
+        $this->assertCount(1, $end->steps);
+        $this->assertSame(FinishReason::ToolCalls, $end->steps->last()->finishReason);
+    }
+
+    public function testAStopMiddlewareOnTheFirstStepReturnsAnEmptyResponseWithoutAStep(): void
+    {
+        AssistantAgent::fake(['Fake response']);
+
+        $response = (new AssistantAgent)
+            ->withMiddleware([Stop::when(true)])
+            ->prompt('Test prompt');
+
+        $this->assertSame('', $response->text);
+        $this->assertEmpty($response->steps);
+    }
+
+    public function testAStructuredAgentStoppedBeforeItsFirstStepReturnsAnUnstructuredResponse(): void
+    {
+        $agent = new class extends StructuredAgent implements HasMiddleware {
+            /**
+             * Get the agent's middleware.
+             */
+            public function middleware(): array
+            {
+                return [Stop::when(true)];
+            }
+        };
+
+        $agent::fake();
+
+        $response = $agent->prompt('Test prompt');
+
+        $this->assertSame(AgentResponse::class, $response::class);
+        $this->assertSame('', $response->text);
+    }
+
+    public function testAStoppedTurnIsRememberedUpToItsLastToolResult(): void
+    {
+        RememberingAssistantAgent::fake([
+            new ToolCall('call_1', 'FixedNumberGenerator', []),
+            'Fake response',
+        ]);
+
+        $user = (object) ['id' => 1];
+        $store = new DatabaseConversationStore;
+        $conversationId = $store->storeConversation('user', $user->id, 'Stopped conversation');
+
+        (new RememberingAssistantAgent)
+            ->withTools([new FixedNumberGenerator])
+            ->withMiddleware([Stop::unless(fn (PendingStep $step): bool => $step->isFirstStep())])
+            ->continue($conversationId, $user)
+            ->prompt('Test prompt');
+
+        $this->assertSame(
+            [Message::class, AssistantMessage::class, ToolResultMessage::class],
+            $store->getLatestConversationMessages($conversationId, 10)->map(fn (Message $message): string => $message::class)->all(),
+        );
+    }
+
+    public function testATurnStoppedBeforeItsFirstStepIsRememberedWithoutAnAssistantMessage(): void
+    {
+        RememberingAssistantAgent::fake(['Fake response']);
+
+        $user = (object) ['id' => 1];
+        $store = new DatabaseConversationStore;
+        $conversationId = $store->storeConversation('user', $user->id, 'Stopped conversation');
+
+        (new RememberingAssistantAgent)
+            ->withMiddleware([Stop::when(true)])
+            ->continue($conversationId, $user)
+            ->prompt('Test prompt');
+
+        $this->assertSame(
+            [Message::class],
+            $store->getLatestConversationMessages($conversationId, 10)->map(fn (Message $message): string => $message::class)->all(),
+        );
+    }
+
+    public function testQueuedAgentsSerializeStopMiddlewareConditions(): void
+    {
+        Queue::fake()->serializeAndRestore();
+        Event::fake([StartingStep::class]);
+        AssistantAgent::fake(['Fake response']);
+
+        (new AssistantAgent)
+            ->withMiddleware([Stop::unless(fn (PendingStep $step): bool => false)])
+            ->queue('Test prompt');
+
+        Queue::assertPushed(InvokeAgent::class, function (InvokeAgent $job): bool {
+            $job->handle();
+
+            return true;
+        });
+        Event::assertNotDispatched(StartingStep::class);
     }
 
     public function testAgentMiddlewareMayChangeTheModelAndOptionsForAStep(): void

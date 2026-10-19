@@ -60,14 +60,15 @@ class UtilsTest extends TestCase
         yield 'unterminated DCS' => ["Ready\ePsecret", 'Ready'];
         yield 'Symfony named tag' => ['<info>Ready</info>', 'Ready'];
         yield 'Symfony inline tag' => ['<fg=green;options=bold>Ready</>', 'Ready'];
-        yield 'Symfony hexadecimal color' => ['<fg=#ff00aa>Ready</>', 'Ready'];
-        yield 'Symfony bright and hexadecimal colors' => ['<fg=bright-red;bg=#00ff00>Ready</>', 'Ready'];
+        yield 'Symfony hyphenated color names' => ['<fg=bright-white;options=bold>Hello</> <fg=bright-magenta;bg=bright-black>World</>', 'Hello World'];
+        yield 'Symfony hex colors' => ['<fg=#ff0000>Hello</> <bg=#00FF00;fg=#fff>World</>', 'Hello World'];
         yield 'Symfony combined inline attributes' => ['<fg=blue;bg=bright-yellow;options=bold,underscore>Ready</>', 'Ready'];
         yield 'Symfony hyperlink' => ['<href=https://hypervel.org/docs>Ready</>', 'Ready'];
         yield 'Symfony hyperlink with escaped angle bracket' => ['<href=https://example.com/a\>b>Ready</>', 'Ready'];
         yield 'nested Symfony inline tags' => ['<fg=green>Your action, <fg=yellow>UserName</>?</>', 'Your action, UserName?'];
         yield 'deeply nested Symfony inline tags' => ['<fg=green>A<fg=yellow>B<fg=red>C</>D</>E</>', 'ABCDE'];
         yield 'sibling nested Symfony inline tags' => ['<fg=green>Hello <fg=yellow>World</></> and <fg=red>Foo <fg=blue>Bar</></>', 'Hello World and Foo Bar'];
+        yield 'nested Symfony inline tags with hyphenated color names' => ['<fg=bright-white>A <fg=bright-magenta>B</> C</>', 'A B C'];
         yield 'escaped angle brackets' => ['\<info\>Ready\</info\>', '<info>Ready</info>'];
         yield 'unregistered named style remains visible' => ['<fire>Ready</fire>', '<fire>Ready</fire>'];
         yield 'ordinary angle brackets' => ['Use <value> or <other>.', 'Use <value> or <other>.'];

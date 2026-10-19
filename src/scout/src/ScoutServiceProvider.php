@@ -143,6 +143,7 @@ class ScoutServiceProvider extends ServiceProvider
                 $config->string('scout.meilisearch.host', 'http://localhost:7700'),
                 $config->get('scout.meilisearch.key'),
                 new GuzzleClient($guzzleOptions),
+                clientAgents: [sprintf('Meilisearch Hypervel Scout (v%s)', HypervelApplication::VERSION)],
             );
         });
     }
