@@ -58,9 +58,10 @@ class ClientMetadataValidator
             'scope' => ['sometimes', 'string'],
             'application_type' => ['sometimes', 'required', Rule::in(['web', 'native'])],
             'token_endpoint_auth_method' => ['sometimes', 'required', Rule::in(ClientAuthenticator::METHODS)],
-            'token_endpoint_auth_signing_alg' => ['sometimes', 'required', Rule::in(JwkValidator::ALGORITHMS)],
-            'jwks' => ['sometimes', 'required', 'array'],
-            'jwks_uri' => ['sometimes', 'required', 'string'],
+            // Clients may send keys for unused features; retain them only where they authenticate the client.
+            'token_endpoint_auth_signing_alg' => ['exclude_unless:token_endpoint_auth_method,private_key_jwt', 'sometimes', 'required', Rule::in(JwkValidator::ALGORITHMS)],
+            'jwks' => ['exclude_unless:token_endpoint_auth_method,private_key_jwt', 'sometimes', 'required', 'array'],
+            'jwks_uri' => ['exclude_unless:token_endpoint_auth_method,private_key_jwt', 'sometimes', 'required', 'string'],
             'dpop_bound_access_tokens' => ['sometimes', 'boolean:strict'],
             'require_pushed_authorization_requests' => ['sometimes', 'boolean:strict'],
         ];
@@ -75,7 +76,6 @@ class ClientMetadataValidator
             'client_name' => 'OAuth Client',
             'grant_types' => ['authorization_code'],
             'redirect_uris' => [],
-            'scope' => '',
             'application_type' => 'web',
             'token_endpoint_auth_method' => 'client_secret_basic',
             'dpop_bound_access_tokens' => false,
@@ -83,6 +83,9 @@ class ClientMetadataValidator
         ];
         $codeGrant = in_array('authorization_code', $validated['grant_types'], true);
         $validated['response_types'] ??= $codeGrant ? ['code'] : [];
+        // Machine grants have no user consent step, so their scopes must be explicitly provisioned.
+        $validated['scope'] ??= in_array('client_credentials', $validated['grant_types'], true)
+            ? '' : implode(' ', $this->config->array('passport.registration.scopes'));
 
         if ($validated['response_types'] !== ($codeGrant ? ['code'] : [])) {
             throw InvalidClientMetadataException::invalidClientMetadata('The response types must match the registered grants.');
@@ -116,6 +119,9 @@ class ClientMetadataValidator
 
         $validated = $this->validateKeys($validated);
 
+        // Complete-document updates must clear keys removed from the client's registration.
+        $validated += ['jwks' => null, 'jwks_uri' => null, 'token_endpoint_auth_signing_alg' => null];
+
         if ($this->events->hasListeners(ClientMetadataValidated::class)) {
             $event = new ClientMetadataValidated($metadata, $validated, $client, $token);
             $this->events->dispatch($event);
@@ -138,7 +144,7 @@ class ClientMetadataValidator
     /**
      * Validate web and native callback addresses without fetching them.
      */
-    protected function validateRedirectUri(string $uri, string $applicationType): void
+    public function validateRedirectUri(string $uri, string $applicationType): void
     {
         $parts = parse_url($uri);
 
@@ -190,8 +196,6 @@ class ClientMetadataValidator
             }
 
             $metadata['token_endpoint_auth_signing_alg'] ??= 'RS256';
-        } elseif (isset($metadata['token_endpoint_auth_signing_alg']) || isset($metadata['jwks']) || isset($metadata['jwks_uri'])) {
-            throw InvalidClientMetadataException::invalidClientMetadata('Registered client keys and assertion algorithms require private_key_jwt authentication.');
         }
 
         try {

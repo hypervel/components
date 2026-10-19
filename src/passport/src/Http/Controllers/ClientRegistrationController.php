@@ -73,12 +73,16 @@ class ClientRegistrationController
 
                 // Return registered values after model normalization, without exposing unrelated attributes.
                 foreach (array_keys($metadata) as $name) {
-                    $result[$name] = match ($name) {
+                    $value = match ($name) {
                         'client_name' => $client->name,
                         'scope' => implode(' ', $client->scopes),
                         'response_types' => in_array('authorization_code', $client->grant_types, true) ? ['code'] : [],
                         default => $client->getAttribute($name),
                     };
+
+                    if ($value !== null) {
+                        $result[$name] = $value;
+                    }
                 }
 
                 $result += [
@@ -124,7 +128,7 @@ class ClientRegistrationController
         $token = AccessToken::fromPsrRequest($validated);
 
         if ($token->oauth_audiences !== [$token->oauth_client_id]
-            && ! in_array(route('passport.clients.register'), $token->oauth_audiences, true)) {
+            && ! in_array(url()->current(), $token->oauth_audiences, true)) {
             throw $this->bearerChallenge($request, 'invalid_token');
         }
 

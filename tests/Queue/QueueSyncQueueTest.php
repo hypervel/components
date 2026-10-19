@@ -450,6 +450,7 @@ class QueueSyncQueueTest extends TestCase
     {
         $container = new Container;
         $container->instance(Cache::class, m::mock(Cache::class));
+        $container->instance(EventDispatcher::class, new EventsDispatcher($container));
         $container->instance(ContainerContract::class, $container);
         Container::setInstance($container);
 

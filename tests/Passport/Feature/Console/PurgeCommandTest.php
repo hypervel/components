@@ -35,8 +35,8 @@ class PurgeCommandTest extends PassportTestCase
 
         $this->assertSame([
             'select "oauth_access_tokens"."id" from "oauth_access_tokens" where ("revoked" = 1 or "expires_at" < \'2000-01-01 00:00:00\') and not exists (select * from "oauth_refresh_tokens" where ("oauth_access_tokens"."id" = "oauth_refresh_tokens"."access_token_id") and ("revoked" = 0 and ("expires_at" is null or "expires_at" > \'2000-01-08 00:00:00\'))) and "id" is not null order by "id" asc limit 1000',
-            'select "oauth_auth_codes"."id" from "oauth_auth_codes" where ("revoked" = 1 or "expires_at" < \'2000-01-01 00:00:00\') and "id" is not null order by "id" asc limit 1000',
-            'select "oauth_refresh_tokens"."id" from "oauth_refresh_tokens" where ("revoked" = 1 or "expires_at" < \'2000-01-01 00:00:00\') and "expires_at" <= \'2000-01-08 00:00:00\' and "id" is not null order by "id" asc limit 1000',
+            'select "oauth_auth_codes"."id" from "oauth_auth_codes" where ("revoked" = 1 or "expires_at" < \'2000-01-01 00:00:00\') and "expires_at" <= \'2000-01-08 00:00:00\' and "id" is not null order by "id" asc limit 1000',
+            'select "oauth_refresh_tokens"."id" from "oauth_refresh_tokens" where ("revoked" = 1 or "expires_at" < \'2000-01-01 00:00:00\') and "expires_at" <= \'2000-01-08 00:00:00\' and not exists (select * from "oauth_access_tokens" where ("oauth_refresh_tokens"."access_token_id" = "oauth_access_tokens"."id") and ("revoked" = 0 and ("expires_at" is null or "expires_at" > \'2000-01-08 00:00:00\'))) and "id" is not null order by "id" asc limit 1000',
             'select "oauth_refresh_token_families"."id" from "oauth_refresh_token_families" where not exists (select * from "oauth_refresh_tokens" where "oauth_refresh_token_families"."id" = "oauth_refresh_tokens"."family_id") and "id" is not null order by "id" asc limit 1000',
             'select "oauth_device_codes"."id" from "oauth_device_codes" where ("revoked" = 1 or "expires_at" < \'2000-01-01 00:00:00\') and "id" is not null order by "id" asc limit 1000',
             'select "oauth_pushed_authorization_requests"."id" from "oauth_pushed_authorization_requests" where "expires_at" <= \'2000-01-08 00:00:00\' and "id" is not null order by "id" asc limit 1000',
@@ -54,8 +54,8 @@ class PurgeCommandTest extends PassportTestCase
 
         $this->assertSame([
             'select "oauth_access_tokens"."id" from "oauth_access_tokens" where ("revoked" = 1) and not exists (select * from "oauth_refresh_tokens" where ("oauth_access_tokens"."id" = "oauth_refresh_tokens"."access_token_id") and ("revoked" = 0 and ("expires_at" is null or "expires_at" > \'2000-01-08 00:00:00\'))) and "id" is not null order by "id" asc limit 1000',
-            'select "oauth_auth_codes"."id" from "oauth_auth_codes" where ("revoked" = 1) and "id" is not null order by "id" asc limit 1000',
-            'select "oauth_refresh_tokens"."id" from "oauth_refresh_tokens" where ("revoked" = 1) and "expires_at" <= \'2000-01-08 00:00:00\' and "id" is not null order by "id" asc limit 1000',
+            'select "oauth_auth_codes"."id" from "oauth_auth_codes" where ("revoked" = 1) and "expires_at" <= \'2000-01-08 00:00:00\' and "id" is not null order by "id" asc limit 1000',
+            'select "oauth_refresh_tokens"."id" from "oauth_refresh_tokens" where ("revoked" = 1) and "expires_at" <= \'2000-01-08 00:00:00\' and not exists (select * from "oauth_access_tokens" where ("oauth_refresh_tokens"."access_token_id" = "oauth_access_tokens"."id") and ("revoked" = 0 and ("expires_at" is null or "expires_at" > \'2000-01-08 00:00:00\'))) and "id" is not null order by "id" asc limit 1000',
             'select "oauth_refresh_token_families"."id" from "oauth_refresh_token_families" where not exists (select * from "oauth_refresh_tokens" where "oauth_refresh_token_families"."id" = "oauth_refresh_tokens"."family_id") and "id" is not null order by "id" asc limit 1000',
             'select "oauth_device_codes"."id" from "oauth_device_codes" where ("revoked" = 1) and "id" is not null order by "id" asc limit 1000',
         ], array_column($query, 'query'));
@@ -72,8 +72,8 @@ class PurgeCommandTest extends PassportTestCase
 
         $this->assertSame([
             'select "oauth_access_tokens"."id" from "oauth_access_tokens" where ("expires_at" < \'2000-01-01 00:00:00\') and not exists (select * from "oauth_refresh_tokens" where ("oauth_access_tokens"."id" = "oauth_refresh_tokens"."access_token_id") and ("revoked" = 0 and ("expires_at" is null or "expires_at" > \'2000-01-08 00:00:00\'))) and "id" is not null order by "id" asc limit 1000',
-            'select "oauth_auth_codes"."id" from "oauth_auth_codes" where ("expires_at" < \'2000-01-01 00:00:00\') and "id" is not null order by "id" asc limit 1000',
-            'select "oauth_refresh_tokens"."id" from "oauth_refresh_tokens" where ("expires_at" < \'2000-01-01 00:00:00\') and "expires_at" <= \'2000-01-08 00:00:00\' and "id" is not null order by "id" asc limit 1000',
+            'select "oauth_auth_codes"."id" from "oauth_auth_codes" where ("expires_at" < \'2000-01-01 00:00:00\') and "expires_at" <= \'2000-01-08 00:00:00\' and "id" is not null order by "id" asc limit 1000',
+            'select "oauth_refresh_tokens"."id" from "oauth_refresh_tokens" where ("expires_at" < \'2000-01-01 00:00:00\') and "expires_at" <= \'2000-01-08 00:00:00\' and not exists (select * from "oauth_access_tokens" where ("oauth_refresh_tokens"."access_token_id" = "oauth_access_tokens"."id") and ("revoked" = 0 and ("expires_at" is null or "expires_at" > \'2000-01-08 00:00:00\'))) and "id" is not null order by "id" asc limit 1000',
             'select "oauth_refresh_token_families"."id" from "oauth_refresh_token_families" where not exists (select * from "oauth_refresh_tokens" where "oauth_refresh_token_families"."id" = "oauth_refresh_tokens"."family_id") and "id" is not null order by "id" asc limit 1000',
             'select "oauth_device_codes"."id" from "oauth_device_codes" where ("expires_at" < \'2000-01-01 00:00:00\') and "id" is not null order by "id" asc limit 1000',
             'select "oauth_pushed_authorization_requests"."id" from "oauth_pushed_authorization_requests" where "expires_at" <= \'2000-01-08 00:00:00\' and "id" is not null order by "id" asc limit 1000',
@@ -91,8 +91,8 @@ class PurgeCommandTest extends PassportTestCase
 
         $this->assertSame([
             'select "oauth_access_tokens"."id" from "oauth_access_tokens" where ("revoked" = 1 or "expires_at" < \'2000-01-01 00:00:00\') and not exists (select * from "oauth_refresh_tokens" where ("oauth_access_tokens"."id" = "oauth_refresh_tokens"."access_token_id") and ("revoked" = 0 and ("expires_at" is null or "expires_at" > \'2000-01-08 00:00:00\'))) and "id" is not null order by "id" asc limit 1000',
-            'select "oauth_auth_codes"."id" from "oauth_auth_codes" where ("revoked" = 1 or "expires_at" < \'2000-01-01 00:00:00\') and "id" is not null order by "id" asc limit 1000',
-            'select "oauth_refresh_tokens"."id" from "oauth_refresh_tokens" where ("revoked" = 1 or "expires_at" < \'2000-01-01 00:00:00\') and "expires_at" <= \'2000-01-08 00:00:00\' and "id" is not null order by "id" asc limit 1000',
+            'select "oauth_auth_codes"."id" from "oauth_auth_codes" where ("revoked" = 1 or "expires_at" < \'2000-01-01 00:00:00\') and "expires_at" <= \'2000-01-08 00:00:00\' and "id" is not null order by "id" asc limit 1000',
+            'select "oauth_refresh_tokens"."id" from "oauth_refresh_tokens" where ("revoked" = 1 or "expires_at" < \'2000-01-01 00:00:00\') and "expires_at" <= \'2000-01-08 00:00:00\' and not exists (select * from "oauth_access_tokens" where ("oauth_refresh_tokens"."access_token_id" = "oauth_access_tokens"."id") and ("revoked" = 0 and ("expires_at" is null or "expires_at" > \'2000-01-08 00:00:00\'))) and "id" is not null order by "id" asc limit 1000',
             'select "oauth_refresh_token_families"."id" from "oauth_refresh_token_families" where not exists (select * from "oauth_refresh_tokens" where "oauth_refresh_token_families"."id" = "oauth_refresh_tokens"."family_id") and "id" is not null order by "id" asc limit 1000',
             'select "oauth_device_codes"."id" from "oauth_device_codes" where ("revoked" = 1 or "expires_at" < \'2000-01-01 00:00:00\') and "id" is not null order by "id" asc limit 1000',
             'select "oauth_pushed_authorization_requests"."id" from "oauth_pushed_authorization_requests" where "expires_at" <= \'2000-01-08 00:00:00\' and "id" is not null order by "id" asc limit 1000',
@@ -110,8 +110,8 @@ class PurgeCommandTest extends PassportTestCase
 
         $this->assertSame([
             'select "oauth_access_tokens"."id" from "oauth_access_tokens" where ("revoked" = 1 or "expires_at" < \'2000-01-01 00:00:00\') and not exists (select * from "oauth_refresh_tokens" where ("oauth_access_tokens"."id" = "oauth_refresh_tokens"."access_token_id") and ("revoked" = 0 and ("expires_at" is null or "expires_at" > \'2000-01-01 02:00:00\'))) and "id" is not null order by "id" asc limit 1000',
-            'select "oauth_auth_codes"."id" from "oauth_auth_codes" where ("revoked" = 1 or "expires_at" < \'2000-01-01 00:00:00\') and "id" is not null order by "id" asc limit 1000',
-            'select "oauth_refresh_tokens"."id" from "oauth_refresh_tokens" where ("revoked" = 1 or "expires_at" < \'2000-01-01 00:00:00\') and "expires_at" <= \'2000-01-01 02:00:00\' and "id" is not null order by "id" asc limit 1000',
+            'select "oauth_auth_codes"."id" from "oauth_auth_codes" where ("revoked" = 1 or "expires_at" < \'2000-01-01 00:00:00\') and "expires_at" <= \'2000-01-01 02:00:00\' and "id" is not null order by "id" asc limit 1000',
+            'select "oauth_refresh_tokens"."id" from "oauth_refresh_tokens" where ("revoked" = 1 or "expires_at" < \'2000-01-01 00:00:00\') and "expires_at" <= \'2000-01-01 02:00:00\' and not exists (select * from "oauth_access_tokens" where ("oauth_refresh_tokens"."access_token_id" = "oauth_access_tokens"."id") and ("revoked" = 0 and ("expires_at" is null or "expires_at" > \'2000-01-01 02:00:00\'))) and "id" is not null order by "id" asc limit 1000',
             'select "oauth_refresh_token_families"."id" from "oauth_refresh_token_families" where not exists (select * from "oauth_refresh_tokens" where "oauth_refresh_token_families"."id" = "oauth_refresh_tokens"."family_id") and "id" is not null order by "id" asc limit 1000',
             'select "oauth_device_codes"."id" from "oauth_device_codes" where ("revoked" = 1 or "expires_at" < \'2000-01-01 00:00:00\') and "id" is not null order by "id" asc limit 1000',
             'select "oauth_pushed_authorization_requests"."id" from "oauth_pushed_authorization_requests" where "expires_at" <= \'2000-01-01 02:00:00\' and "id" is not null order by "id" asc limit 1000',
@@ -151,6 +151,7 @@ class PurgeCommandTest extends PassportTestCase
         $emptyFamily = Passport::refreshTokenFamily()->newQuery()->create();
 
         foreach ([
+            ['active', false, $expired, $liveFamily->getKey()],
             ['refresh-future', false, $future, $liveFamily->getKey()],
             ['refresh-indefinite', false, null, $liveFamily->getKey()],
             ['used-refresh', true, $future, $liveFamily->getKey()],
@@ -186,11 +187,11 @@ class PurgeCommandTest extends PassportTestCase
         $this->artisan('passport:purge')->assertSuccessful();
 
         $this->assertSame(['active', 'refresh-future', 'refresh-indefinite'], Passport::token()->newQuery()->orderBy('id')->pluck('id')->all());
-        $this->assertSame(['refresh-future', 'refresh-indefinite', 'used-refresh'], Passport::refreshToken()->newQuery()->orderBy('id')->pluck('id')->all());
+        $this->assertSame(['active', 'refresh-future', 'refresh-indefinite', 'used-refresh'], Passport::refreshToken()->newQuery()->orderBy('id')->pluck('id')->all());
         $this->assertSame([$liveFamily->getKey()], Passport::refreshTokenFamily()->newQuery()->pluck('id')->all());
         $this->assertModelMissing($expiredFamily);
         $this->assertModelMissing($emptyFamily);
-        $this->assertSame(['active'], Passport::authCode()->newQuery()->pluck('id')->all());
+        $this->assertEqualsCanonicalizing(['active', 'revoked'], Passport::authCode()->newQuery()->pluck('id')->all());
         $this->assertSame(['active'], Passport::deviceCode()->newQuery()->pluck('id')->all());
 
         $this->travelTo($future->addWeek()->addSecond());

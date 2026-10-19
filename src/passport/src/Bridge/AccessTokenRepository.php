@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Passport\Bridge;
 
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Passport\AuthCode;
 use Hypervel\Passport\ClientRepository as PassportClientRepository;
 use Hypervel\Passport\Events\AccessTokenCreated;
 use Hypervel\Passport\Events\AccessTokenRevoked;
@@ -63,6 +64,10 @@ class AccessTokenRepository implements AccessTokenRepositoryInterface
     {
         $issuance = TokenIssuance::current();
         $issuance?->begin();
+
+        if ($issuance?->grant instanceof AuthCode) {
+            $issuance->claimGrant($accessTokenEntity->getIdentifier());
+        }
 
         if ($issuance?->dpopJkt !== null) {
             $expiresAt = CarbonImmutable::now()->add($issuance->entry->settings->dpopTokensExpireIn ?? Passport::dpopTokensExpireIn());

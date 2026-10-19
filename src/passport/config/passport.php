@@ -69,8 +69,10 @@ return [
     |--------------------------------------------------------------------------
     |
     | When dynamic registration is enabled, anonymous clients may request only
-    | these scopes. Privileged provisioning requires an access token with
-    | the explicit passport:register scope; browser sessions do not qualify.
+    | these scopes. They are also the default when scope is omitted, except
+    | for clients using client_credentials, which need explicit scopes.
+    | Privileged provisioning requires an access token with the explicit
+    | passport:register scope; browser sessions do not qualify.
     |
     */
 

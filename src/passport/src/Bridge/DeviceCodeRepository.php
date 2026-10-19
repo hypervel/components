@@ -153,15 +153,23 @@ class DeviceCodeRepository implements DeviceCodeRepositoryInterface
      */
     public function getDeviceCodeEntityByUserCode(string $userCode): ?DeviceCodeEntityInterface
     {
-        $record = Passport::deviceCode()->newQuery()
+        $record = $this->findByUserCode($userCode);
+
+        return $record ? $this->fromDeviceCodeModel($record) : null;
+    }
+
+    /**
+     * Find a live device code awaiting a user's decision.
+     */
+    public function findByUserCode(string $userCode): ?DeviceCodeModel
+    {
+        return Passport::deviceCode()->newQuery()
             ->useWritePdo()
-            ->where('user_code', $userCode)
+            ->where('user_code', strtoupper(str_replace('-', '', $userCode)))
             ->whereNull('user_id')
             ->where('expires_at', '>', Date::now())
             ->where('revoked', false)
             ->first();
-
-        return $record ? $this->fromDeviceCodeModel($record) : null;
     }
 
     /**

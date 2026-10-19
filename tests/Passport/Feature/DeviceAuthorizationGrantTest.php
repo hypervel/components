@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Passport\Feature;
 
 use Hypervel\Http\Middleware\TrustProxies;
 use Hypervel\Http\Request;
+use Hypervel\Passport\Bridge\DeviceCodeRepository;
 use Hypervel\Passport\Database\Factories\ClientFactory;
 use Hypervel\Passport\Passport;
 use Hypervel\RateLimiter\Limit;
@@ -263,6 +264,33 @@ class DeviceAuthorizationGrantTest extends PassportTestCase
             ->assertRedirectToRoute('passport.device')
             ->assertSessionHasInput('user_code', 'ABCD-EFGH')
             ->assertSessionHasErrors(['user_code' => 'Incorrect code.']);
+    }
+
+    #[TestWith(['expired'])]
+    #[TestWith(['revoked'])]
+    #[TestWith(['decided'])]
+    public function testUserCodeLookupNormalizesInputAndOnlyReturnsPendingLiveRecords(string $state): void
+    {
+        $client = ClientFactory::new()->asDeviceCodeClient()->create();
+        $response = $this->post('/oauth/device/code', [
+            'client_id' => $client->getKey(),
+            'client_secret' => $client->plainSecret,
+        ])->assertOk();
+        $userCode = Str::substrReplace(strtolower($response->json('user_code')), '-', 4, 0);
+        $repository = $this->app->make(DeviceCodeRepository::class);
+        $record = $repository->findByUserCode($userCode);
+        $this->assertSame($response->json('device_code'), $record->id);
+        $this->assertNull($record->user_id);
+        $this->assertNull($repository->findByUserCode('unknown'));
+
+        $record->forceFill(match ($state) {
+            'expired' => ['expires_at' => now()->subSecond()],
+            'revoked' => ['revoked' => true],
+            'decided' => ['user_id' => UserFactory::new()->create()->getKey()],
+        })->save();
+
+        $this->assertNull($repository->findByUserCode($userCode));
+        $this->assertNull($repository->getDeviceCodeEntityByUserCode($userCode));
     }
 
     public function testIssueAccessToken(): void

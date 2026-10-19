@@ -4,14 +4,18 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Session;
 
+use Hypervel\Auth\Events\PasswordConfirmed;
+use Hypervel\Auth\PasswordConfirmation;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Auth\Factory as AuthFactory;
+use Hypervel\Events\Dispatcher;
 use Hypervel\Http\Request;
 use Hypervel\Session\CookieSessionHandler;
 use Hypervel\Session\SessionId;
 use Hypervel\Session\Store;
 use Hypervel\Session\UserSessionIdentity;
+use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Json;
 use Hypervel\Support\MessageBag;
 use Hypervel\Support\Str;
@@ -715,6 +719,36 @@ class SessionStoreTest extends TestCase
 
             $this->assertTrue($session->has('auth.password_confirmed_at_admin'));
         } finally {
+            Container::setInstance($previousContainer);
+        }
+    }
+
+    public function testEachPasswordConfirmationDispatchesAfterStoringItsTimestamp(): void
+    {
+        $previousContainer = Container::getInstance();
+        $container = Container::setInstance(new Container);
+
+        try {
+            Date::setTestNow('2026-01-01 12:00:00');
+            $events = new Dispatcher($container);
+            $container->instance('events', $events);
+            $session = $this->getSession();
+            $confirmations = [];
+
+            $events->listen(PasswordConfirmed::class, function (PasswordConfirmed $event) use ($session, &$confirmations): void {
+                $this->assertSame($event->confirmedAt, $session->get(PasswordConfirmation::sessionKey($event->guard)));
+                $confirmations[] = [$event->guard, $event->confirmedAt];
+            });
+
+            $session->passwordConfirmed('admin');
+            $session->passwordConfirmed('admin');
+
+            $this->assertSame([
+                ['admin', Date::now()->unix()],
+                ['admin', Date::now()->unix()],
+            ], $confirmations);
+        } finally {
+            Date::setTestNow();
             Container::setInstance($previousContainer);
         }
     }

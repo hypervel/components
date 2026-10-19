@@ -42,12 +42,15 @@ class ClientMetadataValidatorTest extends TestCase
             'redirect_uris' => ['https://client.example/callback'],
             'client_name' => 'OAuth Client',
             'grant_types' => ['authorization_code'],
-            'scope' => '',
             'application_type' => 'web',
             'token_endpoint_auth_method' => 'client_secret_basic',
             'dpop_bound_access_tokens' => false,
             'require_pushed_authorization_requests' => false,
             'response_types' => ['code'],
+            'scope' => '',
+            'jwks' => null,
+            'jwks_uri' => null,
+            'token_endpoint_auth_signing_alg' => null,
         ], $metadata);
     }
 
@@ -127,6 +130,21 @@ class ClientMetadataValidatorTest extends TestCase
         $validator->validate(['grant_types' => ['client_credentials'], 'token_endpoint_auth_method' => 'none']);
     }
 
+    #[TestWith([[], 'read write'])]
+    #[TestWith([['scope' => ''], ''])]
+    #[TestWith([['grant_types' => ['authorization_code', 'client_credentials']], ''])]
+    public function testRegistrationScopeDefaultsRespectExplicitChoicesAndMachineGrants(array $metadata, string $expected): void
+    {
+        Passport::tokensCan(['read' => 'Read', 'write' => 'Write']);
+        $this->app->make('config')->set('passport.registration.scopes', ['read', 'write']);
+
+        $validated = $this->app->make(ClientMetadataValidator::class)->validate([
+            'redirect_uris' => ['https://client.example/callback'], ...$metadata,
+        ]);
+
+        $this->assertSame($expected, $validated['scope']);
+    }
+
     #[TestWith([false])]
     #[TestWith([true])]
     public function testExtensionsReceiveSubmittedAndEffectiveMetadataOnCreateAndUpdate(bool $update): void
@@ -186,16 +204,24 @@ class ClientMetadataValidatorTest extends TestCase
 
     #[TestWith(['jwks'])]
     #[TestWith(['jwks_uri'])]
-    public function testRegisteredKeysRequireAnAuthenticationMethodThatUsesThem(string $field): void
+    #[TestWith(['token_endpoint_auth_signing_alg'])]
+    public function testUnusedClientKeyMetadataIsIgnored(string $field): void
     {
         $key = ParsedKey::fromPublicKey((new SigningKeyFactory)->definition()['public_key'])->getJwk();
         $keys = ['keys' => [[...$key, 'use' => 'enc', 'alg' => 'RSA-OAEP-256']]];
         $validator = $this->app->make(ClientMetadataValidator::class);
-        $this->expectException(InvalidClientMetadataException::class);
-        $validator->validate([
+        $metadata = $validator->validate([
             'redirect_uris' => ['https://client.example/callback'],
-            $field => $field === 'jwks' ? $keys : 'https://keys.example/jwks',
+            $field => match ($field) {
+                'jwks' => $keys,
+                'jwks_uri' => 'https://keys.example/jwks',
+                default => 'HS256',
+            },
         ]);
+
+        $this->assertNull($metadata['jwks']);
+        $this->assertNull($metadata['jwks_uri']);
+        $this->assertNull($metadata['token_endpoint_auth_signing_alg']);
     }
 
     public function testInlineAndRemoteKeysCannotBeRegisteredTogether(): void

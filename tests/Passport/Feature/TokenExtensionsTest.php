@@ -438,12 +438,6 @@ class TokenExtensionsTest extends PassportTestCase
     #[TestWith(['refresh_token'])]
     public function testRedemptionRejectsAnApplicationTransactionWithoutConsumingTheGrant(string $grant): void
     {
-        if ($grant === 'authorization_code') {
-            // @TODO: Unskip once league/oauth2-server limits AuthCodeGrant's decryption catch
-            // to decryption; it currently converts our repository's LogicException to an OAuth 400.
-            $this->markTestSkipped('League AuthCodeGrant masks repository exceptions as authorization-code decryption errors.');
-        }
-
         $client = $grant === 'device_code'
             ? ClientFactory::new()->asDeviceCodeClient()->create()
             : ClientFactory::new()->create();

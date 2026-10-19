@@ -2224,6 +2224,8 @@ To configure a failover queue connection, specify the `failover` driver and prov
 
 With `after_commit` enabled, Hypervel waits until every applicable database transaction has committed before attempting the primary connection. A rollback discards the pending job. This keeps an after-commit primary failure inside the failover chain so the next connection is attempted. The database job insert therefore occurs after the business transaction instead of participating in it, and the default deferred fallback runs in-process at the end of the coroutine.
 
+When the failover connection waits for commit, it copies the log context entries at dispatch, but each child driver serializes the job and context when its attempt is made. Avoid mutating the job, its data, or objects stored in context before the transactions commit.
+
 If you disable the failover connection's `after_commit` setting, each child connection uses its own transaction policy. A failure from a child that defers its dispatch may then occur after the failover attempt has returned and cannot activate the next child. A job's `afterCommit()` or `beforeCommit()` choice overrides the connection setting. Integer delays begin when the post-commit attempt is made, while absolute date and time delays retain their original target.
 
 Once you have configured a connection that uses the `failover` driver, you will need to set the failover connection as your default queue connection in your application's `.env` file to make use of the failover functionality:

@@ -67,6 +67,10 @@ class AuthorizationRequestResolver
             throw OAuthServerException::invalidRequest('request_uri', 'This client requires a pushed authorization request.');
         }
 
+        if (array_key_exists('request_uri', $parameters)) {
+            throw new OAuthServerException('Request objects by URI are not supported.', 9, 'request_uri_not_supported', 400);
+        }
+
         if (! in_array($parameters['response_mode'] ?? 'query', ['query', 'form_post'], true)) {
             throw OAuthServerException::invalidRequest('response_mode');
         }

@@ -89,7 +89,7 @@ class AuthorizationController
         $parameters = $this->withErrorHandling(fn (): array => RequestParameters::fromRequest($request));
         $pushed = null;
 
-        if (array_key_exists('request_uri', $parameters)) {
+        if (isset($parameters['request_uri']) && $this->pushed->isPushedRequestUri($parameters['request_uri'])) {
             $pushed = $this->withErrorHandling(function () use ($parameters): PushedAuthorizationRequest {
                 if (! isset($parameters['client_id']) || $parameters['client_id'] === '') {
                     throw LeagueException::invalidRequest('client_id');

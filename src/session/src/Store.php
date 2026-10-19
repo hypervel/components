@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Session;
 
 use Closure;
+use Hypervel\Auth\Events\PasswordConfirmed;
 use Hypervel\Auth\PasswordConfirmation;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Session\Session;
 use Hypervel\Http\Request;
 use Hypervel\Support\Arr;
@@ -831,9 +833,20 @@ class Store implements Session
      */
     public function passwordConfirmed(?string $guard = null): void
     {
-        $guard ??= Container::getInstance()->make(AuthFactory::class)->getDefaultDriver();
+        $container = Container::getInstance();
+        $guard ??= $container->make(AuthFactory::class)->getDefaultDriver();
 
-        $this->put(PasswordConfirmation::sessionKey($guard), Date::now()->unix());
+        $confirmedAt = Date::now()->unix();
+        $this->put(PasswordConfirmation::sessionKey($guard), $confirmedAt);
+
+        if ($container->bound('events')) {
+            /** @var Dispatcher $events */
+            $events = $container->make('events');
+
+            if ($events->hasListeners(PasswordConfirmed::class)) {
+                $events->dispatch(new PasswordConfirmed($guard, $confirmedAt));
+            }
+        }
     }
 
     /**

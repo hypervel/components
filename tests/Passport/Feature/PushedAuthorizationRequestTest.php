@@ -166,6 +166,29 @@ class PushedAuthorizationRequestTest extends PassportTestCase
         $this->assertDatabaseCount('oauth_pushed_authorization_requests', 0);
     }
 
+    public function testInspectionPreservesTheReferenceAndRequiresItsClientAndLifetime(): void
+    {
+        $client = ClientFactory::new()->create();
+        $uri = $this->push($client, ['scope' => 'read', 'state' => ' original '])->assertCreated()->json('request_uri');
+        $repository = $this->app->make(PushedAuthorizationRequestRepository::class);
+
+        $record = $repository->find($uri, $client->id);
+        $this->assertSame(' original ', $record->parameters['state']);
+        $this->assertSame(['read'], $record->scopes);
+        $this->assertSame($client->redirect_uris[0], $record->redirect_uri);
+        $this->assertNull($repository->find($uri, 'not-a-uuid'));
+        $this->assertNull($repository->find('unknown-reference', $client->id));
+        $this->assertDatabaseCount('oauth_pushed_authorization_requests', 1);
+
+        $this->assertSame($record->id, $repository->consume($uri, $client->id)->id);
+        $this->assertNull($repository->find($uri, $client->id));
+
+        $uri = $this->push($client)->assertCreated()->json('request_uri');
+        $this->travel(90)->seconds();
+        $this->assertNull($repository->find($uri, $client->id));
+        $this->assertDatabaseCount('oauth_pushed_authorization_requests', 1);
+    }
+
     public function testWrongClientsCannotConsumeReferencesAndExpiryIsEnforced(): void
     {
         $client = ClientFactory::new()->create();
@@ -177,6 +200,33 @@ class PushedAuthorizationRequestTest extends PassportTestCase
         $this->travel(91)->seconds();
         $this->get('/oauth/authorize?' . http_build_query(['client_id' => $client->id, 'request_uri' => $uri]))
             ->assertBadRequest()->assertJsonPath('error', 'invalid_request_uri');
+    }
+
+    #[TestWith([false, false])]
+    #[TestWith([true, false])]
+    #[TestWith([false, true])]
+    public function testUnsupportedRequestUrisUseOnlyValidatedCallbacks(bool $invalidCallback, bool $requiresPar): void
+    {
+        $client = ClientFactory::new()->create(['require_pushed_authorization_requests' => $requiresPar]);
+        $response = $this->get('/oauth/authorize?' . http_build_query([
+            'client_id' => $client->id,
+            'redirect_uri' => $invalidCallback ? 'https://other.example/callback' : $client->redirect_uris[0],
+            'response_type' => 'code',
+            'request_uri' => 'https://client.example/request.jwt',
+            'state' => ' original state ',
+        ]));
+
+        if ($invalidCallback) {
+            $response->assertUnauthorized()->assertHeaderMissing('Location')->assertJsonPath('error', 'invalid_client');
+        } else {
+            $response->assertRedirect();
+            $this->assertStringStartsWith($client->redirect_uris[0] . '?', $response->headers->get('Location'));
+            parse_str(parse_url($response->headers->get('Location'), PHP_URL_QUERY), $parameters);
+            $this->assertSame($requiresPar ? 'invalid_request' : 'request_uri_not_supported', $parameters['error']);
+            $this->assertSame(' original state ', $parameters['state']);
+        }
+
+        $response->assertSessionMissing('passport.authorizations');
     }
 
     #[TestWith([[]])]

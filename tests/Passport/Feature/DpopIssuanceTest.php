@@ -101,11 +101,21 @@ class DpopIssuanceTest extends PassportTestCase
         $tokens = $this->token($parameters, $key)->assertOk()->assertJsonPath('token_type', 'DPoP')->json();
         $this->assertSame($key->thumbprint(), RefreshToken::sole()->dpop_jkt);
 
+        $this->token($parameters)->assertBadRequest()->assertJsonPath('error', 'invalid_grant');
+        $this->token($parameters, $other)->assertBadRequest()->assertJsonPath('error', 'invalid_grant');
+        $this->assertFalse(Token::sole()->revoked);
+        $this->assertNull(RefreshTokenFamily::sole()->revoked_at);
+
         $next = $this->token($this->refreshParameters($client, $tokens['refresh_token']), $key)->assertOk()->json();
         $this->token($this->refreshParameters($client, $tokens['refresh_token']), $other)
             ->assertBadRequest()->assertJsonPath('error', 'invalid_grant');
         $this->assertNull(RefreshTokenFamily::sole()->revoked_at);
         $this->token($this->refreshParameters($client, $next['refresh_token']), $key)->assertOk();
+
+        $this->token($parameters, $key)->assertBadRequest()->assertJsonPath('error', 'invalid_grant');
+        $this->assertNotNull(RefreshTokenFamily::sole()->revoked_at);
+        $this->assertSame(0, Token::where('revoked', false)->count());
+        $this->assertSame(0, RefreshToken::where('revoked', false)->count());
     }
 
     public function testUpgradingAnUnboundRefreshTokenDoesNotHideTheftOfItsPredecessor(): void
