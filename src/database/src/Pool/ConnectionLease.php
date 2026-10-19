@@ -168,13 +168,14 @@ class ConnectionLease implements NonCopyableContext
      */
     public function releaseIfIdle(): void
     {
-        if ($this->connection->hasPinnedSession()
+        if ($this->pooledConnection === null
+            || $this->connection->hasPinnedSession()
             || ($this->connection->hasModifiedRecords() && $this->pool->retainsSessionsAfterWrites())
         ) {
             return;
         }
 
-        $this->pooledConnection?->release();
+        $this->pooledConnection->release();
     }
 
     /**

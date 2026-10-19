@@ -1115,7 +1115,8 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     /**
      * Determine whether an operation requires the current physical session.
      *
-     * @internal
+     * Drivers may extend this check to keep their physical session, for example when
+     * their own routing could send a later read to another server.
      */
     public function hasPinnedSession(): bool
     {

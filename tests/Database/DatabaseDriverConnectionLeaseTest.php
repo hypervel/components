@@ -16,6 +16,7 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
 use LogicException;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 
 use function Hypervel\Coroutine\parallel;
@@ -78,6 +79,75 @@ class DatabaseDriverConnectionLeaseTest extends TestCase
         $this->assertNull($connection->getEventDispatcher());
         $this->assertNull($physical->getEventDispatcher());
         $this->assertSame(1, $this->generations);
+    }
+
+    public function testRepeatedIdleReleaseDoesNotBorrowAnOccupiedSlot(): void
+    {
+        DB::connection('leased');
+        DB::releaseIdleConnections();
+        $borrowed = $this->pool()->borrow();
+
+        try {
+            DB::releaseIdleConnections();
+
+            $this->assertSame(1, $this->pool()->getBorrowedCount());
+        } finally {
+            $borrowed->release();
+        }
+    }
+
+    #[TestWith(['database'])]
+    #[TestWith(['prefix'])]
+    public function testDifferentEndpointIdentitiesRetainTheWholeConnection(string $setting): void
+    {
+        config(['database.connections.leased.write' => [[$setting => 'first'], [$setting => 'second']]]);
+        $connection = DB::connection('leased');
+
+        $this->assertSame($connection, $connection->physical());
+        DB::releaseIdleConnections();
+
+        $this->assertSame(0, $this->pool()->getIdleCount());
+        $this->assertSame($connection, DB::connection('leased'));
+    }
+
+    public function testModifiedConnectionsKeepTheirSessionWhenWritersDiffer(): void
+    {
+        config(['database.connections.leased.host' => ['first', 'second']]);
+        $connection = DB::connection('leased');
+        $physical = $connection->physical();
+        $connection->recordsHaveBeenModified();
+
+        DB::releaseIdleConnections();
+
+        $this->assertSame(0, $this->pool()->getIdleCount());
+        $this->assertSame($physical, $connection->physical());
+
+        $connection->forgetRecordModificationState();
+        DB::releaseIdleConnections();
+
+        $this->assertSame(1, $this->pool()->getIdleCount());
+    }
+
+    public function testNamedExtensionsCanLeaseWithoutADriverSetting(): void
+    {
+        $configuration = config('database.connections.leased');
+        unset($configuration['driver']);
+        $configuration['write'] = [['host' => 'first'], ['host' => 'second']];
+        config(['database.connections.leased' => $configuration]);
+        $connection = DB::connection('leased');
+        $physical = $connection->physical();
+
+        $this->assertNotSame($connection, $physical);
+        $connection->recordsHaveBeenModified();
+        DB::releaseIdleConnections();
+
+        $this->assertSame(0, $this->pool()->getIdleCount());
+        $this->assertSame($physical, $connection->physical());
+
+        $connection->forgetRecordModificationState();
+        DB::releaseIdleConnections();
+
+        $this->assertSame(1, $this->pool()->getIdleCount());
     }
 
     public function testDisconnectClosesOnlyAHeldPhysicalConnectionAndEachGenerationIsAnnouncedOnce(): void
@@ -233,7 +303,7 @@ class LeasedDriverConnection extends Connection implements LeasableConnection
 
     public function inTransaction(): bool
     {
-        return false;
+        return $this->physicalResolver !== null && $this->physical()->inTransaction();
     }
 
     public function getServerVersion(): string

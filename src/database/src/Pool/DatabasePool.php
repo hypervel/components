@@ -34,7 +34,9 @@ class DatabasePool extends ConnectionPool
 
     protected bool $usesSessionLeases;
 
-    protected bool $retainsSessionsAfterWrites;
+    protected ?bool $supportsDriverSessionLeases = null;
+
+    protected ?bool $retainsSessionsAfterWrites = null;
 
     protected ?Timer $heartbeatTimer = null;
 
@@ -82,8 +84,6 @@ class DatabasePool extends ConnectionPool
 
         $this->config = $config;
         $this->usesSessionLeases = $this->supportsSessionLeases($factory, $connectionName, $config);
-        $this->retainsSessionsAfterWrites = $this->usesSessionLeases
-            && $this->writesReachDifferentServers($factory, $connectionName, $config);
 
         $poolOptions = Arr::except(
             Arr::get($poolConfig, 'pool', []),
@@ -165,11 +165,25 @@ class DatabasePool extends ConnectionPool
     /**
      * Determine whether callers can return the pool's PDO sessions before execution ends.
      *
-     * Extension drivers opt in per connection by implementing LeasableConnection.
+     * Opted-in extension drivers are checked separately by supportsDriverSessionLeases().
      */
     public function usesSessionLeases(): bool
     {
         return $this->usesSessionLeases;
+    }
+
+    /**
+     * Determine whether an opted-in driver's endpoints can share a logical connection.
+     */
+    public function supportsDriverSessionLeases(): bool
+    {
+        // Drivers that retain whole connections may use their own configuration shapes.
+        return $this->supportsDriverSessionLeases ??= $this->supportsSessionLeases(
+            $this->container->make('db.factory'),
+            ConnectionName::parse($this->name),
+            $this->config,
+            allowExtensions: true,
+        );
     }
 
     /**
@@ -181,15 +195,19 @@ class DatabasePool extends ConnectionPool
      */
     public function retainsSessionsAfterWrites(): bool
     {
-        return $this->retainsSessionsAfterWrites;
+        return $this->retainsSessionsAfterWrites ??= $this->writesReachDifferentServers(
+            $this->container->make('db.factory'),
+            ConnectionName::parse($this->name),
+            $this->config,
+        );
     }
 
     /**
      * Determine whether endpoints can share a logical connection without bypassing extensions.
      */
-    protected function supportsSessionLeases(ConnectionFactory $factory, ConnectionName $name, array $config): bool
+    protected function supportsSessionLeases(ConnectionFactory $factory, ConnectionName $name, array $config, bool $allowExtensions = false): bool
     {
-        if ($factory->getExtension($config, $name->base) !== null) {
+        if (! $allowExtensions && $factory->getExtension($config, $name->base) !== null) {
             return false;
         }
 
@@ -202,11 +220,11 @@ class DatabasePool extends ConnectionPool
         $identity = null;
 
         foreach ($this->roleEndpoints($factory, $role, $config) as $endpoint) {
-            if ($role === 'read' && $factory->getExtension($endpoint, $name->base) !== null) {
+            if (! $allowExtensions && $role === 'read' && $factory->getExtension($endpoint, $name->base) !== null) {
                 return false;
             }
 
-            $candidateIdentity = [$endpoint['driver'], $endpoint['database'], $endpoint['prefix']];
+            $candidateIdentity = [$endpoint['driver'] ?? null, $endpoint['database'] ?? null, $endpoint['prefix']];
 
             if ($identity !== null && $identity !== $candidateIdentity) {
                 return false;
@@ -227,15 +245,24 @@ class DatabasePool extends ConnectionPool
         $servers = [];
 
         foreach (isset($config[$role]) ? $this->roleEndpoints($factory, $role, $config) : [$config] as $endpoint) {
+            $driver = $endpoint['driver'] ?? null;
+
             // A MySQL socket identifies the server on its own, with or without a host, which it then ignores.
-            if (! empty($endpoint['unix_socket'])) {
+            if (in_array($driver, ['mysql', 'mariadb'], true) && ! empty($endpoint['unix_socket'])) {
                 $servers[json_encode([(string) $endpoint['unix_socket']])] = true;
 
                 continue;
             }
 
-            foreach (Arr::wrap($endpoint['host'] ?? null) as $host) {
-                $servers[json_encode([(string) $host, (string) ($endpoint['port'] ?? '')])] = true;
+            $port = $driver === 'pgsql'
+                ? ($endpoint['connect_via_port'] ?? $endpoint['port'] ?? '')
+                : ($endpoint['port'] ?? '');
+            $database = $driver === 'pgsql'
+                ? ($endpoint['connect_via_database'] ?? $endpoint['database'])
+                : '';
+
+            foreach (Arr::wrap($endpoint['host'] ?? null) ?: [null] as $host) {
+                $servers[json_encode([(string) $host, (string) $port, (string) $database])] = true;
             }
         }
 

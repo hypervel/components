@@ -128,7 +128,7 @@ class PooledConnection implements PoolConnection
     public function usesSessionLeases(): bool
     {
         return $this->pool->usesSessionLeases()
-            || $this->getDriverConnection() instanceof LeasableConnection;
+            || ($this->getDriverConnection() instanceof LeasableConnection && $this->pool->supportsDriverSessionLeases());
     }
 
     /**
@@ -202,18 +202,18 @@ class PooledConnection implements PoolConnection
             throw new RuntimeException('Database connection is not reusable after reconnecting.');
         }
 
-        if (! $this->pool->usesSessionLeases() && ! $this->connection instanceof LeasableConnection) {
-            $this->configureConnection($this->connection);
-            $this->connection->setReconnector($this->refresh(...));
-            $this->driverConnectionConfigured = true;
-        }
-
         $now = hrtime(true) / 1e9;
         $this->lastUseTime = $now;
         $this->stampGeneration($now);
         $this->availableForReuse = false;
         $this->markValid();
         $this->connectionEstablishedEventPending = true;
+
+        if (! $this->usesSessionLeases()) {
+            $this->configureConnection($this->connection);
+            $this->connection->setReconnector($this->refresh(...));
+            $this->driverConnectionConfigured = true;
+        }
 
         if ($this->lease !== null) {
             // The held owner must keep its services out of, and still disconnect, the replacement.

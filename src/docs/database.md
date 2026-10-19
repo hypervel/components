@@ -375,7 +375,7 @@ $response = $connection->withPinnedSession(function () use ($connection, $accoun
 
 Pinning is also needed for temporary tables, retained raw PDOs or statements, and manual session changes spanning a release boundary. It applies to a manual `disableForeignKeyConstraints` / `enableForeignKeyConstraints` pair; prefer the scoped `withoutForeignKeyConstraints` method. Each pin protects its connection until the callback returns or throws, and pins may be nested. Complete any lazy work inside the callback rather than returning it for later execution. Pinning prevents early release but does not prevent replacing a broken connection during the normal lost-connection retry.
 
-Connections registered through `DB::extend` retain their complete driver object until execution ends; early release leaves them alone unless the driver [opts in](#early-release-for-custom-drivers). This includes extensions selected by read records in an explicit `::read` pool. The same applies when selectable write records (or read records in an explicit `::read` pool) specify different drivers, database names or table prefixes. PDO drivers registered through `Connection::resolverFor` participate in early release when those values agree.
+Connections registered through `DB::extend` retain their complete driver object until execution ends; early release leaves them alone unless the driver [opts in](#early-release-for-custom-drivers). This includes extensions selected by read records in an explicit `::read` pool. All drivers retain their complete connection when selectable write records (or read records in an explicit `::read` pool) specify different drivers, database names or table prefixes. PDO drivers registered through `Connection::resolverFor` participate in early release when those values agree.
 
 <a name="configuring-database-session-state"></a>
 ### Configuring Database Session State
@@ -515,6 +515,8 @@ If an active stream is explicitly closed, its next advancement must throw `Hyper
 
 Both execution methods construct database errors through the protected `newQueryException` method. Drivers whose parameter types need custom error formatting may override this method to return a `QueryException` subclass. Preserve the original query, bindings, and cause; exceptions that are not database failures may be rethrown unchanged. The base implementation continues to prepare bindings and enrich unique-constraint errors with the reported index or columns. It returns an `InvalidValueException` when the protected `isDataTypeError` method identifies an invalid or out-of-range value; override that method to classify your driver's errors.
 
+Custom drivers used with database cache locks must identify unique-constraint violations through `isUniqueConstraintError` so lock contention can be handled without hiding other database failures.
+
 Query builders with statement-level options may override the protected `Query\Builder::ensureCanEmbedQuery` method to reject options that belong on the outer statement. It runs when attaching a subquery, scalar or exists predicate, or union member; call the parent to preserve the built-in rejection of embedded timeouts.
 
 Custom Eloquent builders may override the public `ensureCanCreateOrFirst(): void` method to reject helpers that depend on unique-constraint recovery. Both `firstOrCreate` and `createOrFirst` call it before reading or writing, including their relationship forms; `updateOrCreate` and `incrementOrCreate` reach it through those helpers. Helpers delegate to each other, so validation may run more than once per operation; keep overrides side-effect-free. Relationships use the related model's builder, even when the parent uses another driver. The default method imposes no restriction, and ordinary `create`, `save`, and `firstOrNew` are unchanged.
@@ -532,7 +534,7 @@ Custom query builders may declare their binding-slot names through the third `Qu
 <a name="early-release-for-custom-drivers"></a>
 #### Early Release for Custom Drivers
 
-By default, a connection registered through `DB::extend` keeps its pool slot until the execution that resolved it ends. To let [early release](#releasing-and-pinning-connections) return the slot between operations, implement the `Hypervel\Database\LeasableConnection` interface. The pool then keeps the connection your extension creates as the physical connection and gives each caller its own logical connection, created by the `newLeasedConnection` method.
+By default, a connection registered through `DB::extend` keeps its pool slot until the execution that resolved it ends. To let [early release](#releasing-and-pinning-connections) return the slot between operations, implement the `Hypervel\Database\LeasableConnection` interface. When the pool's selectable endpoint records agree on driver, database and table prefix, the pool keeps the connection your extension creates as the physical connection and gives each caller its own logical connection, created by the `newLeasedConnection` method.
 
 The logical connection holds the caller's state, such as its grammar, listeners, query log and table prefix, but none of the physical connection's resources. Instead, it calls the given closure whenever an operation needs them. The closure returns the physical connection currently held for the caller, borrowing one from the pool after an early release:
 
@@ -568,6 +570,8 @@ class ClickHouseConnection extends Connection implements LeasableConnection
 ```
 
 Queries executed through `run` and `runStreaming` keep their physical connection until they finish. Wrap any other operation that relies on the same physical connection across a wait, such as a control request or a server-side session, in `withPinnedSession`. Calling `disconnect` on the logical connection closes the physical connection it currently holds, and the next operation borrows a replacement. When the execution that owns a logical connection ends, its `resetForPool` method runs before the physical connection returns to the pool, so stop any work that is still using it there.
+
+The pool retains modified sessions when the standard host, port and write settings can select different servers. If your driver's routing or session state requires additional retention, override `hasPinnedSession` and include the parent's result in your check.
 
 <a name="static-analysis"></a>
 ### Static Analysis
