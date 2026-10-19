@@ -4,16 +4,21 @@ declare(strict_types=1);
 
 namespace Hypervel\Ai\Providers;
 
+use Hypervel\Ai\Contracts\Gateway\ClassificationGateway;
 use Hypervel\Ai\Contracts\Gateway\EmbeddingGateway;
 use Hypervel\Ai\Contracts\Gateway\StepTextGateway;
 use Hypervel\Ai\Contracts\Gateway\TranscriptionGateway;
+use Hypervel\Ai\Contracts\Providers\ClassificationProvider;
 use Hypervel\Ai\Contracts\Providers\EmbeddingProvider;
 use Hypervel\Ai\Contracts\Providers\TextProvider;
 use Hypervel\Ai\Contracts\Providers\TranscriptionProvider;
+use Hypervel\Ai\Gateway\OpenAiCompatible\OpenAiCompatibleClassificationGateway;
 use Hypervel\Ai\Gateway\OpenAiCompatible\OpenAiCompatibleGateway;
+use Hypervel\Ai\Providers\Concerns\Classifies;
 use Hypervel\Ai\Providers\Concerns\GeneratesEmbeddings;
 use Hypervel\Ai\Providers\Concerns\GeneratesText;
 use Hypervel\Ai\Providers\Concerns\GeneratesTranscriptions;
+use Hypervel\Ai\Providers\Concerns\HasClassificationGateway;
 use Hypervel\Ai\Providers\Concerns\HasEmbeddingGateway;
 use Hypervel\Ai\Providers\Concerns\HasTextGateway;
 use Hypervel\Ai\Providers\Concerns\HasTranscriptionGateway;
@@ -22,11 +27,13 @@ use Hypervel\Contracts\Events\Dispatcher;
 use InvalidArgumentException;
 use Override;
 
-class OpenAiCompatibleProvider extends Provider implements EmbeddingProvider, TextProvider, TranscriptionProvider
+class OpenAiCompatibleProvider extends Provider implements ClassificationProvider, EmbeddingProvider, TextProvider, TranscriptionProvider
 {
+    use Classifies;
     use GeneratesEmbeddings;
     use GeneratesText;
     use GeneratesTranscriptions;
+    use HasClassificationGateway;
     use HasEmbeddingGateway;
     use HasTextGateway;
     use HasTranscriptionGateway;
@@ -116,6 +123,32 @@ class OpenAiCompatibleProvider extends Provider implements EmbeddingProvider, Te
         return $this->config['models']['transcription']['default'] ?? throw new InvalidArgumentException(
             "The [{$this->name()}] openai-compatible provider requires a default transcription model. Set [models.transcription.default] in its configuration or pass a model explicitly."
         );
+    }
+
+    /**
+     * Get the provider's classification gateway.
+     */
+    public function classificationGateway(): ClassificationGateway
+    {
+        return $this->classificationGateway ??= new OpenAiCompatibleClassificationGateway;
+    }
+
+    /**
+     * Get the name of the default classification model.
+     */
+    public function defaultClassificationModel(): string
+    {
+        return $this->config['models']['classification']['default'] ?? throw new InvalidArgumentException(
+            "The [{$this->name()}] openai-compatible provider requires a default classification model. Set [models.classification.default] in its configuration or pass a model explicitly."
+        );
+    }
+
+    /**
+     * Determine if the provider can classify attachments alongside the state.
+     */
+    public function supportsClassificationAttachments(): bool
+    {
+        return true;
     }
 
     /**
