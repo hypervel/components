@@ -170,12 +170,19 @@ class SyncQueue extends Queue implements QueueContract
             /** @var DatabaseTransactionsManager $transactions */
             $transactions = $this->container->make('db.transactions');
 
+            // Unlike Laravel's late capture, preserve dispatch-time data and context
+            // before the caller changes them, as the other queue drivers do.
+            $payload = $this->createPayload($job, $queue, $data);
+
             $this->deferEnqueueAfterCommit(
                 $transactions,
                 $job,
-                static function (Queue $owner) use ($job, $data, $queue): int {
+                static function (Queue $owner) use ($job, $payload, $queue): int {
                     /** @var SyncQueue $owner */
-                    return $owner->executeJob($job, $data, $queue);
+                    $result = $owner->executePayload($payload, $queue);
+                    $owner->acceptDispatchLocks($job);
+
+                    return $result;
                 },
             );
 
@@ -205,6 +212,18 @@ class SyncQueue extends Queue implements QueueContract
      * @throws Throwable
      */
     protected function executePayload(string $payload, ?string $queue = null): int
+    {
+        // JobProcessing hydrates the payload's context. Keep it through all job
+        // events without replacing the context of the dispatching coroutine.
+        return $this->withLogContext(null, fn (): int => $this->processPayload($payload, $queue));
+    }
+
+    /**
+     * Process a serialized job payload and raise its lifecycle events.
+     *
+     * @throws Throwable
+     */
+    protected function processPayload(string $payload, ?string $queue = null): int
     {
         $queueJob = $this->resolveJob($payload, $queue);
         $canceled = false;

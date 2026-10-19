@@ -31,6 +31,9 @@ class Server implements ServerInterface
 
     protected array $onRequestCallbacks = [];
 
+    /** @var array<string, null|Closure> */
+    protected array $primaryResponseCallbacks = [];
+
     public function __construct(protected Container $container, protected LoggerInterface $logger, protected Dispatcher $eventDispatcher)
     {
     }
@@ -182,6 +185,12 @@ class Server implements ServerInterface
      */
     protected function registerSwooleEvents(SwoolePort|SwooleServer $server, array $events, string $serverName): void
     {
+        if ($server instanceof SwoolePort) {
+            // Resolve Swoole's primary-listener fallback before wrapping for this listener.
+            // Close must follow response inheritance to preserve application cleanup.
+            $events += $this->primaryResponseCallbacks;
+        }
+
         $mainServer = $server instanceof SwooleServer ? $server : $this->getServer();
         $settings = $mainServer->setting ?? [];
         // These dispatch modes keep connection events in the response's worker.
@@ -216,6 +225,11 @@ class Server implements ServerInterface
                 $callback = [$class, $method];
             }
 
+            if ($server instanceof SwooleServer
+                && in_array($event, [Event::ON_REQUEST, Event::ON_HANDSHAKE, Event::ON_CLOSE], true)) {
+                $this->primaryResponseCallbacks[$event] = $callback === null ? null : Closure::fromCallable($callback);
+            }
+
             if ($cancelResponses && $event === Event::ON_CLOSE) {
                 $callback = static function (SwooleServer $server, int $connection, int $reactor) use ($callback): void {
                     try {
@@ -232,7 +246,7 @@ class Server implements ServerInterface
                 ($event === Event::ON_REQUEST || $event === Event::ON_HANDSHAKE)
                 && is_callable($callback)
             ) {
-                $callback = $this->guardResponseCallback($callback);
+                $callback = $this->guardResponseCallback($callback, (bool) $server->ssl);
             }
 
             // Failures while receiving another worker's output must not kill a healthy
@@ -253,10 +267,15 @@ class Server implements ServerInterface
     /**
      * Guard a native response callback from escaping its transport boundary.
      */
-    protected function guardResponseCallback(callable $callback): Closure
+    protected function guardResponseCallback(callable $callback, bool $secure): Closure
     {
-        return function (SwooleRequest $request, SwooleResponse $response) use ($callback): void {
+        return function (SwooleRequest $request, SwooleResponse $response) use ($callback, $secure): void {
             try {
+                // Swoole omits the scheme even when the receiving listener uses TLS.
+                if ($secure) {
+                    $request->server['https'] = 'on';
+                }
+
                 $callback($request, $response);
             } catch (Throwable $throwable) {
                 if (! $throwable instanceof CanceledException) {

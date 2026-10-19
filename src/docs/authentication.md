@@ -906,6 +906,8 @@ Route::post('/confirm-password', function (Request $request) {
 
 Before moving on, let's examine this route in more detail. First, the request's `password` field is determined to actually match the authenticated user's password. If the password is valid, we need to inform Hypervel's session that the user has confirmed their password. The `passwordConfirmed` method will set a timestamp in the user's session that Hypervel can use to determine when the user last confirmed their password. Finally, we can redirect the user to their intended destination.
 
+After storing the timestamp, `passwordConfirmed` dispatches `Hypervel\Auth\Events\PasswordConfirmed` with the guard name and confirmation time in its `guard` and `confirmedAt` properties. It uses the current default guard unless you pass a guard name explicitly. This event is also dispatched when a passkey confirmation records the same session confirmation; it does not identify the authentication method.
+
 <a name="password-confirmation-protecting-routes"></a>
 ### Protecting Routes
 
@@ -1170,6 +1172,7 @@ Hypervel dispatches a variety of [events](/docs/{{version}}/events) during the a
 | `Hypervel\Auth\Events\OtherDeviceLogout`     |
 | `Hypervel\Auth\Events\Lockout`               |
 | `Hypervel\Auth\Events\PasswordReset`         |
+| `Hypervel\Auth\Events\PasswordConfirmed`     |
 | `Hypervel\Auth\Events\PasswordResetLinkSent` |
 
 </div>

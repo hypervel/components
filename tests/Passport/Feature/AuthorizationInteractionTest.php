@@ -122,7 +122,8 @@ class AuthorizationInteractionTest extends PassportTestCase
 
         $this->get('/oauth/authorize?' . http_build_query([
             'client_id' => $client->id, 'response_type' => 'code', 'prompt' => 'login',
-        ]))->assertOk()->assertSee('Confirm identity');
+        ]))->assertOk()->assertSee('Confirm identity')
+            ->assertHeader('Referrer-Policy', 'no-referrer')->assertHeader('Cache-Control', 'no-store, private');
     }
 
     public function testConfirmationCannotResumeForAnotherUser(): void
@@ -146,12 +147,15 @@ class AuthorizationInteractionTest extends PassportTestCase
         $this->actingAs(UserFactory::new()->create(), 'web');
         $token = $this->get('/oauth/authorize?' . http_build_query([
             'client_id' => $client->id, 'response_type' => 'code', 'prompt' => 'select_account',
-        ]))->assertOk()->assertHeader('X-Frame-Options', 'SAMEORIGIN')->assertJsonPath('client.id', $client->id)->json('authToken');
+        ]))->assertOk()->assertHeader('X-Frame-Options', 'SAMEORIGIN')
+            ->assertHeader('Referrer-Policy', 'no-referrer')->assertHeader('Cache-Control', 'no-store, private')
+            ->assertJsonPath('client.id', $client->id)->json('authToken');
 
         $resume = $this->post('/oauth/authorize/account/continue', ['auth_token' => $token])
             ->assertRedirect()->headers->get('Location');
         $this->post('/oauth/authorize/account/continue', ['auth_token' => $token])->assertForbidden();
-        $consent = $this->get($resume . '?client_id=override&prompt=none')->assertOk()->json();
+        $consent = $this->get($resume . '?client_id=override&prompt=none')->assertOk()
+            ->assertHeader('Referrer-Policy', 'no-referrer')->assertHeader('Cache-Control', 'no-store, private')->json();
         $this->assertSame($client->id, $consent['client']['id']);
         $this->assertSame($token, $consent['authToken']);
         $this->post('/oauth/authorize/consent', ['auth_token' => $token])->assertRedirect();
@@ -456,7 +460,8 @@ class AuthorizationInteractionTest extends PassportTestCase
             . '&resource=https%3A%2F%2Fapi.example%2Fa&resource=https%3A%2F%2Fapi.example%2Fb';
         $response = $this->call('POST', '/oauth/authorize', [], [], [], [
             'CONTENT_TYPE' => 'application/x-www-form-urlencoded', 'HTTP_SEC_FETCH_SITE' => 'cross-site',
-        ], $body)->assertStatus(303)->assertHeaderMissing('Set-Cookie');
+        ], $body)->assertStatus(303)->assertHeaderMissing('Set-Cookie')
+            ->assertHeader('Referrer-Policy', 'no-referrer')->assertHeader('Cache-Control', 'no-store, private');
         $this->assertSame(2, substr_count($response->headers->get('Location'), 'resource='));
         $this->assertStringNotContainsString('resource%5B', $response->headers->get('Location'));
         // A browser omits its Lax cookie on the cross-site POST, then sends it on the top-level GET.

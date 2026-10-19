@@ -10,8 +10,10 @@ use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Foundation\Bus\Dispatchable;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Support\Facades\Bus;
+use Hypervel\Support\Facades\Context;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\TestCase;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Throwable;
 
@@ -33,19 +35,29 @@ class FailoverQueueAfterCommitTest extends TestCase
     protected function tearDown(): void
     {
         FailoverQueueAfterCommitJob::$handled = false;
+        FailoverQueueAfterCommitJob::$receivedTraceId = null;
 
         parent::tearDown();
     }
 
-    public function testFailoverDispatchesWhenAnApplicationTransactionCommits(): void
+    #[TestWith(['dispatch'])]
+    #[TestWith([null])]
+    public function testFailoverDispatchesWithItsOriginalContextAndRestoresTheCaller(?string $traceId): void
     {
+        if ($traceId !== null) {
+            Context::add('trace_id', $traceId);
+        }
+
         DB::transaction(function (): void {
             Bus::dispatch(new FailoverQueueAfterCommitJob);
+            Context::add('trace_id', 'commit');
 
             $this->assertFalse(FailoverQueueAfterCommitJob::$handled);
         });
 
         $this->assertTrue(FailoverQueueAfterCommitJob::$handled);
+        $this->assertSame($traceId, FailoverQueueAfterCommitJob::$receivedTraceId);
+        $this->assertSame('commit', Context::get('trace_id'));
     }
 
     public function testFailoverDoesNotDispatchWhenAnApplicationTransactionRollsBack(): void
@@ -75,8 +87,12 @@ class FailoverQueueAfterCommitJob implements ShouldQueue
 
     public static bool $handled = false;
 
+    public static ?string $receivedTraceId = null;
+
     public function handle(): void
     {
         static::$handled = true;
+        static::$receivedTraceId = Context::get('trace_id');
+        Context::add('trace_id', 'job');
     }
 }

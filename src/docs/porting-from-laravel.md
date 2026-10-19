@@ -614,7 +614,7 @@ Consent forms still use the named `passport.authorizations.approve` and `passpor
 
 `prompt=login` requests fresh confirmation without logging the user out. Provide a `password.confirm` route, such as Fortify's confirmation flow, or bind `Hypervel\Passport\Contracts\ReauthenticationResponse` for your application's confirmation UI. Custom flows record successful confirmation with `$request->session()->passwordConfirmed($guard)`. Account switching is a separate explicit interaction. See [authorization interactions](/docs/{{version}}/passport#requesting-tokens-redirecting-for-authorization).
 
-Clients must serialize refresh requests: reusing a refresh token revokes its grant. Rotation can only be disabled for confidential clients or public clients using [DPoP-bound refresh tokens](/docs/{{version}}/passport#proof-bound-tokens). Keep the token endpoint outside application transactions, including transaction-per-request middleware. Credential, consent, pushed-authorization-request and database signing-key models must share a connection; clients and users may use separate connections.
+Exchange each authorization code once: authenticated reuse revokes its issued access token and refresh family. If the exchange outcome is unknown, start a new authorization rather than retrying the code. Clients must also serialize refresh requests: reusing a refresh token revokes its grant. Rotation can only be disabled for confidential clients or public clients using [DPoP-bound refresh tokens](/docs/{{version}}/passport#proof-bound-tokens). Keep the token endpoint outside application transactions, including transaction-per-request middleware. Credential, consent, pushed-authorization-request and database signing-key models must share a connection; clients and users may use separate connections.
 
 Confidential device clients must authenticate when requesting a device code, as well as when polling the token endpoint. Include their client secret or use their registered authentication method. See [the device authorization grant](/docs/{{version}}/passport#device-authorization-grant).
 
@@ -813,6 +813,8 @@ Custom cache tag sets must declare `TagSet::reset(): bool` and `TagSet::flush():
 ### Sessions
 
 Custom guards used with `auth.session` must provide `hashPasswordForCookie()`; Hypervel does not fall back to raw password hashes when the method is missing. Guards extending `SessionGuard` already support it. See [session authentication](/docs/{{version}}/authentication#invalidating-sessions-on-other-devices).
+
+Password confirmation is guard-scoped. Replace direct writes to Laravel's `auth.password_confirmed_at` session key with `$request->session()->passwordConfirmed($guard)`, which records the correct key and dispatches the confirmation event. Middleware tests may seed `Hypervel\Auth\PasswordConfirmation::sessionKey($guard)`; tests that exercise confirmation listeners should call `passwordConfirmed`.
 
 Hypervel's persistent application session drivers are `file`, `cookie`, `database`, and `redis`. The non-persistent `array` and `null` drivers are available for testing. Redis sessions are stored directly in Redis and may select a named Redis connection using `SESSION_CONNECTION`.
 

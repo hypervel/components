@@ -6,6 +6,7 @@ namespace Hypervel\Passport\Bridge;
 
 use Hypervel\Passport\Passport;
 use League\OAuth2\Server\Entities\AuthCodeEntityInterface;
+use League\OAuth2\Server\Exception\OAuthServerException;
 use League\OAuth2\Server\Repositories\AuthCodeRepositoryInterface;
 
 class AuthCodeRepository implements AuthCodeRepositoryInterface
@@ -53,11 +54,7 @@ class AuthCodeRepository implements AuthCodeRepositoryInterface
      */
     public function revokeAuthCode(string $codeId): void
     {
-        $code = Passport::authCode();
-
-        if (! TokenIssuance::current()?->hasClaimed($code, $codeId)) {
-            $code->newQuery()->whereKey($codeId)->update(['revoked' => true]);
-        }
+        Passport::authCode()->newQuery()->whereKey($codeId)->update(['revoked' => true]);
     }
 
     /**
@@ -71,8 +68,23 @@ class AuthCodeRepository implements AuthCodeRepositoryInterface
         TokenIssuance::ensureRedemptionAllowed($code->getConnection());
 
         $record = $code->newQuery()->useWritePdo()->find($codeId);
-        TokenIssuance::current()?->setGrant($record);
+        $issuance = TokenIssuance::current();
+        $issuance?->setGrant($record);
 
-        return $record === null || $record->revoked;
+        if ($record === null) {
+            return true;
+        }
+
+        if ($record->dpop_jkt !== null && $record->dpop_jkt !== $issuance?->dpopJkt) {
+            throw OAuthServerException::invalidGrant();
+        }
+
+        if ($record->revoked) {
+            TokenIssuance::revokeAuthCodeTokens($record);
+
+            return true;
+        }
+
+        return false;
     }
 }

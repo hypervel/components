@@ -13,6 +13,8 @@ use Hypervel\Database\Eloquent\Model;
  * @property null|string $provider
  * @property string $client_id
  * @property null|string $consent_id
+ * @property null|string $access_token_id
+ * @property null|string $family_id
  * @property null|array $scopes
  * @property null|array<string, list<string>> $resources
  * @property null|string $dpop_jkt

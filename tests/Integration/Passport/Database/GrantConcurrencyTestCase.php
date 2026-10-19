@@ -404,11 +404,12 @@ abstract class GrantConcurrencyTestCase extends TestCase
             [$first, $second] = parallel([
                 $exchange,
                 $exchange,
-                function () use ($ready, $release): void {
+                function () use ($ready, $release, &$waiting): void {
                     try {
                         $this->assertTrue($ready->pop(5));
                         $this->assertTrue($ready->pop(5));
                     } finally {
+                        $waiting = false;
                         $release->push(true);
                         $release->push(true);
                     }
@@ -426,7 +427,7 @@ abstract class GrantConcurrencyTestCase extends TestCase
         $this->assertSame($grant === 'refresh_token' ? 2 : 1, RefreshToken::count());
         $this->assertSame(1, RefreshTokenFamily::count());
 
-        if ($grant === 'refresh_token') {
+        if ($grant !== 'device_code') {
             $this->assertNotNull(RefreshTokenFamily::sole()->revoked_at);
             $this->assertFalse(Token::where('revoked', false)->exists());
             $this->assertFalse(RefreshToken::where('revoked', false)->exists());

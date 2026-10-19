@@ -36,7 +36,6 @@ use Hypervel\WebSocketServer\Server as WebSocketServer;
         'port' => (int) env('WEBSOCKET_SERVER_PORT', 8080),
         'sock_type' => SWOOLE_SOCK_TCP,
         'callbacks' => [
-            Event::ON_REQUEST => [Hypervel\HttpServer\Server::class, 'onRequest'],
             Event::ON_HANDSHAKE => [WebSocketServer::class, 'onHandshake'],
             Event::ON_MESSAGE => [WebSocketServer::class, 'onMessage'],
             Event::ON_CLOSE => [WebSocketServer::class, 'onClose'],

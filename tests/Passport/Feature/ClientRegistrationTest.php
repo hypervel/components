@@ -10,16 +10,24 @@ use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Passport\ApiTokenCookieFactory;
 use Hypervel\Passport\Bridge\ParsedKey;
 use Hypervel\Passport\Client;
+use Hypervel\Passport\ClientMetadataValidator;
 use Hypervel\Passport\Database\Factories\ClientFactory;
 use Hypervel\Passport\Database\Factories\SigningKeyFactory;
 use Hypervel\Passport\Events\ClientMetadataValidated;
 use Hypervel\Passport\Exceptions\InvalidClientMetadataException;
+use Hypervel\Passport\Http\Controllers\ClientRegistrationController;
 use Hypervel\Passport\Passport;
+use Hypervel\Passport\RemoteDocumentFetcher;
+use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Event;
+use Hypervel\Support\Facades\Route;
 use Hypervel\Support\Facades\Schema;
+use Hypervel\Support\Facades\URL;
+use Hypervel\Support\Str;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\Concerns\WithHypervelMigrations;
 use Hypervel\Tests\Passport\Fixtures\UserFactory;
+use Mockery as m;
 use PHPUnit\Framework\Attributes\TestWith;
 
 class ClientRegistrationTest extends PassportTestCase
@@ -72,10 +80,12 @@ class ClientRegistrationTest extends PassportTestCase
         Client::creating(static function (Client $client) use ($timestamps): void {
             $client->timestamps = $timestamps;
         });
+        $key = ParsedKey::fromPublicKey((new SigningKeyFactory)->definition()['public_key'])->getJwk();
         $response = $this->postJson('/oauth/register', [
             'client_name' => 'Calendar', 'redirect_uris' => ['https://client.example/callback'], 'scope' => 'read',
             'owner_id' => 123, 'provider' => 'staff', 'secret' => 'injected', 'unknown' => 'ignored',
             'third_party' => false,
+            'jwks' => ['keys' => [$key]],
             'require_pushed_authorization_requests' => true,
         ])->assertCreated()->assertHeader('Cache-Control', 'no-store, private')
             ->assertJsonPath('token_endpoint_auth_method', 'client_secret_basic')
@@ -83,6 +93,8 @@ class ClientRegistrationTest extends PassportTestCase
             ->assertJsonPath('grant_types', ['authorization_code'])
             ->assertJsonPath('response_types', ['code'])
             ->assertJsonPath('client_secret_expires_at', 0)
+            ->assertJsonPath('dpop_bound_access_tokens', false)
+            ->assertJsonMissingPath('jwks')->assertJsonMissingPath('jwks_uri')->assertJsonMissingPath('token_endpoint_auth_signing_alg')
             ->assertJsonMissingPath('owner_id')->assertJsonMissingPath('provider')->assertJsonMissingPath('secret')
             ->assertJsonMissingPath('unknown')->assertJsonMissingPath('third_party');
         $client = Client::findOrFail($response->json('client_id'));
@@ -91,6 +103,7 @@ class ClientRegistrationTest extends PassportTestCase
         $this->assertSame(['read'], $client->scopes);
         $this->assertNull($client->owner_id);
         $this->assertNull($client->provider);
+        $this->assertNull($client->jwks);
         $this->assertTrue($client->third_party);
         $this->assertTrue($client->require_pushed_authorization_requests);
         $this->assertFalse($client->firstParty());
@@ -113,11 +126,60 @@ class ClientRegistrationTest extends PassportTestCase
         }
 
         $response = $this->postJson('/oauth/register', $metadata)->assertCreated()
+            ->assertJsonPath('scope', 'read')
             ->assertJsonMissingPath('client_secret')->assertJsonMissingPath('client_secret_expires_at');
         $client = Client::findOrFail($response->json('client_id'));
         $this->assertNull($client->secret);
-        $this->assertSame([], $client->scopes);
+        $this->assertSame(['read'], $client->scopes);
         $this->assertSame($method === 'private_key_jwt', $client->confidential());
+    }
+
+    public function testCompleteMetadataUpdatesReplaceTheAuthenticationKeySource(): void
+    {
+        config(['passport.issuer' => 'https://issuer.example', 'passport.replay.store' => 'database']);
+        $material = (new SigningKeyFactory)->definition();
+        $key = ParsedKey::fromPublicKey($material['public_key'])->getJwk();
+        $documents = m::mock(RemoteDocumentFetcher::class);
+        $documents->shouldReceive('fetch')->with('https://keys.example/jwks')->andReturn(['keys' => [[...$key, 'kid' => 'remote']]]);
+        $this->app->instance(RemoteDocumentFetcher::class, $documents);
+        $validator = $this->app->make(ClientMetadataValidator::class);
+        $client = ClientFactory::new()->asClientCredentials()->create(['secret' => null]);
+        $update = function (array $metadata) use ($validator, $client): void {
+            $validated = $validator->validate($metadata + ['grant_types' => ['client_credentials']], $client);
+            $client->forceFill(Arr::except($validated, ['client_name', 'scope', 'response_types']))->save();
+            $client->refresh();
+        };
+        $authenticate = function (string $kid) use ($client, $material) {
+            return $this->post('/oauth/token', [
+                'grant_type' => 'client_credentials',
+                'client_assertion_type' => 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
+                'client_assertion' => JWT::encode([
+                    'iss' => $client->id, 'sub' => $client->id, 'aud' => 'https://issuer.example',
+                    'jti' => Str::random(40), 'exp' => time() + 120,
+                ], $material['private_key'], 'RS256', $kid),
+            ]);
+        };
+
+        $update(['token_endpoint_auth_method' => 'private_key_jwt', 'jwks' => ['keys' => [[...$key, 'kid' => 'inline']]]]);
+        $authenticate('inline')->assertOk();
+        $update(['token_endpoint_auth_method' => 'private_key_jwt', 'jwks_uri' => 'https://keys.example/jwks']);
+        $this->assertNull($client->jwks);
+        $authenticate('remote')->assertOk();
+        $authenticate('inline')->assertUnauthorized()->assertJsonPath('error', 'invalid_client');
+
+        $update([
+            'token_endpoint_auth_method' => 'client_secret_post',
+            'jwks_uri' => 'https://keys.example/jwks',
+            'token_endpoint_auth_signing_alg' => 'RS256',
+        ]);
+        $this->assertNull($client->jwks);
+        $this->assertNull($client->jwks_uri);
+        $this->assertNull($client->token_endpoint_auth_signing_alg);
+        $client->forceFill(['secret' => 'replacement-secret'])->save();
+        $this->post('/oauth/token', [
+            'grant_type' => 'client_credentials', 'client_id' => $client->id, 'client_secret' => 'replacement-secret',
+        ])->assertOk();
+        $authenticate('remote')->assertUnauthorized()->assertJsonPath('error', 'invalid_client');
     }
 
     public function testUnsupportedInlineKeysAreRejectedBeforeSavingWithAClearDescription(): void
@@ -228,6 +290,44 @@ class ClientRegistrationTest extends PassportTestCase
         ])->assertOk()->json('access_token');
 
         $response = $this->withToken($token)->postJson('/oauth/register', ['grant_types' => ['client_credentials']]);
+
+        if ($allowed) {
+            $response->assertCreated();
+        } else {
+            $response->assertUnauthorized()->assertJsonPath('error', 'invalid_token');
+        }
+
+        $this->assertDatabaseCount('oauth_clients', $allowed ? 2 : 1);
+    }
+
+    #[TestWith([null, true])]
+    #[TestWith(['http://localhost/custom/register', true])]
+    #[TestWith(['http://localhost/oauth/register', false])]
+    #[TestWith(['https://localhost/custom/register', true, true])]
+    public function testApplicationMountedRegistrationUsesItsActualAudience(?string $resource, bool $allowed, bool $forceHttps = false): void
+    {
+        if ($forceHttps) {
+            URL::forceHttps();
+        }
+
+        Route::post('/custom/register', [ClientRegistrationController::class, 'store'])->name('custom.register');
+        Passport::tokensCanAccess([
+            'http://localhost/custom/register' => 'Custom registration',
+            'http://localhost/oauth/register' => 'Default registration',
+            'https://localhost/custom/register' => 'HTTPS registration',
+        ]);
+        $client = ClientFactory::new()->asClientCredentials()->create();
+        $parameters = [
+            'grant_type' => 'client_credentials', 'client_id' => $client->id,
+            'client_secret' => $client->plainSecret, 'scope' => 'passport:register',
+        ];
+
+        if ($resource !== null) {
+            $parameters['resource'] = $resource;
+        }
+
+        $token = $this->post('/oauth/token', $parameters)->assertOk()->json('access_token');
+        $response = $this->withToken($token)->postJson('/custom/register', ['grant_types' => ['client_credentials']]);
 
         if ($allowed) {
             $response->assertCreated();

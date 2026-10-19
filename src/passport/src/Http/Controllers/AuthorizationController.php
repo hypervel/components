@@ -25,6 +25,7 @@ use Hypervel\Passport\Events\AuthorizationRequestValidated;
 use Hypervel\Passport\Exceptions\AuthenticationException;
 use Hypervel\Passport\Exceptions\InvalidAuthTokenException;
 use Hypervel\Passport\Exceptions\OAuthServerException;
+use Hypervel\Passport\Http\Middleware\SetAuthorizationResponseHeaders;
 use Hypervel\Passport\Http\RequestParameters;
 use Hypervel\Passport\Http\Responses\AuthorizationResponse;
 use Hypervel\Passport\Passport;
@@ -33,6 +34,7 @@ use Hypervel\Passport\PushedAuthorizationRequest;
 use Hypervel\Passport\PushedAuthorizationRequestRepository;
 use Hypervel\Passport\Scope;
 use Hypervel\Passport\ServerFactory;
+use Hypervel\Routing\Attributes\Controllers\Middleware;
 use Hypervel\Support\Facades\Date;
 use League\OAuth2\Server\Entities\ScopeEntityInterface;
 use League\OAuth2\Server\Exception\OAuthServerException as LeagueException;
@@ -41,6 +43,7 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Symfony\Component\HttpFoundation\Response;
 
+#[Middleware(SetAuthorizationResponseHeaders::class)]
 class AuthorizationController
 {
     use ConvertsPsrResponses;
@@ -89,7 +92,7 @@ class AuthorizationController
         $parameters = $this->withErrorHandling(fn (): array => RequestParameters::fromRequest($request));
         $pushed = null;
 
-        if (array_key_exists('request_uri', $parameters)) {
+        if (isset($parameters['request_uri']) && $this->pushed->isPushedRequestUri($parameters['request_uri'])) {
             $pushed = $this->withErrorHandling(function () use ($parameters): PushedAuthorizationRequest {
                 if (! isset($parameters['client_id']) || $parameters['client_id'] === '') {
                     throw LeagueException::invalidRequest('client_id');
