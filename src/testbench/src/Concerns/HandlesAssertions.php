@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Testbench\Concerns;
 
 use Closure;
+use Hypervel\Testbench\PHPUnit\Assert;
 
 trait HandlesAssertions
 {
@@ -15,9 +16,7 @@ trait HandlesAssertions
      */
     protected function markTestSkippedUnless(bool|Closure $condition, string $message): void
     {
-        if (! value($condition)) {
-            $this->markTestSkipped($message);
-        }
+        Assert::markTestSkippedUnless(value($condition), $message);
     }
 
     /**
@@ -27,8 +26,6 @@ trait HandlesAssertions
      */
     protected function markTestSkippedWhen(bool|Closure $condition, string $message): void
     {
-        if (value($condition)) {
-            $this->markTestSkipped($message);
-        }
+        Assert::markTestSkippedWhen(value($condition), $message);
     }
 }
