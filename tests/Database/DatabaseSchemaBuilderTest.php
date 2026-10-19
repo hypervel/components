@@ -15,6 +15,7 @@ use Hypervel\Database\Schema\Grammars\Grammar;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PDO;
+use PDOException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 
@@ -271,20 +272,18 @@ class DatabaseSchemaBuilderTest extends TestCase
         $connection = new PdoConnection($pdo, 'test');
         $grammar = m::mock(Grammar::class);
         $connection->setSchemaGrammar($grammar);
+        $failure = new PDOException('Failed to restore foreign key constraints.');
 
         $grammar->shouldReceive('compileDisableForeignKeyConstraints')->once()->andReturn('disable constraints');
         $grammar->shouldReceive('compileEnableForeignKeyConstraints')->once()->andReturn('enable constraints');
         $pdo->shouldReceive('exec')->once()->with('disable constraints')->andReturn(0)->ordered();
-        $pdo->shouldReceive('exec')->once()->with('enable constraints')->andReturnFalse()->ordered();
+        $pdo->shouldReceive('exec')->once()->with('enable constraints')->andThrow($failure)->ordered();
 
         try {
             (new Builder($connection))->withoutForeignKeyConstraints(fn () => null);
             $this->fail('Expected foreign key constraint restoration to fail.');
-        } catch (RuntimeException $exception) {
-            $this->assertSame(
-                'Failed to execute schema statement [enable constraints].',
-                $exception->getMessage()
-            );
+        } catch (PDOException $exception) {
+            $this->assertSame($failure, $exception);
         }
 
         $this->assertFalse($connection->isReusable());

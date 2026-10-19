@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database;
 
+use ErrorException;
 use Hypervel\Database\LostConnectionDetector;
+use Hypervel\Database\LostConnectionException;
 use Hypervel\Database\QueryException;
 use Hypervel\Tests\TestCase;
 use PDOException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
+use Throwable;
 
 class DatabaseConnectionLostTest extends TestCase
 {
@@ -40,10 +43,48 @@ class DatabaseConnectionLostTest extends TestCase
         $this->assertFalse($detector->causedByLostConnection($nested));
     }
 
-    public function testCustomDriverCausesRetainMessageBasedDetection(): void
+    #[DataProvider('driverFailures')]
+    public function testDriverFailuresAreDetectedThroughNestedQueryExceptions(Throwable $failure): void
     {
-        $failure = new QueryException('custom', 'select 1', [], new RuntimeException('server has gone away'));
+        $nested = new QueryException('test', 'select 1', [], new QueryException('test', 'select 2', [], $failure));
+        $detector = new LostConnectionDetector;
 
-        $this->assertTrue((new LostConnectionDetector)->causedByLostConnection($failure));
+        $this->assertTrue($detector->causedByLostConnection($failure));
+        $this->assertTrue($detector->causedByLostConnection($nested));
+    }
+
+    /**
+     * Provide native failures and the explicit lost-connection signal.
+     *
+     * @return iterable<string, array{Throwable}>
+     */
+    public static function driverFailures(): iterable
+    {
+        yield 'PDO' => [new PDOException('server has gone away')];
+        yield 'explicit signal' => [new LostConnectionException('Lost connection and no reconnector available.')];
+        yield 'mysqlnd packet warning' => [new ErrorException('Packets out of order. Expected 1 received 0. Packet size=145', 0, E_WARNING)];
+        yield 'mysqlnd send warning' => [new ErrorException('Error while sending QUERY packet. PID=1234', 0, E_WARNING)];
+    }
+
+    #[DataProvider('nonDatabaseFailures')]
+    public function testNonDatabaseFailuresAreNotDetected(Throwable $failure): void
+    {
+        $detector = new LostConnectionDetector;
+
+        $this->assertFalse($detector->causedByLostConnection($failure));
+        $this->assertFalse($detector->causedByLostConnection(new QueryException('test', 'select 1', [], $failure)));
+    }
+
+    /**
+     * Provide failures whose messages resemble database failures.
+     *
+     * @return iterable<string, array{Throwable}>
+     */
+    public static function nonDatabaseFailures(): iterable
+    {
+        yield 'custom driver without a policy' => [new RuntimeException('server has gone away')];
+        yield 'filesystem warning' => [new ErrorException('fopen(missing): Failed to open stream: No such file or directory', 0, E_WARNING)];
+        yield 'embedded packet warning' => [new ErrorException('fopen(Packets out of order. Expected): Failed to open stream', 0, E_WARNING)];
+        yield 'unsupported PDO warning mode' => [new ErrorException('PDO::query(): SQLSTATE[HY000]: General error: 2006 MySQL server has gone away', 0, E_WARNING)];
     }
 }

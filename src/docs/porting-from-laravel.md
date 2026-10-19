@@ -759,6 +759,10 @@ Hypervel's drivers are designed around its Swoole runtime and do not mirror ever
 
 Hypervel supports MySQL, MariaDB, PostgreSQL, and SQLite database connections. SQL Server, MongoDB, and DynamoDB database integrations are not supported.
 
+Remove any warning or silent `PDO::ATTR_ERRMODE` setting; PDO connections require exception mode. Custom connectors and supplied PDO handles must also use it. See [PDO error mode](/docs/{{version}}/database#pdo-error-mode).
+
+Custom non-PDO drivers that relied on generic exception messages for recovery must provide an explicit detector policy. Extend the default detectors and bind them to the existing contracts to preserve recovery for built-in drivers; see [detecting database failures](/docs/{{version}}/database#detecting-database-failures).
+
 MySQL and MariaDB connection configs must specify `strict` or `modes`; they cannot inherit the server's SQL mode implicitly. See [SQL mode configuration](/docs/{{version}}/database#mysql-and-mariadb-sql-modes).
 
 SQLite JSON-path updates replace assigned objects and retain JSON null. Review any reliance on Laravel's object merging or null-key deletion when [updating JSON columns](/docs/{{version}}/queries#updating-json-columns).

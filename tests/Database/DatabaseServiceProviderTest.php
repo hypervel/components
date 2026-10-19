@@ -165,7 +165,7 @@ class DatabaseServiceProviderTest extends TestCase
             };
 
             $this->assertTrue($concurrencySubject->detects(new PDOException('database is locked')));
-            $this->assertTrue($lostConnectionSubject->detects(new RuntimeException('server has gone away')));
+            $this->assertTrue($lostConnectionSubject->detects(new PDOException('server has gone away')));
         } finally {
             Container::setInstance($originalContainer);
         }

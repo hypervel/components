@@ -17,6 +17,7 @@ use InvalidArgumentException;
 use LogicException;
 use Mockery as m;
 use PDO;
+use PDOException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 
@@ -275,17 +276,14 @@ class DatabaseSQLiteBuilderTest extends TestCase
             ],
             [new Fluent(['name' => 'alter'])],
         );
-        $pdo->failForeignKeyRestoration = true;
+        $failure = $pdo->foreignKeyRestorationFailure = new PDOException('Failed to restore foreign key constraints.');
 
         try {
             try {
                 (new SQLiteBuilder($connection))->executeBlueprint($blueprint);
                 $this->fail('Expected foreign-key restoration to fail.');
-            } catch (RuntimeException $exception) {
-                $this->assertSame(
-                    'Failed to execute schema statement [pragma foreign_keys = 1].',
-                    $exception->getMessage(),
-                );
+            } catch (PDOException $exception) {
+                $this->assertSame($failure, $exception);
             }
 
             $this->assertFalse($connection->isReusable());
@@ -681,6 +679,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
     {
         $connection = m::mock(Connection::class);
         $grammar = new SQLiteGrammar($connection);
+        $failure = new PDOException('Failed to reset writable_schema.');
 
         $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
         $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
@@ -695,20 +694,23 @@ class DatabaseSQLiteBuilderTest extends TestCase
         $connection->shouldReceive('executeSessionStatement')
             ->once()
             ->with('pragma writable_schema = RESET')
-            ->andThrow(new RuntimeException('Failed to execute schema statement [pragma writable_schema = RESET].'))
+            ->andThrow($failure)
             ->ordered();
         $connection->shouldReceive('statement')->with($grammar->compileRebuild('main'))->never();
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessageIs('Failed to execute schema statement [pragma writable_schema = RESET].');
-
-        (new SQLiteBuilder($connection))->dropAllTables();
+        try {
+            (new SQLiteBuilder($connection))->dropAllTables();
+            $this->fail('Expected writable_schema reset to fail.');
+        } catch (PDOException $exception) {
+            $this->assertSame($failure, $exception);
+        }
     }
 
     public function testDropAllViewsPropagatesWritableModeRestorationFailure(): void
     {
         $connection = m::mock(Connection::class);
         $grammar = new SQLiteGrammar($connection);
+        $failure = new PDOException('Failed to restore writable_schema.');
 
         $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
         $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
@@ -728,13 +730,15 @@ class DatabaseSQLiteBuilderTest extends TestCase
         $connection->shouldReceive('executeSessionStatement')
             ->once()
             ->with('pragma writable_schema = 1')
-            ->andThrow(new RuntimeException('Failed to execute schema statement [pragma writable_schema = 1].'))
+            ->andThrow($failure)
             ->ordered();
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessageIs('Failed to execute schema statement [pragma writable_schema = 1].');
-
-        (new SQLiteBuilder($connection))->dropAllViews();
+        try {
+            (new SQLiteBuilder($connection))->dropAllViews();
+            $this->fail('Expected writable_schema restoration to fail.');
+        } catch (PDOException $exception) {
+            $this->assertSame($failure, $exception);
+        }
     }
 
     public function testDropAllTablesRejectsAnActiveTransactionBeforeInspectingTheSchema(): void
@@ -911,7 +915,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
 class SQLiteBuilderFailingForeignKeyRestorePdo extends PDO
 {
-    public bool $failForeignKeyRestoration = false;
+    public ?PDOException $foreignKeyRestorationFailure = null;
 
     /**
      * Execute an SQL statement and return the number of affected rows.
@@ -919,8 +923,8 @@ class SQLiteBuilderFailingForeignKeyRestorePdo extends PDO
     #[Override]
     public function exec(string $statement): int|false
     {
-        if ($this->failForeignKeyRestoration && trim($statement) === 'pragma foreign_keys = 1') {
-            return false;
+        if ($this->foreignKeyRestorationFailure !== null && trim($statement) === 'pragma foreign_keys = 1') {
+            throw $this->foreignKeyRestorationFailure;
         }
 
         return parent::exec($statement);

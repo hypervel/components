@@ -638,9 +638,7 @@ class PdoConnection extends Connection
         $pdo = $this->getPdo();
 
         try {
-            if ($pdo->exec($sql) === false) {
-                throw new RuntimeException("Failed to execute schema statement [{$sql}].");
-            }
+            $pdo->exec($sql);
         } catch (Throwable $exception) {
             $this->markSessionStateUnknown($pdo);
 

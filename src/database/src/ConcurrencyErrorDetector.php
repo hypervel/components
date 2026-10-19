@@ -16,21 +16,23 @@ class ConcurrencyErrorDetector implements ConcurrencyErrorDetectorContract
      */
     public function causedByConcurrencyError(Throwable $e): bool
     {
-        if ($e instanceof PDOException) {
-            if (in_array($e->getCode(), [40001, '40001', '40P01', '55P03'], true)) {
-                return true;
-            }
-
-            // These are exact SQLite and MySQL-family driver codes. PostgreSQL
-            // concurrency failures are identified by their SQLSTATE above.
-            if (in_array($e->errorInfo[1] ?? null, [5, 6, 1205], true)) {
-                return true;
-            }
-        }
-
         // QueryException preserves driver codes, but its message also contains SQL and bindings.
         while ($e instanceof QueryException && $e->getPrevious() !== null) {
             $e = $e->getPrevious();
+        }
+
+        if (! $e instanceof PDOException) {
+            return false;
+        }
+
+        if (in_array($e->getCode(), [40001, '40001', '40P01', '55P03'], true)) {
+            return true;
+        }
+
+        // These are exact SQLite and MySQL-family driver codes. PostgreSQL
+        // concurrency failures are identified by their SQLSTATE above.
+        if (in_array($e->errorInfo[1] ?? null, [5, 6, 1205], true)) {
+            return true;
         }
 
         $message = $e->getMessage();

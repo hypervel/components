@@ -45,6 +45,7 @@ use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionClass;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class DatabaseConnectionTest extends TestCase
 {
@@ -409,6 +410,29 @@ class DatabaseConnectionTest extends TestCase
         $connection->rollBack();
     }
 
+    public function testNeutralNestedConcurrencyFailureRetriesTheOuterTransaction(): void
+    {
+        $connection = new NeutralTransactionConnectionForTest;
+        $failure = new QueryException('analytics', 'update records set value = 1', [], new RuntimeException('Deadlock found when trying to get lock'));
+        $attempts = 0;
+
+        $result = $connection->transaction(function () use ($connection, $failure, &$attempts): string {
+            ++$attempts;
+
+            return $connection->transaction(static function () use ($failure, $attempts): string {
+                if ($attempts === 1) {
+                    throw $failure;
+                }
+
+                return 'success';
+            });
+        }, 2);
+
+        $this->assertSame('success', $result);
+        $this->assertSame(2, $attempts);
+        $this->assertSame(0, $connection->transactionLevel());
+    }
+
     public function testSettingDefaultCallsGetDefaultGrammar(): void
     {
         $connection = $this->getMockConnection(['getDefaultQueryGrammar']);
@@ -496,7 +520,7 @@ class DatabaseConnectionTest extends TestCase
     {
         $pdo = $this->createStub(PDOStub::class);
         $pdo->method('beginTransaction')
-            ->willReturnOnConsecutiveCalls($this->throwException(new ErrorException('server has gone away')), true);
+            ->willReturnOnConsecutiveCalls($this->throwException(new ErrorException('Error while sending QUERY packet. PID=1234')), true);
         $connection = $this->getMockConnection(['reconnect'], $pdo);
         $connection->expects($this->once())->method('reconnect');
         $connection->beginTransaction();
@@ -680,7 +704,7 @@ class DatabaseConnectionTest extends TestCase
         $pdo->expects($this->exactly(3))->method('rollBack');
         $pdo->expects($this->never())->method('commit');
         $mock->transaction(function (): never {
-            throw new QueryException('conn', '', [], new Exception('Deadlock found when trying to get lock'));
+            throw new QueryException('conn', '', [], new PDOException('Deadlock found when trying to get lock'));
         }, 3);
     }
 
@@ -1719,7 +1743,7 @@ class DatabaseConnectionTest extends TestCase
             'default',
             '',
             [],
-            new RuntimeException('Deadlock found when trying to get lock')
+            new PDOException('Deadlock found when trying to get lock')
         );
         $cleanupFailure = new RuntimeException('rollback callback failure');
         $callbackCalls = 0;
@@ -1802,7 +1826,7 @@ class DatabaseConnectionTest extends TestCase
             'default',
             '',
             [],
-            new RuntimeException('Deadlock found when trying to get lock')
+            new PDOException('Deadlock found when trying to get lock')
         );
         $cleanupFailure = new RuntimeException('rollback callback failure');
         $cleanupCalls = 0;
@@ -2983,6 +3007,14 @@ class NeutralConnectionForTest extends Connection
         return 'http';
     }
 
+    /**
+     * Identify this test driver's lost-session failure.
+     */
+    protected function causedByLostConnection(Throwable $e): bool
+    {
+        return $e instanceof RuntimeException && $e->getMessage() === 'server has gone away';
+    }
+
     protected function escapeString(string $value): string
     {
         return "HTTP_STRING[{$value}]";
@@ -3040,6 +3072,18 @@ class NeutralTransactionConnectionForTest extends NeutralConnectionForTest
     public int $rollBackCalls = 0;
 
     public bool $physicalTransaction = false;
+
+    /**
+     * Identify this test driver's concurrency failure.
+     */
+    protected function causedByConcurrencyError(Throwable $e): bool
+    {
+        while ($e instanceof QueryException && $e->getPrevious() !== null) {
+            $e = $e->getPrevious();
+        }
+
+        return $e instanceof RuntimeException && $e->getMessage() === 'Deadlock found when trying to get lock';
+    }
 
     public function inTransaction(): bool
     {
