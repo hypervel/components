@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 return [
+    '7c30bcef-f035-4e21-9175-5c985b4b239c' => 'TeamPass',
     '6d6f6e69-6361-4d33-a001-706173736b79' => 'Monica Pass',
     'a11a5faa-9f32-4b8c-8c5d-2f7d13e8c942' => 'AliasVault',
     'ea9b8d66-4d01-1d21-3ce4-b6b48cb575d4' => 'Google Password Manager',
@@ -65,4 +66,5 @@ return [
     '35d5ea15-ab24-4416-bdd1-f204c9bce1b6' => 'CyberFOX Password Manager',
     'f1d0badc-0def-4f1d-8bad-c0def1d0badc' => 'fidont',
     'c4ed941c-86d3-4532-a6a9-bc42b80d5c38' => 'Authn8',
+    '441f5bad-a8ec-4572-8094-ee73a1c7cec7' => 'Fobb Security',
 ];
