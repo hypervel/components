@@ -1990,7 +1990,7 @@ class RefundsAgent implements Agent, CanActAsTool, HasTools
 
 If a sub-agent does not implement `CanActAsTool`, Hypervel will use the agent's class basename as the tool name and a generic description that asks the parent agent to pass a clear, self-contained task description. Each sub-agent invocation runs in isolation and does not receive the parent agent's conversation history.
 
-When the parent agent is [streaming](#streaming), its sub-agents stream as well. As a sub-agent's text grows, the parent periodically emits `ToolResult` events containing the text produced so far. These events are marked as preliminary and are followed by the tool call's final result. Short responses may only produce the final result. You may skip preliminary events when iterating manually:
+When the parent agent is [streaming](#streaming), its sub-agents stream as well, except sub-agents with [structured output](#structured-output), which return their result once complete. As a sub-agent's text grows, the parent periodically emits `ToolResult` events containing the text produced so far. These events are marked as preliminary and are followed by the tool call's final result. Short responses may only produce the final result. You may skip preliminary events when iterating manually:
 
 ```php
 use Hypervel\Ai\Streaming\Events\ToolResult;

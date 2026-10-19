@@ -326,7 +326,7 @@ Integration::setConversationId(null);
 
 A top-level agent's conversation remains selected for later AI operations in that coroutine. Nested agents restore the caller's selection when they finish. Child coroutines inherit the selected conversation, but selecting another conversation in a child does not change the parent's selection.
 
-Prompts, system instructions, attachments, responses, tool arguments and results, embedding inputs, and classification content follow the [sensitive data settings](#sensitive-data). With the default `data_collection: null`, they are omitted unless `send_default_pii` is enabled. Tool names and descriptions are always sent, and tool definitions, including their schemas, are sent by default. If you configure `data_collection`, its `gen_ai.inputs` and `gen_ai.outputs` settings control this data instead, with tool definitions treated as inputs; both settings default to `true` when omitted:
+Prompts, system instructions, attachments, responses, tool arguments and results, embedding inputs, and classification content follow the [sensitive data settings](#sensitive-data). With the default `data_collection: null`, they are omitted unless `send_default_pii` is enabled. The names and descriptions of tools that run are always sent, and tool definitions, including their schemas, are sent by default. If you configure `data_collection`, its `gen_ai.inputs` and `gen_ai.outputs` settings control this data instead, with tool definitions treated as inputs; both settings default to `true` when omitted:
 
 ```php
 'data_collection' => [
