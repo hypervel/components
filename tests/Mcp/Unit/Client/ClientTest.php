@@ -49,14 +49,16 @@ class ClientTest extends TestCase
         $this->assertArrayNotHasKey('id', $initialized);
     }
 
-    public function testDisconnectsWhenTheServerNegotiatesAVersionTheClientDoesNotSupport(): void
+    #[TestWith([ProtocolVersion::V2024_11_05])]
+    #[TestWith([ProtocolVersion::V2025_03_26])]
+    public function testDisconnectsWhenTheServerNegotiatesAVersionTheClientDoesNotSupport(ProtocolVersion $version): void
     {
         $transport = new FakeTransport;
         $transport->responses[] = json_encode([
             'jsonrpc' => '2.0',
             'id' => 1,
             'result' => [
-                'protocolVersion' => ProtocolVersion::V2024_11_05->value,
+                'protocolVersion' => $version->value,
                 'capabilities' => new stdClass,
                 'serverInfo' => ['name' => 'Test Server', 'version' => '1.0.0'],
             ],
@@ -65,7 +67,7 @@ class ClientTest extends TestCase
         $client = new Client($transport);
 
         $this->expectException(ClientException::class);
-        $this->expectExceptionMessage('The server chose protocol version [2024-11-05]. This client supports [2025-11-25, 2025-06-18].');
+        $this->expectExceptionMessage("The server chose protocol version [{$version->value}]. This client supports [2025-11-25, 2025-06-18].");
         try {
             $client->connect();
         } finally {

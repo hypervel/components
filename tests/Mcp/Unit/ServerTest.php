@@ -37,22 +37,50 @@ use function Hypervel\Tests\Mcp\Fixtures\protocolMeta;
 
 class ServerTest extends TestCase
 {
-    public function testAnswersTheLegacyInitializeHandshake(): void
+    #[DataProvider('legacyInitializeVersions')]
+    public function testAnswersTheLegacyInitializeHandshake(string $version): void
     {
         $transport = new ArrayTransport;
         $server = new ExampleServer($transport);
 
         $server->start();
 
-        ($transport->handler)(json_encode([...initializeMessage(), 'params' => ['protocolVersion' => '2025-06-18']]));
+        ($transport->handler)(json_encode([...initializeMessage(), 'params' => ['protocolVersion' => $version]]));
 
         $response = json_decode((string) $transport->sent[0], true);
 
         $this->assertSame(456, $response['id']);
-        $this->assertSame('2025-06-18', $response['result']['protocolVersion']);
+        $this->assertSame($version, $response['result']['protocolVersion']);
         $this->assertSame('Hypervel MCP Server', $response['result']['serverInfo']['name']);
         $this->assertArrayHasKey('capabilities', $response['result']);
         $this->assertArrayHasKey('instructions', $response['result']);
+
+        ($transport->handler)(json_encode(['jsonrpc' => '2.0', 'method' => 'notifications/initialized']));
+
+        $this->assertCount(1, $transport->sent);
+
+        ($transport->handler)(json_encode(['jsonrpc' => '2.0', 'id' => 2, 'method' => 'tools/list']));
+
+        $response = json_decode((string) $transport->sent[1], true);
+
+        $this->assertContains('say-hi-tool', array_column($response['result']['tools'], 'name'));
+
+        $message = callToolMessage();
+        unset($message['params']['_meta']);
+
+        ($transport->handler)(json_encode($message));
+
+        $response = json_decode((string) $transport->sent[2], true);
+
+        $this->assertSame('Hello, John Doe!', $response['result']['content'][0]['text']);
+    }
+
+    /**
+     * Provide the protocol versions supported by the legacy initialize handshake.
+     */
+    public static function legacyInitializeVersions(): array
+    {
+        return [['2025-11-25'], ['2025-06-18'], ['2025-03-26']];
     }
 
     public function testFallsBackToTheLatestLegacyVersionForAnUnknownInitializeVersion(): void

@@ -13,6 +13,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 
 use function Hypervel\Tests\Mcp\Fixtures\callToolMessage;
+use function Hypervel\Tests\Mcp\Fixtures\initializeMessage;
 use function Hypervel\Tests\Mcp\Fixtures\listToolsMessage;
 use function Hypervel\Tests\Mcp\Fixtures\mcpHeaders;
 use function Hypervel\Tests\Mcp\Fixtures\protocolMeta;
@@ -264,23 +265,46 @@ class ValidateMcpHeadersTest extends TestCase
     }
 
     #[DataProvider('legacyVersions')]
-    public function testAcceptsALegacyRequestCarryingANegotiatedProtocolVersionHeader(string $version): void
+    public function testServesToolsAfterTheLegacyInitializeHandshake(string $version, bool $withHeader): void
     {
-        $response = $this->postJson('test-mcp', ['jsonrpc' => '2.0', 'id' => 3, 'method' => 'tools/list', 'params' => []], [
-            'MCP-Protocol-Version' => $version,
-        ]);
+        $this->postJson('test-mcp', [...initializeMessage(), 'params' => [
+            'protocolVersion' => $version,
+            'capabilities' => (object) [],
+            'clientInfo' => ['name' => 'test-client', 'version' => '1.0.0'],
+        ]])->assertOk()->assertJsonPath('result.protocolVersion', $version);
+
+        $headers = $withHeader ? ['MCP-Protocol-Version' => $version] : [];
+
+        $this->postJson('test-mcp', ['jsonrpc' => '2.0', 'method' => 'notifications/initialized'], $headers)
+            ->assertStatus(202);
+
+        $response = $this->postJson('test-mcp', ['jsonrpc' => '2.0', 'id' => 3, 'method' => 'tools/list', 'params' => []], $headers);
 
         $response->assertStatus(200);
 
-        $this->assertNotEmpty($response->json('result.tools'));
+        $this->assertContains('say-hi-tool', array_column($response->json('result.tools'), 'name'));
+
+        $message = callToolMessage();
+        unset($message['params']['_meta']);
+
+        $this->postJson('test-mcp', $message, $headers)
+            ->assertOk()->assertJsonPath('result.content.0.text', 'Hello, John Doe!');
     }
 
     /**
-     * Provide supported legacy protocol versions.
+     * Provide supported legacy protocol versions with and without the negotiated version header.
      */
     public static function legacyVersions(): array
     {
-        return [['2025-11-25'], ['2025-06-18']];
+        $cases = [];
+
+        foreach (['2025-11-25', '2025-06-18', '2025-03-26'] as $version) {
+            foreach ([true, false] as $withHeader) {
+                $cases[] = [$version, $withHeader];
+            }
+        }
+
+        return $cases;
     }
 
     public function testAnswersALegacyRequestCarryingAnUnsupportedProtocolVersionHeaderWithA400(): void
@@ -298,7 +322,7 @@ class ValidateMcpHeadersTest extends TestCase
                 'code' => -32022,
                 'message' => 'Unsupported protocol version',
                 'data' => [
-                    'supported' => ['2025-11-25', '2025-06-18'],
+                    'supported' => ['2025-11-25', '2025-06-18', '2025-03-26'],
                     'requested' => '1900-01-01',
                 ],
             ],

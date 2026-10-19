@@ -21,7 +21,7 @@ class ProtocolVersionTest extends TestCase
     {
         $this->assertSame(['2026-07-28'], ProtocolVersion::serverSupported());
         $this->assertSame(['2026-07-28', '2025-11-25', '2025-06-18'], ProtocolVersion::clientSupported());
-        $this->assertSame(['2025-11-25', '2025-06-18'], ProtocolVersion::initializeSupported());
+        $this->assertSame(['2025-11-25', '2025-06-18', '2025-03-26'], ProtocolVersion::initializeSupported());
     }
 
     public function testPicksTheVersionThisClientPrefersRegardlessOfTheOrderTheServerLists(): void
