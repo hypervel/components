@@ -128,9 +128,11 @@ class PackageManifestTest extends TestCase
             rootPackage: $this->rootPackageFixture()
         );
 
+        $manifestPath = $manifest->getManifestPath();
+
         $manifest->build();
 
-        $cached = require $this->manifestPath;
+        $cached = require $manifestPath;
 
         $this->assertArrayHasKey('testbench/example', $cached);
         $this->assertArrayHasKey('vendor-a/package-a', $cached);
@@ -162,9 +164,11 @@ class PackageManifestTest extends TestCase
             rootPackage: null
         );
 
+        $manifestPath = $manifest->getManifestPath();
+
         $manifest->build();
 
-        $cached = require $this->manifestPath;
+        $cached = require $manifestPath;
 
         $this->assertArrayNotHasKey('testbench/example', $cached);
         $this->assertArrayHasKey('vendor-a/package-a', $cached);
