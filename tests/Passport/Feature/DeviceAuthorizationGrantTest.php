@@ -247,6 +247,8 @@ class DeviceAuthorizationGrantTest extends PassportTestCase
 
         $this->get('/oauth/device/authorize?user_code=' . Str::substrReplace($lowercase ? strtolower($userCode) : $userCode, '-', 4, 0))
             ->assertOk()
+            ->assertHeader('Referrer-Policy', 'no-referrer')
+            ->assertHeader('Cache-Control', 'no-store, private')
             ->assertSessionHas('passport.authorizations')
             ->assertSessionHasNoErrors();
     }

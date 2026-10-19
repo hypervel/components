@@ -12,13 +12,16 @@ use Hypervel\Http\Request;
 use Hypervel\Passport\Bridge\DeviceCodeRepository;
 use Hypervel\Passport\ClientRepository;
 use Hypervel\Passport\Contracts\DeviceAuthorizationViewResponse;
+use Hypervel\Passport\Http\Middleware\SetAuthorizationResponseHeaders;
 use Hypervel\Passport\Http\RequestParameters;
 use Hypervel\Passport\Passport;
 use Hypervel\Passport\PendingAuthorizationRepository;
 use Hypervel\Passport\Scope;
+use Hypervel\Routing\Attributes\Controllers\Middleware;
 use League\OAuth2\Server\Entities\DeviceCodeEntityInterface;
 use League\OAuth2\Server\Entities\ScopeEntityInterface;
 
+#[Middleware(SetAuthorizationResponseHeaders::class)]
 class DeviceAuthorizationController
 {
     use HandlesOAuthErrors;
