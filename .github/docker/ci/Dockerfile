@@ -2,7 +2,12 @@ ARG PHP_VERSION=8.4
 ARG SWOOLE_IMAGE_VERSION=6.3.0-rc1
 ARG SWOOLE_VERSION=6.3.0RC1
 
-FROM phpswoole/swoole:${SWOOLE_IMAGE_VERSION}-php${PHP_VERSION}
+# Temporarily use upstream nightly images built from swoole-src master because
+# 6.3.0-rc1 has critical bugs fixed on master. Both currently report 6.3.0RC1,
+# so keep the runtime version check below. Once a fixed release is available,
+# update the version arguments above and restore the release-based FROM line.
+# FROM phpswoole/swoole:${SWOOLE_IMAGE_VERSION}-php${PHP_VERSION}
+FROM phpswoole/swoole:php${PHP_VERSION}
 
 ARG PHP_VERSION
 ARG SWOOLE_VERSION
