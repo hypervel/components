@@ -31,11 +31,11 @@ class CopyFile extends FilesystemTool
         $from = (string) $request->string('from');
         $to = (string) $request->string('to');
 
-        if (! $this->fileExists($disk, $from)) {
-            return "File [{$from}] does not exist.";
-        }
-
         try {
+            if (! $this->fileExists($disk, $from)) {
+                return "File [{$from}] does not exist.";
+            }
+
             $copied = $disk->copy($from, $to);
         } catch (CanceledException $exception) {
             throw $exception;

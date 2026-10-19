@@ -90,6 +90,27 @@ class FilesystemToolsTest extends TestCase
         ];
     }
 
+    #[DataProvider('invalidSourcePaths')]
+    public function testInvalidSourcePathsBecomeToolResults(string $toolClass, string $result): void
+    {
+        $this->assertSame(
+            $result,
+            (new $toolClass('local'))->handle(new Request(['path' => '../report.txt', 'from' => '../report.txt', 'to' => 'copy.txt'])),
+        );
+    }
+
+    /**
+     * Provide tools whose source existence check rejects paths outside the disk root.
+     */
+    public static function invalidSourcePaths(): array
+    {
+        return [
+            'copy' => [CopyFile::class, 'Unable to copy [../report.txt] to [copy.txt]: Path traversal detected: ../report.txt'],
+            'move' => [MoveFile::class, 'Unable to move [../report.txt] to [copy.txt]: Path traversal detected: ../report.txt'],
+            'URL' => [GetFileUrl::class, 'Unable to generate a URL for [../report.txt]: Path traversal detected: ../report.txt'],
+        ];
+    }
+
     public function testListFilesReturnsFilesAndDirectoriesUnderAPath(): void
     {
         Storage::disk('local')->put('docs/a.txt', 'A');
