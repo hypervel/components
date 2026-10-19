@@ -2233,6 +2233,14 @@ class SupportCollectionTest extends TestCase
     }
 
     #[DataProvider('collectionClassProvider')]
+    public function testSortByDescReversesTheMinimumIntegerComparisonResult($collection): void
+    {
+        $data = (new $collection([PHP_INT_MIN, 0]))->sortByDesc([fn (int $a, int $b): int => $a - $b]);
+
+        $this->assertSame([0, PHP_INT_MIN], $data->values()->all());
+    }
+
+    #[DataProvider('collectionClassProvider')]
     public function testSortByAlwaysReturnsAssoc($collection): void
     {
         $data = new $collection(['a' => 'taylor', 'b' => 'dayle']);
