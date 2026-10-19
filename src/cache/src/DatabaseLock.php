@@ -202,7 +202,8 @@ class DatabaseLock extends Lock implements RefreshableLock
             return false;
         }
 
-        // A locking read on the writer sees the latest committed row, not a replica or an enclosing transaction's older snapshot.
+        // A locking read on the writer cannot confirm ownership from an older snapshot;
+        // MariaDB snapshot isolation may instead report a concurrency error, which must propagate.
         return $connection->table($this->table)
             ->sharedLock()
             ->where('key', $this->name)

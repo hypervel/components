@@ -550,9 +550,9 @@ class HasRolesTest extends TestCase
         $necessaryQueriesCount = 2;
 
         // A database cache store also reads the assignment token and invalidates the user's
-        // role cache entry (lock, delete and release).
+        // role cache entry (SQLite lock precheck, acquire, delete and release).
         if ($this->usesDatabaseCacheStore()) {
-            $necessaryQueriesCount += 4;
+            $necessaryQueriesCount += 5;
         }
 
         $this->assertCount($necessaryQueriesCount, DB::getQueryLog());
@@ -577,8 +577,8 @@ class HasRolesTest extends TestCase
         $this->assertTrue($user2->fresh()->hasRole('testRole2'));
         $this->assertFalse($user2->fresh()->hasRole('testRole'));
         // A database cache store also invalidates the new user's role cache entry
-        // (lock, delete and release).
-        $this->assertCount($this->usesDatabaseCacheStore() ? 5 : 2, DB::getQueryLog()); // avoid unnecessary sync
+        // (SQLite lock precheck, acquire, delete and release).
+        $this->assertCount($this->usesDatabaseCacheStore() ? 6 : 2, DB::getQueryLog()); // avoid unnecessary sync
     }
 
     public function testItCallingAssignRoleBeforeSavingObjectDoesntInterfereWithOtherObjects(): void
@@ -600,8 +600,8 @@ class HasRolesTest extends TestCase
         $this->assertTrue($adminUser->fresh()->hasRole('testRole2'));
         $this->assertFalse($adminUser->fresh()->hasRole('testRole'));
         // A database cache store also invalidates the new user's role cache entry
-        // (lock, delete and release).
-        $this->assertCount($this->usesDatabaseCacheStore() ? 5 : 2, DB::getQueryLog()); // avoid unnecessary sync
+        // (SQLite lock precheck, acquire, delete and release).
+        $this->assertCount($this->usesDatabaseCacheStore() ? 6 : 2, DB::getQueryLog()); // avoid unnecessary sync
     }
 
     public function testItThrowsAnExceptionWhenSyncingARoleFromAnotherGuard(): void

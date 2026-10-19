@@ -85,8 +85,8 @@ class HasRolesWithCustomModelsTest extends HasRolesTest
         DB::disableQueryLog();
 
         // A database cache store invalidates the role catalog when deleting and again when deleted
-        // (lock, delete and release each).
-        $this->assertCount($this->usesDatabaseCacheStore() ? 7 : 1, DB::getQueryLog());
+        // (SQLite lock precheck, acquire, delete and release each).
+        $this->assertCount($this->usesDatabaseCacheStore() ? 9 : 1, DB::getQueryLog());
 
         $role = Role::onlyTrashed()->find($this->testUserRole->getKey());
 
@@ -109,8 +109,8 @@ class HasRolesWithCustomModelsTest extends HasRolesTest
         DB::disableQueryLog();
 
         // A database cache store invalidates the role catalog when deleting and again when deleted
-        // (lock, delete and release each).
-        $this->assertCount($this->usesDatabaseCacheStore() ? 7 : 1, DB::getQueryLog());
+        // (SQLite lock precheck, acquire, delete and release each).
+        $this->assertCount($this->usesDatabaseCacheStore() ? 9 : 1, DB::getQueryLog());
 
         $role = Role::onlyTrashed()->find($this->testUserRole->getKey());
 
@@ -136,8 +136,8 @@ class HasRolesWithCustomModelsTest extends HasRolesTest
         DB::disableQueryLog();
 
         // A database cache store invalidates the role catalog once for the delete transaction
-        // (lock, delete and release) and writes a new model assignment token.
-        $this->assertCount($this->usesDatabaseCacheStore() ? 7 : 3, DB::getQueryLog());
+        // (SQLite lock precheck, acquire, delete and release) and writes a new model assignment token.
+        $this->assertCount($this->usesDatabaseCacheStore() ? 8 : 3, DB::getQueryLog());
 
         $this->assertNull(Role::withTrashed()->find($roleId));
         $this->assertSame(

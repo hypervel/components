@@ -849,9 +849,9 @@ class HasPermissionsTest extends TestCase
         $necessaryQueriesCount = 2;
 
         // A database cache store also reads the assignment token and invalidates the user's
-        // permission cache entry (lock, delete and release).
+        // permission cache entry (SQLite lock precheck, acquire, delete and release).
         if ($this->usesDatabaseCacheStore()) {
-            $necessaryQueriesCount += 4;
+            $necessaryQueriesCount += 5;
         }
 
         $this->assertCount($necessaryQueriesCount, DB::getQueryLog());
@@ -876,8 +876,8 @@ class HasPermissionsTest extends TestCase
         $this->assertTrue($user2->fresh()->hasPermissionTo('edit-articles'));
         $this->assertFalse($user2->fresh()->hasPermissionTo('edit-news'));
         // A database cache store also invalidates the new user's permission cache entry
-        // (lock, delete and release).
-        $this->assertCount($this->usesDatabaseCacheStore() ? 5 : 2, DB::getQueryLog()); // avoid unnecessary sync
+        // (SQLite lock precheck, acquire, delete and release).
+        $this->assertCount($this->usesDatabaseCacheStore() ? 6 : 2, DB::getQueryLog()); // avoid unnecessary sync
     }
 
     public function testItCallingSyncPermissionsBeforeSavingObjectDoesntInterfereWithOtherObjects(): void
@@ -899,8 +899,8 @@ class HasPermissionsTest extends TestCase
         $this->assertTrue($user2->fresh()->hasPermissionTo('edit-articles'));
         $this->assertFalse($user2->fresh()->hasPermissionTo('edit-news'));
         // A database cache store also invalidates the new user's permission cache entry
-        // (lock, delete and release).
-        $this->assertCount($this->usesDatabaseCacheStore() ? 5 : 2, DB::getQueryLog()); // avoid unnecessary sync
+        // (SQLite lock precheck, acquire, delete and release).
+        $this->assertCount($this->usesDatabaseCacheStore() ? 6 : 2, DB::getQueryLog()); // avoid unnecessary sync
     }
 
     public function testItCanRetrievePermissionNames(): void

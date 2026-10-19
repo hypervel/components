@@ -75,7 +75,9 @@ class DatabaseLockTest extends DatabaseTestCase
         $this->assertFalse($lock->refresh());
     }
 
-    public function testAnUnchangedUpdateIsConfirmedAgainstTheCurrentRowRatherThanATransactionSnapshot(): void
+    #[TestWith(['get'])]
+    #[TestWith(['refresh'])]
+    public function testAnUnchangedUpdateIsConfirmedAgainstTheCurrentRowRatherThanATransactionSnapshot(string $operation): void
     {
         if (! in_array($this->driver, ['mysql', 'mariadb'], true)) {
             $this->markTestSkipped('Only MySQL and MariaDB count changed rows, so only they read the lock back after an update.');
@@ -86,16 +88,23 @@ class DatabaseLockTest extends DatabaseTestCase
         CarbonImmutable::setTestNow(CarbonImmutable::now()->startOfSecond());
         $lock = Cache::driver('database')->lock('foo', 10);
         $this->assertTrue($lock->get());
+        $snapshotIsolation = $this->driver === 'mariadb'
+            && (DB::selectOne("show variables like 'innodb_snapshot_isolation'")?->Value ?? 'OFF') === 'ON';
         DB::statement('set transaction isolation level repeatable read');
 
-        DB::transaction(function () use ($lock): void {
+        if ($snapshotIsolation) {
+            // MariaDB rolls back the transaction when a locking operation encounters the newer row.
+            $this->expectException(QueryException::class);
+            $this->expectExceptionMessage('1020 Record has changed since last read');
+        }
+
+        DB::transaction(function () use ($lock, $operation): void {
             // The first read fixes the transaction's snapshot while the lock is still this owner's.
             $this->assertSame($lock->owner(), DB::table('cache_locks')->value('owner'));
             // Another connection gives the live lock to another owner and commits.
             DB::connection('other')->table('cache_locks')->update(['owner' => 'other_owner']);
 
-            $this->assertFalse($lock->get());
-            $this->assertFalse($lock->refresh());
+            $this->assertFalse($lock->{$operation}());
         });
     }
 

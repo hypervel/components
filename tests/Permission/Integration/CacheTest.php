@@ -37,10 +37,10 @@ class CacheTest extends TestCase
         DB::connection()->enableQueryLog();
 
         if ($this->registrar->getCacheStore() instanceof DatabaseStore) {
-            // A cold entry is read once, then filled under a cache lock: acquire, read again,
+            // A cold entry is read once, then filled under a cache lock: SQLite precheck, acquire, read again,
             // refresh, write and release.
             $this->cacheInitCount = 1;
-            $this->cacheLoadCount = 5;
+            $this->cacheLoadCount = 6;
         }
     }
 
