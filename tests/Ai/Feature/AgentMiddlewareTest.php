@@ -349,6 +349,9 @@ class AgentMiddlewareTest extends TestCase
     public function testAStructuredAgentStoppedBeforeItsFirstStepReturnsAnUnstructuredResponse(): void
     {
         $agent = new class extends StructuredAgent implements HasMiddleware {
+            /**
+             * Get the agent's middleware.
+             */
             public function middleware(): array
             {
                 return [Stop::when(true)];
@@ -403,6 +406,24 @@ class AgentMiddlewareTest extends TestCase
             [Message::class],
             $store->getLatestConversationMessages($conversationId, 10)->map(fn (Message $message): string => $message::class)->all(),
         );
+    }
+
+    public function testQueuedAgentsSerializeStopMiddlewareConditions(): void
+    {
+        Queue::fake()->serializeAndRestore();
+        Event::fake([StartingStep::class]);
+        AssistantAgent::fake(['Fake response']);
+
+        (new AssistantAgent)
+            ->withMiddleware([Stop::unless(fn (PendingStep $step): bool => false)])
+            ->queue('Test prompt');
+
+        Queue::assertPushed(InvokeAgent::class, function (InvokeAgent $job): bool {
+            $job->handle();
+
+            return true;
+        });
+        Event::assertNotDispatched(StartingStep::class);
     }
 
     public function testAgentMiddlewareMayChangeTheModelAndOptionsForAStep(): void

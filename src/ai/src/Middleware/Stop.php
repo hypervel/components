@@ -7,16 +7,23 @@ namespace Hypervel\Ai\Middleware;
 use Closure;
 use Hypervel\Ai\Gateway\StepResult;
 use Hypervel\Ai\PendingStep;
+use Laravel\SerializableClosure\SerializableClosure;
 
 class Stop
 {
+    /**
+     * The stop condition, wrapped when it is a closure so queued agents and listeners can serialize the middleware.
+     */
+    protected SerializableClosure|bool $condition;
+
     /**
      * Create a new stop middleware instance.
      *
      * @param bool|(Closure(PendingStep): bool) $condition
      */
-    public function __construct(protected Closure|bool $condition)
+    public function __construct(Closure|bool $condition)
     {
+        $this->condition = $condition instanceof Closure ? new SerializableClosure($condition) : $condition;
     }
 
     /**
@@ -46,6 +53,10 @@ class Stop
      */
     public function handle(PendingStep $step, Closure $next): StepResult
     {
-        return value($this->condition, $step) ? StepResult::stop() : $next($step);
+        $stop = $this->condition instanceof SerializableClosure
+            ? ($this->condition)($step)
+            : $this->condition;
+
+        return $stop ? StepResult::stop() : $next($step);
     }
 }
