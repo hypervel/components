@@ -32,6 +32,19 @@ class DatabaseConnectorTest extends TestCase
         $this->assertEquals([0 => 'baz', 1 => 'bar', 2 => 'boom'], $connector->getOptions(['options' => [0 => 'baz', 2 => 'boom']]));
     }
 
+    #[TestWith([PDO::ERRMODE_WARNING])]
+    #[TestWith([PDO::ERRMODE_SILENT])]
+    public function testConnectionsRejectNonExceptionErrorModes(int $mode): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessageIs('Database connection [options] must use PDO::ERRMODE_EXCEPTION.');
+
+        (new SQLiteConnector)->connect([
+            'database' => ':memory:',
+            'options' => [PDO::ATTR_ERRMODE => $mode],
+        ]);
+    }
+
     #[DataProvider('mySqlConnectProvider')]
     public function testMySqlConnectCallsCreateConnectionWithProperArguments(string $dsn, array $config): void
     {

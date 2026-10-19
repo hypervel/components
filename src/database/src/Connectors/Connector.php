@@ -35,6 +35,10 @@ class Connector
      */
     public function createConnection(string $dsn, array $config, array $options): PDO
     {
+        if (($options[PDO::ATTR_ERRMODE] ?? PDO::ERRMODE_EXCEPTION) !== PDO::ERRMODE_EXCEPTION) {
+            throw new InvalidArgumentException('Database connection [options] must use PDO::ERRMODE_EXCEPTION.');
+        }
+
         [$username, $password] = [
             $config['username'] ?? null, $config['password'] ?? null,
         ];
