@@ -765,6 +765,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->assertSame('client-typing', $data['event']);
         $this->assertSame('private-whisper-channel', $data['channel']);
         $this->assertSame(['user' => 'Joe'], $data['data']);
+        $this->assertNull($this->recv($otherApplication, 0.5));
 
         $this->disconnect($sender);
         $this->disconnect($receiver);

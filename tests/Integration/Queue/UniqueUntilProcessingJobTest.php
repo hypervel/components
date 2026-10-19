@@ -233,6 +233,9 @@ class UniqueUntilProcessingJobThatDispatchesReplacementAndFails extends UniqueTe
 {
     public int $tries = 1;
 
+    /**
+     * Dispatch a replacement job, then fail.
+     */
     public function handle(): void
     {
         static::dispatch();

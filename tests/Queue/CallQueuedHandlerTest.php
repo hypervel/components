@@ -44,6 +44,9 @@ class CallQueuedHandlerTest extends TestCase
 
     protected CallQueuedHandler $handler;
 
+    /**
+     * Set up the handler with an array-backed lock cache.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -545,6 +548,9 @@ class CustomUniqueLock extends UniqueLock
 {
     public bool $onlyOwned = false;
 
+    /**
+     * Record the ownership requirement and release the lock.
+     */
     public function release(mixed $job, bool $onlyOwned = false, string $owner = ''): void
     {
         $this->onlyOwned = $onlyOwned;
@@ -557,6 +563,9 @@ class CustomLockReleaseHandler extends CallQueuedHandler
 {
     public bool $onlyOwned = false;
 
+    /**
+     * Record the ownership requirement and release the job's lock.
+     */
     protected function ensureUniqueJobLockIsReleased(mixed $command, bool $onlyOwned = false, ?Job $job = null): void
     {
         $this->onlyOwned = $onlyOwned;

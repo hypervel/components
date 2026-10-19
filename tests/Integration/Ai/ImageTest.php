@@ -27,7 +27,7 @@ class ImageTest extends TestCase
 
         $this->assertSame($provider, $response->meta->provider);
         $this->assertNotEmpty($response->images);
-        $this->assertNotFalse(base64_decode($response->images->first()->image, true));
+        $this->assertNotEmpty(base64_decode($response->images->first()->image, true));
     }
 
     #[DataProviderExternal(Providers::class, 'images')]
@@ -41,7 +41,7 @@ class ImageTest extends TestCase
 
         $this->assertSame($provider, $response->meta->provider);
         $this->assertNotEmpty($response->images);
-        $this->assertNotFalse(base64_decode($response->images->first()->image, true));
+        $this->assertNotEmpty(base64_decode($response->images->first()->image, true));
     }
 
     #[DataProvider('openRouterImageModels')]
