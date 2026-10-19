@@ -110,7 +110,7 @@ class ConnectionResolver implements ConnectionResolverInterface
         $leaseContextKey = $this->getLeaseContextKey($connectionOwnerName);
 
         try {
-            $owner = $pool->usesSessionLeases() ? $pooledConnection->newLease() : $pooledConnection;
+            $owner = $pooledConnection->usesSessionLeases() ? $pooledConnection->newLease() : $pooledConnection;
             $connection = $owner instanceof ConnectionLease
                 ? $owner->connection
                 : $pooledConnection->getConnection();

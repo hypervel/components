@@ -14,6 +14,7 @@ use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionName;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\Events\ConnectionEstablished;
+use Hypervel\Database\LeasableConnection;
 use Hypervel\Database\PdoConnection;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
@@ -120,15 +121,24 @@ class PooledConnection implements PoolConnection
     }
 
     /**
+     * Determine whether borrowers receive a caller-owned logical connection for this slot.
+     *
+     * @internal
+     */
+    public function usesSessionLeases(): bool
+    {
+        return $this->pool->usesSessionLeases()
+            || ($this->getDriverConnection() instanceof LeasableConnection && $this->pool->supportsDriverSessionLeases());
+    }
+
+    /**
      * Create a caller-owned logical connection for this borrowed slot.
      *
      * @internal
      */
     public function newLease(): ConnectionLease
     {
-        /** @var PdoConnection $connection */
-        $connection = $this->getDriverConnection();
-        $lease = new ConnectionLease($this->pool, $this, $this->factory, $connection);
+        $lease = new ConnectionLease($this->pool, $this, $this->factory, $this->getDriverConnection());
         $this->configureConnection($lease->connection);
 
         return $lease;
@@ -149,18 +159,25 @@ class PooledConnection implements PoolConnection
     }
 
     /**
-     * Forget physical resources already disconnected by their logical owner.
+     * Forget physical resources after their logical owner disconnected.
      */
     protected function forgetDriverConnection(): void
     {
-        /** @var null|PdoConnection $connection */
         $connection = $this->connection;
 
-        // The connection's grammar retains it until cyclic garbage collection.
-        $connection?->setPdo(null)->setReadPdo(null);
-        $this->connection = null;
-        $this->connectionEstablishedEventPending = false;
-        $this->markInvalid();
+        try {
+            if ($connection instanceof LeasableConnection) {
+                // The driver's logical owner never holds these resources itself.
+                $connection->disconnect();
+            } elseif ($connection instanceof PdoConnection) {
+                // The connection's grammar retains it until cyclic garbage collection.
+                $connection->setPdo(null)->setReadPdo(null);
+            }
+        } finally {
+            $this->connection = null;
+            $this->connectionEstablishedEventPending = false;
+            $this->markInvalid();
+        }
     }
 
     /**
@@ -185,18 +202,23 @@ class PooledConnection implements PoolConnection
             throw new RuntimeException('Database connection is not reusable after reconnecting.');
         }
 
-        if (! $this->pool->usesSessionLeases()) {
-            $this->configureConnection($this->connection);
-            $this->connection->setReconnector($this->refresh(...));
-            $this->driverConnectionConfigured = true;
-        }
-
         $now = hrtime(true) / 1e9;
         $this->lastUseTime = $now;
         $this->stampGeneration($now);
         $this->availableForReuse = false;
         $this->markValid();
         $this->connectionEstablishedEventPending = true;
+
+        if (! $this->usesSessionLeases()) {
+            $this->configureConnection($this->connection);
+            $this->connection->setReconnector($this->refresh(...));
+            $this->driverConnectionConfigured = true;
+        }
+
+        if ($this->lease !== null) {
+            // The held owner must keep its services out of, and still disconnect, the replacement.
+            $this->attachLease($this->lease);
+        }
 
         return true;
     }
@@ -375,7 +397,8 @@ class PooledConnection implements PoolConnection
         if ($connection !== null) {
             $errorCount = $connection->getErrorCount();
 
-            if ($this->lease === null) {
+            // An ended owner's in-flight operations must stop before another borrower reuses the slot.
+            if ($this->lease === null || $this->lease->hasEnded()) {
                 $connection->resetForPool();
             }
 

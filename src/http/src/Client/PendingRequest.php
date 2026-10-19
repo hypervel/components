@@ -2130,9 +2130,12 @@ class PendingRequest implements Transient
             return $handler($request, $options);
         }
 
-        // A reused proxy connection can bypass the address this policy just
-        // vetted. Keep its real-hostname DNS pins and connections request-owned.
-        $handler = $this->newIsolatedHandler();
+        // A reused connection to a proxy hostname can bypass the address this policy
+        // just vetted, so keep its real-hostname DNS pins and connections
+        // request-owned. Every connection to a literal proxy reaches its vetted address.
+        if ($options['curl'] !== []) {
+            $handler = $this->newIsolatedHandler();
+        }
 
         // Connection exceptions carry no cURL error number, so read it from the transfer statistics.
         $errorNumber = null;

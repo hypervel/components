@@ -288,6 +288,23 @@ $result = Storage::disk('s3')->withClient(function ($client) {
 });
 ```
 
+Finish any lazy work, such as iterating a `listContents()` listing, inside the callback, since the borrow ends when it returns. Unpooled Flysystem disks also accept `withAdapter()` and `withDriver()`, passing their own adapter and driver, so code written this way works with any Flysystem-backed disk, pooled or not. A custom driver that returns its own `Filesystem` implementation is not required to provide these methods. For example, this counts a directory's files on any Flysystem-backed disk:
+
+```php
+use Hypervel\Support\Facades\Storage;
+use League\Flysystem\FilesystemOperator;
+
+$files = Storage::disk($name)->withDriver(function (FilesystemOperator $driver) {
+    $files = 0;
+
+    foreach ($driver->listContents('reports', true) as $attributes) {
+        $files += $attributes->isFile() ? 1 : 0;
+    }
+
+    return $files;
+});
+```
+
 `Storage::forgetDisk()` only removes the manager's cached disk wrapper; an equivalent wrapper can continue using the shared pool. `Storage::purge()` removes the wrapper and closes its current pool, deriving the same pool identity even when the named disk has not been resolved yet or is composed from nested scoped disks. Other disks converging on that pool transparently create a fresh one on their next operation. A stream returned by `readStream()` or `readStreamRange()` that still reads from its connection keeps that connection out of the pool until the stream is closed or destroyed. Fully buffered reads, including FTP and SFTP downloads, return the connection to the pool before you consume the stream.
 
 S3 and Google Cloud Storage streams are read lazily by default, which keeps memory usage bounded and makes data available before the entire file has downloaded. This applies to `readStream()` and `readStreamRange()`; methods such as `get()` retain their normal behavior. Streaming requests close their HTTP connection after the read, so applications that open many small streams may prefer connection reuse and set the disk's `stream_reads` option to `false`.

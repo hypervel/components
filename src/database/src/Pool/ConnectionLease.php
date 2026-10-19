@@ -6,7 +6,9 @@ namespace Hypervel\Database\Pool;
 
 use Closure;
 use Hypervel\Context\NonCopyableContext;
+use Hypervel\Database\Connection;
 use Hypervel\Database\Connectors\ConnectionFactory;
+use Hypervel\Database\LeasableConnection;
 use Hypervel\Database\PdoConnection;
 use LogicException;
 use PDO;
@@ -15,17 +17,21 @@ use Throwable;
 
 /**
  * Keep a caller's logical connection stable while its physical sessions are pooled.
+ *
+ * PDO connections receive the borrowed handles directly. Drivers implementing
+ * LeasableConnection build their own logical connection and ask the lease for
+ * the physical connection whenever an operation needs it.
  */
 class ConnectionLease implements NonCopyableContext
 {
-    public readonly PdoConnection $connection;
+    public readonly Connection $connection;
 
     protected ?PooledConnection $pooledConnection;
 
     protected bool $ended = false;
 
-    /** @var Closure(): PDO */
-    protected readonly Closure $pdoResolver;
+    /** @var null|Closure(): PDO */
+    protected readonly ?Closure $pdoResolver;
 
     /** @var null|Closure(): PDO */
     protected readonly ?Closure $readPdoResolver;
@@ -37,27 +43,37 @@ class ConnectionLease implements NonCopyableContext
         protected readonly DatabasePool $pool,
         PooledConnection $pooledConnection,
         ConnectionFactory $factory,
-        PdoConnection $physicalConnection,
+        Connection $physicalConnection,
     ) {
         $this->pooledConnection = $pooledConnection;
-        $this->pdoResolver = fn (): PDO => $this->resolvePdo();
-        $this->readPdoResolver = $physicalConnection->getRawReadPdo() !== null
-            ? fn (): PDO => $this->resolvePdo(read: true)
-            : null;
-        $this->connection = $factory->makeWithPdoResolvers(
-            $physicalConnection->getConfig(),
-            $this->pdoResolver,
-            $this->readPdoResolver,
-        );
-        $this->connection->attachPdoResources($physicalConnection);
+
+        if ($physicalConnection instanceof LeasableConnection) {
+            $this->pdoResolver = null;
+            $this->readPdoResolver = null;
+            $this->connection = $physicalConnection->newLeasedConnection($this->resolvePhysicalConnection(...));
+        } else {
+            /** @var PdoConnection $physicalConnection */
+            $this->pdoResolver = fn (): PDO => $this->resolvePdo();
+            $this->readPdoResolver = $physicalConnection->getRawReadPdo() !== null
+                ? fn (): PDO => $this->resolvePdo(read: true)
+                : null;
+            $connection = $factory->makeWithPdoResolvers(
+                $physicalConnection->getConfig(),
+                $this->pdoResolver,
+                $this->readPdoResolver,
+            );
+            $connection->attachPdoResources($physicalConnection);
+            $this->connection = $connection;
+        }
+
         $this->connection->setReconnector($this->reconnect(...));
         $pooledConnection->attachLease($this);
     }
 
     /**
-     * Resolve a physical handle and publish its generation to the logical owner.
+     * Get the held pooled connection, borrowing one when the session was returned early.
      */
-    protected function resolvePdo(bool $read = false): PDO
+    protected function heldPooledConnection(): PooledConnection
     {
         if ($this->pooledConnection === null) {
             if ($this->ended) {
@@ -70,7 +86,15 @@ class ConnectionLease implements NonCopyableContext
             $pooledConnection->attachLease($this);
         }
 
-        $pooledConnection = $this->pooledConnection;
+        return $this->pooledConnection;
+    }
+
+    /**
+     * Resolve a physical handle and publish its generation to the logical owner.
+     */
+    protected function resolvePdo(bool $read = false): PDO
+    {
+        $pooledConnection = $this->heldPooledConnection();
 
         try {
             /** @var PdoConnection $physicalConnection */
@@ -79,11 +103,13 @@ class ConnectionLease implements NonCopyableContext
 
             // A PDO-first extension may resolve its constructor argument eagerly.
             if (isset($this->connection)) { // @phpstan-ignore isset.initializedProperty (PDO resolvers may run during construction.)
-                $this->connection->attachPdoResources($physicalConnection);
+                /** @var PdoConnection $connection */
+                $connection = $this->connection;
+                $connection->attachPdoResources($physicalConnection);
                 $pooledConnection->dispatchConnectionEstablishedEvent();
 
                 // A listener may have reconnected and replaced the published handle.
-                $pdo = $this->connection->resolveRawPdo($read);
+                $pdo = $connection->resolveRawPdo($read);
             }
 
             return $pdo;
@@ -97,19 +123,42 @@ class ConnectionLease implements NonCopyableContext
     }
 
     /**
+     * Resolve a driver's physical connection and publish its generation to the logical owner.
+     */
+    protected function resolvePhysicalConnection(): Connection&LeasableConnection
+    {
+        $pooledConnection = $this->heldPooledConnection();
+
+        try {
+            $pooledConnection->getDriverConnection();
+            $pooledConnection->dispatchConnectionEstablishedEvent();
+
+            // A listener may have reconnected and replaced the held connection.
+            /** @var Connection&LeasableConnection $physicalConnection */
+            $physicalConnection = $pooledConnection->getDriverConnection();
+
+            return $physicalConnection;
+        } catch (Throwable $exception) {
+            $this->discardAfterFailure($exception);
+
+            throw $exception;
+        }
+    }
+
+    /**
      * Replace the held physical session and reconnect the logical owner.
      */
-    public function reconnect(): PdoConnection
+    public function reconnect(): Connection
     {
         $this->connection->disconnect();
+        $this->pooledConnection?->reconnect();
 
-        if ($this->pooledConnection !== null) {
-            $this->pooledConnection->reconnect();
-            $this->pooledConnection->attachLease($this);
+        if ($this->pdoResolver !== null) {
+            /** @var PdoConnection $connection */
+            $connection = $this->connection;
+            $connection->setPdo($this->pdoResolver)->setReadPdo($this->readPdoResolver);
+            $connection->getPdo();
         }
-
-        $this->connection->setPdo($this->pdoResolver)->setReadPdo($this->readPdoResolver);
-        $this->connection->getPdo();
 
         return $this->connection;
     }
@@ -119,9 +168,14 @@ class ConnectionLease implements NonCopyableContext
      */
     public function releaseIfIdle(): void
     {
-        if (! $this->connection->hasPinnedSession()) {
-            $this->pooledConnection?->release();
+        if ($this->pooledConnection === null
+            || $this->connection->hasPinnedSession()
+            || ($this->connection->hasModifiedRecords() && $this->pool->retainsSessionsAfterWrites())
+        ) {
+            return;
         }
+
+        $this->pooledConnection->release();
     }
 
     /**
@@ -143,12 +197,26 @@ class ConnectionLease implements NonCopyableContext
     }
 
     /**
+     * Determine whether logical ownership has ended.
+     */
+    public function hasEnded(): bool
+    {
+        return $this->ended;
+    }
+
+    /**
      * Remove references to a session before its slot becomes available again.
      */
     public function detach(): void
     {
         $this->pooledConnection = null;
-        $this->connection->detachPdoResources($this->pdoResolver, $this->readPdoResolver);
+        $this->connection->detachLeasedResources();
+
+        if ($this->pdoResolver !== null) {
+            /** @var PdoConnection $connection */
+            $connection = $this->connection;
+            $connection->detachPdoResources($this->pdoResolver, $this->readPdoResolver);
+        }
     }
 
     /**

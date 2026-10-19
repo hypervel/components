@@ -186,6 +186,8 @@ Inside a Swoole coroutine with native cURL hooks enabled, the HTTP client receiv
 
 For streaming requests, `timeout` bounds the wait for response headers. After headers arrive, a long-running stream may continue beyond that timeout. The `read_timeout` option limits idle gaps during headers and body reads, defaults to 60 seconds, and accepts `0` to wait without an idle limit. `connect_timeout` continues to limit connection establishment. Closing a response or canceling its consuming coroutine releases its active transfer.
 
+When reading a streamed body has to wait for more data, Hypervel first returns idle database sessions to their pools, so database work done between reads does not hold a connection while the stream is idle. As with sending, transactions and pinned sessions remain held.
+
 If cURL negotiates authentication for a streamed request through the `CURLOPT_HTTPAUTH` or `CURLOPT_PROXYAUTH` cURL options, the response is returned when its first body bytes arrive or the transfer completes. The `timeout` option also covers that wait.
 
 For streamed responses, `on_stats` runs when the response is returned. The `on_trailers` callback runs once the transfer has completed, after `on_headers`. Small responses may already be complete when returned; for longer responses, trailers arrive as the body is consumed.
@@ -1123,7 +1125,7 @@ class EgressProxyPolicy extends PublicDestinationPolicy
 
 A proxy URL without a port uses its scheme's default port: 80 for `http` and 443 for `https`. The policy then checks and pins the proxy's address instead of the destination's. Since proxies usually run on private addresses, allow the proxy's address using `allowedNetworks` or `allowsAddress`. Destinations written as IP addresses are still checked, but hostnames are resolved by the proxy, which must enforce the [destination filtering requirements](#proxies).
 
-Each proxied request, including each redirect, uses an isolated transport so an older connection cannot bypass the newly approved proxy address. Connections that require persistent transport sharing can't send these requests, and `PERSISTENT_PREFER` falls back to handler-level sharing. Direct policy requests still reuse connections when the approved addresses match.
+Each request through a proxy given by hostname, including each redirect, uses an isolated transport so an older connection cannot bypass the newly approved proxy address. Connections that require persistent transport sharing can't send these requests, and `PERSISTENT_PREFER` falls back to handler-level sharing. A proxy given by IP address has only that address, so requests through it reuse connections. Direct policy requests reuse connections when the approved addresses match.
 
 If the proxy cannot be resolved or refuses the connection, a `Hypervel\Http\Client\Destinations\ProxyConnectionException` is thrown. It extends `ConnectionException`, and lets you tell a failure of your own egress path apart from a failure of the destination.
 

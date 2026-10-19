@@ -128,9 +128,9 @@ class TeamHasPermissionsTest extends HasPermissionsTest
 
         $this->assertTrue($this->testUser->hasPermissionTo($this->testUserPermission));
         $this->testUser->getAllPermissions();
-        // A database cache store adds six statements to each of the two assignment fills
-        // (read, lock, recheck, lease refresh, write and release).
-        $this->assertCount($this->usesDatabaseCacheStore() ? 14 : 2, DB::getQueryLog());
+        // A database cache store adds seven statements to each of the two assignment fills
+        // (read, SQLite lock precheck, acquire, recheck, lease refresh, write and release).
+        $this->assertCount($this->usesDatabaseCacheStore() ? 16 : 2, DB::getQueryLog());
 
         DB::flushQueryLog();
 

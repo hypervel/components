@@ -23,6 +23,7 @@ class ConcurrencyErrorDetectorTest extends TestCase
     {
         return [
             'integer serialization failure' => [self::pdoException(40001)],
+            'custom driver serialization failure' => [new QueryException('custom', 'update records set value = 1', [], new RuntimeException('Serialization failed.', 40001))],
             'serialization failure' => [self::pdoException('40001')],
             'PostgreSQL deadlock' => [self::pdoException('40P01')],
             'PostgreSQL lock unavailable' => [self::pdoException('55P03')],
@@ -42,6 +43,16 @@ class ConcurrencyErrorDetectorTest extends TestCase
         );
 
         $this->assertTrue((new ConcurrencyErrorDetector)->causedByConcurrencyError($exception));
+    }
+
+    public function testQueryContextCannotForgeAConcurrencyError(): void
+    {
+        $failure = new QueryException('test', 'insert into logs values (?)', ['database is locked'], new PDOException('Unique violation'));
+        $nested = new QueryException('test', 'select 1', [], $failure);
+        $detector = new ConcurrencyErrorDetector;
+
+        $this->assertFalse($detector->causedByConcurrencyError($failure));
+        $this->assertFalse($detector->causedByConcurrencyError($nested));
     }
 
     public function testExistingMessageFallbacksRemainSupported(): void

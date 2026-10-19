@@ -34,6 +34,10 @@ class DatabasePool extends ConnectionPool
 
     protected bool $usesSessionLeases;
 
+    protected ?bool $supportsDriverSessionLeases = null;
+
+    protected ?bool $retainsSessionsAfterWrites = null;
+
     protected ?Timer $heartbeatTimer = null;
 
     protected ?int $heartbeatTimerId = null;
@@ -159,7 +163,9 @@ class DatabasePool extends ConnectionPool
     }
 
     /**
-     * Determine whether callers can return physical sessions before execution ends.
+     * Determine whether callers can return the pool's PDO sessions before execution ends.
+     *
+     * Opted-in extension drivers are checked separately by supportsDriverSessionLeases().
      */
     public function usesSessionLeases(): bool
     {
@@ -167,34 +173,58 @@ class DatabasePool extends ConnectionPool
     }
 
     /**
+     * Determine whether an opted-in driver's endpoints can share a logical connection.
+     */
+    public function supportsDriverSessionLeases(): bool
+    {
+        // Drivers that retain whole connections may use their own configuration shapes.
+        return $this->supportsDriverSessionLeases ??= $this->supportsSessionLeases(
+            $this->container->make('db.factory'),
+            ConnectionName::parse($this->name),
+            $this->config,
+            allowExtensions: true,
+        );
+    }
+
+    /**
+     * Determine whether a connection that modified records keeps its session.
+     *
+     * Sticky and write-routed reads must reach the server that took the
+     * connection's writes, which a later borrow may not when writes can reach
+     * different servers.
+     */
+    public function retainsSessionsAfterWrites(): bool
+    {
+        return $this->retainsSessionsAfterWrites ??= $this->writesReachDifferentServers(
+            $this->container->make('db.factory'),
+            ConnectionName::parse($this->name),
+            $this->config,
+        );
+    }
+
+    /**
      * Determine whether endpoints can share a logical connection without bypassing extensions.
      */
-    protected function supportsSessionLeases(ConnectionFactory $factory, ConnectionName $name, array $config): bool
+    protected function supportsSessionLeases(ConnectionFactory $factory, ConnectionName $name, array $config, bool $allowExtensions = false): bool
     {
-        if ($factory->getExtension($config, $name->base) !== null) {
+        if (! $allowExtensions && $factory->getExtension($config, $name->base) !== null) {
             return false;
         }
 
-        $role = $name->isRead() && $factory->hasReadConfig($config) ? 'read' : 'write';
+        $role = $this->connectionRole($factory, $name, $config);
 
         if (! isset($config[$role])) {
             return true;
         }
 
-        $records = isset($config[$role][0]) ? $config[$role] : [$config[$role]];
         $identity = null;
 
-        foreach ($records as $record) {
-            $candidate = array_replace($config, [$role => $record]);
-            $endpoint = $role === 'read'
-                ? $factory->configForRead($candidate)
-                : $factory->configForWrite($candidate);
-
-            if ($role === 'read' && $factory->getExtension($endpoint, $name->base) !== null) {
+        foreach ($this->roleEndpoints($factory, $role, $config) as $endpoint) {
+            if (! $allowExtensions && $role === 'read' && $factory->getExtension($endpoint, $name->base) !== null) {
                 return false;
             }
 
-            $candidateIdentity = [$endpoint['driver'], $endpoint['database'], $endpoint['prefix']];
+            $candidateIdentity = [$endpoint['driver'] ?? null, $endpoint['database'] ?? null, $endpoint['prefix']];
 
             if ($identity !== null && $identity !== $candidateIdentity) {
                 return false;
@@ -204,6 +234,67 @@ class DatabasePool extends ConnectionPool
         }
 
         return true;
+    }
+
+    /**
+     * Determine whether the role receiving this pool's writes can select different servers.
+     */
+    protected function writesReachDifferentServers(ConnectionFactory $factory, ConnectionName $name, array $config): bool
+    {
+        $role = $this->connectionRole($factory, $name, $config);
+        $servers = [];
+
+        foreach (isset($config[$role]) ? $this->roleEndpoints($factory, $role, $config) : [$config] as $endpoint) {
+            $driver = $endpoint['driver'] ?? null;
+
+            // A MySQL socket identifies the server on its own, with or without a host, which it then ignores.
+            if (in_array($driver, ['mysql', 'mariadb'], true) && ! empty($endpoint['unix_socket'])) {
+                $servers[json_encode([(string) $endpoint['unix_socket']])] = true;
+
+                continue;
+            }
+
+            $port = $driver === 'pgsql'
+                ? ($endpoint['connect_via_port'] ?? $endpoint['port'] ?? '')
+                : ($endpoint['port'] ?? '');
+            $database = $driver === 'pgsql'
+                ? ($endpoint['connect_via_database'] ?? $endpoint['database'])
+                : '';
+
+            foreach (Arr::wrap($endpoint['host'] ?? null) ?: [null] as $host) {
+                $servers[json_encode([(string) $host, (string) $port, (string) $database])] = true;
+            }
+        }
+
+        return count($servers) > 1;
+    }
+
+    /**
+     * Get the role used by every operation on this pool's connections.
+     *
+     * @return 'read'|'write'
+     */
+    protected function connectionRole(ConnectionFactory $factory, ConnectionName $name, array $config): string
+    {
+        return $name->isRead() && $factory->hasReadConfig($config) ? 'read' : 'write';
+    }
+
+    /**
+     * Get the merged endpoint configuration of each record a role may select.
+     *
+     * @param 'read'|'write' $role
+     * @return list<array<string, mixed>>
+     */
+    protected function roleEndpoints(ConnectionFactory $factory, string $role, array $config): array
+    {
+        $records = isset($config[$role][0]) ? $config[$role] : [$config[$role]];
+
+        return array_map(
+            static fn (array $record): array => $role === 'read'
+                ? $factory->configForRead(array_replace($config, [$role => $record]))
+                : $factory->configForWrite(array_replace($config, [$role => $record])),
+            array_values($records),
+        );
     }
 
     /**

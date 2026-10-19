@@ -83,6 +83,11 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     protected mixed $reconnector = null;
 
     /**
+     * The owner notified when the current driver resources are forgotten.
+     */
+    protected ?Closure $resourceReleaser = null;
+
+    /**
      * The query grammar implementation.
      */
     protected QueryGrammar $queryGrammar;
@@ -966,7 +971,12 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
         $exception = null;
 
         try {
-            $this->disconnectDriverResources();
+            try {
+                $this->disconnectDriverResources();
+            } finally {
+                // Notify the pool before rollback callbacks can reconnect.
+                $this->notifyResourceReleaser();
+            }
         } catch (Throwable $throwable) {
             $exception = $throwable;
         }
@@ -1014,6 +1024,16 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
      * Forget the driver resources without performing physical cleanup.
      */
     abstract protected function forgetDriverResources(): void;
+
+    /**
+     * Notify the resource owner that the current driver resources were forgotten.
+     */
+    protected function notifyResourceReleaser(): void
+    {
+        $releaser = $this->resourceReleaser;
+        $this->resourceReleaser = null;
+        $releaser?->__invoke();
+    }
 
     /**
      * Refresh the driver resources from a fresh connection.
@@ -1095,7 +1115,8 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     /**
      * Determine whether an operation requires the current physical session.
      *
-     * @internal
+     * Drivers may extend this check to keep their physical session, for example when
+     * their own routing could send a later read to another server.
      */
     public function hasPinnedSession(): bool
     {
@@ -1393,6 +1414,29 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
         $this->reconnector = $reconnector;
 
         return $this;
+    }
+
+    /**
+     * Set the resource owner's callback for forgotten driver resources.
+     *
+     * @param Closure(): void $callback
+     *
+     * @internal
+     */
+    public function setResourceReleaser(Closure $callback): void
+    {
+        $this->resourceReleaser = $callback;
+    }
+
+    /**
+     * Stop notifying the pool and restart error tracking once a leased physical connection is returned.
+     *
+     * @internal
+     */
+    public function detachLeasedResources(): void
+    {
+        $this->resourceReleaser = null;
+        $this->errorCount = 0;
     }
 
     /**

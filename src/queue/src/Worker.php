@@ -17,6 +17,8 @@ use Hypervel\Coordinator\Timer;
 use Hypervel\Coroutine\WaitConcurrent;
 use Hypervel\Coroutine\Waiter;
 use Hypervel\Database\DetectsLostConnections;
+use Hypervel\Database\LostConnectionException;
+use Hypervel\Database\QueryException;
 use Hypervel\Engine\Coroutine;
 use Hypervel\Queue\Events\JobAttempted;
 use Hypervel\Queue\Events\JobExceptionOccurred;
@@ -41,6 +43,7 @@ use Hypervel\Queue\QueueManager as ConcreteQueueManager;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Sleep;
 use Hypervel\Support\Str;
+use PDOException;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
@@ -876,8 +879,24 @@ class Worker
      */
     protected function stopWorkerIfLostConnection(Throwable $e): void
     {
-        if (static::$stopOnLostConnection && $this->causedByLostConnection($e)) {
-            $this->lostConnection = true;
+        if (! static::$stopOnLostConnection) {
+            return;
+        }
+
+        // Other transports can report similar errors. Classify database failures and their
+        // underlying causes, keeping SQL and bindings out of the default detector's decision.
+        for ($exception = $e; $exception !== null; $exception = $exception->getPrevious()) {
+            $failure = match (true) {
+                $exception instanceof QueryException => $exception->getPrevious(),
+                $exception instanceof PDOException, $exception instanceof LostConnectionException => $exception,
+                default => null,
+            };
+
+            if ($failure !== null && $this->causedByLostConnection($failure)) {
+                $this->lostConnection = true;
+
+                return;
+            }
         }
     }
 

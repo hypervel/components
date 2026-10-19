@@ -446,6 +446,7 @@
     },
     "scripts": {
         "analyse": [
+            "Composer\\Config::disableProcessTimeout",
             "phpstan analyse",
             "phpstan analyse -c phpstan.types.neon.dist"
         ],

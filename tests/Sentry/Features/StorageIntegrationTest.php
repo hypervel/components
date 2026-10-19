@@ -353,6 +353,8 @@ class StorageIntegrationTest extends TestCase
                     'serveUsing',
                     'unless',
                     'when',
+                    'withAdapter',
+                    'withDriver',
                 ],
             ],
             'S3 adapter' => [

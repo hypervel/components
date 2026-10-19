@@ -28,6 +28,11 @@ class ConcurrencyErrorDetector implements ConcurrencyErrorDetectorContract
             }
         }
 
+        // QueryException preserves driver codes, but its message also contains SQL and bindings.
+        while ($e instanceof QueryException && $e->getPrevious() !== null) {
+            $e = $e->getPrevious();
+        }
+
         $message = $e->getMessage();
 
         return Str::contains($message, [

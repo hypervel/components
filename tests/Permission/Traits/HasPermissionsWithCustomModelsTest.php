@@ -100,8 +100,8 @@ class HasPermissionsWithCustomModelsTest extends HasPermissionsTest
         DB::disableQueryLog();
 
         // A database cache store invalidates the permission catalog when deleting and again when deleted
-        // (lock, delete and release each).
-        $this->assertCount($this->usesDatabaseCacheStore() ? 7 : 1, DB::getQueryLog());
+        // (SQLite lock precheck, acquire, delete and release each).
+        $this->assertCount($this->usesDatabaseCacheStore() ? 9 : 1, DB::getQueryLog());
 
         $permission = Permission::onlyTrashed()->find($this->testUserPermission->getKey());
 
@@ -124,8 +124,8 @@ class HasPermissionsWithCustomModelsTest extends HasPermissionsTest
         DB::disableQueryLog();
 
         // A database cache store invalidates the permission catalog when deleting and again when deleted
-        // (lock, delete and release each).
-        $this->assertCount($this->usesDatabaseCacheStore() ? 7 : 1, DB::getQueryLog());
+        // (SQLite lock precheck, acquire, delete and release each).
+        $this->assertCount($this->usesDatabaseCacheStore() ? 9 : 1, DB::getQueryLog());
 
         $permission = Permission::onlyTrashed()->find($this->testUserPermission->getKey());
 
@@ -151,8 +151,8 @@ class HasPermissionsWithCustomModelsTest extends HasPermissionsTest
         DB::disableQueryLog();
 
         // A database cache store invalidates the permission catalog once for the delete transaction
-        // (lock, delete and release) and writes a new model assignment token.
-        $this->assertCount($this->usesDatabaseCacheStore() ? 7 : 3, DB::getQueryLog()); // avoid detach permissions on permissions
+        // (SQLite lock precheck, acquire, delete and release) and writes a new model assignment token.
+        $this->assertCount($this->usesDatabaseCacheStore() ? 8 : 3, DB::getQueryLog()); // avoid detach permissions on permissions
 
         $this->assertNull(Permission::withTrashed()->find($permissionId));
         $this->assertSame(

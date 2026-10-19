@@ -1078,6 +1078,22 @@ class FilesystemAdapter implements CloudFilesystemContract
     }
 
     /**
+     * Run a callback with the Flysystem driver, as pooled disks do with a borrowed one.
+     */
+    public function withDriver(Closure $callback): mixed
+    {
+        return $callback($this->driver);
+    }
+
+    /**
+     * Run a callback with the Flysystem adapter, as pooled disks do with a borrowed one.
+     */
+    public function withAdapter(Closure $callback): mixed
+    {
+        return $callback($this->adapter);
+    }
+
+    /**
      * Get the configuration values.
      */
     public function getConfig(): array

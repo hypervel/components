@@ -195,6 +195,35 @@ class HttpClientDestinationPolicyTest extends TestCase
         }
     }
 
+    #[DataProvider('sendModes')]
+    public function testLiteralProxyRequestsReuseTheProxyConnection(bool $async): void
+    {
+        $proxy = new Server('127.0.0.1', 0, false, false);
+        $factory = $this->factory();
+
+        $proxy->handle('/', static function (ServerRequest $request, ServerResponse $response): void {
+            $response->end((string) $request->server['remote_port']);
+        });
+        Coroutine::create(fn (): bool => $proxy->start());
+
+        try {
+            $policy = new FakeDestinationPolicy(allowedNetworks: ['127.0.0.0/8'], proxy: "http://127.0.0.1:{$proxy->port}");
+            $ports = [];
+
+            for ($attempt = 0; $attempt < 2; ++$attempt) {
+                $response = $factory->withDestinationPolicy($policy)->async($async)
+                    ->withOptions(['version' => '1.1'])
+                    ->timeout(2)->get('http://target.invalid/');
+                $ports[] = ($async ? $response->wait() : $response)->body();
+            }
+
+            $this->assertCount(1, array_unique($ports));
+        } finally {
+            $factory->forgetConnectionHandlers();
+            $proxy->shutdown();
+        }
+    }
+
     #[DataProvider('nonRoutingProxyEnvironments')]
     public function testNoProxyEnvironmentDoesNotRejectADirectRequest(string $httpsProxy): void
     {

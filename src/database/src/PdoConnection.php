@@ -37,11 +37,6 @@ class PdoConnection extends Connection
     protected PDO|Closure|null $readPdo = null;
 
     /**
-     * The owner notified when the current driver resources are forgotten.
-     */
-    protected ?Closure $resourceReleaser = null;
-
-    /**
      * The default fetch mode of the connection.
      */
     protected int $fetchMode = PDO::FETCH_OBJ;
@@ -479,24 +474,10 @@ class PdoConnection extends Connection
             $this->markCurrentSessionStateUnknown();
         }
 
-        $this->resourceReleaser = null;
         $this->pdo = $pdo;
         $this->readPdo = $readPdo;
         $this->lockForPopping = null;
         $this->maxBindings = null;
-        $this->errorCount = 0;
-    }
-
-    /**
-     * Set the resource owner's callback for forgotten driver resources.
-     *
-     * @param Closure(): void $callback
-     *
-     * @internal
-     */
-    public function setResourceReleaser(Closure $callback): void
-    {
-        $this->resourceReleaser = $callback;
     }
 
     /**
@@ -747,10 +728,6 @@ class PdoConnection extends Connection
     protected function forgetDriverResources(): void
     {
         $this->setPdo(null)->setReadPdo(null);
-
-        $releaser = $this->resourceReleaser;
-        $this->resourceReleaser = null;
-        $releaser?->__invoke();
     }
 
     /**

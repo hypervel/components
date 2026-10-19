@@ -29,6 +29,8 @@ use Hypervel\Testing\ParallelTesting;
 use InvalidArgumentException;
 use JsonException;
 use League\Flysystem\Filesystem;
+use League\Flysystem\FilesystemAdapter as FlysystemAdapter;
+use League\Flysystem\FilesystemOperator;
 use League\Flysystem\Ftp\FtpAdapter;
 use League\Flysystem\Local\LocalFilesystemAdapter;
 use League\Flysystem\PathTraversalDetected;
@@ -1096,6 +1098,14 @@ class FilesystemAdapterTest extends TestCase
         $this->assertEquals(0700, $config['permPublic']);
         $this->assertSame('ftp.example.com', $config['host']);
         $this->assertSame('admin', $config['username']);
+    }
+
+    public function testWithDriverAndWithAdapterRunTheCallbackWithTheDisksOwnDriverAndAdapter(): void
+    {
+        $disk = new FilesystemAdapter($this->filesystem, $this->adapter);
+
+        $this->assertSame($this->filesystem, $disk->withDriver(static fn (FilesystemOperator $driver): FilesystemOperator => $driver));
+        $this->assertSame($this->adapter, $disk->withAdapter(static fn (FlysystemAdapter $adapter): FlysystemAdapter => $adapter));
     }
 
     public function testMacroable(): void
