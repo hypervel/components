@@ -298,7 +298,8 @@ class ValidateMcpHeadersTest extends TestCase
     {
         $cases = [];
 
-        foreach (['2025-11-25', '2025-06-18', '2025-03-26'] as $version) {
+        // REMOVED: The 2025-03-26 handshake; Hypervel does not negotiate that revision.
+        foreach (['2025-11-25', '2025-06-18'] as $version) {
             foreach ([true, false] as $withHeader) {
                 $cases[] = [$version, $withHeader];
             }
@@ -322,7 +323,7 @@ class ValidateMcpHeadersTest extends TestCase
                 'code' => -32022,
                 'message' => 'Unsupported protocol version',
                 'data' => [
-                    'supported' => ['2025-11-25', '2025-06-18', '2025-03-26'],
+                    'supported' => ['2025-11-25', '2025-06-18'],
                     'requested' => '1900-01-01',
                 ],
             ],

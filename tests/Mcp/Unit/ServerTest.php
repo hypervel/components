@@ -80,7 +80,8 @@ class ServerTest extends TestCase
      */
     public static function legacyInitializeVersions(): array
     {
-        return [['2025-11-25'], ['2025-06-18'], ['2025-03-26']];
+        // REMOVED: The 2025-03-26 handshake; Hypervel does not negotiate that revision.
+        return [['2025-11-25'], ['2025-06-18']];
     }
 
     public function testFallsBackToTheLatestLegacyVersionForAnUnknownInitializeVersion(): void
