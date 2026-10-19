@@ -130,10 +130,18 @@ class OpenAiClassificationGateway implements ClassificationGateway
             throw new InvalidArgumentException("OpenAI decisions only accept JPEG, PNG, GIF, or WebP images; [{$mime}] given.");
         }
 
-        return array_merge($image->providerOptions(Lab::OpenAI), [
+        return array_merge($image->providerOptions($this->providerOptionsKey()), [
             'type' => 'input_image',
             'image_url' => 'data:' . $mime . ';base64,' . base64_encode($content),
         ]);
+    }
+
+    /**
+     * Get the provider key used to resolve image attachment options.
+     */
+    protected function providerOptionsKey(): Lab
+    {
+        return Lab::OpenAI;
     }
 
     /**

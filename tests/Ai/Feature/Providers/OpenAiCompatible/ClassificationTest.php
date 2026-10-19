@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Ai\Feature\Providers\OpenAiCompatible;
 
 use Hypervel\Ai\Classification;
 use Hypervel\Ai\Classification\Boolean;
+use Hypervel\Ai\Enums\Lab;
 use Hypervel\Ai\Files\Image;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Http\Client\Request;
@@ -78,6 +79,25 @@ class ClassificationTest extends TestCase
             ->classify(provider: 'openai-compatible');
 
         Http::assertSent(fn (Request $request): bool => json_decode($request->body(), true)['input'][0]['content'][1] === [
+            'type' => 'input_image',
+            'image_url' => 'data:image/png;base64,' . base64_encode('bytes'),
+        ]);
+    }
+
+    public function testClassificationResolvesImageProviderOptionsForTheOpenAiCompatibleProvider(): void
+    {
+        Http::fake(['*' => Http::response(['answers' => []])]);
+
+        $image = Image::fromBase64(base64_encode('bytes'), 'image/png')->withProviderOptions(
+            fn (Lab|string $provider): array => $provider === Lab::OpenAICompatible ? ['detail' => 'low'] : [],
+        );
+
+        Classification::of('Inspect this.', [$image])
+            ->question('damaged', new Boolean('Damaged?'))
+            ->classify(provider: 'openai-compatible');
+
+        Http::assertSent(fn (Request $request): bool => json_decode($request->body(), true)['input'][0]['content'][1] === [
+            'detail' => 'low',
             'type' => 'input_image',
             'image_url' => 'data:image/png;base64,' . base64_encode('bytes'),
         ]);
