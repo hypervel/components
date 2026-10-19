@@ -28,15 +28,23 @@ class StepResult implements IteratorAggregate
     /**
      * Create a buffered or streamed step result.
      *
-     * @param Generator<int, StreamEvent, mixed, null|StepResponse>|StepResponse $source
+     * @param null|Generator<int, StreamEvent, mixed, null|StepResponse>|StepResponse $source null when middleware stopped the run
      * @param null|PendingStep $step the step as sent to the model; null when middleware supplied the response itself
      */
     public function __construct(
-        protected Generator|StepResponse $source,
+        protected Generator|StepResponse|null $source,
         public readonly ?PendingStep $step = null,
         public readonly ?StepContext $context = null,
         public readonly ?int $startedAt = null,
     ) {
+    }
+
+    /**
+     * Create a result that ends the run before the model is called.
+     */
+    public static function stop(): self
+    {
+        return new self(null);
     }
 
     /**
@@ -62,7 +70,7 @@ class StepResult implements IteratorAggregate
      */
     public function getIterator(): Generator
     {
-        if ($this->source instanceof StepResponse) {
+        if (! $this->source instanceof Generator) {
             $this->resolved || $this->resolve($this->source);
 
             return;
@@ -93,6 +101,14 @@ class StepResult implements IteratorAggregate
     public function streamed(): bool
     {
         return $this->source instanceof Generator;
+    }
+
+    /**
+     * Determine whether middleware stopped the run instead of taking the step.
+     */
+    public function stopped(): bool
+    {
+        return $this->source === null;
     }
 
     /**
