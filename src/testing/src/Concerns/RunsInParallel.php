@@ -14,6 +14,7 @@ use Hypervel\Testing\ParallelConsoleOutput;
 use ParaTest\Options;
 use ParaTest\RunnerInterface;
 use ParaTest\WrapperRunner\WrapperRunner;
+use PHPUnit\Event\Facade as EventFacade;
 use PHPUnit\TextUI\Configuration\PhpHandler;
 use RuntimeException;
 use Symfony\Component\Console\Output\ConsoleOutput;
@@ -87,7 +88,7 @@ trait RunsInParallel
      */
     public function execute(): int
     {
-        (new PhpHandler)->handle($this->options->configuration->php());
+        (new PhpHandler(EventFacade::emitter()))->handle($this->options->configuration->php());
 
         $attemptedTokens = [];
         $exception = null;
