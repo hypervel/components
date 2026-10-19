@@ -7,6 +7,7 @@ namespace Hypervel\Testbench;
 use Closure;
 use Composer\InstalledVersions;
 use Composer\Semver\VersionParser;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Console\Kernel as ConsoleKernel;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Migrations\Migrator;
@@ -22,6 +23,7 @@ use Hypervel\Testbench\Foundation\Config;
 use Hypervel\Testbench\Foundation\Env;
 use Hypervel\Testbench\Foundation\Process\ProcessDecorator;
 use Hypervel\Testbench\Foundation\Process\RemoteCommand;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Testing\PendingCommand;
 use InvalidArgumentException;
 use OutOfBoundsException;
@@ -682,6 +684,16 @@ function hypervel_or_fail(?ApplicationContract $app, ?string $caller = null): Ap
     }
 
     throw ApplicationNotAvailableException::make($caller);
+}
+
+/**
+ * Determine if current test is handled via parallel testing.
+ *
+ * @api
+ */
+function in_parallel_testing(): bool
+{
+    return Container::getInstance()->make(ParallelTesting::class)->inParallel();
 }
 
 /**

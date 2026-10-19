@@ -20,6 +20,7 @@ use Symfony\Component\Process\Process;
 use function Hypervel\Support\php_binary;
 use function Hypervel\Testbench\hypervel_or_fail;
 use function Hypervel\Testbench\hypervel_version_compare;
+use function Hypervel\Testbench\in_parallel_testing;
 use function Hypervel\Testbench\join_paths;
 use function Hypervel\Testbench\package_path;
 use function Hypervel\Testbench\package_version_compare;
@@ -138,6 +139,27 @@ class HelpersTest extends TestCase
         $this->expectExceptionMessageIs(sprintf('Application is not available to run [%s]', __METHOD__));
 
         hypervel_or_fail(null);
+    }
+
+    #[Test]
+    public function itCanDetectParallelTesting(): void
+    {
+        $this->app->make(ParallelTesting::class)->resolveTokenUsing(fn (): string => '3');
+        $previousFlag = $_SERVER['HYPERVEL_PARALLEL_TESTING'] ?? null;
+
+        try {
+            $_SERVER['HYPERVEL_PARALLEL_TESTING'] = 1;
+            $this->assertTrue(in_parallel_testing());
+
+            unset($_SERVER['HYPERVEL_PARALLEL_TESTING']);
+            $this->assertFalse(in_parallel_testing());
+        } finally {
+            if ($previousFlag === null) {
+                unset($_SERVER['HYPERVEL_PARALLEL_TESTING']);
+            } else {
+                $_SERVER['HYPERVEL_PARALLEL_TESTING'] = $previousFlag;
+            }
+        }
     }
 
     #[Test]
