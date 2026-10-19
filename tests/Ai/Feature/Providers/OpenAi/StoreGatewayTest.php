@@ -95,6 +95,16 @@ class StoreGatewayTest extends TestCase
         });
     }
 
+    public function testCreateStoreKeepsAFalsyNameAndOmitsEmptyOptionalFields(): void
+    {
+        Http::fake(['api.openai.com/*' => Http::response($this->fakeOpenAiStoreResponse())]);
+
+        Stores::create('0', provider: 'openai');
+
+        Http::assertSent(fn (Request $request): bool => $request->method() === 'POST'
+            && $request->data() === ['name' => '0']);
+    }
+
     public function testAddFileSendsCorrectRequest(): void
     {
         Http::fake(['api.openai.com/*' => Http::response(['id' => 'doc-456'])]);
