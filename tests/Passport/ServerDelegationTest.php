@@ -83,7 +83,7 @@ class ServerDelegationTest extends TestCase
             'second' => new ServerSettings(
                 [new ServerKey(self::$keys[1]['public'], self::$keys[1]['private'])],
                 clientCredentialsTokensExpireIn: new DateInterval('PT20M'),
-                scopes: ['second' => 'Second scope'],
+                scopes: ['second' => 'Second scope', '123' => 'Numeric server scope'],
                 issuer: 'https://second.example',
             ),
         ]);
@@ -103,16 +103,19 @@ class ServerDelegationTest extends TestCase
 
     public function testHeldServersFollowSettingsAndDirectValidationRechecksRevocation(): void
     {
+        Passport::tokensCan(['123' => 'Global description', '456' => 'Numeric global scope']);
         $consumer = $this->app->make(HeldPassportServers::class);
         $this->assertSame($consumer, $this->app->make(HeldPassportServers::class));
         $this->settings->identifier = 'second';
-        $body = $this->issue($consumer->authorization, 'second');
+        $this->assertSame('Numeric server scope', Passport::scopesFor(['123'])[0]->description);
+        $body = $this->issue($consumer->authorization, 'second 123 456');
         $jwt = (new Parser(new JoseEncoder))->parse($body['access_token']);
         $this->assertSame('https://second.example', $jwt->claims()->get('iss'));
         $this->assertGreaterThanOrEqual(1198, $body['expires_in']);
         $this->assertLessThanOrEqual(1200, $body['expires_in']);
         $request = new ServerRequest('GET', 'https://second.example/api', ['Authorization' => 'Bearer ' . $body['access_token']]);
         $result = $consumer->resource->validateAuthenticatedRequest($request);
+        $this->assertSame(['second', '123', '456'], $result->getAttribute('oauth_scopes'));
         $this->assertSame($this->client->id, $result->getAttribute('oauth_client_id'));
         $httpRequest = Request::create('https://second.example/api');
         $httpRequest->headers->set('Authorization', 'Bearer ' . $body['access_token']);

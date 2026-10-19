@@ -417,8 +417,9 @@ class Passport
      */
     protected static function configuredScopes(): array
     {
+        // Scope names may be numeric; array unpacking would renumber their keys.
         return app()->bound(ServerSettingsResolver::class)
-            ? [...static::$scopes, ...app(ServerFactory::class)->settings()->scopes]
+            ? array_replace(static::$scopes, app(ServerFactory::class)->settings()->scopes)
             : static::$scopes;
     }
 
