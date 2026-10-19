@@ -693,7 +693,14 @@ function hypervel_or_fail(?ApplicationContract $app, ?string $caller = null): Ap
  */
 function in_parallel_testing(): bool
 {
-    return Container::getInstance()->make(ParallelTesting::class)->inParallel();
+    $container = Container::getInstance();
+
+    // Without an application, such as in a data provider, there is no token resolver to honor.
+    $parallelTesting = $container instanceof ApplicationContract
+        ? $container->make(ParallelTesting::class)
+        : new ParallelTesting($container);
+
+    return $parallelTesting->inParallel();
 }
 
 /**

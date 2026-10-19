@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Testbench;
 
 use Composer\InstalledVersions;
+use Hypervel\Container\Container;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application;
 use Hypervel\Testbench\Exceptions\ApplicationNotAvailableException;
@@ -158,6 +159,37 @@ class HelpersTest extends TestCase
                 unset($_SERVER['HYPERVEL_PARALLEL_TESTING']);
             } else {
                 $_SERVER['HYPERVEL_PARALLEL_TESTING'] = $previousFlag;
+            }
+        }
+    }
+
+    #[Test]
+    public function itCanDetectParallelTestingWithoutAnApplication(): void
+    {
+        $previousFlag = $_SERVER['HYPERVEL_PARALLEL_TESTING'] ?? null;
+        $previousToken = $_SERVER['TEST_TOKEN'] ?? null;
+        Container::setInstance(new Container);
+
+        try {
+            $_SERVER['HYPERVEL_PARALLEL_TESTING'] = 1;
+            $_SERVER['TEST_TOKEN'] = '3';
+            $this->assertTrue(in_parallel_testing());
+
+            unset($_SERVER['HYPERVEL_PARALLEL_TESTING']);
+            $this->assertFalse(in_parallel_testing());
+        } finally {
+            Container::setInstance($this->app);
+
+            if ($previousFlag === null) {
+                unset($_SERVER['HYPERVEL_PARALLEL_TESTING']);
+            } else {
+                $_SERVER['HYPERVEL_PARALLEL_TESTING'] = $previousFlag;
+            }
+
+            if ($previousToken === null) {
+                unset($_SERVER['TEST_TOKEN']);
+            } else {
+                $_SERVER['TEST_TOKEN'] = $previousToken;
             }
         }
     }
