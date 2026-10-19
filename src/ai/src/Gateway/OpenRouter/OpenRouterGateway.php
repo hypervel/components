@@ -15,7 +15,6 @@ use Hypervel\Ai\Contracts\Providers\RerankingProvider;
 use Hypervel\Ai\Contracts\Providers\SupportsWebFetch;
 use Hypervel\Ai\Contracts\Providers\SupportsWebSearch;
 use Hypervel\Ai\Contracts\Providers\TranscriptionProvider;
-use Hypervel\Ai\Files\Image;
 use Hypervel\Ai\Gateway\Concerns\HandlesFailoverErrors;
 use Hypervel\Ai\Gateway\Concerns\ParsesServerSentEvents;
 use Hypervel\Ai\Gateway\Concerns\WrapsPcmAudio;
@@ -127,64 +126,34 @@ class OpenRouterGateway implements Gateway, RerankingGateway, StepTextGateway
         array $providerOptions = [],
     ): ImageResponse {
         /** @var ImageProvider&Provider $provider */
-        $imageOptions = $provider->defaultImageOptions($size, $quality);
-
-        $imageConfig = array_filter([
-            'aspect_ratio' => $imageOptions['aspect_ratio'] ?? null,
-            'image_size' => $imageOptions['image_size'] ?? null,
-        ]);
+        $imageConfig = Arr::pull($providerOptions, 'image_config', []);
 
         $response = $this->withErrorHandling(
             $provider->name(),
             fn () => $this->client($provider, $timeout ?? 120)
-                ->post('chat/completions', array_merge($providerOptions, array_filter([
+                ->post('images', array_merge($providerOptions, array_filter([
+                    'aspect_ratio' => $imageConfig['aspect_ratio'] ?? null,
+                    'resolution' => $imageConfig['image_size'] ?? null,
+                ]), array_filter([
                     'model' => $model,
-                    'messages' => $this->buildImageMessages($prompt, $attachments),
-                    'modalities' => ['image'],
-                    'image_config' => $imageConfig ?: null,
-                ])))
+                    'prompt' => $prompt,
+                    ...$provider->defaultImageOptions($size, $quality),
+                    'input_references' => $this->mapAttachments(collect($attachments)) ?: null,
+                ], fn (mixed $value): bool => $value !== null)))
         );
 
         $data = $response->json();
 
         $this->validateTextResponse($data);
 
-        $message = $data['choices'][0]['message'] ?? [];
-
-        $images = collect($message['images'] ?? [])->map(function (array $image): ?GeneratedImage {
-            $url = $image['image_url']['url'] ?? '';
-
-            if (preg_match('/^data:(image\/[\w+.-]+);base64,(.+)$/', $url, $matches)) {
-                return new GeneratedImage($matches[2], $matches[1]);
-            }
-
-            return null;
-        })->filter()->values();
-
-        $usage = $data['usage'] ?? [];
-
         return new ImageResponse(
-            $images,
-            new ImageUsage($usage['prompt_tokens'] ?? 0, $usage['completion_tokens'] ?? 0),
-            new Meta($provider->name(), $data['model'] ?? $model),
+            collect($data['data'] ?? [])->map(fn (array $image): GeneratedImage => new GeneratedImage(
+                $image['b64_json'] ?? '',
+                $image['media_type'] ?? 'image/png',
+            )),
+            new ImageUsage($data['usage']['prompt_tokens'] ?? 0, $data['usage']['completion_tokens'] ?? 0),
+            new Meta($provider->name(), $model),
         );
-    }
-
-    /**
-     * Build the messages array for an image generation request.
-     *
-     * @param array<Image> $attachments
-     */
-    protected function buildImageMessages(string $prompt, array $attachments): array
-    {
-        if ($attachments === []) {
-            return [['role' => 'user', 'content' => $prompt]];
-        }
-
-        return [['role' => 'user', 'content' => array_merge(
-            [['type' => 'text', 'text' => $prompt]],
-            $this->mapAttachments(collect($attachments)),
-        )]];
     }
 
     /**

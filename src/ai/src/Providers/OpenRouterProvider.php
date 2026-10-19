@@ -171,16 +171,12 @@ class OpenRouterProvider extends Provider implements AudioProvider, Classificati
 
     /**
      * Get the default / normalized image options for the provider.
-     *
-     * image_config, aspect_ratio, and image_size (1K/2K/4K) are OpenRouter's
-     * own API convention and are honored primarily by Gemini-family image models.
-     * Other image models routed via OpenRouter may ignore these fields.
      */
     public function defaultImageOptions(?string $size = null, ?string $quality = null): array
     {
         return array_filter([
             'aspect_ratio' => $size,
-            'image_size' => match ($quality) {
+            'resolution' => match ($quality) {
                 'low' => '1K',
                 'medium' => '2K',
                 'high' => '4K',

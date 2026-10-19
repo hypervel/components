@@ -61,6 +61,11 @@ class Providers
             'openai-gpt-image-2' => ['openai', 'OPENAI_API_KEY', 'gpt-image-2'],
             'xai' => ['xai', 'XAI_API_KEY', 'grok-imagine-image'],
             'gemini-2.5-flash-image' => ['gemini', 'GEMINI_API_KEY', 'gemini-2.5-flash-image'],
+            'openrouter-gemini' => ['openrouter', 'OPENROUTER_API_KEY', 'google/gemini-3.1-flash-image'],
+            'openrouter-gpt-image' => ['openrouter', 'OPENROUTER_API_KEY', 'openai/gpt-image-1-mini'],
+            'openrouter-flux' => ['openrouter', 'OPENROUTER_API_KEY', 'black-forest-labs/flux-3-image'],
+            'openrouter-seedream' => ['openrouter', 'OPENROUTER_API_KEY', 'bytedance-seed/seedream-4.5'],
+            'openrouter-grok' => ['openrouter', 'OPENROUTER_API_KEY', 'x-ai/grok-imagine-image-2.0'],
         ];
     }
 
