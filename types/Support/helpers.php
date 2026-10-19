@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use DateTimeImmutable;
 use Exception;
+use Throwable;
 
 use function PHPStan\Testing\assertType;
 
@@ -37,6 +38,7 @@ assertType('1', optional('foo', function ($value) {
 }));
 
 assertType('1', retry(5, fn () => 1));
+assertType('1', retry(2, fn () => 1, fn (int $attempt, Throwable $exception): int => 1000));
 
 assertType('object', str());
 assertType('Hypervel\Support\Stringable', str('foo'));
