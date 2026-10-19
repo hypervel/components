@@ -1858,11 +1858,11 @@ class QueueWorkerTest extends TestCase
         yield 'no reconnector' => [new LostConnectionException('Lost connection and no reconnector available.')];
         yield 'wrapped by the job' => [new RuntimeException('The import failed.', previous: self::queryException('select 1', [], 'server has gone away'))];
         yield 'wrapped driver failure' => [new QueryException('test', 'select 1', [], new RuntimeException('The driver failed.', previous: new PDOException('server has gone away')))];
-        yield 'PDO warning' => [new QueryException('test', 'select 1', [], new ErrorException('PDO::query(): SQLSTATE[HY000]: General error: 2006 MySQL server has gone away', 0, E_WARNING))];
+        yield 'mysqlnd warning' => [new QueryException('test', 'select 1', [], new ErrorException('Error while sending QUERY packet. PID=1234', 0, E_WARNING))];
     }
 
-    #[DataProvider('failuresRecognizedByBoundDetector')]
-    public function testWorkerStopsForADatabaseFailureTheBoundDetectorRecognizes(Throwable $cause): void
+    #[DataProvider('failuresForBoundDetector')]
+    public function testWorkerUsesTheBoundDetectorOnlyForDatabaseFailures(Throwable $failure, bool $shouldStop): void
     {
         $this->container->instance(LostConnectionDetector::class, new class implements LostConnectionDetector {
             public function causedByLostConnection(Throwable $e): bool
@@ -1871,23 +1871,26 @@ class QueueWorkerTest extends TestCase
             }
         });
         $worker = $this->getWorker('default', ['queue' => [
-            new WorkerFakeJob(static fn (): never => throw new QueryException('test', 'select 1', [], $cause)),
+            new WorkerFakeJob(static fn (): never => throw $failure),
+            $next = new WorkerFakeJob,
         ]]);
 
         $worker->daemon('default', 'queue', new WorkerOptions(stopWhenEmpty: true));
 
-        $this->assertTrue($worker->lostConnection);
+        $this->assertSame($shouldStop, $worker->lostConnection);
+        $this->assertSame(! $shouldStop, $next->fired);
     }
 
     /**
-     * Provide database failures recognized by an application detector.
+     * Provide failures whose messages an application detector recognizes.
      *
-     * @return iterable<string, array{Throwable}>
+     * @return iterable<string, array{Throwable, bool}>
      */
-    public static function failuresRecognizedByBoundDetector(): iterable
+    public static function failuresForBoundDetector(): iterable
     {
-        yield 'PDO driver' => [new PDOException('the proxy closed the session')];
-        yield 'custom driver' => [new RuntimeException('the proxy closed the session')];
+        yield 'PDO driver' => [new QueryException('test', 'select 1', [], new PDOException('the proxy closed the session')), true];
+        yield 'custom driver' => [new QueryException('test', 'select 1', [], new RuntimeException('the proxy closed the session')), true];
+        yield 'unrelated transport' => [new RuntimeException('the proxy closed the session'), false];
     }
 
     #[DataProvider('failuresThatOnlyReadLikeALostConnection')]
@@ -1917,7 +1920,8 @@ class QueueWorkerTest extends TestCase
      */
     public static function failuresThatOnlyReadLikeALostConnection(): iterable
     {
-        yield 'transport failure' => [new RuntimeException('cURL error 56: Recv failure: Connection reset by peer')];
+        yield 'listener transport failure' => [new QueryException('test', 'select 1', [], new RuntimeException('Redis server went away'))];
+        yield 'listener filesystem warning' => [new QueryException('test', 'select 1', [], new ErrorException('fopen(missing): Failed to open stream: No such file or directory', 0, E_WARNING))];
         yield 'query binding' => [self::queryException('insert into logs (message) values (?)', ['Connection reset by peer'], 'SQLSTATE[23505]: Unique violation')];
         yield 'nested query binding' => [new QueryException('test', 'select 1', [], self::queryException('insert into logs (message) values (?)', ['Connection reset by peer'], 'SQLSTATE[23505]: Unique violation'))];
     }

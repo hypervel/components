@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Database;
 
+use ErrorException;
 use Hypervel\Contracts\Database\LostConnectionDetector as LostConnectionDetectorContract;
 use Hypervel\Support\Str;
+use PDOException;
 use Throwable;
 
 class LostConnectionDetector implements LostConnectionDetectorContract
@@ -18,6 +20,18 @@ class LostConnectionDetector implements LostConnectionDetectorContract
         // Query context includes application SQL and bindings, not just the failure message.
         while ($e instanceof QueryException && $e->getPrevious() !== null) {
             $e = $e->getPrevious();
+        }
+
+        // mysqlnd can report protocol failures as PHP warnings even in exception mode.
+        if ($e instanceof ErrorException) {
+            return Str::startsWith($e->getMessage(), [
+                'Packets out of order. Expected',
+                'Error while sending',
+            ]);
+        }
+
+        if (! $e instanceof PDOException && ! $e instanceof LostConnectionException) {
+            return false;
         }
 
         $message = $e->getMessage();
