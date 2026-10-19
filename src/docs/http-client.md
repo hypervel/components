@@ -186,6 +186,8 @@ Inside a Swoole coroutine with native cURL hooks enabled, the HTTP client receiv
 
 For streaming requests, `timeout` bounds the wait for response headers. After headers arrive, a long-running stream may continue beyond that timeout. The `read_timeout` option limits idle gaps during headers and body reads, defaults to 60 seconds, and accepts `0` to wait without an idle limit. `connect_timeout` continues to limit connection establishment. Closing a response or canceling its consuming coroutine releases its active transfer.
 
+When reading a streamed body has to wait for more data, Hypervel first returns idle database sessions to their pools, so database work done between reads does not hold a connection while the stream is idle. As with sending, transactions and pinned sessions remain held.
+
 If cURL negotiates authentication for a streamed request through the `CURLOPT_HTTPAUTH` or `CURLOPT_PROXYAUTH` cURL options, the response is returned when its first body bytes arrive or the transfer completes. The `timeout` option also covers that wait.
 
 For streamed responses, `on_stats` runs when the response is returned. The `on_trailers` callback runs once the transfer has completed, after `on_headers`. Small responses may already be complete when returned; for longer responses, trailers arrive as the body is consumed.

@@ -418,8 +418,12 @@ trait ManagesTransactions
         try {
             $this->forgetDriverResources();
         } finally {
-            // Rollback callbacks may reconnect; only forget the failed session.
-            $this->resetTransactionState();
+            try {
+                $this->notifyResourceReleaser();
+            } finally {
+                // Rollback callbacks may reconnect; only forget the failed session.
+                $this->resetTransactionState();
+            }
         }
     }
 

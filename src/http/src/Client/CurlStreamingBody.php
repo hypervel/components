@@ -15,6 +15,7 @@ use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\Psr7\BufferStream;
 use GuzzleHttp\TransferStats;
+use Hypervel\Database\ConnectionResolver;
 use Hypervel\Engine\Coroutine;
 use Hypervel\ObjectPool\PoolErrorReporter;
 use Psr\Http\Message\RequestInterface;
@@ -208,10 +209,18 @@ class CurlStreamingBody implements StreamInterface
                     }
                 }
 
+                $released = false;
+
                 while ($this->buffer->eof() && ! $this->completed) {
                     $this->advance();
 
                     if ($this->buffer->eof() && ! $this->completed) {
+                        if (! $released) {
+                            // Sessions taken since the previous read must not wait on the provider.
+                            ConnectionResolver::releaseIdleConnections();
+                            $released = true;
+                        }
+
                         $this->wait($deadline);
                     }
                 }

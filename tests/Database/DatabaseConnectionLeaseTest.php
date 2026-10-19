@@ -824,6 +824,50 @@ class DatabaseConnectionLeaseTest extends TestCase
         $this->assertSame('primary', $write->getConfig('host'));
     }
 
+    #[DataProvider('writeServers')]
+    public function testWritesKeepTheirSessionWhileTheyMayReachDifferentServers(string $name, array $servers, bool $retained): void
+    {
+        config()->set('database.connections.affinity_leases', [
+            'driver' => 'pgsql',
+            'database' => 'app',
+            'pool' => ['testing_enabled' => true, 'max_connections' => 1],
+            ...$servers,
+        ]);
+        $connection = DB::connection($name);
+        $pool = $this->app->make(PoolManager::class)->pool($name);
+
+        $connection->selectOne('select 1');
+        DB::releaseIdleConnections();
+        $this->assertSame(1, $pool->getIdleCount());
+
+        $connection->statement('create table records (id integer)');
+        DB::releaseIdleConnections();
+        $this->assertSame($retained ? 0 : 1, $pool->getIdleCount());
+
+        $connection->forgetRecordModificationState();
+        DB::releaseIdleConnections();
+        $this->assertSame(1, $pool->getIdleCount());
+    }
+
+    /**
+     * Provide write candidates that do and do not span different servers.
+     */
+    public static function writeServers(): array
+    {
+        return [
+            'write records' => ['affinity_leases', ['read' => ['host' => 'replica'], 'write' => [['host' => 'first'], ['host' => 'second']]], true],
+            'write host list' => ['affinity_leases', ['read' => ['host' => 'replica'], 'write' => ['host' => ['first', 'second']]], true],
+            'connection host list' => ['affinity_leases', ['host' => ['first', 'second']], true],
+            'write ports' => ['affinity_leases', ['read' => ['host' => 'replica'], 'write' => [['host' => 'primary', 'port' => 5432], ['host' => 'primary', 'port' => 5433]]], true],
+            'read alias records' => ['affinity_leases::read', ['read' => [['host' => 'first'], ['host' => 'second']], 'write' => ['host' => 'primary']], true],
+            'write sockets' => ['affinity_leases', ['driver' => 'mysql', 'read' => ['unix_socket' => '/tmp/replica.sock'], 'write' => [['unix_socket' => '/tmp/first.sock'], ['unix_socket' => '/tmp/second.sock']]], true],
+            'same server twice' => ['affinity_leases', ['read' => ['host' => 'replica'], 'write' => [['host' => 'primary'], ['host' => 'primary']]], false],
+            'same socket twice' => ['affinity_leases', ['driver' => 'mysql', 'read' => ['unix_socket' => '/tmp/replica.sock'], 'write' => [['unix_socket' => '/tmp/primary.sock'], ['unix_socket' => '/tmp/primary.sock']]], false],
+            'single server' => ['affinity_leases', ['read' => ['host' => 'replica'], 'write' => ['host' => 'primary']], false],
+            'varying reads only' => ['affinity_leases', ['read' => [['host' => 'first'], ['host' => 'second']], 'write' => ['host' => 'primary']], false],
+        ];
+    }
+
     #[DataProvider('configFirstExtensions')]
     public function testConfigFirstExtensionsRetainWholeConnectionOwnership(bool $read, bool $listed): void
     {

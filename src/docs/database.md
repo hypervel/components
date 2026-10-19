@@ -12,6 +12,7 @@
         - [Releasing and Pinning Connections](#releasing-and-pinning-connections)
     - [Configuring Database Session State](#configuring-database-session-state)
     - [Extending Database Connections](#extending-database-connections)
+        - [Early Release for Custom Drivers](#early-release-for-custom-drivers)
     - [Static Analysis](#static-analysis)
 - [Running SQL Queries](#running-queries)
     - [Using Multiple Database Connections](#using-multiple-database-connections)
@@ -231,7 +232,7 @@ Eloquent models created or retrieved through `::write` retain that connection fo
 <a name="the-sticky-option"></a>
 #### The `sticky` Option
 
-The `sticky` option is an *optional* value that can be used to allow the immediate reading of records that have been written to the database during the current request cycle. If the `sticky` option is enabled and a "write" operation has been performed against the database during the current request cycle, any further "read" operations will use the "write" connection. This ensures that any data written during the request cycle can be immediately read back from the database during that same request. In Hypervel, sticky state belongs to the coroutine's connection and survives an early release of its physical session. Other coroutines have independent routing state. It is up to you to decide if this is the desired behavior for your application.
+The `sticky` option is an *optional* value that can be used to allow the immediate reading of records that have been written to the database during the current request cycle. If the `sticky` option is enabled and a "write" operation has been performed against the database during the current request cycle, any further "read" operations will use the "write" connection. This ensures that any data written during the request cycle can be immediately read back from the database during that same request. In Hypervel, sticky state belongs to the coroutine's connection and survives an early release of its physical session. If the write side can reach more than one server, the connection keeps its session after writing instead; see [releasing and pinning connections](#releasing-and-pinning-connections). Other coroutines have independent routing state. It is up to you to decide if this is the desired behavior for your application.
 
 <a name="connection-pooling"></a>
 ### Connection Pooling
@@ -293,7 +294,7 @@ A request may spend much longer waiting for an external service than running dat
 
 Hypervel automatically returns the current execution's idle database sessions to their pools at these boundaries:
 
-- Before outgoing [HTTP client](/docs/{{version}}/http-client) requests, including retries and redirects, after request callbacks.
+- Before outgoing [HTTP client](/docs/{{version}}/http-client) requests, including retries and redirects, after request callbacks, and whenever reading a streamed response waits for more data.
 - Before sending [mail](/docs/{{version}}/mail), after the message is built and `MessageSending` listeners have run.
 - Before Pusher, Ably and Mercure [broadcasts](/docs/{{version}}/broadcasting).
 - Before requests from [Scout's](/docs/{{version}}/scout) default Algolia, Meilisearch and Typesense HTTP clients. This automatic release is not added to a custom Typesense `client` supplied in `client-settings`.
@@ -331,7 +332,7 @@ $responses = parallel([
 ]);
 ```
 
-HTTP client release occurs before sending a request, not on every read of a streamed response. If your stream consumer performs database work between chunks, you may call `releaseIdleConnections()` before waiting for more data. Faked HTTP requests do not release connections. If you provide your own Guzzle client using `setClient`, call `DB::releaseIdleConnections()` yourself before sending requests.
+Faked HTTP requests do not release connections. If you provide your own Guzzle client using `setClient`, call `DB::releaseIdleConnections()` yourself before sending requests.
 
 Process waits release idle sessions when the wait begins. If an output callback performs database work, it may call `DB::releaseIdleConnections()` before returning to wait for more output.
 
@@ -354,6 +355,8 @@ $client->getHandlerList()->prependInit(
 
 Active queries, transactions, open cursors and `Schema::withoutForeignKeyConstraints` callbacks retain their sessions automatically. This includes transactions started directly through PDO or SQL, on either the read or write connection. In particular, an HTTP call inside `DB::transaction()` keeps the transaction's connection. Completed `chunk` or `lazy` query batches may release between batches.
 
+When a connection's writes may reach different servers, because its write side lists several hosts or records, a connection that has modified records keeps its session until the execution ends. Sticky and write-routed reads then reach the server that took its writes. Calling `forgetRecordModificationState()` on the connection gives this up, along with sticky routing for those writes.
+
 If your code requires the same physical session across an external call, wrap the entire operation in `DB::withPinnedSession()`. For a named connection, call `withPinnedSession()` on that connection. For example, a PostgreSQL session-level advisory lock must be released on the session that acquired it:
 
 ```php
@@ -372,7 +375,7 @@ $response = $connection->withPinnedSession(function () use ($connection, $accoun
 
 Pinning is also needed for temporary tables, retained raw PDOs or statements, and manual session changes spanning a release boundary. It applies to a manual `disableForeignKeyConstraints` / `enableForeignKeyConstraints` pair; prefer the scoped `withoutForeignKeyConstraints` method. Each pin protects its connection until the callback returns or throws, and pins may be nested. Complete any lazy work inside the callback rather than returning it for later execution. Pinning prevents early release but does not prevent replacing a broken connection during the normal lost-connection retry.
 
-Connections registered through `DB::extend` retain their complete driver object until execution ends; early release leaves them alone. This includes extensions selected by read records in an explicit `::read` pool. The same applies when selectable write records (or read records in an explicit `::read` pool) specify different drivers, database names or table prefixes. PDO drivers registered through `Connection::resolverFor` participate in early release when those values agree.
+Connections registered through `DB::extend` retain their complete driver object until execution ends; early release leaves them alone unless the driver [opts in](#early-release-for-custom-drivers). This includes extensions selected by read records in an explicit `::read` pool. The same applies when selectable write records (or read records in an explicit `::read` pool) specify different drivers, database names or table prefixes. PDO drivers registered through `Connection::resolverFor` participate in early release when those values agree.
 
 <a name="configuring-database-session-state"></a>
 ### Configuring Database Session State
@@ -525,6 +528,46 @@ The native `DatabaseTruncation` testing trait delegates to `Schema\Builder::trun
 To add column modifiers, a `Schema\Blueprint` subclass may override the protected `newColumnDefinition(array $attributes)` method and return its own `ColumnDefinition` subclass. Declare `@extends Blueprint<YourColumnDefinition>` on the Blueprint subclass so static analysis recognizes the custom return type from inherited helpers such as `string`, `unsignedBigInteger`, and `timestamps`. Foreign-ID helpers retain their specialized definition and constraint methods. Column-list accessors continue to return base definitions because a Blueprint may contain several definition types.
 
 Custom query builders may declare their binding-slot names through the third `Query\Builder` template argument, after the result key and row types. Initialize the additional keys in the builder's `bindings` array; the existing binding methods validate those keys at runtime. The `newQuery`, `forNestedWhere`, and protected `cloneForPaginationCount` methods return `static`, retaining the concrete builder and its binding types. Overrides must preserve that return contract. The protected `forSubQuery` method returns a base query builder because a join's subquery belongs to its parent query, not the join itself.
+
+<a name="early-release-for-custom-drivers"></a>
+#### Early Release for Custom Drivers
+
+By default, a connection registered through `DB::extend` keeps its pool slot until the execution that resolved it ends. To let [early release](#releasing-and-pinning-connections) return the slot between operations, implement the `Hypervel\Database\LeasableConnection` interface. The pool then keeps the connection your extension creates as the physical connection and gives each caller its own logical connection, created by the `newLeasedConnection` method.
+
+The logical connection holds the caller's state, such as its grammar, listeners, query log and table prefix, but none of the physical connection's resources. Instead, it calls the given closure whenever an operation needs them. The closure returns the physical connection currently held for the caller, borrowing one from the pool after an early release:
+
+```php
+use Closure;
+use Hypervel\Database\Connection;
+use Hypervel\Database\LeasableConnection;
+
+class ClickHouseConnection extends Connection implements LeasableConnection
+{
+    protected ?Closure $physical = null;
+
+    public function newLeasedConnection(Closure $physical): static
+    {
+        $connection = new static(
+            database: $this->database,
+            tablePrefix: $this->tablePrefix,
+            config: $this->config,
+        );
+
+        $connection->physical = $physical;
+
+        return $connection;
+    }
+
+    protected function client(): Client
+    {
+        $owner = $this->physical === null ? $this : ($this->physical)();
+
+        return $owner->client ??= $owner->connectClient();
+    }
+}
+```
+
+Queries executed through `run` and `runStreaming` keep their physical connection until they finish. Wrap any other operation that relies on the same physical connection across a wait, such as a control request or a server-side session, in `withPinnedSession`. Calling `disconnect` on the logical connection closes the physical connection it currently holds, and the next operation borrows a replacement. When the execution that owns a logical connection ends, its `resetForPool` method runs before the physical connection returns to the pool, so stop any work that is still using it there.
 
 <a name="static-analysis"></a>
 ### Static Analysis

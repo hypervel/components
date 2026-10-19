@@ -234,6 +234,8 @@ class Coroutine
 
     /**
      * Determine if a coroutine with the given ID exists.
+     *
+     * @phpstan-impure The coroutine may finish between calls.
      */
     public static function exists(int $id): bool
     {
