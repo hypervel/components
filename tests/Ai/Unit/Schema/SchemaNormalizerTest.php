@@ -992,6 +992,60 @@ class SchemaNormalizerTest extends TestCase
         ], $normalized['properties']['value']);
     }
 
+    public function testItInlinesARefSharedBySiblingPropertiesAtEveryUse(): void
+    {
+        $normalized = SchemaNormalizer::normalize([
+            'type' => 'object',
+            'properties' => [
+                'billing' => ['$ref' => '#/$defs/Address'],
+                'shipping' => ['$ref' => '#/$defs/Address', 'description' => 'Ship to.'],
+                'returns' => ['type' => 'array', 'items' => ['$ref' => '#/$defs/Address']],
+            ],
+            '$defs' => [
+                'Address' => [
+                    'type' => 'object',
+                    'properties' => ['city' => ['type' => 'string']],
+                    'required' => ['city'],
+                ],
+            ],
+        ]);
+
+        $address = [
+            'type' => 'object',
+            'properties' => ['city' => ['type' => 'string']],
+            'required' => ['city'],
+        ];
+
+        $this->assertSame([
+            'type' => 'object',
+            'properties' => [
+                'billing' => $address,
+                'shipping' => [...$address, 'description' => 'Ship to.'],
+                'returns' => ['type' => 'array', 'items' => $address],
+            ],
+        ], $normalized);
+    }
+
+    public function testItRejectsASchemaWhoseSharedRefExpansionExceedsTheNodeBudget(): void
+    {
+        $defs = ['a13' => ['type' => 'string']];
+
+        for ($i = 0; $i < 13; ++$i) {
+            $defs["a{$i}"] = [
+                'type' => 'object',
+                'properties' => [
+                    'left' => ['$ref' => '#/$defs/a' . ($i + 1)],
+                    'right' => ['$ref' => '#/$defs/a' . ($i + 1)],
+                ],
+            ];
+        }
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Schema expands to more than 10000 nodes.');
+
+        SchemaNormalizer::normalize(['$ref' => '#/$defs/a0', '$defs' => $defs]);
+    }
+
     public function testItPreservesANestedNullableAnyOf(): void
     {
         $raw = [
@@ -1098,23 +1152,5 @@ class SchemaNormalizerTest extends TestCase
             ['type' => 'object', 'properties' => ['id' => ['type' => 'string']]],
             ['type' => 'array', 'items' => ['type' => 'string']],
         ], $normalized['properties']['target']['anyOf']);
-    }
-
-    public function testItBoundsRepeatedReferenceExpansion(): void
-    {
-        $definitions = ['level14' => ['type' => 'string']];
-
-        for ($depth = 13; $depth >= 0; --$depth) {
-            $reference = ['$ref' => '#/$defs/level' . ($depth + 1)];
-            $definitions['level' . $depth] = [
-                'type' => 'object',
-                'properties' => ['left' => $reference, 'right' => $reference],
-            ];
-        }
-
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The JSON Schema is too large to normalize');
-
-        SchemaNormalizer::normalize(['$ref' => '#/$defs/level0', '$defs' => $definitions]);
     }
 }

@@ -171,6 +171,25 @@ class McpToolTest extends TestCase
         $this->assertSame(['type' => 'string'], $schema['properties']['name']);
     }
 
+    public function testItDropsTheParameterSchemaWhenSharedRefExpansionExceedsTheNodeBudget(): void
+    {
+        $defs = ['a13' => ['type' => 'string']];
+
+        for ($i = 0; $i < 13; ++$i) {
+            $defs["a{$i}"] = [
+                'type' => 'object',
+                'properties' => [
+                    'left' => ['$ref' => '#/$defs/a' . ($i + 1)],
+                    'right' => ['$ref' => '#/$defs/a' . ($i + 1)],
+                ],
+            ];
+        }
+
+        $tool = new McpTool(mcpTool(new FakeMcpClient, inputSchema: ['$ref' => '#/$defs/a0', '$defs' => $defs]));
+
+        $this->assertSame([], $tool->schema(new JsonSchemaTypeFactory));
+    }
+
     public function testItKeepsThePropertiesOfANullableObjectRoot(): void
     {
         $tool = new McpTool(mcpTool(new FakeMcpClient, inputSchema: [

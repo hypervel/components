@@ -10,11 +10,6 @@ use InvalidArgumentException;
 class SchemaNormalizer
 {
     /**
-     * The maximum number of schema nodes normalized in one call.
-     */
-    private const int MAX_NODES = 20000;
-
-    /**
      * Type-specific constraint keywords the deserializer rejects on a multi-type union.
      */
     private const array TYPE_KEYWORDS = [
@@ -39,6 +34,11 @@ class SchemaNormalizer
      * The JSON Schema type strings the deserializer understands.
      */
     private const array TYPES = ['string', 'integer', 'number', 'boolean', 'object', 'array', 'null'];
+
+    /**
+     * The most nodes a single schema may expand to once every "$ref" is inlined.
+     */
+    private const int MAX_NODES = 10_000;
 
     /**
      * The number of nodes normalized so far.
@@ -70,7 +70,7 @@ class SchemaNormalizer
     {
         // Reference expansion happens before the deserializer can apply its own work limit.
         if (++$this->nodes > self::MAX_NODES) {
-            throw new InvalidArgumentException('The JSON Schema is too large to normalize; it expands beyond [' . self::MAX_NODES . '] nodes.');
+            throw new InvalidArgumentException('Schema expands to more than ' . self::MAX_NODES . ' nodes.');
         }
 
         [$schema, $seen] = $this->inlineRefs($schema, $root, $seen);
