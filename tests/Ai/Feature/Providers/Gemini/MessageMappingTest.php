@@ -221,6 +221,30 @@ class MessageMappingTest extends TestCase
         $this->assertStringContainsString('{"type":"function_call","id":"call_123","name":"FixedNumberGenerator","arguments":{}}', $request->body());
     }
 
+    public function testARebuiltAssistantTurnWithTextOpensWithItsThoughtStep(): void
+    {
+        Http::fake([
+            'generativelanguage.googleapis.com/*' => $this->fakeTextResponse('OK'),
+        ]);
+
+        agent('You are a helpful assistant.', [
+            new Message(role: 'user', content: 'Generate a number'),
+            new AssistantMessage('Let me generate one.', new Collection([
+                new ToolCall('call_123', 'FixedNumberGenerator', [], 'call_123', thoughtSignature: 'sig_123'),
+            ])),
+            new ToolResultMessage(new Collection([
+                new ToolResult('call_123', 'FixedNumberGenerator', [], 123, 'call_123'),
+            ])),
+        ])->prompt('And again', provider: 'gemini');
+
+        $input = geminiRequestBody()['input'];
+
+        $this->assertSame([
+            'user_input', 'thought', 'model_output', 'function_call', 'function_result', 'user_input',
+        ], array_column($input, 'type'));
+        $this->assertSame(['type' => 'thought', 'signature' => 'sig_123'], $input[1]);
+    }
+
     public function testLocalImageAttachmentWithoutExplicitMimeTypeDetectsMimeFromFile(): void
     {
         Http::fake([
