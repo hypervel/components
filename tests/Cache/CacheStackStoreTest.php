@@ -677,6 +677,23 @@ class CacheStackStoreTest extends TestCase
         $this->assertTrue($this->store->putMany(['foo' => 'bar', 'bar' => 'baz'], $ttl));
     }
 
+    public function testPutManyStartsEachLayersExpirationWhenThatLayerIsWritten(): void
+    {
+        $this->createStores();
+
+        $ttl = 100;
+        $now = CarbonImmutable::now()->getTimestamp();
+
+        $this->swoole->shouldReceive('putMany')->once()->with(['foo' => ['value' => 'bar', 'expiration' => $now + $ttl]], $ttl)->andReturnUsing(function (): bool {
+            CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(5));
+
+            return true;
+        });
+        $this->redis->shouldReceive('putMany')->once()->with(['foo' => ['value' => 'bar', 'expiration' => $now + 5 + $ttl]], $ttl)->andReturnTrue();
+
+        $this->assertTrue($this->store->putMany(['foo' => 'bar'], $ttl));
+    }
+
     public function testPutManyReturnsTrueForEmptyInput(): void
     {
         $this->createStores();

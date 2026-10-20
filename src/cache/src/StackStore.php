@@ -133,15 +133,20 @@ class StackStore extends TaggableStore implements AuthoritativeRawReadable, CanF
             return true;
         }
 
-        $expiration = CarbonImmutable::now()->getTimestamp() + $seconds;
-        $records = array_map(static fn (mixed $value): array => ['value' => $value, 'expiration' => $expiration], $values);
-
         return $this->callStores(
-            static fn (StackStoreProxy $store) => $store->putMany($records, $seconds),
-            static function (StackStoreProxy $store) use ($records): void {
+            // Like put(), each layer's expiration starts when that layer is written, matching its TTL.
+            static function (StackStoreProxy $store) use ($values, $seconds): bool {
+                $expiration = CarbonImmutable::now()->getTimestamp() + $seconds;
+
+                return $store->putMany(
+                    array_map(static fn (mixed $value): array => ['value' => $value, 'expiration' => $expiration], $values),
+                    $seconds,
+                );
+            },
+            static function (StackStoreProxy $store) use ($values): void {
                 $cancellation = null;
 
-                foreach (array_keys($records) as $key) {
+                foreach (array_keys($values) as $key) {
                     try {
                         $store->forget((string) $key);
                     } catch (CanceledException $exception) {
