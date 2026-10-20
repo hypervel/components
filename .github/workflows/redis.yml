@@ -61,6 +61,7 @@ jobs:
           vendor/bin/paratest --max-processes=15 tests/Integration/Horizon
           vendor/bin/paratest --max-processes=15 tests/Integration/Http/Redis
           vendor/bin/paratest --max-processes=15 tests/Integration/OpenTelemetry/Redis
+          vendor/bin/paratest --max-processes=15 tests/Integration/Pennant/Redis
           CACHE_STORE=redis vendor/bin/paratest --max-processes=15 tests/Permission
           QUEUE_CONNECTION=redis vendor/bin/paratest --max-processes=15 tests/Integration/Queue
           vendor/bin/paratest --max-processes=15 tests/Integration/RateLimiter/Redis
@@ -209,6 +210,7 @@ jobs:
           vendor/bin/phpunit --no-progress tests/Integration/Horizon
           vendor/bin/phpunit --no-progress tests/Integration/Http/Redis
           vendor/bin/phpunit --no-progress tests/Integration/OpenTelemetry/Redis
+          vendor/bin/phpunit --no-progress tests/Integration/Pennant/Redis
           QUEUE_CONNECTION=redis vendor/bin/phpunit --no-progress tests/Integration/Queue
           vendor/bin/phpunit --no-progress tests/Integration/RateLimiter/Redis
           vendor/bin/phpunit --no-progress tests/Integration/Session/Redis
@@ -279,6 +281,7 @@ jobs:
           vendor/bin/paratest --max-processes=15 tests/Integration/Horizon
           vendor/bin/paratest --max-processes=15 tests/Integration/Http/Redis
           vendor/bin/paratest --max-processes=15 tests/Integration/OpenTelemetry/Redis
+          vendor/bin/paratest --max-processes=15 tests/Integration/Pennant/Redis
           QUEUE_CONNECTION=redis vendor/bin/paratest --max-processes=15 tests/Integration/Queue
           vendor/bin/paratest --max-processes=15 tests/Integration/RateLimiter/Redis
           vendor/bin/paratest --max-processes=15 tests/Integration/Redis
