@@ -423,7 +423,7 @@ class TypesenseEngineTest extends TestCase
         $engine->update($model->newCollection([$model]));
     }
 
-    public function testUpdateCreatesMissingCollectionAndRetriesImportOnce(): void
+    public function testMissingCollectionIsCreatedUsingTheIndexableName(): void
     {
         $client = m::mock(TypesenseClient::class);
         $collections = m::mock(Collections::class);

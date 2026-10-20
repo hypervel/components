@@ -295,6 +295,30 @@ class TypesenseEngineIntegrationTest extends TypesenseScoutIntegrationTestCase
 
         $this->assertSame('2', $results['hits'][0]['document']['id']);
     }
+
+    public function testItCreatesMissingCollectionsUsingTheIndexableName(): void
+    {
+        $model = new TypesenseVersionedModel;
+
+        config()->set('scout.typesense.model-settings.' . TypesenseVersionedModel::class, [
+            'collection-schema' => [
+                'fields' => [
+                    ['name' => 'id', 'type' => 'string'],
+                    ['name' => 'name', 'type' => 'string'],
+                ],
+            ],
+        ]);
+
+        $engine = new TypesenseEngine($this->typesense, 1000);
+
+        $engine->update($model->newCollection([
+            new TypesenseVersionedModel(['id' => 1, 'name' => 'Hypervel Scout']),
+            new TypesenseVersionedModel(['id' => 2, 'name' => 'Hypervel Framework']),
+        ]));
+
+        $this->assertSame(2, $this->typesense->collections[$model->indexableAs()]->retrieve()['num_documents']);
+        $this->assertFalse(rescue(fn () => $this->typesense->collections[$model->searchableAs()]->retrieve(), false, false));
+    }
 }
 
 class TypesenseEmbeddingModel extends Model
@@ -332,6 +356,42 @@ class TypesenseEmbeddingModel extends Model
     public function toSearchableEmbedding(): array
     {
         return $this->embedding;
+    }
+}
+
+class TypesenseVersionedModel extends Model
+{
+    use Searchable;
+
+    protected array $fillable = ['id', 'name'];
+
+    public bool $timestamps = false;
+
+    /**
+     * Get the index name for the model when searching.
+     */
+    public function searchableAs(): string
+    {
+        return config()->string('scout.prefix') . 'versioned';
+    }
+
+    /**
+     * Get the index name for the model when indexing.
+     */
+    public function indexableAs(): string
+    {
+        return $this->searchableAs() . '_v2';
+    }
+
+    /**
+     * Get the indexable data array for the model.
+     */
+    public function toSearchableArray(): array
+    {
+        return [
+            'id' => (string) $this->id,
+            'name' => $this->name,
+        ];
     }
 }
 
