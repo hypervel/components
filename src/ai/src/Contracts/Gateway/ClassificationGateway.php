@@ -15,10 +15,10 @@ interface ClassificationGateway
     /**
      * Answer the given questions about the state.
      *
-     * @param array<string, mixed>|string $state
+     * @param array<array-key, mixed>|string $state
      * @param array<string, Question> $questions
      * @param array<string, mixed> $providerOptions
-     * @param array<int, File|UploadedFile> $attachments
+     * @param array<int|string, File|UploadedFile> $attachments
      */
     public function classify(
         ClassificationProvider $provider,

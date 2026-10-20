@@ -20,6 +20,10 @@ use InvalidArgumentException;
 use LogicException;
 use PHPUnit\Framework\Attributes\DataProvider;
 
+use function Hypervel\Tests\Ai\Fixtures\registerTextOnlyClassifier;
+
+require_once __DIR__ . '/../../../Fixtures/helpers.php';
+
 class ClassificationTest extends TestCase
 {
     /**
@@ -95,7 +99,7 @@ class ClassificationTest extends TestCase
         ]]);
     }
 
-    public function testRemoteAndStoredImagesAreDownloadedAndSentInline(): void
+    public function testRemoteAndStoredImagesAreDownloadedAndSentInlineAfterTheirNameLabels(): void
     {
         Http::fake([
             'example.com/*' => Http::response('remote-bytes', 200, ['Content-Type' => 'image/gif']),
@@ -109,7 +113,9 @@ class ClassificationTest extends TestCase
 
         Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.openai.com/v1/decisions'
             && array_slice(json_decode($request->body(), true)['input'][0]['content'], 1) === [
+                ['type' => 'input_text', 'text' => 'front:'],
                 ['type' => 'input_image', 'image_url' => 'data:image/gif;base64,' . base64_encode('remote-bytes')],
+                ['type' => 'input_text', 'text' => 'back:'],
                 ['type' => 'input_image', 'image_url' => 'data:image/png;base64,' . base64_encode('stored-bytes')],
             ]);
     }
@@ -181,19 +187,19 @@ class ClassificationTest extends TestCase
 
     public function testAttachmentsFailLoudlyInsteadOfFailingOverToAProviderThatCannotClassifyThem(): void
     {
-        config(['ai.providers.typesafe.key' => 'test-key']);
+        registerTextOnlyClassifier();
         Http::fake(['api.openai.com/*' => Http::response([], 503)]);
         $error = null;
 
         try {
             Classification::of('Inspect this.', [Image::fromBase64(base64_encode('photo'), 'image/png')])
-                ->question('damaged', new Boolean('Damaged?'))->classify(provider: ['openai', 'typesafe']);
+                ->question('damaged', new Boolean('Damaged?'))->classify(provider: ['openai', 'text-only']);
         } catch (LogicException $exception) {
             $error = $exception;
         }
 
         $this->assertInstanceOf(LogicException::class, $error);
-        $this->assertStringContainsString('Provider [typesafe] does not support classification attachments.', $error->getMessage());
+        $this->assertStringContainsString('Provider [text-only] does not support classification attachments.', $error->getMessage());
         Http::assertSentCount(1);
     }
 

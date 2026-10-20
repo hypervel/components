@@ -83,4 +83,22 @@ class ClassificationTest extends TestCase
             yield $name . '-jpeg' => [...$provider, 'blue.jpg', 'blue'];
         }
     }
+
+    #[DataProviderExternal(Providers::class, 'imageClassification')]
+    public function testNamedImagesCanBeReferredToByName(string $provider, string $apiKey): void
+    {
+        requiresApiKey($apiKey);
+
+        $response = Classification::of('Two product photos uploaded by a customer.', [
+            'front' => Image::fromPath(__DIR__ . '/../../Ai/Fixtures/Images/red.png'),
+            'back' => Image::fromPath(__DIR__ . '/../../Ai/Fixtures/Images/blue.jpg'),
+        ])
+            ->questions([
+                'front_color' => new Choice('What color is the background of `front`?', ['red' => null, 'green' => null, 'blue' => null]),
+                'back_color' => new Choice('What color is the background of `back`?', ['red' => null, 'green' => null, 'blue' => null]),
+            ])->classify(provider: $provider);
+
+        $this->assertSame('red', $response['front_color']->choice);
+        $this->assertSame('blue', $response['back_color']->choice);
+    }
 }

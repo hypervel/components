@@ -4,19 +4,23 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Ai\Feature\Providers\OpenRouter;
 
+use Closure;
 use Hypervel\Ai\Classification;
 use Hypervel\Ai\Classification\Boolean;
 use Hypervel\Ai\Classification\Choice;
 use Hypervel\Ai\Classification\Score;
+use Hypervel\Ai\Enums\Lab;
 use Hypervel\Ai\Files\Image;
 use Hypervel\Ai\Responses\Data\BooleanAnswer;
 use Hypervel\Ai\Responses\Data\ChoiceAnswer;
 use Hypervel\Ai\Responses\Data\ScoreAnswer;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Http\Client\Request;
+use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Ai\TestCase;
-use LogicException;
+use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class ClassificationTest extends TestCase
 {
@@ -172,23 +176,98 @@ class ClassificationTest extends TestCase
         $this->assertSame(1.0, $response['urgency']->normalized());
     }
 
-    public function testAttachmentsAreRejectedBeforeAnyRequest(): void
+    public function testImageAttachmentsAreAppendedToTheStateAsDataUrlImagePartsLabeledByName(): void
+    {
+        Http::fake(['*' => Http::response($this->fakeDecisionsResponse())]);
+
+        $jpeg = file_get_contents(__DIR__ . '/../../../Fixtures/Images/blue.jpg');
+
+        Classification::of('A product photo uploaded by a customer.', [
+            'front' => Image::fromPath(__DIR__ . '/../../../Fixtures/Images/blue.jpg')->withProviderOptions(fn ($provider) => $provider === Lab::OpenRouter ? ['custom' => 'value'] : null),
+            'back' => UploadedFile::fake()->createWithContent('back.png', 'upload-bytes')->mimeType('image/png'),
+        ])
+            ->question('damaged', new Boolean('Is the product damaged?'))
+            ->classify(provider: 'openrouter');
+
+        Http::assertSent(fn (Request $request): bool => $request->url() === 'https://openrouter.ai/api/alpha/decisions'
+            && ! $request->hasHeader('TypeSafe-Danger-Zone-Images')
+            && json_decode($request->body(), true)['state'] === [
+                'A product photo uploaded by a customer.',
+                'front:',
+                ['custom' => 'value', 'type' => 'image_url', 'image_url' => ['url' => 'data:image/jpeg;base64,' . base64_encode($jpeg)]],
+                'back:',
+                ['type' => 'image_url', 'image_url' => ['url' => 'data:image/png;base64,' . base64_encode('upload-bytes')]],
+            ]);
+    }
+
+    #[DataProvider('statesWithImages')]
+    public function testImagePartsFollowTheItemsOfAListStateAndTheObjectOfAStructuredState(array $state, array $expected): void
+    {
+        Http::fake(['*' => Http::response($this->fakeDecisionsResponse())]);
+
+        Classification::of($state, [Image::fromBase64(base64_encode('photo'), 'image/png')])
+            ->question('damaged', new Boolean('Damaged?'))
+            ->classify(provider: 'openrouter');
+
+        $part = ['type' => 'image_url', 'image_url' => ['url' => 'data:image/png;base64,' . base64_encode('photo')]];
+
+        Http::assertSent(fn (Request $request): bool => json_decode($request->body(), true)['state'] === [...$expected, $part]);
+    }
+
+    /**
+     * Provide list and structured states with the state items that precede the image parts.
+     */
+    public static function statesWithImages(): array
+    {
+        return [
+            'list' => [['first message', 'second message'], ['first message', 'second message']],
+            'object' => [['subject' => 'Broken lamp'], [['subject' => 'Broken lamp']]],
+        ];
+    }
+
+    public function testWebpImagesAreSentAsWebpDataUrls(): void
+    {
+        Http::fake(['*' => Http::response($this->fakeDecisionsResponse())]);
+
+        Classification::of('Inspect this.', [UploadedFile::fake()->createWithContent('photo.webp', 'webp-bytes')->mimeType('image/webp')])
+            ->question('damaged', new Boolean('Damaged?'))
+            ->classify(provider: 'openrouter', model: 'cloudflare/clef-flash');
+
+        Http::assertSent(fn (Request $request): bool => json_decode($request->body(), true)['state'] === [
+            'Inspect this.',
+            ['type' => 'image_url', 'image_url' => ['url' => 'data:image/webp;base64,' . base64_encode('webp-bytes')]],
+        ]);
+    }
+
+    #[DataProvider('unsupportedAttachments')]
+    public function testAttachmentsThatAreNotInlineJpegPngOrWebpImagesAreRejectedBeforeAnyRequest(Closure $attachment, string $message): void
     {
         Http::fake();
 
         $exception = null;
 
         try {
-            Classification::of('Inspect this.', [Image::fromBase64(base64_encode('photo'), 'image/png')])
+            Classification::of('Inspect this.', [$attachment()])
                 ->question('damaged', new Boolean('Damaged?'))
                 ->classify(provider: 'openrouter');
-        } catch (LogicException $caught) {
+        } catch (InvalidArgumentException $caught) {
             $exception = $caught;
         }
 
-        $this->assertInstanceOf(LogicException::class, $exception);
-        $this->assertSame('Provider [openrouter] does not support classification attachments.', $exception->getMessage());
+        $this->assertInstanceOf(InvalidArgumentException::class, $exception);
+        $this->assertSame($message, $exception->getMessage());
 
         Http::assertNothingSent();
+    }
+
+    /**
+     * Provide attachments the OpenRouter decisions endpoint does not accept.
+     */
+    public static function unsupportedAttachments(): array
+    {
+        return [
+            'provider image' => [fn () => Image::fromId('file_123'), 'OpenRouter decisions only accept images with inline content; [Hypervel\Ai\Files\ProviderImage] given.'],
+            'gif upload' => [fn () => UploadedFile::fake()->createWithContent('photo.gif', 'gif-bytes')->mimeType('image/gif'), 'OpenRouter decisions only accept JPEG, PNG, or WebP images; [image/gif] given.'],
+        ];
     }
 }

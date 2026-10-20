@@ -16,8 +16,8 @@ class Classification
     /**
      * Create a new pending classification for the given state.
      *
-     * @param array<string, mixed>|string $state
-     * @param array<int, File|UploadedFile> $attachments
+     * @param array<array-key, mixed>|string $state
+     * @param array<int|string, File|UploadedFile> $attachments
      *
      * @throws InvalidArgumentException if the state is blank
      */
