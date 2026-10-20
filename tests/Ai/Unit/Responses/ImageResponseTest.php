@@ -48,16 +48,16 @@ class ImageResponseTest extends TestCase
         );
     }
 
-    public function testToHtmlEscapesTheAltAttribute(): void
+    public function testToHtmlEscapesTheImageAttributes(): void
     {
         $response = new ImageResponse(
-            new Collection([new GeneratedImage('aGVsbG8=', 'image/png')]),
+            new Collection([new GeneratedImage('aGVsbG8=" onload="alert(2)', 'image/png" onerror="alert(1)')]),
             new ImageUsage,
             new Meta('openai', 'gpt-image-1'),
         );
 
         $this->assertSame(
-            '<img src="data:image/png;base64,aGVsbG8=" alt="&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;" />',
+            '<img src="data:image/png&quot; onerror=&quot;alert(1);base64,aGVsbG8=&quot; onload=&quot;alert(2)" alt="&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;" />',
             $response->toHtml('"><script>alert(1)</script>'),
         );
     }
