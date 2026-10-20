@@ -131,3 +131,15 @@ jobs:
 
       - name: Type-check generated Wayfinder output
         run: pnpm typecheck:wayfinder
+
+      # Telescope's dashboard is a standalone npm package whose devEngines require npm 11.10 or newer.
+      - name: Install npm for Telescope
+        run: npm install --global npm@11.21.0
+
+      - name: Install Telescope dependencies
+        working-directory: src/telescope
+        run: npm ci
+
+      - name: Run Telescope dashboard tests
+        working-directory: src/telescope
+        run: npm test
