@@ -116,6 +116,12 @@ trait ParsesTextResponses
 
             if ($type === 'text') {
                 $blockText = (string) ($block['text'] ?? '');
+
+                // Streaming skips empty deltas, so an empty block must not use up the pending separator either.
+                if ($blockText === '') {
+                    continue;
+                }
+
                 $text .= ($afterTool && $text !== '' ? $this->textSeparator($text, $blockText) : '') . $blockText;
                 $afterTool = false;
             } elseif ($this->isToolBlock($type)) {

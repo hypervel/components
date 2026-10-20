@@ -8,6 +8,7 @@ use Hypervel\Ai\Responses\Data\ProviderToolCall;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Ai\Fixtures\Agents\AssistantAgent;
 use Hypervel\Tests\Ai\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class ProviderToolCallsTest extends TestCase
 {
@@ -105,5 +106,43 @@ class ProviderToolCallsTest extends TestCase
         $response = (new AssistantAgent)->prompt('Search', provider: 'anthropic');
 
         $this->assertSame("Let me check.\nDone", $response->text);
+    }
+
+    #[DataProvider('textAfterAnEmptyBlock')]
+    public function testAnEmptyTextBlockAfterAServerToolAddsNoSeparator(array $followingBlocks, string $expected): void
+    {
+        Http::fake([
+            'api.anthropic.com/*' => Http::response([
+                'id' => 'msg_1',
+                'type' => 'message',
+                'role' => 'assistant',
+                'model' => 'claude-sonnet-4-6',
+                'content' => [
+                    ['type' => 'text', 'text' => 'Let me check.'],
+                    ['type' => 'server_tool_use', 'id' => 'srvtoolu_1', 'name' => 'web_search', 'input' => ['query' => 'hypervel ai']],
+                    ['type' => 'web_search_tool_result', 'tool_use_id' => 'srvtoolu_1', 'content' => []],
+                    ['type' => 'text', 'text' => ''],
+                    ...$followingBlocks,
+                ],
+                'stop_reason' => 'end_turn',
+                'usage' => ['input_tokens' => 10, 'output_tokens' => 5],
+            ]),
+        ]);
+
+        $response = (new AssistantAgent)->prompt('Search', provider: 'anthropic');
+
+        $this->assertSame($expected, $response->text);
+    }
+
+    /**
+     * Provide the blocks after an empty text block and the expected response text.
+     */
+    public static function textAfterAnEmptyBlock(): array
+    {
+        return [
+            'nothing' => [[], 'Let me check.'],
+            'text' => [[['type' => 'text', 'text' => 'Done']], "Let me check.\n\nDone"],
+            'text starting a new line' => [[['type' => 'text', 'text' => "\nDone"]], "Let me check.\nDone"],
+        ];
     }
 }
