@@ -583,10 +583,7 @@ npm run dev
 <a name="client-mercure"></a>
 ### Mercure
 
-> [!WARNING]
-> Mercure support is available on Echo's `2.x` branch but is not included in the published `2.5.0` packages. The following setup requires an Echo release containing that support, including the corresponding React, Vue, or Svelte helper if used.
-
-To use Mercure with Laravel Echo, install the `laravel-echo` package:
+Mercure support requires `laravel-echo` 2.6.1 or later, and version 2.6.1 or later of the React, Vue, or Svelte helper if you use one. To use Mercure with Laravel Echo, install the `laravel-echo` package:
 
 ```shell
 npm install --save-dev laravel-echo
