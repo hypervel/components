@@ -11,6 +11,8 @@ use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Http\Client\Request;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Ai\TestCase;
+use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\TestWith;
 
 use function Hypervel\Tests\Ai\Fixtures\multipartField;
 use function Hypervel\Tests\Ai\Fixtures\sentRequest;
@@ -89,5 +91,73 @@ class FileGatewayTest extends TestCase
         Http::assertSent(fn (Request $request): bool => $request->method() === 'DELETE'
             && $request->url() === 'https://api.openai.com/v1/files/file-abc123'
             && $request->hasHeader('Authorization', 'Bearer test-key'));
+    }
+
+    public function testDeleteFileEncodesTheIdAsASinglePathSegment(): void
+    {
+        Http::fake([
+            'api.openai.com/*' => Http::response(['deleted' => true]),
+        ]);
+
+        Files::delete('../vector_stores/vs-123', provider: 'openai');
+
+        Http::assertSent(fn (Request $request): bool => $request->method() === 'DELETE'
+            && $request->url() === 'https://api.openai.com/v1/files/..%2Fvector_stores%2Fvs-123');
+    }
+
+    #[TestWith([''])]
+    #[TestWith(['.'])]
+    #[TestWith(['..'])]
+    public function testDeleteFileRejectsDotSegmentIds(string $fileId): void
+    {
+        Http::fake();
+
+        try {
+            Files::delete($fileId, provider: 'openai');
+            $this->fail('The ID must be rejected.');
+        } catch (InvalidArgumentException $exception) {
+            $this->assertSame("[{$fileId}] is not a valid provider resource ID.", $exception->getMessage());
+        }
+
+        Http::assertNothingSent();
+    }
+
+    public function testGetFilePreservesRawResponse(): void
+    {
+        Http::fake([
+            'api.openai.com/*' => Http::response(['id' => 'file-abc123', 'bytes' => 1024]),
+        ]);
+
+        $response = Files::get('file-abc123', provider: 'openai');
+
+        $this->assertNotNull($response->raw);
+        $this->assertSame(1024, $response->raw->json('bytes'));
+    }
+
+    public function testPutFilePreservesRawResponse(): void
+    {
+        Http::fake([
+            'api.openai.com/*' => Http::response(['id' => 'file-uploaded123', 'bytes' => 2048]),
+        ]);
+
+        $response = Document::fromString('Hello, World!', 'text/plain')->as('hello.txt')->put(
+            provider: 'openai',
+        );
+
+        $this->assertNotNull($response->raw);
+        $this->assertSame(2048, $response->raw->json('bytes'));
+    }
+
+    public function testRawResponseIsExcludedWhenSerialized(): void
+    {
+        Http::fake([
+            'api.openai.com/*' => Http::response(['id' => 'file-abc123']),
+        ]);
+
+        $response = Files::get('file-abc123', provider: 'openai');
+        $unserialized = unserialize(serialize($response));
+
+        $this->assertSame('file-abc123', $unserialized->id);
+        $this->assertNull($unserialized->raw);
     }
 }

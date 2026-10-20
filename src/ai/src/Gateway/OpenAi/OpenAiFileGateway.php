@@ -8,6 +8,7 @@ use Hypervel\Ai\Contracts\Files\StorableFile;
 use Hypervel\Ai\Contracts\Gateway\FileGateway;
 use Hypervel\Ai\Contracts\Providers\FileProvider;
 use Hypervel\Ai\Enums\Lab;
+use Hypervel\Ai\Gateway\Concerns\EncodesResourceIds;
 use Hypervel\Ai\Gateway\Concerns\HandlesFailoverErrors;
 use Hypervel\Ai\Gateway\Concerns\PreparesStorableFiles;
 use Hypervel\Ai\Gateway\OpenAi\Concerns\CreatesOpenAiClient;
@@ -18,6 +19,7 @@ use Hypervel\Ai\Responses\StoredFileResponse;
 class OpenAiFileGateway implements FileGateway
 {
     use CreatesOpenAiClient;
+    use EncodesResourceIds;
     use HandlesFailoverErrors;
     use PreparesStorableFiles;
 
@@ -30,12 +32,12 @@ class OpenAiFileGateway implements FileGateway
         $response = $this->withErrorHandling(
             $provider->name(),
             fn () => $this->client($provider)
-                ->get("files/{$fileId}")
+                ->get("files/{$this->resourceId($fileId)}")
         );
 
-        return new FileResponse(
+        return (new FileResponse(
             id: $response->json('id'),
-        );
+        ))->withRawResponse($response);
     }
 
     /**
@@ -62,7 +64,7 @@ class OpenAiFileGateway implements FileGateway
                 ))
         );
 
-        return new StoredFileResponse($response->json('id'));
+        return (new StoredFileResponse($response->json('id')))->withRawResponse($response);
     }
 
     /**
@@ -74,7 +76,7 @@ class OpenAiFileGateway implements FileGateway
         $this->withErrorHandling(
             $provider->name(),
             fn () => $this->client($provider)
-                ->delete("files/{$fileId}")
+                ->delete("files/{$this->resourceId($fileId)}")
         );
     }
 

@@ -35,6 +35,7 @@ class FileGatewayTest extends TestCase
         $response = Files::get('file-abc123', provider: 'anthropic');
 
         $this->assertSame('file-abc123', $response->id);
+        $this->assertNotNull($response->raw);
 
         Http::assertSent(fn (Request $request): bool => $request->method() === 'GET'
             && $request->url() === 'https://api.anthropic.com/v1/files/file-abc123'
@@ -52,6 +53,7 @@ class FileGatewayTest extends TestCase
         );
 
         $this->assertSame('file-uploaded123', $response->id);
+        $this->assertNotNull($response->raw);
 
         $request = sentRequest();
 
@@ -85,5 +87,17 @@ class FileGatewayTest extends TestCase
         Http::assertSent(fn (Request $request): bool => $request->method() === 'DELETE'
             && $request->url() === 'https://api.anthropic.com/v1/files/file-abc123'
             && $request->hasHeader('x-api-key', 'test-key'));
+    }
+
+    public function testDeleteFileEncodesTheIdAsASinglePathSegment(): void
+    {
+        Http::fake([
+            'api.anthropic.com/*' => Http::response(['id' => 'file-abc123']),
+        ]);
+
+        Files::delete('../skills/skill-123?beta=true', provider: 'anthropic');
+
+        Http::assertSent(fn (Request $request): bool => $request->method() === 'DELETE'
+            && $request->url() === 'https://api.anthropic.com/v1/files/..%2Fskills%2Fskill-123%3Fbeta%3Dtrue');
     }
 }

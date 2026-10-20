@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Ai\Feature\Providers\AzureOpenAi;
 
 use Hypervel\Ai\Enums\Lab;
+use Hypervel\Ai\Files;
 use Hypervel\Ai\Files\Document;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Http\Client\Request;
@@ -65,5 +66,17 @@ class FileGatewayTest extends TestCase
             ->put(provider: 'azure');
 
         $this->assertSame('batch', multipartField(sentRequest(), 'purpose'));
+    }
+
+    public function testDeleteFileEncodesTheIdAsASinglePathSegment(): void
+    {
+        Http::fake([
+            'test-resource.openai.azure.com/*' => Http::response(['deleted' => true]),
+        ]);
+
+        Files::delete('../vector_stores/vs-123', provider: 'azure');
+
+        Http::assertSent(fn (Request $request): bool => $request->method() === 'DELETE'
+            && $request->url() === 'https://test-resource.openai.azure.com/openai/v1/files/..%2Fvector_stores%2Fvs-123');
     }
 }

@@ -9,6 +9,7 @@ use Hypervel\Ai\Contracts\Gateway\FileGateway;
 use Hypervel\Ai\Contracts\Providers\FileProvider;
 use Hypervel\Ai\Enums\Lab;
 use Hypervel\Ai\Gateway\Anthropic\Concerns\CreatesAnthropicClient;
+use Hypervel\Ai\Gateway\Concerns\EncodesResourceIds;
 use Hypervel\Ai\Gateway\Concerns\HandlesFailoverErrors;
 use Hypervel\Ai\Gateway\Concerns\PreparesStorableFiles;
 use Hypervel\Ai\Providers\Provider;
@@ -19,6 +20,7 @@ use Hypervel\Http\Client\PendingRequest;
 class AnthropicFileGateway implements FileGateway
 {
     use CreatesAnthropicClient;
+    use EncodesResourceIds;
     use HandlesFailoverErrors;
     use PreparesStorableFiles;
 
@@ -30,13 +32,13 @@ class AnthropicFileGateway implements FileGateway
         /** @var FileProvider&Provider $provider */
         $response = $this->withErrorHandling(
             $provider->name(),
-            fn () => $this->client($provider)->get("files/{$fileId}"),
+            fn () => $this->client($provider)->get("files/{$this->resourceId($fileId)}"),
         );
 
-        return new FileResponse(
+        return (new FileResponse(
             id: $response->json('id'),
             mimeType: $response->json('mime_type'),
-        );
+        ))->withRawResponse($response);
     }
 
     /**
@@ -60,7 +62,7 @@ class AnthropicFileGateway implements FileGateway
                 ->post('files', $providerOptions),
         );
 
-        return new StoredFileResponse($response->json('id'));
+        return (new StoredFileResponse($response->json('id')))->withRawResponse($response);
     }
 
     /**
@@ -71,7 +73,7 @@ class AnthropicFileGateway implements FileGateway
         /** @var FileProvider&Provider $provider */
         $this->withErrorHandling(
             $provider->name(),
-            fn () => $this->client($provider)->delete("files/{$fileId}"),
+            fn () => $this->client($provider)->delete("files/{$this->resourceId($fileId)}"),
         );
     }
 

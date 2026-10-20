@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Ai\Responses;
 
+use Hypervel\Ai\Responses\Concerns\HasRawResponse;
+
 class FileResponse
 {
+    use HasRawResponse;
+
     public readonly ?string $mime;
 
     /**

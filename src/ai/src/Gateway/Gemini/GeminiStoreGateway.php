@@ -10,6 +10,7 @@ use Hypervel\Ai\Contracts\Providers\FileProvider;
 use Hypervel\Ai\Contracts\Providers\StoreProvider;
 use Hypervel\Ai\Exceptions\AiException;
 use Hypervel\Ai\Gateway\Concerns\CreatesClient;
+use Hypervel\Ai\Gateway\Concerns\EncodesResourceIds;
 use Hypervel\Ai\Gateway\Concerns\HandlesFailoverErrors;
 use Hypervel\Ai\Providers\Provider;
 use Hypervel\Ai\Responses\Data\StoreFileCounts;
@@ -19,10 +20,12 @@ use Hypervel\Http\Client\PendingRequest;
 use Hypervel\Http\Client\Response;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Sleep;
+use Hypervel\Support\Str;
 
 class GeminiStoreGateway implements StoreGateway
 {
     use CreatesClient;
+    use EncodesResourceIds;
     use HandlesFailoverErrors;
 
     /**
@@ -209,9 +212,7 @@ class GeminiStoreGateway implements StoreGateway
      */
     protected function normalizeStoreId(string $storeId): string
     {
-        return str_starts_with($storeId, 'fileSearchStores/')
-            ? $storeId
-            : "fileSearchStores/{$storeId}";
+        return 'fileSearchStores/' . $this->resourceId(Str::chopStart($storeId, 'fileSearchStores/'));
     }
 
     /**
@@ -219,9 +220,7 @@ class GeminiStoreGateway implements StoreGateway
      */
     protected function normalizeFileId(string $fileId): string
     {
-        return str_starts_with($fileId, 'files/')
-            ? $fileId
-            : "files/{$fileId}";
+        return 'files/' . $this->resourceId(Str::chopStart($fileId, 'files/'));
     }
 
     /**
@@ -229,17 +228,6 @@ class GeminiStoreGateway implements StoreGateway
      */
     protected function normalizeDocumentId(string $storeId, string $documentId): string
     {
-        // Already a full document path...
-        if (str_starts_with($documentId, 'fileSearchStores/')) {
-            return $documentId;
-        }
-
-        $documentId = match (true) {
-            str_starts_with($documentId, 'documents/') => substr($documentId, 10),
-            str_starts_with($documentId, 'files/') => substr($documentId, 6),
-            default => $documentId,
-        };
-
-        return "{$storeId}/documents/{$documentId}";
+        return "{$storeId}/documents/" . $this->resourceId(Str::chopStart($documentId, ["{$storeId}/documents/", 'documents/', 'files/']));
     }
 }
