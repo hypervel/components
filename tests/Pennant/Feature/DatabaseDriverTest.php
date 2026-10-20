@@ -13,6 +13,7 @@ use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Pennant\Attributes\Name;
 use Hypervel\Pennant\Contracts\FeatureScopeable;
 use Hypervel\Pennant\Contracts\FeatureScopeSerializeable;
+use Hypervel\Pennant\Drivers\DatabaseDriver;
 use Hypervel\Pennant\Events\AllFeaturesPurged;
 use Hypervel\Pennant\Events\DynamicallyRegisteringFeatureClass;
 use Hypervel\Pennant\Events\FeatureDeleted;
@@ -36,6 +37,7 @@ use Hypervel\Tests\Pennant\Fixtures\User;
 use Hypervel\Tests\Pennant\Fixtures\UserFactory;
 use Hypervel\Tests\Pennant\TestCase;
 use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use stdClass;
 
@@ -360,6 +362,15 @@ class DatabaseDriverTest extends TestCase
         $this->assertFalse(Feature::active('bar'));
 
         $this->assertCount(4, DB::getQueryLog());
+    }
+
+    public function testItMatchesScopesExactly(): void
+    {
+        Feature::define('foo', fn () => 'resolved');
+        Feature::for('1')->activate('foo', 'one');
+        Feature::flushCache();
+
+        $this->assertSame(['foo' => ['one', 'resolved']], Feature::getAll(['foo' => ['1', '01']]));
     }
 
     public function testScopeCanBeStringsLikeEmailAddresses(): void
@@ -709,6 +720,54 @@ class DatabaseDriverTest extends TestCase
             'scope' => 'taylor@hypervel.com',
             'value' => '2',
         ]);
+    }
+
+    #[DataProvider('groupedReads')]
+    public function testItReadsFeaturesThatShareScopesTogether(array $features, int $bindings): void
+    {
+        Feature::getAll($features);
+
+        $this->assertCount(1, DB::getQueryLog());
+        $this->assertCount($bindings, DB::getQueryLog()[0]['bindings']);
+    }
+
+    public static function groupedReads(): array
+    {
+        return [
+            'rectangular' => [['foo' => ['tim', 'taylor', 'jess'], 'bar' => ['tim', 'taylor', 'jess']], 5],
+            'sparse' => [['foo' => ['tim'], 'bar' => ['tim'], 'baz' => ['taylor', 'jess']], 6],
+        ];
+    }
+
+    public function testItSplitsReadsAtTheGroupLimit(): void
+    {
+        $features = [];
+
+        for ($index = 0; $index <= DatabaseDriver::QUERY_GROUP_LIMIT; ++$index) {
+            $features["feature-{$index}"] = ["scope-{$index}"];
+        }
+
+        Feature::getAll($features);
+
+        $this->assertCount(2, DB::getQueryLog());
+    }
+
+    public function testItSplitsReadsAtTheBindingLimit(): void
+    {
+        Feature::getAll(['foo' => array_map(fn (int $index) => "scope-{$index}", range(1, DatabaseDriver::QUERY_BINDING_LIMIT))]);
+
+        $this->assertSame(
+            [DatabaseDriver::QUERY_BINDING_LIMIT, 2],
+            array_map(fn (array $query) => count($query['bindings']), DB::getQueryLog()),
+        );
+    }
+
+    public function testItReadsAndInsertsRepeatedScopesOnce(): void
+    {
+        Feature::define('foo', fn () => 'resolved');
+
+        $this->assertSame(['foo' => ['resolved', 'resolved']], Feature::getAll(['foo' => ['tim', 'tim']]));
+        $this->assertSame([2, 5], array_map(fn (array $query) => count($query['bindings']), DB::getQueryLog()));
     }
 
     public function testItCanRetrieveRegisteredFeatures(): void
@@ -1336,6 +1395,34 @@ class DatabaseDriverTest extends TestCase
         $this->assertSame(config('database.default'), $connection);
     }
 
+    #[DataProvider('readConnections')]
+    public function testItRejectsReadConnections(Closure $read): void
+    {
+        $connection = DB::getDefaultConnection() . '::read';
+        Feature::define('foo', fn () => true);
+
+        try {
+            $read($connection);
+            $this->fail('The read connection should have been rejected.');
+        } catch (InvalidArgumentException $exception) {
+            $this->assertSame("Pennant can't use the read connection [{$connection}]. Use its base or write connection instead.", $exception->getMessage());
+        }
+
+        $this->assertCount(0, DB::getQueryLog());
+    }
+
+    public static function readConnections(): array
+    {
+        return [
+            'configured' => [function (string $connection) {
+                Config::set('pennant.stores.replica', ['driver' => 'database', 'connection' => $connection]);
+
+                Feature::store('replica')->active('foo');
+            }],
+            'runtime default' => [fn (string $connection) => DB::usingConnection($connection, fn () => Feature::active('foo'))],
+        ];
+    }
+
     public function testItDispatchesEventsWhenPurgingFeatures(): void
     {
         Event::fake([FeaturesPurged::class]);
@@ -1836,6 +1923,18 @@ class DatabaseDriverTest extends TestCase
         ], $records[3]);
     }
 
+    public function testItCanLoadAllFeaturesForScopesOfDifferentTypes(): void
+    {
+        Feature::define('user', fn (User $user) => 'user');
+        Feature::define('team', fn (Team $team) => 'team');
+
+        $this->assertSame(
+            ['user' => [0 => 'user'], 'team' => [1 => 'team']],
+            Feature::for([new User(['id' => 1]), new Team(['id' => 1])])->loadAll(),
+        );
+        $this->assertCount(2, DB::getQueryLog());
+    }
+
     public function testCanRetrieveAllFeaturesForDifferingScopeTypes(): void
     {
         Feature::define('user', fn (User $user) => 1);
@@ -2015,6 +2114,17 @@ class DatabaseDriverTest extends TestCase
         Feature::for([$first, $second])->activate(['foo', 'bar']);
 
         $this->assertCount(1, DB::getQueryLog());
+    }
+
+    public function testItKeepsTheLastValueOfARepeatedFeatureAndScope(): void
+    {
+        Feature::store()->setAll([
+            ['feature' => 'foo', 'scope' => 'tim', 'value' => 'first'],
+            ['feature' => 'foo', 'scope' => 'tim', 'value' => 'last'],
+        ]);
+        Feature::flushCache();
+
+        $this->assertSame('last', Feature::for('tim')->value('foo'));
     }
 }
 

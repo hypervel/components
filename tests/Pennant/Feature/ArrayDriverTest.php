@@ -24,6 +24,7 @@ use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Lottery;
 use Hypervel\Tests\Pennant\Fixtures\User;
 use Hypervel\Tests\Pennant\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 
 class ArrayDriverTest extends TestCase
@@ -1269,6 +1270,26 @@ class ArrayDriverTest extends TestCase
         Feature::define(MyFeature::class);
 
         $this->assertSame('renamed-feature', Feature::name(MyFeature::class));
+    }
+
+    #[DataProvider('forgetStoreMethods')]
+    public function testARebuiltStoreDoesntReuseTheForgottenStoresValues(Closure $forget): void
+    {
+        Feature::define('foo', fn () => 'first');
+        $this->assertSame('first', Feature::value('foo'));
+
+        $forget();
+        Feature::define('foo', fn () => 'second');
+
+        $this->assertSame('second', Feature::value('foo'));
+    }
+
+    public static function forgetStoreMethods(): array
+    {
+        return [
+            'forgetDriver' => [fn () => Feature::forgetDriver('array')],
+            'forgetDrivers' => [fn () => Feature::forgetDrivers()],
+        ];
     }
 
     public function testCanRetrieveScalarValuesWithoutInMemoryCache(): void
