@@ -49,7 +49,7 @@ interface Driver
     public function delete(string $feature, mixed $scope): void;
 
     /**
-     * Purge the given features from storage.
+     * Purge the given features from storage, or every feature when null is given.
      */
     public function purge(?array $features): void;
 }

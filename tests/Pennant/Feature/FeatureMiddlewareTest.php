@@ -56,8 +56,11 @@ class FeatureMiddlewareTest extends TestCase
 
     public function testItThrowsAnExceptionIfOneOfTheFeaturesIsNotActive(): void
     {
+        Feature::define('test', true);
+
         $this->expectException(HttpException::class);
-        $this->assertFalse(Feature::active('test'));
+        $this->assertTrue(Feature::active('test'));
+        $this->assertFalse(Feature::active('another'));
 
         $this->middleware->handle(
             $this->createRequest('test', 'get'),

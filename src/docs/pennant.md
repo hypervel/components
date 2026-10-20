@@ -740,6 +740,8 @@ Pennant's included Blade directive also makes it easy to conditionally render co
 > [!NOTE]
 > When using rich values, it is important to know that a feature is considered "active" when it has any value other than `false`.
 
+The `database` driver stores rich values as JSON. Reading a stored value can change its PHP type. For example, objects become arrays and `1.0` becomes `1`.
+
 When calling the [conditional `when`](#conditional-execution) method, the feature's rich value will be provided to the first closure:
 
 ```php
@@ -1026,7 +1028,7 @@ Use a column type that matches your partition values, such as `foreignUuid` for 
 <a name="shared-cache"></a>
 ## Shared Cache
 
-The `database` driver can share stored values between your servers through a [cache](/docs/{{version}}/cache) store, so checking a feature that isn't already in the [in-memory cache](#in-memory-cache) doesn't need a database query. A cache hit runs no query and doesn't take a connection from the database pool. To enable the shared cache, set the store's `cache` option to an array containing the name of a cache `store` and, optionally, a `ttl` in seconds:
+The `database` driver can share stored values between your servers through a [cache](/docs/{{version}}/cache) store, so checking a feature that isn't already in the [in-memory cache](#in-memory-cache) doesn't need to read Pennant's feature table. With a Redis or Swoole cache store, a cache hit also doesn't take a connection from the database pool. To enable the shared cache, set the store's `cache` option to an array containing the name of a cache `store` and, optionally, a `ttl` in seconds:
 
 ```php
 'database' => [
