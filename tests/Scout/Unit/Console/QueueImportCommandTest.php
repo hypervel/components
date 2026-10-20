@@ -6,7 +6,9 @@ namespace Hypervel\Tests\Scout\Unit\Console;
 
 use Hypervel\Scout\Exceptions\ScoutException;
 use Hypervel\Scout\Jobs\MakeRangeSearchable;
+use Hypervel\Scout\Jobs\MakeSearchable;
 use Hypervel\Support\Facades\Bus;
+use Hypervel\Support\Facades\Queue;
 use Hypervel\Tests\Scout\Fixtures\Models\SearchableModel;
 use Hypervel\Tests\Scout\Fixtures\Models\UuidSearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
@@ -461,6 +463,26 @@ class QueueImportCommandTest extends ScoutTestCase
         Bus::assertDispatched(MakeRangeSearchable::class, function (MakeRangeSearchable $job) {
             return $job->queue === 'custom-queue';
         });
+    }
+
+    public function testItUsesCustomQueueForMakeSearchableJobs(): void
+    {
+        $model = SearchableModel::create(['title' => 'Title', 'body' => 'Body']);
+
+        config(['scout.queue' => ['connection' => 'sync', 'queue' => 'scout']]);
+
+        Queue::fake([MakeSearchable::class]);
+
+        $this->artisan('scout:queue-import', [
+            'model' => SearchableModel::class,
+            '--queue' => 'custom-queue',
+        ])->assertSuccessful();
+
+        Queue::assertPushedOn('custom-queue', MakeSearchable::class, function (MakeSearchable $job) use ($model) {
+            return $job->models->modelKeys() === [$model->id];
+        });
+
+        Queue::assertPushed(MakeSearchable::class, 1);
     }
 
     public function testItUsesModelDefaultQueueWhenNoQueueOption(): void

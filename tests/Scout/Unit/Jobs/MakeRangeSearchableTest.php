@@ -8,6 +8,7 @@ use Hypervel\Scout\Jobs\MakeRangeSearchable;
 use Hypervel\Scout\Jobs\MakeSearchable;
 use Hypervel\Scout\Scout;
 use Hypervel\Support\Facades\Bus;
+use Hypervel\Support\Facades\Queue;
 use Hypervel\Tests\Scout\Fixtures\Models\ConditionalSearchableModel;
 use Hypervel\Tests\Scout\Fixtures\Models\SearchableModel;
 use Hypervel\Tests\Scout\Fixtures\Models\UuidSearchableModel;
@@ -55,6 +56,46 @@ class MakeRangeSearchableTest extends ScoutTestCase
             return $job->models->count() === 1
                 && $job->models->pluck('id')->all() === [2];
         });
+    }
+
+    public function testHandlePassesQueueAndConnectionToMakeSearchableJob(): void
+    {
+        $model = SearchableModel::create(['title' => 'Title', 'body' => 'Body']);
+
+        config(['scout.queue' => ['connection' => 'sync', 'queue' => 'scout']]);
+
+        Queue::fake();
+
+        $job = (new MakeRangeSearchable(SearchableModel::class, $model->id, $model->id))
+            ->onQueue('imports')
+            ->onConnection('redis');
+
+        $job->handle();
+
+        Queue::assertPushedOn('imports', MakeSearchable::class, function (MakeSearchable $job) use ($model) {
+            return $job->connection === 'redis' && $job->models->modelKeys() === [$model->id];
+        });
+
+        Queue::assertPushed(MakeSearchable::class, 1);
+    }
+
+    public function testHandleUsesModelQueueAndConnectionWhenNeitherIsSet(): void
+    {
+        $model = SearchableModel::create(['title' => 'Title', 'body' => 'Body']);
+
+        config(['scout.queue' => ['connection' => 'sync', 'queue' => 'scout']]);
+
+        Queue::fake();
+
+        $job = new MakeRangeSearchable(SearchableModel::class, $model->id, $model->id);
+
+        $job->handle();
+
+        Queue::assertPushedOn('scout', MakeSearchable::class, function (MakeSearchable $job) use ($model) {
+            return $job->connection === 'sync' && $job->models->modelKeys() === [$model->id];
+        });
+
+        Queue::assertPushed(MakeSearchable::class, 1);
     }
 
     public function testHandleDoesNotDispatchWhenNoModelsInRange(): void
@@ -116,43 +157,6 @@ class MakeRangeSearchableTest extends ScoutTestCase
         Bus::assertDispatched(MakeSearchable::class, function (MakeSearchable $job) {
             return $job->models->count() === 3
                 && $job->models->pluck('id')->all() === [1, 3, 5];
-        });
-    }
-
-    public function testHandleDispatchesOnModelsConnectionAndQueue(): void
-    {
-        $this->app->make('config')->set('scout.queue.connection', 'redis');
-        $this->app->make('config')->set('scout.queue.queue', 'scout');
-
-        SearchableModel::create(['title' => 'Test', 'body' => 'Body']);
-
-        Bus::fake([MakeSearchable::class]);
-
-        (new MakeRangeSearchable(SearchableModel::class, 1, 1))->handle();
-
-        Bus::assertDispatched(MakeSearchable::class, function (MakeSearchable $job) {
-            return $job->connection === 'redis' && $job->queue === 'scout';
-        });
-    }
-
-    public function testHandlePropagatesOwnQueueAndConnectionToDispatchedJob(): void
-    {
-        // Model defaults are set, but the parent job's own queue/connection
-        // should win (so --queue=imports on scout:queue-import flows all the
-        // way through to the actual indexing job).
-        $this->app->make('config')->set('scout.queue.connection', 'redis');
-        $this->app->make('config')->set('scout.queue.queue', 'default-scout');
-
-        SearchableModel::create(['title' => 'Test', 'body' => 'Body']);
-
-        Bus::fake([MakeSearchable::class]);
-
-        $job = new MakeRangeSearchable(SearchableModel::class, 1, 1);
-        $job->onQueue('imports')->onConnection('sqs');
-        $job->handle();
-
-        Bus::assertDispatched(MakeSearchable::class, function (MakeSearchable $dispatched) {
-            return $dispatched->queue === 'imports' && $dispatched->connection === 'sqs';
         });
     }
 
