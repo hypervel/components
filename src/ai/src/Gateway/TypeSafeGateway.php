@@ -91,7 +91,8 @@ class TypeSafeGateway implements ClassificationGateway
             throw new InvalidArgumentException('TypeSafe adds images to a structured state under their attachment names, or [images] when unnamed; [' . implode(', ', array_keys($duplicates)) . '] already in the state.');
         }
 
-        return [...$state, ...$images];
+        // A union keeps integer keys, such as record IDs, which spreading would renumber; the check above rules out overlaps.
+        return $state + $images;
     }
 
     /**

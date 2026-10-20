@@ -373,6 +373,11 @@ class ClassificationTest extends TestCase
                 ['front' => Image::fromBase64(base64_encode('a'), 'image/png'), Image::fromBase64(base64_encode('b'), 'image/png')],
                 fn (string $a, string $b): array => ['subject' => 'Broken lamp', 'front' => $a, 'images' => [$b]],
             ],
+            'integer keys in a structured state' => [
+                [42 => 'Broken lamp', 'subject' => 'Inspection'],
+                [Image::fromBase64(base64_encode('a'), 'image/png')],
+                fn (string $a): array => [42 => 'Broken lamp', 'subject' => 'Inspection', 'images' => [$a]],
+            ],
             'named and unnamed images in a list state' => [
                 ['first', 'second'],
                 ['front' => Image::fromBase64(base64_encode('a'), 'image/png'), 3 => Image::fromBase64(base64_encode('b'), 'image/png')],
