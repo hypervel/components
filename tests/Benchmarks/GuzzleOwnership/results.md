@@ -77,7 +77,7 @@ php -d opcache.enable_cli=1 -d opcache.jit=disable \
   tests/Benchmarks/GuzzleOwnership/benchmark.php \
   --root=/path/to/checkout --endpoint=http://127.0.0.1:PORT \
   --scenario=async --operations=128 --concurrency=8 --samples=3 \
-  --storage=/tmp/checkout-specific-storage --idle-confirmed
+  --storage=/tmp/checkout-specific-storage
 ```
 
 Run the same current harness against both worktrees. Alternate before/after, after/before, before/after. No profiler was enabled and no production code was changed during measurement. Broader workloads, startup comparisons and profiling are tracked separately in `docs/todo.md`.

@@ -46,11 +46,10 @@ class ConversationBenchmark extends TestCase
     private array $statements = [];
 
     /**
-     * Require explicit measurements against a disposable database.
+     * Require a disposable database.
      */
     protected function setUp(): void
     {
-        $this->assertTrue(getenv('BENCH_SMOKE') === '1' || getenv('BENCH_IDLE_CONFIRMED') === '1', 'Use BENCH_SMOKE=1 or BENCH_IDLE_CONFIRMED=1.');
         $this->assertNotFalse(filter_var(getenv('BENCH_DB_PORT'), FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 65535]]), 'Set BENCH_DB_PORT to a disposable loopback database.');
         $this->assertContains(getenv('BENCH_DB_DRIVER'), ['pgsql', 'mysql']);
         parent::setUp();

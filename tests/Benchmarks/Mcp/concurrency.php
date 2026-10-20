@@ -15,18 +15,15 @@ use function Hypervel\Coroutine\run;
 
 require dirname(__DIR__, 3) . '/vendor/autoload.php';
 
-$options = getopt('', ['samples:', 'rounds:', 'delay-ms:', 'smoke', 'idle-confirmed', 'help']);
+$options = getopt('', ['samples:', 'rounds:', 'delay-ms:', 'smoke', 'help']);
 
 if (isset($options['help'])) {
-    echo "Usage: php tests/Benchmarks/Mcp/concurrency.php --idle-confirmed [--samples=5 --rounds=25 --delay-ms=25]\n"
+    echo "Usage: php tests/Benchmarks/Mcp/concurrency.php [--samples=5 --rounds=25 --delay-ms=25]\n"
         . "Use --smoke for a short correctness run without performance conclusions. Output is JSON.\n";
     exit(0);
 }
 
 $smoke = isset($options['smoke']);
-if (! $smoke && ! isset($options['idle-confirmed'])) {
-    throw new InvalidArgumentException('Confirm an idle measurement window before passing --idle-confirmed.');
-}
 
 $settings = ['samples' => $smoke ? 1 : 5, 'rounds' => $smoke ? 2 : 25, 'delay-ms' => 25];
 foreach ($settings as $name => $default) {

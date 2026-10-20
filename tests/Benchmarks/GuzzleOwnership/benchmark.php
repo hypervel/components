@@ -27,10 +27,10 @@ use Symfony\Component\Process\Process;
 use function Hypervel\Coroutine\parallel;
 use function Hypervel\Coroutine\run;
 
-$options = getopt('', ['root:', 'endpoint:', 'scenario:', 'operations:', 'concurrency:', 'samples:', 'storage:', 'outside', 'smoke', 'idle-confirmed', 'help']);
+$options = getopt('', ['root:', 'endpoint:', 'scenario:', 'operations:', 'concurrency:', 'samples:', 'storage:', 'outside', 'smoke', 'help']);
 if (isset($options['help'])) {
     echo "Run measurements on an idle machine. Output is JSON.\n"
-        . "--root=/checkout --endpoint=http://127.0.0.1:PORT --scenario=promise --smoke|--idle-confirmed\n"
+        . "--root=/checkout --endpoint=http://127.0.0.1:PORT --scenario=promise [--smoke]\n"
         . "--operations=1000 --concurrency=8 --samples=5 --storage=/tmp/guzzle-benchmark-current\n"
         . "Scenarios: idle, promise, sync, direct-sync, async, parallel, direct-parallel, middleware, global-middleware, credentials, pusher, cancel, cancel-retention.\n"
         . "Add --outside for workloads that do not create child coroutines.\n";
@@ -44,9 +44,6 @@ $smoke = isset($options['smoke']);
 $endpoint = $options['endpoint'] ?? '';
 if (! in_array($scenario, ['idle', 'promise', 'sync', 'direct-sync', 'async', 'parallel', 'direct-parallel', 'middleware', 'global-middleware', 'credentials', 'pusher', 'cancel', 'cancel-retention'], true)) {
     throw new InvalidArgumentException('Unknown scenario. See --help.');
-}
-if (! $smoke && ! isset($options['idle-confirmed'])) {
-    throw new InvalidArgumentException('Confirm the machine is idle with --idle-confirmed, or use --smoke.');
 }
 if ($outside && in_array($scenario, ['parallel', 'direct-parallel', 'credentials'], true)) {
     throw new InvalidArgumentException('This workload creates child coroutines and cannot run outside a coroutine.');

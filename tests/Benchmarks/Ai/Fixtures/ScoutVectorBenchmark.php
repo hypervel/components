@@ -65,11 +65,10 @@ class ScoutVectorBenchmark extends TestCase
     }
 
     /**
-     * Require an explicit run against a disposable local PostgreSQL database.
+     * Require a disposable local PostgreSQL database.
      */
     protected function setUp(): void
     {
-        $this->assertTrue(getenv('BENCH_SMOKE') === '1' || getenv('BENCH_IDLE_CONFIRMED') === '1');
         $this->assertNotFalse(filter_var(getenv('BENCH_DB_PORT'), FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 65535]]));
         $this->assertContains(getenv('BENCH_SCOUT_VARIANT'), ['current', 'batch-transaction']);
         if (($concurrency = getenv('BENCH_SCOUT_CONCURRENCY')) !== false) {

@@ -24,7 +24,7 @@ if (isset($options['help'])) {
     echo "Usage: php tests/Benchmarks/Ai/http.php --endpoint=https://127.0.0.1:PORT --ca=/path/to/certificate.pem [options]\n"
         . "  --requests=256 --concurrency=8 --samples=5 --chunks=32 --bytes=128\n"
         . "  --pace-us=1000 --burst-gap-us=5000 --consumer-us=0 --accounts=0 --http-only --buffered\n"
-        . "Run only in an owner-confirmed idle window. Output is JSON.\n";
+        . "Run measurements on an idle machine. Output is JSON.\n";
     exit(0);
 }
 

@@ -4,7 +4,7 @@ This developer harness measures Sentry's HTTP overhead, telemetry delivery, Guzz
 
 See [recorded measurements](results.md) for the Sentry reconciliation and optimization results.
 
-Confirm the machine is idle before running measurements. Smoke mode uses small workloads to check correctness; its timings are not performance evidence. The harness requires Linux `/proc`, PHP with Swoole, SQLite, cURL, PCNTL, POSIX and OPcache, Composer, Git and Bash. CPU pinning additionally requires `taskset`.
+Run measurements on an idle machine. Smoke mode uses small workloads to check correctness; its timings are not performance evidence. The harness requires Linux `/proc`, PHP with Swoole, SQLite, cURL, PCNTL, POSIX and OPcache, Composer, Git and Bash. CPU pinning additionally requires `taskset`.
 
 ## Prepare two applications
 
@@ -51,7 +51,7 @@ The explicit PHPUnit fixtures intentionally do not end in `Test.php`, so ordinar
 
 ```sh
 php tests/Benchmarks/Sentry/benchmark.php matrix \
-  --workspace=/tmp/sentry-benchmark --repetitions=3 --idle-confirmed
+  --workspace=/tmp/sentry-benchmark --repetitions=3
 ```
 
 The runner owns the application servers and telemetry sink, checks ports before starting, and stops its processes after completion or failure. Defaults are application port 18000, statistics port 18001 and sink port 18080. Change them with `--app-port`, `--stats-port` and `--sink-port` when needed; it never adopts an existing sink. Leave generated apps and reports in scratch storage for inspection, then remove them and any temporary worktrees when finished.
@@ -90,12 +90,12 @@ Reports include throughput, p50/p95/p99 latency, server-process-tree CPU, worker
 ```sh
 bash tests/Benchmarks/Sentry/components.sh \
   /absolute/path/to/baseline /absolute/path/to/current \
-  /tmp/sentry-benchmark/components idle-confirmed
+  /tmp/sentry-benchmark/components measure
 ```
 
 An optional fifth argument pins the process to a CPU list. The cases cover sampled and unsampled Guzzle requests, breadcrumb-only requests, header propagation with recording off, explicit opt-out, inactive Sentry, origin collection, outstanding async-request memory, and child creation with an inherited scope. Origin-only cases are explicitly skipped on revisions without that option. MockHandler isolates instrumentation from network I/O; its memory rows measure pending promise callbacks, not native transport buffers. Finished-span assertions keep workloads below the SDK's recorder limit and ensure the benchmark is still recording real work.
 
-`request-fetcher.php` separately compares request fetching and processing transaction request data for a GET and a small JSON POST, with legacy and `data_collection` settings. Its `processor_us` measurement includes creating a fresh transaction event for each invocation. These are component costs, not whole-request latency. It can also be run directly with `--root=/checkout --smoke` or `--idle-confirmed`.
+`request-fetcher.php` separately compares request fetching and processing transaction request data for a GET and a small JSON POST, with legacy and `data_collection` settings. Its `processor_us` measurement includes creating a fresh transaction event for each invocation. These are component costs, not whole-request latency. It can also be run directly with `--root=/checkout`, adding `--smoke` for a correctness check.
 
 ## Compare results
 

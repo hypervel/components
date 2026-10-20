@@ -26,14 +26,10 @@ class EmbeddingCacheBenchmark extends TestCase
     use InteractsWithRedis;
 
     /**
-     * Require an explicit benchmark run against a disposable Redis instance.
+     * Require a disposable Redis instance.
      */
     protected function setUp(): void
     {
-        if (getenv('BENCH_SMOKE') !== '1' && getenv('BENCH_IDLE_CONFIRMED') !== '1') {
-            $this->fail('Use BENCH_SMOKE=1 or BENCH_IDLE_CONFIRMED=1.');
-        }
-
         if (! getenv('BENCH_REDIS_PORT')) {
             $this->fail('Set BENCH_REDIS_PORT to a disposable loopback Redis instance; its test database is flushed.');
         }

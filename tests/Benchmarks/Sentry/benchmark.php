@@ -809,7 +809,7 @@ foreach (array_slice($argv, 1) as $argument) {
 
     [$name, $value] = explode('=', substr($argument, 2), 2) + [1 => true];
 
-    if (! in_array($name, ['help', 'smoke', 'out', 'workspace', 'repetitions', 'idle-confirmed', 'app-port', 'stats-port', 'sink-port', 'server-cpus', 'sink-cpus', 'loadgen-cpus'], true)) {
+    if (! in_array($name, ['help', 'smoke', 'out', 'workspace', 'repetitions', 'app-port', 'stats-port', 'sink-port', 'server-cpus', 'sink-cpus', 'loadgen-cpus'], true)) {
         fwrite(STDERR, "Unknown option --{$name}\n");
         exit(1);
     }
@@ -820,7 +820,7 @@ foreach (array_slice($argv, 1) as $argument) {
 if (isset($flags['help']) || $arguments === []) {
     echo "Usage: php benchmark.php matrix|launch SIDE CONFIG|saturation SIDE --workspace=/tmp/sentry-benchmark [options]\n"
         . "SIDE is baseline or current; CONFIG is C0..C5. See README.md for setup.\n"
-        . "--smoke | --idle-confirmed   Correctness checks or measurements on an idle machine\n"
+        . "--smoke   Small correctness checks; without it, run measurements on an idle machine\n"
         . "--repetitions=3 --out=/tmp/results\n"
         . "--app-port=18000 --stats-port=18001 --sink-port=18080\n"
         . "Optional Linux affinity: --server-cpus=1,2 --sink-cpus=3 --loadgen-cpus=4,5\n";
@@ -865,11 +865,6 @@ if ($clockTicks < 1) {
     throw new RuntimeException('Could not determine Linux clock ticks.');
 }
 define('CLOCK_TICKS', $clockTicks);
-
-if (! isset($flags['smoke']) && ! isset($flags['idle-confirmed'])) {
-    fwrite(STDERR, "Full-size runs need --idle-confirmed; use --smoke otherwise.\n");
-    exit(1);
-}
 
 $smoke = isset($flags['smoke']);
 $repetitions = filter_var($flags['repetitions'] ?? ($smoke ? 1 : 3), FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);

@@ -4,7 +4,7 @@ This developer harness measures Guzzle promise, HTTP and cancellation costs and 
 
 See [the fork integration results](results.md) for current operation costs and resource comparisons. The [earlier AOP measurements](aop-results.md) describe the revisions named in that report.
 
-Run measurements on an idle machine, without concurrent tests, builds, or other benchmarks. Use `--smoke` for a small correctness check; its timings are not performance evidence. Measured runs require `--idle-confirmed`.
+Run measurements on an idle machine, without concurrent tests, builds, or other benchmarks. Use `--smoke` for a small correctness check; its timings are not performance evidence.
 
 Use independent baseline and modified worktrees with matching checkout-path lengths, since Composer's generated paths affect allocator usage. Keep unchanged dependencies at identical versions; compare upstream Guzzle 8.2.0 / promises 3.0.2 with their Hypervel forks. The runner's `--root` selects that checkout and its autoloader, so the same harness can test both without changing baseline source. Record the Git revisions and any uncommitted changes.
 
@@ -23,7 +23,6 @@ php -d opcache.enable_cli=1 -d opcache.jit=disable \
   tests/Benchmarks/GuzzleOwnership/benchmark.php \
   --root=/absolute/path/to/checkout --endpoint=http://127.0.0.1:PORT \
   --scenario=async --operations=1000 --concurrency=8 --samples=5 \
-  --idle-confirmed \
   --storage=/tmp/guzzle-benchmark-current > /tmp/guzzle-current-async.json
 ```
 

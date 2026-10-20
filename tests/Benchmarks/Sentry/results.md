@@ -75,7 +75,7 @@ The opt-out case supplies both revisions' options: `no_sentry_aspect => true` fo
 Run from each checkout, using the current fixture on both sides:
 
 ```sh
-BENCH_IDLE_CONFIRMED=1 BENCH_OUT=/tmp/unique-result.jsonl \
+BENCH_OUT=/tmp/unique-result.jsonl \
   php -d opcache.enable_cli=1 -d opcache.jit=disable vendor/bin/phpunit \
   --no-progress --filter '/::testGuzzle(Sampled|RecordingOff|OptedOut)$/' \
   /path/to/current/tests/Benchmarks/Sentry/Fixtures/SentryComponentBenchmark.php

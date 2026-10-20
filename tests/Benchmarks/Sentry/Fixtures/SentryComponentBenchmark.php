@@ -57,18 +57,6 @@ class SentryComponentBenchmark extends TestCase
     ];
 
     /**
-     * Require an explicit smoke or measurement mode before bootstrapping.
-     */
-    protected function setUp(): void
-    {
-        if (getenv('BENCH_SMOKE') !== '1' && getenv('BENCH_IDLE_CONFIRMED') !== '1') {
-            $this->fail('Full-size runs need BENCH_IDLE_CONFIRMED=1; use BENCH_SMOKE=1 otherwise.');
-        }
-
-        parent::setUp();
-    }
-
-    /**
      * Configure each case at the test's only boot.
      *
      * Reloading within a test would register the coroutine propagation hook a second time. The harness counts

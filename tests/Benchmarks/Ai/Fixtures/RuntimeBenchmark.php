@@ -64,18 +64,6 @@ class RuntimeBenchmark extends TestCase
     use OpenAiHelpers;
 
     /**
-     * Require an explicit smoke or idle measurement run.
-     */
-    protected function setUp(): void
-    {
-        if (getenv('BENCH_SMOKE') !== '1' && getenv('BENCH_IDLE_CONFIRMED') !== '1') {
-            $this->fail('Use BENCH_SMOKE=1 or BENCH_IDLE_CONFIRMED=1.');
-        }
-
-        parent::setUp();
-    }
-
-    /**
      * Configure dummy credentials without enabling external requests.
      */
     protected function defineEnvironment(Application $app): void

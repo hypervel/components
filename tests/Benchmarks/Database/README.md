@@ -2,7 +2,7 @@
 
 This developer-only harness measures ordinary coroutine-owned database lifecycles: initial connection resolution, queries, transactions, and deferred pool cleanup. File-backed SQLite isolates framework CPU and allocation costs without network latency; it does not predict a database server's throughput. It uses the real pool and resolver with Testbench pooling enabled.
 
-Run only during an owner-confirmed idle window. Run the same harness in independently installed baseline and modified worktrees, using the same dependency versions, PHP configuration and machine. Record each revision and any uncommitted changes with the reports. Alternate the order of baseline and modified runs to reduce ordering bias.
+Run measurements on an idle machine. Run the same harness in independently installed baseline and modified worktrees, using the same dependency versions, PHP configuration and machine. Record each revision and any uncommitted changes with the reports. Alternate the order of baseline and modified runs to reduce ordering bias.
 
 ```shell
 php tests/Benchmarks/Database/benchmark.php --concurrency=1 --queries=0 > /tmp/db-resolution.json
