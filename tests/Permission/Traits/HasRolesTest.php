@@ -1025,6 +1025,18 @@ class HasRolesTest extends TestCase
         ];
     }
 
+    public function testRoleModelsDoNotMatchASameNamedRoleFromAnotherGuard(): void
+    {
+        $adminRole = app(Role::class)->create(['name' => 'testRole', 'guard_name' => 'admin']);
+        $this->testUser->assignRole($this->testUserRole);
+
+        $this->assertFalse($this->testUser->hasAllRoles([$adminRole]));
+        $this->assertFalse($this->testUser->hasExactRoles($adminRole));
+        $this->assertFalse($this->testUser->hasExactRoles([$adminRole]));
+        $this->assertTrue($this->testUser->hasAllRoles([$this->testUserRole, 'testRole']));
+        $this->assertTrue($this->testUser->hasExactRoles([$this->testUserRole]));
+    }
+
     public function testItCanCheckAgainstAnyMultipleRolesUsingMultipleArguments(): void
     {
         $this->testUser->assignRole('testRole');

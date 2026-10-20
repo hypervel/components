@@ -802,7 +802,15 @@ trait HasRoles
 
         $roles = collect()->make($roles);
         $this->ensureRoleCollectionMatchesPartition($roles);
-        $roles = $roles->map(fn ($role) => $role instanceof Role ? $role->name : enum_value($role));
+
+        // Role models match by key and guard, as in hasRole(), so a same-named role from another guard does not.
+        [$models, $roles] = $roles->partition(fn ($role) => $role instanceof Role);
+
+        if ($models->contains(fn (Role $role): bool => ! $this->hasRole($role, $guard))) {
+            return false;
+        }
+
+        $roles = $roles->map(fn ($role) => enum_value($role));
 
         $roleNames = $guard !== null && $guard !== ''
             ? $roleCollection->where('guard_name', $guard)->pluck('name')
@@ -829,19 +837,11 @@ trait HasRoles
         }
 
         if ($roles instanceof Role) {
-            $this->ensureRoleMatchesPartition(
-                $roles,
-                $this->permissionRegistrar()->resolvePartition(),
-            );
-
-            $roles = [$roles->name];
+            $roles = [$roles];
         }
 
         $roles = collect()->make($roles);
         $this->ensureRoleCollectionMatchesPartition($roles);
-        $roles = $roles->map(
-            fn ($role) => $role instanceof Role ? $role->name : enum_value($role)
-        );
 
         return $roleCollection->count() === $roles->count() && $this->hasAllRoles($roles, $guard);
     }
