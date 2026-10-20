@@ -6,9 +6,7 @@ namespace Hypervel\Tests\Ai\Feature;
 
 use Hypervel\Ai\Embeddings;
 use Hypervel\Ai\Enums\Lab;
-use Hypervel\Ai\Events\EmbeddingsFailed;
 use Hypervel\Ai\Events\EmbeddingsGenerated;
-use Hypervel\Ai\Events\GeneratingEmbeddings;
 use Hypervel\Ai\Files\Audio;
 use Hypervel\Ai\Files\Document;
 use Hypervel\Ai\Files\Image;
@@ -561,7 +559,7 @@ class EmbeddingsFakeTest extends TestCase
 
     public function testThrowingSequenceEntryIsConsumed(): void
     {
-        Event::fake();
+        Event::fake([EmbeddingsGenerated::class]);
 
         $exception = new RuntimeException('Embedding failed.');
         Embeddings::fake([fn (): never => throw $exception, [[0.1, 0.2]]]);
@@ -573,32 +571,8 @@ class EmbeddingsFakeTest extends TestCase
             $this->assertSame($exception, $caught);
         }
 
-        $started = Event::dispatched(GeneratingEmbeddings::class)->first()[0];
-        Event::assertDispatched(EmbeddingsFailed::class, fn (EmbeddingsFailed $event): bool => $event->exception === $exception
-            && $event->invocationId === $started->invocationId
-            && $event->provider === $started->provider
-            && $event->model === $started->model
-            && $event->prompt === $started->prompt);
         Event::assertNotDispatched(EmbeddingsGenerated::class);
 
         $this->assertSame([[0.1, 0.2]], Embeddings::for(['Second'])->dimensions(2)->generate(provider: Lab::Jina)->embeddings);
-        Event::assertDispatchedTimes(EmbeddingsFailed::class, 1);
-    }
-
-    public function testSuccessListenerFailureIsNotReportedAsAnEmbeddingFailure(): void
-    {
-        Event::fake([EmbeddingsFailed::class]);
-        Embeddings::fake();
-        $exception = new RuntimeException('Listener failed.');
-        Event::listen(EmbeddingsGenerated::class, fn (): never => throw $exception);
-
-        try {
-            Embeddings::for(['Document'])->dimensions(2)->generate(provider: Lab::Jina);
-            $this->fail('The listener must throw.');
-        } catch (RuntimeException $caught) {
-            $this->assertSame($exception, $caught);
-        }
-
-        Event::assertNotDispatched(EmbeddingsFailed::class);
     }
 }

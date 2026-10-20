@@ -8,15 +8,19 @@ use DateInterval;
 use Hypervel\Ai\Ai;
 use Hypervel\Ai\Contracts\Files\HasProviderId;
 use Hypervel\Ai\Events\AddingFileToStore;
+use Hypervel\Ai\Events\AddingFileToStoreFailed;
 use Hypervel\Ai\Events\CreatingStore;
+use Hypervel\Ai\Events\CreatingStoreFailed;
 use Hypervel\Ai\Events\FileAddedToStore;
 use Hypervel\Ai\Events\FileRemovedFromStore;
 use Hypervel\Ai\Events\RemovingFileFromStore;
+use Hypervel\Ai\Events\RemovingFileFromStoreFailed;
 use Hypervel\Ai\Events\StoreCreated;
 use Hypervel\Ai\Events\StoreDeleted;
 use Hypervel\Ai\Store;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
+use Throwable;
 
 trait ManagesStores
 {
@@ -57,7 +61,10 @@ trait ManagesStores
         }
 
         return tap(
-            $this->storeGateway()->createStore($this, $name, $description, $fileIds, $expiresWhenIdleFor),
+            $this->dispatchingFailure(
+                fn () => $this->storeGateway()->createStore($this, $name, $description, $fileIds, $expiresWhenIdleFor),
+                fn (Throwable $exception) => new CreatingStoreFailed($invocationId, $this, $name, $description, $fileIds, $expiresWhenIdleFor, $exception),
+            ),
             function (Store $store) use ($invocationId, $name, $description, $fileIds, $expiresWhenIdleFor): void {
                 if ($this->events->hasListeners(StoreCreated::class)) {
                     $this->events->dispatch(new StoreCreated(
@@ -91,7 +98,10 @@ trait ManagesStores
         }
 
         return tap(
-            $this->storeGateway()->addFile($this, $storeId, $file->id(), $metadata),
+            $this->dispatchingFailure(
+                fn () => $this->storeGateway()->addFile($this, $storeId, $file->id(), $metadata),
+                fn (Throwable $exception) => new AddingFileToStoreFailed($invocationId, $this, $storeId, $file->id(), $exception),
+            ),
             function (string $documentId) use ($invocationId, $storeId, $file): void {
                 if ($this->events->hasListeners(FileAddedToStore::class)) {
                     $this->events->dispatch(new FileAddedToStore(
@@ -129,7 +139,10 @@ trait ManagesStores
         }
 
         return tap(
-            $this->storeGateway()->removeFile($this, $storeId, $documentId),
+            $this->dispatchingFailure(
+                fn () => $this->storeGateway()->removeFile($this, $storeId, $documentId),
+                fn (Throwable $exception) => new RemovingFileFromStoreFailed($invocationId, $this, $storeId, $documentId, $exception),
+            ),
             function () use ($invocationId, $storeId, $documentId): void {
                 if ($this->events->hasListeners(FileRemovedFromStore::class)) {
                     $this->events->dispatch(new FileRemovedFromStore(

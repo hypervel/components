@@ -58,24 +58,17 @@ trait GeneratesEmbeddings
             ));
         }
 
-        try {
-            $response = $this->embeddingGateway()->generateEmbeddings(
+        return tap($this->dispatchingFailure(
+            fn () => $this->embeddingGateway()->generateEmbeddings(
                 $this,
                 $model,
                 $inputs,
                 $dimensions,
                 $timeout,
                 $providerOptions,
-            );
-        } catch (Throwable $exception) {
-            if ($this->events->hasListeners(EmbeddingsFailed::class)) {
-                $this->events->dispatch(new EmbeddingsFailed($invocationId, $this, $model, $prompt, $exception));
-            }
-
-            throw $exception;
-        }
-
-        return tap($response, function (EmbeddingsResponse $response) use ($invocationId, $model, $prompt): void {
+            ),
+            fn (Throwable $exception) => new EmbeddingsFailed($invocationId, $this, $model, $prompt, $exception),
+        ), function (EmbeddingsResponse $response) use ($invocationId, $model, $prompt): void {
             if ($this->events->hasListeners(EmbeddingsGenerated::class)) {
                 $this->events->dispatch(new EmbeddingsGenerated(
                     $invocationId,

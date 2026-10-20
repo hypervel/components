@@ -7,10 +7,12 @@ namespace Hypervel\Ai\Providers\Concerns;
 use Hypervel\Ai\Ai;
 use Hypervel\Ai\Contracts\Files\TranscribableAudio;
 use Hypervel\Ai\Events\GeneratingTranscription;
+use Hypervel\Ai\Events\TranscriptionFailed;
 use Hypervel\Ai\Events\TranscriptionGenerated;
 use Hypervel\Ai\Prompts\TranscriptionPrompt;
 use Hypervel\Ai\Responses\TranscriptionResponse;
 use Hypervel\Support\Str;
+use Throwable;
 
 trait GeneratesTranscriptions
 {
@@ -46,14 +48,17 @@ trait GeneratesTranscriptions
             ));
         }
 
-        return tap($this->transcriptionGateway()->generateTranscription(
-            $this,
-            $model,
-            $prompt->audio,
-            $prompt->language,
-            $prompt->diarize,
-            $prompt->timeout ?? 30,
-            $prompt->providerOptions
+        return tap($this->dispatchingFailure(
+            fn () => $this->transcriptionGateway()->generateTranscription(
+                $this,
+                $model,
+                $prompt->audio,
+                $prompt->language,
+                $prompt->diarize,
+                $prompt->timeout ?? 30,
+                $prompt->providerOptions
+            ),
+            fn (Throwable $exception) => new TranscriptionFailed($invocationId, $this, $model, $prompt, $exception),
         ), function (TranscriptionResponse $response) use ($invocationId, $model, $prompt): void {
             if ($this->events->hasListeners(TranscriptionGenerated::class)) {
                 $this->events->dispatch(new TranscriptionGenerated(
