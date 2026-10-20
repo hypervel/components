@@ -18,6 +18,7 @@ use Hypervel\Tests\Ai\Fixtures\Agents\RememberingAssistantAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\RememberingFailingToolAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\RememberingToolUsingAgent;
 use Hypervel\Tests\Ai\TestCase;
+use PHPUnit\Framework\Attributes\TestWith;
 
 #[WithConfig('ai.conversations.generate_title', false)]
 #[WithConfig('ai.providers.anthropic', ['driver' => 'anthropic', 'key' => 'test-key'])]
@@ -279,5 +280,52 @@ class FailedTurnRecordingTest extends TestCase
         $this->assertThrows(fn () => (new RememberingToolUsingAgent)->forUser((object) ['id' => 1])->prompt($prompt, provider: 'anthropic'), RequestException::class);
 
         $this->assertStringContainsString('arrived at it', DB::table('agent_conversations')->value('title'));
+    }
+
+    #[TestWith(['openai'])]
+    #[TestWith(['xai'])]
+    public function testAReplayedInterruptedCallKeepsTheCallIdTheResponsesApiPairsItsOutputBy(string $provider): void
+    {
+        config(["ai.providers.{$provider}.key" => 'test-key']);
+
+        Http::fake(['*' => Http::sequence()
+            ->push([
+                'id' => 'resp_1',
+                'object' => 'response',
+                'status' => 'completed',
+                'output' => [[
+                    'type' => 'function_call',
+                    'id' => 'fc_1',
+                    'call_id' => 'call_1',
+                    'name' => 'FixedNumberGenerator',
+                    'arguments' => '{}',
+                    'status' => 'completed',
+                ]],
+                'usage' => ['input_tokens' => 10, 'output_tokens' => 5],
+            ])
+            ->push([
+                'id' => 'resp_2',
+                'object' => 'response',
+                'status' => 'completed',
+                'output' => [[
+                    'type' => 'message',
+                    'id' => 'msg_2',
+                    'role' => 'assistant',
+                    'content' => [['type' => 'output_text', 'text' => 'Done.', 'annotations' => []]],
+                ]],
+                'usage' => ['input_tokens' => 10, 'output_tokens' => 5],
+            ]),
+        ]);
+
+        $agent = (new RememberingFailingToolAgent)->forUser((object) ['id' => 1]);
+
+        $this->assertThrows(fn () => $agent->prompt('Go', provider: $provider), Exception::class, 'Forced to throw exception.');
+
+        (new RememberingFailingToolAgent)->continueLastConversation((object) ['id' => 1])->prompt('Again', provider: $provider);
+
+        $input = collect(json_decode((string) Http::recorded()[1][0]->body(), true)['input']);
+
+        $this->assertSame('call_1', $input->firstWhere('type', 'function_call')['call_id']);
+        $this->assertSame('call_1', $input->firstWhere('type', 'function_call_output')['call_id']);
     }
 }

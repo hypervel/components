@@ -10,6 +10,7 @@ use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Http\Client\Request;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Ai\TestCase;
+use InvalidArgumentException;
 
 use function Hypervel\Tests\Ai\Fixtures\multipartField;
 use function Hypervel\Tests\Ai\Fixtures\multipartNestedField;
@@ -39,6 +40,7 @@ class FileGatewayTest extends TestCase
         $response = Files::get('abc123', provider: 'gemini');
 
         $this->assertSame('files/abc123', $response->id);
+        $this->assertNotNull($response->raw);
         $this->assertSame('text/plain', $response->mime);
 
         Http::assertSent(fn (Request $request): bool => $request->method() === 'GET'
@@ -76,6 +78,7 @@ class FileGatewayTest extends TestCase
         );
 
         $this->assertSame('files/uploaded123', $response->id);
+        $this->assertNotNull($response->raw);
 
         Http::assertSent(fn (Request $request): bool => $request->method() === 'POST'
             && str_contains((string) $request->url(), '/upload/v1beta/files')
@@ -167,5 +170,31 @@ class FileGatewayTest extends TestCase
         Files::get('abc123', provider: 'gemini');
 
         Http::assertSent(fn (Request $request): bool => str_contains((string) $request->url(), 'custom.api.example.com/v1beta/files/abc123'));
+    }
+
+    public function testDeleteFileEncodesTheIdAsASinglePathSegment(): void
+    {
+        Http::fake([
+            'generativelanguage.googleapis.com/*' => Http::response([], 200),
+        ]);
+
+        Files::delete('files/../fileSearchStores/store123?force=true', provider: 'gemini');
+
+        Http::assertSent(fn (Request $request): bool => $request->method() === 'DELETE'
+            && $request->url() === 'https://generativelanguage.googleapis.com/v1beta/files/..%2FfileSearchStores%2Fstore123%3Fforce%3Dtrue');
+    }
+
+    public function testDeleteFileRejectsAPrefixedDotSegmentId(): void
+    {
+        Http::fake();
+
+        try {
+            Files::delete('files/..', provider: 'gemini');
+            $this->fail('The ID must be rejected.');
+        } catch (InvalidArgumentException $exception) {
+            $this->assertSame('[..] is not a valid provider resource ID.', $exception->getMessage());
+        }
+
+        Http::assertNothingSent();
     }
 }

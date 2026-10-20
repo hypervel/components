@@ -163,6 +163,17 @@ class AgentFakeTest extends TestCase
         $this->assertIsString($response['symbol']);
     }
 
+    public function testAgentsWithStructuredOutputFakedWithAStringStillReturnAStructuredResponse(): void
+    {
+        StructuredAgent::fake(['Plain text']);
+
+        $response = (new StructuredAgent)->prompt('Gold prompt');
+
+        $this->assertInstanceOf(StructuredAgentResponse::class, $response);
+        $this->assertSame([], $response->structured);
+        $this->assertSame('Plain text', $response->text);
+    }
+
     public function testFakeClosuresCanThrowExceptions(): void
     {
         AssistantAgent::fake(function (): void {
@@ -173,7 +184,7 @@ class AgentFakeTest extends TestCase
         (new AssistantAgent)->prompt('Test prompt');
     }
 
-    public function testStructuredAgentsWithEmptySchemasFallBackToATextResponse(): void
+    public function testStructuredAgentsWithEmptySchemasReturnAStructuredResponseKeepingTheirText(): void
     {
         EmptySchemaStructuredAgent::fake([
             new TextResponse('Hello', new TextUsage, new Meta),
@@ -181,9 +192,11 @@ class AgentFakeTest extends TestCase
 
         $response = (new EmptySchemaStructuredAgent)->prompt('Anything');
 
-        $this->assertInstanceOf(AgentResponse::class, $response);
-        $this->assertNotInstanceOf(StructuredAgentResponse::class, $response);
+        // Upstream falls back to a plain AgentResponse here, contradicting prompt()'s structured return type.
+        $this->assertInstanceOf(StructuredAgentResponse::class, $response);
+        $this->assertSame([], $response->structured);
         $this->assertSame('Hello', $response->text);
+        $this->assertSame('[]', (string) $response);
     }
 
     public function testAgentsCanFakePausedApprovalResponsesAndAssertResumePrompts(): void

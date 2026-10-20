@@ -14,6 +14,7 @@ use Hypervel\Ai\Streaming\Events\StreamEvent;
 use Hypervel\Ai\Streaming\Events\ToolResult as ToolResultEvent;
 use Hypervel\JsonSchema\JsonSchemaTypeFactory;
 use Hypervel\Tests\Ai\Fixtures\BedrockHelpers;
+use Hypervel\Tests\Ai\Fixtures\Tools\ApprovableNumberGenerator;
 use Hypervel\Tests\Ai\Fixtures\Tools\FixedNumberGenerator;
 use Hypervel\Tests\Ai\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -241,6 +242,32 @@ class ToolCallLoopTest extends TestCase
                 'additionalModelRequestFields' => ['thinking' => ['type' => 'enabled', 'budget_tokens' => 1024]],
             ]],
         ];
+    }
+
+    public function testStructuredRunsPausedForToolApprovalKeepTheStructuredResponseShape(): void
+    {
+        $client = $this->fakeBedrockConverseSequence([[
+            'output' => ['message' => ['content' => [
+                ['toolUse' => ['toolUseId' => 't1', 'name' => 'ApprovableNumberGenerator', 'input' => []]],
+            ]]],
+            'usage' => ['inputTokens' => 7, 'outputTokens' => 3],
+            'stopReason' => 'tool_use',
+        ]]);
+
+        $response = (new TextGenerationLoop($this->gatewayWithClient($client)))->generate(
+            $this->bedrockProvider(),
+            'anthropic.claude-opus-4-7-v1:0',
+            null,
+            messages: [new UserMessage('Generate a number')],
+            tools: [new ApprovableNumberGenerator],
+            schema: ['number' => (new JsonSchemaTypeFactory)->integer()],
+            options: new TextGenerationOptions(maxSteps: 2),
+        );
+
+        $this->assertInstanceOf(StructuredTextResponse::class, $response);
+        $this->assertSame([], $response->structured);
+        $this->assertCount(1, $response->pendingApprovals);
+        $this->assertSame('t1', $response->pendingApprovals[0]->id);
     }
 
     public function testStreamingToolLoopEmitsSingleStreamEndWithAccumulatedUsage(): void

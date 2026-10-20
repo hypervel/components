@@ -80,26 +80,32 @@ class GeminiProvider extends Provider implements AudioProvider, EmbeddingProvide
      */
     protected function formatMetadataFilter(array $filters): string
     {
-        return (new Collection($filters))->map(fn (array $filter): string => match ($filter['type']) {
-            'eq' => $this->formatMetadataCondition($filter['key'], '=', $filter['value']),
-            'ne' => $this->formatMetadataCondition($filter['key'], '!=', $filter['value']),
-            'in' => '(' . (new Collection($filter['value']))->map(
-                fn (mixed $value): string => $this->formatMetadataCondition($filter['key'], '=', $value)
-            )->implode(' OR ') . ')',
-            'nin' => '(' . (new Collection($filter['value']))->map(
-                fn (mixed $value): string => $this->formatMetadataCondition($filter['key'], '!=', $value)
-            )->implode(' AND ') . ')',
-        })->implode(' AND ');
-    }
-
-    /**
-     * Format a condition with an escaped metadata value.
-     */
-    protected function formatMetadataCondition(string $key, string $operator, mixed $value): string
-    {
-        return $key . $operator . (is_numeric($value)
+        $formatValue = fn (mixed $value): string => is_numeric($value)
             ? (string) $value
-            : '"' . addcslashes((string) $value, '\"') . '"');
+            : '"' . str_replace(['\\', '"'], ['\\\\', '\"'], (string) $value) . '"';
+
+        return (new Collection($filters))->map(function (array $filter) use ($formatValue): string {
+            if (! preg_match('/^[A-Za-z_][A-Za-z0-9_.]*$/D', $filter['key'])) {
+                throw new InvalidArgumentException("Invalid metadata filter key [{$filter['key']}].");
+            }
+
+            // An empty group is invalid filter syntax: excluding nothing needs no condition,
+            // and Gemini has no portable constant-false condition for matching nothing.
+            if ($filter['type'] === 'nin' && $filter['value'] === []) {
+                return '';
+            }
+
+            if ($filter['type'] === 'in' && $filter['value'] === []) {
+                throw new InvalidArgumentException("Gemini metadata filters cannot match [{$filter['key']}] against an empty list of values.");
+            }
+
+            return '(' . match ($filter['type']) {
+                'eq' => $filter['key'] . '=' . $formatValue($filter['value']),
+                'ne' => $filter['key'] . '!=' . $formatValue($filter['value']),
+                'in' => (new Collection($filter['value']))->map(fn (mixed $value): string => $filter['key'] . '=' . $formatValue($value))->implode(' OR '),
+                'nin' => (new Collection($filter['value']))->map(fn (mixed $value): string => $filter['key'] . '!=' . $formatValue($value))->implode(' AND '),
+            } . ')';
+        })->filter()->implode(' AND ');
     }
 
     /**

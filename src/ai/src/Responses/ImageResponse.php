@@ -81,8 +81,8 @@ class ImageResponse implements Stringable, Countable, Htmlable
 
         return sprintf(
             '<img src="data:%s;base64,%s" alt="%s" />',
-            $image->mime(),
-            $image->image,
+            e($image->mime()),
+            e($image->image),
             e($alt),
         );
     }

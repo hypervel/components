@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Ai\Feature\Providers\Gemini;
 
-use Hypervel\Ai\Contracts\Gateway\Gateway;
-use Hypervel\Ai\Providers\GeminiProvider;
 use Hypervel\Ai\Providers\Tools\CodeExecution;
 use Hypervel\Ai\Providers\Tools\FileSearch;
 use Hypervel\Ai\Providers\Tools\FileSearchQuery;
@@ -18,6 +16,8 @@ use Hypervel\Tests\Ai\Fixtures\Agents\ToolUsingAgent;
 use Hypervel\Tests\Ai\Fixtures\GeminiHelpers;
 use Hypervel\Tests\Ai\Fixtures\Tools\FixedNumberGenerator;
 use Hypervel\Tests\Ai\TestCase;
+use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 use function Hypervel\Ai\agent;
 use function Hypervel\Tests\Ai\Fixtures\sentRequest;
@@ -149,6 +149,141 @@ class ToolMappingTest extends TestCase
         $this->assertArrayNotHasKey('tool_choice', $body['generation_config'] ?? []);
     }
 
+    #[DataProvider('escapedMetadataFilters')]
+    public function testFileSearchMetadataFilterEscapesQuotesAndTrailingBackslashes(string $method, string $expected): void
+    {
+        Http::fake([
+            'generativelanguage.googleapis.com/*' => $this->fakeTextResponse('ok'),
+        ]);
+
+        agent(tools: [new FileSearch(['fileSearchStores/store123'], where: function (FileSearchQuery $query) use ($method): void {
+            if (in_array($method, ['whereIn', 'whereNotIn'], true)) {
+                $query->{$method}('category', ['x" OR tenant="globex', 'x\\']);
+            } else {
+                $query->{$method}('category', 'x" OR tenant="globex')->{$method}('path', 'x\\');
+            }
+        })])->prompt('Question?', provider: 'gemini');
+
+        $this->assertSame($expected, sentRequest()->data()['tools'][0]['metadata_filter']);
+    }
+
+    /**
+     * Provide each filter method with its escaped Gemini filter expression.
+     */
+    public static function escapedMetadataFilters(): array
+    {
+        return [
+            'where' => ['where', '(category="x\" OR tenant=\"globex") AND (path="x\\\")'],
+            'whereNot' => ['whereNot', '(category!="x\" OR tenant=\"globex") AND (path!="x\\\")'],
+            'whereIn' => ['whereIn', '(category="x\" OR tenant=\"globex" OR category="x\\\")'],
+            'whereNotIn' => ['whereNotIn', '(category!="x\" OR tenant=\"globex" AND category!="x\\\")'],
+        ];
+    }
+
+    #[DataProvider('invalidMetadataFilterKeys')]
+    public function testFileSearchMetadataFilterRejectsInvalidKeysBeforeSendingARequest(string $key): void
+    {
+        Http::fake();
+
+        try {
+            agent(tools: [new FileSearch(['fileSearchStores/store123'], where: [$key => 'value'])])
+                ->prompt('Question?', provider: 'gemini');
+            $this->fail('The key must be rejected.');
+        } catch (InvalidArgumentException $exception) {
+            $this->assertSame("Invalid metadata filter key [{$key}].", $exception->getMessage());
+        }
+
+        Http::assertNothingSent();
+    }
+
+    /**
+     * Provide metadata filter keys that Gemini's filter syntax cannot name.
+     */
+    public static function invalidMetadataFilterKeys(): array
+    {
+        return [
+            ['tenant="acme" OR category'],
+            ['tenant name'],
+            ['tenant-name'],
+            ['1tenant'],
+            [''],
+            ["tenant\n"],
+            // A numeric array key reaches the provider as a string.
+            ['2026'],
+        ];
+    }
+
+    public function testFileSearchMetadataFilterGroupsOrdinaryConditionsAndPreservesNumericValues(): void
+    {
+        Http::fake([
+            'generativelanguage.googleapis.com/*' => $this->fakeTextResponse('ok'),
+        ]);
+
+        agent(tools: [new FileSearch(['fileSearchStores/store123'], where: fn (FileSearchQuery $query) => $query
+            ->where('tenant', 'acme')
+            ->whereIn('category', ['guide', 'reference'])
+            ->whereNot('_status', 'draft')
+            ->where('version.number', 2.5)
+            ->whereIn('year', [2024, '2025'])
+            ->whereNot('revision', 0))])->prompt('Question?', provider: 'gemini');
+
+        $this->assertSame(
+            '(tenant="acme") AND (category="guide" OR category="reference") AND (_status!="draft") AND (version.number=2.5) AND (year=2024 OR year=2025) AND (revision!=0)',
+            sentRequest()->data()['tools'][0]['metadata_filter'],
+        );
+    }
+
+    public function testFileSearchMetadataFilterSupportsWhereNotIn(): void
+    {
+        Http::fake([
+            'generativelanguage.googleapis.com/*' => $this->fakeTextResponse('ok'),
+        ]);
+
+        agent(tools: [new FileSearch(['fileSearchStores/store123'], where: fn (FileSearchQuery $query) => $query
+            ->where('tenant', 'acme')
+            ->whereNotIn('category', ['draft', 'internal'])
+            ->whereNotIn('year', [2023, '2024']))])->prompt('Question?', provider: 'gemini');
+
+        $this->assertSame(
+            '(tenant="acme") AND (category!="draft" AND category!="internal") AND (year!=2023 AND year!=2024)',
+            sentRequest()->data()['tools'][0]['metadata_filter'],
+        );
+    }
+
+    public function testFileSearchMetadataFilterOmitsAnEmptyWhereNotIn(): void
+    {
+        Http::fake([
+            'generativelanguage.googleapis.com/*' => $this->fakeTextResponse('ok'),
+        ]);
+
+        agent(tools: [new FileSearch(['fileSearchStores/store123'], where: fn (FileSearchQuery $query) => $query
+            ->whereNotIn('category', []))])->prompt('Question?', provider: 'gemini');
+
+        $this->assertArrayNotHasKey('metadata_filter', sentRequest()->data()['tools'][0]);
+
+        agent(tools: [new FileSearch(['fileSearchStores/store123'], where: fn (FileSearchQuery $query) => $query
+            ->where('tenant', 'acme')
+            ->whereNotIn('category', []))])->prompt('Question?', provider: 'gemini');
+
+        $this->assertSame('(tenant="acme")', Http::recorded()[1][0]->data()['tools'][0]['metadata_filter']);
+    }
+
+    public function testFileSearchMetadataFilterRejectsAnEmptyWhereInBeforeSendingARequest(): void
+    {
+        Http::fake();
+
+        try {
+            agent(tools: [new FileSearch(['fileSearchStores/store123'], where: fn (FileSearchQuery $query) => $query
+                ->where('tenant', 'acme')
+                ->whereIn('category', []))])->prompt('Question?', provider: 'gemini');
+            $this->fail('The empty list must be rejected.');
+        } catch (InvalidArgumentException $exception) {
+            $this->assertSame('Gemini metadata filters cannot match [category] against an empty list of values.', $exception->getMessage());
+        }
+
+        Http::assertNothingSent();
+    }
+
     public function testMixedFunctionAndProviderToolsAreSentSideBySide(): void
     {
         Http::fake([
@@ -174,37 +309,6 @@ class ToolMappingTest extends TestCase
         agent(tools: [new CodeExecution])->prompt('Run some code', provider: 'gemini');
 
         $this->assertSame([['type' => 'code_execution']], sentRequest()->data()['tools']);
-    }
-
-    public function testMetadataFiltersEscapeStringLiteralsAndPreserveNumericValues(): void
-    {
-        $provider = new GeminiProvider(self::createStub(Gateway::class), [], $this->app->make('events'));
-        $tool = new FileSearch(['store'], fn (FileSearchQuery $query) => $query
-            ->where('author', 'A "quoted" author')
-            ->whereNot('path', 'C:\notes')
-            ->whereIn('category', ['a"b', 'c\d', 42, '2026'])
-            ->where('enabled', true));
-
-        $this->assertSame(
-            'author="A \"quoted\" author" AND path!="C:\\\notes" AND (category="a\"b" OR category="c\\\d" OR category=42 OR category=2026) AND enabled="1"',
-            $provider->fileSearchToolOptions($tool)['metadata_filter'],
-        );
-    }
-
-    public function testMetadataFiltersSupportExclusionListsAndNumericShorthandKeys(): void
-    {
-        $provider = new GeminiProvider(self::createStub(Gateway::class), [], $this->app->make('events'));
-        $tool = new FileSearch(['store'], fn (FileSearchQuery $query) => $query
-            ->whereNotIn('category', ['a"b', 'c\d', 42]));
-
-        $this->assertSame(
-            '(category!="a\"b" AND category!="c\\\d" AND category!=42)',
-            $provider->fileSearchToolOptions($tool)['metadata_filter'],
-        );
-        $this->assertSame(
-            '2026="x"',
-            $provider->fileSearchToolOptions(new FileSearch(['store'], ['2026' => 'x']))['metadata_filter'],
-        );
     }
 
     /**

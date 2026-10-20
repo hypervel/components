@@ -6,11 +6,13 @@ namespace Hypervel\Ai\Providers\Concerns;
 
 use Hypervel\Ai\Ai;
 use Hypervel\Ai\Events\GeneratingImage;
+use Hypervel\Ai\Events\ImageFailed;
 use Hypervel\Ai\Events\ImageGenerated;
 use Hypervel\Ai\Files\Image;
 use Hypervel\Ai\Prompts\ImagePrompt;
 use Hypervel\Ai\Responses\ImageResponse;
 use Hypervel\Support\Str;
+use Throwable;
 
 trait GeneratesImages
 {
@@ -49,15 +51,18 @@ trait GeneratesImages
             ));
         }
 
-        return tap($this->imageGateway()->generateImage(
-            $this,
-            $model,
-            $prompt->prompt,
-            $prompt->attachments->all(),
-            $prompt->size,
-            $prompt->quality,
-            $timeout,
-            $prompt->providerOptions,
+        return tap($this->dispatchingFailure(
+            fn () => $this->imageGateway()->generateImage(
+                $this,
+                $model,
+                $prompt->prompt,
+                $prompt->attachments->all(),
+                $prompt->size,
+                $prompt->quality,
+                $timeout,
+                $prompt->providerOptions,
+            ),
+            fn (Throwable $exception) => new ImageFailed($invocationId, $this, $model, $prompt, $exception),
         ), function (ImageResponse $response) use ($invocationId, $prompt, $model): void {
             if ($this->events->hasListeners(ImageGenerated::class)) {
                 $this->events->dispatch(new ImageGenerated(

@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Ai\Responses;
 
 use Hypervel\Ai\Contracts\Files\HasProviderId;
+use Hypervel\Ai\Responses\Concerns\HasRawResponse;
 
 class StoredFileResponse implements HasProviderId
 {
+    use HasRawResponse;
+
     /**
      * Create a stored file response.
      */

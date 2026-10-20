@@ -4,18 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Ai\Gateway\OpenAi;
 
-use finfo;
 use Hypervel\Ai\Classification\Boolean;
 use Hypervel\Ai\Classification\Choice;
 use Hypervel\Ai\Classification\Score;
-use Hypervel\Ai\Contracts\Files\StorableFile;
 use Hypervel\Ai\Contracts\Gateway\ClassificationGateway;
 use Hypervel\Ai\Contracts\Providers\ClassificationProvider;
 use Hypervel\Ai\Contracts\Question;
 use Hypervel\Ai\Enums\Lab;
 use Hypervel\Ai\Files\File;
-use Hypervel\Ai\Files\Image;
 use Hypervel\Ai\Gateway\Concerns\HandlesFailoverErrors;
+use Hypervel\Ai\Gateway\Concerns\ResolvesInlineImages;
 use Hypervel\Ai\Gateway\OpenAi\Concerns\CreatesOpenAiClient;
 use Hypervel\Ai\Providers\Provider;
 use Hypervel\Ai\Responses\ClassificationResponse;
@@ -32,14 +30,15 @@ class OpenAiClassificationGateway implements ClassificationGateway
 {
     use CreatesOpenAiClient;
     use HandlesFailoverErrors;
+    use ResolvesInlineImages;
 
     /**
      * Answer the given questions about the state.
      *
-     * @param array<string, mixed>|string $state
+     * @param array<array-key, mixed>|string $state
      * @param array<string, Question> $questions
      * @param array<string, mixed> $providerOptions
-     * @param array<int, File|UploadedFile> $attachments
+     * @param array<int|string, File|UploadedFile> $attachments
      */
     public function classify(
         ClassificationProvider $provider,
@@ -87,8 +86,8 @@ class OpenAiClassificationGateway implements ClassificationGateway
     /**
      * Map the state and attachments to the decisions input.
      *
-     * @param array<string, mixed>|string $state
-     * @param array<int, File|UploadedFile> $attachments
+     * @param array<array-key, mixed>|string $state
+     * @param array<int|string, File|UploadedFile> $attachments
      */
     protected function mapInput(string|array $state, array $attachments): string|array
     {
@@ -98,13 +97,17 @@ class OpenAiClassificationGateway implements ClassificationGateway
             return $text;
         }
 
-        return [[
-            'role' => 'user',
-            'content' => [
-                ['type' => 'input_text', 'text' => $text],
-                ...array_map($this->mapImage(...), array_values($attachments)),
-            ],
-        ]];
+        $content = [['type' => 'input_text', 'text' => $text]];
+
+        foreach ($attachments as $name => $attachment) {
+            if (is_string($name)) {
+                $content[] = ['type' => 'input_text', 'text' => "{$name}:"];
+            }
+
+            $content[] = $this->mapImage($attachment);
+        }
+
+        return [['role' => 'user', 'content' => $content]];
     }
 
     /**
@@ -112,23 +115,11 @@ class OpenAiClassificationGateway implements ClassificationGateway
      *
      * @throws InvalidArgumentException if the attachment is not a JPEG, PNG, GIF, or WebP image with inline content
      */
-    protected function mapImage(File|UploadedFile $image): array
+    protected function mapImage(File|UploadedFile $attachment): array
     {
-        if ($image instanceof UploadedFile) {
-            $image = Image::fromUpload($image);
-        }
-
-        if (! $image instanceof Image || ! $image instanceof StorableFile) {
-            throw new InvalidArgumentException('OpenAI decisions only accept images with inline content; [' . get_debug_type($image) . '] given.');
-        }
-
-        $content = $image->content();
-
-        $mime = $image->mimeType() ?? (new finfo(FILEINFO_MIME_TYPE))->buffer($content);
-
-        if (! in_array($mime, ['image/jpeg', 'image/png', 'image/gif', 'image/webp'], true)) {
-            throw new InvalidArgumentException("OpenAI decisions only accept JPEG, PNG, GIF, or WebP images; [{$mime}] given.");
-        }
+        [$image, $content, $mime] = $this->resolveInlineImage($attachment, 'OpenAI decisions', [
+            'image/jpeg' => 'JPEG', 'image/png' => 'PNG', 'image/gif' => 'GIF', 'image/webp' => 'WebP',
+        ]);
 
         return array_merge($image->providerOptions($this->providerOptionsKey()), [
             'type' => 'input_image',
@@ -228,7 +219,7 @@ class OpenAiClassificationGateway implements ClassificationGateway
     /**
      * Convert structured content to the text the endpoint accepts.
      *
-     * @param array<string, mixed>|string $value
+     * @param array<array-key, mixed>|string $value
      */
     protected function toText(string|array $value): string
     {

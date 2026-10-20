@@ -8,6 +8,9 @@ use Hypervel\Ai\Contracts\Providers\Provider;
 use Hypervel\Ai\Prompts\ClassificationPrompt;
 use Throwable;
 
+/**
+ * Dispatched once per failed attempt, including attempts failover recovers from.
+ */
 class ClassificationFailed
 {
     /**

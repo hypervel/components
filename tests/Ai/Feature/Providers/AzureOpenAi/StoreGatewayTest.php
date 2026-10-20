@@ -86,4 +86,17 @@ class StoreGatewayTest extends TestCase
 
         $this->assertSame(['vector_store_ids' => ['vs-123']], Ai::storeProvider('azure')->fileSearchToolOptions($search));
     }
+
+    public function testRemoveFileEncodesTheStoreAndDocumentIdsAsSinglePathSegments(): void
+    {
+        Http::fake([
+            'test-resource.openai.azure.com/*' => Http::response(['deleted' => true]),
+        ]);
+
+        $provider = Ai::storeProvider('azure');
+        $provider->storeGateway()->removeFile($provider, 'vs-123', '../..');
+
+        Http::assertSent(fn (Request $request): bool => $request->method() === 'DELETE'
+            && $request->url() === 'https://test-resource.openai.azure.com/openai/v1/vector_stores/vs-123/files/..%2F..');
+    }
 }

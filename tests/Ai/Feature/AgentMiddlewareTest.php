@@ -31,13 +31,13 @@ use Hypervel\Ai\Middleware\Stop;
 use Hypervel\Ai\PendingStep;
 use Hypervel\Ai\Promptable;
 use Hypervel\Ai\Providers\Tools\WebSearch;
-use Hypervel\Ai\Responses\AgentResponse;
 use Hypervel\Ai\Responses\Data\FinishReason;
 use Hypervel\Ai\Responses\Data\Meta;
 use Hypervel\Ai\Responses\Data\TextUsage;
 use Hypervel\Ai\Responses\Data\ToolCall;
 use Hypervel\Ai\Responses\Data\UrlCitation;
 use Hypervel\Ai\Responses\StreamedAgentResponse;
+use Hypervel\Ai\Responses\StructuredAgentResponse;
 use Hypervel\Ai\Storage\DatabaseConversationStore;
 use Hypervel\Ai\Streaming\Events\Citation;
 use Hypervel\Ai\Streaming\Events\ReasoningDelta;
@@ -346,7 +346,7 @@ class AgentMiddlewareTest extends TestCase
         $this->assertEmpty($response->steps);
     }
 
-    public function testAStructuredAgentStoppedBeforeItsFirstStepReturnsAnUnstructuredResponse(): void
+    public function testAStructuredAgentStoppedBeforeItsFirstStepReturnsAnEmptyStructuredResponse(): void
     {
         $agent = new class extends StructuredAgent implements HasMiddleware {
             /**
@@ -362,7 +362,8 @@ class AgentMiddlewareTest extends TestCase
 
         $response = $agent->prompt('Test prompt');
 
-        $this->assertSame(AgentResponse::class, $response::class);
+        $this->assertInstanceOf(StructuredAgentResponse::class, $response);
+        $this->assertSame([], $response->structured);
         $this->assertSame('', $response->text);
     }
 

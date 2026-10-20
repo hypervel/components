@@ -8,6 +8,7 @@ use DateInterval;
 use Hypervel\Ai\Contracts\Gateway\StoreGateway;
 use Hypervel\Ai\Contracts\Providers\FileProvider;
 use Hypervel\Ai\Contracts\Providers\StoreProvider;
+use Hypervel\Ai\Gateway\Concerns\EncodesResourceIds;
 use Hypervel\Ai\Gateway\Concerns\HandlesFailoverErrors;
 use Hypervel\Ai\Gateway\OpenAi\Concerns\CreatesOpenAiClient;
 use Hypervel\Ai\Providers\Provider;
@@ -19,6 +20,7 @@ use Hypervel\Support\Facades\Date;
 class OpenAiStoreGateway implements StoreGateway
 {
     use CreatesOpenAiClient;
+    use EncodesResourceIds;
     use HandlesFailoverErrors;
 
     /**
@@ -30,7 +32,7 @@ class OpenAiStoreGateway implements StoreGateway
         $response = $this->withErrorHandling(
             $provider->name(),
             fn () => $this->client($provider)
-                ->get("vector_stores/{$storeId}")
+                ->get("vector_stores/{$this->resourceId($storeId)}")
         );
 
         return new Store(
@@ -87,7 +89,7 @@ class OpenAiStoreGateway implements StoreGateway
         $response = $this->withErrorHandling(
             $provider->name(),
             fn () => $this->client($provider)
-                ->post("vector_stores/{$storeId}/files", array_filter([
+                ->post("vector_stores/{$this->resourceId($storeId)}/files", array_filter([
                     'file_id' => $fileId,
                     'attributes' => filled($metadata) ? (object) $metadata : null,
                 ]))
@@ -105,7 +107,7 @@ class OpenAiStoreGateway implements StoreGateway
         $response = $this->withErrorHandling(
             $provider->name(),
             fn () => $this->client($provider)
-                ->delete("vector_stores/{$storeId}/files/{$documentId}")
+                ->delete("vector_stores/{$this->resourceId($storeId)}/files/{$this->resourceId($documentId)}")
         );
 
         return $response->json('deleted', false);
@@ -120,7 +122,7 @@ class OpenAiStoreGateway implements StoreGateway
         $response = $this->withErrorHandling(
             $provider->name(),
             fn () => $this->client($provider)
-                ->delete("vector_stores/{$storeId}")
+                ->delete("vector_stores/{$this->resourceId($storeId)}")
         );
 
         return $response->json('deleted', false);

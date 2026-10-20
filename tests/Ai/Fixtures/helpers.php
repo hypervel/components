@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Ai\Fixtures;
 
 use GuzzleHttp\Promise\PromiseInterface;
+use Hypervel\Ai\Ai;
+use Hypervel\Ai\Providers\TypeSafeProvider;
+use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Http\Client\Request;
 use Hypervel\Support\Facades\Http;
 use PHPUnit\Framework\Assert;
@@ -16,6 +20,21 @@ function requiresApiKey(string ...$keys): void
             Assert::markTestSkipped("Missing {$key} — skipping external test.");
         }
     }
+}
+
+function registerTextOnlyClassifier(): void
+{
+    config(['ai.providers.text-only' => ['driver' => 'text-only', 'key' => 'test-key']]);
+
+    Ai::extend('text-only', fn (Application $app, array $config): TypeSafeProvider => new class($config, $app->make(Dispatcher::class)) extends TypeSafeProvider {
+        /**
+         * Determine if the provider can classify attachments alongside the state.
+         */
+        public function supportsClassificationAttachments(): bool
+        {
+            return false;
+        }
+    });
 }
 
 function sentRequest(): Request

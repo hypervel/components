@@ -8,6 +8,7 @@ use Hypervel\Ai\Contracts\Files\StorableFile;
 use Hypervel\Ai\Contracts\Gateway\FileGateway;
 use Hypervel\Ai\Contracts\Providers\FileProvider;
 use Hypervel\Ai\Enums\Lab;
+use Hypervel\Ai\Gateway\Concerns\EncodesResourceIds;
 use Hypervel\Ai\Gateway\Concerns\HandlesFailoverErrors;
 use Hypervel\Ai\Gateway\Concerns\PreparesStorableFiles;
 use Hypervel\Ai\Gateway\OpenRouter\Concerns\CreatesOpenRouterClient;
@@ -18,6 +19,7 @@ use Hypervel\Ai\Responses\StoredFileResponse;
 class OpenRouterFileGateway implements FileGateway
 {
     use CreatesOpenRouterClient;
+    use EncodesResourceIds;
     use HandlesFailoverErrors;
     use PreparesStorableFiles;
 
@@ -30,13 +32,13 @@ class OpenRouterFileGateway implements FileGateway
         $response = $this->withErrorHandling(
             $provider->name(),
             fn () => $this->client($provider)
-                ->get("files/{$fileId}")
+                ->get("files/{$this->resourceId($fileId)}")
         );
 
-        return new FileResponse(
+        return (new FileResponse(
             id: $response->json('id'),
             mimeType: $response->json('mime_type'),
-        );
+        ))->withRawResponse($response);
     }
 
     /**
@@ -60,7 +62,7 @@ class OpenRouterFileGateway implements FileGateway
                 ->post('files', $providerOptions)
         );
 
-        return new StoredFileResponse($response->json('id'));
+        return (new StoredFileResponse($response->json('id')))->withRawResponse($response);
     }
 
     /**
@@ -80,7 +82,7 @@ class OpenRouterFileGateway implements FileGateway
         $this->withErrorHandling(
             $provider->name(),
             fn () => $this->client($provider)
-                ->delete("files/{$fileId}")
+                ->delete("files/{$this->resourceId($fileId)}")
         );
     }
 }

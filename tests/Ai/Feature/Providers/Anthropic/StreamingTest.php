@@ -94,6 +94,8 @@ class StreamingTest extends TestCase
         $this->assertSame($textStarts[0]->messageId, $textEnds[0]->messageId);
         $this->assertSame($textStarts[0]->messageId, $textDeltas[0]->messageId);
         $this->assertSame($textStarts[0]->messageId, $textDeltas[1]->messageId);
+        $this->assertSame('First', $textDeltas[0]->delta);
+        $this->assertSame("\n\nSecond", $textDeltas[1]->delta);
         $this->assertGreaterThan(array_search($textDeltas[1], $events, true), array_search($textEnds[0], $events, true));
     }
 
@@ -310,6 +312,72 @@ class StreamingTest extends TestCase
         $textDeltas = array_values(array_filter($events, fn ($e): bool => $e instanceof TextDelta));
         $this->assertNotEmpty($textDeltas);
         $this->assertSame('Resumed', $textDeltas[0]->delta);
+    }
+
+    public function testStreamingReplaysTextBlocksAroundAServerToolWithoutTheSeparator(): void
+    {
+        Http::fake([
+            'api.anthropic.com/*' => Http::sequence([
+                Http::response(
+                    body: $this->ssePayload([
+                        $this->messageStart(),
+                        $this->contentBlockStart(0, ['type' => 'text', 'text' => '']),
+                        $this->contentBlockDelta(0, ['type' => 'text_delta', 'text' => 'First']),
+                        $this->contentBlockStop(0),
+                        $this->contentBlockStart(1, ['type' => 'server_tool_use', 'id' => 'srvtoolu_1', 'name' => 'web_search']),
+                        $this->contentBlockStop(1),
+                        $this->contentBlockStart(2, ['type' => 'text', 'text' => '']),
+                        $this->contentBlockDelta(2, ['type' => 'text_delta', 'text' => 'Second']),
+                        $this->contentBlockStop(2),
+                        $this->messageDelta('pause_turn', 5),
+                    ]),
+                    status: 200,
+                    headers: ['Content-Type' => 'text/event-stream'],
+                ),
+                Http::response(
+                    body: $this->ssePayload([
+                        $this->messageStart(),
+                        $this->messageDelta('end_turn', 5),
+                    ]),
+                    status: 200,
+                    headers: ['Content-Type' => 'text/event-stream'],
+                ),
+            ]),
+        ]);
+
+        $events = $this->collectStreamEvents();
+
+        $followUpBody = Http::recorded()[1][0]->data();
+        $replayed = end($followUpBody['messages'])['content'];
+
+        $this->assertSame(['First', 'Second'], [$replayed[0]['text'], $replayed[2]['text']]);
+        $this->assertSame("First\n\nSecond", TextDelta::combine($events));
+    }
+
+    public function testStreamingDoesNotSeparateTextAfterAServerToolWhenTheModelAlreadyEndedTheLine(): void
+    {
+        Http::fake([
+            'api.anthropic.com/*' => Http::response(
+                body: $this->ssePayload([
+                    $this->messageStart(),
+                    $this->contentBlockStart(0, ['type' => 'text', 'text' => '']),
+                    $this->contentBlockDelta(0, ['type' => 'text_delta', 'text' => "First\n"]),
+                    $this->contentBlockStop(0),
+                    $this->contentBlockStart(1, ['type' => 'server_tool_use', 'id' => 'srvtoolu_1', 'name' => 'web_search']),
+                    $this->contentBlockStop(1),
+                    $this->contentBlockStart(2, ['type' => 'text', 'text' => '']),
+                    $this->contentBlockDelta(2, ['type' => 'text_delta', 'text' => 'Second']),
+                    $this->contentBlockStop(2),
+                    $this->messageDelta('end_turn', 10),
+                ]),
+                status: 200,
+                headers: ['Content-Type' => 'text/event-stream'],
+            ),
+        ]);
+
+        $textDeltas = array_values(array_filter($this->collectStreamEvents(), fn ($e): bool => $e instanceof TextDelta));
+
+        $this->assertSame(["First\n", 'Second'], array_map(fn (TextDelta $e): string => $e->delta, $textDeltas));
     }
 
     public function testStreamingErrorEventStopsStream(): void

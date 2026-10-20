@@ -7,9 +7,11 @@ namespace Hypervel\Ai\Providers\Concerns;
 use Hypervel\Ai\Ai;
 use Hypervel\Ai\Events\Reranked;
 use Hypervel\Ai\Events\Reranking;
+use Hypervel\Ai\Events\RerankingFailed;
 use Hypervel\Ai\Prompts\RerankingPrompt;
 use Hypervel\Ai\Responses\RerankingResponse;
 use Hypervel\Support\Str;
+use Throwable;
 
 trait Reranks
 {
@@ -40,14 +42,17 @@ trait Reranks
             ));
         }
 
-        return tap($this->rerankingGateway()->rerank(
-            $this,
-            $model,
-            $documents,
-            $query,
-            $limit,
-            $timeout,
-            $providerOptions,
+        return tap($this->dispatchingFailure(
+            fn () => $this->rerankingGateway()->rerank(
+                $this,
+                $model,
+                $documents,
+                $query,
+                $limit,
+                $timeout,
+                $providerOptions,
+            ),
+            fn (Throwable $exception) => new RerankingFailed($invocationId, $this, $model, $prompt, $exception),
         ), function (RerankingResponse $response) use ($invocationId, $model, $prompt): void {
             if ($this->events->hasListeners(Reranked::class)) {
                 $this->events->dispatch(new Reranked(

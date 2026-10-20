@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Ai\Providers;
 
+use Closure;
 use Hypervel\Ai\AiManager;
 use Hypervel\Ai\Contracts\Gateway\Gateway;
 use Hypervel\Ai\Contracts\Providers\Provider as ProviderContract;
@@ -13,6 +14,7 @@ use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Support\Collection;
 use Stringable;
+use Throwable;
 
 abstract class Provider implements Stringable, ProviderContract
 {
@@ -76,6 +78,31 @@ abstract class Provider implements Stringable, ProviderContract
         return tap(clone $this, function (self $provider) use ($headers): void {
             $provider->config['headers'] = array_merge($provider->config['headers'] ?? [], $headers);
         });
+    }
+
+    /**
+     * Run the given gateway call, dispatching the event built from its exception before rethrowing.
+     *
+     * @template TResult
+     *
+     * @param Closure(): TResult $call
+     * @param Closure(Throwable): object $failed
+     * @return TResult
+     */
+    protected function dispatchingFailure(Closure $call, Closure $failed): mixed
+    {
+        try {
+            return $call();
+        } catch (Throwable $exception) {
+            $event = $failed($exception);
+
+            // Passive observers alone must not trigger optional failure events; hasListeners() excludes them.
+            if ($this->events->hasListeners($event::class)) {
+                $this->events->dispatch($event);
+            }
+
+            throw $exception;
+        }
     }
 
     /**

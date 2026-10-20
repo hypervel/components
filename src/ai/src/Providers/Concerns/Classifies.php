@@ -22,10 +22,10 @@ trait Classifies
     /**
      * Answer the given questions about the state.
      *
-     * @param array<string, mixed>|string $state
+     * @param array<array-key, mixed>|string $state
      * @param array<string, Question> $questions
      * @param array<string, mixed> $providerOptions
-     * @param array<int, File|UploadedFile> $attachments
+     * @param array<int|string, File|UploadedFile> $attachments
      */
     public function classify(string|array $state, array $questions, ?string $model = null, int $timeout = 30, array $providerOptions = [], array $attachments = []): ClassificationResponse
     {
@@ -52,8 +52,8 @@ trait Classifies
             ));
         }
 
-        try {
-            $response = $this->classificationGateway()->classify(
+        return tap($this->dispatchingFailure(
+            fn () => $this->classificationGateway()->classify(
                 $this,
                 $model,
                 $state,
@@ -61,16 +61,9 @@ trait Classifies
                 $timeout,
                 $providerOptions,
                 $attachments,
-            );
-        } catch (Throwable $exception) {
-            if ($this->events->hasListeners(ClassificationFailed::class)) {
-                $this->events->dispatch(new ClassificationFailed($invocationId, $this, $model, $prompt, $exception));
-            }
-
-            throw $exception;
-        }
-
-        return tap($response, function (ClassificationResponse $response) use ($invocationId, $model, $prompt): void {
+            ),
+            fn (Throwable $exception) => new ClassificationFailed($invocationId, $this, $model, $prompt, $exception),
+        ), function (ClassificationResponse $response) use ($invocationId, $model, $prompt): void {
             if ($this->events->hasListeners(Classified::class)) {
                 $this->events->dispatch(new Classified(
                     $invocationId,

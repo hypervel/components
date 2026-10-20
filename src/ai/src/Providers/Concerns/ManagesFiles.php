@@ -9,9 +9,11 @@ use Hypervel\Ai\Contracts\Files\StorableFile;
 use Hypervel\Ai\Events\FileDeleted;
 use Hypervel\Ai\Events\FileStored;
 use Hypervel\Ai\Events\StoringFile;
+use Hypervel\Ai\Events\StoringFileFailed;
 use Hypervel\Ai\Responses\FileResponse;
 use Hypervel\Ai\Responses\StoredFileResponse;
 use Hypervel\Support\Str;
+use Throwable;
 
 trait ManagesFiles
 {
@@ -43,7 +45,10 @@ trait ManagesFiles
         }
 
         return tap(
-            $this->fileGateway()->putFile($this, $file),
+            $this->dispatchingFailure(
+                fn () => $this->fileGateway()->putFile($this, $file),
+                fn (Throwable $exception) => new StoringFileFailed($invocationId, $this, $file, $exception),
+            ),
             function (StoredFileResponse $response) use ($invocationId, $file): void {
                 if ($this->events->hasListeners(FileStored::class)) {
                     $this->events->dispatch(new FileStored(

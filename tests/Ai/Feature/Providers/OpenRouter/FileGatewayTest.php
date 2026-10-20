@@ -39,6 +39,7 @@ class FileGatewayTest extends TestCase
         $response = Files::get('or_file_abc123', provider: 'openrouter');
 
         $this->assertSame('or_file_abc123', $response->id);
+        $this->assertNotNull($response->raw);
         $this->assertSame('text/csv', $response->mimeType());
 
         Http::assertSent(fn (Request $request): bool => $request->method() === 'GET'
@@ -66,6 +67,7 @@ class FileGatewayTest extends TestCase
         );
 
         $this->assertSame('or_file_uploaded123', $response->id);
+        $this->assertNotNull($response->raw);
 
         $request = sentRequest();
         $file = collect($request->data())->firstWhere('name', 'file');

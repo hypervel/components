@@ -16,10 +16,10 @@ class ClassificationPrompt implements Countable
     /**
      * Create a new classification prompt instance.
      *
-     * @param array<string, mixed>|string $state
+     * @param array<array-key, mixed>|string $state
      * @param array<string, Question> $questions
      * @param array<string, mixed> $providerOptions
-     * @param array<int, File|UploadedFile> $attachments
+     * @param array<int|string, File|UploadedFile> $attachments
      */
     public function __construct(
         public readonly string|array $state,

@@ -4,20 +4,25 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Ai\Feature\Providers\TypeSafe;
 
+use Closure;
 use Hypervel\Ai\Classification;
 use Hypervel\Ai\Classification\Boolean;
 use Hypervel\Ai\Classification\Choice;
 use Hypervel\Ai\Classification\Score;
 use Hypervel\Ai\Exceptions\ProviderOverloadedException;
 use Hypervel\Ai\Exceptions\RateLimitedException;
+use Hypervel\Ai\Files\Image;
 use Hypervel\Ai\Responses\Data\BooleanAnswer;
 use Hypervel\Ai\Responses\Data\ChoiceAnswer;
 use Hypervel\Ai\Responses\Data\ScoreAnswer;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Http\Client\Request;
 use Hypervel\Http\Client\RequestException;
+use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Facades\Http;
+use Hypervel\Support\Facades\Storage;
 use Hypervel\Tests\Ai\TestCase;
+use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -273,5 +278,213 @@ class ClassificationTest extends TestCase
     public static function overloadStatuses(): array
     {
         return [[529], [503]];
+    }
+
+    public function testImageAttachmentsAreSentAsReferencedAssetsWithTheImagesHeader(): void
+    {
+        Http::fake(['*' => Http::response(fakeTypeSafeResponse())]);
+
+        $jpeg = file_get_contents(__DIR__ . '/../../../Fixtures/Images/blue.jpg');
+        $png = file_get_contents(__DIR__ . '/../../../Fixtures/Images/red.png');
+
+        Classification::of('Inspect this.', [
+            Image::fromBase64(base64_encode('base64-bytes'), 'image/jpeg')->withProviderOptions(['custom' => 'value']),
+            Image::fromPath(__DIR__ . '/../../../Fixtures/Images/blue.jpg'),
+            UploadedFile::fake()->createWithContent('upload.png', 'upload-bytes')->mimeType('image/png'),
+            Image::fromBase64(base64_encode($png)),
+        ])
+            ->question('visible_damage', new Boolean('Is the product in the photos damaged?'))
+            ->classify(provider: 'typesafe');
+
+        Http::assertSent(function (Request $request) use ($jpeg, $png): bool {
+            $body = json_decode($request->body(), true);
+
+            return $request->hasHeader('TypeSafe-Danger-Zone-Images', 'true')
+                && $body['state'] === ['Inspect this.', ...array_keys($body['assets'])]
+                && array_values($body['assets']) === [
+                    ['custom' => 'value', 'type' => 'image', 'format' => 'jpg', 'data_base64' => base64_encode('base64-bytes')],
+                    ['type' => 'image', 'format' => 'jpg', 'data_base64' => base64_encode($jpeg)],
+                    ['type' => 'image', 'format' => 'png', 'data_base64' => base64_encode('upload-bytes')],
+                    ['type' => 'image', 'format' => 'png', 'data_base64' => base64_encode($png)],
+                ];
+        });
+    }
+
+    public function testRemoteAndStoredImagesAreDownloadedAndLabeledInTheStateByAttachmentName(): void
+    {
+        Http::fake([
+            'example.com/*' => Http::response('remote-bytes', 200, ['Content-Type' => 'image/jpeg']),
+            '*' => Http::response(fakeTypeSafeResponse()),
+        ]);
+
+        Storage::fake('photos')->put('product.png', 'stored-bytes');
+
+        Classification::of('Inspect this.', [
+            'front' => Image::fromUrl('https://example.com/product.jpg'),
+            'back' => Image::fromStorage('product.png', 'photos'),
+        ])
+            ->question('visible_damage', new Boolean('Is the product in `front` or `back` damaged?'))
+            ->classify(provider: 'typesafe');
+
+        Http::assertSent(function (Request $request): bool {
+            if ($request->url() !== 'https://api.typesafe.ai/v1/systemone') {
+                return false;
+            }
+
+            $body = json_decode($request->body(), true);
+
+            [$front, $back] = array_keys($body['assets']);
+
+            return $body['assets'][$front] === ['type' => 'image', 'format' => 'jpg', 'data_base64' => base64_encode('remote-bytes')]
+                && $body['assets'][$back] === ['type' => 'image', 'format' => 'png', 'data_base64' => base64_encode('stored-bytes')]
+                && $body['state'] === ['Inspect this.', "front: {$front}", "back: {$back}"];
+        });
+    }
+
+    #[DataProvider('imageReferenceStates')]
+    public function testImageReferencesFollowTheShapeOfTheState(string|array $state, array $attachments, Closure $expected): void
+    {
+        Http::fake(['*' => Http::response(fakeTypeSafeResponse())]);
+
+        Classification::of($state, $attachments)
+            ->question('visible_damage', new Boolean('Damaged?'))
+            ->classify(provider: 'typesafe');
+
+        Http::assertSent(function (Request $request) use ($expected): bool {
+            $body = json_decode($request->body(), true);
+
+            return $body['state'] === $expected(...array_keys($body['assets']));
+        });
+    }
+
+    /**
+     * Provide states with attachments and the state expected for the generated image references.
+     */
+    public static function imageReferenceStates(): array
+    {
+        return [
+            'unnamed images under images in a structured state' => [
+                ['subject' => 'Broken lamp'],
+                [Image::fromBase64(base64_encode('a'), 'image/png')],
+                fn (string $a): array => ['subject' => 'Broken lamp', 'images' => [$a]],
+            ],
+            'named and unnamed images in a structured state' => [
+                ['subject' => 'Broken lamp'],
+                ['front' => Image::fromBase64(base64_encode('a'), 'image/png'), Image::fromBase64(base64_encode('b'), 'image/png')],
+                fn (string $a, string $b): array => ['subject' => 'Broken lamp', 'front' => $a, 'images' => [$b]],
+            ],
+            'integer keys in a structured state' => [
+                [42 => 'Broken lamp', 'subject' => 'Inspection'],
+                [Image::fromBase64(base64_encode('a'), 'image/png')],
+                fn (string $a): array => [42 => 'Broken lamp', 'subject' => 'Inspection', 'images' => [$a]],
+            ],
+            'named and unnamed images in a list state' => [
+                ['first', 'second'],
+                ['front' => Image::fromBase64(base64_encode('a'), 'image/png'), 3 => Image::fromBase64(base64_encode('b'), 'image/png')],
+                fn (string $a, string $b): array => ['first', 'second', "front: {$a}", $b],
+            ],
+            'an image named images in a structured state' => [
+                ['subject' => 'Broken lamp'],
+                ['images' => Image::fromBase64(base64_encode('a'), 'image/png')],
+                fn (string $a): array => ['subject' => 'Broken lamp', 'images' => $a],
+            ],
+            'an image named images alongside unnamed images in a list state' => [
+                ['first', 'second'],
+                ['images' => Image::fromBase64(base64_encode('a'), 'image/png'), Image::fromBase64(base64_encode('b'), 'image/png')],
+                fn (string $a, string $b): array => ['first', 'second', "images: {$a}", $b],
+            ],
+        ];
+    }
+
+    public function testRequestsWithoutAttachmentsDoNotSendAssetsOrTheImagesHeader(): void
+    {
+        Http::fake(['*' => Http::response(fakeTypeSafeResponse())]);
+
+        Classification::of('text')->question('is_urgent', new Boolean('Urgent?'))->classify(provider: 'typesafe');
+
+        Http::assertSent(fn (Request $request): bool => ! $request->hasHeader('TypeSafe-Danger-Zone-Images')
+            && ! array_key_exists('assets', json_decode($request->body(), true)));
+    }
+
+    #[DataProvider('conflictingImageKeys')]
+    public function testImagesThatNeedAKeyTheStructuredStateAlreadyUsesAreRejectedBeforeAnyRequest(array $state, array $attachments, string $message): void
+    {
+        Http::fake();
+
+        $exception = null;
+
+        try {
+            Classification::of($state, $attachments)
+                ->question('damaged', new Boolean('Damaged?'))
+                ->classify(provider: 'typesafe');
+        } catch (InvalidArgumentException $caught) {
+            $exception = $caught;
+        }
+
+        $this->assertInstanceOf(InvalidArgumentException::class, $exception);
+        $this->assertSame($message, $exception->getMessage());
+
+        Http::assertNothingSent();
+    }
+
+    /**
+     * Provide structured states and attachments that need the same key for different values.
+     */
+    public static function conflictingImageKeys(): array
+    {
+        return [
+            'named' => [
+                ['photo' => 'caption'],
+                ['photo' => Image::fromBase64(base64_encode('photo'), 'image/png')],
+                'TypeSafe adds images to a structured state under their attachment names, or [images] when unnamed; [photo] already in the state.',
+            ],
+            'unnamed' => [
+                ['images' => 'none attached'],
+                [Image::fromBase64(base64_encode('photo'), 'image/png')],
+                'TypeSafe adds images to a structured state under their attachment names, or [images] when unnamed; [images] already in the state.',
+            ],
+            'an image named images alongside unnamed images' => [
+                ['subject' => 'Compare photos'],
+                ['images' => Image::fromBase64(base64_encode('a'), 'image/png'), Image::fromBase64(base64_encode('b'), 'image/png')],
+                'TypeSafe adds unnamed images to a structured state under [images], so no attachment may be named [images] alongside them.',
+            ],
+        ];
+    }
+
+    #[DataProvider('unsupportedAttachments')]
+    public function testAttachmentsThatAreNotSupportedImagesAreRejectedBeforeAnyRequest(Closure $attachment, string $message): void
+    {
+        Http::fake([
+            'example.com/*' => Http::response('<html></html>', 200, ['Content-Type' => 'text/html']),
+        ]);
+
+        $exception = null;
+
+        try {
+            Classification::of('Inspect this.', [$attachment()])
+                ->question('visible_damage', new Boolean('Damaged?'))
+                ->classify(provider: 'typesafe');
+        } catch (InvalidArgumentException $caught) {
+            $exception = $caught;
+        }
+
+        $this->assertInstanceOf(InvalidArgumentException::class, $exception);
+        $this->assertStringContainsString($message, $exception->getMessage());
+
+        Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), 'api.typesafe.ai'));
+    }
+
+    /**
+     * Provide attachments the TypeSafe decisions endpoint does not accept.
+     */
+    public static function unsupportedAttachments(): array
+    {
+        return [
+            'provider image' => [fn () => Image::fromId('file_123'), 'TypeSafe decisions only accept images with inline content; [Hypervel\Ai\Files\ProviderImage] given.'],
+            'pdf upload' => [fn () => UploadedFile::fake()->createWithContent('invoice.pdf', 'pdf-bytes')->mimeType('application/pdf'), '[application/pdf] given.'],
+            'webp upload' => [fn () => UploadedFile::fake()->createWithContent('photo.webp', 'webp-bytes')->mimeType('image/webp'), 'TypeSafe decisions only accept JPEG or PNG images; [image/webp] given.'],
+            'gif file' => [fn () => Image::fromPath(__DIR__ . '/../../../Fixtures/Images/red.png', 'image/gif'), '[image/gif] given.'],
+            'html served as a remote image' => [fn () => Image::fromUrl('https://example.com/product.png'), '[text/html] given.'],
+        ];
     }
 }

@@ -9,16 +9,19 @@ use Hypervel\Ai\Contracts\Gateway\FileGateway;
 use Hypervel\Ai\Contracts\Providers\FileProvider;
 use Hypervel\Ai\Enums\Lab;
 use Hypervel\Ai\Gateway\Concerns\CreatesClient;
+use Hypervel\Ai\Gateway\Concerns\EncodesResourceIds;
 use Hypervel\Ai\Gateway\Concerns\HandlesFailoverErrors;
 use Hypervel\Ai\Gateway\Concerns\PreparesStorableFiles;
 use Hypervel\Ai\Providers\Provider;
 use Hypervel\Ai\Responses\FileResponse;
 use Hypervel\Ai\Responses\StoredFileResponse;
 use Hypervel\Http\Client\PendingRequest;
+use Hypervel\Support\Str;
 
 class GeminiFileGateway implements FileGateway
 {
     use CreatesClient;
+    use EncodesResourceIds;
     use HandlesFailoverErrors;
     use PreparesStorableFiles;
 
@@ -28,17 +31,17 @@ class GeminiFileGateway implements FileGateway
     public function getFile(FileProvider $provider, string $fileId): FileResponse
     {
         /** @var FileProvider&Provider $provider */
-        $fileId = str_starts_with($fileId, 'files/') ? $fileId : "files/{$fileId}";
+        $fileId = $this->normalizeFileId($fileId);
 
         $response = $this->withErrorHandling(
             $provider->name(),
             fn () => $this->client($provider)->get($this->baseUrl($provider) . "/{$fileId}")->throw(),
         );
 
-        return new FileResponse(
+        return (new FileResponse(
             id: $response->json('name'),
             mimeType: $response->json('mimeType'),
-        );
+        ))->withRawResponse($response);
     }
 
     /**
@@ -66,7 +69,7 @@ class GeminiFileGateway implements FileGateway
             'file' => ['display_name' => $name],
         ], $providerOptions))->throw());
 
-        return new StoredFileResponse($response->json('file.name'));
+        return (new StoredFileResponse($response->json('file.name')))->withRawResponse($response);
     }
 
     /**
@@ -75,12 +78,20 @@ class GeminiFileGateway implements FileGateway
     public function deleteFile(FileProvider $provider, string $fileId): void
     {
         /** @var FileProvider&Provider $provider */
-        $fileId = str_starts_with($fileId, 'files/') ? $fileId : "files/{$fileId}";
+        $fileId = $this->normalizeFileId($fileId);
 
         $this->withErrorHandling(
             $provider->name(),
             fn () => $this->client($provider)->delete($this->baseUrl($provider) . "/{$fileId}")->throw(),
         );
+    }
+
+    /**
+     * Normalize the file ID to include the resource prefix.
+     */
+    protected function normalizeFileId(string $fileId): string
+    {
+        return 'files/' . $this->resourceId(Str::chopStart($fileId, 'files/'));
     }
 
     /**
