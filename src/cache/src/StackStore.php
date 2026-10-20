@@ -78,9 +78,40 @@ class StackStore extends TaggableStore implements AuthoritativeRawReadable, CanF
         return ((array) $record)['value'] ?? null;
     }
 
+    /**
+     * Retrieve multiple items from the cache by key.
+     */
     public function many(array $keys): array
     {
-        return array_map(fn ($key) => $this->get($key), array_combine($keys, $keys));
+        $records = [];
+        $layers = [];
+        $missing = array_values(array_unique($keys));
+
+        foreach ($this->stores as $index => $store) {
+            if ($missing === []) {
+                break;
+            }
+
+            $results = $store->many($missing);
+            $remaining = [];
+
+            foreach ($missing as $key) {
+                if (is_null($record = $results[$key] ?? null)) {
+                    $remaining[] = $key;
+
+                    continue;
+                }
+
+                $records[$key] = (array) $record;
+                $layers[$key] = $index;
+            }
+
+            $missing = $remaining;
+        }
+
+        $this->restoreRecords($records, $layers);
+
+        return array_map(static fn ($key) => $records[$key]['value'] ?? null, array_combine($keys, $keys));
     }
 
     public function put(string $key, mixed $value, int $seconds): bool
@@ -93,15 +124,43 @@ class StackStore extends TaggableStore implements AuthoritativeRawReadable, CanF
         return $this->putRecord($key, $record);
     }
 
+    /**
+     * Store multiple items in the cache for a given number of seconds.
+     */
     public function putMany(array $values, int $seconds): bool
     {
-        $result = true;
-
-        foreach ($values as $key => $value) {
-            $result = $this->put((string) $key, $value, $seconds) && $result;
+        if ($values === []) {
+            return true;
         }
 
-        return $result;
+        $expiration = CarbonImmutable::now()->getTimestamp() + $seconds;
+        $records = array_map(static fn (mixed $value): array => ['value' => $value, 'expiration' => $expiration], $values);
+
+        return $this->callStores(
+            static fn (StackStoreProxy $store) => $store->putMany($records, $seconds),
+            static function (StackStoreProxy $store) use ($records): void {
+                $cancellation = null;
+
+                foreach (array_keys($records) as $key) {
+                    try {
+                        $store->forget((string) $key);
+                    } catch (CanceledException $exception) {
+                        // Finish this layer's cleanup, as callStores() does across layers.
+                        $cancellation ??= $exception;
+                    } catch (Throwable) {
+                        // An ordinary failure usually means the layer is unreachable, so stop
+                        // instead of paying a timeout per key. callStores() discards these.
+                        break;
+                    }
+                }
+
+                if ($cancellation !== null) {
+                    throw $cancellation;
+                }
+            },
+            // A layer can store some keys before its batch write reports failure.
+            rollbackFailedStore: true,
+        );
     }
 
     public function increment(string $key, int $value = 1): bool|int
@@ -306,6 +365,54 @@ class StackStore extends TaggableStore implements AuthoritativeRawReadable, CanF
         );
     }
 
+    /**
+     * Restore records found in lower layers into the layers above them.
+     *
+     * Mirrors getOrRestoreRecord(), filling the deepest layer first, but writes
+     * each layer's records with one putMany() per remaining TTL.
+     *
+     * @param array<string, array> $records
+     * @param array<string, int> $layers the index of the layer each record was found in
+     */
+    protected function restoreRecords(array $records, array $layers): void
+    {
+        $restorable = [];
+
+        foreach ($layers as $key => $layer) {
+            if ($layer > 0 && array_key_exists('value', $records[$key])) {
+                $restorable[$key] = [$layer, $this->normalizeRecord($records[$key])[0]];
+            }
+        }
+
+        for ($index = count($this->stores) - 2; $index >= 0 && $restorable !== []; --$index) {
+            $groups = [];
+            $forever = [];
+
+            foreach ($restorable as $key => [$layer, $record]) {
+                if ($layer <= $index) {
+                    continue;
+                }
+
+                if (array_key_exists('expiration', $record)) {
+                    $groups[$record['expiration']][$key] = $record;
+                } else {
+                    $forever[$key] = $record;
+                }
+            }
+
+            foreach ($groups as $expiration => $group) {
+                // Reads and earlier writes can yield, so measure the remaining TTL just before each write.
+                if (($ttl = $expiration - CarbonImmutable::now()->getTimestamp()) > 0) {
+                    $this->stores[$index]->putMany($group, $ttl);
+                }
+            }
+
+            foreach ($forever as $key => $record) {
+                $this->stores[$index]->forever((string) $key, $record);
+            }
+        }
+    }
+
     protected function putRecord(string $key, array $record): bool
     {
         return $this->callStores(
@@ -327,23 +434,46 @@ class StackStore extends TaggableStore implements AuthoritativeRawReadable, CanF
         );
     }
 
+    /**
+     * Store a record in a single layer.
+     */
     protected function putToStore(StackStoreProxy $store, string $key, array $record): bool
     {
         if (! array_key_exists('value', $record)) {
             return false;
         }
 
+        [$record, $ttl] = $this->normalizeRecord($record);
+
+        return match (true) {
+            is_null($ttl) => $store->forever($key, $record),
+            $ttl > 0 => $store->put($key, $record, $ttl),
+            default => $store->forget($key),
+        };
+    }
+
+    /**
+     * Normalize a record to an absolute expiration and its remaining TTL.
+     *
+     * Records without an expiration or TTL are returned unchanged with a null TTL.
+     * A non-positive TTL means the record has no remaining lifetime (for example, it
+     * expired while a lower layer was read), so callers must not write it: array
+     * stores keep non-positive TTL writes forever.
+     *
+     * @return array{array, ?int}
+     */
+    protected function normalizeRecord(array $record): array
+    {
         if (! array_key_exists('expiration', $record) && ! array_key_exists('ttl', $record)) {
-            return $store->forever($key, $record);
+            return [$record, null];
         }
 
         $currentTimestamp = CarbonImmutable::now()->getTimestamp();
         $value = $record['value'];
         $expiration = $record['expiration'] ?? $currentTimestamp + $record['ttl'];
         $ttl = $record['ttl'] ?? $record['expiration'] - $currentTimestamp;
-        $normalizedRecord = compact('value', 'expiration');
 
-        return $store->put($key, $normalizedRecord, $ttl);
+        return [compact('value', 'expiration'), $ttl];
     }
 
     /**
@@ -365,24 +495,22 @@ class StackStore extends TaggableStore implements AuthoritativeRawReadable, CanF
             return false;
         }
 
-        if (! array_key_exists('expiration', $record) && ! array_key_exists('ttl', $record)) {
-            if (is_null($proxyTtl = $proxy->getTtl())) {
-                return $store->tags($tags)->forever($key, $record);
-            }
+        [$record, $ttl] = $this->normalizeRecord($record);
+        $proxyTtl = $proxy->getTtl();
 
-            return $store->tags($tags)->put($key, $record, $proxyTtl);
+        if (is_null($ttl)) {
+            return is_null($proxyTtl)
+                ? $store->tags($tags)->forever($key, $record)
+                : $store->tags($tags)->put($key, $record, $proxyTtl);
         }
 
-        $currentTimestamp = CarbonImmutable::now()->getTimestamp();
-        $value = $record['value'];
-        $expiration = $record['expiration'] ?? $currentTimestamp + $record['ttl'];
-        $ttl = $record['ttl'] ?? $record['expiration'] - $currentTimestamp;
-        $normalizedRecord = compact('value', 'expiration');
+        if ($ttl <= 0) {
+            return $store->forget($key);
+        }
 
-        $proxyTtl = $proxy->getTtl();
         $effectiveTtl = is_null($proxyTtl) || $ttl < $proxyTtl ? $ttl : $proxyTtl;
 
-        return $store->tags($tags)->put($key, $normalizedRecord, $effectiveTtl);
+        return $store->tags($tags)->put($key, $record, $effectiveTtl);
     }
 
     /**
@@ -510,7 +638,10 @@ class StackStore extends TaggableStore implements AuthoritativeRawReadable, CanF
         }, $bottomLayer)();
     }
 
-    protected function callStores(Closure $handler, ?Closure $rollback = null): bool
+    /**
+     * Call the handler for each store in order, rolling back the completed stores when one fails.
+     */
+    protected function callStores(Closure $handler, ?Closure $rollback = null, bool $rollbackFailedStore = false): bool
     {
         $completed = [];
         $result = true;
@@ -520,6 +651,10 @@ class StackStore extends TaggableStore implements AuthoritativeRawReadable, CanF
             try {
                 if (! $handler($store)) {
                     $result = false;
+
+                    if ($rollbackFailedStore) {
+                        $completed[] = $store;
+                    }
 
                     break;
                 }
