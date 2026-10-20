@@ -7,6 +7,8 @@ namespace Hypervel\Tests\Sentry\Features;
 use Hypervel\Config\Repository;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Pennant\Feature;
+use Hypervel\Support\ServiceProvider;
+use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Tests\Sentry\TestCase;
 use Sentry\Event;
 
@@ -48,6 +50,37 @@ class PennantPackageIntegrationTest extends TestCase
                 'result' => true,
             ],
         ], $flags);
+    }
+
+    #[DefineEnvironment('checkingAFeatureWhileProvidersBoot')]
+    public function testFeaturesCheckedWhileProvidersBootAreNotRecorded(): void
+    {
+        Feature::define('new-dashboard', true);
+
+        Feature::active('new-dashboard');
+
+        $event = $this->getCurrentSentryScope()->applyToEvent(Event::createEvent());
+
+        $this->assertEquals([
+            [
+                'flag' => 'new-dashboard',
+                'result' => true,
+            ],
+        ], $event->getContexts()['flags']['values']);
+    }
+
+    /**
+     * Register a provider that checks a feature while it boots.
+     */
+    protected function checkingAFeatureWhileProvidersBoot(ApplicationContract $app): void
+    {
+        $app->register(new class($app) extends ServiceProvider {
+            public function boot(): void
+            {
+                Feature::define('boot-flag', true);
+                Feature::active('boot-flag');
+            }
+        });
     }
 
     public function testPennantFeatureWithLeadingNamespaceSeparatorIsRecordedWithNormalizedName(): void

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry\Features;
 
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Pennant\Events\FeatureRetrieved;
 use Hypervel\Pennant\Feature as Pennant;
 use Sentry\SentrySdk;
@@ -24,7 +25,11 @@ class PennantPackageIntegration extends Feature
      */
     public function onBoot(): void
     {
-        $this->container->make('events')->listen(FeatureRetrieved::class, [$this, 'handleFeatureRetrieved']);
+        // Until the application has booted, the current Sentry scope is the baseline that every
+        // request copies, so flags checked while providers boot would appear on every request.
+        $this->container->make(Application::class)->booted(function (): void {
+            $this->container->make('events')->listen(FeatureRetrieved::class, [$this, 'handleFeatureRetrieved']);
+        });
     }
 
     /**
