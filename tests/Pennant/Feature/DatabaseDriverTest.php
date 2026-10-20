@@ -219,13 +219,13 @@ class DatabaseDriverTest extends TestCase
 
         $this->assertFalse(Feature::active('foo'));
         $this->assertFalse(Feature::active('bar'));
-        $this->assertFalse(Feature::active('bar'));
+        $this->assertFalse(Feature::active('baz'));
 
         Feature::activate(['bar', 'baz']);
 
         $this->assertFalse(Feature::active('foo'));
         $this->assertTrue(Feature::active('bar'));
-        $this->assertTrue(Feature::active('bar'));
+        $this->assertTrue(Feature::active('baz'));
 
         $this->assertCount(4, DB::getQueryLog());
     }
@@ -1385,14 +1385,32 @@ class DatabaseDriverTest extends TestCase
         $this->assertSame('bar_features', $tableResolver->bindTo($driver, $driver)());
     }
 
-    public function testItUsesDefaultConnectionIfNull(): void
+    #[DataProvider('unsetConnections')]
+    public function testItUsesDefaultConnectionIfNull(?string $connection): void
     {
-        Config::set('pennant.stores.database.connection', 'null');
+        Config::set('database.connections.other', config('database.connections.' . config('database.default')));
+        Config::set('pennant.stores.database.connection', $connection);
 
         $migration = new class extends PennantMigration {};
+        $migrator = $this->app->make('migrator');
 
-        $connection = $migration->getConnection();
-        $this->assertSame(config('database.default'), $connection);
+        $this->assertNull($migration->getConnection());
+        $this->assertSame('other', $migrator->usingConnection('other', fn () => $migrator->resolveConnection($migration->getConnection())->getName()));
+    }
+
+    public static function unsetConnections(): array
+    {
+        return [
+            'null' => [null],
+            'empty string' => [''],
+        ];
+    }
+
+    public function testItUsesThePennantConnectionForMigrations(): void
+    {
+        Config::set('pennant.stores.database.connection', 'pennant');
+
+        $this->assertSame('pennant', (new class extends PennantMigration {})->getConnection());
     }
 
     #[DataProvider('readConnections')]

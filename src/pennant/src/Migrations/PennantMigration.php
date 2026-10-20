@@ -15,6 +15,7 @@ abstract class PennantMigration extends Migration
     {
         $connection = config('pennant.stores.database.connection');
 
-        return ($connection === null || $connection === 'null') ? config('database.default') : $connection;
+        // Without a connection of its own, the migration runs on the migrator's connection, so --database applies.
+        return $connection === '' ? null : $connection;
     }
 }
