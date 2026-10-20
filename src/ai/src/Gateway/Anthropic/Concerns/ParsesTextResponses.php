@@ -108,9 +108,46 @@ trait ParsesTextResponses
      */
     protected function extractText(array $content): string
     {
-        $textBlocks = array_filter($content, fn (array $block): bool => ($block['type'] ?? '') === 'text');
+        $text = '';
+        $afterTool = false;
 
-        return implode('', array_column($textBlocks, 'text'));
+        foreach ($content as $block) {
+            $type = $block['type'] ?? '';
+
+            if ($type === 'text') {
+                $blockText = (string) ($block['text'] ?? '');
+                $text .= ($afterTool && $text !== '' ? $this->textSeparator($text, $blockText) : '') . $blockText;
+                $afterTool = false;
+            } elseif ($this->isToolBlock($type)) {
+                $afterTool = true;
+            }
+        }
+
+        return $text;
+    }
+
+    /**
+     * Get the separator between text written before a tool block and text written after it.
+     */
+    protected function textSeparator(string $before, string $after): string
+    {
+        return str_ends_with($before, "\n") || str_starts_with($after, "\n") ? '' : "\n\n";
+    }
+
+    /**
+     * Determine if the given block type is a server tool call or its result.
+     */
+    protected function isToolBlock(string $type): bool
+    {
+        return $type === 'server_tool_use' || $this->isProviderToolResultBlock($type);
+    }
+
+    /**
+     * Determine if the given block type is a provider tool result.
+     */
+    protected function isProviderToolResultBlock(string $type): bool
+    {
+        return str_ends_with($type, '_tool_result');
     }
 
     /**
@@ -132,7 +169,7 @@ trait ParsesTextResponses
     {
         return array_values(array_map(
             fn (array $block): ProviderToolCall => new ProviderToolCall($block['tool_use_id'] ?? $block['id'] ?? '', $block['type'], $block),
-            array_filter($content, fn (array $block): bool => ($block['type'] ?? '') === 'server_tool_use' || str_ends_with((string) ($block['type'] ?? ''), '_tool_result')),
+            array_filter($content, fn (array $block): bool => ($block['type'] ?? '') === 'server_tool_use' || $this->isProviderToolResultBlock((string) ($block['type'] ?? ''))),
         ));
     }
 
