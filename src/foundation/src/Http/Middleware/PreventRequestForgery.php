@@ -95,7 +95,7 @@ class PreventRequestForgery
      */
     protected function isReading(Request $request): bool
     {
-        // QUERY stays verified: it carries a body and can arrive as a form POST with a _method override.
+        // QUERY is verified because a cross-site form POST can spoof it with a _method override.
         return in_array($request->method(), ['HEAD', 'GET', 'OPTIONS'], true);
     }
 
