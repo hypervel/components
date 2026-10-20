@@ -38,7 +38,8 @@ class PendingScopedFeatureInteraction
      */
     public function for(mixed $scope): static
     {
-        $this->scope = array_merge($this->scope, $scope instanceof Enumerable ? $scope->all() : Arr::wrap($scope));
+        // Scopes are read by position, so string keys from a keyed collection must not survive the merge.
+        $this->scope = array_merge($this->scope, array_values($scope instanceof Enumerable ? $scope->all() : Arr::wrap($scope)));
 
         return $this;
     }

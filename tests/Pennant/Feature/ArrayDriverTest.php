@@ -19,6 +19,7 @@ use Hypervel\Pennant\Events\UnexpectedNullScopeEncountered;
 use Hypervel\Pennant\Events\UnknownFeatureResolved;
 use Hypervel\Pennant\Feature;
 use Hypervel\Pennant\GlobalScope;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Auth;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Lottery;
@@ -181,13 +182,13 @@ class ArrayDriverTest extends TestCase
 
         $this->assertFalse(Feature::active('foo'));
         $this->assertFalse(Feature::active('bar'));
-        $this->assertFalse(Feature::active('bar'));
+        $this->assertFalse(Feature::active('baz'));
 
         Feature::activate(['bar', 'baz']);
 
         $this->assertFalse(Feature::active('foo'));
         $this->assertTrue(Feature::active('bar'));
-        $this->assertTrue(Feature::active('bar'));
+        $this->assertTrue(Feature::active('baz'));
     }
 
     public function testItCanCheckIfMultipleFeaturesAreActiveAtOnce(): void
@@ -314,6 +315,18 @@ class ArrayDriverTest extends TestCase
 
         $this->assertFalse(Feature::for('james@hypervel.com')->active('foo'));
         $this->assertTrue(Feature::for('tim@hypervel.com')->active('foo'));
+    }
+
+    public function testKeyedScopesAreReadByPosition(): void
+    {
+        Feature::define('foo', fn (string $scope) => "{$scope}-value");
+
+        $this->assertSame('tim-value', Feature::for(new Collection(['admin' => 'tim']))->value('foo'));
+        $this->assertSame(['foo' => 'tim-value'], Feature::for(['admin' => 'tim'])->all());
+        $this->assertSame(
+            ['foo' => ['tim-value', 'taylor-value']],
+            Feature::for(['admin' => 'tim'])->for(['admin' => 'taylor'])->load('foo'),
+        );
     }
 
     public function testItCanHandleFeatureScopeableObjects(): void
