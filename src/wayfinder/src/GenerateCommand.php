@@ -40,7 +40,7 @@ class GenerateCommand extends Command
         'RouteFormDefinition',
     ];
 
-    protected ?string $signature = 'wayfinder:generate {--path=} {--skip-actions} {--skip-routes} {--with-form}';
+    protected ?string $signature = 'wayfinder:generate {--path=} {--skip-actions} {--skip-routes} {--skip-database} {--with-form}';
 
     private ?string $forcedScheme = null;
 
@@ -83,6 +83,8 @@ class GenerateCommand extends Command
         if ($this->option('path') === '') {
             throw new InvalidArgumentException('The --path option may not be empty.');
         }
+
+        BindingResolver::skipDatabase($this->option('skip-database') === true);
 
         $this->view->replaceNamespace('wayfinder', __DIR__ . '/../resources');
         $this->view->addExtension('blade.ts', 'blade');

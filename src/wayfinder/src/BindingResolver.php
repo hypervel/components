@@ -24,9 +24,23 @@ class BindingResolver
 
     protected static array $docBlocks = [];
 
+    protected static bool $skipDatabase = false;
+
     protected static ?PhpDocParser $docParser = null;
 
     protected static ?Lexer $lexer = null;
+
+    /**
+     * Set whether binding types skip the database schema.
+     */
+    public static function skipDatabase(bool $skip): void
+    {
+        if (self::$skipDatabase !== $skip) {
+            self::$columns = [];
+        }
+
+        self::$skipDatabase = $skip;
+    }
 
     /**
      * Resolve the primitive types and binding key for a routable class.
@@ -87,6 +101,10 @@ class BindingResolver
      */
     protected static function getColumns(Model $model): array
     {
+        if (self::$skipDatabase) {
+            return [];
+        }
+
         try {
             return $model->getConnection()->getSchemaBuilder()->getColumns($model->getTable());
         } catch (Throwable) {
@@ -208,6 +226,7 @@ class BindingResolver
         self::$booted = [];
         self::$columns = [];
         self::$docBlocks = [];
+        self::$skipDatabase = false;
         self::$docParser = null;
         self::$lexer = null;
     }
