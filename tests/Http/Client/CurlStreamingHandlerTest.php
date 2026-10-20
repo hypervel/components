@@ -510,7 +510,7 @@ class CurlStreamingHandlerTest extends TestCase
                         $request = '';
 
                         while (! str_contains($request, "\r\n\r\n")) {
-                            $chunk = $client->recv(2);
+                            $chunk = $client->recv(timeout: 2);
                             $this->assertIsString($chunk);
                             $this->assertNotSame('', $chunk);
                             $request .= $chunk;

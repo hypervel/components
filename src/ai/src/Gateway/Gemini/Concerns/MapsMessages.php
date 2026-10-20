@@ -67,6 +67,11 @@ trait MapsMessages
             return;
         }
 
+        // A signature never rides on a function call, so a persisted turn opens with the rebuilt thought step that held it...
+        if ($message instanceof AssistantMessage && filled($signature = $message->toolCalls->first()?->thoughtSignature)) {
+            $input[] = ['type' => 'thought', 'signature' => $signature];
+        }
+
         if (filled($message->content)) {
             $input[] = [
                 'type' => 'model_output',
@@ -75,11 +80,6 @@ trait MapsMessages
         }
 
         if ($message instanceof AssistantMessage) {
-            // A signature never rides on a function call, so a persisted turn rebuilds the thought step that held it...
-            if (filled($signature = $message->toolCalls->first()?->thoughtSignature)) {
-                $input[] = ['type' => 'thought', 'signature' => $signature];
-            }
-
             foreach ($message->toolCalls as $toolCall) {
                 $input[] = [
                     'type' => 'function_call',

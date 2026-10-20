@@ -27,7 +27,7 @@ Swoole\Coroutine\run(static function (): void {
         try {
             $request = '';
             while (! str_contains($request, "\r\n\r\n")) {
-                $chunk = $client->recv(2);
+                $chunk = $client->recv(timeout: 2);
                 if ($chunk === false || $chunk === '') {
                     throw new RuntimeException('Request ended before its headers.');
                 }
@@ -66,7 +66,7 @@ Swoole\Coroutine\run(static function (): void {
         $client = $listener->accept(2);
         try {
             // Do not send headers. The second client's own timeout releases us.
-            while (($data = $client->recv(2)) !== '' && $data !== false);
+            while (($data = $client->recv(timeout: 2)) !== '' && $data !== false);
         } finally {
             $client->close();
             $finished->push(true);

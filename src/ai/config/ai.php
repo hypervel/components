@@ -89,13 +89,13 @@ return [
     |
     | Remote attachments must resolve to public addresses unless their host
     | is listed below. The size limit applies to each decoded download in
-    | bytes. Set max_size to null to allow downloads of any size.
+    | kilobytes. Set max_size to null to allow downloads of any size.
     |
     */
 
     'remote_files' => [
         'allowed_hosts' => [],
-        'max_size' => 32 * 1024 * 1024,
+        'max_size' => 32 * 1024,
     ],
 
     /*

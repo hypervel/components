@@ -92,7 +92,7 @@ class BedrockHttpTest extends TestCase
         $server = LoopbackHttpServer::start([
             static function (Socket $client) use ($first, $closed): void {
                 $client->sendAll("HTTP/1.1 200 OK\r\nContent-Type: application/vnd.amazon.eventstream\r\nConnection: close\r\n\r\n" . $first);
-                $closed->push($client->recv(2));
+                $closed->push($client->recv(timeout: 2));
             },
             ['headers' => ['Content-Type' => 'application/vnd.amazon.eventstream'], 'body' => $next],
         ]);

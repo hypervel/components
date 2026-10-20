@@ -183,6 +183,27 @@ class MeilisearchFilteringIntegrationTest extends MeilisearchScoutIntegrationTes
         $this->assertSame([401, 402], $results->pluck('id')->sort()->values()->all());
     }
 
+    public function testWhereInAndWhereNotInValuesAreEscaped(): void
+    {
+        SearchableModel::create(['id' => 1, 'title' => 'Hypervel Framework', 'body' => 'Body']);
+        SearchableModel::create(['id' => 2, 'title' => 'Other', 'body' => 'Body']);
+
+        $this->engine->update(SearchableModel::query()->get());
+        $this->waitForMeilisearchTasks();
+
+        $injection = 'x"] OR title IS NOT NULL OR title IN ["y';
+
+        $this->assertSame(
+            [1 => 'Hypervel Framework'],
+            SearchableModel::search('')->whereIn('title', ['Hypervel Framework', $injection])->get()->pluck('title', 'id')->all()
+        );
+
+        $this->assertSame(
+            [2 => 'Other'],
+            SearchableModel::search('')->whereNotIn('title', ['Hypervel Framework', $injection])->get()->pluck('title', 'id')->all()
+        );
+    }
+
     public function testApplicationFiltersComposeWithBuilderFiltersForSearchAndDeletion(): void
     {
         SearchableModel::withoutSyncingToSearch(function (): void {

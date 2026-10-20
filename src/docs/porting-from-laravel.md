@@ -35,6 +35,7 @@
     - [CSRF Protection](#csrf-protection)
     - [Fortify](#fortify)
     - [Passport](#passport)
+    - [Permission](#permission)
     - [JWT Authentication](#jwt-authentication)
     - [Scout](#scout)
     - [Sentry](#sentry)
@@ -537,7 +538,7 @@ Agent broadcasts also batch adjacent text/reasoning deltas by default. Each batc
 
 Agent overrides of `Promptable::getProvidersAndModels()` must return an ordered list of provider/model pairs, such as `[['openai', 'gpt-4o']]`, instead of `['openai' => 'gpt-4o']`. The provider may also be a `Provider` object, preserving its credentials. Failover lists retain repeated entries as separate attempts. See [failover](/docs/{{version}}/ai-sdk#failover).
 
-Remote attachments share the HTTP client's destination checks instead of `UntrustedUrl`'s protected `validate`, `resolve`, and `isBlocked` helpers and hostname-blocklist constants. Adapt subclasses that override them. URLs with embedded credentials are rejected; fetch authenticated files explicitly before attaching them. Configure `ai.remote_files.max_size` if your downloads exceed the default 32 MiB limit. See [remote attachments](/docs/{{version}}/ai-sdk#remote-attachments).
+Remote attachments share the HTTP client's destination checks instead of `UntrustedUrl`'s protected `validate`, `resolve`, and `isBlocked` helpers and hostname-blocklist constants. Adapt subclasses that override them. URLs with embedded credentials are rejected; fetch authenticated files explicitly before attaching them. The default `ai.remote_files.max_size` is 32 MiB (`32 * 1024` kilobytes) instead of Laravel's 100 MB; raise it if your downloads are larger. See [remote attachments](/docs/{{version}}/ai-sdk#remote-attachments).
 
 Skill definitions in `resources/skills` are cached across requests. If your application changes them at runtime, use a closure or an uncached directory, or set `ai.skills.cached_paths` to `[]`. See [skills](/docs/{{version}}/ai-sdk#skills).
 
@@ -627,6 +628,11 @@ Import Laravel data into Hypervel's schema using its migrations, rather than add
 Restart the server and other long-running processes after changing file or environment signing keys. `server:reload` is not sufficient. See [signing-key rotation](/docs/{{version}}/passport#rotating-signing-keys).
 
 Custom guards, controllers, middleware and cookie-factory subclasses must match Hypervel's constructor and protected method signatures. In particular, guards read `RequestContext` instead of accepting `setRequest()`, `CreateFreshApiToken` passes its guard explicitly, and server-building methods live on `ServerFactory`. Consult the package's [API differences](https://github.com/hypervel/passport#differences-from-laravel) and [Passport documentation](/docs/{{version}}/passport) when porting extensions.
+
+<a name="permission"></a>
+### Permission
+
+Replace the cache configuration's `expiration_time` with `expiration_seconds`, and use a cache store that keeps values and atomic locks on the same backend. See [cache configuration](/docs/{{version}}/permission#cache). Roles and permissions returned by lookups are shared within the current request or job, so code that changes one must save it before looking up roles or permissions again. See [caching](/docs/{{version}}/permission#caching).
 
 <a name="jwt-authentication"></a>
 ### JWT Authentication

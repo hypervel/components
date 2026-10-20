@@ -74,6 +74,12 @@ php artisan wayfinder:generate --skip-actions
 php artisan wayfinder:generate --skip-routes
 ```
 
+The `--skip-database` option skips the database schema when typing route model bindings and reads the model's `@property` docblocks instead. Use it when the database is unreachable at build time. Eloquent casts are still used, and bindings without a matching cast or `@property` tag fall back to `string | number | boolean`:
+
+```shell
+php artisan wayfinder:generate --skip-database
+```
+
 When the Vite plugin regenerates Wayfinder output during every build, the generated directories may be added to your application's `.gitignore` file. If your deployment does not install Composer dependencies or run the generator, commit the generated files instead and regenerate them whenever your routes or controllers change.
 
 <a name="deploying-with-cached-routes"></a>
@@ -106,6 +112,15 @@ You may use the `url` method when you only need the URL, or call one of the HTTP
 ```ts
 show.url(1); // '/posts/1'
 show.head(1); // { url: '/posts/1', method: 'head' }
+```
+
+Routes registered with the [`QUERY`](/docs/{{version}}/routing#available-router-methods) method, such as `Route::query('/search', ...)`, receive a `query` method like any other verb:
+
+```ts
+import { search } from '@/actions/App/Http/Controllers/SearchController';
+
+search(); // { url: '/search', method: 'query' }
+search.query(); // { url: '/search', method: 'query' }
 ```
 
 When a controller method uses a JavaScript reserved word such as `delete` or `import`, Wayfinder appends `Method` to the generated export name. For example, `delete` becomes `deleteMethod`.
@@ -257,6 +272,8 @@ For actions that support multiple HTTP methods, you may select a method on the f
 ```tsx
 const UpdatePost = () => <form {...update.form.put(1)} />;
 ```
+
+Since HTML forms only support `GET` and `POST`, `QUERY` routes are spoofed the same way as `PUT`, `PATCH`, and `DELETE`: `search.form()` produces `<form action="/search?_method=QUERY" method="post">`.
 
 <a name="query-parameters"></a>
 ## Query Parameters

@@ -7,14 +7,9 @@ declare(strict_types=1);
 // Component timings: HypervelRequestFetcher::fetchRequest() and RequestIntegration::processEvent() on a
 // transaction event, using the fetcher and autoloader of the checkout at --root. Not HTTP request latency.
 
-$options = getopt('', ['root:', 'smoke', 'idle-confirmed']);
+$options = getopt('', ['root:', 'smoke']);
 $smoke = isset($options['smoke']);
 $repetitions = $smoke ? 1 : 3;
-
-if (! $smoke && ! isset($options['idle-confirmed'])) {
-    fwrite(STDERR, "Full-size runs need --idle-confirmed; use --smoke otherwise.\n");
-    exit(1);
-}
 
 require $options['root'] . '/vendor/autoload.php';
 

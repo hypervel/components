@@ -10,11 +10,11 @@ Run from the components repository root. First check the harness with a short sm
 php tests/Benchmarks/Mcp/concurrency.php --smoke
 ```
 
-For measurements, confirm with the owner that the machine is idle, then run:
+For measurements, run it on an idle machine:
 
 ```sh
 php -d opcache.enable_cli=1 -d opcache.jit=disable \
-  tests/Benchmarks/Mcp/concurrency.php --idle-confirmed \
+  tests/Benchmarks/Mcp/concurrency.php \
   > /tmp/mcp-concurrency.json
 ```
 

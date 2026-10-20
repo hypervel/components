@@ -4,7 +4,7 @@ This developer harness compares the public HTTP client against a separate local 
 
 See [recorded measurements](results.md) for the native receive-buffer comparison.
 
-Run only in an owner-confirmed idle window. Use independently installed baseline and modified worktrees with identical dependencies, PHP settings, opcache, JIT and GC. Copy this harness into an older checkout when necessary; do not change its production source.
+Run measurements on an idle machine. Use independently installed baseline and modified worktrees with identical dependencies, PHP settings, opcache, JIT and GC. Copy this harness into an older checkout when necessary; do not change its production source.
 
 Create a temporary certificate trusted only by the benchmark client:
 

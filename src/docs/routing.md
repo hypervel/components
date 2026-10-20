@@ -112,9 +112,9 @@ Route::options($uri, $callback);
 Route::query($uri, $callback);
 ```
 
-The `query` method registers a route for HTTP `QUERY` requests. Like `GET`, a `QUERY` request only reads data, but it sends its query in the request body, which suits searches that are too large or complex to fit in a URL.
+The `query` method registers a route for HTTP `QUERY` requests. Like `GET`, a `QUERY` request only reads data, but it sends its query in the request body, which suits searches that are too large or complex to fit in a URL. `QUERY` routes in the `web` middleware group are subject to [CSRF protection](/docs/{{version}}/csrf).
 
-Sometimes you may need to register a route that responds to multiple HTTP verbs. You may do so using the `match` method. Or, you may even register a route that responds to all HTTP verbs using the `any` method:
+Sometimes you may need to register a route that responds to multiple HTTP verbs. You may do so using the `match` method. Or, you may even register a route that responds to all HTTP verbs, including `QUERY`, using the `any` method:
 
 ```php
 Route::match(['get', 'post'], '/', function () {

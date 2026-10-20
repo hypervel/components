@@ -1322,11 +1322,13 @@ class PermissionRegistrar
      *     permissions: Collection,
      *     roles: Collection,
      *     permissionByKey: array<string, Model>,
-     *     permissionByNameAndGuard: array<string, list<Model>>,
+     *     permissionByNameAndGuard: null|array<string, list<Model>>,
      *     permissionOrderByKey: array<string, int>,
+     *     permissionKeyLookups: bool,
      *     roleByKey: array<string, Model>,
-     *     roleByNameAndGuard: array<string, list<Model>>,
+     *     roleByNameAndGuard: null|array<string, list<Model>>,
      *     roleOrderByKey: array<string, int>,
+     *     roleKeyLookups: bool,
      *     hasDeniedRolePermissions: bool
      * }
      */
@@ -1336,7 +1338,7 @@ class PermissionRegistrar
         $catalogs = CoroutineContext::get(self::PERMISSION_CATALOG_CONTEXT_KEY, []);
 
         if (isset($catalogs[$contextKey]) && is_array($catalogs[$contextKey])) {
-            /** @var array{permissions: Collection, roles: Collection, permissionByKey: array<string, Model>, permissionByNameAndGuard: array<string, list<Model>>, permissionOrderByKey: array<string, int>, roleByKey: array<string, Model>, roleByNameAndGuard: array<string, list<Model>>, roleOrderByKey: array<string, int>, hasDeniedRolePermissions: bool} */
+            /** @var array{permissions: Collection, roles: Collection, permissionByKey: array<string, Model>, permissionByNameAndGuard: null|array<string, list<Model>>, permissionOrderByKey: array<string, int>, permissionKeyLookups: bool, roleByKey: array<string, Model>, roleByNameAndGuard: null|array<string, list<Model>>, roleOrderByKey: array<string, int>, roleKeyLookups: bool, hasDeniedRolePermissions: bool} */
             return $catalogs[$contextKey];
         }
 
@@ -1357,9 +1359,11 @@ class PermissionRegistrar
             'permissionByKey' => $permissionIndexes['byKey'],
             'permissionByNameAndGuard' => $permissionIndexes['byNameAndGuard'],
             'permissionOrderByKey' => $permissionIndexes['orderByKey'],
+            'permissionKeyLookups' => $permissionIndexes['keyLookups'],
             'roleByKey' => $roleIndexes['byKey'],
             'roleByNameAndGuard' => $roleIndexes['byNameAndGuard'],
             'roleOrderByKey' => $roleIndexes['orderByKey'],
+            'roleKeyLookups' => $roleIndexes['keyLookups'],
             'hasDeniedRolePermissions' => (bool) $payload['hasDeniedRolePermissions'],
         ];
 
@@ -1518,6 +1522,9 @@ class PermissionRegistrar
     /**
      * Get indexed models for supported exact lookup shapes.
      *
+     * The indexes reflect cached models as they were loaded. Callers save changed models before further
+     * lookups, which refreshes the catalog, so lookups stay O(1) without rescanning returned models.
+     *
      * @param array<string, mixed> $params
      */
     protected function indexedModels(array $params, bool $onlyOne, string $modelType): ?Collection
@@ -1533,13 +1540,19 @@ class PermissionRegistrar
 
         /** @var array<string, Model> $byKey */
         $byKey = $catalog[$modelType === 'permission' ? 'permissionByKey' : 'roleByKey'];
-        /** @var array<string, list<Model>> $byNameAndGuard */
+        /** @var null|array<string, list<Model>> $byNameAndGuard */
         $byNameAndGuard = $catalog[$modelType === 'permission' ? 'permissionByNameAndGuard' : 'roleByNameAndGuard'];
         /** @var array<string, int> $orderByKey */
         $orderByKey = $catalog[$modelType === 'permission' ? 'permissionOrderByKey' : 'roleOrderByKey'];
+        $keyLookups = $catalog[$modelType === 'permission' ? 'permissionKeyLookups' : 'roleKeyLookups'];
 
         if (array_key_exists($keyName, $params) && count(array_diff_key($params, [$keyName => true, 'guard_name' => true])) === 0) {
             $ids = Arr::wrap($params[$keyName]);
+
+            if (! $keyLookups || ! self::indexableLookupValues($ids)) {
+                return null;
+            }
+
             $guardNames = array_key_exists('guard_name', $params) ? Arr::wrap($params['guard_name']) : null;
             $matches = [];
 
@@ -1567,6 +1580,11 @@ class PermissionRegistrar
         if (array_key_exists('name', $params) && array_key_exists('guard_name', $params) && count($params) === 2) {
             $names = Arr::wrap($params['name']);
             $guards = Arr::wrap($params['guard_name']);
+
+            if ($byNameAndGuard === null || ! self::indexableLookupValues($names) || ! self::indexableLookupValues($guards)) {
+                return null;
+            }
+
             $matches = [];
 
             foreach ($guards as $guardName) {
@@ -1649,6 +1667,10 @@ class PermissionRegistrar
         if (is_array($expected)) {
             return array_any($expected, fn ($value): bool => self::attributeMatches($actual, $value));
         }
+
+        // Attributes and lookup values may be enums, such as names read through an enum accessor, which match by their values.
+        $actual = enum_value($actual);
+        $expected = enum_value($expected);
 
         if ($actual === $expected) {
             return true;
@@ -2019,36 +2041,71 @@ class PermissionRegistrar
     /**
      * Index models by primary key, by name and guard, and by catalog position.
      *
-     * @return array{byKey: array<string, Model>, byNameAndGuard: array<string, list<Model>>, orderByKey: array<string, int>}
+     * Lookups use the key and name indexes only when reading those attributes returns their
+     * stored values, so indexed and filtered lookups agree. The name index is built from raw
+     * attributes, so loading never runs name or guard accessors; positions and model identity
+     * use getKey(), as elsewhere in the catalog.
+     *
+     * @return array{byKey: array<string, Model>, byNameAndGuard: null|array<string, list<Model>>, orderByKey: array<string, int>, keyLookups: bool}
      */
     private function indexModels(Collection $models): array
     {
         $byKey = [];
-        $byNameAndGuard = [];
         $orderByKey = [];
         $position = 0;
+        $prototype = $models->first();
+        $byNameAndGuard = $prototype === null
+            || (self::readsStoredValue($prototype, 'name') && self::readsStoredValue($prototype, 'guard_name'))
+            ? []
+            : null;
 
         foreach ($models as $model) {
             $key = (string) $model->getKey();
             $byKey[$key] = $model;
-            $byNameAndGuard[$this->nameGuardIndexKey($model->getAttribute('name'), $model->getAttribute('guard_name'))][] = $model;
             $orderByKey[$key] = $position++;
+
+            if ($byNameAndGuard !== null) {
+                $attributes = $model->getAttributes();
+                $byNameAndGuard[$this->nameGuardIndexKey($attributes['name'], $attributes['guard_name'])][] = $model;
+            }
         }
 
         return [
             'byKey' => $byKey,
             'byNameAndGuard' => $byNameAndGuard,
             'orderByKey' => $orderByKey,
+            'keyLookups' => $prototype === null
+                || self::readsStoredValue($prototype, $prototype->getKeyName(), $prototype->getKeyType()),
         ];
+    }
+
+    /**
+     * Determine if reading the attribute returns its stored value, allowing only the given cast.
+     */
+    private static function readsStoredValue(Model $model, string $attribute, ?string $allowedCast = null): bool
+    {
+        return ! $model->hasGetMutator($attribute)
+            && ! $model->hasAttributeGetMutator($attribute)
+            && (! $model->hasCast($attribute) || $model->getCasts()[$attribute] === $allowedCast);
+    }
+
+    /**
+     * Determine if every value compares the same through the string-keyed indexes as through filtering.
+     *
+     * @param array<array-key, mixed> $values
+     */
+    private static function indexableLookupValues(array $values): bool
+    {
+        return array_all($values, fn (mixed $value): bool => is_int($value) || is_string($value));
     }
 
     /**
      * Build the name and guard index key.
      */
-    private function nameGuardIndexKey(mixed $name, mixed $guardName): string
+    private function nameGuardIndexKey(int|string $name, int|string $guardName): string
     {
         // Null byte avoids collisions with names or guards containing ordinary separators.
-        return (string) enum_value($guardName) . "\0" . (string) enum_value($name);
+        return $guardName . "\0" . $name;
     }
 
     /**

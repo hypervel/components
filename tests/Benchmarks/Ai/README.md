@@ -1,6 +1,6 @@
 # AI benchmarks
 
-Run measurements only in an owner-confirmed idle window. These developer harnesses use local services and dummy credentials; they don't call paid model APIs. Keep raw reports outside the repository. Timing results aren't CI assertions.
+Run measurements on an idle machine. These developer harnesses use local services and dummy credentials; they don't call paid model APIs. Keep raw reports outside the repository. Timing results aren't CI assertions.
 
 See [recorded measurements](results.md) for the streaming, storage, runtime and batching comparisons, including rejected experiments and remaining tradeoffs.
 
@@ -56,7 +56,7 @@ BENCH_SMOKE=1 BENCH_OUT=/tmp/ai-runtime-smoke.jsonl \
   tests/Benchmarks/Ai/Fixtures/RuntimeBenchmark.php
 ```
 
-For measurements, replace `BENCH_SMOKE=1` with `BENCH_IDLE_CONFIRMED=1` and use a fresh output path. Results append JSON lines. Each case records its first operation, then three warmup operations and five measured batches. First-use figures exclude application boot and fixture creation; earlier cases may already have loaded shared classes. Use PHPUnit's `--filter` in a fresh process when measuring isolated first use. Alternate normal and `--order-by=reverse` runs to check ordering effects, and report medians and ranges across processes.
+For measurements, remove `BENCH_SMOKE=1` and use a fresh output path. Results append JSON lines. Each case records its first operation, then three warmup operations and five measured batches. First-use figures exclude application boot and fixture creation; earlier cases may already have loaded shared classes. Use PHPUnit's `--filter` in a fresh process when measuring isolated first use. Alternate normal and `--order-by=reverse` runs to check ordering effects, and report medians and ranges across processes.
 
 Fixed providers reuse their configured instance; the resolved-provider case changes dummy credentials on each lookup. Report this per-lookup cost alongside the full HTTP account-churn comparison, rather than assuming one lookup per agent call.
 
@@ -90,7 +90,7 @@ REDIS_HOST=127.0.0.1 REDIS_DB=0 BENCH_REDIS_PORT=REDIS_PORT \
   tests/Benchmarks/Ai/Fixtures/BroadcastBenchmark.php
 ```
 
-Use disposable Redis: the integration trait flushes its selected test database. Cluster is rejected before setup. For measurements, replace smoke mode with `BENCH_IDLE_CONFIRMED=1`; each case warms once then records five samples. Add `BENCH_PROBE=1` for one full-size sample without warmup before repeated runs. Alternate normal and reverse order across fresh processes. Stop the owned origin afterward.
+Use disposable Redis: the integration trait flushes its selected test database. Cluster is rejected before setup. For measurements, remove `BENCH_SMOKE=1`; each case warms once then records five samples. Add `BENCH_PROBE=1` for one full-size sample without warmup before repeated runs. Alternate normal and reverse order across fresh processes. Stop the owned origin afterward.
 
 Cases consume one or sixteen simultaneous responses, each with 32 eight-byte text deltas available every 20 ms plus stream/text start and end events. Stream starts are evenly staggered across that 20 ms interval. Availability uses fixed monotonic deadlines, so slow broadcasts cannot silently slow the simulated provider. This measures the response/event/broadcast path, not model generation or browser delivery. The local receiver waits 5 or 50 ms before accepting each event. TLS verification and the real Pusher SDK serialization, signing and HTTP client remain enabled; its per-request timeout is ten seconds.
 
@@ -132,7 +132,7 @@ REDIS_HOST=127.0.0.1 REDIS_DB=0 BENCH_REDIS_PORT=PORT \
 docker stop ai-cache-benchmark
 ```
 
-Use the printed port. LZ4 support must be enabled in phpredis. For full runs, replace `BENCH_SMOKE=1` with `BENCH_IDLE_CONFIRMED=1` and select a fresh report path; alternate normal and reverse case order across processes. Each case records five batches. Single-vector cases use 500 operations per batch; 100-vector cases use 20.
+Use the printed port. LZ4 support must be enabled in phpredis. For full runs, remove `BENCH_SMOKE=1` and select a fresh report path; alternate normal and reverse case order across processes. Each case records five batches. Single-vector cases use 500 operations per batch; 100-vector cases use 20.
 
 Cases cover individual single-vector hits/misses, individual 100-vector hits/misses/50% hits, and shared 100-vector hits/misses. Priming, clearing and correctness assertions are outside each timed operation. Wall time includes the SDK/cache path and Redis I/O, but no model generation latency. CPU covers only the client process, including JSON processing and LZ4 compression/decompression; Redis server CPU is excluded. Peak heap describes the fixture process, including its precomputed vectors and checks. Stored bytes are Redis value lengths, including serialization/compression framing but excluding keys and server allocation overhead.
 
@@ -155,7 +155,7 @@ BENCH_SMOKE=1 BENCH_DB_DRIVER=pgsql BENCH_DB_PORT=PORT \
 docker stop ai-storage-benchmark
 ```
 
-Wait until the database is ready before running. For MySQL use a disposable `mysql:9` container with `MYSQL_DATABASE=ai_benchmark`, `MYSQL_ROOT_PASSWORD=benchmark`, port 3306, and `BENCH_DB_DRIVER=mysql`. Keep normal durability settings and record the server version and storage environment with results. For full runs use `BENCH_IDLE_CONFIRMED=1` instead of smoke mode, selecting a fresh report path each time. Alternate normal and reverse case order across processes.
+Wait until the database is ready before running. For MySQL use a disposable `mysql:9` container with `MYSQL_DATABASE=ai_benchmark`, `MYSQL_ROOT_PASSWORD=benchmark`, port 3306, and `BENCH_DB_DRIVER=mysql`. Keep normal durability settings and record the server version and storage environment with results. For full runs remove `BENCH_SMOKE=1`, selecting a fresh report path each time. Alternate normal and reverse case order across processes.
 
 The cases cover:
 
@@ -179,7 +179,7 @@ BENCH_SMOKE=1 BENCH_DB_PORT=PORT BENCH_SCOUT_VARIANT=current \
   --default-time-limit=600 tests/Benchmarks/Ai/Fixtures/ScoutVectorBenchmark.php
 ```
 
-Use `BENCH_IDLE_CONFIRMED=1` for full measurements. First add `BENCH_PROBE=1` to run one full-size sample per input mode without warmup, checking capacity and disk footprint before repeated measurements. Probe output is explicitly labeled. The variant label selects correctness expectations; it does not modify the engine. `current` expects per-row autocommit. `batch-transaction` requires a separately reviewed experimental checkout that commits each multi-model batch together, after generation, without adding a transaction inside an existing one. Copy the identical fixture to both checkouts, verify dependency versions and relevant source differences, and alternate run order. Preserve failed runs and their settings rather than increasing timeouts to hide capacity limits. Stop on a pool timeout and investigate import capacity before continuing comparisons.
+For full measurements, remove `BENCH_SMOKE=1`. First add `BENCH_PROBE=1` to run one full-size sample per input mode without warmup, checking capacity and disk footprint before repeated measurements. Probe output is explicitly labeled. The variant label selects correctness expectations; it does not modify the engine. `current` expects per-row autocommit. `batch-transaction` requires a separately reviewed experimental checkout that commits each multi-model batch together, after generation, without adding a transaction inside an existing one. Copy the identical fixture to both checkouts, verify dependency versions and relevant source differences, and alternate run order. Preserve failed runs and their settings rather than increasing timeouts to hide capacity limits. Stop on a pool timeout and investigate import capacity before continuing comparisons.
 
 Each input mode has a warmup followed by three measured samples. Full samples import 5,000 target rows with the shipped chunk size of 500 and database pool maximum of ten. Command concurrency inherits Scout configuration (shipped default 50); its effective value is reported. `BENCH_SCOUT_CONCURRENCY` optionally sets a positive limit for a controlled comparison. For example, nine jobs leave one of the ten pool slots for the parent reading chunks. Use the same value in both checkouts and report any default-settings failure separately; a passing comparison at a lower concurrency does not resolve that failure. There are 1,000 indexed background rows, and targets start with NULL vectors in both modes. Smoke uses 1,000 targets, 100 background rows and one measured sample. The fixture observes actual simultaneous import jobs. Generated inputs use the real SDK and an empty array cache, with a local gateway returning deterministic 1,536-dimensional vectors after a 20 ms simulated service wait. The gateway releases idle database leases before waiting, matching the real HTTP boundary. Precomputed models return the same fixture vectors from memory and make no generation call; the map is cleared on teardown. Both modes therefore insert new vectors into the same starting index. Neither case calls a paid provider.
 

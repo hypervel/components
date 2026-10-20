@@ -97,7 +97,7 @@ class LoopbackHttpServer
         $request = '';
 
         while (! str_contains($request, "\r\n\r\n")) {
-            $chunk = $client->recv(2);
+            $chunk = $client->recv(timeout: 2);
 
             if ($chunk === false || $chunk === '') {
                 return $request;
@@ -111,7 +111,7 @@ class LoopbackHttpServer
         $length = isset($matches[1]) ? (int) $matches[1] : 0;
 
         while (strlen($body) < $length) {
-            $chunk = $client->recv(2);
+            $chunk = $client->recv(timeout: 2);
 
             if ($chunk === false || $chunk === '') {
                 break;

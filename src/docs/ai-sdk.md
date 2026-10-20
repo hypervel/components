@@ -1063,16 +1063,16 @@ Downloads inherit your application's outgoing proxy configuration; no separate A
 
 Pinning an untrusted hostname requires cURL with SSL support and libcurl 7.75 or later; see the HTTP client's [destination policy limitations](/docs/{{version}}/http-client#destination-policy-limitations). Explicitly trusted hosts bypass destination checks and do not require hostname pinning.
 
-Downloads are limited to 32 MiB of decoded content by default. You may set a different positive byte limit, or `null` to disable the limit, in your `config/ai.php` file:
+Downloads are limited to 32 MiB of decoded content by default. You may set a different limit in kilobytes, or `null` to disable the limit, in your `config/ai.php` file:
 
 ```php
 'remote_files' => [
     'allowed_hosts' => ['files.internal.example'],
-    'max_size' => 64 * 1024 * 1024,
+    'max_size' => 64 * 1024,
 ],
 ```
 
-The limit also applies to allowed hosts and compressed responses. A blocked destination or oversized download throws an `InvalidArgumentException`. The limit applies to each file; concurrent downloads and preparing files for a provider can use additional memory.
+The limit also applies to allowed hosts and compressed responses. A response that declares a larger `Content-Length` is rejected before its body is downloaded. A blocked destination or oversized download throws an `InvalidArgumentException`. The limit applies to each file; concurrent downloads and preparing files for a provider can use additional memory.
 
 If a file requires HTTP authentication, download it using the HTTP client's authentication methods and pass the downloaded content or local path to the SDK. The attachment's `withHeaders` method configures the upload to the AI provider, not the remote download.
 
@@ -1642,7 +1642,7 @@ When using Anthropic, additional provider-specific options may be passed to the 
 <a name="file-storage-tools"></a>
 ### File Storage Tools
 
-The `FileStorage` tool factory allows you to give agents access to a Hypervel [filesystem disk](/docs/{{version}}/filesystem). The `all` method returns tools that allow the agent to list, read, inspect, generate URLs for, write, delete, and copy files on the given disk:
+The `FileStorage` tool factory allows you to give agents access to a Hypervel [filesystem disk](/docs/{{version}}/filesystem). The `all` method returns tools that allow the agent to list, read, inspect, generate URLs for, write, delete, copy, and move files on the given disk:
 
 ```php
 use Hypervel\Ai\Tools\FileStorage;
@@ -1826,6 +1826,9 @@ To refine search results based on user location, use the `location` method:
 );
 ```
 
+> [!NOTE]
+> Groq only supports web search on its GPT-OSS models, and ignores the `max`, `allow`, and `location` methods.
+
 <a name="web-fetch"></a>
 #### Web Fetch
 
@@ -1920,6 +1923,9 @@ When using OpenAI or Azure, you may make [stored files](#files) available to the
     'container' => ['type' => 'auto', 'file_ids' => ['file_123']],
 ]);
 ```
+
+> [!NOTE]
+> Groq only supports code execution on its GPT-OSS models.
 
 <a name="sub-agents"></a>
 ### Sub-Agents

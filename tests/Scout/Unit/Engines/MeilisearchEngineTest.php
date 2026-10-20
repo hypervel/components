@@ -415,6 +415,28 @@ class MeilisearchEngineTest extends TestCase
         $engine->search($builder);
     }
 
+    public function testWhereInAndWhereNotInValuesAreEscaped(): void
+    {
+        $client = m::mock(Client::class);
+        $index = m::mock(Indexes::class);
+        $client->shouldReceive('index')->once()->with('test_index')->andReturn($index);
+        $index->shouldReceive('rawSearch')->once()->with('', [
+            'filter' => 'category IN ["12\" pipe", "back\\\slash"] AND tag NOT IN ["a\"] OR team_id = 2 OR tag IN [\"b"]',
+        ])->andReturn(['hits' => [], 'totalHits' => 0]);
+
+        $engine = new MeilisearchEngine($client);
+
+        $model = m::mock(MeilisearchTestSearchableModel::class);
+        $model->shouldReceive('searchableAs')->andReturn('test_index');
+        $model->shouldReceive('getScoutKeyName')->andReturn('id');
+
+        $builder = new Builder($model, '');
+        $builder->whereIn('category', ['12" pipe', 'back\slash']);
+        $builder->whereNotIn('tag', ['a"] OR team_id = 2 OR tag IN ["b']);
+
+        $engine->search($builder);
+    }
+
     #[DataProvider('filterCombinations')]
     public function testSearchComposesApplicationAndBuilderFilters(
         string|array|null $applicationFilter,

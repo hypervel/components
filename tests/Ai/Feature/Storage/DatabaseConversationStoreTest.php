@@ -373,6 +373,7 @@ class DatabaseConversationStoreTest extends TestCase
             '*' => Http::sequence([
                 Http::response(storeTestGeminiInteraction([
                     ['type' => 'thought', 'summary' => [['type' => 'text', 'text' => 'Thinking.']], 'signature' => 'sig_persist_777'],
+                    ['type' => 'model_output', 'content' => [['type' => 'text', 'text' => 'Let me generate one.']]],
                     ['type' => 'function_call', 'id' => 'call_123', 'name' => 'FixedNumberGenerator', 'arguments' => (object) []],
                 ])),
                 Http::response(storeTestGeminiInteraction([[
@@ -398,12 +399,12 @@ class DatabaseConversationStoreTest extends TestCase
         (new RememberingToolUsingAgent)->continue($conversationId, $user)->prompt('Generate another', provider: 'gemini');
 
         $recorded = Http::recorded();
-        $signatures = array_column(array_filter(
-            $recorded[count($recorded) - 1][0]->data()['input'],
-            fn (array $step): bool => $step['type'] === 'thought',
-        ), 'signature');
+        $input = $recorded[count($recorded) - 1][0]->data()['input'];
 
-        $this->assertSame(['sig_persist_777'], $signatures);
+        $this->assertSame([
+            'user_input', 'thought', 'model_output', 'function_call', 'function_result', 'model_output', 'user_input',
+        ], array_column($input, 'type'));
+        $this->assertSame(['type' => 'thought', 'signature' => 'sig_persist_777'], $input[1]);
     }
 
     public function testItStoresAResponseBuiltWithoutStepsAsASingleStepOfLists(): void

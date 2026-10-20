@@ -75,7 +75,7 @@ if (isset($options['help'])) {
         . "  --http-ca=PATH Trusted local CA for the HTTP origin\n"
         . "  --release      Release idle sessions before the simulated external wait\n"
         . "  --transaction  Wrap each request's queries in a transaction\n"
-        . "Run measurements only in an owner-confirmed idle window. Output is JSON.\n";
+        . "Run measurements on an idle machine. Output is JSON.\n";
     exit(0);
 }
 

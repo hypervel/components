@@ -1002,6 +1002,41 @@ class HasRolesTest extends TestCase
         $this->assertFalse($this->testUser->hasAnyRole('testAdminRole', $this->testAdminRole));
     }
 
+    #[DataProvider('roleModelGuardProvider')]
+    public function testItRespectsTheGuardWhenCheckingRoleModels(?string $guard, bool $expected): void
+    {
+        $this->testUser->assignRole($this->testUserRole);
+
+        $this->assertSame($expected, $this->testUser->hasRole($this->testUserRole, $guard));
+        $this->assertSame($expected, $this->testUser->hasRole([$this->testUserRole], $guard));
+        $this->assertSame($expected, $this->testUser->hasAllRoles($this->testUserRole, $guard));
+        $this->assertSame($expected, $this->testUser->hasAllRoles([$this->testUserRole], $guard));
+    }
+
+    /**
+     * Provide guard filters for role model checks.
+     */
+    public static function roleModelGuardProvider(): array
+    {
+        return [
+            'no guard filter' => [null, true],
+            'matching guard' => ['web', true],
+            'different guard' => ['admin', false],
+        ];
+    }
+
+    public function testRoleModelsDoNotMatchASameNamedRoleFromAnotherGuard(): void
+    {
+        $adminRole = app(Role::class)->create(['name' => 'testRole', 'guard_name' => 'admin']);
+        $this->testUser->assignRole($this->testUserRole);
+
+        $this->assertFalse($this->testUser->hasAllRoles([$adminRole]));
+        $this->assertFalse($this->testUser->hasExactRoles($adminRole));
+        $this->assertFalse($this->testUser->hasExactRoles([$adminRole]));
+        $this->assertTrue($this->testUser->hasAllRoles([$this->testUserRole, 'testRole']));
+        $this->assertTrue($this->testUser->hasExactRoles([$this->testUserRole]));
+    }
+
     public function testItCanCheckAgainstAnyMultipleRolesUsingMultipleArguments(): void
     {
         $this->testUser->assignRole('testRole');

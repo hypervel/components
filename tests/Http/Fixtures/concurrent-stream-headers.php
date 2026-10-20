@@ -27,7 +27,7 @@ Swoole\Coroutine\run(static function () use ($concurrency): void {
                         $client = $listener->accept(2);
                         $request = '';
                         while (! str_contains($request, "\r\n\r\n")) {
-                            $chunk = $client->recv(2);
+                            $chunk = $client->recv(timeout: 2);
                             if ($chunk === false || $chunk === '') {
                                 throw new RuntimeException('Request ended before its headers.');
                             }

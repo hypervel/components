@@ -41,14 +41,10 @@ class BroadcastBenchmark extends TestCase
     use InteractsWithRedis;
 
     /**
-     * Require local services and an explicit benchmark run.
+     * Require local services.
      */
     protected function setUp(): void
     {
-        if (getenv('BENCH_SMOKE') !== '1' && getenv('BENCH_IDLE_CONFIRMED') !== '1') {
-            $this->fail('Use BENCH_SMOKE=1 or BENCH_IDLE_CONFIRMED=1.');
-        }
-
         if (! getenv('BENCH_REDIS_PORT') || ! getenv('BENCH_BROADCAST_PORT') || ! getenv('BENCH_CA')) {
             $this->fail('Supply disposable loopback Redis and broadcast origin ports, and their TLS certificate.');
         }

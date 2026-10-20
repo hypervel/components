@@ -1808,6 +1808,8 @@ $user->syncPermissionEffects(
 
 Changing a model's roles or direct permissions clears only that model's cached assignments. Changing a role's permissions, or creating, updating, or deleting a role or permission, clears the cached catalog. Calling `syncModels`, hard deleting a role or permission, and resetting the cache expire every model's cached assignments.
 
+Roles and permissions returned by `findByName`, `findById`, and the other lookups are shared within the current request or job. If you change one of these models, save it before looking up roles or permissions again.
+
 If you change the permission tables any other way, such as with raw queries, reset the cache yourself using the `permission:cache-reset` command or the `forgetCachedPermissions` method:
 
 ```shell

@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Ai\Feature\Files;
 
+use GuzzleHttp\Psr7\Utils;
 use Hypervel\Ai\Files\RemoteImage;
 use Hypervel\Ai\Files\UntrustedUrl;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Pool\PoolManager;
+use Hypervel\Http\Client\ConnectionException;
 use Hypervel\Http\Client\Destinations\DestinationResolutionException;
 use Hypervel\Http\Client\Destinations\DisallowedDestinationException;
 use Hypervel\Http\Client\Request;
@@ -19,6 +21,7 @@ use Hypervel\Tests\Http\Fixtures\LoopbackHttpServer;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Swoole\Coroutine\CanceledException;
+use Swoole\Coroutine\Socket;
 
 class UntrustedUrlTest extends TestCase
 {
@@ -279,6 +282,66 @@ class UntrustedUrlTest extends TestCase
         Http::assertSentCount(6);
     }
 
+    public function testABodyLargerThanTheSizeLimitIsRejected(): void
+    {
+        config(['ai.remote_files.max_size' => 1]);
+        Http::fake(['*' => Http::response(str_repeat('a', 1025))]);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('exceeds the maximum size of 1 kilobytes');
+
+        (new RemoteImage('https://example.com/photo.png'))->content();
+    }
+
+    public function testADeclaredLengthLargerThanTheSizeLimitIsRejectedBeforeTheBodyIsRead(): void
+    {
+        config(['ai.remote_files.max_size' => 1]);
+        $body = Utils::streamFor('bytes');
+        Http::fake(['*' => Http::response($body, 200, ['Content-Length' => '1025'])]);
+
+        try {
+            (new RemoteImage('https://example.com/photo.png'))->content();
+            $this->fail('The declared length was not checked.');
+        } catch (InvalidArgumentException $exception) {
+            $this->assertStringContainsString('exceeds the maximum size of 1 kilobytes', $exception->getMessage());
+        }
+
+        $this->assertSame(0, $body->tell());
+    }
+
+    public function testTheSizeLimitDefaultsTo32Megabytes(): void
+    {
+        $this->assertSame(UntrustedUrl::MAX_KILOBYTES, config('ai.remote_files.max_size'));
+        Http::fake(['*' => Http::response('bytes', 200, ['Content-Length' => (string) (32 * 1024 * 1024 + 1)])]);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('exceeds the maximum size of 32768 kilobytes');
+
+        (new RemoteImage('https://example.com/photo.png'))->content();
+    }
+
+    public function testABodyWithinTheSizeLimitIsFetched(): void
+    {
+        config(['ai.remote_files.max_size' => 1]);
+        $content = str_repeat('a', 1024);
+        Http::fake(['*' => Http::response($content, 200, ['Content-Length' => '1024'])]);
+
+        $this->assertSame($content, (new RemoteImage('https://example.com/photo.png'))->content());
+    }
+
+    public function testATransportFailureUnrelatedToTheSizeLimitIsRethrown(): void
+    {
+        $failure = new ConnectionException('cURL error 7: Failed to connect');
+        Http::fake(static fn () => throw $failure);
+
+        try {
+            (new RemoteImage('https://example.com/photo.png'))->content();
+            $this->fail('The transport failure was not rethrown.');
+        } catch (ConnectionException $exception) {
+            $this->assertSame($failure, $exception);
+        }
+    }
+
     public function testDownloadsInheritTheGlobalProxyConfiguration(): void
     {
         $proxy = LoopbackHttpServer::start([['body' => 'bytes']]);
@@ -299,29 +362,44 @@ class UntrustedUrlTest extends TestCase
 
         if ($rejected) {
             $this->expectException(InvalidArgumentException::class);
-            $this->expectExceptionMessage("maximum size of [{$limit}] bytes");
+            $this->expectExceptionMessage("maximum size of {$limit} kilobytes");
         }
 
         $this->assertSame($content, (new RemoteImage("http://127.0.0.1:{$server->port}/photo.png"))->content());
     }
 
     /**
-     * Provide exact, excessive, and compressed downloads.
+     * Provide exact and compressed downloads.
      */
     public static function downloadSizes(): array
     {
         return [
-            'exact limit' => [5, 'bytes', false, false],
-            'one byte over' => [4, 'bytes', false, true],
-            'decoded gzip' => [128, str_repeat('x', 1024), true, true],
+            'exact limit' => [1, str_repeat('x', 1024), false, false],
+            'decoded gzip' => [1, str_repeat('x', 2048), true, true],
+            'gzip larger than its decoded body' => [1, random_bytes(1024), true, false],
         ];
+    }
+
+    public function testADeclaredLengthIsRejectedBeforeTheServerSendsTheBody(): void
+    {
+        config(['ai.remote_files.allowed_hosts' => ['127.0.0.1'], 'ai.remote_files.max_size' => 1]);
+        $server = LoopbackHttpServer::start([static function (Socket $client): void {
+            $client->sendAll("HTTP/1.1 200 OK\r\nContent-Length: 1025\r\nConnection: close\r\n\r\n");
+
+            // Withhold the body until the client closes the connection.
+            $client->recv(timeout: 2);
+        }]);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('exceeds the maximum size of 1 kilobytes');
+
+        (new RemoteImage("http://127.0.0.1:{$server->port}/photo.png"))->content();
     }
 
     public function testANullSizeLimitAllowsDownloadsLargerThanTheDefault(): void
     {
-        $this->assertSame(UntrustedUrl::DEFAULT_MAX_SIZE, config('ai.remote_files.max_size'));
         config(['ai.remote_files.allowed_hosts' => ['127.0.0.1'], 'ai.remote_files.max_size' => null]);
-        $size = UntrustedUrl::DEFAULT_MAX_SIZE + 1;
+        $size = UntrustedUrl::MAX_KILOBYTES * 1024 + 1;
         $server = LoopbackHttpServer::start([[
             'body' => gzencode(str_repeat('x', $size)),
             'headers' => ['Content-Encoding' => 'gzip'],
@@ -356,21 +434,10 @@ class UntrustedUrlTest extends TestCase
         ];
     }
 
-    public function testFakedDownloadsEnforceTheSizeLimit(): void
-    {
-        config(['ai.remote_files.max_size' => 4]);
-        Http::fake(['*' => Http::response('bytes')]);
-
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('maximum size of [4] bytes');
-
-        (new RemoteImage('https://example.com/photo.png'))->content();
-    }
-
     public function testCancellationDuringTransferCompletionTakesPrecedenceOverTheSizeFailure(): void
     {
-        config(['ai.remote_files.allowed_hosts' => ['127.0.0.1'], 'ai.remote_files.max_size' => 4]);
-        $server = LoopbackHttpServer::start([['body' => 'bytes']]);
+        config(['ai.remote_files.allowed_hosts' => ['127.0.0.1'], 'ai.remote_files.max_size' => 1]);
+        $server = LoopbackHttpServer::start([['body' => str_repeat('x', 1025)]]);
         $canceled = new CanceledException('Canceled while publishing transfer statistics.');
         Http::globalOptions(['on_stats' => static function () use ($canceled): void {
             throw $canceled;

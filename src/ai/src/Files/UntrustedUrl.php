@@ -14,14 +14,16 @@ use Hypervel\Http\Client\Destinations\DisallowedDestinationException;
 use Hypervel\Http\Client\Response;
 use Hypervel\Support\Facades\Http;
 use InvalidArgumentException;
+use Psr\Http\Message\ResponseInterface;
+use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class UntrustedUrl
 {
-    public const int DEFAULT_MAX_SIZE = 32 * 1024 * 1024;
-
     protected const int MAX_REDIRECTS = 5;
+
+    public const int MAX_KILOBYTES = 32 * 1024;
 
     // REMOVED: hostname blocklists; the HTTP destination policy checks the resolved addresses.
 
@@ -36,16 +38,18 @@ class UntrustedUrl
     {
         $allowedHosts = config()->array('ai.remote_files.allowed_hosts', []);
         $policy = new RemoteFileDestinationPolicy(static::$resolver);
-        $maxSize = config()->get('ai.remote_files.max_size', static::DEFAULT_MAX_SIZE);
+        $kilobytes = config()->get('ai.remote_files.max_size', static::MAX_KILOBYTES);
 
-        if ($maxSize !== null && (! is_int($maxSize) || $maxSize <= 0)) {
+        if ($kilobytes !== null && (! is_int($kilobytes) || $kilobytes <= 0)) {
             throw new InvalidArgumentException('The remote file maximum size must be a positive integer or null.');
         }
+
+        $limit = $kilobytes === null ? null : $kilobytes * 1024;
 
         for ($hop = 0; $hop <= static::MAX_REDIRECTS; ++$hop) {
             $uri = new Uri($url);
             $options = [];
-            $tooLarge = null;
+            $tooLarge = false;
             $trusted = in_array(rtrim(trim($uri->getHost(), '[]'), '.'), $allowedHosts, true);
 
             if ($trusted) {
@@ -54,20 +58,30 @@ class UntrustedUrl
                 }
             }
 
-            if ($maxSize !== null) {
-                $buffer = Utils::streamFor();
+            if ($limit !== null) {
+                $body = Utils::streamFor();
 
-                // Count decoded bytes at the sink; transfer sizes may describe compressed data.
-                $options['sink'] = FnStream::decorate($buffer, [
-                    'write' => static function (string $chunk) use ($buffer, $maxSize, &$tooLarge): int {
-                        if (strlen($chunk) > $maxSize - $buffer->tell()) {
-                            $tooLarge = new InvalidArgumentException("The remote file exceeds the maximum size of [{$maxSize}] bytes.");
+                // The transport drops a compressed response's Content-Length before this runs, so only decoded lengths are checked.
+                $options['on_headers'] = static function (ResponseInterface $response) use ($limit, &$tooLarge): void {
+                    if ((int) $response->getHeaderLine('Content-Length') > $limit) {
+                        $tooLarge = true;
+
+                        throw new RuntimeException('The remote file declares a body larger than the size limit.');
+                    }
+                };
+
+                // Count decoded bytes at the sink, which also bounds compressed and chunked bodies that declare no decoded length.
+                $options['sink'] = FnStream::decorate($body, [
+                    'write' => static function (string $chunk) use ($body, $limit, &$tooLarge): int {
+                        // The sink appends sequentially, so tell() gives its size without a stat call for every chunk.
+                        if (strlen($chunk) > $limit - $body->tell()) {
+                            $tooLarge = true;
 
                             // A short write aborts the transfer while preserving transport cleanup.
                             return 0;
                         }
 
-                        return $buffer->write($chunk);
+                        return $body->write($chunk);
                     },
                 ]);
             }
@@ -87,7 +101,11 @@ class UntrustedUrl
             try {
                 $response = $request->get((string) $uri);
             } catch (Throwable $exception) {
-                throw $exception instanceof CanceledException ? $exception : $tooLarge ?? $exception;
+                if ($tooLarge && ! $exception instanceof CanceledException) {
+                    throw new InvalidArgumentException("The remote file exceeds the maximum size of {$kilobytes} kilobytes.");
+                }
+
+                throw $exception;
             }
 
             if (! $response->redirect() || blank($response->header('Location'))) {
