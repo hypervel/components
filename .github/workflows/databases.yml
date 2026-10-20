@@ -46,13 +46,6 @@ jobs:
       - name: Log trigger context
         uses: ./.github/actions/log-trigger-context
 
-      - name: Cache Composer dependencies
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: /root/.composer/cache
-          key: composer-${{ matrix.php }}-${{ hashFiles('composer.lock') }}
-          restore-keys: composer-${{ matrix.php }}-
-
       - name: Install dependencies
         run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
 
@@ -100,13 +93,6 @@ jobs:
 
       - name: Log trigger context
         uses: ./.github/actions/log-trigger-context
-
-      - name: Cache Composer dependencies
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: /root/.composer/cache
-          key: composer-${{ matrix.php }}-${{ hashFiles('composer.lock') }}
-          restore-keys: composer-${{ matrix.php }}-
 
       - name: Install dependencies
         run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
@@ -156,13 +142,6 @@ jobs:
       - name: Log trigger context
         uses: ./.github/actions/log-trigger-context
 
-      - name: Cache Composer dependencies
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: /root/.composer/cache
-          key: composer-${{ matrix.php }}-${{ hashFiles('composer.lock') }}
-          restore-keys: composer-${{ matrix.php }}-
-
       - name: Install dependencies
         run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
 
@@ -209,13 +188,6 @@ jobs:
 
       - name: Log trigger context
         uses: ./.github/actions/log-trigger-context
-
-      - name: Cache Composer dependencies
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: /root/.composer/cache
-          key: composer-${{ matrix.php }}-${{ hashFiles('composer.lock') }}
-          restore-keys: composer-${{ matrix.php }}-
 
       - name: Install dependencies
         run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
@@ -264,13 +236,6 @@ jobs:
       - name: Log trigger context
         uses: ./.github/actions/log-trigger-context
 
-      - name: Cache Composer dependencies
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: /root/.composer/cache
-          key: composer-${{ matrix.php }}-${{ hashFiles('composer.lock') }}
-          restore-keys: composer-${{ matrix.php }}-
-
       - name: Install dependencies
         run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
 
@@ -317,13 +282,6 @@ jobs:
 
       - name: Log trigger context
         uses: ./.github/actions/log-trigger-context
-
-      - name: Cache Composer dependencies
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: /root/.composer/cache
-          key: composer-${{ matrix.php }}-${{ hashFiles('composer.lock') }}
-          restore-keys: composer-${{ matrix.php }}-
 
       - name: Install dependencies
         run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
@@ -372,13 +330,6 @@ jobs:
       - name: Log trigger context
         uses: ./.github/actions/log-trigger-context
 
-      - name: Cache Composer dependencies
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: /root/.composer/cache
-          key: composer-${{ matrix.php }}-${{ hashFiles('composer.lock') }}
-          restore-keys: composer-${{ matrix.php }}-
-
       - name: Install dependencies
         run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
 
@@ -426,13 +377,6 @@ jobs:
       - name: Log trigger context
         uses: ./.github/actions/log-trigger-context
 
-      - name: Cache Composer dependencies
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: /root/.composer/cache
-          key: composer-${{ matrix.php }}-${{ hashFiles('composer.lock') }}
-          restore-keys: composer-${{ matrix.php }}-
-
       - name: Install dependencies
         run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
 
@@ -467,13 +411,6 @@ jobs:
 
       - name: Log trigger context
         uses: ./.github/actions/log-trigger-context
-
-      - name: Cache Composer dependencies
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: /root/.composer/cache
-          key: composer-${{ matrix.php }}-${{ hashFiles('composer.lock') }}
-          restore-keys: composer-${{ matrix.php }}-
 
       - name: Install dependencies
         run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
