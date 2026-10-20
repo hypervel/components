@@ -748,7 +748,8 @@ trait HasRoles
                 $this->permissionRegistrar()->resolvePartition(),
             );
 
-            return $roleCollection->contains($roles->getKeyName(), $roles->getKey());
+            return ($guard !== null && $guard !== '' ? $roleCollection->where('guard_name', $guard) : $roleCollection)
+                ->contains($roles->getKeyName(), $roles->getKey());
         }
 
         if (is_array($roles)) {
@@ -796,12 +797,7 @@ trait HasRoles
         }
 
         if ($roles instanceof Role) {
-            $this->ensureRoleMatchesPartition(
-                $roles,
-                $this->permissionRegistrar()->resolvePartition(),
-            );
-
-            return $roleCollection->contains($roles->getKeyName(), $roles->getKey());
+            return $this->hasRole($roles, $guard);
         }
 
         $roles = collect()->make($roles);
