@@ -1647,8 +1647,7 @@ class PermissionRegistrar
 
         $result = $models->{$method}(static function (Model $model) use ($params): bool {
             return array_all($params, fn ($value, $attribute) => self::attributeMatches(
-                // Role and permission names may be read as enums, which match by their values.
-                $attribute === 'name' ? enum_value($model->getAttribute($attribute)) : $model->getAttribute($attribute),
+                $model->getAttribute($attribute),
                 $value,
             ));
         });
@@ -1668,6 +1667,10 @@ class PermissionRegistrar
         if (is_array($expected)) {
             return array_any($expected, fn ($value): bool => self::attributeMatches($actual, $value));
         }
+
+        // Attributes and lookup values may be enums, such as names read through an enum accessor, which match by their values.
+        $actual = enum_value($actual);
+        $expected = enum_value($expected);
 
         if ($actual === $expected) {
             return true;

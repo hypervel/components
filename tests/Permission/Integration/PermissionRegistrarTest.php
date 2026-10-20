@@ -24,6 +24,7 @@ use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Permission\Fixtures\Models\Permission as TestPermission;
 use Hypervel\Tests\Permission\Fixtures\Models\Role as TestRole;
 use Hypervel\Tests\Permission\Fixtures\Models\Team;
+use Hypervel\Tests\Permission\Fixtures\Models\TestRolePermissionsEnum;
 use Hypervel\Tests\Permission\TestCase;
 use InvalidArgumentException;
 use LogicException;
@@ -721,6 +722,24 @@ class PermissionRegistrarTest extends TestCase
         $this->assertSame($permission, KeyLookupPermission::findById($storedKey + 2000));
         $this->assertSame($permission, $registrar->getPermissions(['id' => $storedKey + 2000, 'name' => 'edit-articles'], true)->first());
         $this->assertEmpty($registrar->getPermissions(['id' => $storedKey + 1000, 'guard_name' => 'web'], true));
+    }
+
+    public function testItMatchesEnumLookupValuesByTheirValues(): void
+    {
+        $permission = HypervelPermission::create(['name' => TestRolePermissionsEnum::Writer->value]);
+        $registrar = $this->app->make(PermissionRegistrar::class);
+
+        $this->assertTrue($permission->is($registrar->getPermissions(['name' => TestRolePermissionsEnum::Writer, 'guard_name' => 'web'], true)->first()));
+        $this->assertTrue($permission->is($registrar->getPermissions(['name' => TestRolePermissionsEnum::Writer], true)->first()));
+
+        $this->setUpCustomModels();
+        $role = TestRole::create(['name' => TestRolePermissionsEnum::CastedEnum1->value]);
+        $registrar = $this->app->make(PermissionRegistrar::class);
+
+        // The fixture's name accessor reads this role's name as an enum.
+        foreach ([TestRolePermissionsEnum::CastedEnum1, TestRolePermissionsEnum::CastedEnum1->value] as $name) {
+            $this->assertTrue($role->is($registrar->getRoles(['name' => $name], true)->first()));
+        }
     }
 
     public function testItSupportsCustomPermissionKeysAcrossCacheHydration(): void
