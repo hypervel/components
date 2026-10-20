@@ -179,6 +179,35 @@ class ConversationRelationshipTest extends TestCase
         $this->assertTrue($conversation->participant->is($user));
     }
 
+    public function testConversationAndMessageKeepTheirStringKeysWhenCreated(): void
+    {
+        $user = ConversationRelationshipUser::create(['name' => 'Taylor']);
+
+        $conversation = Conversation::create([
+            'id' => 'conversation-1',
+            'participant_type' => $user->getMorphClass(),
+            'participant_id' => $user->id,
+            'title' => 'Conversation',
+        ]);
+
+        $message = $conversation->messages()->create([
+            'id' => 'message-1',
+            'participant_type' => $user->getMorphClass(),
+            'participant_id' => $user->id,
+            'agent' => 'Agent',
+            'role' => 'user',
+            'content' => 'Hello',
+            'attachments' => [],
+            'steps' => [],
+            'usage' => [],
+            'meta' => [],
+            'status' => MessageStatus::Completed,
+        ]);
+
+        $this->assertSame('conversation-1', $conversation->id);
+        $this->assertSame('message-1', $message->id);
+    }
+
     public function testDeletingAConversationRemovesItsMessages(): void
     {
         $conversation = Conversation::create(['id' => (string) Str::uuid7(), 'title' => 'Conversation']);
