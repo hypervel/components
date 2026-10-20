@@ -12,6 +12,7 @@ Documentation: https://hypervel.org/docs/permission
 - The [cache configuration](https://hypervel.org/docs/permission#cache) uses `expiration_seconds` instead of `expiration_time`, with separate named cache keys so role, model-role, model-permission, and assignment-token caches can be invalidated independently.
 - The [cache store](https://hypervel.org/docs/permission#caching) must keep values and refreshable atomic locks on the same backend, because concurrent cache fills are coordinated with a lock. Stack and failover stores are not supported.
 - The cache store and keys are worker-wide, and `initializeCache()` is for boot and tests. Instead of switching the cache per tenant during a request, use row partitioning, which also separates each tenant's cache entries.
+- Cached roles and permissions returned by lookups are shared within the current request or job, and lookups use indexes built when the catalog loads. Save a changed role or permission before looking up roles or permissions again. See [caching](https://hypervel.org/docs/permission#caching).
 - There is no Octane reset listener or `register_octane_reset_listener` option. The current team and the loaded permission catalog are coroutine-local, so nothing carries over between requests.
 
 Ported from: https://github.com/spatie/laravel-permission
