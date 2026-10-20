@@ -376,6 +376,7 @@ class UntrustedUrlTest extends TestCase
         return [
             'exact limit' => [1, str_repeat('x', 1024), false, false],
             'decoded gzip' => [1, str_repeat('x', 2048), true, true],
+            'gzip larger than its decoded body' => [1, random_bytes(1024), true, false],
         ];
     }
 
