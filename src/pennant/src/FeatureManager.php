@@ -231,15 +231,15 @@ class FeatureManager
      * @param array<string, mixed> $cache
      * @return array{string, int}
      *
-     * @throws InvalidArgumentException when the TTL is not positive
+     * @throws InvalidArgumentException when the TTL is not a positive integer
      */
     protected function cacheProfile(string $name, array $cache): array
     {
         $ttl = $cache['ttl'] ?? StoredValueCache::DEFAULT_TTL;
 
         // The cache treats a non-positive TTL as a delete, and values must not be cached forever.
-        if ($ttl < 1) {
-            throw new InvalidArgumentException("The cache TTL of Pennant store [{$name}] must be a positive number of seconds.");
+        if (! is_int($ttl) || $ttl < 1) {
+            throw new InvalidArgumentException("The cache TTL of Pennant store [{$name}] must be a positive integer.");
         }
 
         return [$cache['store'], $ttl];
