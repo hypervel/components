@@ -188,6 +188,35 @@ class StoredValueCacheTest extends TestCase
         $this->assertSame(0, $queries->count);
     }
 
+    #[DataProvider('emptyWrites')]
+    public function testEmptyWritesRunNoQueryAndHoldNoConnection(string $method): void
+    {
+        parallel([function () {
+            DB::usingConnection('pooled', function () {
+                (require __DIR__ . '/../../src/pennant/database/migrations/2022_11_01_000001_create_features_table.php')->up();
+            });
+        }]);
+        $pool = $this->app->make(PoolManager::class)->pool('pooled');
+        $queries = $this->countQueries();
+
+        [$idle] = parallel([function () use ($method, $pool) {
+            Feature::store('pooled')->{$method}([]);
+
+            return $pool->getIdleCount();
+        }]);
+
+        $this->assertSame(1, $idle);
+        $this->assertSame(0, $queries->count);
+    }
+
+    public static function emptyWrites(): array
+    {
+        return [
+            'purge' => ['purge'],
+            'activate' => ['activate'],
+        ];
+    }
+
     public function testValuesAreNotCachedWhenNewTokensCantBeStored(): void
     {
         $cache = m::mock(Repository::class);

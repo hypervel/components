@@ -396,6 +396,10 @@ class DatabaseDriver implements CanListStoredFeatures, CanSetManyFeaturesForScop
      */
     public function setAll(array $features): void
     {
+        if ($features === []) {
+            return;
+        }
+
         $partition = $this->partition();
         $now = CarbonImmutable::now();
         $rows = [];
@@ -619,6 +623,11 @@ class DatabaseDriver implements CanListStoredFeatures, CanSetManyFeaturesForScop
      */
     public function purge(?array $features): void
     {
+        // Rotating the partition token would invalidate every cached value for nothing.
+        if ($features === []) {
+            return;
+        }
+
         $partition = $this->partition();
 
         if ($features === null) {
