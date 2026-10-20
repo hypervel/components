@@ -21,6 +21,7 @@ use Hypervel\Tests\Wayfinder\Fixtures\Controllers\ParameterNameController;
 use Hypervel\Tests\Wayfinder\Fixtures\Controllers\PostController;
 use Hypervel\Tests\Wayfinder\Fixtures\Controllers\ReverseBarrelCollisionController;
 use Hypervel\Tests\Wayfinder\Fixtures\Controllers\ReverseBarrelCollisionController\NestedController as ReverseBarrelCollisionNestedController;
+use Hypervel\Tests\Wayfinder\Fixtures\Controllers\SearchController;
 use Hypervel\Tests\Wayfinder\Fixtures\Controllers\SharedUriController;
 use Hypervel\Tests\Wayfinder\Fixtures\Controllers\TwoRoutesSameActionController;
 use Hypervel\Tests\Wayfinder\Fixtures\Controllers\UrlDefaultsController;
@@ -120,6 +121,9 @@ Route::match(['GET', 'POST'], '/two-routes-one-action-match', [TwoRoutesSameActi
 Route::get('/shared-uri/{name}', SharedUriController::class);
 Route::post('/shared-uri/{name}', SharedUriController::class);
 Route::match(['put', 'patch'], '/shared-uri/{name}', SharedUriController::class);
+
+Route::match(['QUERY'], '/search', [SearchController::class, 'index'])->name('search.index');
+Route::match(['GET', 'QUERY'], '/search/{type}', [SearchController::class, 'show'])->name('search.show');
 
 Route::get('/disallowed/delete', [DisallowedMethodNameController::class, 'delete']);
 Route::get('/disallowed/delete-method', [DisallowedMethodNameController::class, 'deleteMethod']);
