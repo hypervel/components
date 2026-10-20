@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Pennant\Feature;
 
 use Hypervel\Foundation\Testing\LazilyRefreshDatabase;
+use Hypervel\Pennant\Attributes\Name;
 use Hypervel\Pennant\Drivers\ArrayDriver;
 use Hypervel\Pennant\Events\FeaturesPurged;
 use Hypervel\Pennant\Feature;
@@ -12,6 +13,7 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Tests\Pennant\TestCase;
 use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class PurgeCommandTest extends TestCase
 {
@@ -147,6 +149,33 @@ class PurgeCommandTest extends TestCase
         Event::assertDispatched(FeaturesPurged::class, fn (FeaturesPurged $event) => $event->features === ['2']);
     }
 
+    #[DataProvider('featureClassExclusions')]
+    public function testExcludedFeatureClassesMatchTheirRegisteredNames(array $arguments, string $output, array $remaining): void
+    {
+        Feature::define(NamedPurgeCommandFeature::class);
+        Feature::activate([NamedPurgeCommandFeature::class, 'other']);
+
+        $this->artisan('pennant:purge', $arguments)->expectsOutputToContain($output);
+
+        $this->assertSame($remaining, DB::table('features')->orderBy('name')->pluck('name')->all());
+    }
+
+    public static function featureClassExclusions(): array
+    {
+        return [
+            'excluded class' => [
+                ['--except' => [NamedPurgeCommandFeature::class]],
+                'other successfully purged from storage.',
+                ['purge-command-feature'],
+            ],
+            'class argument with registered features excluded' => [
+                ['features' => [NamedPurgeCommandFeature::class], '--except-registered' => true],
+                'No features to purge from storage.',
+                ['other', 'purge-command-feature'],
+            ],
+        ];
+    }
+
     public function testItOutputsThatNoFeaturesHaveBeenPurged(): void
     {
         Feature::define('foo', true);
@@ -218,5 +247,14 @@ class PurgeCommandTest extends TestCase
         $this->artisan('pennant:purge --except-registered')->expectsOutputToContain('bar, baz successfully purged from storage.');
 
         $this->assertSame(['foo'], DB::table('features')->pluck('name')->all());
+    }
+}
+
+#[Name('purge-command-feature')]
+class NamedPurgeCommandFeature
+{
+    public function resolve(): bool
+    {
+        return false;
     }
 }

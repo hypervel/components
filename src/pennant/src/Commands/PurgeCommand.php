@@ -46,8 +46,12 @@ class PurgeCommand extends Command
             ->all();
 
         if ($except) {
-            // Feature names must match exactly, so "01" and "1" stay distinct.
-            $features = array_values(array_diff($features ?: $store->stored(), $except));
+            // Compare registered names, so a feature class matches the name it's stored under.
+            // Names must match exactly, so "01" and "1" stay distinct.
+            $features = array_values(array_diff(
+                array_map($store->name(...), $features ?: $store->stored()),
+                array_map($store->name(...), $except),
+            ));
         }
 
         $store->purge($features);
