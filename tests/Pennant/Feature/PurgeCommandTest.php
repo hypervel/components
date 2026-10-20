@@ -6,8 +6,10 @@ namespace Hypervel\Tests\Pennant\Feature;
 
 use Hypervel\Foundation\Testing\LazilyRefreshDatabase;
 use Hypervel\Pennant\Drivers\ArrayDriver;
+use Hypervel\Pennant\Events\FeaturesPurged;
 use Hypervel\Pennant\Feature;
 use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Event;
 use Hypervel\Tests\Pennant\TestCase;
 use InvalidArgumentException;
 
@@ -132,6 +134,17 @@ class PurgeCommandTest extends TestCase
         $this->artisan('pennant:purge foo')->expectsOutputToContain('foo successfully purged from storage.');
 
         $this->assertSame(0, DB::table('features')->count());
+    }
+
+    public function testExcludedFeatureNamesMatchExactly(): void
+    {
+        Feature::activate(['01', '1', '2']);
+        Event::fake([FeaturesPurged::class]);
+
+        $this->artisan('pennant:purge --except=01 --except=1')->expectsOutputToContain('2 successfully purged from storage.');
+
+        $this->assertSame(['01', '1'], DB::table('features')->orderBy('name')->pluck('name')->all());
+        Event::assertDispatched(FeaturesPurged::class, fn (FeaturesPurged $event) => $event->features === ['2']);
     }
 
     public function testItOutputsThatNoFeaturesHaveBeenPurged(): void

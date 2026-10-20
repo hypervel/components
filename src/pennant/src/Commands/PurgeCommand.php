@@ -43,16 +43,11 @@ class PurgeCommand extends Command
 
         $except = collect($this->option('except'))
             ->when($this->option('except-registered'), fn ($except) => $except->merge($store->defined()))
-            ->unique()
             ->all();
 
         if ($except) {
-            $features = collect($features ?: $store->stored())
-                ->flip()
-                ->forget($except)
-                ->flip()
-                ->values()
-                ->all();
+            // Feature names must match exactly, so "01" and "1" stay distinct.
+            $features = array_values(array_diff($features ?: $store->stored(), $except));
         }
 
         $store->purge($features);
