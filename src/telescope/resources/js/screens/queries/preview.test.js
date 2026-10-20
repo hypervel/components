@@ -60,6 +60,9 @@ describe('query preview', () => {
         expect(wrapper.find('pre').classes()).toContain('language-sql');
         expect(wrapper.find('pre').text()).toContain('products');
         expect(wrapper.find('pre').text()).toMatch(/select/i);
+        expect(wrapper.find('pre').text()).toBe(
+            format('select * from products where name like "%a%"', { language: 'sqlite' })
+        );
     });
 
     it('resolves the dialect of an aliased driver', () => {
@@ -71,6 +74,8 @@ describe('query preview', () => {
         expect(wrapper.vm.sqlDialect('transactsql')).toBe('transactsql');
         expect(wrapper.vm.sqlDialect('pgsql')).toBeNull();
         expect(wrapper.vm.sqlDialect()).toBe('sql');
+        expect(wrapper.vm.formatQuery(query, 'pgsql')).toBe(format(query, { language: 'postgresql' }));
+        expect(wrapper.vm.formatQuery(query, 'sqlsrv')).toBe(format(query, { language: 'transactsql' }));
     });
 
     // REMOVED: the highlight language test; without JSON commands, every query highlights as SQL.
