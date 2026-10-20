@@ -866,7 +866,7 @@ class Decorator implements CanListStoredFeatures, CanSetManyFeaturesForScopes, D
      */
     protected function shouldDynamicallyDefine(string $feature): bool
     {
-        return ! in_array($feature, $this->defined())
+        return ! in_array($feature, $this->defined(), true)
             && class_exists($feature)
             && (method_exists($feature, 'resolve') || method_exists($feature, '__invoke'));
     }
@@ -879,7 +879,7 @@ class Decorator implements CanListStoredFeatures, CanSetManyFeaturesForScopes, D
     protected function ensureDynamicFeatureIsDefined(string $feature): string
     {
         return $this->classNames[$feature] = tap($this->resolveFeatureName($feature, $this->container->make($feature)), function ($name) use ($feature) {
-            if (! in_array($name, $this->defined())) {
+            if (! in_array($name, $this->defined(), true)) {
                 if (Event::hasListeners(DynamicallyRegisteringFeatureClass::class)) {
                     Event::dispatch(new DynamicallyRegisteringFeatureClass($feature));
                 }

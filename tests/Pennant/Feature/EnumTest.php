@@ -11,6 +11,7 @@ use Hypervel\Pennant\Feature;
 use Hypervel\Pennant\Middleware\EnsureFeaturesAreActive;
 use Hypervel\Support\Facades\Blade;
 use Hypervel\Tests\Pennant\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -192,6 +193,23 @@ class EnumTest extends TestCase
         $this->assertTrue(Feature::active('purchasing'));
     }
 
+    #[DataProvider('numericNameDefinitions')]
+    public function testAnIntegerBackedNameAttributeMatchesDefinedNamesExactly(string $defined, string $expected): void
+    {
+        Feature::define($defined, 'defined');
+
+        $this->assertSame($expected, Feature::value(FeatureWithIntegerEnumName::class));
+        $this->assertSame('defined', Feature::value($defined));
+    }
+
+    public static function numericNameDefinitions(): array
+    {
+        return [
+            'a different numeric name' => ['01', 'resolved'],
+            'the same name' => ['1', 'defined'],
+        ];
+    }
+
     public function testTheBladeDirectiveAcceptsAnEnum(): void
     {
         $blade = <<<'BLADE'
@@ -271,5 +289,14 @@ class FeatureWithEnumName
     public function resolve(): bool
     {
         return true;
+    }
+}
+
+#[Name(IntegerFeatureEnum::NewApi)]
+class FeatureWithIntegerEnumName
+{
+    public function resolve(): string
+    {
+        return 'resolved';
     }
 }

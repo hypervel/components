@@ -775,10 +775,11 @@ class DatabaseDriverTest extends TestCase
         Feature::define('foo', fn () => true);
         Feature::define('bar', fn () => false);
         Feature::define('baz', fn () => false);
+        Feature::define('1', fn () => false);
 
         $registered = Feature::defined();
 
-        $this->assertSame(['foo', 'bar', 'baz'], $registered);
+        $this->assertSame(['foo', 'bar', 'baz', '1'], $registered);
         $this->assertCount(0, DB::getQueryLog());
     }
 

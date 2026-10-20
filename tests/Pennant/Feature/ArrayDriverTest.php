@@ -604,10 +604,11 @@ class ArrayDriverTest extends TestCase
         Feature::define('foo', fn () => true);
         Feature::define('bar', fn () => false);
         Feature::define('baz', fn () => false);
+        Feature::define('1', fn () => false);
 
         $registered = Feature::defined();
 
-        $this->assertSame(['foo', 'bar', 'baz'], $registered);
+        $this->assertSame(['foo', 'bar', 'baz', '1'], $registered);
     }
 
     public function testItCanClearTheCache(): void
@@ -1233,10 +1234,12 @@ class ArrayDriverTest extends TestCase
     {
         Feature::define('foo', fn () => true);
         Feature::define('bar', fn () => true);
+        Feature::define('1', fn () => true);
 
         Feature::for('Tim')->active('bar');
+        Feature::for('Tim')->active('1');
 
-        $this->assertSame(Feature::stored(), ['bar']);
+        $this->assertSame(Feature::stored(), ['bar', '1']);
     }
 
     public function testItCanResolveFeatureInstance(): void

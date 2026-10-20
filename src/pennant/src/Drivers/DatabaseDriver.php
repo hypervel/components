@@ -137,7 +137,8 @@ class DatabaseDriver implements CanListStoredFeatures, CanSetManyFeaturesForScop
      */
     public function defined(): array
     {
-        return array_keys($this->featureStateResolvers);
+        // PHP stores numeric names such as "1" as integer keys.
+        return array_map(strval(...), array_keys($this->featureStateResolvers));
     }
 
     /**

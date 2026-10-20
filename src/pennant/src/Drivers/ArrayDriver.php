@@ -80,7 +80,8 @@ class ArrayDriver implements CanListStoredFeatures, CanSetManyFeaturesForScopes,
      */
     public function defined(): array
     {
-        return array_keys($this->featureStateResolvers);
+        // PHP stores numeric names such as "1" as integer keys.
+        return array_map(strval(...), array_keys($this->featureStateResolvers));
     }
 
     /**
@@ -90,7 +91,7 @@ class ArrayDriver implements CanListStoredFeatures, CanSetManyFeaturesForScopes,
      */
     public function stored(): array
     {
-        return array_keys(PennantState::current()->arrayValues[$this->name][$this->partitionKey()] ?? []);
+        return array_map(strval(...), array_keys(PennantState::current()->arrayValues[$this->name][$this->partitionKey()] ?? []));
     }
 
     /**
