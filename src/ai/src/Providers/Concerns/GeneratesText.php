@@ -104,8 +104,15 @@ trait GeneratesText
                         $this->throwIfNotResumable($prompt);
                     }
 
-                    $agentResponse = $response instanceof StructuredTextResponse
-                        ? (new StructuredAgentResponse($invocationId, $response->structured, $response->text, $response->usage, $response->meta))
+                    // Empty schemas included, so prompt()'s declared structured return type always holds...
+                    $agentResponse = $agent instanceof HasStructuredOutput
+                        ? (new StructuredAgentResponse(
+                            $invocationId,
+                            $response instanceof StructuredTextResponse ? $response->structured : [],
+                            $response->text,
+                            $response->usage,
+                            $response->meta,
+                        ))
                             ->withMessages($response->messages)
                             ->withToolCallsAndResults($response->toolCalls, $response->toolResults)
                             ->withSteps($response->steps)

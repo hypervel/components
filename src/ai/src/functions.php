@@ -13,6 +13,8 @@ use Hypervel\Support\Str;
 
 /**
  * Get an ad-hoc agent instance.
+ *
+ * @return ($schema is null ? AnonymousAgent : StructuredAnonymousAgent)
  */
 function agent(
     string $instructions = '',

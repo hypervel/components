@@ -17,6 +17,7 @@ use Hypervel\Ai\Contracts\Agent;
 use Hypervel\Ai\Contracts\AgentInput;
 use Hypervel\Ai\Contracts\Conversational;
 use Hypervel\Ai\Contracts\HasSkills;
+use Hypervel\Ai\Contracts\HasStructuredOutput;
 use Hypervel\Ai\Contracts\HasTools;
 use Hypervel\Ai\Contracts\Providers\TextProvider;
 use Hypervel\Ai\Contracts\Tool;
@@ -37,6 +38,7 @@ use Hypervel\Ai\Responses\Data\Meta;
 use Hypervel\Ai\Responses\QueuedAgentResponse;
 use Hypervel\Ai\Responses\StreamableAgentResponse;
 use Hypervel\Ai\Responses\StreamedAgentResponse;
+use Hypervel\Ai\Responses\StructuredAgentResponse;
 use Hypervel\Ai\Support\ConversationSelection;
 use Hypervel\Ai\Tools\LoadSkill;
 use Hypervel\Ai\Vercel\Vercel;
@@ -90,6 +92,8 @@ trait Promptable
 
     /**
      * Invoke the agent with a given prompt, or resume a paused run with tool approval decisions.
+     *
+     * @return ($this is HasStructuredOutput ? StructuredAgentResponse : AgentResponse)
      */
     public function prompt(
         AgentInput|UserMessage|Decisions|string $prompt,

@@ -10,6 +10,7 @@ use Hypervel\Ai\Enums\MessageStatus;
 use Hypervel\Ai\Exceptions\ApprovalMismatchException;
 use Hypervel\Ai\Exceptions\RateLimitedException;
 use Hypervel\Ai\Messages\ToolResultMessage;
+use Hypervel\Ai\Responses\StructuredAgentResponse;
 use Hypervel\Ai\Storage\DatabaseConversationStore;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Http\Client\RequestException;
@@ -18,6 +19,7 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Ai\Fixtures\Agents\RememberingApprovableAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\RememberingMultiStepApprovableAgent;
+use Hypervel\Tests\Ai\Fixtures\Agents\RememberingStructuredApprovableAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\RememberingToolUsingAgent;
 use Hypervel\Tests\Ai\Fixtures\AnthropicHelpers;
 use Hypervel\Tests\Ai\Fixtures\Tools\ApprovableNumberGenerator;
@@ -847,6 +849,39 @@ class ToolApprovalResumeTest extends TestCase
         $toolResultMessage = $messages->first(fn (object $message): bool => $message instanceof ToolResultMessage);
 
         $this->assertTrue($toolResultMessage->toolResults->first()->denied);
+    }
+
+    public function testARejectedResumeOfAStructuredAgentReturnsAStructuredResponse(): void
+    {
+        config(['ai.conversations.generate_title' => false]);
+
+        Http::fake([
+            'api.anthropic.com/*' => Http::response([
+                'id' => 'msg_tool_1',
+                'type' => 'message',
+                'role' => 'assistant',
+                'model' => 'claude-sonnet-4-6',
+                'content' => [[
+                    'type' => 'tool_use',
+                    'id' => 'toolu_1',
+                    'name' => 'ApprovableNumberGenerator',
+                    'input' => (object) [],
+                ]],
+                'stop_reason' => 'tool_use',
+                'usage' => ['input_tokens' => 10, 'output_tokens' => 5],
+            ]),
+        ]);
+
+        $user = (object) ['id' => 1];
+
+        $paused = (new RememberingStructuredApprovableAgent)->forUser($user)->prompt('Generate a number', provider: 'anthropic');
+
+        $rejected = (new RememberingStructuredApprovableAgent)
+            ->continue($paused->conversationId, $user)
+            ->prompt(Decisions::from(['toolu_1' => false]), provider: 'anthropic');
+
+        $this->assertInstanceOf(StructuredAgentResponse::class, $rejected);
+        $this->assertSame([], $rejected->structured);
     }
 
     public function testAWildcardRejectionResumeRecordsTheDenialOnceOnThePausedRow(): void
