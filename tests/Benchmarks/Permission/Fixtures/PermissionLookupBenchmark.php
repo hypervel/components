@@ -15,6 +15,7 @@ class PermissionLookupBenchmark extends TestCase
     public function testItMeasuresLookupTimeAndRetainedMemory(): void
     {
         $count = (int) (getenv('BENCH_COUNT') ?: 300);
+        $this->assertGreaterThanOrEqual(20, $count, 'BENCH_COUNT must be at least 20, since mixed-20 cycles over the last 20 names.');
         $rows = [];
         for ($index = 0; $index < $count; ++$index) {
             $rows[] = ['name' => "bench-{$index}", 'guard_name' => 'web'];
