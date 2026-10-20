@@ -198,9 +198,9 @@ class MeilisearchFilteringIntegrationTest extends MeilisearchScoutIntegrationTes
             SearchableModel::search('')->whereIn('title', ['Hypervel Framework', $injection])->get()->pluck('title', 'id')->all()
         );
 
-        $this->assertNotContains(
-            1,
-            SearchableModel::search('')->whereNotIn('title', ['Hypervel Framework', $injection])->take(100)->keys()->all()
+        $this->assertSame(
+            [2 => 'Other'],
+            SearchableModel::search('')->whereNotIn('title', ['Hypervel Framework', $injection])->get()->pluck('title', 'id')->all()
         );
     }
 
