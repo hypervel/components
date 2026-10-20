@@ -44,10 +44,13 @@
     - [Caching Embeddings](#caching-embeddings)
         - [Cache Scopes](#embedding-cache-scopes)
 - [Reranking](#reranking)
+    - [Reranking Collections](#reranking-collections)
 - [Classification](#classification)
+    - [Classifying Images](#classifying-images)
     - [Yes or No Decisions](#yes-or-no-decisions)
     - [Choosing From Collections](#choosing-from-collections)
 - [Files](#files)
+    - [Using Stored Files in Conversations](#using-stored-files-in-conversations)
 - [Vector Stores](#vector-stores)
     - [Adding Files to Stores](#adding-files-to-stores)
 - [Usage](#usage)
@@ -925,6 +928,8 @@ $response = (new SalesCoach)->prompt('Analyze this sales transcript...');
 
 return $response['score'];
 ```
+
+When a run ends without structured output, such as when it pauses for [tool approval](#human-tool-approval) or is [stopped](#stopping-a-run) before its first step, the response's `structured` property is an empty array.
 
 <a name="structured-output-nested-objects"></a>
 #### Nested Objects
@@ -1878,7 +1883,7 @@ new FileSearch(stores: ['store_id'], where: [
 ]);
 ```
 
-Azure OpenAI does not support file search metadata filters.
+Azure OpenAI does not support file search metadata filters. When filtering with Gemini, metadata keys must begin with a letter or underscore and may contain only letters, numbers, underscores, and dots. Gemini also does not accept an empty `whereIn` list, while an empty `whereNotIn` list is ignored.
 
 For more complex filters, you may pass a closure that receives a `FileSearchQuery` instance:
 
@@ -3196,6 +3201,36 @@ $result->usage;
 $result->meta->provider;
 ```
 
+<a name="classifying-images"></a>
+### Classifying Images
+
+When using OpenAI, an OpenAI-compatible provider, TypeSafe, or OpenRouter, images may be classified alongside the given content by passing them as the second argument to the `of` method. Images may be created using the same [file classes used for attachments](#attachments):
+
+```php
+use Hypervel\Ai\Classification;
+use Hypervel\Ai\Classification\Boolean;
+use Hypervel\Ai\Files\Image;
+
+$result = Classification::of('Inspect the product in this photo.', [
+    Image::fromPath($photo),
+])
+    ->question('damaged', new Boolean('Does the product have visible damage?'))
+    ->classify(provider: 'openai');
+```
+
+When images are given string keys, each image is labeled with its key, so your questions may refer to the images by name:
+
+```php
+$result = Classification::of('Two product photos.', [
+    'front' => Image::fromPath($front),
+    'back' => Image::fromPath($back),
+])
+    ->question('damaged', new Boolean('Is the product in `front` or `back` damaged?'))
+    ->classify(provider: 'typesafe');
+```
+
+The image content is sent with the request, so images stored with a provider and referenced using `fromId` can't be classified. OpenAI and OpenAI-compatible providers accept JPEG, PNG, GIF, and WebP images, OpenRouter accepts JPEG, PNG, and WebP images, and TypeSafe accepts JPEG and PNG images.
+
 <a name="yes-or-no-decisions"></a>
 ### Yes or No Decisions
 
@@ -3315,6 +3350,12 @@ $file = Document::fromId('file-id')->get();
 
 $file->id;
 $file->mimeType();
+```
+
+Stored and retrieved file responses also expose the provider's [raw HTTP response](#raw-http-responses) via a `raw` property, which you may use to read provider-specific metadata such as the file's size:
+
+```php
+$file->raw?->json('bytes');
 ```
 
 To delete a file from the provider, use the `delete` method:
@@ -4170,16 +4211,19 @@ $store->assertAdded(fn (StorableFile $file) => $file->content() === 'Hello, Worl
 The Hypervel AI SDK dispatches a variety of [events](/docs/{{version}}/events), including:
 
 - `AddingFileToStore`
+- `AddingFileToStoreFailed`
 - `AgentFailed`
 - `AgentFailedOver`
 - `AgentPrompted`
 - `AgentStreamAbandoned`
 - `AgentStreamed`
+- `AudioFailed`
 - `AudioGenerated`
 - `ClassificationFailed`
 - `Classified`
 - `Classifying`
 - `CreatingStore`
+- `CreatingStoreFailed`
 - `EmbeddingsFailed`
 - `EmbeddingsGenerated`
 - `FileAddedToStore`
@@ -4190,24 +4234,29 @@ The Hypervel AI SDK dispatches a variety of [events](/docs/{{version}}/events), 
 - `GeneratingEmbeddings`
 - `GeneratingImage`
 - `GeneratingTranscription`
+- `ImageFailed`
 - `ImageGenerated`
 - `InvokingTool`
 - `PromptingAgent`
 - `ProviderFailedOver`
 - `RemovingFileFromStore`
+- `RemovingFileFromStoreFailed`
 - `Reranked`
 - `Reranking`
+- `RerankingFailed`
 - `StartingStep`
 - `StepCompleted`
 - `StepFailed`
 - `StoreCreated`
 - `StoreDeleted`
 - `StoringFile`
+- `StoringFileFailed`
 - `StreamingAgent`
 - `ToolApprovalRequested`
 - `ToolApprovalResolved`
 - `ToolFailed`
 - `ToolInvoked`
+- `TranscriptionFailed`
 - `TranscriptionGenerated`
 
 You can listen to any of these events to log or store AI SDK usage information.
@@ -4216,7 +4265,7 @@ Resolving providers and tools and capturing conversation history happen before p
 
 `StartingStep` includes the instructions, tools, messages, model, and options actually sent for that step, including changes made by middleware. Listeners may inspect these values without calling the agent's `instructions` or `tools` methods again. Queued listeners receive an empty `tools` list, since live tool instances may contain closures or anonymous classes that cannot be serialized.
 
-`ClassificationFailed` and `EmbeddingsFailed` report each failed provider attempt, including attempts followed by failover. They contain the invocation ID, provider, model, prompt, and original exception. Errors thrown by success-event listeners do not produce failure events.
+When a provider call fails, embeddings, image, audio, transcription, reranking, and classification requests dispatch a matching failure event, such as `ImageFailed`, for each failed attempt, including attempts followed by failover. File uploads, store creation, and adding or removing store files dispatch failure events such as `StoringFileFailed`. Each failure event contains the starting event's data and the original exception. Errors thrown by success-event listeners do not produce failure events.
 
 `AgentStreamAbandoned` is dispatched when an unfinished stream is closed without an exception, such as when consumption stops early or an HTTP response write fails. A thrown exception instead follows the normal failure or failover path. Stream aggregation and conversation-persistence failures also report `AgentFailed`; errors after `AgentStreamed`, including errors in its listeners, do not report another terminal event. Replaying a completed response does not dispatch these lifecycle events again.
 
