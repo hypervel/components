@@ -342,6 +342,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         $this->flushNestedSetState();
         $this->flushPasskeysState();
         $this->flushPassportState();
+        $this->flushPennantState();
         $this->flushPermissionState();
         $this->flushReverbState();
         $this->flushSaloonState();
@@ -465,6 +466,15 @@ class AfterEachTestSubscriber implements FinishedSubscriber
     {
         $this->callIfExists(\Hypervel\Passport\Passport::class, 'flushState');
         $this->callIfExists(\Hypervel\Passport\Guards\TokenGuard::class, 'flushState');
+    }
+
+    /**
+     * Flush Pennant state.
+     */
+    protected function flushPennantState(): void
+    {
+        $this->callIfExists(\Hypervel\Pennant\Drivers\Decorator::class, 'flushMacros');
+        $this->callIfExists(\Hypervel\Pennant\Middleware\EnsureFeaturesAreActive::class, 'flushState');
     }
 
     /**

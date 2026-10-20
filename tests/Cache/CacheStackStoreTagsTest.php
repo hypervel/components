@@ -30,6 +30,7 @@ use Hypervel\Cache\TagMode;
 use Hypervel\Cache\TagSet;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use RuntimeException;
@@ -216,8 +217,8 @@ class CacheStackStoreTagsTest extends TestCase
         $plain->shouldReceive('put')->once()->andReturnTrue();
         $taggable->shouldReceive('tags')->once()->with(['tag'])->andReturn($taggedCache);
         $taggedCache->shouldReceive('put')->once()->andThrow($exception);
-        $taggable->shouldReceive('forget')->once()->with('key')->ordered()->andReturnTrue();
-        $plain->shouldReceive('forget')->once()->with('key')->ordered()->andReturnTrue();
+        $taggable->shouldReceive('forget')->once()->with('key')->globally()->ordered()->andReturnTrue();
+        $plain->shouldReceive('forget')->once()->with('key')->globally()->ordered()->andReturnTrue();
 
         $stack = new StackStore([
             new StackStoreProxy($plain),
@@ -244,6 +245,26 @@ class CacheStackStoreTagsTest extends TestCase
         $stack = new StackStore([$taggable]);
 
         $this->assertSame(3, $stack->tags(['tag'])->increment('counter', 2));
+    }
+
+    public function testTaggedIncrementForgetsRecordThatExpiredDuringItsRead(): void
+    {
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00');
+
+        $taggable = $this->anyModeTaggableStore();
+        $record = ['value' => 1, 'expiration' => CarbonImmutable::now()->getTimestamp() + 1];
+
+        $taggable->shouldReceive('get')->once()->with('counter')->andReturnUsing(function () use ($record): array {
+            CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(2));
+
+            return $record;
+        });
+        $taggable->shouldReceive('forget')->once()->with('counter')->andReturnTrue();
+        $taggable->shouldNotReceive('tags');
+
+        $stack = new StackStore([$taggable]);
+
+        $this->assertSame(2, $stack->tags(['tag'])->increment('counter'));
     }
 
     public function testTaggedIncrementDoesNotTreatFailedRepairAsMissingAndPreservesLowerValue(): void

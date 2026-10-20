@@ -10,6 +10,7 @@ use Hypervel\Sentry\Features\ConsoleSchedulingIntegration;
 use Hypervel\Sentry\Features\HttpClientIntegration;
 use Hypervel\Sentry\Features\LogIntegration;
 use Hypervel\Sentry\Features\NotificationsIntegration;
+use Hypervel\Sentry\Features\PennantPackageIntegration;
 use Hypervel\Sentry\Features\QueueIntegration;
 use Hypervel\Sentry\Features\Storage\Integration as StorageIntegration;
 
@@ -218,6 +219,7 @@ return [
         StorageIntegration::class,
         HttpClientIntegration::class,
         NotificationsIntegration::class,
+        PennantPackageIntegration::class,
         ConsoleSchedulingIntegration::class,
         AiIntegration::class,
         ClassificationIntegration::class,

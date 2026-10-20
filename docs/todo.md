@@ -90,10 +90,6 @@
 - Remove pipe-separated validation rule strings in favor of arrays of rules across both `hypervel/validation` and `hypervel/data`, including Data's rule normalizer, denormalizer and `#[Rule]` handling. Update callers, tests and documentation together; preserve pipes inside individual regex patterns.
 - Adopt Brick Math 0.20's bounded parsing API for untrusted numeric validation inputs once the supported dependency graph permits it. Ramsey UUID currently limits Brick Math to 0.18, which has neither bounded parsing nor 0.20's parser-backtracking fix, so an intermediate upgrade would not address this issue. Preserve the configurable exponent-range behavior and cover delegated and compiled rules, oversized mantissas and exponents, malformed input, and `multiple_of`; do not add a local parsing workaround or disguise an incompatible Brick version with a Composer alias.
 
-## Pennant
-
-- Port `laravel/pennant` as a first-party package. As part of the port, add Sentry's `PennantPackageIntegration` and its upstream test and register the integration in Sentry's shipped `features` config. The integration records each retrieved feature flag on the current Sentry scope, so error events show which flags were active.
-
 ## Sentry
 
 - Make Sentry profiles record only the profiled transaction's work. Excimer samples whichever coroutine's PHP stack is running when it takes a sample, so a transaction profile currently includes work from other coroutines in the same worker, such as concurrent requests. Profiling stays disabled by default, with a config comment and documentation warning, until this is fixed. Use released dependencies only.

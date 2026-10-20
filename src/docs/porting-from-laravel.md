@@ -35,6 +35,7 @@
     - [CSRF Protection](#csrf-protection)
     - [Fortify](#fortify)
     - [Passport](#passport)
+    - [Pennant](#pennant)
     - [Permission](#permission)
     - [JWT Authentication](#jwt-authentication)
     - [Scout](#scout)
@@ -628,6 +629,11 @@ Import Laravel data into Hypervel's schema using its migrations, rather than add
 Restart the server and other long-running processes after changing file or environment signing keys. `server:reload` is not sufficient. See [signing-key rotation](/docs/{{version}}/passport#rotating-signing-keys).
 
 Custom guards, controllers, middleware and cookie-factory subclasses must match Hypervel's constructor and protected method signatures. In particular, guards read `RequestContext` instead of accepting `setRequest()`, `CreateFreshApiToken` passes its guard explicitly, and server-building methods live on `ServerFactory`. Consult the package's [API differences](https://github.com/hypervel/passport#differences-from-laravel) and [Passport documentation](/docs/{{version}}/passport) when porting extensions.
+
+<a name="pennant"></a>
+### Pennant
+
+Replace `laravel/pennant` with `hypervel/pennant` and the `Laravel\Pennant` namespace with `Hypervel\Pennant`. Use Hypervel's Pennant migration, or convert an existing table's `name` and `scope` columns to match it: on MySQL and MariaDB, it uses binary columns so names and scopes that differ only by case, accents, or trailing spaces are stored separately. Checking a feature for an Eloquent model without a key throws an exception, so pass a saved model or an explicit scope. Changing `pennant.stores` configuration at runtime has no effect on stores that have already been resolved; see [configuration](/docs/{{version}}/pennant#configuration). Subclasses of Pennant's drivers, decorator, or manager must match Hypervel's constructors and protected methods; see the package's [API differences](https://github.com/hypervel/pennant#differences-from-laravel).
 
 <a name="permission"></a>
 ### Permission

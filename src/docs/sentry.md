@@ -30,7 +30,7 @@
 <a name="introduction"></a>
 ## Introduction
 
-[Sentry](https://sentry.io) provides error tracking and performance monitoring for your Hypervel application. Hypervel's Sentry integration captures exceptions, logs, requests, database queries, cache operations, queued jobs, notifications, Redis commands, scheduled tasks, and filesystem operations.
+[Sentry](https://sentry.io) provides error tracking and performance monitoring for your Hypervel application. Hypervel's Sentry integration captures exceptions, logs, requests, database queries, cache operations, queued jobs, notifications, Redis commands, scheduled tasks, and filesystem operations. When your application uses [Pennant](/docs/{{version}}/pennant), each feature flag it checks is attached to the current scope, so error events show the flags and whether each was active.
 
 The integration is designed for Hypervel's long-running Swoole workers. Sentry state is isolated across requests, queued jobs, scheduled tasks, and WebSocket callbacks, while HTTP connections are pooled and reused across executions. An execution remains active until the child coroutines sharing its runtime context have finished.
 
