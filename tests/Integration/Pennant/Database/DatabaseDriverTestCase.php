@@ -9,6 +9,7 @@ use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Pennant\Feature;
 use Hypervel\Pennant\PennantServiceProvider;
 use Hypervel\Support\Facades\DB;
+use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
@@ -68,6 +69,30 @@ abstract class DatabaseDriverTestCase extends DatabaseTestCase
         Feature::flushCache();
 
         $this->assertSame('stored', Feature::for($identifier)->value($identifier));
+    }
+
+    #[DefineEnvironment('cachingStoredValuesInTheDatabase')]
+    public function testLongIdentifiersCanBeCachedInADatabaseCacheStore(): void
+    {
+        (require __DIR__ . '/../../../../src/testbench/hypervel/migrations/0001_01_01_000003_testbench_create_cache_table.php')->up();
+        $feature = str_repeat('f', 255);
+        $scope = str_repeat('s', 255);
+        Feature::define($feature, fn () => 'resolved');
+
+        $this->assertSame('resolved', Feature::for($scope)->value($feature));
+
+        Feature::flushCache();
+        DB::table('features')->update(['value' => json_encode('changed outside Pennant')]);
+
+        $this->assertSame('resolved', Feature::for($scope)->value($feature));
+    }
+
+    /**
+     * Share the default store's values through the database cache store.
+     */
+    protected function cachingStoredValuesInTheDatabase(ApplicationContract $app): void
+    {
+        $app->make('config')->set('pennant.stores.database.cache', ['store' => 'database']);
     }
 
     public function testFirstResolutionUsesOneReadAndOneInsert(): void

@@ -60,8 +60,8 @@ class StoredValueCache
      */
     public function read(string $connection, ?FeaturePartition $partition, array $pairs): array
     {
-        $prefix = $this->prefix($connection, $partition);
-        $partitionKey = $this->partitionTokenKey($prefix);
+        $storage = $this->storage($connection, $partition);
+        $partitionKey = $this->partitionTokenKey($storage);
         $scopeKeys = [];
         $valueKeys = [];
         $keys = [$partitionKey];
@@ -69,10 +69,10 @@ class StoredValueCache
         foreach ($pairs as $feature => $scopes) {
             foreach ($scopes as $scope => $unused) {
                 if (! isset($scopeKeys[$scope])) {
-                    $keys[] = $scopeKeys[$scope] = $this->scopeTokenKey($prefix, $scope);
+                    $keys[] = $scopeKeys[$scope] = $this->scopeTokenKey($storage, $scope);
                 }
 
-                $keys[] = $valueKeys[$feature][$scope] = $this->valueKey($prefix, $feature, $scope);
+                $keys[] = $valueKeys[$feature][$scope] = $this->valueKey($storage, $feature, $scope);
             }
         }
 
@@ -119,12 +119,12 @@ class StoredValueCache
      */
     public function publish(string $connection, ?FeaturePartition $partition, array $tokens, array $stored): void
     {
-        $prefix = $this->prefix($connection, $partition);
+        $storage = $this->storage($connection, $partition);
         $entries = [];
 
         foreach ($stored as $feature => $scopes) {
             foreach ($scopes as $scope => $json) {
-                $entries[$this->valueKey($prefix, $feature, $scope)] = ['p' => $tokens['p'], 's' => $tokens['s'][$scope], 'v' => $json];
+                $entries[$this->valueKey($storage, $feature, $scope)] = ['p' => $tokens['p'], 's' => $tokens['s'][$scope], 'v' => $json];
             }
         }
 
@@ -138,11 +138,11 @@ class StoredValueCache
      */
     public function rotateScopes(string $connection, ?FeaturePartition $partition, array $scopes): void
     {
-        $prefix = $this->prefix($connection, $partition);
+        $storage = $this->storage($connection, $partition);
         $tokens = [];
 
         foreach ($scopes as $scope) {
-            $tokens[$this->scopeTokenKey($prefix, $scope)] = (string) Str::ulid();
+            $tokens[$this->scopeTokenKey($storage, $scope)] = (string) Str::ulid();
         }
 
         $this->rotate($tokens);
@@ -153,7 +153,7 @@ class StoredValueCache
      */
     public function rotatePartition(string $connection, ?FeaturePartition $partition): void
     {
-        $this->rotate([$this->partitionTokenKey($this->prefix($connection, $partition)) => (string) Str::ulid()]);
+        $this->rotate([$this->partitionTokenKey($this->storage($connection, $partition)) => (string) Str::ulid()]);
     }
 
     /**
@@ -187,41 +187,50 @@ class StoredValueCache
     }
 
     /**
-     * Get the key prefix of the given connection and partition.
+     * Get the identity of the rows read through the given connection and partition.
      *
-     * Stores reading the same rows share entries, so the prefix names the storage, not the store.
+     * Stores reading the same rows share entries, so the identity names the storage, not the store.
      */
-    protected function prefix(string $connection, ?FeaturePartition $partition): string
+    protected function storage(string $connection, ?FeaturePartition $partition): string
     {
-        return 'pennant:'
-            . $this->segment(ConnectionName::withoutWriteType($connection))
+        return $this->segment(ConnectionName::withoutWriteType($connection))
             . $this->segment($this->table)
-            . $this->segment($partition?->key() ?? '')
-            . ':';
+            . $this->segment($partition?->key() ?? '');
     }
 
     /**
      * Get the key of the partition token.
      */
-    protected function partitionTokenKey(string $prefix): string
+    protected function partitionTokenKey(string $storage): string
     {
-        return $prefix . 'p';
+        return $this->key('p', $storage);
     }
 
     /**
      * Get the key of a scope's token.
      */
-    protected function scopeTokenKey(string $prefix, int|string $scope): string
+    protected function scopeTokenKey(string $storage, int|string $scope): string
     {
-        return $prefix . 's' . $this->segment($scope);
+        return $this->key('s', $storage . $this->segment($scope));
     }
 
     /**
      * Get the key of a feature's cached value for a scope.
      */
-    protected function valueKey(string $prefix, int|string $feature, int|string $scope): string
+    protected function valueKey(string $storage, int|string $feature, int|string $scope): string
     {
-        return $prefix . 'v' . $this->segment($scope) . $this->segment($feature);
+        return $this->key('v', $storage . $this->segment($scope) . $this->segment($feature));
+    }
+
+    /**
+     * Get the fixed-length cache key of an entry.
+     *
+     * Scopes and feature names can be longer than some cache stores allow in a key. SHA-256
+     * keeps one scope from being crafted to share another scope's key.
+     */
+    protected function key(string $kind, string $identity): string
+    {
+        return "pennant:{$kind}:" . hash('sha256', $identity);
     }
 
     /**
