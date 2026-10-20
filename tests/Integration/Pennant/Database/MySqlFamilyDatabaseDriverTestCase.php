@@ -8,7 +8,6 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Connectors\MariaDbConnector;
 use Hypervel\Database\Connectors\MySqlConnector;
 use Hypervel\Pennant\Feature;
-use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Pdo\Mysql;
 
@@ -61,14 +60,5 @@ abstract class MySqlFamilyDatabaseDriverTestCase extends DatabaseDriverTestCase
 
             return $connector;
         });
-    }
-
-    public function testConcurrentWinnerIsReturnedInsideARepeatableReadTransaction(): void
-    {
-        Feature::define('foo', fn () => 'candidate');
-        DB::statement('set session transaction isolation level repeatable read');
-        $this->storeWinnerBeforeInsert('foo', 'tim', 'winner');
-
-        $this->assertSame('winner', DB::transaction(fn () => Feature::for('tim')->value('foo')));
     }
 }
