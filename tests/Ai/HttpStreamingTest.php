@@ -90,7 +90,7 @@ class HttpStreamingTest extends TestCase
         $server = LoopbackHttpServer::start([
             static function (Socket $client) use ($first, $closed): void {
                 $client->sendAll("HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\n" . $first);
-                $closed->push($client->recv(2));
+                $closed->push($client->recv(timeout: 2));
             },
             [
                 'headers' => ['Content-Type' => 'text/event-stream'],
@@ -201,7 +201,7 @@ class HttpStreamingTest extends TestCase
                     $client->sendAll("HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\n" . $first);
                 }
 
-                $closed->push($client->recv(2));
+                $closed->push($client->recv(timeout: 2));
             },
             [
                 'headers' => ['Content-Type' => 'text/event-stream'],

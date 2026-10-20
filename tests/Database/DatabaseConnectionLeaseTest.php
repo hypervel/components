@@ -219,7 +219,7 @@ class DatabaseConnectionLeaseTest extends TestCase
                             $headers = '';
 
                             while (! str_contains($headers, "\r\n\r\n")) {
-                                $chunk = $client->recv(3);
+                                $chunk = $client->recv(timeout: 3);
                                 $this->assertIsString($chunk);
                                 $this->assertNotSame('', $chunk);
                                 $headers .= $chunk;
