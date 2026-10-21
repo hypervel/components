@@ -6,21 +6,17 @@ namespace Hypervel\Cache\Redis\Console\Doctor\Checks;
 
 use Hypervel\Cache\Redis\Console\Doctor\CheckResult;
 use Hypervel\Redis\RedisConnection;
+use Hypervel\Redis\RedisRequirements;
 use Throwable;
 
 /**
  * Checks that Redis/Valkey version meets requirements.
  *
- * For any mode: Requires Redis 8.0+ or Valkey 9.0+ for hash-field
- * expiration commands including HSETEX and HEXPIRE.
+ * For any mode: Requires hash-field expiration commands including HSETEX and HEXPIRE.
  * For all mode: Any version is acceptable (just verifies connection).
  */
 final class RedisVersionCheck implements EnvironmentCheckInterface
 {
-    private const string REDIS_REQUIRED_VERSION = '8.0.0';
-
-    private const string VALKEY_REQUIRED_VERSION = '9.0.0';
-
     private ?string $serviceName = null;
 
     private ?string $serviceVersion = null;
@@ -57,11 +53,11 @@ final class RedisVersionCheck implements EnvironmentCheckInterface
             if (isset($info['valkey_version'])) {
                 $this->serviceName = 'Valkey';
                 $this->serviceVersion = $info['valkey_version'];
-                $requiredVersion = self::VALKEY_REQUIRED_VERSION;
+                $requiredVersion = RedisRequirements::HASH_FIELD_EXPIRATION_VALKEY_VERSION;
             } elseif (isset($info['redis_version'])) {
                 $this->serviceName = 'Redis';
                 $this->serviceVersion = $info['redis_version'];
-                $requiredVersion = self::REDIS_REQUIRED_VERSION;
+                $requiredVersion = RedisRequirements::HASH_FIELD_EXPIRATION_REDIS_VERSION;
             } else {
                 $result->assert(false, 'Could not determine Redis/Valkey version');
 
@@ -72,7 +68,7 @@ final class RedisVersionCheck implements EnvironmentCheckInterface
 
             // Version requirement only applies to any mode
             if ($this->taggingMode === 'any') {
-                $versionIsSupported = version_compare($this->serviceVersion, $requiredVersion, '>=');
+                $versionIsSupported = RedisRequirements::hashFieldExpirationServerError($info) === null;
                 $result->assert(
                     $versionIsSupported,
                     "{$this->serviceName} version >= {$requiredVersion} (required for any tagging mode)"
@@ -105,14 +101,14 @@ final class RedisVersionCheck implements EnvironmentCheckInterface
         }
 
         if ($this->serviceName === 'Redis' && $this->serviceVersion !== null) {
-            if (version_compare($this->serviceVersion, self::REDIS_REQUIRED_VERSION, '<')) {
-                return 'Upgrade to Redis ' . self::REDIS_REQUIRED_VERSION . '+ or Valkey ' . self::VALKEY_REQUIRED_VERSION . '+ for any tagging mode';
+            if (version_compare($this->serviceVersion, RedisRequirements::HASH_FIELD_EXPIRATION_REDIS_VERSION, '<')) {
+                return 'Upgrade to Redis ' . RedisRequirements::HASH_FIELD_EXPIRATION_REDIS_VERSION . '+ or Valkey ' . RedisRequirements::HASH_FIELD_EXPIRATION_VALKEY_VERSION . '+ for any tagging mode';
             }
         }
 
         if ($this->serviceName === 'Valkey' && $this->serviceVersion !== null) {
-            if (version_compare($this->serviceVersion, self::VALKEY_REQUIRED_VERSION, '<')) {
-                return 'Upgrade to Valkey ' . self::VALKEY_REQUIRED_VERSION . '+ for any tagging mode';
+            if (version_compare($this->serviceVersion, RedisRequirements::HASH_FIELD_EXPIRATION_VALKEY_VERSION, '<')) {
+                return 'Upgrade to Valkey ' . RedisRequirements::HASH_FIELD_EXPIRATION_VALKEY_VERSION . '+ for any tagging mode';
             }
         }
 
