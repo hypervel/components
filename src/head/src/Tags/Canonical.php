@@ -177,7 +177,12 @@ class Canonical extends TagBuilder
      */
     protected function normalizeUrl(string $url, ?Request $request, bool $forceHttps, bool $trailingSlash): string
     {
-        $relative = ! str_starts_with($url, 'http://') && ! str_starts_with($url, 'https://');
+        $protocolRelative = str_starts_with($url, '//');
+        $relative = ! $protocolRelative && ! preg_match('~^https?://~i', $url);
+
+        if ($protocolRelative && ($forceHttps || $request !== null)) {
+            $url = ($forceHttps ? 'https' : $request->getScheme()) . ':' . $url;
+        }
 
         if ($relative || $this->mode === 'auto') {
             $origin = static::$originResolver !== null ? (static::$originResolver)() : null;
@@ -190,7 +195,7 @@ class Canonical extends TagBuilder
         }
 
         if ($forceHttps) {
-            $url = preg_replace('/^http:\/\//', 'https://', $url) ?? $url;
+            $url = preg_replace('/^http:\/\//i', 'https://', $url) ?? $url;
         }
 
         // Slashes belong to the path, never after a query string or fragment.

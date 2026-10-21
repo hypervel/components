@@ -53,6 +53,9 @@ class CanonicalTest extends TestCase
         yield 'relative custom origin' => ['/about/', 'https://team.test', true, false, 'https://team.test/about'];
         yield 'relative request origin' => ['about', null, false, false, 'http://alias.test:8080/about'];
         yield 'explicit external origin' => ['http://external.test:8081/about/', 'https://team.test', true, false, 'https://external.test:8081/about'];
+        yield 'uppercase external scheme' => ['HTTP://external.test/about/', 'https://team.test', true, false, 'https://external.test/about'];
+        yield 'protocol relative forced scheme' => ['//external.test/about/', 'https://team.test', true, false, 'https://external.test/about'];
+        yield 'protocol relative request scheme' => ['//external.test/about/', 'https://team.test', false, false, 'http://external.test/about'];
         yield 'root query' => ['http://external.test/?page=2', null, true, false, 'https://external.test/?page=2'];
         yield 'root without slash' => ['http://external.test?page=2#top', null, true, false, 'https://external.test/?page=2#top'];
         yield 'path query add slash' => ['/about?next=%2Fdocs%3Fa%3D1#section', 'https://team.test', true, true, 'https://team.test/about/?next=%2Fdocs%3Fa%3D1#section'];
@@ -85,6 +88,7 @@ class CanonicalTest extends TestCase
         });
 
         $this->assertSame('https://external.test/about/', Canonical::make('http://external.test/about', trailingSlash: true)->render(null));
+        $this->assertSame('//external.test/about', Canonical::make('//external.test/about/', forceHttps: false)->render(null));
         $this->assertSame(0, $calls);
     }
 
