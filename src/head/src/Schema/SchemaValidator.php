@@ -1,0 +1,68 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Head\Schema;
+
+use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Head\Exceptions\InvalidSchema;
+use Psr\Log\LoggerInterface;
+
+class SchemaValidator
+{
+    /**
+     * Create the schema validator.
+     */
+    public function __construct(protected Application $app)
+    {
+    }
+
+    /**
+     * Validate a schema, logging invalid definitions in production.
+     *
+     * @param array<string, mixed> $schema
+     */
+    public function validate(array $schema): void
+    {
+        $message = match (true) {
+            ($schema['@context'] ?? null) !== 'https://schema.org' => 'JSON-LD schemas must use the https://schema.org context.',
+            ! isset($schema['@type']) || $schema['@type'] === '' => 'JSON-LD schemas must define an @type.',
+            $this->containsEmptyValue($schema) => 'JSON-LD schemas may not contain null or empty string values.',
+            default => null,
+        };
+
+        if (is_null($message)) {
+            return;
+        }
+
+        if ($this->app->environment('production')) {
+            if ($this->app->bound(LoggerInterface::class)) {
+                $this->app->make(LoggerInterface::class)->warning($message, ['schema' => $schema]);
+            }
+
+            return;
+        }
+
+        throw new InvalidSchema($message);
+    }
+
+    /**
+     * Determine whether any nested value is null or an empty string.
+     *
+     * @param array<mixed> $values
+     */
+    protected function containsEmptyValue(array $values): bool
+    {
+        foreach ($values as $value) {
+            if ($value === null || $value === '') {
+                return true;
+            }
+
+            if (is_array($value) && $this->containsEmptyValue($value)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+}
