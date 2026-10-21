@@ -18,6 +18,7 @@
 - [Performance and Discovery](#performance-and-discovery)
 - [Custom Tags](#custom-tags)
 - [Schemas](#schemas)
+    - [Events](#events)
     - [Breadcrumbs](#breadcrumbs)
     - [FAQs](#faqs)
     - [Custom Schemas](#custom-schemas)
@@ -356,7 +357,7 @@ The `ogImage`, `ogVideo`, and `ogAudio` methods accept a URL as their first argu
 You may pass image MIME types as `ImageType` enum cases anywhere the API accepts an image `type`, such as `ImageType::Svg`, `ImageType::Png`, `ImageType::Jpeg`, and `ImageType::Webp`.
 
 > [!NOTE]
-> Document `title` and `description` automatically fill missing `og:title` and `og:description` values.
+> Document `title`, `description`, and canonical URL values automatically fill missing `og:title`, `og:description`, and `og:url` values.
 
 For a single Open Graph image with no other attributes, you may pass the `image` named argument to the `og` method:
 
@@ -605,9 +606,44 @@ Head::schema(
 );
 ```
 
-The built-in factory methods are `article`, `blogPosting`, `product`, `offer`, `brand`, `breadcrumbs`, `event`, `faq`, `organization`, `person`, `webPage`, and `webSite`. Unknown factory methods create a generic schema object, so you can still express custom schema.org types.
+The built-in factory methods are `article`, `blogPosting`, `product`, `offer`, `brand`, `breadcrumbs`, `event`, `faq`, `organization`, `person`, `place`, `webPage`, and `webSite`. Unknown factory methods create a generic schema object, so you can still express custom schema.org types.
 
 When JSON-LD schema data is invalid, Head throws an exception in non-production environments and logs a warning in production.
+
+<a name="events"></a>
+### Events
+
+The event builder provides methods for dates, locations, images, performers, organizers, and offers. Use the `EventStatus` and `EventAttendanceMode` enums to describe the event's status and how people attend:
+
+```php
+use Hypervel\Head\Enums\EventAttendanceMode;
+use Hypervel\Head\Enums\EventStatus;
+use Hypervel\Head\Facades\Head;
+use Hypervel\Head\Facades\Schema;
+
+Head::schema(
+    Schema::event()
+        ->name('Community Workshop')
+        ->startDate($event->starts_at)
+        ->location(
+            Schema::place()->name('Community Center')->address([
+                '@type' => 'PostalAddress',
+                'streetAddress' => '123 Main Street',
+                'addressLocality' => 'Portland',
+                'addressRegion' => 'OR',
+                'postalCode' => '97201',
+                'addressCountry' => 'US',
+            ])
+        )
+        ->image($event->image_url)
+        ->eventStatus(EventStatus::Scheduled)
+        ->eventAttendanceMode(EventAttendanceMode::Offline)
+);
+```
+
+Passing a string to `location` creates a `Place` with that name. You may also pass another schema object, such as `Schema::virtualLocation()->url($event->stream_url)`. The `performer` method accepts a person, an organization, or a list of those builders, and `image` accepts a URL or a list of URLs.
+
+For raw values or shapes outside the typed helpers, every schema builder provides a `set` method. For example, `$eventSchema->set('location', [$place, $virtualLocation])` defines multiple locations, and `$eventSchema->set('location', 'Venue')` preserves a plain text location.
 
 <a name="breadcrumbs"></a>
 ### Breadcrumbs
