@@ -40,6 +40,7 @@ class HeadDataTest extends TestCase
     {
         $this->app->make(TagRegistry::class)->routeAttributeKeys();
         Head::extend(ReadingTime::class);
+        Head::extend(ReadingTime::class);
 
         Route::get('/article', fn (): string => Head::toHtml())
             ->withHead(extensions: ['readingTime' => 4]);

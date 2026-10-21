@@ -55,6 +55,10 @@ class TagRegistry
             throw new InvalidArgumentException('Built-in head tag builders are already registered.');
         }
 
+        if (in_array($builder, $this->extensions, true)) {
+            return $this;
+        }
+
         $duplicates = array_values(array_intersect($builder::routeAttributeKeys(), array_keys($this->routeAttributeKeys())));
 
         if ($duplicates !== []) {
@@ -64,10 +68,8 @@ class TagRegistry
             ));
         }
 
-        if (! in_array($builder, $this->extensions, true)) {
-            $this->extensions[] = $builder;
-            $this->routeAttributeKeys = null;
-        }
+        $this->extensions[] = $builder;
+        $this->routeAttributeKeys = null;
 
         return $this;
     }
