@@ -34,6 +34,7 @@
     - [JSON:API Resources](#jsonapi-resources)
     - [CSRF Protection](#csrf-protection)
     - [Fortify](#fortify)
+    - [Head](#head)
     - [Passport](#passport)
     - [Pennant](#pennant)
     - [Permission](#permission)
@@ -602,6 +603,11 @@ Replace references to Laravel's deprecated `VerifyCsrfToken` and `ValidateCsrfTo
 User models that use Fortify's `TwoFactorAuthenticatable` trait must also implement `Hypervel\Fortify\Contracts\TwoFactorAuthenticationUser`, or two-factor challenges will fail. See [two-factor authentication](/docs/{{version}}/fortify#two-factor-authentication).
 
 Fortify ignores Laravel's `fortify.passwords` setting. Declare the password reset broker with the guard's `passwords` key in `config/auth.php` instead. See [password resets](/docs/{{version}}/fortify#password-resets). Laravel's deprecated `Laravel\Fortify\Rules\Password` rule is not available; use `Hypervel\Validation\Rules\Password`.
+
+<a name="head"></a>
+### Head
+
+Head defaults, error definitions, and Inertia globals are shared for the worker lifetime. Register them during provider boot. Move request-dependent defaults and error definitions to `resolveDefaultsUsing()` and `resolveErrorsUsing()` so they read the current request when metadata is rendered. See [runtime defaults](/docs/{{version}}/head#runtime-defaults).
 
 <a name="passport"></a>
 ### Passport
