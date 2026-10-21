@@ -21,8 +21,10 @@ use Hypervel\Database\MultipleRecordsFoundException;
 use Hypervel\Database\RecordsNotFoundException;
 use Hypervel\Engine\Channel;
 use Hypervel\Foundation\Application;
+use Hypervel\Foundation\Configuration\Exceptions as ExceptionsConfiguration;
 use Hypervel\Foundation\Exceptions\Handler;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithExceptionHandling;
+use Hypervel\Http\Exceptions\HttpResponseException;
 use Hypervel\Http\RedirectResponse;
 use Hypervel\Http\Request;
 use Hypervel\RateLimiter\AdmissionPolicy;
@@ -1570,6 +1572,43 @@ class FoundationExceptionsHandlerTest extends TestCase
 
         $this->assertTrue($response->headers->has('X-After-Error'));
         $this->assertSame('true', $response->headers->get('X-After-Error'));
+    }
+
+    public function testBeforeRespondingObservesThePreparedResponseBeforeFinalCustomization(): void
+    {
+        $original = new SymfonyResponse('', 404);
+        $prepared = new SymfonyResponse('', 403);
+        $final = new SymfonyResponse('', 401);
+        $exception = new HttpResponseException($original);
+        $calls = [];
+
+        $this->handler->afterResponse(function (SymfonyResponse $response) use ($original, $prepared, &$calls): SymfonyResponse {
+            $this->assertSame($original, $response);
+            $calls[] = 'afterResponse';
+
+            return $prepared;
+        });
+
+        (new ExceptionsConfiguration($this->handler))->beforeResponding(
+            function (SymfonyResponse $response, Throwable $error, Request $request) use ($prepared, $exception, &$calls): SymfonyResponse {
+                $this->assertSame($prepared, $response);
+                $this->assertSame($exception, $error);
+                $this->assertSame($this->request, $request);
+                $calls[] = 'beforeResponding';
+
+                return new SymfonyResponse('', 500);
+            }
+        );
+
+        $this->handler->respondUsing(function (SymfonyResponse $response) use ($prepared, $final, &$calls): SymfonyResponse {
+            $this->assertSame($prepared, $response);
+            $calls[] = 'respondUsing';
+
+            return $final;
+        });
+
+        $this->assertSame($final, $this->handler->render($this->request, $exception));
+        $this->assertSame(['afterResponse', 'beforeResponding', 'respondUsing'], $calls);
     }
 
     protected function getConfig(array $config = []): Repository
