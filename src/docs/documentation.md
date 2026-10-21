@@ -102,6 +102,7 @@
     - [API Client](/docs/{{version}}/api-client)
     - [Fortify](/docs/{{version}}/fortify)
     - [gRPC](/docs/{{version}}/grpc)
+    - [Head](/docs/{{version}}/head)
     - [Horizon](/docs/{{version}}/horizon)
     - [Inertia](/docs/{{version}}/inertia)
     - [Nested Set](/docs/{{version}}/nested-set)

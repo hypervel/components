@@ -11,6 +11,7 @@ use Throwable;
 
 /**
  * @method static void afterResponse(callable $callback)
+ * @method static \Hypervel\Foundation\Exceptions\Handler beforeResponding(callable $callback)
  * @method static array<array-key, mixed> buildContextForException(Throwable $e)
  * @method static \Hypervel\Foundation\Exceptions\Handler buildContextUsing(\Closure $contextCallback)
  * @method static array contextForException(Throwable $e)

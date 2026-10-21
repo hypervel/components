@@ -334,6 +334,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         $this->flushAiState();
         $this->flushDataState();
         $this->flushFortifyState();
+        $this->flushHeadState();
         $this->flushHorizonState();
         $this->flushImageState();
         $this->flushInertiaState();
@@ -381,6 +382,16 @@ class AfterEachTestSubscriber implements FinishedSubscriber
     protected function flushFortifyState(): void
     {
         $this->callIfExists(\Hypervel\Fortify\Fortify::class, 'flushState');
+    }
+
+    /**
+     * Flush Head state.
+     */
+    protected function flushHeadState(): void
+    {
+        $this->callIfExists(\Hypervel\Head\Tags\Canonical::class, 'flushState');
+        $this->callIfExists(\Hypervel\Head\Schema\SchemaObject::class, 'flushState');
+        $this->callIfExists(\Hypervel\Head\HeadManager::class, 'flushMacros');
     }
 
     /**

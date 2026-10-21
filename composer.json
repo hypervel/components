@@ -177,6 +177,7 @@
         "hypervel/foundation": "self.version",
         "hypervel/grpc": "self.version",
         "hypervel/hashing": "self.version",
+        "hypervel/head": "self.version",
         "hypervel/horizon": "self.version",
         "hypervel/http": "self.version",
         "hypervel/http-server": "self.version",
@@ -266,6 +267,7 @@
             "Hypervel\\Foundation\\": "src/foundation/src/",
             "Hypervel\\Grpc\\": "src/grpc/src/",
             "Hypervel\\Hashing\\": "src/hashing/src/",
+            "Hypervel\\Head\\": "src/head/src/",
             "Hypervel\\Horizon\\": "src/horizon/src/",
             "Hypervel\\HttpServer\\": "src/http-server/src/",
             "Hypervel\\Http\\": "src/http/src/",
@@ -378,6 +380,7 @@
         "hypervel": {
             "aliases": {
                 "Feature": "Hypervel\\Pennant\\Feature",
+                "Head": "Hypervel\\Head\\Facades\\Head",
                 "Mcp": "Hypervel\\Mcp\\Facades\\Mcp",
                 "OpenTelemetry": "Hypervel\\OpenTelemetry\\Facades\\OpenTelemetry",
                 "Saloon": "Hypervel\\Saloon\\Facades\\Saloon",
@@ -401,6 +404,7 @@
                 "Hypervel\\Events\\EventServiceProvider",
                 "Hypervel\\Filesystem\\FilesystemServiceProvider",
                 "Hypervel\\Hashing\\HashingServiceProvider",
+                "Hypervel\\Head\\HeadServiceProvider",
                 "Hypervel\\Horizon\\HorizonServiceProvider",
                 "Hypervel\\Http\\HttpServiceProvider",
                 "Hypervel\\Image\\ImageServiceProvider",
