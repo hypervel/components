@@ -37,6 +37,7 @@ use PHPUnit\Framework\ExpectationFailedException;
 use stdClass;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Cookie;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Symfony\Component\HttpFoundation\StreamedJsonResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Symfony\Component\VarDumper\VarDumper;
@@ -3686,6 +3687,16 @@ EOT,
                 $this->assertStringContainsString('Invalid JSON was returned from the route.', $exception->getMessage());
             }
         }
+    }
+
+    public function testDecodeResponseJsonReportsInvalidJsonForAPlainSymfonyResponse(): void
+    {
+        $response = TestResponse::fromBaseResponse(new SymfonyResponse('invalid'));
+
+        $this->expectException(AssertionFailedError::class);
+        $this->expectExceptionMessageIs('Invalid JSON was returned from the route.');
+
+        $response->decodeResponseJson();
     }
 
     public function testDecodeResponseJsonPreservesTheStoredResponseException(): void

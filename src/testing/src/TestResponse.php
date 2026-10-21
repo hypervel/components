@@ -1111,8 +1111,8 @@ class TestResponse implements ArrayAccess
 
         // JSON permits only space, tab, line feed, and carriage return around a value.
         if ($decodedResponse === null && trim($content, " \t\n\r") !== 'null') {
-            if ($this->exception) {
-                throw $this->exception;
+            if ($exception = $this->exception ?? null) {
+                throw $exception;
             }
 
             PHPUnit::withResponse($this)->fail('Invalid JSON was returned from the route.');
