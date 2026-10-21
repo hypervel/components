@@ -4,16 +4,33 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Migrations;
 
+use Hypervel\Context\CoroutineContext;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface as Resolver;
 use Hypervel\Database\Query\Builder;
 
 class DatabaseMigrationRepository implements MigrationRepositoryInterface
 {
+    protected const string CONNECTION_CONTEXT_KEY_PREFIX = '__database.migration_repository.connection.';
+
     /**
      * The name of the database connection to use.
      */
-    protected ?string $connection = null;
+    protected ?string $connection {
+        get => Coroutine::inCoroutine()
+            ? CoroutineContext::get(self::CONNECTION_CONTEXT_KEY_PREFIX . spl_object_id($this))
+            : $this->nonCoroutineConnection;
+        set {
+            if (Coroutine::inCoroutine()) {
+                CoroutineContext::set(self::CONNECTION_CONTEXT_KEY_PREFIX . spl_object_id($this), $value);
+            } else {
+                $this->nonCoroutineConnection = $value;
+            }
+        }
+    }
+
+    private ?string $nonCoroutineConnection = null;
 
     /**
      * Create a new database migration repository instance.

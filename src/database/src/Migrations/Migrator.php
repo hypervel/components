@@ -14,6 +14,7 @@ use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Database\Events\MigrationEvent as MigrationEventContract;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Database\ConnectionResolverInterface as Resolver;
@@ -33,6 +34,8 @@ use ReflectionClass;
 
 class Migrator
 {
+    protected const string STATE_CONTEXT_KEY_PREFIX = '__database.migrator.';
+
     /**
      * The custom connection resolver callback.
      *
@@ -43,7 +46,12 @@ class Migrator
     /**
      * The name of the default connection.
      */
-    protected ?string $connection = null;
+    protected ?string $connection {
+        get => $this->currentState()?->connection;
+        set {
+            $this->state()->connection = $value;
+        }
+    }
 
     /**
      * The paths to all of the migration files.
@@ -62,7 +70,14 @@ class Migrator
     /**
      * The output interface implementation.
      */
-    protected ?OutputStyle $output = null;
+    protected ?OutputStyle $output {
+        get => $this->currentState()?->output;
+        set {
+            $this->state()->output = $value;
+        }
+    }
+
+    private ?MigratorState $nonCoroutineState = null;
 
     /**
      * The pending migrations to skip.
@@ -603,6 +618,8 @@ class Migrator
 
     /**
      * Register a custom migration path.
+     *
+     * Boot-only. Paths remain on the shared migrator and affect every subsequent run.
      */
     public function path(string $path): void
     {
@@ -755,9 +772,8 @@ class Migrator
      * swapped name is propagated via coroutine Context (so Schema/DB facade
      * calls during migration resolve correctly), via the repository source
      * (so the migrations table lands on the same target), and via the stored
-     * connection (so subsequent resolveConnection() calls use it). Uses
-     * CoroutineContext rather than $this->resolver->setDefaultConnection() so
-     * no worker-global state is mutated — concurrent coroutines are unaffected.
+     * connection (so subsequent resolveConnection() calls use it). The migrator
+     * and database repository keep this mutable state in the current coroutine.
      */
     public function setConnection(?string $name): void
     {
@@ -873,6 +889,36 @@ class Migrator
         $this->output = $output;
 
         return $this;
+    }
+
+    /**
+     * Get existing invocation state without allocating it.
+     */
+    private function currentState(): ?MigratorState
+    {
+        return Coroutine::inCoroutine()
+            ? CoroutineContext::get(self::STATE_CONTEXT_KEY_PREFIX . spl_object_id($this))
+            : $this->nonCoroutineState;
+    }
+
+    /**
+     * Get the current invocation's connection and output state.
+     */
+    private function state(): MigratorState
+    {
+        if (($state = $this->currentState()) !== null) {
+            return $state;
+        }
+
+        $state = new MigratorState;
+
+        if (Coroutine::inCoroutine()) {
+            CoroutineContext::set(self::STATE_CONTEXT_KEY_PREFIX . spl_object_id($this), $state);
+        } else {
+            $this->nonCoroutineState = $state;
+        }
+
+        return $state;
     }
 
     /**

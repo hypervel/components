@@ -43,10 +43,11 @@ class DatabaseMigratorIntegrationTest extends TestCase
         ]);
     }
 
-    protected function setUp(): void
+    /**
+     * Set up migration state in the test coroutine.
+     */
+    protected function setUpInCoroutine(): void
     {
-        parent::setUp();
-
         $databaseManager = $this->app->make('db');
 
         $this->migrator = new Migrator(
