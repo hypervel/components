@@ -324,11 +324,12 @@ class OpenGraph extends GroupedTagBuilder
     }
 
     /**
-     * Get the Open Graph properties, falling back to the page title and description.
+     * Get the Open Graph properties, falling back to the page title,
+     * description, and canonical URL.
      *
      * @return array<string, string>
      */
-    public function render(?string $title = null, ?string $description = null): array
+    public function render(?string $title = null, ?string $description = null, ?string $url = null): array
     {
         $properties = $this->properties;
 
@@ -338,6 +339,10 @@ class OpenGraph extends GroupedTagBuilder
 
         if ($description !== null && $description !== '' && ! isset($properties['description'])) {
             $properties['description'] = $description;
+        }
+
+        if ($url !== null && $url !== '' && ! isset($properties['url'])) {
+            $properties['url'] = $url;
         }
 
         return $properties;
@@ -360,7 +365,7 @@ class OpenGraph extends GroupedTagBuilder
      */
     public function toHeadArray(ResolvedHead $head): array
     {
-        return $this->headArray($head->title(), $head->description());
+        return $this->headArray($head->title(), $head->description(), $head->canonical());
     }
 
     /**
@@ -370,7 +375,7 @@ class OpenGraph extends GroupedTagBuilder
      */
     public function toTags(ResolvedHead $head, TagRenderer $tags): array
     {
-        $properties = $this->render($head->title(), $head->description());
+        $properties = $this->render($head->title(), $head->description(), $head->canonical());
         $propertyTags = array_map(
             fn (string $property, string $content): string => $tags->meta('property', 'og:' . $property, $content, 'og:' . $property),
             array_keys($properties),
@@ -390,10 +395,10 @@ class OpenGraph extends GroupedTagBuilder
      *
      * @return array<string, mixed>
      */
-    protected function headArray(?string $title = null, ?string $description = null): array
+    protected function headArray(?string $title = null, ?string $description = null, ?string $url = null): array
     {
         return array_filter([
-            ...$this->render($title, $description),
+            ...$this->render($title, $description, $url),
             'images' => array_values($this->images),
             'videos' => array_values($this->videos),
             'audios' => array_values($this->audios),

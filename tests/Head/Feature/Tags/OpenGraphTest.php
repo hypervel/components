@@ -81,6 +81,73 @@ class OpenGraphTest extends TestCase
         $this->assertStringContainsString('property="og:image" content="https://example.com/second.jpg">', $html);
     }
 
+    public function testFallsBackFromTheCanonicalUrlToTheOgUrl(): void
+    {
+        Head::canonical('https://example.com/about')->og();
+
+        $this->assertStringContainsString('<meta property="og:url" content="https://example.com/about">', Head::toHtml());
+    }
+
+    public function testResolvesADefaultOgUrlAgainstEachRequest(): void
+    {
+        Head::defaults(fn (HeadBuilder $head): HeadBuilder => $head->canonical()->og());
+
+        Route::get('/about', fn (): string => Head::toHtml());
+        Route::get('/contact', fn (): string => Head::toHtml());
+
+        $this->get('/about')
+            ->assertOk()
+            ->assertSee('<meta property="og:url" content="https://localhost/about">', false);
+
+        $this->get('/contact')
+            ->assertOk()
+            ->assertSee('<meta property="og:url" content="https://localhost/contact">', false);
+    }
+
+    public function testPrefersAnExplicitOgUrlOverTheCanonicalUrl(): void
+    {
+        Head::canonical('https://example.com/about')
+            ->og(url: 'https://example.com/about?utm_source=og');
+
+        $html = Head::toHtml();
+        $this->assertStringContainsString('<meta property="og:url" content="https://example.com/about?utm_source=og">', $html);
+        $this->assertStringNotContainsString('<meta property="og:url" content="https://example.com/about">', $html);
+    }
+
+    public function testDoesNotRenderAnOgUrlWhenNoCanonicalUrlIsSet(): void
+    {
+        Head::og(title: 'About');
+
+        $this->assertStringNotContainsString('og:url', Head::toHtml());
+    }
+
+    public function testDoesNotRenderOgFallbackTagsByDefault(): void
+    {
+        Head::canonical('https://example.com/about');
+
+        $this->assertStringNotContainsString('og:url', Head::toHtml());
+        $this->assertSame([], Head::toArray()['openGraph']);
+    }
+
+    public function testFallsBackToTheCanonicalUrlInTheHeadArray(): void
+    {
+        Head::canonical('https://example.com/about')->og();
+
+        $this->assertSame('https://example.com/about', Head::toArray()['openGraph']['url']);
+    }
+
+    public function testReplacesDefaultLayerOgImagesWithPageLevelOgImagesWhenTheDefaultsAreDefinedAcrossSeveralCalls(): void
+    {
+        Head::defaults(fn (HeadBuilder $head): HeadBuilder => $head->og(siteName: 'Acme'));
+        Head::defaults(fn (HeadBuilder $head): HeadBuilder => $head->ogImage('https://example.com/brand.png', alt: 'Brand card'));
+
+        Head::ogImage('https://example.com/product.jpg', alt: 'Product photo');
+
+        $html = Head::toHtml();
+        $this->assertStringContainsString('property="og:image" content="https://example.com/product.jpg">', $html);
+        $this->assertStringNotContainsString('https://example.com/brand.png', $html);
+    }
+
     public function testReplacesDefaultMediaIndependentlyAcrossRouteAndPageLayers(): void
     {
         Head::defaults(fn (HeadBuilder $head): HeadBuilder => $head
