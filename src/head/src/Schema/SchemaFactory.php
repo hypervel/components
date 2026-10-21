@@ -20,6 +20,7 @@ use ReflectionClass;
  * @method Person person()
  * @method WebPage webPage()
  * @method WebSite webSite()
+ * @method Place place()
  */
 class SchemaFactory
 {
@@ -43,6 +44,7 @@ class SchemaFactory
         $this->register(Person::class);
         $this->register(WebPage::class);
         $this->register(WebSite::class);
+        $this->register(Place::class);
     }
 
     /**

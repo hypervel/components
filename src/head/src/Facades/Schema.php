@@ -29,6 +29,7 @@ use Hypervel\Support\Facades\Facade;
  * @method static \Hypervel\Head\Schema\Offer offer()
  * @method static \Hypervel\Head\Schema\Organization organization()
  * @method static \Hypervel\Head\Schema\Person person()
+ * @method static \Hypervel\Head\Schema\Place place()
  * @method static \Hypervel\Head\Schema\Product product()
  * @method static \Hypervel\Head\Schema\WebPage webPage()
  * @method static \Hypervel\Head\Schema\WebSite webSite()
