@@ -18,6 +18,7 @@ This file is intentionally detailed because agents trained on Laravel will other
 
 When working on Hypervel, start from this frame:
 
+- **Development monorepo:** Applications install individual subtree-split packages, never `hypervel/components`. Root `composer.json` and `package.json` metadata is development-only. Determine installed-application behavior from the relevant package manifests and the application's dependencies and discovery settings.
 - Hypervel is Laravel-shaped at the API level.
 - Hypervel is not request-per-process PHP — workers are long-lived, and PHP state does not disappear after each request.
 - Singletons, static properties, manager registries, callbacks, config, and cached metadata can persist for the worker lifetime.
